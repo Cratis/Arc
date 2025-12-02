@@ -105,43 +105,6 @@ public class CommandPipeline(
         return result;
     }
 
-    (object? ResponseValue, IEnumerable<object> ValuesToHandle) ExtractValuesFromTuple(ITuple tuple, CommandContext commandContext)
-    {
-        var allValues = new List<object>();
-        for (var i = 0; i < tuple.Length; i++)
-        {
-            if (tuple[i] is not null)
-            {
-                allValues.Add(tuple[i]!);
-            }
-        }
-
-        var handledValues = new List<object>();
-        var unhandledValues = new List<object>();
-
-        foreach (var value in allValues)
-        {
-            if (CanHandleValue(value, commandContext))
-            {
-                handledValues.Add(value);
-            }
-            else
-            {
-                var unwrappedValue = UnwrapValue(value);
-                unhandledValues.Add(unwrappedValue);
-            }
-        }
-
-        if (unhandledValues.Count > 1)
-        {
-            throw new MultipleUnhandledTupleValues(unhandledValues);
-        }
-
-        var responseValue = unhandledValues.Count == 1 ? unhandledValues[0] : null;
-
-        return (responseValue, handledValues);
-    }
-
     object UnwrapValue(object value)
     {
         return value switch
@@ -210,20 +173,47 @@ public class CommandPipeline(
         CorrelationId correlationId,
         CommandResult result)
     {
-        var tupleResult = ExtractValuesFromTuple(tuple, commandContext);
+        var values = ExtractValuesFromTupleInOrder(tuple);
+        var unhandledValues = new List<object>();
 
-        if (tupleResult.ResponseValue is not null)
+        foreach (var value in values)
         {
-            commandContext = commandContext with { Response = tupleResult.ResponseValue };
-            result = CreateCommandResultWithResponse(correlationId, tupleResult.ResponseValue);
+            if (CanHandleValue(value, commandContext))
+            {
+                result.MergeWith(await HandleValue(value, commandContext));
+            }
+            else
+            {
+                var unwrappedValue = UnwrapValue(value);
+                if (commandContext.Response is null)
+                {
+                    commandContext = commandContext with { Response = unwrappedValue };
+                    result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
+                }
+                else
+                {
+                    unhandledValues.Add(unwrappedValue);
+                }
+            }
         }
 
-        foreach (var valueToHandle in tupleResult.ValuesToHandle)
+        if (unhandledValues.Count > 0)
         {
-            result.MergeWith(await HandleValue(valueToHandle, commandContext));
+            throw new MultipleUnhandledTupleValues([commandContext.Response!, .. unhandledValues]);
         }
 
         return (commandContext, result);
+    }
+
+    IEnumerable<object> ExtractValuesFromTupleInOrder(ITuple tuple)
+    {
+        for (var i = 0; i < tuple.Length; i++)
+        {
+            if (tuple[i] is not null)
+            {
+                yield return tuple[i]!;
+            }
+        }
     }
 
     async Task<(CommandContext CommandContext, CommandResult Result)> ProcessOneOfResponse(
