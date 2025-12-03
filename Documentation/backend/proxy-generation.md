@@ -55,6 +55,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 | `CratisProxiesSkipCommandNameInRoute` | `false` | When `true`, excludes the command name from the generated route for command endpoints |
 | `CratisProxiesSkipQueryNameInRoute` | `false` | When `true`, excludes the query name from the generated route for query endpoints |
 | `CratisProxiesApiPrefix` | `api` | The API prefix used in generated routes |
+| `CratisProxiesSkipFileIndexTracking` | `false` | When `true`, disables file index tracking for incremental cleanup |
 
 ### Namespace Segment Skipping
 
@@ -158,6 +159,50 @@ When set to `true`, the type names are excluded:
 ```
 
 This allows for more granular control over API route generation, which can be particularly useful when you want cleaner URLs for queries while keeping explicit command names.
+
+## File Index Tracking
+
+The proxy generator maintains a file index in a `.cratis` folder next to your `.csproj` file. This index tracks all generated files and enables intelligent cleanup of stale files when commands or queries are removed from your codebase.
+
+### How it Works
+
+1. **Index Storage**: A `GeneratedFileIndex.json` file is stored in the `.cratis` folder, containing a hierarchical representation of all generated files.
+
+2. **Incremental Cleanup**: When running proxy generation, the generator compares the current set of files to generate against the previous index. Any files that were previously generated but are no longer needed are automatically deleted.
+
+3. **Index.ts Updates**: When files are removed from a directory, the corresponding `index.ts` file is updated to reflect the remaining exports. If a directory becomes empty after cleanup, both the `index.ts` and the directory itself are removed.
+
+### Configuration
+
+File index tracking is enabled by default. To disable it:
+
+```xml
+<PropertyGroup>
+    <CratisProxiesSkipFileIndexTracking>true</CratisProxiesSkipFileIndexTracking>
+</PropertyGroup>
+```
+
+When using the CLI directly, use the `--skip-file-index-tracking` flag:
+
+```bash
+proxygenerator assembly.dll output-path --skip-file-index-tracking
+```
+
+You can also specify a custom project directory for the `.cratis` folder:
+
+```bash
+proxygenerator assembly.dll output-path --project-directory=/path/to/project
+```
+
+### Version Control
+
+Consider adding the `.cratis` folder to your `.gitignore` file, as it contains build-time tracking information that can be regenerated:
+
+```
+.cratis/
+```
+
+Alternatively, you may choose to commit this folder if you want to track the generated file history across team members.
 
 ## Frontend Prerequisites
 
