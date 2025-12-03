@@ -85,13 +85,7 @@ public static class Generator
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
         await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message);
 
-        foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
-        {
-            if (!typesInvolved.Contains(identityDetailsType))
-            {
-                typesInvolved.Add(identityDetailsType);
-            }
-        }
+        typesInvolved.AddRange(identityDetailsTypesProvider.IdentityDetailsTypes.Except(typesInvolved));
 
         typesInvolved = [.. typesInvolved.Distinct()];
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();

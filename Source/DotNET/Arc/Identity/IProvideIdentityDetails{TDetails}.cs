@@ -22,11 +22,10 @@ public interface IProvideIdentityDetails<TDetails> : IProvideIdentityDetails
 
     /// <inheritdoc/>
 #pragma warning disable CA1033 // Interface methods should be callable by child types - By design, this provides a default implementation wrapping the typed call
-    Task<IdentityDetails> IProvideIdentityDetails.Provide(IdentityProviderContext context)
+    async Task<IdentityDetails> IProvideIdentityDetails.Provide(IdentityProviderContext context)
     {
-        return ProvideDetails(context).ContinueWith(
-            task => new IdentityDetails(task.Result.IsUserAuthorized, task.Result.Details),
-            TaskScheduler.Default);
+        var result = await ProvideDetails(context);
+        return new IdentityDetails(result.IsUserAuthorized, result.Details);
     }
 #pragma warning restore CA1033
 }

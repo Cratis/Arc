@@ -48,9 +48,13 @@ public class IdentityDetailsTypesProvider
     {
         foreach (var @interface in type.GetInterfaces())
         {
-            if (@interface.IsGenericType && @interface.FullName?.StartsWith(ProvideIdentityDetailsGenericInterface) == true)
+            if (@interface.IsGenericType)
             {
-                return @interface.GetGenericArguments()[0];
+                var genericTypeDef = @interface.GetGenericTypeDefinition();
+                if (genericTypeDef.FullName == ProvideIdentityDetailsGenericInterface)
+                {
+                    return @interface.GetGenericArguments()[0];
+                }
             }
         }
 
