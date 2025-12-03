@@ -82,7 +82,7 @@ public static class Generator
 
         var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
 
-        message($"  Found {commands.Count} commands and {queries.Count} queries and {identityDetailsTypesProvider.IdentityDetailsTypes.Count()} identity details types");
+        message($"  Found {commands.Count} commands and {queries.Count} queries");
 
         if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
         if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
