@@ -8,7 +8,6 @@ public class with_simple_path : given.a_generated_file_index
     void Because() => _index.AddFile("folder/file.ts");
 
     [Fact] void should_contain_folder_entry() => _index.Entries.ContainsKey("folder").ShouldBeTrue();
-    [Fact] void should_mark_folder_as_not_file() => _index.Entries["folder"].IsFile.ShouldBeFalse();
-    [Fact] void should_contain_file_in_folder() => _index.Entries["folder"].Children!.ContainsKey("file.ts").ShouldBeTrue();
-    [Fact] void should_mark_file_as_file() => _index.Entries["folder"].Children!["file.ts"].IsFile.ShouldBeTrue();
+    [Fact] void should_have_folders_dictionary() => _index.Entries["folder"].Folders.ShouldNotBeNull();
+    [Fact] void should_contain_file_in_folder() => _index.Entries["folder"].Files!.ShouldContain("file.ts");
 }

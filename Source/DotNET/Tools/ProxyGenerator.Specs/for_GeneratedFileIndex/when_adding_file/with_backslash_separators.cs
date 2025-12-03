@@ -8,6 +8,6 @@ public class with_backslash_separators : given.a_generated_file_index
     void Because() => _index.AddFile("folder\\subfolder\\file.ts");
 
     [Fact] void should_contain_folder_entry() => _index.Entries.ContainsKey("folder").ShouldBeTrue();
-    [Fact] void should_contain_subfolder_in_folder() => _index.Entries["folder"].Children!.ContainsKey("subfolder").ShouldBeTrue();
-    [Fact] void should_contain_file_in_subfolder() => _index.Entries["folder"].Children!["subfolder"].Children!.ContainsKey("file.ts").ShouldBeTrue();
+    [Fact] void should_contain_subfolder_in_folder() => _index.Entries["folder"].Folders!.ContainsKey("subfolder").ShouldBeTrue();
+    [Fact] void should_contain_file_in_subfolder() => _index.Entries["folder"].Folders!["subfolder"].Files!.ShouldContain("file.ts");
 }
