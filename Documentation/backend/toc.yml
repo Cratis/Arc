@@ -15,7 +15,7 @@
 - name: Queries
   href: queries/toc.yml
 - name: Proxy Generation
-  href: proxy-generation.md
+  href: proxy-generation/toc.yml
 - name: Chronicle
   href: chronicle/toc.yml
 - name: Swagger

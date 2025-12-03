@@ -1,0 +1,14 @@
+- name: Overview
+  href: index.md
+- name: Getting Started
+  href: getting-started.md
+- name: Configuration
+  href: configuration.md
+- name: Commands
+  href: commands.md
+- name: Queries
+  href: queries.md
+- name: Identity Details
+  href: identity-details.md
+- name: File Index Tracking
+  href: file-index-tracking.md
