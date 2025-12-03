@@ -64,6 +64,8 @@ public static class Generator
         commands.AddRange(modelBoundArtifactsProvider.Commands);
         queries.AddRange(modelBoundArtifactsProvider.Queries);
 
+        var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
+
         message($"  Found {commands.Count} commands and {queries.Count} queries");
 
         if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
@@ -82,6 +84,14 @@ public static class Generator
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
         await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message);
+
+        foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
+        {
+            if (!typesInvolved.Contains(identityDetailsType))
+            {
+                typesInvolved.Add(identityDetailsType);
+            }
+        }
 
         typesInvolved = [.. typesInvolved.Distinct()];
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
