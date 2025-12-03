@@ -9,7 +9,10 @@
         <PackageVersion Update="Microsoft.Extensions.Logging" Version="9.0.11" />
         <PackageVersion Update="Microsoft.Extensions.DependencyModel" Version="9.0.11" />
         <PackageVersion Update="System.Reflection.MetadataLoadContext" Version="9.0.11" />
-        <PackageVersion Update="System.Text.Json" Version="9.0.11" />
+        <!-- Cratis.Chronicle 14.12.4 has a bug where it requires System.Text.Json 10.0.0 for all TFMs.
+             This causes NSubstitute/Castle.DynamicProxy failures in tests when 9.x version is used.
+             Only apply the 9.x override for non-test projects. -->
+        <PackageVersion Update="System.Text.Json" Version="9.0.11" Condition="'$(IsTestProject)' != 'true'" />
         <PackageVersion Update="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.11" />
         <PackageVersion Update="Microsoft.Extensions.Telemetry" Version="9.10.0" />
         <PackageVersion Update="Microsoft.Extensions.Hosting" Version="9.0.11" />       
