@@ -95,6 +95,17 @@ public class ParameterizedReadModel
                 Category = category
             });
     }
+
+    /// <summary>
+    /// Gets items for a specific category filtered by name.
+    /// </summary>
+    /// <param name="category">The category filter.</param>
+    /// <param name="name">The name filter.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<ParameterizedReadModel> GetItemsInCategory(string category, string name) =>
+    [
+        new ParameterizedReadModel { Id = Guid.NewGuid(), Name = name, Category = category }
+    ];
 }
 
 /// <summary>

@@ -1,29 +1,8 @@
-# Proxy Generation
+# Configuration
 
-Cratis Arc includes a powerful proxy generation tool that automatically creates TypeScript proxies for your commands and queries during the build process. This eliminates the need to manually write frontend integration code or consult Swagger documentation, as the proxies provide compile-time type safety and intellisense support.
+Configure the proxy generator by adding MSBuild properties to your `.csproj` file.
 
-## Overview
-
-The proxy generator runs as part of your build process using the C# Roslyn compiler's code generator extensibility. It analyzes your compiled assemblies and generates TypeScript representations for:
-
-- **Commands**: HTTP POST operations on controllers
-- **Queries**: HTTP GET operations on controllers that return data
-
-## Package Dependency
-
-To enable proxy generation, add a reference to the [Cratis.Arc.ProxyGenerator.Build](https://www.nuget.org/packages/Cratis.Arc.ProxyGenerator.Build/) NuGet package to your project:
-
-```xml
-<PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="1.0.0" />
-```
-
-> **Important**: All projects that contain controllers (commands or queries) should reference this package, as the proxy generation runs as part of the compilation process.
-
-## Configuration
-
-Configure the proxy generator by adding MSBuild properties to your `.csproj` file:
-
-### Required Configuration
+## Required Configuration
 
 ```xml
 <PropertyGroup>
@@ -33,7 +12,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 
 - `CratisProxiesOutputPath`: Specifies where the generated TypeScript files will be written. This should typically point to your frontend project directory.
 
-### Optional Configuration
+## Optional Configuration
 
 ```xml
 <PropertyGroup>
@@ -42,10 +21,11 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
     <CratisProxiesSkipCommandNameInRoute>false</CratisProxiesSkipCommandNameInRoute>
     <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>
     <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
+    <CratisProxiesSkipFileIndexTracking>false</CratisProxiesSkipFileIndexTracking>
 </PropertyGroup>
 ```
 
-#### Configuration Options
+## Configuration Options Reference
 
 | Property | Default | Description |
 |----------|---------|-------------|
@@ -55,8 +35,9 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 | `CratisProxiesSkipCommandNameInRoute` | `false` | When `true`, excludes the command name from the generated route for command endpoints |
 | `CratisProxiesSkipQueryNameInRoute` | `false` | When `true`, excludes the query name from the generated route for query endpoints |
 | `CratisProxiesApiPrefix` | `api` | The API prefix used in generated routes |
+| `CratisProxiesSkipFileIndexTracking` | `false` | When `true`, disables file index tracking for incremental cleanup |
 
-### Namespace Segment Skipping
+## Namespace Segment Skipping
 
 The `CratisProxiesSegmentsToSkip` property is particularly useful in multi-project solutions with consistent naming conventions.
 
@@ -94,46 +75,7 @@ Read/
     └── queries/
 ```
 
-## Generated Output Structure
-
-The proxy generator maintains the folder structure based on your C# namespaces (after applying segment skipping). For each directory containing generated files, an `index.ts` file is automatically created that exports all the generated artifacts.
-
-### Commands
-
-Commands are generated from HTTP POST controller actions. The generator looks for:
-
-- Methods marked with `[HttpPost]`
-- Parameters marked with `[FromBody]`, `[FromRoute]`, or `[FromQuery]`
-
-Generated command classes:
-
-- Extend the `Command` base class from `@cratis/arc/commands`
-- Include all properties from route parameters, query parameters, and body content
-- Provide a static `use()` method for React hook integration
-
-### Queries
-
-Queries are generated from HTTP GET controller actions. The generator supports:
-
-- Single model queries: Return a single object
-- Enumerable queries: Return an array of objects
-- Observable queries: Support real-time updates via WebSockets
-
-Generated query classes provide:
-
-- Type-safe parameter handling
-- React hooks for integration (`useQuery`)
-- Observable query support for real-time data
-
-### Types and Enums
-
-The generator also creates TypeScript representations for:
-
-- Complex types used in command/query parameters or return values
-- Enumerations used in your domain models
-- Proper import statements and module resolution
-
-### Route Name Configuration
+## Route Name Configuration
 
 The `CratisProxiesSkipCommandNameInRoute` and `CratisProxiesSkipQueryNameInRoute` properties allow you to control whether the command or query type names are included in the generated routes.
 
@@ -158,83 +100,6 @@ When set to `true`, the type names are excluded:
 ```
 
 This allows for more granular control over API route generation, which can be particularly useful when you want cleaner URLs for queries while keeping explicit command names.
-
-## Frontend Prerequisites
-
-The generated proxies depend on the [@cratis/arc](https://www.npmjs.com/package/@cratis/arc) NPM package. Install it in your frontend project:
-
-```bash
-npm install @cratis/arc
-```
-
-## Build Integration
-
-The proxy generation runs automatically during the build process through the `CratisProxyGenerator` MSBuild target, which executes after the `AfterBuild` target. The generator:
-
-1. Loads your compiled assembly
-2. Discovers controllers and their actions
-3. Analyzes command and query patterns
-4. Generates TypeScript proxies with proper typing
-5. Creates index files for easy importing
-6. Maintains the folder structure based on namespaces
-
-## Excluding controller based Commands and Queries
-
-To exclude specific commands or queries from proxy generation, mark them with the `[AspNetResult]` attribute:
-
-```csharp
-[HttpPost]
-[AspNetResult]
-public IActionResult MyExcludedCommand([FromBody] MyCommand command)
-{
-    // This won't generate a proxy
-    return Ok();
-}
-```
-
-## Example Usage
-
-### Backend Controller
-
-```csharp
-[Route("/api/accounts")]
-public class AccountsController : Controller
-{
-    [HttpPost]
-    public Task CreateAccount([FromBody] CreateAccount command)
-    {
-        // Command implementation
-    }
-
-    [HttpGet]
-    public IEnumerable<Account> GetAccounts([FromQuery] string? filter = null)
-    {
-        // Query implementation
-    }
-}
-```
-
-### Generated Frontend Proxies
-
-The above controller would generate:
-
-```typescript
-// commands/CreateAccount.ts
-export class CreateAccount extends Command<ICreateAccount> {
-    // Auto-generated properties and methods
-    static use(initialValues?: ICreateAccount): [CreateAccount, SetCommandValues<ICreateAccount>] {
-        return useCommand<CreateAccount, ICreateAccount>(CreateAccount, initialValues);
-    }
-}
-
-// queries/GetAccounts.ts  
-export class GetAccounts extends QueryFor<Account[]> {
-    // Auto-generated query implementation
-    static use(args?: IGetAccountsParameters): QueryResultWithState<Account[]> {
-        return useQuery<Account[], IGetAccountsParameters>(GetAccounts, args);
-    }
-}
-```
 
 ## Advanced Configuration
 

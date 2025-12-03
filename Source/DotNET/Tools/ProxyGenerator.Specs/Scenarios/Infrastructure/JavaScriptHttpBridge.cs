@@ -154,7 +154,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
         var queryResult = JsonSerializer.Deserialize<Queries.QueryResult>(resultJson, _jsonOptions);
 
-        return new QueryExecutionResult<TResult>(queryResult, result.ResponseJson);
+        return new QueryExecutionResult<TResult>(queryResult, result.ResponseJson, result.Url);
     }
 
     /// <inheritdoc/>
@@ -262,4 +262,5 @@ public record CommandExecutionResult<TResult>(Commands.CommandResult<TResult>? R
 /// <typeparam name="TResult">The type of the data.</typeparam>
 /// <param name="Result">The query result.</param>
 /// <param name="RawJson">The raw JSON response.</param>
-public record QueryExecutionResult<TResult>(Queries.QueryResult? Result, string RawJson);
+/// <param name="RequestUrl">The URL that was requested.</param>
+public record QueryExecutionResult<TResult>(Queries.QueryResult? Result, string RawJson, string RequestUrl);

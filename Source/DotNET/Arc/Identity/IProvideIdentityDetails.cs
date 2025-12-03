@@ -18,3 +18,10 @@ public interface IProvideIdentityDetails
     /// </remarks>
     Task<IdentityDetails> Provide(IdentityProviderContext context);
 }
+
+/// <summary>
+/// Represents a wrapper interface for providers of strongly-typed identity details to capture type details of the details provided.
+/// </summary>
+/// <typeparam name="TDetails">The type of details to provide.</typeparam>
+public interface IProvideIdentityDetails<TDetails> : IProvideIdentityDetails
+    where TDetails : class;

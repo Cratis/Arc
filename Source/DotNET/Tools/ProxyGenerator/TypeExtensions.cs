@@ -76,6 +76,12 @@ public static class TypeExtensions
 
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
 
+    static readonly HashSet<string> _wellKnownTypeNames =
+    [
+        "Cratis.Arc.Validation.ValidationResult",
+        "Cratis.Arc.Authorization.AuthorizationResult"
+    ];
+
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
 
@@ -660,10 +666,18 @@ public static class TypeExtensions
     }
 
     /// <summary>
+    /// Check if a type is a well-known type that should be ignored as a response type.
+    /// </summary>
+    /// <param name="type"><see cref="Type"/> to check.</param>
+    /// <returns>True if the type is a well-known type to be ignored, false otherwise.</returns>
+    public static bool IsWellKnownType(this Type type) =>
+        type.FullName is not null && _wellKnownTypeNames.Contains(type.FullName);
+
+    /// <summary>
     /// Get the best type from a tuple by selecting either a ConceptAs implementation or a primitive type.
     /// </summary>
     /// <param name="type">Tuple <see cref="Type"/> to inspect.</param>
-    /// <returns>The best type found, or the first generic argument if none match the criteria.</returns>
+    /// <returns>The best type found, or the original tuple type if none match the criteria.</returns>
     public static Type GetBestTupleType(this Type type)
     {
         if (!type.IsGenericType || !type.FullName!.StartsWith("System.ValueTuple"))
@@ -671,7 +685,11 @@ public static class TypeExtensions
             return type;
         }
 
-        var genericArguments = type.GetGenericArguments();
+        var genericArguments = type.GetGenericArguments().Where(t => !t.IsWellKnownType()).ToArray();
+        if (genericArguments.Length == 0)
+        {
+            return type;
+        }
 
         var conceptType = genericArguments.FirstOrDefault(t => t.IsConcept());
         if (conceptType is not null)
@@ -702,7 +720,7 @@ public static class TypeExtensions
         foreach (var arg in genericArguments)
         {
             var unwrappedType = UnwrapType(arg);
-            if (unwrappedType is not null)
+            if (unwrappedType?.IsWellKnownType() == false)
             {
                 candidateTypes.Add(unwrappedType);
             }
