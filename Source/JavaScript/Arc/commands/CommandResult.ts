@@ -4,6 +4,7 @@
 import { Guid } from '@cratis/fundamentals';
 import { ICommandResult } from './ICommandResult';
 import { ValidationResult } from '../validation/ValidationResult';
+import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 
 /**
@@ -79,6 +80,26 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
             hasExceptions: true,
             validationResults: [],
             exceptionMessages: exceptionMessages,
+            exceptionStackTrace: '',
+            authorizationFailureReason: '',
+            response: null
+        }, Object, false);
+    };
+
+    static validationFailed = (validationResults: ValidationResult[]): CommandResult => {
+        return new CommandResult({
+            correlationId: Guid.empty.toString(),
+            isSuccess: false,
+            isAuthorized: true,
+            isValid: false,
+            hasExceptions: false,
+            validationResults: validationResults.map(_ => ({
+                severity: _.severity,
+                message: _.message,
+                members: _.members,
+                state: _.state
+            })),
+            exceptionMessages: [],
             exceptionStackTrace: '',
             authorizationFailureReason: '',
             response: null

@@ -14,6 +14,7 @@ describe("when executing with custom http headers", given(class {
         this.command.route = '/test-route';
         this.command.setOrigin('http://localhost');
         this.command.setApiBasePath('/api');
+        this.command.someProperty = 'test-value';
         this.command.setHttpHeadersCallback(() => ({
             'X-Custom-Header': 'custom-value',
             'Authorization': 'Bearer token123'
