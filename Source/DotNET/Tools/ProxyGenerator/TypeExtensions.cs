@@ -76,7 +76,7 @@ public static class TypeExtensions
 
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
 
-    static readonly string[] _wellKnownTypeNames =
+    static readonly HashSet<string> _wellKnownTypeNames =
     [
         "Cratis.Arc.Validation.ValidationResult",
         "Cratis.Arc.Authorization.AuthorizationResult"
