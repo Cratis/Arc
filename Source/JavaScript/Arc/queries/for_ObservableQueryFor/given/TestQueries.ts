@@ -56,3 +56,27 @@ export class TestObservableQueryWithParameterDescriptorValues extends Observable
         super(String as Constructor, false);
     }
 }
+
+export interface TestQueryWithRouteAndQueryArgsParameters {
+    id: string;
+    filter: string;
+    limit: number;
+}
+
+export class TestObservableQueryWithRouteAndQueryArgs extends ObservableQueryFor<string, TestQueryWithRouteAndQueryArgsParameters> {
+    readonly route = '/api/items/{id}';
+    readonly defaultValue = '';
+    readonly parameterDescriptors: ParameterDescriptor[] = [
+        new ParameterDescriptor('id', String as Constructor),
+        new ParameterDescriptor('filter', String as Constructor),
+        new ParameterDescriptor('limit', Number as Constructor)
+    ];
+
+    get requiredRequestParameters(): string[] {
+        return ['id'];
+    }
+
+    constructor() {
+        super(String as Constructor, false);
+    }
+}

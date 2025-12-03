@@ -83,8 +83,6 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
     /** @inheritdoc */
     subscribe(callback: OnNextResult<QueryResult<TDataType>>, args?: TParameters): ObservableQuerySubscription<TDataType> {
-        const connectionQueryArguments: any = this.buildQueryArguments();
-
         if (this._connection) {
             this._connection.disconnect();
         }
@@ -92,10 +90,20 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
         if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
         } else {
-            const actualRoute = this.buildRoute(args);
+            const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
+            const actualRoute = joinPaths(this._apiBasePath, route);
             const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
             this._connection = new ObservableQueryConnection<TDataType>(url, this._microservice);
         }
+
+        // Build query arguments including unused args parameters, parameter descriptor values, and paging/sorting
+        const parameterValues = ParametersHelper.collectParameterValues(this);
+        const { unusedParameters } = UrlHelpers.replaceRouteParameters(this.route, args as object);
+        const connectionQueryArguments: any = {
+            ...unusedParameters,
+            ...parameterValues,
+            ...this.buildQueryArguments()
+        };
 
         const subscriber = new ObservableQuerySubscription(this._connection);
         this._connection.connect(data => {
