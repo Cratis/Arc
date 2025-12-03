@@ -107,7 +107,7 @@ public static class FileCleanup
 
         var exports = files
             .Select(f => $"./{Path.GetFileNameWithoutExtension(f)}")
-            .OrderBy(e => e.Split('/')[^1])
+            .OrderBy(Path.GetFileName)
             .ToList();
 
         var content = string.Join(Environment.NewLine, exports.Select(e => $"export * from '{e}';")) + Environment.NewLine;

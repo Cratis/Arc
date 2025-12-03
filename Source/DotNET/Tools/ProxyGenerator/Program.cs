@@ -14,7 +14,7 @@ if (args.Length < 2)
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
 var outputPath = Normalize(Path.GetFullPath(args[1]));
-var segmentsToSkip = args.Length > 2 && !args[2].StartsWith("--") ? int.Parse(args[2]) : 0;
+var segmentsToSkip = args.Length > 2 && !args[2].StartsWith("--") && int.TryParse(args[2], out var segments) ? segments : 0;
 var skipOutputDeletion = args.Any(_ => _ == "--skip-output-deletion");
 var skipCommandNameInRoute = args.Any(_ => _ == "--skip-command-name-in-route");
 var skipQueryNameInRoute = args.Any(_ => _ == "--skip-query-name-in-route");
