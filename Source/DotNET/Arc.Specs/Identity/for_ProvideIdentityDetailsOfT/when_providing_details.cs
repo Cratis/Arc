@@ -9,9 +9,9 @@ public class when_providing_details : Specification
 
     class MyTypedProvider : IProvideIdentityDetails<MyDetails>
     {
-        public Task<IdentityDetails<MyDetails>> ProvideDetails(IdentityProviderContext context)
+        public Task<IdentityDetails> Provide(IdentityProviderContext context)
         {
-            return Task.FromResult(new IdentityDetails<MyDetails>(true, new MyDetails("John", 30)));
+            return Task.FromResult(new IdentityDetails(true, new MyDetails("John", 30)));
         }
     }
 
@@ -28,7 +28,7 @@ public class when_providing_details : Specification
             []);
     }
 
-    async Task Because() => _result = await ((IProvideIdentityDetails)_provider).Provide(_context);
+    async Task Because() => _result = await _provider.Provide(_context);
 
     [Fact] void should_indicate_user_is_authorized() => _result.IsUserAuthorized.ShouldBeTrue();
     [Fact] void should_contain_typed_details() => _result.Details.ShouldBeOfExactType<MyDetails>();

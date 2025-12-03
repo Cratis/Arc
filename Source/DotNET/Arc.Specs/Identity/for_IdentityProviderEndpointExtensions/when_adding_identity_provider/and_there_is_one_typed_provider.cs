@@ -9,10 +9,10 @@ public class and_there_is_one_typed_provider : Specification
 {
     record MyDetails(string Name, int Age);
 
-    class MyTypedIdentityProvider : IProvideIdentityDetails<MyDetails>
+    class MyTypedIdentityProvider : IProvideIdentityDetails
     {
-        public Task<IdentityDetails<MyDetails>> ProvideDetails(IdentityProviderContext context)
-            => Task.FromResult(new IdentityDetails<MyDetails>(true, new MyDetails("John", 30)));
+        public Task<IdentityDetails> Provide(IdentityProviderContext context)
+            => Task.FromResult(new IdentityDetails(true, new MyDetails("John", 30)));
     }
 
     IServiceCollection _services;
