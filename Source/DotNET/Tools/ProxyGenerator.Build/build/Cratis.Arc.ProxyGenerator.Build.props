@@ -7,5 +7,6 @@
         <CratisProxiesSkipCommandNameInRoute>false</CratisProxiesSkipCommandNameInRoute>
         <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>
         <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
+        <CratisProxiesSkipFileIndexTracking>false</CratisProxiesSkipFileIndexTracking>
     </PropertyGroup>
 </Project>
