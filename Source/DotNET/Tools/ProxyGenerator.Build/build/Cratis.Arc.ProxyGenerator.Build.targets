@@ -29,10 +29,11 @@
             <SkipCommandNameInRoute Condition=" '$(CratisProxiesSkipCommandNameInRoute)' == 'true' ">--skip-command-name-in-route</SkipCommandNameInRoute>
             <SkipQueryNameInRoute Condition=" '$(CratisProxiesSkipQueryNameInRoute)' == 'true' ">--skip-query-name-in-route</SkipQueryNameInRoute>
             <ApiPrefix Condition=" '$(CratisProxiesApiPrefix)' != '' ">--api-prefix=$(CratisProxiesApiPrefix)</ApiPrefix>
+            <SkipFileIndexTracking Condition=" '$(CratisProxiesSkipFileIndexTracking)' == 'true' ">--skip-file-index-tracking</SkipFileIndexTracking>
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true" 
-            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix)"
+            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; $(SkipFileIndexTracking)"
             WorkingDirectory="$(CratisProxyGeneratorAssemblyDirectory)" />
     </Target>
 </Project>

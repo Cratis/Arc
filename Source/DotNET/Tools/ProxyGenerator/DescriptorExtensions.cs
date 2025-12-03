@@ -23,6 +23,7 @@ public static class DescriptorExtensions
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="typeNameToEcho">The type name to echo for statistics.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
+    /// <param name="fileIndex">Optional file index to track generated files.</param>
     /// <returns>Awaitable task.</returns>
     public static async Task Write(
         this IEnumerable<IDescriptor> descriptors,
@@ -32,7 +33,8 @@ public static class DescriptorExtensions
         IList<string> directories,
         int segmentsToSkip,
         string typeNameToEcho,
-        Action<string> message)
+        Action<string> message,
+        GeneratedFileIndex? fileIndex = null)
     {
         var stopwatch = Stopwatch.StartNew();
         foreach (var descriptor in descriptors)
@@ -49,6 +51,13 @@ public static class DescriptorExtensions
 
             var proxyContent = template(descriptor);
             await File.WriteAllTextAsync(fullPath, proxyContent);
+
+            // Track the generated file in the index
+            if (fileIndex is not null)
+            {
+                var relativePath = Path.GetRelativePath(targetPath, fullPath);
+                fileIndex.AddFile(relativePath);
+            }
         }
 
         foreach (var type in descriptors.SelectMany(_ => _.TypesInvolved))
