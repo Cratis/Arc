@@ -101,7 +101,6 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     {{/Properties}}
 
     static use(initialValues?: I{{Name}}): [{{Name}}, SetCommandValues<I{{Name}}>, ClearCommandValues] {
-        // @ts-expect-error TS2344 Type argument '{{Name}}' does not satisfy the constraint 'Command<I{{Name}}, any>'.
         return useCommand<{{Name}}, I{{Name}}>({{Name}}, initialValues);
     }
 }
