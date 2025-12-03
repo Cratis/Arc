@@ -101,6 +101,8 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     {{/Properties}}
 
     static use(initialValues?: I{{Name}}): [{{Name}}, SetCommandValues<I{{Name}}>, ClearCommandValues] {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
         return useCommand<{{Name}}, I{{Name}}>({{Name}}, initialValues);
     }
 }
