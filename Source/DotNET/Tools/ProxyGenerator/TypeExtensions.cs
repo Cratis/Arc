@@ -677,7 +677,7 @@ public static class TypeExtensions
     /// Get the best type from a tuple by selecting either a ConceptAs implementation or a primitive type.
     /// </summary>
     /// <param name="type">Tuple <see cref="Type"/> to inspect.</param>
-    /// <returns>The best type found, or the first generic argument if none match the criteria.</returns>
+    /// <returns>The best type found, or the original tuple type if none match the criteria.</returns>
     public static Type GetBestTupleType(this Type type)
     {
         if (!type.IsGenericType || !type.FullName!.StartsWith("System.ValueTuple"))
@@ -688,7 +688,7 @@ public static class TypeExtensions
         var genericArguments = type.GetGenericArguments().Where(t => !t.IsWellKnownType()).ToArray();
         if (genericArguments.Length == 0)
         {
-            return type.GetGenericArguments()[0];
+            return type;
         }
 
         var conceptType = genericArguments.FirstOrDefault(t => t.IsConcept());
