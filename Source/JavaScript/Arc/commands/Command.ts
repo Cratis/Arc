@@ -10,6 +10,8 @@ import { joinPaths } from '../joinPaths';
 import { UrlHelpers } from '../UrlHelpers';
 import { GetHttpHeaders } from '../GetHttpHeaders';
 import { PropertyDescriptor } from '../reflection/PropertyDescriptor';
+import { ValidationResult } from '../validation/ValidationResult';
+import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
 
 type Callback = {
     callback: WeakRef<PropertyChanged>;
@@ -68,6 +70,11 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     async execute(): Promise<CommandResult<TCommandResponse>> {
+        const validationErrors = this.validateRequiredProperties();
+        if (validationErrors.length > 0) {
+            return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
+        }
+
         let actualRoute = this.route;
 
         if (this.requestParameters && this.requestParameters.length > 0) {
@@ -93,6 +100,22 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             payload[property] = this[property];
         });
         return payload;
+    }
+
+    private validateRequiredProperties(): ValidationResult[] {
+        const validationErrors: ValidationResult[] = [];
+        this.properties.forEach(property => {
+            const value = this[property];
+            if (value === undefined || value === null || value === '') {
+                validationErrors.push(new ValidationResult(
+                    ValidationResultSeverity.Error,
+                    `${property} is required`,
+                    [property],
+                    null
+                ));
+            }
+        });
+        return validationErrors;
     }
 
     private buildHeaders(): HeadersInit {

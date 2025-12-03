@@ -113,19 +113,55 @@ public class GeneratedFileIndex
         var name = parts[index];
         var isFile = index == parts.Length - 1;
 
-        if (!entries.TryGetValue(name, out var entry))
+        if (isFile)
         {
-            entry = new FileIndexEntry
+            var folderName = parts.Length > 1 ? parts[index - 1] : string.Empty;
+            if (string.IsNullOrEmpty(folderName))
             {
-                IsFile = isFile,
-                Children = isFile ? null : new Dictionary<string, FileIndexEntry>()
-            };
-            entries[name] = entry;
-        }
+                return;
+            }
 
-        if (!isFile && entry.Children is not null)
+            if (entries.TryGetValue(folderName, out var parentEntry))
+            {
+                parentEntry.Files ??= [];
+                if (!parentEntry.Files.Contains(name))
+                {
+                    parentEntry.Files.Add(name);
+                }
+            }
+        }
+        else
         {
-            AddToEntries(entry.Children, parts, index + 1);
+            if (!entries.TryGetValue(name, out var entry))
+            {
+                entry = new FileIndexEntry
+                {
+                    Folders = new Dictionary<string, FileIndexEntry>()
+                };
+                entries[name] = entry;
+            }
+
+            entry.Folders ??= new Dictionary<string, FileIndexEntry>();
+
+            var nextIndex = index + 1;
+            if (nextIndex < parts.Length)
+            {
+                var nextName = parts[nextIndex];
+                var nextIsFile = nextIndex == parts.Length - 1;
+
+                if (nextIsFile)
+                {
+                    entry.Files ??= [];
+                    if (!entry.Files.Contains(nextName))
+                    {
+                        entry.Files.Add(nextName);
+                    }
+                }
+                else
+                {
+                    AddToEntries(entry.Folders, parts, nextIndex);
+                }
+            }
         }
     }
 
@@ -135,14 +171,17 @@ public class GeneratedFileIndex
         {
             var currentPath = string.IsNullOrEmpty(basePath) ? name : $"{basePath}/{name}";
 
-            if (entry.IsFile)
+            if (entry.Files is not null)
             {
-                yield return currentPath;
+                foreach (var file in entry.Files)
+                {
+                    yield return $"{currentPath}/{file}";
+                }
             }
 
-            if (entry.Children is not null)
+            if (entry.Folders is not null)
             {
-                foreach (var file in GetFilesRecursive(entry.Children, currentPath))
+                foreach (var file in GetFilesRecursive(entry.Folders, currentPath))
                 {
                     yield return file;
                 }

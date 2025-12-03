@@ -11,13 +11,14 @@ namespace Cratis.Arc.ProxyGenerator;
 public class FileIndexEntry
 {
     /// <summary>
-    /// Gets or sets a value indicating whether this entry is a file.
-    /// </summary>
-    public bool IsFile { get; set; }
-
-    /// <summary>
-    /// Gets or sets the child entries. Null for files.
+    /// Gets or sets the sub-folders within this entry.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IDictionary<string, FileIndexEntry>? Children { get; set; }
+    public IDictionary<string, FileIndexEntry>? Folders { get; set; }
+
+    /// <summary>
+    /// Gets or sets the files within this entry.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IList<string>? Files { get; set; }
 }

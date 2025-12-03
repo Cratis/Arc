@@ -16,6 +16,7 @@ describe("when executing with microservice header", given(class {
         this.command.route = '/test-route';
         this.command.setOrigin('http://localhost');
         this.command.setApiBasePath('/api');
+        this.command.someProperty = 'test-value';
         this.command.setMicroservice('my-microservice');
         this.fetchStub = sinon.stub(globalThis, 'fetch');
         this.originalMicroserviceHeader = Globals.microserviceHttpHeader;

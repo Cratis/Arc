@@ -13,6 +13,7 @@ export class a_command {
         this.command.route = '/test-route';
         this.command.setOrigin('http://localhost');
         this.command.setApiBasePath('/api');
+        this.command.someProperty = 'test-value';
         this.fetchStub = sinon.stub(globalThis, 'fetch');
     }
 }

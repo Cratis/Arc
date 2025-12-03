@@ -14,6 +14,7 @@ describe("when executing with origin and api base path", given(class {
         this.command.route = '/items';
         this.command.setOrigin('https://api.example.com');
         this.command.setApiBasePath('/api/v1');
+        this.command.someProperty = 'test-value';
         this.fetchStub = sinon.stub(globalThis, 'fetch');
     }
 }, context => {
