@@ -29,4 +29,10 @@ internal static partial class DbSetObserveExtensionsLogMessages
 
     [LoggerMessage(LogLevel.Warning, "Unexpected error occurred during observation")]
     internal static partial void UnexpectedError(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "Database notifier started for entity type {EntityType}")]
+    internal static partial void DatabaseNotifierStarted(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
+
+    [LoggerMessage(LogLevel.Warning, "Failed to start database notifier for entity type {EntityType}, falling back to in-process only")]
+    internal static partial void DatabaseNotifierFailed(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType, Exception ex);
 }

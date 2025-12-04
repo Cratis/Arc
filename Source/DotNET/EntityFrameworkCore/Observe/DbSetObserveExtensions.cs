@@ -8,6 +8,7 @@ using Cratis.Arc;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -115,11 +116,19 @@ public static class DbSetObserveExtensions
         var subject = createSubject([]);
         var logger = Internals.ServiceProvider.GetRequiredService<ILogger<DbSetObserver>>();
         var changeTracker = Internals.ServiceProvider.GetRequiredService<IEntityChangeTracker>();
+        var notifierFactory = Internals.ServiceProvider.GetRequiredService<IDatabaseChangeNotifierFactory>();
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
         var queryContext = queryContextManager.Current;
 
         var idProperty = GetIdProperty<TEntity>(dbSet);
         var entities = new QueryContextAwareSet<TEntity>(queryContext, idProperty);
+
+        // Get table name for database notifications
+        var entityType = dbSet.EntityType;
+        var tableName = entityType.GetTableName() ?? typeof(TEntity).Name;
+
+        // Get DbContext for database notifier
+        var dbContext = dbSet.GetDbContext();
 
         logger.StartingObservation(typeof(TEntity).Name);
 
@@ -129,6 +138,7 @@ public static class DbSetObserveExtensions
         var cancellationToken = cancellationTokenSource.Token;
 
         IDisposable? changeSubscription = null;
+        IDatabaseChangeNotifier? databaseNotifier = null;
 
         _ = Task.Run(Watch);
         return subject;
@@ -137,8 +147,8 @@ public static class DbSetObserveExtensions
         {
             try
             {
-                // Subscribe to changes
-                changeSubscription = changeTracker.RegisterCallback<TEntity>(() =>
+                // Common callback for both in-process and database-level changes
+                void OnChangeDetected()
                 {
                     if (cancellationToken.IsCancellationRequested)
                     {
@@ -159,7 +169,23 @@ public static class DbSetObserveExtensions
                     {
                         logger.UnexpectedError(ex);
                     }
-                });
+                }
+
+                // Subscribe to in-process changes (via SaveChanges interceptor)
+                changeSubscription = changeTracker.RegisterCallback<TEntity>(OnChangeDetected);
+
+                // Subscribe to database-level changes (cross-process notifications)
+                try
+                {
+                    databaseNotifier = notifierFactory.Create(dbContext);
+                    await databaseNotifier.StartListeningAsync(tableName, OnChangeDetected, cancellationToken);
+                    logger.DatabaseNotifierStarted(typeof(TEntity).Name);
+                }
+                catch (Exception ex)
+                {
+                    // Log but don't fail - fall back to in-process only
+                    logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
+                }
 
                 _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
@@ -200,6 +226,22 @@ public static class DbSetObserveExtensions
             }
             logger.CleaningUp();
             changeSubscription?.Dispose();
+
+            if (databaseNotifier is not null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await databaseNotifier.DisposeAsync();
+                    }
+                    catch
+                    {
+                        // Ignore cleanup errors
+                    }
+                });
+            }
+
             cancellationTokenSource?.Cancel();
             cancellationTokenSource?.Dispose();
             subject?.OnCompleted();
@@ -276,6 +318,17 @@ public static class DbSetObserveExtensions
         }
 
         return query;
+    }
+
+    static DbContext GetDbContext<TEntity>(this DbSet<TEntity> dbSet)
+        where TEntity : class
+    {
+        // Use IInfrastructure to get the service provider from DbSet
+        var infrastructure = dbSet as Infrastructure.IInfrastructure<IServiceProvider>;
+        var serviceProvider = infrastructure?.Instance
+            ?? throw new InvalidOperationException("Unable to get service provider from DbSet");
+
+        return serviceProvider.GetRequiredService<ICurrentDbContext>().Context;
     }
 
     /// <summary>
