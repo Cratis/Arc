@@ -24,7 +24,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         instance.setApiBasePath(arc.apiBasePath ?? '');
         instance.setOrigin(arc.origin ?? '');
         return instance;
-    }, [currentPaging, currentSorting]);
+    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
 
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.empty(queryInstance.current.defaultValue));
     const argumentsDependency = queryInstance.current.requiredRequestParameters.map(_ => args?.[_]);
