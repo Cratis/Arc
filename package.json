@@ -42,7 +42,7 @@
         "@typescript-eslint/eslint-plugin": "8.48.1",
         "@typescript-eslint/parser": "8.48.1",
         "@vitejs/plugin-react": "^5.1.1",
-        "@vitest/coverage-v8": "4.0.14",
+        "@vitest/coverage-v8": "4.0.15",
         "chai": "6.2.1",
         "chai-as-promised": "8.0.2",
         "edit-json-file": "1.8.1",
@@ -59,7 +59,7 @@
         "mocha": "11.7.5",
         "module-alias": "2.2.3",
         "npm-check-updates": "19.1.2",
-        "prettier": "3.7.3",
+        "prettier": "3.7.4",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
         "react-router-dom": "^7.9.6",
@@ -75,7 +75,7 @@
         "vite": "7.2.6",
         "vite-plugin-commonjs": "0.10.4",
         "vite-tsconfig-paths": "5.1.4",
-        "vitest": "4.0.14"
+        "vitest": "4.0.15"
     },
     "license": "MIT",
     "version": "0.0.0",
