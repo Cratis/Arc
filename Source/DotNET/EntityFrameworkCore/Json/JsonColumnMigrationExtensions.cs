@@ -38,6 +38,32 @@ public static class JsonColumnMigrationExtensions
         }).Annotation("cratis:ColumnType", JsonColumnType);
 
     /// <summary>
+    /// Adds a Json column to an existing table.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <typeparam name="TProperty">Type of property.</typeparam>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddJsonColumn<TProperty>(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        string? schema = null)
+    {
+        var type = mb.GetDatabaseType() switch
+        {
+            DatabaseType.PostgreSql => "jsonb",
+            DatabaseType.SqlServer => "nvarchar(max)",
+            _ => "text"
+        };
+
+        return mb.AddColumn<TProperty>(name, table, type: type, schema: schema, nullable: false)
+            .Annotation(CratisColumnTypeAnnotation, JsonColumnType);
+    }
+
+    /// <summary>
     /// Checks if the column is a JSON column.
     /// </summary>
     /// <param name="column">The column to check.</param>
