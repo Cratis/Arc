@@ -4,7 +4,6 @@
 import { Guid } from '@cratis/fundamentals';
 import { ICommandResult } from './ICommandResult';
 import { ValidationResult } from '../validation/ValidationResult';
-import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 
 /**
