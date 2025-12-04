@@ -137,8 +137,6 @@ public static class DbSetObserveExtensions
         {
             try
             {
-                var query = BuildQuery(queryBuilder(), queryContext);
-
                 // Subscribe to changes
                 changeSubscription = changeTracker.RegisterCallback<TEntity>(() =>
                 {
@@ -150,8 +148,9 @@ public static class DbSetObserveExtensions
                     try
                     {
                         logger.ChangeDetectedRequerying(typeof(TEntity).Name);
-                        var newQuery = BuildQuery(queryBuilder(), queryContext);
-                        queryContext.TotalItems = queryBuilder().Count();
+                        var baseQuery = queryBuilder();
+                        queryContext.TotalItems = baseQuery.Count();
+                        var newQuery = BuildQuery(baseQuery, queryContext);
                         var newEntities = newQuery.ToList();
                         entities.ReinitializeWithEntities(newEntities);
                         onNext(entities, subject);
@@ -165,7 +164,9 @@ public static class DbSetObserveExtensions
                 _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
                 // Initial query
-                queryContext.TotalItems = queryBuilder().Count();
+                var initialBaseQuery = queryBuilder();
+                queryContext.TotalItems = initialBaseQuery.Count();
+                var query = BuildQuery(initialBaseQuery, queryContext);
                 var initialEntities = await query.ToListAsync(cancellationToken);
                 entities.InitializeWithEntities(initialEntities);
                 onNext(entities, subject);

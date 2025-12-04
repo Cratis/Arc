@@ -10,17 +10,18 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// </summary>
 public class EntityChangeTracker : IEntityChangeTracker
 {
-    readonly ConcurrentDictionary<Type, ConcurrentBag<Action>> _callbacks = new();
+    readonly ConcurrentDictionary<Type, ConcurrentDictionary<Guid, Action>> _callbacks = new();
 
     /// <inheritdoc/>
     public IDisposable RegisterCallback<TEntity>(Action callback)
         where TEntity : class
     {
         var entityType = typeof(TEntity);
-        var callbacks = _callbacks.GetOrAdd(entityType, _ => []);
-        callbacks.Add(callback);
+        var subscriptionId = Guid.NewGuid();
+        var callbacks = _callbacks.GetOrAdd(entityType, _ => new ConcurrentDictionary<Guid, Action>());
+        callbacks[subscriptionId] = callback;
 
-        return new CallbackDisposer(entityType, callback, _callbacks);
+        return new CallbackDisposer(entityType, subscriptionId, _callbacks);
     }
 
     /// <inheritdoc/>
@@ -31,13 +32,13 @@ public class EntityChangeTracker : IEntityChangeTracker
             return;
         }
 
-        foreach (var callback in callbacks)
+        foreach (var callback in callbacks.Values)
         {
             callback();
         }
     }
 
-    sealed class CallbackDisposer(Type entityType, Action callback, ConcurrentDictionary<Type, ConcurrentBag<Action>> callbacks) : IDisposable
+    sealed class CallbackDisposer(Type entityType, Guid subscriptionId, ConcurrentDictionary<Type, ConcurrentDictionary<Guid, Action>> callbacks) : IDisposable
     {
         bool _disposed;
 
@@ -50,14 +51,10 @@ public class EntityChangeTracker : IEntityChangeTracker
 
             _disposed = true;
 
-            if (!callbacks.TryGetValue(entityType, out var bag))
+            if (callbacks.TryGetValue(entityType, out var typeCallbacks))
             {
-                return;
+                typeCallbacks.TryRemove(subscriptionId, out _);
             }
-
-            // ConcurrentBag doesn't support removal, so we need to recreate without the callback
-            var newBag = new ConcurrentBag<Action>(bag.Where(c => c != callback));
-            callbacks.TryUpdate(entityType, newBag, bag);
         }
     }
 }

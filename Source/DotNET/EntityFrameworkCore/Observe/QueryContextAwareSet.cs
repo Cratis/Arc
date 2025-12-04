@@ -131,10 +131,10 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
         if (_queryContext.Paging.IsPaged)
         {
             _maxSize = _queryContext.Paging.Size;
-        }
-        if (_maxSize < 1)
-        {
-            throw new ArgumentException("Page size must be greater than 0", nameof(newQueryContext));
+            if (_maxSize < 1)
+            {
+                throw new ArgumentException("Page size must be greater than 0", nameof(newQueryContext));
+            }
         }
 
         var createNewStorage = oldQueryContext?.Paging.IsPaged == true && _maxSize < oldQueryContext.Paging.Size;
