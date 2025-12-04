@@ -33,13 +33,7 @@ public static class AddColumnExtensions
         string? defaultValue = null,
         string? schema = null)
     {
-        var type = mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => maxLength.HasValue ? $"VARCHAR({maxLength})" : "TEXT",
-            DatabaseType.SqlServer => maxLength.HasValue ? $"NVARCHAR({maxLength})" : "NVARCHAR(MAX)",
-            _ => "TEXT"
-        };
-
+        var type = ColumnTypeMappings.GetStringType(mb.GetDatabaseType(), maxLength);
         return mb.AddColumn<string>(name, table, type: type, schema: schema, nullable: nullable, defaultValue: defaultValue);
     }
 
@@ -63,7 +57,7 @@ public static class AddColumnExtensions
         string? schema = null)
         where T : INumber<T>
     {
-        var sqlType = GetSqlTypeForNumber<T>(mb.GetDatabaseType());
+        var sqlType = ColumnTypeMappings.GetNumberType<T>(mb.GetDatabaseType());
         return mb.AddColumn<T>(name, table, type: sqlType, schema: schema, nullable: nullable, defaultValue: defaultValue);
     }
 
@@ -85,13 +79,7 @@ public static class AddColumnExtensions
         bool defaultValue = false,
         string? schema = null)
     {
-        var type = mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => "BOOLEAN",
-            DatabaseType.SqlServer => "BIT",
-            _ => "INTEGER"
-        };
-
+        var type = ColumnTypeMappings.GetBoolType(mb.GetDatabaseType());
         return mb.AddColumn<bool>(name, table, type: type, schema: schema, nullable: nullable, defaultValue: defaultValue);
     }
 
@@ -107,16 +95,12 @@ public static class AddColumnExtensions
         this MigrationBuilder mb,
         string name,
         string table,
-        string? schema = null) =>
-        mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => mb.AddColumn<int>(name, table, type: "INTEGER", schema: schema, nullable: false)
-                .Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-            DatabaseType.SqlServer => mb.AddColumn<int>(name, table, type: "BIGINT", schema: schema, nullable: false)
-                .Annotation("SqlServer:ValueGenerationStrategy", Microsoft.EntityFrameworkCore.Metadata.SqlServerValueGenerationStrategy.IdentityColumn),
-            _ => mb.AddColumn<int>(name, table, type: "INTEGER", schema: schema, nullable: false)
-                .Annotation("Sqlite:Autoincrement", true)
-        };
+        string? schema = null)
+    {
+        var (type, annotationKey, annotationValue) = ColumnTypeMappings.GetAutoIncrementInfo(mb.GetDatabaseType());
+        return mb.AddColumn<int>(name, table, type: type, schema: schema, nullable: false)
+            .Annotation(annotationKey, annotationValue);
+    }
 
     /// <summary>
     /// Adds a Guid column to an existing table with appropriate database-specific type.
@@ -135,13 +119,7 @@ public static class AddColumnExtensions
         bool nullable = true,
         string? schema = null)
     {
-        var type = mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => "UUID",
-            DatabaseType.SqlServer => "UNIQUEIDENTIFIER",
-            _ => "BLOB"
-        };
-
+        var type = ColumnTypeMappings.GetGuidType(mb.GetDatabaseType());
         return mb.AddColumn<Guid>(name, table, type: type, schema: schema, nullable: nullable);
     }
 #pragma warning restore CA1720 // Identifier contains type name
@@ -162,68 +140,7 @@ public static class AddColumnExtensions
         bool nullable = true,
         string? schema = null)
     {
-        var type = mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => "TIMESTAMPTZ",
-            DatabaseType.SqlServer => "DATETIMEOFFSET",
-            _ => "TEXT"
-        };
-
+        var type = ColumnTypeMappings.GetDateTimeOffsetType(mb.GetDatabaseType());
         return mb.AddColumn<DateTimeOffset>(name, table, type: type, schema: schema, nullable: nullable);
-    }
-
-    /// <summary>
-    /// Gets the appropriate SQL type for a numeric type based on the database provider.
-    /// </summary>
-    /// <typeparam name="T">The numeric type.</typeparam>
-    /// <param name="databaseType">The database type.</param>
-    /// <returns>The SQL type string.</returns>
-    static string GetSqlTypeForNumber<T>(DatabaseType databaseType)
-        where T : INumber<T>
-    {
-        var type = typeof(T);
-
-        return databaseType switch
-        {
-            DatabaseType.PostgreSql => type.Name switch
-            {
-                nameof(Char) => "SMALLINT",
-                nameof(Byte) => "SMALLINT",
-                nameof(SByte) => "SMALLINT",
-                nameof(Int16) => "SMALLINT",
-                nameof(UInt16) => "INTEGER",
-                nameof(Int32) => "INTEGER",
-                nameof(UInt32) => "BIGINT",
-                nameof(Int64) => "BIGINT",
-                nameof(UInt64) => "NUMERIC(20,0)",
-                nameof(Single) => "REAL",
-                nameof(Double) => "DOUBLE PRECISION",
-                nameof(Decimal) => "DECIMAL",
-                _ => "INTEGER"
-            },
-            DatabaseType.SqlServer => type.Name switch
-            {
-                nameof(Char) => "SMALLINT",
-                nameof(Byte) => "TINYINT",
-                nameof(SByte) => "SMALLINT",
-                nameof(Int16) => "SMALLINT",
-                nameof(UInt16) => "INT",
-                nameof(Int32) => "INT",
-                nameof(UInt32) => "BIGINT",
-                nameof(Int64) => "BIGINT",
-                nameof(UInt64) => "DECIMAL(20,0)",
-                nameof(Single) => "REAL",
-                nameof(Double) => "FLOAT",
-                nameof(Decimal) => "DECIMAL(18,2)",
-                _ => "INT"
-            },
-            _ => type.Name switch // SQLite and others
-            {
-                nameof(Single) => "REAL",
-                nameof(Double) => "REAL",
-                nameof(Decimal) => "REAL",
-                _ => "INTEGER"
-            }
-        };
     }
 }

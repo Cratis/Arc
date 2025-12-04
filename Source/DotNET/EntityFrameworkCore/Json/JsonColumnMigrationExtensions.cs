@@ -29,13 +29,11 @@ public static class JsonColumnMigrationExtensions
     /// <param name="mb">Migration builder.</param>
     /// <typeparam name="TProperty">Type of property.</typeparam>
     /// <returns>Operation builder for the column.</returns>
-    public static OperationBuilder<AddColumnOperation> JsonColumn<TProperty>(this ColumnsBuilder cb, MigrationBuilder mb) =>
-        (mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => cb.Column<TProperty>("jsonb", nullable: false),
-            DatabaseType.SqlServer => cb.Column<TProperty>("nvarchar(max)", nullable: false),
-            _ => cb.Column<TProperty>("text", nullable: false)
-        }).Annotation("cratis:ColumnType", JsonColumnType);
+    public static OperationBuilder<AddColumnOperation> JsonColumn<TProperty>(this ColumnsBuilder cb, MigrationBuilder mb)
+    {
+        var type = ColumnTypeMappings.GetJsonType(mb.GetDatabaseType());
+        return cb.Column<TProperty>(type, nullable: false).Annotation(CratisColumnTypeAnnotation, JsonColumnType);
+    }
 
     /// <summary>
     /// Adds a Json column to an existing table.
@@ -52,13 +50,7 @@ public static class JsonColumnMigrationExtensions
         string table,
         string? schema = null)
     {
-        var type = mb.GetDatabaseType() switch
-        {
-            DatabaseType.PostgreSql => "jsonb",
-            DatabaseType.SqlServer => "nvarchar(max)",
-            _ => "text"
-        };
-
+        var type = ColumnTypeMappings.GetJsonType(mb.GetDatabaseType());
         return mb.AddColumn<TProperty>(name, table, type: type, schema: schema, nullable: false)
             .Annotation(CratisColumnTypeAnnotation, JsonColumnType);
     }
