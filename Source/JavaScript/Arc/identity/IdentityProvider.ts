@@ -5,6 +5,8 @@ import { IIdentityProvider } from './IIdentityProvider';
 import { IIdentity } from './IIdentity';
 import { IdentityProviderResult } from './IdentityProviderResult';
 import { GetHttpHeaders } from 'GetHttpHeaders';
+import { Globals } from '../Globals';
+import { joinPaths } from '../joinPaths';
 
 /**
  * Represents an implementation of {@link IIdentityProvider}.
@@ -13,6 +15,8 @@ export class IdentityProvider extends IIdentityProvider {
 
     static readonly CookieName = '.cratis-identity';
     static httpHeadersCallback: GetHttpHeaders | undefined;
+    static apiBasePath: string = '';
+    static origin: string = '';
 
     /**
      * Sets the HTTP headers callback.
@@ -20,6 +24,22 @@ export class IdentityProvider extends IIdentityProvider {
      */
     static setHttpHeadersCallback(callback: GetHttpHeaders): void {
         IdentityProvider.httpHeadersCallback = callback;
+    }
+
+    /**
+     * Sets the API base path.
+     * @param apiBasePath API base path to set.
+     */
+    static setApiBasePath(apiBasePath: string): void {
+        IdentityProvider.apiBasePath = apiBasePath;
+    }
+
+    /**
+     * Sets the origin.
+     * @param origin Origin to set.
+     */
+    static setOrigin(origin: string): void {
+        IdentityProvider.origin = origin;
     }
 
     /**
@@ -51,8 +71,10 @@ export class IdentityProvider extends IIdentityProvider {
 
     static async refresh<TDetails = object>(): Promise<IIdentity<TDetails>> {
         IdentityProvider.clearCookie();
+        const apiBasePath = IdentityProvider.apiBasePath || Globals.apiBasePath || '';
+        const url = joinPaths(apiBasePath, '/.cratis/me');
         const response = await fetch(
-            '/.cratis/me', {
+            url, {
             method: 'GET',
             headers: IdentityProvider.httpHeadersCallback?.() ?? {}
         });

@@ -1,24 +1,16 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import sinon from 'sinon';
-import { SomeCommand } from '../SomeCommand';
 import { given } from '../../../given';
 import { Globals } from '../../../Globals';
+import { a_command } from '../given/a_command';
 
-describe("when executing with microservice header", given(class {
-    command: SomeCommand;
-    fetchStub: sinon.SinonStub;
+describe("when executing with microservice header", given(class extends a_command {
     originalMicroserviceHeader: string;
 
     constructor() {
-        this.command = new SomeCommand();
-        this.command.route = '/test-route';
-        this.command.setOrigin('http://localhost');
-        this.command.setApiBasePath('/api');
-        this.command.someProperty = 'test-value';
+        super();
         this.command.setMicroservice('my-microservice');
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
         this.originalMicroserviceHeader = Globals.microserviceHttpHeader;
         Globals.microserviceHttpHeader = 'X-Microservice-Id';
     }

@@ -2,18 +2,21 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { SomeCommand } from '../SomeCommand';
+import { IdentityProvider } from '../../IdentityProvider';
 
-export class a_command {
-    command: SomeCommand;
+export class an_identity_provider {
     fetchStub: sinon.SinonStub;
+    originalApiBasePath: string;
+    originalOrigin: string;
 
     constructor() {
-        this.command = new SomeCommand();
-        this.command.route = '/test-route';
-        this.command.setOrigin('http://localhost');
-        this.command.setApiBasePath('/api');
-        this.command.someProperty = 'test-value';
+        this.originalApiBasePath = IdentityProvider.apiBasePath;
+        this.originalOrigin = IdentityProvider.origin;
+        
+        // Mock document for tests that need it
+        if (typeof document === 'undefined') {
+            (global as { document?: { cookie: string } }).document = { cookie: '' };
+        }
         
         // Restore any existing fetch stub before creating a new one
         if ((globalThis.fetch as sinon.SinonStub)?.restore) {

@@ -2,10 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { IIdentity } from '@cratis/arc/identity';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { GetHttpHeaders } from '@cratis/arc';
+import { ArcContext } from '../ArcContext';
 
 const defaultIdentityContext: IIdentity = {
     id: '',
@@ -27,6 +28,7 @@ export interface IdentityProviderProps {
 }
 
 export const IdentityProvider = (props: IdentityProviderProps) => {
+    const arc = useContext(ArcContext);
     const [context, setContext] = useState<IIdentity>(defaultIdentityContext);
 
     const wrapRefresh = (identity: IIdentity): IIdentity => {
@@ -47,6 +49,8 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
 
     useEffect(() => {
         RootIdentityProvider.setHttpHeadersCallback(props.httpHeadersCallback!);
+        RootIdentityProvider.setApiBasePath(arc.apiBasePath ?? '');
+        RootIdentityProvider.setOrigin(arc.origin ?? '');
         RootIdentityProvider.getCurrent().then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
             setContext(wrappedIdentity);

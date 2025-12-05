@@ -28,7 +28,10 @@ describe('with query without required parameters', given(a_query_for, context =>
     };
 
     beforeEach(async () => {
-        // Setup fetch mock
+        // Setup fetch mock - restore any existing stub first
+        if ((global.fetch as sinon.SinonStub)?.restore) {
+            (global.fetch as sinon.SinonStub).restore();
+        }
         fetchStub = sinon.stub(global, 'fetch');
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
@@ -43,7 +46,7 @@ describe('with query without required parameters', given(a_query_for, context =>
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchStub?.restore();
     });
 
     it('should return successful result', () => {
