@@ -10,15 +10,27 @@ import { Globals } from '../../Globals';
 
 describe('when constructing', given(an_observable_query_for, context => {
     let originalMicroservice: string | undefined;
+    let originalApiBasePath: string | undefined;
+    let originalOrigin: string | undefined;
 
     beforeEach(() => {
         originalMicroservice = Globals.microservice;
+        originalApiBasePath = Globals.apiBasePath;
+        originalOrigin = Globals.origin;
         Globals.microservice = 'test-microservice';
+        Globals.apiBasePath = '/test-api';
+        Globals.origin = 'http://test-origin';
     });
 
     afterEach(() => {
         if (originalMicroservice !== undefined) {
             Globals.microservice = originalMicroservice;
+        }
+        if (originalApiBasePath !== undefined) {
+            Globals.apiBasePath = originalApiBasePath;
+        }
+        if (originalOrigin !== undefined) {
+            Globals.origin = originalOrigin;
         }
     });
 

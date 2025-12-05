@@ -3,12 +3,16 @@
 
 export interface IGlobals {
     microservice: string;
+    apiBasePath: string;
+    origin: string;
     microserviceHttpHeader: string;
     microserviceWSQueryArgument: string;
 }
 
 export const Globals: IGlobals = {
     microservice: '',
+    apiBasePath: '',
+    origin: '',
     microserviceHttpHeader: 'x-cratis-microservice',
     microserviceWSQueryArgument: 'x-cratis-microservice'
 };

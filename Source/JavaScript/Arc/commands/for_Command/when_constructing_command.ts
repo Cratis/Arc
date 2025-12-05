@@ -1,16 +1,16 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from './given/a_query_for';
+import { a_command } from './given/a_command';
 import { given } from '../../given';
-import { Sorting } from '../Sorting';
-import { Paging } from '../Paging';
 import { Globals } from '../../Globals';
+import { SomeCommand } from './SomeCommand';
 
-describe('when constructing', given(a_query_for, context => {
+describe('when constructing command', given(a_command, () => {
     let originalMicroservice: string | undefined;
     let originalApiBasePath: string | undefined;
     let originalOrigin: string | undefined;
+    let command: SomeCommand;
 
     beforeEach(() => {
         originalMicroservice = Globals.microservice;
@@ -19,6 +19,7 @@ describe('when constructing', given(a_query_for, context => {
         Globals.microservice = 'test-microservice';
         Globals.apiBasePath = '/test-api';
         Globals.origin = 'http://test-origin';
+        command = new SomeCommand();
     });
 
     afterEach(() => {
@@ -33,11 +34,10 @@ describe('when constructing', given(a_query_for, context => {
         }
     });
 
-    it('should set sorting to none', () => context.query.sorting.should.equal(Sorting.none));
-    it('should set paging to no paging', () => context.query.paging.should.equal(Paging.noPaging));
-    it('should set model type to String', () => context.query.modelType.should.equal(String));
-    it('should set enumerable to false', () => context.query.enumerable.should.be.false);
-    it('should have default required request parameters', () => context.query.requiredRequestParameters.should.deep.equal(['id']));
-    it('should have default route', () => context.query.route.should.equal('/api/test/{id}'));
-    it('should have default value as empty string', () => context.query.defaultValue.should.equal(''));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    it('should initialize with globals microservice', () => (command as any)._microservice.should.equal('test-microservice'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    it('should initialize with globals api base path', () => (command as any)._apiBasePath.should.equal('/test-api'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    it('should initialize with globals origin', () => (command as any)._origin.should.equal('http://test-origin'));
 }));

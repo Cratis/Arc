@@ -3,12 +3,15 @@
 
 import { container } from 'tsyringe';
 import { IQueryProvider, QueryProvider } from '@cratis/arc/queries';
-import { Constructor } from '@cratis/fundamentals';
+import { Constructor, Globals } from '@cratis/arc';
 import { WellKnownBindings } from './WellKnownBindings';
 import { GetHttpHeaders } from '@cratis/arc';
 
 export class Bindings {
     static initialize(microservice: string, apiBasePath?: string, origin?: string, httpHeadersCallback?: GetHttpHeaders): void {
+        Globals.microservice = microservice;
+        Globals.apiBasePath = apiBasePath ?? '';
+        Globals.origin = origin ?? '';
         container.registerSingleton(WellKnownBindings.microservice, microservice);
         container.register(IQueryProvider as Constructor<IQueryProvider>, { useValue: new QueryProvider(microservice, apiBasePath ?? '', origin ?? '', httpHeadersCallback ?? (() => ({}))) });
     }

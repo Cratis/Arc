@@ -42,8 +42,8 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
         this.sorting = Sorting.none;
         this.paging = Paging.noPaging;
         this._microservice = Globals.microservice ?? '';
-        this._apiBasePath = '';
-        this._origin = '';
+        this._apiBasePath = Globals.apiBasePath ?? '';
+        this._origin = Globals.origin ?? '';
         this._httpHeadersCallback = () => ({});
     }
 
