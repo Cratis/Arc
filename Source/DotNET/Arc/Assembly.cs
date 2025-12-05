@@ -3,5 +3,7 @@
 
 using System.Runtime.CompilerServices;
 
+[assembly: InternalsVisibleTo("Cratis.Arc.EntityFrameworkCore")]
+[assembly: InternalsVisibleTo("Cratis.Arc.EntityFrameworkCore.Specs")]
 [assembly: InternalsVisibleTo("Cratis.Arc.MongoDB")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Specs")]
