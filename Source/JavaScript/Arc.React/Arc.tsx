@@ -7,6 +7,9 @@ import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders } from '@cratis/arc';
 
+/**
+ * Properties for the Arc context component.
+ */
 export interface ArcProps {
     children?: JSX.Element | JSX.Element[];
     microservice?: string;
@@ -17,6 +20,10 @@ export interface ArcProps {
     httpHeadersCallback?: GetHttpHeaders;
 }
 
+/**
+ * Arc context component.
+ * @param props Props for configuring Arc
+ */
 export const Arc = (props: ArcProps) => {
     const configuration: ArcConfiguration = {
         microservice: props.microservice ?? '',
