@@ -1,22 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import sinon from 'sinon';
-import { SomeCommand } from '../SomeCommand';
 import { given } from '../../../given';
 import { CommandResult } from '../../CommandResult';
+import { a_command } from '../given/a_command';
 
-describe("when executing with missing required property", given(class {
-    command: SomeCommand;
-    fetchStub: sinon.SinonStub;
-
+describe("when executing with missing required property", given(class extends a_command {
     constructor() {
-        this.command = new SomeCommand();
-        this.command.route = '/test-route';
-        this.command.setOrigin('http://localhost');
-        this.command.setApiBasePath('/api');
+        super();
         // Intentionally NOT setting someProperty to test validation
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
+        this.command.someProperty = undefined as unknown as string;
     }
 }, context => {
     let result: CommandResult<object>;

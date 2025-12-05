@@ -5,17 +5,12 @@ import { IdentityProvider } from '../../IdentityProvider';
 import { Globals } from '../../../Globals';
 import { an_identity_provider } from '../given/an_identity_provider';
 import { given } from '../../../given';
-import sinon from 'sinon';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 describe('when refreshing with globals api base path', given(an_identity_provider, context => {
     let originalGlobalsApiBasePath: string;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    let fetchStub: sinon.SinonStub;
 
     beforeEach(async () => {
-        fetchStub = sinon.stub(globalThis, 'fetch');
-        fetchStub.resolves({
+        context.fetchStub.resolves({
             ok: true,
             json: async () => ({
                 id: 'test-user-id',
@@ -33,10 +28,9 @@ describe('when refreshing with globals api base path', given(an_identity_provide
     afterEach(() => {
         Globals.apiBasePath = originalGlobalsApiBasePath;
         IdentityProvider.setApiBasePath('');
-        fetchStub.restore();
     });
 
     it('should call fetch with globals api base path prefixed', () => {
-        fetchStub.should.have.been.calledWith('/global/api/.cratis/me');
+        context.fetchStub.should.have.been.calledWith('/global/api/.cratis/me');
     });
 }));

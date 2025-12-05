@@ -18,7 +18,10 @@ export class an_identity_provider {
             (global as { document?: { cookie: string } }).document = { cookie: '' };
         }
         
-        // Don't create fetch stub in constructor - let each test create it if needed
-        this.fetchStub = sinon.stub();
+        // Restore any existing fetch stub before creating a new one
+        if ((globalThis.fetch as sinon.SinonStub)?.restore) {
+            (globalThis.fetch as sinon.SinonStub).restore();
+        }
+        this.fetchStub = sinon.stub(globalThis, 'fetch');
     }
 }
