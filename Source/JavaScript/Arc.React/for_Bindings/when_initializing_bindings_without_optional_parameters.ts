@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Bindings } from '../Bindings';
-import { Globals } from '@cratis/arc';
-import { bindings_context } from './given/bindings_context';
-import { given } from '../../../Arc/given';
+import { Globals } from "@cratis/arc";
+import { bindings_context } from "./given/bindings_context";
+import { given } from '../given';
 
 describe('when initializing bindings without optional parameters', given(bindings_context, () => {
     let originalMicroservice: string;

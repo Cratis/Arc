@@ -14,6 +14,11 @@ export class a_command {
         this.command.setOrigin('http://localhost');
         this.command.setApiBasePath('/api');
         this.command.someProperty = 'test-value';
+        
+        // Restore any existing fetch stub before creating a new one
+        if ((globalThis.fetch as sinon.SinonStub)?.restore) {
+            (globalThis.fetch as sinon.SinonStub).restore();
+        }
         this.fetchStub = sinon.stub(globalThis, 'fetch');
     }
 }
