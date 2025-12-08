@@ -1,0 +1,201 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System.Reactive.Subjects;
+using System.Text.Json;
+using Cratis.Arc.Http;
+using Cratis.DependencyInjection;
+using Cratis.Reflection;
+using Microsoft.Extensions.Logging;
+
+namespace Cratis.Arc.Queries;
+
+/// <summary>
+/// Represents an implementation of <see cref="IStreamingQueryHandler"/> for base Arc.
+/// </summary>
+/// <remarks>
+/// Initializes a new instance of the <see cref="StreamingQueryHandler"/> class.
+/// </remarks>
+/// <param name="logger"><see cref="ILogger"/> for logging.</param>
+[Singleton]
+public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IStreamingQueryHandler
+{
+    /// <summary>
+    /// Determines if the given data is a streaming result that can be handled via WebSocket.
+    /// </summary>
+    /// <param name="data">The data to check.</param>
+    /// <returns>True if the data is a streaming result, false otherwise.</returns>
+    public bool IsStreamingResult(object? data) =>
+        data?.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) is true ||
+        data?.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)) is true;
+
+    /// <summary>
+    /// Handles a streaming query result, upgrading to WebSocket if the client requested it.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    /// <param name="queryName">The name of the query being executed.</param>
+    /// <param name="streamingData">The streaming data (Subject or AsyncEnumerable).</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task HandleStreamingResult(
+        IHttpRequestContext context,
+        QueryName queryName,
+        object streamingData)
+    {
+        if (IsSubjectResult(streamingData))
+        {
+            await HandleSubjectResult(context, queryName, streamingData);
+        }
+        else if (IsAsyncEnumerableResult(streamingData))
+        {
+            await HandleAsyncEnumerableResult(context, queryName, streamingData);
+        }
+    }
+
+    bool IsSubjectResult(object data) =>
+        data.GetType().ImplementsOpenGeneric(typeof(ISubject<>));
+
+    bool IsAsyncEnumerableResult(object data) =>
+        data.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>));
+
+    async Task HandleSubjectResult(
+        IHttpRequestContext context,
+        QueryName queryName,
+        object streamingData)
+    {
+        logger.ObservableQueryResult(queryName);
+
+        if (context.WebSockets.IsWebSocketRequest)
+        {
+            logger.HandlingAsWebSocket();
+            await HandleSubjectViaWebSocket(context, streamingData);
+        }
+        else
+        {
+            logger.HandlingAsHttp();
+            await HandleSubjectViaHttp(context, streamingData);
+        }
+    }
+
+    async Task HandleAsyncEnumerableResult(
+        IHttpRequestContext context,
+        QueryName queryName,
+        object streamingData)
+    {
+        logger.AsyncEnumerableQueryResult(queryName);
+
+        if (context.WebSockets.IsWebSocketRequest)
+        {
+            logger.HandlingAsWebSocket();
+            await HandleAsyncEnumerableViaWebSocket(context, streamingData);
+        }
+        else
+        {
+            logger.HandlingAsHttp();
+            await HandleAsyncEnumerableViaHttp(context, streamingData);
+        }
+    }
+
+    async Task HandleSubjectViaWebSocket(IHttpRequestContext context, object streamingData)
+    {
+        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var type = streamingData.GetType();
+        var subjectType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
+        var elementType = subjectType.GetGenericArguments()[0];
+
+        // Use reflection to subscribe to the observable
+        var subscribeMethod = typeof(StreamingQueryHandler)
+            .GetMethod(nameof(SubscribeToSubject), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .MakeGenericMethod(elementType);
+
+        await (Task)subscribeMethod.Invoke(this, [streamingData, webSocket, context.RequestAborted])!;
+    }
+
+#pragma warning disable IDE0060 // Remove unused parameter - kept for signature consistency
+    async Task HandleSubjectViaHttp(IHttpRequestContext context, object streamingData)
+#pragma warning restore IDE0060
+    {
+        // For HTTP, we need to serialize the current state
+        // This is a simplified version - in reality you might want to buffer initial values
+        await context.WriteResponseAsJsonAsync(new { message = "Observable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
+        context.SetStatusCode(400);
+    }
+
+    async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
+    {
+        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var type = streamingData.GetType();
+        var enumerableType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+        var elementType = enumerableType.GetGenericArguments()[0];
+
+        // Use reflection to enumerate
+        var enumerateMethod = typeof(StreamingQueryHandler)
+            .GetMethod(nameof(EnumerateAsyncEnumerable), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .MakeGenericMethod(elementType);
+
+        await (Task)enumerateMethod.Invoke(this, [streamingData, webSocket, context.RequestAborted])!;
+    }
+
+#pragma warning disable IDE0060 // Remove unused parameter - kept for signature consistency
+    async Task HandleAsyncEnumerableViaHttp(IHttpRequestContext context, object streamingData)
+#pragma warning restore IDE0060
+    {
+        // For HTTP, we need to serialize the enumerable
+        await context.WriteResponseAsJsonAsync(new { message = "AsyncEnumerable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
+        context.SetStatusCode(400);
+    }
+
+    async Task SubscribeToSubject<T>(ISubject<T> subject, IWebSocket webSocket, CancellationToken cancellationToken)
+    {
+        var tcs = new TaskCompletionSource();
+
+        using var subscription = subject.Subscribe(
+            value =>
+            {
+                try
+                {
+                    var json = JsonSerializer.Serialize(value);
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                    webSocket.SendAsync(new ArraySegment<byte>(bytes), System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken).Wait(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.ErrorSendingWebSocketMessage(ex);
+                }
+            },
+            error =>
+            {
+                logger.ObservableError(error);
+                tcs.TrySetResult();
+            },
+            () =>
+            {
+                logger.StreamingObservableCompleted();
+                tcs.TrySetResult();
+            });
+
+        cancellationToken.Register(() => tcs.TrySetCanceled());
+
+        await tcs.Task;
+        await webSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "Completed", CancellationToken.None);
+    }
+
+    async Task EnumerateAsyncEnumerable<T>(IAsyncEnumerable<T> enumerable, IWebSocket webSocket, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var item in enumerable.WithCancellation(cancellationToken))
+            {
+                var json = JsonSerializer.Serialize(item);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                await webSocket.SendAsync(new ArraySegment<byte>(bytes), System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken);
+            }
+
+            await webSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "Completed", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.ErrorEnumeratingAsyncEnumerable(ex);
+            await webSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.InternalServerError, "Error", CancellationToken.None);
+        }
+    }
+}
