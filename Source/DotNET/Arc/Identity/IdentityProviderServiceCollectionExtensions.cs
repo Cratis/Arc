@@ -50,7 +50,6 @@ public static class IdentityProviderServiceCollectionExtensions
     {
         TypeIsNotAnIdentityDetailsProvider.ThrowIfNotAnIdentityDetailsProvider(type);
         services.AddTransient(typeof(IProvideIdentityDetails), type);
-        services.AddSingleton<IdentityProviderEndpoint>();
 
         return services;
     }

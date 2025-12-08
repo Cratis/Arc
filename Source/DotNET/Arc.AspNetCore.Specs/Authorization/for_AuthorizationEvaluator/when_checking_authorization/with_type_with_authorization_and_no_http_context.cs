@@ -6,7 +6,7 @@ public class with_type_with_authorization_and_no_http_context : given.an_authori
 {
     bool _result;
 
-    void Establish() => SetupNoHttpContext();
+    void Establish() => SetupNoHttpRequestContext();
 
     void Because() => _result = _authorizationHelper.IsAuthorized(typeof(given.TypeWithAuthorization));
 

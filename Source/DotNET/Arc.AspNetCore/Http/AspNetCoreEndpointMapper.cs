@@ -70,9 +70,9 @@ public class AspNetCoreEndpointMapper : IEndpointMapper
             builder.WithSummary(metadata.Summary);
         }
 
-        if (metadata.Tags is not null && metadata.Tags.Length > 0)
+        if (metadata.Tags is not null && metadata.Tags.Any())
         {
-            builder.WithTags(metadata.Tags);
+            builder.WithTags(metadata.Tags.ToArray());
         }
 
         if (metadata.AllowAnonymous)

@@ -3,16 +3,17 @@
 
 namespace Cratis.Arc.Identity.for_IdentityProviderResultHandler.when_generating_from_current_context;
 
-public class and_claims_principal_is_null : given.an_identity_provider_result_handler
+public class and_user_is_not_authenticated : given.an_identity_provider_result_handler
 {
     IdentityProviderResult _result;
 
     void Establish()
     {
-        _httpContext.User = null!;
+        _httpRequestContext.User.Returns((System.Security.Claims.ClaimsPrincipal?)null);
     }
 
     async Task Because() => _result = await _handler.GenerateFromCurrentContext();
 
     [Fact] void should_return_anonymous_result() => _result.ShouldEqual(IdentityProviderResult.Anonymous);
+    [Fact] void should_not_call_identity_provider() => _identityProvider.DidNotReceive().Provide(Arg.Any<IdentityProviderContext>());
 }

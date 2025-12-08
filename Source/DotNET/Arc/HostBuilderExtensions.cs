@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.Metrics;
+using Cratis.Arc.Identity;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -82,6 +83,7 @@ public static class HostBuilderExtensions
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> for resolving services.</param>
     public static void MapCratisArcEndpoints(this Http.IEndpointMapper mapper, IServiceProvider serviceProvider)
     {
+        Http.IdentityEndpointMapper.MapIdentityProviderEndpoint(mapper, serviceProvider);
         Http.CommandEndpointMapper.MapCommandEndpoints(mapper, serviceProvider);
         Http.QueryEndpointMapper.MapQueryEndpoints(mapper, serviceProvider);
     }

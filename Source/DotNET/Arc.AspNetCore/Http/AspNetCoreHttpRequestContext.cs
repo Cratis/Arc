@@ -51,6 +51,23 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public ClaimsPrincipal? User => httpContext.User;
 
     /// <inheritdoc/>
+    public bool IsHttps => httpContext.Request.IsHttps;
+
+    /// <inheritdoc/>
+    public string? ContentType
+    {
+        get => httpContext.Response.ContentType;
+        set => httpContext.Response.ContentType = value;
+    }
+
+    /// <inheritdoc/>
+    public int StatusCode
+    {
+        get => httpContext.Response.StatusCode;
+        set => httpContext.Response.StatusCode = value;
+    }
+
+    /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
     {
         return await httpContext.Request.ReadFromJsonAsync(type, _jsonOptions, cancellationToken);
@@ -72,5 +89,33 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
     {
         await httpContext.Response.WriteAsJsonAsync(value, type, _jsonOptions, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public void AppendCookie(string key, string value, Cratis.Arc.Http.CookieOptions options)
+    {
+        var aspNetCoreOptions = new Microsoft.AspNetCore.Http.CookieOptions
+        {
+            HttpOnly = options.HttpOnly,
+            Secure = options.Secure,
+            SameSite = options.SameSite switch
+            {
+                Cratis.Arc.Http.SameSiteMode.None => Microsoft.AspNetCore.Http.SameSiteMode.None,
+                Cratis.Arc.Http.SameSiteMode.Lax => Microsoft.AspNetCore.Http.SameSiteMode.Lax,
+                Cratis.Arc.Http.SameSiteMode.Strict => Microsoft.AspNetCore.Http.SameSiteMode.Strict,
+                _ => Microsoft.AspNetCore.Http.SameSiteMode.Unspecified
+            },
+            Path = options.Path,
+            Expires = options.Expires,
+            MaxAge = options.MaxAge,
+            Domain = options.Domain
+        };
+        httpContext.Response.Cookies.Append(key, value, aspNetCoreOptions);
+    }
+
+    /// <inheritdoc/>
+    public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
+    {
+        await httpContext.Response.WriteAsync(text, cancellationToken);
     }
 }

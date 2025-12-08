@@ -46,6 +46,23 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public ClaimsPrincipal? User => _context.User as ClaimsPrincipal;
 
     /// <inheritdoc/>
+    public bool IsHttps => _context.Request.Url?.Scheme == "https";
+
+    /// <inheritdoc/>
+    public string? ContentType
+    {
+        get => _context.Response.ContentType;
+        set => _context.Response.ContentType = value;
+    }
+
+    /// <inheritdoc/>
+    public int StatusCode
+    {
+        get => _context.Response.StatusCode;
+        set => _context.Response.StatusCode = value;
+    }
+
+    /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(_context.Request.InputStream, _context.Request.ContentEncoding);
@@ -72,6 +89,32 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         var json = JsonSerializer.Serialize(value, type, _jsonOptions);
         var buffer = Encoding.UTF8.GetBytes(json);
         _context.Response.ContentLength64 = buffer.Length;
+        await _context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public void AppendCookie(string key, string value, CookieOptions options)
+    {
+        var cookie = new Cookie(key, value)
+        {
+            HttpOnly = options.HttpOnly,
+            Secure = options.Secure,
+            Path = options.Path,
+            Domain = options.Domain
+        };
+
+        if (options.Expires.HasValue)
+        {
+            cookie.Expires = options.Expires.Value.DateTime;
+        }
+
+        _context.Response.Cookies.Add(cookie);
+    }
+
+    /// <inheritdoc/>
+    public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
+    {
+        var buffer = Encoding.UTF8.GetBytes(text);
         await _context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
     }
 

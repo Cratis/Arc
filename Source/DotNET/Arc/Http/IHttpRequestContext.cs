@@ -51,6 +51,21 @@ public interface IHttpRequestContext
     ClaimsPrincipal? User { get; }
 
     /// <summary>
+    /// Gets a value indicating whether the request is HTTPS.
+    /// </summary>
+    bool IsHttps { get; }
+
+    /// <summary>
+    /// Gets the content type of the response.
+    /// </summary>
+    string? ContentType { get; set; }
+
+    /// <summary>
+    /// Gets the status code of the response.
+    /// </summary>
+    int StatusCode { get; set; }
+
+    /// <summary>
     /// Reads the request body and deserializes it as JSON.
     /// </summary>
     /// <param name="type">The type to deserialize to.</param>
@@ -79,4 +94,20 @@ public interface IHttpRequestContext
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
     Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends a cookie to the response.
+    /// </summary>
+    /// <param name="key">The cookie name.</param>
+    /// <param name="value">The cookie value.</param>
+    /// <param name="options">The cookie options.</param>
+    void AppendCookie(string key, string value, CookieOptions options);
+
+    /// <summary>
+    /// Writes text to the response.
+    /// </summary>
+    /// <param name="text">The text to write.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the async operation.</returns>
+    Task WriteAsync(string text, CancellationToken cancellationToken = default);
 }
