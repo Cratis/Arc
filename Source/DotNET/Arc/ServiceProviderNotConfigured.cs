@@ -11,7 +11,7 @@ public class ServiceProviderNotConfigured : Exception
     /// <summary>
     /// Initializes a new instance of <see cref="ServiceProviderNotConfigured"/>.
     /// </summary>
-    public ServiceProviderNotConfigured() : base("Service provider has not been configured, have you forgotten to call 'UseCratisArc()' on your application during setup?")
+    public ServiceProviderNotConfigured() : base("Service provider has not been configured, have you forgotten to call 'AddCratisArc()' on your application during setup?")
     {
     }
 }

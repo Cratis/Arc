@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Json;
@@ -45,6 +46,9 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
 
     /// <inheritdoc/>
     public IWebSocketContext WebSockets { get; } = new AspNetCoreWebSocketContext(httpContext);
+
+    /// <inheritdoc/>
+    public ClaimsPrincipal? User => httpContext.User;
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)

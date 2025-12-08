@@ -12,18 +12,13 @@ namespace Cratis.Arc;
 /// <summary>
 /// A builder for Arc applications.
 /// </summary>
-public class ArcApplicationBuilder
+/// <remarks>
+/// Initializes a new instance of the <see cref="ArcApplicationBuilder"/> class.
+/// </remarks>
+/// <param name="args">Command line arguments.</param>
+public class ArcApplicationBuilder(string[]? args = null)
 {
-    readonly HostApplicationBuilder _hostBuilder;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ArcApplicationBuilder"/> class.
-    /// </summary>
-    /// <param name="args">Command line arguments.</param>
-    public ArcApplicationBuilder(string[]? args = null)
-    {
-        _hostBuilder = Host.CreateApplicationBuilder(args ?? []);
-    }
+    readonly HostApplicationBuilder _hostBuilder = Host.CreateApplicationBuilder(args ?? []);
 
     /// <summary>
     /// Gets the configuration manager.
@@ -49,6 +44,13 @@ public class ArcApplicationBuilder
     /// Gets the metrics builder.
     /// </summary>
     public IMetricsBuilder Metrics => _hostBuilder.Metrics;
+
+    /// <summary>
+    /// Creates a new instance of the <see cref="ArcApplicationBuilder"/>.
+    /// </summary>
+    /// <param name="args">Command line arguments.</param>
+    /// <returns>A new instance of the <see cref="ArcApplicationBuilder"/>.</returns>
+    public static ArcApplicationBuilder Create(string[]? args = null) => new (args);
 
     /// <summary>
     /// Builds the <see cref="ArcApplication"/>.

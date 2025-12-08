@@ -2,14 +2,15 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
 /// Helper class for performing authorization checks.
 /// </summary>
-/// <param name="httpContextAccessor">The <see cref="IHttpContextAccessor"/> to access the current HTTP context.</param>
-public class AuthorizationEvaluator(IHttpContextAccessor httpContextAccessor) : IAuthorizationEvaluator
+/// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> to access the current HTTP request context.</param>
+public class AuthorizationEvaluator(IHttpRequestContextAccessor httpRequestContextAccessor) : IAuthorizationEvaluator
 {
     /// <inheritdoc/>
     public bool IsAuthorized(Type type)
@@ -59,13 +60,11 @@ public class AuthorizationEvaluator(IHttpContextAccessor httpContextAccessor) : 
             return true;
         }
 
-        var httpContext = httpContextAccessor.HttpContext;
-        if (httpContext?.User is null)
+        var user = httpRequestContextAccessor.Current?.User;
+        if (user is null)
         {
             return false;
         }
-
-        var user = httpContext.User;
 
         if (!user.Identity?.IsAuthenticated ?? true)
         {

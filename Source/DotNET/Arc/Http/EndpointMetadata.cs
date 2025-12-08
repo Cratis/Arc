@@ -12,6 +12,6 @@ namespace Cratis.Arc.Http;
 /// <param name="AllowAnonymous">Whether anonymous access is allowed.</param>
 public record EndpointMetadata(
     string Name,
-    string? Summary = null,
-    string[]? Tags = null,
+    string? Summary = default,
+    IEnumerable<string>? Tags = default,
     bool AllowAnonymous = false);

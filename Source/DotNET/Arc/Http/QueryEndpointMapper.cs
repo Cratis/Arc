@@ -42,6 +42,8 @@ public static class QueryEndpointMapper
             var url = options.IncludeQueryNameInRoute ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
             url = url.ToLowerInvariant();
 
+            Console.WriteLine($"Mapping query endpoint for {performer.FullyQualifiedName} at {url}");
+
             var executeEndpointName = $"Execute{performer.Name}";
             if (!mapper.EndpointExists(executeEndpointName))
             {
@@ -53,6 +55,9 @@ public static class QueryEndpointMapper
 
                 mapper.MapGet(url, async context =>
                 {
+                    var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+                    httpRequestContextAccessor.Current = context;
+
                     var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                     var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
                     var streamingQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();

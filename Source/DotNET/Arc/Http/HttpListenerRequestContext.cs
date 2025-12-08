@@ -4,6 +4,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Net;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Cratis.Json;
@@ -40,6 +41,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
 
     /// <inheritdoc/>
     public IWebSocketContext WebSockets { get; } = new HttpListenerWebSocketContext(context);
+
+    /// <inheritdoc/>
+    public ClaimsPrincipal? User => _context.User as ClaimsPrincipal;
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)

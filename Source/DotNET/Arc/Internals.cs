@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Serialization;
 using Cratis.Types;
 
 namespace Cratis.Arc;
@@ -16,6 +17,7 @@ internal static class Internals
     internal const string MeterName = "Cratis.Arc";
     static IServiceProvider? _serviceProvider;
     static ITypes? _types;
+    static IDerivedTypes? _derivedTypes;
 
     /// <summary>
     /// Internal: The service provider.
@@ -51,5 +53,23 @@ internal static class Internals
             return _types;
         }
         set => _types = value;
+    }
+
+    /// <summary>
+    /// Internal: The derived types.
+    /// </summary>
+    /// <exception cref="DerivedTypesSystemNotConfigured">Thrown if the derived types system has not been configured.</exception>
+    internal static IDerivedTypes DerivedTypes
+    {
+        get
+        {
+            if (_derivedTypes == null)
+            {
+                throw new DerivedTypesSystemNotConfigured();
+            }
+
+            return _derivedTypes;
+        }
+        set => _derivedTypes = value;
     }
 }

@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
+
 namespace Cratis.Arc.Http;
 
 /// <summary>
@@ -42,6 +44,11 @@ public interface IHttpRequestContext
     /// Gets the WebSocket context for this request.
     /// </summary>
     IWebSocketContext WebSockets { get; }
+
+    /// <summary>
+    /// Gets the user associated with the request.
+    /// </summary>
+    ClaimsPrincipal? User { get; }
 
     /// <summary>
     /// Reads the request body and deserializes it as JSON.

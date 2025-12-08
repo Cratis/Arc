@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc;
@@ -29,6 +30,8 @@ public static class ArcApplicationBuilderExtensions
             .ValidateOnStart();
 
         builder.Services.AddCratisArcCore();
+        builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();
+        builder.Services.AddTransient<IObservableQueryHandler, StreamingQueryHandler>();
 
         if (arcBuilderCallback is not null)
         {

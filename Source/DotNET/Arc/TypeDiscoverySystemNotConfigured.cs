@@ -6,12 +6,5 @@ namespace Cratis.Arc;
 /// <summary>
 /// Exception that gets thrown when the service provider has not been configured.
 /// </summary>
-public class TypeDiscoverySystemNotConfigured : Exception
-{
-    /// <summary>
-    /// Initializes a new instance of <see cref="ServiceProviderNotConfigured"/>.
-    /// </summary>
-    public TypeDiscoverySystemNotConfigured() : base("Type discovery system has not been configured, have you forgotten to call 'UseCratisArc()' on your host builder during setup?")
-    {
-    }
-}
+public class TypeDiscoverySystemNotConfigured() :
+    Exception("Type discovery system has not been configured, have you forgotten to call 'AddCratisArc()' on your host builder during setup?");

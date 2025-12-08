@@ -35,6 +35,7 @@ public static class CommandEndpointMapper
 
             var url = options.IncludeCommandNameInRoute ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
             url = url.ToLowerInvariant();
+            Console.WriteLine($"Mapping command endpoint for {handler.CommandType.FullName} at {url}");
 
             MapCommandEndpoint(
                 mapper,
@@ -83,6 +84,9 @@ public static class CommandEndpointMapper
 
         mapper.MapPost(url, async context =>
         {
+            var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+            httpRequestContextAccessor.Current = context;
+
             var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
             var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
             var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
