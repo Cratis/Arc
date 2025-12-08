@@ -1,3 +1,5 @@
+- name: Standalone Applications
+  href: standalone-applications.md
 - name: Multi-Tenancy
   href: multi-tenancy.md
 - name: Identity
