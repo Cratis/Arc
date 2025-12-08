@@ -11,14 +11,14 @@ namespace Cratis.Arc.Authorization;
 public interface IAuthorizationEvaluator
 {
     /// <summary>
-    /// Checks if the current user is authorized based on the <see cref="Microsoft.AspNetCore.Authorization.AuthorizeAttribute"/> on the specified type.
+    /// Checks if the current user is authorized based on the <see cref="AuthorizeAttribute"/> on the specified type.
     /// </summary>
     /// <param name="type">The type to check for authorization attributes.</param>
     /// <returns>True if authorized, false if unauthorized.</returns>
     bool IsAuthorized(Type type);
 
     /// <summary>
-    /// Checks if the current user is authorized based on the <see cref="Microsoft.AspNetCore.Authorization.AuthorizeAttribute"/> on the specified method.
+    /// Checks if the current user is authorized based on the <see cref="AuthorizeAttribute"/> on the specified method.
     /// </summary>
     /// <param name="method">The method to check for authorization attributes.</param>
     /// <returns>True if authorized, false if unauthorized.</returns>

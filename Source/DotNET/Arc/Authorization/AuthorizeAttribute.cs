@@ -7,7 +7,9 @@ namespace Cratis.Arc.Authorization;
 /// Specifies that the class or method that this attribute is applied to requires authorization.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
+#pragma warning disable CA1813 // Avoid unsealed attributes
 public class AuthorizeAttribute : Attribute
+#pragma warning restore CA1813 // Avoid unsealed attributes
 {
     /// <summary>
     /// Gets or sets the policy name that determines access to the resource.

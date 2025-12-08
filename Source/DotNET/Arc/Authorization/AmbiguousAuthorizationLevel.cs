@@ -6,8 +6,8 @@ using System.Reflection;
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
-/// The exception that is thrown when a member has both <see cref="Microsoft.AspNetCore.Authorization.AuthorizeAttribute"/>
-/// and <see cref="Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute"/> defined.
+/// The exception that is thrown when a member has both <see cref="AuthorizeAttribute"/>
+/// and <see cref="AllowAnonymousAttribute"/> defined.
 /// </summary>
 /// <param name="member">The member with ambiguous authorization.</param>
 public class AmbiguousAuthorizationLevel(MemberInfo member)

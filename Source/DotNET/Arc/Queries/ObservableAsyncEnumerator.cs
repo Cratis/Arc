@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Represents an <see cref="IAsyncEnumerator{T}"/> for a <see cref="ClientObservable{T}"/>.
+/// Represents an <see cref="IAsyncEnumerator{T}"/> for a client observables.
 /// </summary>
 /// <typeparam name="T">Type the enumerator is for.</typeparam>
 public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
