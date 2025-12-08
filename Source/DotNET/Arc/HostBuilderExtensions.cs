@@ -3,6 +3,7 @@
 
 using Cratis.DependencyInjection;
 using Cratis.Execution;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -14,6 +15,11 @@ namespace Cratis.Arc;
 public static class HostBuilderExtensions
 {
     /// <summary>
+    /// Default configuration section paths for Arc options.
+    /// </summary>
+    public static readonly string[] DefaultSectionPaths = ["Cratis", "Arc"];
+
+    /// <summary>
     /// Add Cratis Arc core services with the <see cref="IHostBuilder"/>.
     /// </summary>
     /// <param name="builder"><see cref="IHostBuilder"/> to extend.</param>
@@ -24,7 +30,7 @@ public static class HostBuilderExtensions
     {
         builder.ConfigureServices((context, services) =>
         {
-            var configSection = configSectionPath ?? "Cratis:Arc";
+            var configSection = configSectionPath ?? ConfigurationPath.Combine(DefaultSectionPaths);
             services.Configure<ArcOptions>(context.Configuration.GetSection(configSection));
 
             services.AddOptions<ArcOptions>()
@@ -56,5 +62,16 @@ public static class HostBuilderExtensions
         services.AddCratisQueries();
 
         return services;
+    }
+
+    /// <summary>
+    /// Maps Cratis Arc command and query endpoints using the provided endpoint mapper.
+    /// </summary>
+    /// <param name="mapper">The <see cref="Http.IEndpointMapper"/> implementation.</param>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> for resolving services.</param>
+    public static void MapCratisArcEndpoints(this Http.IEndpointMapper mapper, IServiceProvider serviceProvider)
+    {
+        Http.CommandEndpointMapper.MapCommandEndpoints(mapper, serviceProvider);
+        Http.QueryEndpointMapper.MapQueryEndpoints(mapper, serviceProvider);
     }
 }
