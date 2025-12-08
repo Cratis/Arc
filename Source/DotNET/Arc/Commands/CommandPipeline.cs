@@ -211,19 +211,11 @@ public class CommandPipeline(
             {
                 result.MergeWith(await HandleValue(value, commandContext));
             }
-            else if (responseValue is null)
-            {
-                // This value couldn't be handled before and can't be handled now
-                // Set it as the response if we don't have one yet
-                var unwrappedValue = UnwrapValue(value);
-                responseValue = unwrappedValue;
-                commandContext = commandContext with { Response = unwrappedValue };
-                result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
-            }
             else
             {
-                // This value couldn't be handled and we already have a response
-                throw new MultipleUnhandledTupleValues([responseValue, UnwrapValue(value)]);
+                // This value was handleable in the first pass but is no longer handleable
+                // This should not happen in practice, but handle it defensively
+                throw new MultipleUnhandledTupleValues([responseValue ?? UnwrapValue(value), UnwrapValue(value)]);
             }
         }
 
