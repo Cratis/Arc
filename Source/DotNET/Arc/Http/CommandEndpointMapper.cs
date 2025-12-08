@@ -82,9 +82,6 @@ public static class CommandEndpointMapper
             url,
             async context =>
             {
-                var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-                httpRequestContextAccessor.Current = context;
-
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;

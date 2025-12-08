@@ -55,9 +55,6 @@ public static class QueryEndpointMapper
                     url,
                     async context =>
                     {
-                        var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-                        httpRequestContextAccessor.Current = context;
-
                         var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                         var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
                         var streamingQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();

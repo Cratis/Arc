@@ -129,6 +129,8 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             {
                 await using var scope = _serviceProvider!.CreateAsyncScope();
                 var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
+                var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
+                httpRequestContextAccessor.Current = requestContext;
                 await route.Handler(requestContext);
             }
             else
