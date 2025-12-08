@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive.Subjects;
 using System.Reflection;
 using Cratis.Reflection;
 
@@ -44,14 +45,21 @@ public static class ReadModelExtensions
         }
 
         if (returnType.IsGenericType &&
-            returnType.GetGenericTypeDefinition().FullName == "System.Reactive.Subjects.ISubject`1" &&
+            returnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>) &&
             returnType.GetGenericArguments()[0] == readModelType)
         {
             return true;
         }
 
         if (returnType.IsGenericType &&
-            returnType.GetGenericTypeDefinition().FullName == "System.Reactive.Subjects.ISubject`1" &&
+            returnType.GetGenericTypeDefinition() == typeof(ISubject<>) &&
+            returnType.GetGenericArguments()[0] == readModelType)
+        {
+            return true;
+        }
+
+        if (returnType.IsGenericType &&
+            returnType.GetGenericTypeDefinition() == typeof(ISubject<>) &&
             IsCollectionOfType(returnType.GetGenericArguments()[0], readModelType))
         {
             return true;
