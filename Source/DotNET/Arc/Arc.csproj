@@ -3,6 +3,11 @@
         <AssemblyName>Cratis.Arc</AssemblyName>
         <RootNamespace>Cratis.Arc</RootNamespace>
     </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.AspNetCore" />
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals" />
         <PackageReference Include="FluentValidation" />
