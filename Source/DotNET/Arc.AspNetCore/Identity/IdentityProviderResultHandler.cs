@@ -4,7 +4,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Cratis.DependencyInjection;
-using Microsoft.AspNetCore.Http;
 
 namespace Cratis.Arc.Identity;
 

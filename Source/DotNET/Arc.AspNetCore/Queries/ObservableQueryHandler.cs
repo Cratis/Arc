@@ -4,7 +4,6 @@
 using System.Reactive.Subjects;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;

@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 
 namespace Cratis.Arc.Authorization;
 

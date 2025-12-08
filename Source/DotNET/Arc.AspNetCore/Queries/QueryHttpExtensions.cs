@@ -3,7 +3,6 @@
 
 using System.Net;
 using Cratis.Strings;
-using Microsoft.AspNetCore.Http;
 
 namespace Cratis.Arc.Queries;
 
