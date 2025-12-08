@@ -55,7 +55,7 @@ public static class DescriptorExtensions
 
             var proxyContent = template(descriptor);
             var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime);
-            var contentWithMetadata = $"{metadata.ToCommentLine()}\n{proxyContent}";
+            var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
             await File.WriteAllTextAsync(fullPath, contentWithMetadata);
 
             // Track the generated file in the index

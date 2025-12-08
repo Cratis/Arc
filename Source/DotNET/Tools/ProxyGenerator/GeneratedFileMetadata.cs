@@ -38,6 +38,7 @@ public record GeneratedFileMetadata(string SourceTypeName, DateTime GeneratedTim
         {
             const string sourcePrefix = "Source: ";
             const string timePrefix = "Time: ";
+            const string separator = ". ";
 
             var sourceIndex = firstLine.IndexOf(sourcePrefix);
             var timeIndex = firstLine.IndexOf(timePrefix);
@@ -48,7 +49,7 @@ public record GeneratedFileMetadata(string SourceTypeName, DateTime GeneratedTim
             }
 
             var sourceStart = sourceIndex + sourcePrefix.Length;
-            var sourceEnd = timeIndex - 2; // Subtract 2 for ". " before "Time:"
+            var sourceEnd = timeIndex - separator.Length;
             if (sourceEnd <= sourceStart)
             {
                 return false;
