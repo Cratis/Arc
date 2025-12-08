@@ -39,6 +39,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public CancellationToken RequestAborted => CancellationToken.None; // HttpListener doesn't provide cancellation token
 
     /// <inheritdoc/>
+    public IWebSocketContext WebSockets { get; } = new HttpListenerWebSocketContext(context);
+
+    /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(_context.Request.InputStream, _context.Request.ContentEncoding);

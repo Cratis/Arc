@@ -15,6 +15,12 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
 {
     static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
 
+    /// <summary>
+    /// Gets the underlying <see cref="HttpContext"/>.
+    /// </summary>
+    /// <returns>The <see cref="HttpContext"/>.</returns>
+    public HttpContext GetHttpContext() => httpContext;
+
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query => httpContext.Request.Query.ToDictionary(
         kvp => kvp.Key,
@@ -36,6 +42,9 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
 
     /// <inheritdoc/>
     public CancellationToken RequestAborted => httpContext.RequestAborted;
+
+    /// <inheritdoc/>
+    public IWebSocketContext WebSockets { get; } = new AspNetCoreWebSocketContext(httpContext);
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)

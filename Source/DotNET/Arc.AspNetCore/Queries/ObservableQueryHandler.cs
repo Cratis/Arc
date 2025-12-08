@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.AspNetCore.Http;
+using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +32,10 @@ public class ObservableQueryHandler(
     readonly JsonOptions _options = options.Value;
 
     /// <inheritdoc/>
+    public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
+        context.WebSockets.IsWebSocketRequest;
+
+    /// <inheritdoc/>
     public bool ShouldHandleAsWebSocket(ActionExecutingContext context) =>
         context.HttpContext.WebSockets.IsWebSocketRequest;
 
@@ -42,8 +48,14 @@ public class ObservableQueryHandler(
         data?.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) is true ||
         data?.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)) is true;
 
-    /// <inheritdoc/>
-    public async Task HandleStreamingResult(
+    /// <summary>
+    /// Handles streaming result for controller-based actions.
+    /// </summary>
+    /// <param name="context">The <see cref="ActionExecutingContext"/>.</param>
+    /// <param name="actionExecutedContext">The <see cref="ActionExecutedContext"/> from the action execution.</param>
+    /// <param name="objectResult">The <see cref="ObjectResult"/> containing the streaming data.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task HandleControllerStreamingResult(
         ActionExecutingContext context,
         ActionExecutedContext? actionExecutedContext,
         ObjectResult objectResult)
@@ -67,10 +79,39 @@ public class ObservableQueryHandler(
 
     /// <inheritdoc/>
     public async Task HandleStreamingResult(
-        HttpContext httpContext,
+        IHttpRequestContext context,
         QueryName queryName,
         object streamingData,
         QueryContext queryContext)
+    {
+        // Adapter: convert IHttpRequestContext to HttpContext for internal methods
+        if (context is AspNetCoreHttpRequestContext aspNetContext)
+        {
+            var httpContext = aspNetContext.GetHttpContext();
+            httpContext.HandleWebSocketHeadersForMultipleProxies(logger);
+
+            if (IsSubjectResult(streamingData))
+            {
+                await HandleSubjectResultForEndpoint(httpContext, queryName, streamingData);
+            }
+            else if (IsAsyncEnumerableResult(streamingData))
+            {
+                await HandleAsyncEnumerableResultForEndpoint(httpContext, queryName, streamingData);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles streaming result for controller-based actions.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the request.</param>
+    /// <param name="queryName">The name of the query being executed.</param>
+    /// <param name="streamingData">The streaming data (Subject or AsyncEnumerable).</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task HandleStreamingResult(
+        HttpContext httpContext,
+        QueryName queryName,
+        object streamingData)
     {
         httpContext.HandleWebSocketHeadersForMultipleProxies(logger);
 

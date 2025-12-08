@@ -39,6 +39,11 @@ public interface IHttpRequestContext
     CancellationToken RequestAborted { get; }
 
     /// <summary>
+    /// Gets the WebSocket context for this request.
+    /// </summary>
+    IWebSocketContext WebSockets { get; }
+
+    /// <summary>
     /// Reads the request body and deserializes it as JSON.
     /// </summary>
     /// <param name="type">The type to deserialize to.</param>
