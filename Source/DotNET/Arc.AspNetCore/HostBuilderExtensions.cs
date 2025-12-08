@@ -38,6 +38,7 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IHostBuilder"/> for building continuation.</returns>
     public static IHostBuilder AddCratisArc(this IHostBuilder builder, Action<IArcBuilder>? arcBuilderCallback = default, string? configSectionPath = null)
     {
+        builder.AddCratisArcCore(_ => { });
         builder.AddArcImplementation();
         builder.ConfigureServices(_ =>
         {

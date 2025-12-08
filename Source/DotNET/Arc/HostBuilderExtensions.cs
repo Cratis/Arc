@@ -14,13 +14,13 @@ namespace Cratis.Arc;
 public static class HostBuilderExtensions
 {
     /// <summary>
-    /// Add Cratis Arc with the <see cref="IHostBuilder"/>.
+    /// Add Cratis Arc core services with the <see cref="IHostBuilder"/>.
     /// </summary>
     /// <param name="builder"><see cref="IHostBuilder"/> to extend.</param>
     /// <param name="arcBuilderCallback">Callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns><see cref="IHostBuilder"/> for building continuation.</returns>
-    public static IHostBuilder AddCratisArc(this IHostBuilder builder, Action<IArcBuilder> arcBuilderCallback, string? configSectionPath = null)
+    public static IHostBuilder AddCratisArcCore(this IHostBuilder builder, Action<IArcBuilder> arcBuilderCallback, string? configSectionPath = null)
     {
         builder.ConfigureServices((context, services) =>
         {
