@@ -35,11 +35,19 @@ public class ObservableQueryHandler(
     public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
         context.WebSockets.IsWebSocketRequest;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Determines if the current request should be handled as a WebSocket connection.
+    /// </summary>
+    /// <param name="context">The <see cref="ActionExecutingContext"/>.</param>
+    /// <returns>True if the request should be handled as WebSocket, false otherwise.</returns>
     public bool ShouldHandleAsWebSocket(ActionExecutingContext context) =>
         context.HttpContext.WebSockets.IsWebSocketRequest;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Determines if the current request should be handled as a WebSocket connection.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/>.</param>
+    /// <returns>True if the request should be handled as WebSocket, false otherwise.</returns>
     public bool ShouldHandleAsWebSocket(HttpContext httpContext) =>
         httpContext.WebSockets.IsWebSocketRequest;
 

@@ -145,7 +145,7 @@ public class QueryActionFilter(
                 }
                 while (exception is not null);
 
-                result.Exception = null!;
+                result.Exception = null;
             }
 
             if (result.Result is ObjectResult objectResult)
