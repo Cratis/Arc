@@ -50,7 +50,7 @@ public class ArcApplicationBuilder(string[]? args = null)
     /// </summary>
     /// <param name="args">Command line arguments.</param>
     /// <returns>A new instance of the <see cref="ArcApplicationBuilder"/>.</returns>
-    public static ArcApplicationBuilder Create(string[]? args = null) => new (args);
+    public static ArcApplicationBuilder CreateBuilder(string[]? args = null) => new (args);
 
     /// <summary>
     /// Builds the <see cref="ArcApplication"/>.

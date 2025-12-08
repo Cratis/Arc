@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Queries;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc;
@@ -23,7 +24,7 @@ public static class ArcApplicationBuilderExtensions
         Action<IArcBuilder>? arcBuilderCallback = null,
         string? configSectionPath = null)
     {
-        var configSection = configSectionPath ?? "Cratis:Arc";
+        var configSection = configSectionPath ?? ConfigurationPath.Combine(HostBuilderExtensions.DefaultSectionPaths);
         builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
 
         builder.Services.AddOptions<ArcOptions>()

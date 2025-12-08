@@ -35,7 +35,6 @@ public static class CommandEndpointMapper
 
             var url = options.IncludeCommandNameInRoute ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
             url = url.ToLowerInvariant();
-            Console.WriteLine($"Mapping command endpoint for {handler.CommandType.FullName} at {url}");
 
             MapCommandEndpoint(
                 mapper,
@@ -44,8 +43,7 @@ public static class CommandEndpointMapper
                 $"Execute {handler.CommandType.Name} command in {handler.CommandType.Namespace}",
                 handler.CommandType,
                 location,
-                handler.AllowsAnonymousAccess,
-                serviceProvider);
+                handler.AllowsAnonymousAccess);
 
             MapCommandEndpoint(
                 mapper,
@@ -55,7 +53,6 @@ public static class CommandEndpointMapper
                 handler.CommandType,
                 location,
                 handler.AllowsAnonymousAccess,
-                serviceProvider,
                 validateOnly: true);
         }
     }
@@ -68,7 +65,6 @@ public static class CommandEndpointMapper
         Type commandType,
         IEnumerable<string> location,
         bool allowAnonymous,
-        IServiceProvider serviceProvider,
         bool validateOnly = false)
     {
         if (mapper.EndpointExists(endpointName))
@@ -82,33 +78,36 @@ public static class CommandEndpointMapper
             [string.Join('.', location)],
             allowAnonymous);
 
-        mapper.MapPost(url, async context =>
-        {
-            var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-            httpRequestContextAccessor.Current = context;
-
-            var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
-            var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
-            var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-
-            context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
-
-            var command = await context.ReadBodyAsJsonAsync(commandType, context.RequestAborted);
-            CommandResult commandResult;
-
-            if (command is null)
+        mapper.MapPost(
+            url,
+            async context =>
             {
-                commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
-            }
-            else
-            {
-                commandResult = validateOnly
-                    ? await commandPipeline.Validate(command)
-                    : await commandPipeline.Execute(command);
-            }
+                var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+                httpRequestContextAccessor.Current = context;
 
-            context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);
-            await context.WriteResponseAsJsonAsync(commandResult, commandResult.GetType(), context.RequestAborted);
-        }, metadata);
+                var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
+                var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
+                var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+
+                context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+
+                var command = await context.ReadBodyAsJsonAsync(commandType, context.RequestAborted);
+                CommandResult commandResult;
+
+                if (command is null)
+                {
+                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
+                }
+                else
+                {
+                    commandResult = validateOnly
+                        ? await commandPipeline.Validate(command)
+                        : await commandPipeline.Execute(command);
+                }
+
+                context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);
+                await context.WriteResponseAsJsonAsync(commandResult, commandResult.GetType(), context.RequestAborted);
+            },
+            metadata);
     }
 }

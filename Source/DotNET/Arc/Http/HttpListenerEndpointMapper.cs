@@ -127,7 +127,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
             if (_routes.TryGetValue(routeKey, out var route))
             {
-                using var scope = _serviceProvider!.CreateScope();
+                await using var scope = _serviceProvider!.CreateAsyncScope();
                 var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
                 await route.Handler(requestContext);
             }

@@ -42,8 +42,6 @@ public static class QueryEndpointMapper
             var url = options.IncludeQueryNameInRoute ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
             url = url.ToLowerInvariant();
 
-            Console.WriteLine($"Mapping query endpoint for {performer.FullyQualifiedName} at {url}");
-
             var executeEndpointName = $"Execute{performer.Name}";
             if (!mapper.EndpointExists(executeEndpointName))
             {
@@ -53,34 +51,37 @@ public static class QueryEndpointMapper
                     [string.Join('.', location)],
                     performer.AllowsAnonymousAccess);
 
-                mapper.MapGet(url, async context =>
-                {
-                    var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-                    httpRequestContextAccessor.Current = context;
-
-                    var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
-                    var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
-                    var streamingQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
-                    var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-
-                    context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
-
-                    var paging = GetPagingInfo(context);
-                    var sorting = GetSortingInfo(context);
-                    var arguments = GetQueryArguments(context, performer);
-
-                    var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, arguments, paging, sorting);
-
-                    // Check if the result data is a streaming result (Subject or AsyncEnumerable)
-                    if (queryResult.IsSuccess && streamingQueryHandler.IsStreamingResult(queryResult.Data))
+                mapper.MapGet(
+                    url,
+                    async context =>
                     {
-                        await streamingQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
-                        return;
-                    }
+                        var httpRequestContextAccessor = context.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+                        httpRequestContextAccessor.Current = context;
 
-                    context.SetStatusCode(queryResult.IsSuccess ? 200 : !queryResult.IsValid ? 400 : 500);
-                    await context.WriteResponseAsJsonAsync(queryResult, typeof(QueryResult), context.RequestAborted);
-                }, metadata);
+                        var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
+                        var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
+                        var streamingQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
+                        var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+
+                        context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+
+                        var paging = GetPagingInfo(context);
+                        var sorting = GetSortingInfo(context);
+                        var arguments = GetQueryArguments(context, performer);
+
+                        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, arguments, paging, sorting);
+
+                        // Check if the result data is a streaming result (Subject or AsyncEnumerable)
+                        if (queryResult.IsSuccess && streamingQueryHandler.IsStreamingResult(queryResult.Data))
+                        {
+                            await streamingQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
+                            return;
+                        }
+
+                        context.SetStatusCode(queryResult.IsSuccess ? 200 : !queryResult.IsValid ? 400 : 500);
+                        await context.WriteResponseAsJsonAsync(queryResult, typeof(QueryResult), context.RequestAborted);
+                    },
+                    metadata);
             }
         }
     }
