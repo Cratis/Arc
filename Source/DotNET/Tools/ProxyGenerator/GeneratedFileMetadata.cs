@@ -48,8 +48,8 @@ public record GeneratedFileMetadata(string SourceTypeName, DateTime GeneratedTim
             }
 
             var sourceStart = sourceIndex + sourcePrefix.Length;
-            var sourceEnd = firstLine.IndexOf('.', sourceStart);
-            if (sourceEnd == -1)
+            var sourceEnd = timeIndex - 2; // Subtract 2 for ". " before "Time:"
+            if (sourceEnd <= sourceStart)
             {
                 return false;
             }
