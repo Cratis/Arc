@@ -7,6 +7,6 @@
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\Arc\Arc.csproj" />
+        <ProjectReference Include="..\Arc.Core\Arc.Core.csproj" />
     </ItemGroup>
 </Project>
