@@ -174,32 +174,57 @@ public class CommandPipeline(
         CommandResult result)
     {
         var values = ExtractValuesFromTupleInOrder(tuple);
-        var unhandledValues = new List<object>();
+
+        // First pass: identify and set the response value
+        // We need to do this before handling other values because handlers may depend on the response being set
+        var valuesToProcess = new List<object>();
+        object? responseValue = null;
 
         foreach (var value in values)
         {
             if (CanHandleValue(value, commandContext))
             {
-                result.MergeWith(await HandleValue(value, commandContext));
+                valuesToProcess.Add(value);
             }
             else
             {
                 var unwrappedValue = UnwrapValue(value);
-                if (commandContext.Response is null)
+                if (responseValue is null)
                 {
+                    responseValue = unwrappedValue;
                     commandContext = commandContext with { Response = unwrappedValue };
                     result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
                 }
                 else
                 {
-                    unhandledValues.Add(unwrappedValue);
+                    // Multiple unhandled values - can't determine which should be the response
+                    throw new MultipleUnhandledTupleValues([responseValue, unwrappedValue]);
                 }
             }
         }
 
-        if (unhandledValues.Count > 0)
+        // Second pass: now handle all handleable values with response set in context
+        // Some handlers may need to re-check if they can handle based on the response now being set
+        foreach (var value in valuesToProcess)
         {
-            throw new MultipleUnhandledTupleValues([commandContext.Response!, .. unhandledValues]);
+            if (CanHandleValue(value, commandContext))
+            {
+                result.MergeWith(await HandleValue(value, commandContext));
+            }
+            else if (responseValue is null)
+            {
+                // This value couldn't be handled before and can't be handled now
+                // Set it as the response if we don't have one yet
+                var unwrappedValue = UnwrapValue(value);
+                responseValue = unwrappedValue;
+                commandContext = commandContext with { Response = unwrappedValue };
+                result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
+            }
+            else
+            {
+                // This value couldn't be handled and we already have a response
+                throw new MultipleUnhandledTupleValues([responseValue, UnwrapValue(value)]);
+            }
         }
 
         return (commandContext, result);
