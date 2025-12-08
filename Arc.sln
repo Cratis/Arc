@@ -39,7 +39,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chronicle.Specs", "Source\D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProxyGenerator.Specs", "Source\DotNET\Tools\ProxyGenerator.Specs\ProxyGenerator.Specs.csproj", "{DBB503AF-6402-4345-B38E-9CDD7E523F07}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arc.AspNetCore", "Source\DotNET\Arc.AspNetCore\Arc.AspNetCore.csproj", "{E67102B9-19FA-4E6E-9F22-298AD90EDAB7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arc", "Source\DotNET\Arc\Arc.csproj", "{E67102B9-19FA-4E6E-9F22-298AD90EDAB7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arc.AspNetCore.Specs", "Source\DotNET\Arc.AspNetCore.Specs\Arc.AspNetCore.Specs.csproj", "{24544CA0-2B5C-4167-BE64-33A27F973260}"
 EndProject
