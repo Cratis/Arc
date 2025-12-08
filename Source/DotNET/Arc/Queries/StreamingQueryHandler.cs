@@ -11,31 +11,25 @@ using Microsoft.Extensions.Logging;
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Represents an implementation of <see cref="IStreamingQueryHandler"/> for base Arc.
+/// Represents an implementation of <see cref="IObservableQueryHandler"/> for base Arc.
 /// </summary>
 /// <remarks>
 /// Initializes a new instance of the <see cref="StreamingQueryHandler"/> class.
 /// </remarks>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 [Singleton]
-public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IStreamingQueryHandler
+public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObservableQueryHandler
 {
-    /// <summary>
-    /// Determines if the given data is a streaming result that can be handled via WebSocket.
-    /// </summary>
-    /// <param name="data">The data to check.</param>
-    /// <returns>True if the data is a streaming result, false otherwise.</returns>
+    /// <inheritdoc/>
+    public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
+        context.WebSockets.IsWebSocketRequest;
+
+    /// <inheritdoc/>
     public bool IsStreamingResult(object? data) =>
         data?.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) is true ||
         data?.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)) is true;
 
-    /// <summary>
-    /// Handles a streaming query result, upgrading to WebSocket if the client requested it.
-    /// </summary>
-    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
-    /// <param name="queryName">The name of the query being executed.</param>
-    /// <param name="streamingData">The streaming data (Subject or AsyncEnumerable).</param>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    /// <inheritdoc/>
     public async Task HandleStreamingResult(
         IHttpRequestContext context,
         QueryName queryName,

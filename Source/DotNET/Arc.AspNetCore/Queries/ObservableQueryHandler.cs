@@ -89,8 +89,7 @@ public class ObservableQueryHandler(
     public async Task HandleStreamingResult(
         IHttpRequestContext context,
         QueryName queryName,
-        object streamingData,
-        QueryContext queryContext)
+        object streamingData)
     {
         // Adapter: convert IHttpRequestContext to HttpContext for internal methods
         if (context is AspNetCoreHttpRequestContext aspNetContext)
@@ -107,6 +106,27 @@ public class ObservableQueryHandler(
                 await HandleAsyncEnumerableResultForEndpoint(httpContext, queryName, streamingData);
             }
         }
+    }
+
+    /// <summary>
+    /// Handles streaming result with query context for controller-based actions.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    /// <param name="queryName">The name of the query being executed.</param>
+    /// <param name="streamingData">The streaming data (Subject or AsyncEnumerable).</param>
+    /// <param name="queryContext">The query context.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+#pragma warning disable IDE0060 // Remove unused parameter - kept for backward compatibility
+    public async Task HandleStreamingResult(
+        IHttpRequestContext context,
+        QueryName queryName,
+        object streamingData,
+        QueryContext queryContext)
+#pragma warning restore IDE0060
+    {
+        // For now, just delegate to the simpler version
+        // QueryContext might be useful in the future for enhanced features
+        await HandleStreamingResult(context, queryName, streamingData);
     }
 
     /// <summary>

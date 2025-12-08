@@ -55,7 +55,7 @@ public static class QueryEndpointMapper
                 {
                     var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                     var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
-                    var streamingQueryHandler = context.RequestServices.GetRequiredService<IStreamingQueryHandler>();
+                    var streamingQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
                     var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
 
                     context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
