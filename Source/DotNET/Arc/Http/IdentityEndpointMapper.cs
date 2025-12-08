@@ -37,7 +37,7 @@ public static class IdentityEndpointMapper
             AllowAnonymous: false);
 
         mapper.MapGet(
-            ".cratis/me",
+            "/.cratis/me",
             async context =>
             {
                 var identityProviderResultHandler = context.RequestServices.GetRequiredService<IIdentityProviderResultHandler>();
