@@ -16,7 +16,7 @@ public class and_identity_provider_is_registered : given.an_identity_endpoint_ma
     void Because() => IdentityEndpointMapper.MapIdentityProviderEndpoint(_mapper, _serviceProvider);
 
     [Fact] void should_map_get_endpoint() => _mapper.Received(1).MapGet(
-        ".cratis/me",
+        "/.cratis/me",
         Arg.Any<Func<IHttpRequestContext, Task>>(),
         Arg.Any<EndpointMetadata>());
 }
