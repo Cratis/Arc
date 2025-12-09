@@ -1,0 +1,56 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Microsoft.Extensions.Logging;
+
+namespace Cratis.Arc.EntityFrameworkCore.Observe;
+
+#pragma warning disable MA0048 // File name must match type name
+
+internal static partial class DatabaseChangeNotifierLogMessages
+{
+    // PostgreSQL
+    [LoggerMessage(LogLevel.Information, "Started listening for PostgreSQL notifications on channel {ChannelName}")]
+    internal static partial void StartedListeningPostgreSql(this ILogger<PostgreSqlChangeNotifier> logger, string channelName);
+
+    [LoggerMessage(LogLevel.Information, "Stopped listening for PostgreSQL notifications on channel {ChannelName}")]
+    internal static partial void StoppedListeningPostgreSql(this ILogger<PostgreSqlChangeNotifier> logger, string channelName);
+
+    [LoggerMessage(LogLevel.Debug, "Created PostgreSQL trigger {TriggerName} on table {TableName}")]
+    internal static partial void CreatedPostgreSqlTrigger(this ILogger<PostgreSqlChangeNotifier> logger, string triggerName, string tableName);
+
+    [LoggerMessage(LogLevel.Debug, "Received PostgreSQL notification on channel {Channel} with payload {Payload}")]
+    internal static partial void ReceivedPostgreSqlNotification(this ILogger<PostgreSqlChangeNotifier> logger, string channel, string payload);
+
+    [LoggerMessage(LogLevel.Error, "PostgreSQL listener encountered an error")]
+    internal static partial void PostgreSqlListenerError(this ILogger<PostgreSqlChangeNotifier> logger, Exception ex);
+
+    // SQL Server
+    [LoggerMessage(LogLevel.Information, "Started listening for SQL Server notifications on table {TableName}")]
+    internal static partial void StartedListeningSqlServer(this ILogger<SqlServerChangeNotifier> logger, string tableName);
+
+    [LoggerMessage(LogLevel.Information, "Stopped listening for SQL Server notifications on table {TableName}")]
+    internal static partial void StoppedListeningSqlServer(this ILogger<SqlServerChangeNotifier> logger, string tableName);
+
+    [LoggerMessage(LogLevel.Debug, "Received SQL Server notification: Type={Type}, Info={Info}, Source={Source}")]
+    internal static partial void ReceivedSqlServerNotification(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
+
+    [LoggerMessage(LogLevel.Error, "Error re-subscribing to SQL Server notifications")]
+    internal static partial void SqlServerResubscribeError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
+
+    // SQLite
+    [LoggerMessage(LogLevel.Information, "Started listening for SQLite file changes on {DatabasePath}")]
+    internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string databasePath);
+
+    [LoggerMessage(LogLevel.Information, "Stopped listening for SQLite file changes on {DatabasePath}")]
+    internal static partial void StoppedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string databasePath);
+
+    [LoggerMessage(LogLevel.Debug, "SQLite file changed: {FilePath}, ChangeType={ChangeType}")]
+    internal static partial void SqliteFileChanged(this ILogger<SqliteChangeNotifier> logger, string filePath, string changeType);
+
+    [LoggerMessage(LogLevel.Warning, "SQLite directory not found: {Directory}")]
+    internal static partial void SqliteDirectoryNotFound(this ILogger<SqliteChangeNotifier> logger, string directory);
+
+    [LoggerMessage(LogLevel.Error, "SQLite file watcher encountered an error")]
+    internal static partial void SqliteWatcherError(this ILogger<SqliteChangeNotifier> logger, Exception ex);
+}
