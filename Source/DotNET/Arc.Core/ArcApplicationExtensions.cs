@@ -27,7 +27,6 @@ public static class ArcApplicationExtensions
 
         app.AddStartupAction(serviceProvider =>
         {
-            endpointMapper.MapCratisArcEndpoints(serviceProvider);
             endpointMapper.Start(serviceProvider);
             return Task.CompletedTask;
         });

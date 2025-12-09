@@ -24,7 +24,7 @@ public static class QueryEndpointMapper
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
-    public static void MapQueryEndpoints(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    public static void MapQueryEndpoints(this IEndpointMapper mapper, IServiceProvider serviceProvider)
     {
         var arcOptions = serviceProvider.GetRequiredService<IOptions<ArcOptions>>().Value;
         var options = arcOptions.GeneratedApis;

@@ -18,7 +18,7 @@ public static class CommandEndpointMapper
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
-    public static void MapCommandEndpoints(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    public static void MapCommandEndpoints(this IEndpointMapper mapper, IServiceProvider serviceProvider)
     {
         var arcOptions = serviceProvider.GetRequiredService<IOptions<ArcOptions>>().Value;
         var options = arcOptions.GeneratedApis;

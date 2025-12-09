@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc;
+using Cratis.Arc.Http;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -21,9 +21,7 @@ public static class QueryEndpointsExtensions
         {
             // For now, use the base mapper - WebSocket support will be added separately
             var mapper = new AspNetCoreEndpointMapper(endpoints);
-            mapper.MapCratisArcEndpoints(app.ApplicationServices);
-
-            // TODO: Add WebSocket handler wrapper for observable queries
+            mapper.MapQueryEndpoints(app.ApplicationServices);
         }
 
         return app;

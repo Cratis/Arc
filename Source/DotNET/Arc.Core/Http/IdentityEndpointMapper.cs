@@ -16,7 +16,7 @@ public static class IdentityEndpointMapper
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
-    public static void MapIdentityProviderEndpoint(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    public static void MapIdentityProviderEndpoint(this IEndpointMapper mapper, IServiceProvider serviceProvider)
     {
         var serviceProviderIsService = serviceProvider.GetService<IServiceProviderIsService>();
         if (serviceProviderIsService?.IsService(typeof(IProvideIdentityDetails)) != true)

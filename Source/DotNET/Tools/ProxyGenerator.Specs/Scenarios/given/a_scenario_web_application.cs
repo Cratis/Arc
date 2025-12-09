@@ -51,7 +51,7 @@ public class a_scenario_web_application : Specification, IDisposable
             .AddApplicationPart(typeof(a_scenario_web_application).Assembly);
 
         builder.Services.AddRouting();
-        builder.Host.AddCratisArcCore(_ => { });
+        builder.Host.AddCratisArc(_ => { });
 
         var app = builder.Build();
 
