@@ -264,11 +264,11 @@ public static class MongoCollectionExtensions
             {
                 return;
             }
-            completedCleanup = true;
             logger.CleaningUp();
             cancellationTokenSource?.Cancel();
             cancellationTokenSource?.Dispose();
             subject?.OnCompleted();
+            completedCleanup = true;
         }
     }
 
