@@ -1,1 +1,0 @@
-GET http://localhost:5001/api/test-console/get-greeting?name=Cratis
