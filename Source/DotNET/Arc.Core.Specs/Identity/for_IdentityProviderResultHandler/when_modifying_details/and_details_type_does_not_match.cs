@@ -14,7 +14,8 @@ public class and_details_type_does_not_match : given.an_identity_provider_result
         _identityProvider.Provide(Arg.Any<IdentityProviderContext>())
             .Returns(Task.FromResult(new IdentityDetails(true, wrongTypeDetails)));
 
-        _httpRequestContext.User.Returns(CreateAuthenticatedUser());
+        var user = CreateAuthenticatedUser();
+        _httpRequestContext.User.Returns(user);
     }
 
     async Task Because() => await _handler.ModifyDetails<int>(details => 42);
