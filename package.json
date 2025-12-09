@@ -34,7 +34,7 @@
         "@types/chai-as-promised": "8.0.2",
         "@types/jsdom": "^27",
         "@types/mocha": "10.0.10",
-        "@types/node": "24.10.1",
+        "@types/node": "24.10.2",
         "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
         "@types/sinon": "21.0.0",
