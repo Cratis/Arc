@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -17,9 +18,9 @@ public static class IdentityProviderEndpointExtensions
     /// <returns><see cref="IApplicationBuilder"/> for continuation.</returns>
     public static IApplicationBuilder MapIdentityProvider(this IApplicationBuilder app)
     {
-        if (app is IEndpointRouteBuilder endpoints)
+        if (app is IEndpointRouteBuilder)
         {
-            var mapper = new AspNetCoreEndpointMapper(endpoints);
+            var mapper = app.ApplicationServices.GetRequiredService<IEndpointMapper>();
             mapper.MapIdentityProviderEndpoint(app.ApplicationServices);
         }
 

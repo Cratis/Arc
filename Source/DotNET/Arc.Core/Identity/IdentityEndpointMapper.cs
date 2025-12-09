@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Identity;
+using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Http;
+namespace Cratis.Arc.Identity;
 
 /// <summary>
 /// Maps identity provider endpoints using the provided endpoint mapper.

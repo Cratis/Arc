@@ -25,7 +25,7 @@ public static class CommandEndpointsExtensions
     {
         if (app is IEndpointRouteBuilder endpoints)
         {
-            var mapper = new AspNetCoreEndpointMapper(endpoints);
+            var mapper = app.ApplicationServices.GetRequiredService<IEndpointMapper>();
             mapper.MapCommandEndpoints(app.ApplicationServices);
 
             // Map controller-based command validation endpoints

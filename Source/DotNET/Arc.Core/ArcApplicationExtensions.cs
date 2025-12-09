@@ -1,7 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity;
+using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -26,6 +29,9 @@ public static class ArcApplicationExtensions
         _endpointMapper = new HttpListenerEndpointMapper(prefixes);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         app.SetEndpointMapper(_endpointMapper);
+        _endpointMapper.MapIdentityProviderEndpoint(app.Services);
+        _endpointMapper.MapCommandEndpoints(app.Services);
+        _endpointMapper.MapQueryEndpoints(app.Services);
 
         app.AddStartupAction(serviceProvider =>
         {

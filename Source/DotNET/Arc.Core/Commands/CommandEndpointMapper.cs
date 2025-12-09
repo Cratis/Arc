@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Commands;
+using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Cratis.Arc.Http;
+namespace Cratis.Arc.Commands;
 
 /// <summary>
 /// Maps command endpoints using the provided endpoint mapper.

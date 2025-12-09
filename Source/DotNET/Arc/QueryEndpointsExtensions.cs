@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Queries;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -17,10 +18,9 @@ public static class QueryEndpointsExtensions
     /// <returns><see cref="IApplicationBuilder"/> for continuation.</returns>
     public static IApplicationBuilder UseQueryEndpoints(this IApplicationBuilder app)
     {
-        if (app is IEndpointRouteBuilder endpoints)
+        if (app is IEndpointRouteBuilder)
         {
-            // For now, use the base mapper - WebSocket support will be added separately
-            var mapper = new AspNetCoreEndpointMapper(endpoints);
+            var mapper = app.ApplicationServices.GetRequiredService<IEndpointMapper>();
             mapper.MapQueryEndpoints(app.ApplicationServices);
         }
 

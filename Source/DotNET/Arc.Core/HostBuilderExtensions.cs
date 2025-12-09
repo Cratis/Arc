@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.Metrics;
-using Cratis.Arc.Http;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -74,18 +73,6 @@ public static class HostBuilderExtensions
         services.AddCratisQueries();
 
         return services;
-    }
-
-    /// <summary>
-    /// Maps Cratis Arc command and query endpoints using the provided endpoint mapper.
-    /// </summary>
-    /// <param name="mapper">The <see cref="IEndpointMapper"/> implementation.</param>
-    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> for resolving services.</param>
-    public static void MapCratisArcEndpoints(this IEndpointMapper mapper, IServiceProvider serviceProvider)
-    {
-        mapper.MapIdentityProviderEndpoint(serviceProvider);
-        mapper.MapCommandEndpoints(serviceProvider);
-        mapper.MapQueryEndpoints(serviceProvider);
     }
 
     /// <summary>

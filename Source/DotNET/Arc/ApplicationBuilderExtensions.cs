@@ -18,6 +18,10 @@ public static class ApplicationBuilderExtensions
     public static IApplicationBuilder UseCratisArc(this IApplicationBuilder app)
     {
         Internals.ServiceProvider = app.ApplicationServices;
+        if (app is IEndpointRouteBuilder endpoints)
+        {
+            Internals.EndpointMapper = new AspNetCoreEndpointMapper(endpoints);
+        }
         app.MapIdentityProvider();
         app.UseCommandEndpoints();
         app.UseQueryEndpoints();

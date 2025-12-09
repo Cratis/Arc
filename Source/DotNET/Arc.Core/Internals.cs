@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Http;
 using Cratis.Serialization;
 using Cratis.Types;
 
@@ -18,6 +19,7 @@ internal static class Internals
     static IServiceProvider? _serviceProvider;
     static ITypes? _types;
     static IDerivedTypes? _derivedTypes;
+    static IEndpointMapper? _endpointMapper;
 
     /// <summary>
     /// Internal: The service provider.
@@ -25,15 +27,7 @@ internal static class Internals
     /// <exception cref="ServiceProviderNotConfigured">Thrown if the service provider has not been configured.</exception>
     internal static IServiceProvider ServiceProvider
     {
-        get
-        {
-            if (_serviceProvider == null)
-            {
-                throw new ServiceProviderNotConfigured();
-            }
-
-            return _serviceProvider;
-        }
+        get => _serviceProvider ?? throw new ServiceProviderNotConfigured();
         set => _serviceProvider = value;
     }
 
@@ -43,15 +37,7 @@ internal static class Internals
     /// <exception cref="TypeDiscoverySystemNotConfigured">Thrown if the type discovery system has not been configured.</exception>
     internal static ITypes Types
     {
-        get
-        {
-            if (_types == null)
-            {
-                throw new TypeDiscoverySystemNotConfigured();
-            }
-
-            return _types;
-        }
+        get => _types ?? throw new TypeDiscoverySystemNotConfigured();
         set => _types = value;
     }
 
@@ -61,15 +47,17 @@ internal static class Internals
     /// <exception cref="DerivedTypesSystemNotConfigured">Thrown if the derived types system has not been configured.</exception>
     internal static IDerivedTypes DerivedTypes
     {
-        get
-        {
-            if (_derivedTypes == null)
-            {
-                throw new DerivedTypesSystemNotConfigured();
-            }
-
-            return _derivedTypes;
-        }
+        get => _derivedTypes ?? throw new DerivedTypesSystemNotConfigured();
         set => _derivedTypes = value;
+    }
+
+    /// <summary>
+    /// Internal: The endpoint mapper.
+    /// </summary>
+    /// <exception cref="EndpointMapperNotConfigured">Thrown if the endpoint mapper has not been configured.</exception>
+    internal static IEndpointMapper EndpointMapper
+    {
+        get => _endpointMapper ?? throw new EndpointMapperNotConfigured();
+        set => _endpointMapper = value;
     }
 }
