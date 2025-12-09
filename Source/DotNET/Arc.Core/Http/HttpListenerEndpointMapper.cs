@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using Cratis.Arc.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -100,7 +101,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     {
         var fullPattern = string.IsNullOrEmpty(_pathBase) ? pattern : $"{_pathBase}{pattern}";
         var routeKey = $"{method}:{fullPattern}";
-        _routes[routeKey] = new RouteHandler(fullPattern, handler);
+        _routes[routeKey] = new RouteHandler(fullPattern, handler, metadata);
 
         if (metadata is not null)
         {
@@ -142,6 +143,15 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                 var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
                 var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
                 httpRequestContextAccessor.Current = requestContext;
+
+                var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
+                var authenticationMiddleware = new AuthenticationMiddleware(authentication);
+
+                if (!await authenticationMiddleware.AuthenticateAsync(requestContext, route.Metadata))
+                {
+                    return;
+                }
+
                 await route.Handler(requestContext);
             }
             else
@@ -162,5 +172,5 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
-    record RouteHandler(string Pattern, Func<IHttpRequestContext, Task> Handler);
+    record RouteHandler(string Pattern, Func<IHttpRequestContext, Task> Handler, EndpointMetadata? Metadata);
 }
