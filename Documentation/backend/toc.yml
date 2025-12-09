@@ -1,5 +1,3 @@
-- name: Standalone Applications
-  href: standalone-applications.md
 - name: Multi-Tenancy
   href: multi-tenancy.md
 - name: Identity
@@ -26,6 +24,8 @@
   href: validation.md
 - name: Without wrappers
   href: without-wrappers.md
+- name: Arc.Core
+  href: core/toc.yml
 - name: MongoDB
   href: mongodb/toc.yml
 - name: Entity Framework
