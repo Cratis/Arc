@@ -9,6 +9,9 @@ namespace MongoDB.Driver;
 
 internal static partial class MongoCollectionExtensionsLogMessages
 {
+    [LoggerMessage(LogLevel.Trace, "Client unsubscribed")]
+    internal static partial void ClientUnsubscribed(this ILogger<MongoCollectionExtensions.MongoCollection> logger);
+
     [LoggerMessage(LogLevel.Trace, "Iterating change stream cursor completed")]
     internal static partial void IteratingChangeStreamCursorCompleted(this ILogger<MongoCollectionExtensions.MongoCollection> logger);
 

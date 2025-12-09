@@ -199,6 +199,14 @@ public static class MongoCollectionExtensions
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
 #pragma warning restore CA2000 // Dispose objects before losing scope
+
+        // When client unsubscribes, cancel the watch task
+        _ = subject.Subscribe(_ => { }, _ => { }, () =>
+        {
+            logger.ClientUnsubscribed();
+            cancellationTokenSource?.Cancel();
+        });
+
         var cancellationToken = cancellationTokenSource.Token;
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -214,7 +222,6 @@ public static class MongoCollectionExtensions
                 query = AddPaging(queryContext, query);
 
                 using var cursor = await collection.WatchAsync(pipeline, options, cancellationToken);
-                _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
                 queryContext.TotalItems = (int)await findCall().CountDocumentsAsync();
                 await documents.InitializeWithQuery(query);
                 onNext(documents, subject);
@@ -264,11 +271,10 @@ public static class MongoCollectionExtensions
             {
                 return;
             }
+            completedCleanup = true;
             logger.CleaningUp();
-            cancellationTokenSource?.Cancel();
             cancellationTokenSource?.Dispose();
             subject?.OnCompleted();
-            completedCleanup = true;
         }
     }
 
