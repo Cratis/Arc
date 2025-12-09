@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.Metrics;
-using Cratis.Arc.Identity;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;

@@ -16,12 +16,6 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
 {
     static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
 
-    /// <summary>
-    /// Gets the underlying <see cref="HttpContext"/>.
-    /// </summary>
-    /// <returns>The <see cref="HttpContext"/>.</returns>
-    public HttpContext GetHttpContext() => httpContext;
-
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query => httpContext.Request.Query.ToDictionary(
         kvp => kvp.Key,
@@ -48,7 +42,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public IWebSocketContext WebSockets { get; } = new AspNetCoreWebSocketContext(httpContext);
 
     /// <inheritdoc/>
-    public ClaimsPrincipal? User => httpContext.User;
+    public ClaimsPrincipal User => httpContext.User;
 
     /// <inheritdoc/>
     public bool IsHttps => httpContext.Request.IsHttps;

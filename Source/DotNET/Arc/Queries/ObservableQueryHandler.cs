@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
-using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
@@ -17,14 +16,13 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents an implementation of <see cref="IObservableQueryHandler"/>.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="ObservableQueryHandler"/> class.
-/// </remarks>
+/// <param name="httpContextAccessor"><see cref="IHttpContextAccessor"/>.</param>
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/>.</param>
 /// <param name="options"><see cref="JsonOptions"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 [Singleton]
 public class ObservableQueryHandler(
+    IHttpContextAccessor httpContextAccessor,
     IQueryContextManager queryContextManager,
     IOptions<JsonOptions> options,
     ILogger<ObservableQueryHandler> logger) : IObservableQueryHandler
@@ -91,20 +89,16 @@ public class ObservableQueryHandler(
         QueryName queryName,
         object streamingData)
     {
-        // Adapter: convert IHttpRequestContext to HttpContext for internal methods
-        if (context is AspNetCoreHttpRequestContext aspNetContext)
-        {
-            var httpContext = aspNetContext.GetHttpContext();
-            httpContext.HandleWebSocketHeadersForMultipleProxies(logger);
+        var httpContext = httpContextAccessor.HttpContext;
+        httpContext.HandleWebSocketHeadersForMultipleProxies(logger);
 
-            if (IsSubjectResult(streamingData))
-            {
-                await HandleSubjectResultForEndpoint(httpContext, queryName, streamingData);
-            }
-            else if (IsAsyncEnumerableResult(streamingData))
-            {
-                await HandleAsyncEnumerableResultForEndpoint(httpContext, queryName, streamingData);
-            }
+        if (IsSubjectResult(streamingData))
+        {
+            await HandleSubjectResultForEndpoint(httpContext, queryName, streamingData);
+        }
+        else if (IsAsyncEnumerableResult(streamingData))
+        {
+            await HandleAsyncEnumerableResultForEndpoint(httpContext, queryName, streamingData);
         }
     }
 
