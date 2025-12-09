@@ -13,7 +13,7 @@ public class and_endpoint_already_exists : given.an_identity_endpoint_mapper
         _mapper.EndpointExists("GetIdentityDetails").Returns(true);
     }
 
-    void Because() => IdentityEndpointMapper.MapIdentityProviderEndpoint(_mapper, _serviceProvider);
+    void Because() => _mapper.MapIdentityProviderEndpoint(_serviceProvider);
 
     [Fact] void should_not_map_duplicate_endpoint() => _mapper.DidNotReceive().MapGet(
         Arg.Any<string>(),

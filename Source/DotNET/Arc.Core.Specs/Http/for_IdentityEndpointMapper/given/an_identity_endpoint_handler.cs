@@ -37,6 +37,6 @@ public class an_identity_endpoint_handler : Specification
         _mapper.When(_ => _.MapGet(Arg.Any<string>(), Arg.Any<Func<IHttpRequestContext, Task>>(), Arg.Any<EndpointMetadata>()))
                .Do(callInfo => _capturedHandler = callInfo.ArgAt<Func<IHttpRequestContext, Task>>(1));
 
-        IdentityEndpointMapper.MapIdentityProviderEndpoint(_mapper, mockServiceProvider);
+        _mapper.MapIdentityProviderEndpoint(mockServiceProvider);
     }
 }

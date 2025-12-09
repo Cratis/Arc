@@ -13,7 +13,7 @@ public class and_identity_provider_is_registered : given.an_identity_endpoint_ma
         _mapper.EndpointExists("GetIdentityDetails").Returns(false);
     }
 
-    void Because() => IdentityEndpointMapper.MapIdentityProviderEndpoint(_mapper, _serviceProvider);
+    void Because() => _mapper.MapIdentityProviderEndpoint(_serviceProvider);
 
     [Fact] void should_map_get_endpoint() => _mapper.Received(1).MapGet(
         "/.cratis/me",

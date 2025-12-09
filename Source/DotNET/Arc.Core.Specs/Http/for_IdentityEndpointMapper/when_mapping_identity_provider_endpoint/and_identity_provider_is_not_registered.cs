@@ -12,7 +12,7 @@ public class and_identity_provider_is_not_registered : given.an_identity_endpoin
         _serviceProviderIsService.IsService(typeof(IProvideIdentityDetails)).Returns(false);
     }
 
-    void Because() => IdentityEndpointMapper.MapIdentityProviderEndpoint(_mapper, _serviceProvider);
+    void Because() => _mapper.MapIdentityProviderEndpoint(_serviceProvider);
 
     [Fact] void should_not_map_endpoint() => _mapper.DidNotReceive().MapGet(
         Arg.Any<string>(),
