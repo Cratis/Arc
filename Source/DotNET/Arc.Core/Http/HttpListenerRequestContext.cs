@@ -43,7 +43,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public IWebSocketContext WebSockets { get; } = new HttpListenerWebSocketContext(context);
 
     /// <inheritdoc/>
-    public ClaimsPrincipal? User => _context.User as ClaimsPrincipal;
+    public ClaimsPrincipal User => (_context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
 
     /// <inheritdoc/>
     public bool IsHttps => _context.Request.Url?.Scheme == "https";

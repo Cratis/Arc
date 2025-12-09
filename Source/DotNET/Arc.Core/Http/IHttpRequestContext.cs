@@ -48,7 +48,7 @@ public interface IHttpRequestContext
     /// <summary>
     /// Gets the user associated with the request.
     /// </summary>
-    ClaimsPrincipal? User { get; }
+    ClaimsPrincipal User { get; }
 
     /// <summary>
     /// Gets a value indicating whether the request is HTTPS.
