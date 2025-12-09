@@ -174,9 +174,38 @@ public class CommandPipeline(
         CommandResult result)
     {
         var values = ExtractValuesFromTupleInOrder(tuple);
-        var unhandledValues = new List<object>();
+
+        // First pass: identify and set the response value
+        // We need to do this before handling other values because handlers may depend on the response being set
+        var valuesToProcess = new List<object>();
+        object? responseValue = null;
 
         foreach (var value in values)
+        {
+            if (CanHandleValue(value, commandContext))
+            {
+                valuesToProcess.Add(value);
+            }
+            else
+            {
+                var unwrappedValue = UnwrapValue(value);
+                if (responseValue is null)
+                {
+                    responseValue = unwrappedValue;
+                    commandContext = commandContext with { Response = unwrappedValue };
+                    result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
+                }
+                else
+                {
+                    // Multiple unhandled values - can't determine which should be the response
+                    throw new MultipleUnhandledTupleValues([responseValue, unwrappedValue]);
+                }
+            }
+        }
+
+        // Second pass: now handle all handleable values with response set in context
+        // Some handlers may need to re-check if they can handle based on the response now being set
+        foreach (var value in valuesToProcess)
         {
             if (CanHandleValue(value, commandContext))
             {
@@ -184,22 +213,10 @@ public class CommandPipeline(
             }
             else
             {
-                var unwrappedValue = UnwrapValue(value);
-                if (commandContext.Response is null)
-                {
-                    commandContext = commandContext with { Response = unwrappedValue };
-                    result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
-                }
-                else
-                {
-                    unhandledValues.Add(unwrappedValue);
-                }
+                // This value was handleable in the first pass but is no longer handleable
+                // This should not happen in practice, but handle it defensively
+                throw new MultipleUnhandledTupleValues([responseValue ?? UnwrapValue(value), UnwrapValue(value)]);
             }
-        }
-
-        if (unhandledValues.Count > 0)
-        {
-            throw new MultipleUnhandledTupleValues([commandContext.Response!, .. unhandledValues]);
         }
 
         return (commandContext, result);
