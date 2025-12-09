@@ -19,6 +19,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     ILogger<HttpListenerEndpointMapper>? _logger;
     Task? _listenerTask;
     CancellationTokenSource? _cancellationTokenSource;
+    string _pathBase = string.Empty;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpListenerEndpointMapper"/> class.
@@ -86,10 +87,20 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         _cancellationTokenSource?.Dispose();
     }
 
+    /// <summary>
+    /// Sets the path base for all endpoints.
+    /// </summary>
+    /// <param name="pathBase">The base path.</param>
+    public void SetPathBase(string pathBase)
+    {
+        _pathBase = pathBase.TrimEnd('/');
+    }
+
     void MapRoute(string method, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
-        var routeKey = $"{method}:{pattern}";
-        _routes[routeKey] = new RouteHandler(pattern, handler);
+        var fullPattern = string.IsNullOrEmpty(_pathBase) ? pattern : $"{_pathBase}{pattern}";
+        var routeKey = $"{method}:{fullPattern}";
+        _routes[routeKey] = new RouteHandler(fullPattern, handler);
 
         if (metadata is not null)
         {

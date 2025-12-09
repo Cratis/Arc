@@ -12,6 +12,8 @@ namespace Cratis.Arc;
 /// </summary>
 public static class ArcApplicationExtensions
 {
+    static HttpListenerEndpointMapper? _endpointMapper;
+
     /// <summary>
     /// Configures Cratis Arc middleware and endpoints.
     /// </summary>
@@ -21,23 +23,35 @@ public static class ArcApplicationExtensions
     public static ArcApplication UseCratisArc(this ArcApplication app, params string[] prefixes)
     {
 #pragma warning disable CA2000 // Dispose objects before losing scope
-        var endpointMapper = new HttpListenerEndpointMapper(prefixes);
+        _endpointMapper = new HttpListenerEndpointMapper(prefixes);
 #pragma warning restore CA2000 // Dispose objects before losing scope
-        app.SetEndpointMapper(endpointMapper);
+        app.SetEndpointMapper(_endpointMapper);
 
         app.AddStartupAction(serviceProvider =>
         {
-            endpointMapper.Start(serviceProvider);
+            _endpointMapper.Start(serviceProvider);
             return Task.CompletedTask;
         });
 
         var applicationLifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
         applicationLifetime.ApplicationStopping.Register(() =>
         {
-            endpointMapper.StopAsync().GetAwaiter().GetResult();
-            endpointMapper.Dispose();
+            _endpointMapper.StopAsync().GetAwaiter().GetResult();
+            _endpointMapper.Dispose();
         });
 
+        return app;
+    }
+
+    /// <summary>
+    /// Configures a base path for all endpoints being mapped.
+    /// </summary>
+    /// <param name="app">The <see cref="ArcApplication"/>.</param>
+    /// <param name="pathBase">The base path to use for all endpoints.</param>
+    /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
+    public static ArcApplication UsePathBase(this ArcApplication app, string pathBase)
+    {
+        _endpointMapper?.SetPathBase(pathBase);
         return app;
     }
 
