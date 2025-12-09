@@ -17,6 +17,6 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="../Arc/Arc.csproj" />
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
 </Project>
