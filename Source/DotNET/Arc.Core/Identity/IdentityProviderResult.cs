@@ -18,12 +18,12 @@ public record IdentityProviderResult(IdentityId Id, IdentityName Name, bool IsAu
     /// <summary>
     /// Represents an anonymous identity result.
     /// </summary>
-    public static readonly IdentityProviderResult Anonymous = new(IdentityId.Empty, IdentityName.Empty, false, false, new { });
+    public static readonly IdentityProviderResult Anonymous = new(IdentityId.Empty, IdentityName.Empty, false, false, default!);
 
     /// <summary>
     /// Represents an unauthorized identity result.
     /// </summary>
-    public static readonly IdentityProviderResult Unauthorized = new(IdentityId.Empty, IdentityName.Empty, true, false, new { });
+    public static readonly IdentityProviderResult Unauthorized = new(IdentityId.Empty, IdentityName.Empty, true, false, default!);
 }
 
 /// <summary>
