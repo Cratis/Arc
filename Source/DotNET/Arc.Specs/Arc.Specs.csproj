@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <AssemblyName>Cratis.Arc.Core.Specs</AssemblyName>
+        <AssemblyName>Cratis.Arc.Specs</AssemblyName>
         <RootNamespace>Cratis.Arc</RootNamespace>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
-        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+        <ProjectReference Include="../Arc/Arc.csproj" />
     </ItemGroup>
 </Project>
