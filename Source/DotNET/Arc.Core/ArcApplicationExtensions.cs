@@ -25,10 +25,10 @@ public static class ArcApplicationExtensions
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
     public static ArcApplication UseCratisArc(this ArcApplication app)
     {
-        var prefixes = GetHttpPrefixes(app);
-
         Internals.ServiceProvider = app.Services;
         Internals.EndpointMapper = app.EndpointMapper!;
+
+        var prefixes = GetHttpPrefixes(app);
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var logger = app.Services.GetRequiredService<ILogger<HttpListenerEndpointMapper>>();
