@@ -5,7 +5,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="Cratis.Arc.AspNetCore" />
+        <InternalsVisibleTo Include="Cratis.Arc" />
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB" />
     </ItemGroup>
 
