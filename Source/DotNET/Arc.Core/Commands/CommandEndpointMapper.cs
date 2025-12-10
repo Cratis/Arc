@@ -48,7 +48,7 @@ public static class CommandEndpointMapper
             MapCommandEndpoint(
                 mapper,
                 $"{url}/validate",
-                $"Validate{handler.CommandType.Name}",
+                $"Validate{handler.CommandType.FullName}",
                 $"Validate {handler.CommandType.Name} command without executing it",
                 handler.CommandType,
                 location,
