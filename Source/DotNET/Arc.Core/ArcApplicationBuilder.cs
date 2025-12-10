@@ -16,34 +16,27 @@ namespace Cratis.Arc;
 /// Initializes a new instance of the <see cref="ArcApplicationBuilder"/> class.
 /// </remarks>
 /// <param name="args">Command line arguments.</param>
-public class ArcApplicationBuilder(string[]? args = null)
+public class ArcApplicationBuilder(string[]? args = null) : IHostApplicationBuilder
 {
     readonly HostApplicationBuilder _hostBuilder = Host.CreateApplicationBuilder(args ?? []);
 
-    /// <summary>
-    /// Gets the configuration manager.
-    /// </summary>
+    /// <inheritdoc/>
     public IConfigurationManager Configuration => _hostBuilder.Configuration;
 
-    /// <summary>
-    /// Gets the host environment.
-    /// </summary>
+    /// <inheritdoc/>
     public IHostEnvironment Environment => _hostBuilder.Environment;
 
-    /// <summary>
-    /// Gets the logging builder.
-    /// </summary>
+    /// <inheritdoc/>
     public ILoggingBuilder Logging => _hostBuilder.Logging;
 
-    /// <summary>
-    /// Gets the service collection.
-    /// </summary>
+    /// <inheritdoc/>
     public IServiceCollection Services => _hostBuilder.Services;
 
-    /// <summary>
-    /// Gets the metrics builder.
-    /// </summary>
+    /// <inheritdoc/>
     public IMetricsBuilder Metrics => _hostBuilder.Metrics;
+
+    /// <inheritdoc/>
+    public IDictionary<object, object> Properties => ((IHostApplicationBuilder)_hostBuilder).Properties;
 
     /// <summary>
     /// Builds the <see cref="ArcApplication"/>.
@@ -53,5 +46,12 @@ public class ArcApplicationBuilder(string[]? args = null)
     {
         var host = _hostBuilder.Build();
         return new ArcApplication(host);
+    }
+
+    /// <inheritdoc/>
+    public void ConfigureContainer<TContainerBuilder>(IServiceProviderFactory<TContainerBuilder> factory, Action<TContainerBuilder>? configure = null)
+        where TContainerBuilder : notnull
+    {
+        _hostBuilder.ConfigureContainer(factory, configure);
     }
 }

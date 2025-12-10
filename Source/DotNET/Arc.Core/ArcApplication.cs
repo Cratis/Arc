@@ -29,7 +29,7 @@ public class ArcApplication(IHost host) : IHost, IAsyncDisposable
     /// </summary>
     /// <param name="args">Command line arguments.</param>
     /// <returns>A new instance of the <see cref="ArcApplicationBuilder"/>.</returns>
-    public static ArcApplicationBuilder CreateBuilder(string[]? args = null) => new (args);
+    public static ArcApplicationBuilder CreateBuilder(string[]? args = null) => new(args);
 
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken = default)
