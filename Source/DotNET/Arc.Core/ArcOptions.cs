@@ -30,4 +30,9 @@ public class ArcOptions
     /// Gets or sets the options for generated API endpoints (commands and queries).
     /// </summary>
     public ApiEndpointOptions GeneratedApis { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the hosting options for Arc, only used by Arc.Core.
+    /// </summary>
+    public HostingOptions Hosting { get; set; } = new();
 }
