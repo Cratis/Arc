@@ -7,7 +7,6 @@ using Cratis.Arc.Identity;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc;
 
@@ -16,8 +15,6 @@ namespace Cratis.Arc;
 /// </summary>
 public static class ArcApplicationExtensions
 {
-    static HttpListenerEndpointMapper? _endpointMapper;
-
     /// <summary>
     /// Configures Cratis Arc middleware and endpoints.
     /// </summary>
@@ -25,31 +22,27 @@ public static class ArcApplicationExtensions
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
     public static ArcApplication UseCratisArc(this ArcApplication app)
     {
-        Internals.ServiceProvider = app.Services;
-        Internals.EndpointMapper = app.EndpointMapper!;
-
-        var prefixes = GetHttpPrefixes(app);
-
-#pragma warning disable CA2000 // Dispose objects before losing scope
-        var logger = app.Services.GetRequiredService<ILogger<HttpListenerEndpointMapper>>();
-        _endpointMapper = new HttpListenerEndpointMapper(logger, [.. prefixes]);
-#pragma warning restore CA2000 // Dispose objects before losing scope
-        app.SetEndpointMapper(_endpointMapper);
-        _endpointMapper.MapIdentityProviderEndpoint(app.Services);
-        _endpointMapper.MapCommandEndpoints(app.Services);
-        _endpointMapper.MapQueryEndpoints(app.Services);
+        app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
+        app.EndpointMapper.MapCommandEndpoints(app.Services);
+        app.EndpointMapper.MapQueryEndpoints(app.Services);
 
         app.AddStartupAction(serviceProvider =>
         {
-            _endpointMapper.Start(serviceProvider);
+            if (app.EndpointMapper is HttpListenerEndpointMapper httpListenerEndpointMapper)
+            {
+                httpListenerEndpointMapper.Start(serviceProvider);
+            }
             return Task.CompletedTask;
         });
 
         var applicationLifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
         applicationLifetime.ApplicationStopping.Register(() =>
         {
-            _endpointMapper.StopAsync().GetAwaiter().GetResult();
-            _endpointMapper.Dispose();
+            if (app.EndpointMapper is HttpListenerEndpointMapper httpListenerEndpointMapper)
+            {
+                httpListenerEndpointMapper.StopAsync().GetAwaiter().GetResult();
+                httpListenerEndpointMapper.Dispose();
+            }
         });
 
         return app;
@@ -63,7 +56,10 @@ public static class ArcApplicationExtensions
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
     public static ArcApplication UsePathBase(this ArcApplication app, string pathBase)
     {
-        _endpointMapper?.SetPathBase(pathBase);
+        if (app.EndpointMapper is HttpListenerEndpointMapper httpListenerEndpointMapper)
+        {
+            httpListenerEndpointMapper.SetPathBase(pathBase);
+        }
         return app;
     }
 
@@ -88,9 +84,4 @@ public static class ArcApplicationExtensions
         lifetime.ApplicationStopping.Register(() => tcs.TrySetResult());
         return tcs.Task;
     }
-
-    static string[] GetHttpPrefixes(ArcApplication app) => app.Options.Hosting.ApplicationUrl
-                .Split(';', StringSplitOptions.RemoveEmptyEntries)
-                .Select(prefix => prefix.EndsWith('/') ? prefix : $"{prefix}/")
-                .ToArray();
 }

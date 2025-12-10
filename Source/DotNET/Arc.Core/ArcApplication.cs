@@ -2,20 +2,40 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc;
 
 /// <summary>
 /// Represents an Arc application.
 /// </summary>
-/// <param name="host">The underlying <see cref="IHost"/>.</param>
-/// <param name="options">The <see cref="ArcOptions"/>.</param>
-public class ArcApplication(IHost host, ArcOptions options) : IHost, IAsyncDisposable
+public class ArcApplication : IHost, IAsyncDisposable
 {
-    readonly IHost _host = host;
+    readonly IHost _host;
     readonly List<Func<IServiceProvider, Task>> _startupActions = [];
-    IEndpointMapper? _endpointMapper;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ArcApplication"/> class.
+    /// </summary>
+    /// <param name="host">The underlying <see cref="IHost"/>.</param>
+    /// <param name="options">The <see cref="ArcOptions"/>.</param>
+    public ArcApplication(IHost host, ArcOptions options)
+    {
+        _host = host;
+        Options = options;
+
+        var prefixes = GetHttpPrefixes();
+
+#pragma warning disable CA2000 // Dispose objects before losing scope
+        var logger = host.Services.GetRequiredService<ILogger<HttpListenerEndpointMapper>>();
+        EndpointMapper = new HttpListenerEndpointMapper(logger, [.. prefixes]);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+        Internals.ServiceProvider = host.Services;
+        Internals.EndpointMapper = EndpointMapper;
+    }
 
     /// <inheritdoc/>
     public IServiceProvider Services => _host.Services;
@@ -23,12 +43,12 @@ public class ArcApplication(IHost host, ArcOptions options) : IHost, IAsyncDispo
     /// <summary>
     /// Gets the options for this Arc application.
     /// </summary>
-    public ArcOptions Options { get; } = options;
+    public ArcOptions Options { get; }
 
     /// <summary>
     /// Gets the endpoint mapper for this application.
     /// </summary>
-    internal IEndpointMapper? EndpointMapper => _endpointMapper;
+    internal IEndpointMapper EndpointMapper { get; }
 
     /// <summary>
     /// Creates a new instance of the <see cref="ArcApplicationBuilder"/>.
@@ -82,12 +102,8 @@ public class ArcApplication(IHost host, ArcOptions options) : IHost, IAsyncDispo
         _startupActions.Add(action);
     }
 
-    /// <summary>
-    /// Sets the endpoint mapper for this application.
-    /// </summary>
-    /// <param name="mapper">The endpoint mapper.</param>
-    internal void SetEndpointMapper(IEndpointMapper mapper)
-    {
-        _endpointMapper = mapper;
-    }
+    string[] GetHttpPrefixes() => Options.Hosting.ApplicationUrl
+                .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(prefix => prefix.EndsWith('/') ? prefix : $"{prefix}/")
+                .ToArray();
 }
