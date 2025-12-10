@@ -4,7 +4,7 @@
 using System.Text.Json;
 using Cratis.Arc.Http;
 
-namespace Cratis.Arc;
+namespace Cratis.Arc.OpenApi;
 
 /// <summary>
 /// Provides extension methods for OpenAPI support.
