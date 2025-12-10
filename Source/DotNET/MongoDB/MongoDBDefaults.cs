@@ -52,6 +52,8 @@ public static class MongoDBDefaults
             BsonSerializer
                 .RegisterSerializer(new TimeOnlySerializer());
             BsonSerializer
+                .RegisterSerializer(new TimeSpanSerializer());
+            BsonSerializer
                 .RegisterSerializer(new TypeSerializer());
             BsonSerializer
                 .RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
