@@ -39,7 +39,8 @@ public static class CommandEndpointsExtensions
                 actionDescriptorProvider,
                 commandPipeline,
                 correlationIdAccessor,
-                jsonSerializerOptions);
+                jsonSerializerOptions,
+                mapper);
             controllerCommandMapper.MapValidationEndpoints(endpoints, arcOptions);
         }
 
