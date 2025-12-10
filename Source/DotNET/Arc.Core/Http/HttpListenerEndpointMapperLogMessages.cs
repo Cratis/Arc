@@ -10,6 +10,12 @@ namespace Cratis.Arc.Http;
 /// </summary>
 internal static partial class HttpListenerEndpointMapperLogMessages
 {
+    [LoggerMessage(LogLevel.Debug, "Adding {Count} HTTP listener prefixes")]
+    internal static partial void AddingHttpListenerPrefixes(this ILogger<HttpListenerEndpointMapper> logger, int count);
+
+    [LoggerMessage(LogLevel.Debug, "Adding HTTP listener prefix: {Prefix}")]
+    internal static partial void AddingHttpListenerPrefix(this ILogger<HttpListenerEndpointMapper> logger, string prefix);
+
     [LoggerMessage(LogLevel.Information, "HttpListener started on: {Prefixes}")]
     internal static partial void HttpListenerStarted(this ILogger<HttpListenerEndpointMapper> logger, string prefixes);
 

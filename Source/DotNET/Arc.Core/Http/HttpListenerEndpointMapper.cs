@@ -16,8 +16,8 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     readonly HttpListener _listener = new();
     readonly Dictionary<string, RouteHandler> _routes = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string, EndpointMetadata> _endpoints = [];
+    readonly ILogger<HttpListenerEndpointMapper> _logger;
     IServiceProvider? _serviceProvider;
-    ILogger<HttpListenerEndpointMapper>? _logger;
     Task? _listenerTask;
     CancellationTokenSource? _cancellationTokenSource;
     string _pathBase = string.Empty;
@@ -25,11 +25,17 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpListenerEndpointMapper"/> class.
     /// </summary>
+    /// <param name="logger">The logger for the endpoint mapper.</param>
     /// <param name="prefixes">Optional HTTP prefixes to listen on. Defaults to http://localhost:5000/.</param>
-    public HttpListenerEndpointMapper(params string[] prefixes)
+    public HttpListenerEndpointMapper(ILogger<HttpListenerEndpointMapper> logger, params string[] prefixes)
     {
-        foreach (var prefix in prefixes.Length > 0 ? prefixes : ["http://localhost:5000/"])
+        _logger = logger;
+        var prefixList = prefixes.Length > 0 ? prefixes : ["http://localhost:5000/"];
+
+        _logger.AddingHttpListenerPrefixes(prefixList.Length);
+        foreach (var prefix in prefixList)
         {
+            _logger.AddingHttpListenerPrefix(prefix);
             _listener.Prefixes.Add(prefix);
         }
     }
@@ -59,12 +65,11 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     public void Start(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
-        _logger = serviceProvider.GetService<ILogger<HttpListenerEndpointMapper>>();
         _cancellationTokenSource = new CancellationTokenSource();
         _listener.Start();
         _listenerTask = ListenAsync(_cancellationTokenSource.Token);
 
-        _logger?.HttpListenerStarted(string.Join(", ", _listener.Prefixes));
+        _logger.HttpListenerStarted(string.Join(", ", _listener.Prefixes));
     }
 
     /// <summary>
@@ -124,7 +129,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             }
             catch (Exception ex)
             {
-                _logger?.ErrorInListenerLoop(ex);
+                _logger.ErrorInListenerLoop(ex);
             }
         }
     }
@@ -163,7 +168,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.ErrorHandlingRequest(ex);
+            _logger.ErrorHandlingRequest(ex);
             context.Response.StatusCode = 500;
         }
         finally

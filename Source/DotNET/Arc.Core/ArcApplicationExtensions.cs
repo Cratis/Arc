@@ -7,6 +7,7 @@ using Cratis.Arc.Identity;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc;
 
@@ -24,9 +25,11 @@ public static class ArcApplicationExtensions
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
     public static ArcApplication UseCratisArc(this ArcApplication app)
     {
+        var prefixes = GetHttpPrefixes(app);
+
 #pragma warning disable CA2000 // Dispose objects before losing scope
-        var prefixes = app.Options.Hosting.ApplicationUrl.Split(';', StringSplitOptions.RemoveEmptyEntries);
-        _endpointMapper = new HttpListenerEndpointMapper(prefixes);
+        var logger = app.Services.GetRequiredService<ILogger<HttpListenerEndpointMapper>>();
+        _endpointMapper = new HttpListenerEndpointMapper(logger, [.. prefixes]);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         app.SetEndpointMapper(_endpointMapper);
         _endpointMapper.MapIdentityProviderEndpoint(app.Services);
@@ -82,4 +85,9 @@ public static class ArcApplicationExtensions
         lifetime.ApplicationStopping.Register(() => tcs.TrySetResult());
         return tcs.Task;
     }
+
+    static string[] GetHttpPrefixes(ArcApplication app) => app.Options.Hosting.ApplicationUrl
+                .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(prefix => prefix.EndsWith('/') ? prefix : $"{prefix}/")
+                .ToArray();
 }
