@@ -24,6 +24,8 @@ public static class ArcApplicationBuilderExtensions
         Action<IArcBuilder>? arcBuilderCallback = null,
         string? configSectionPath = null)
     {
+        builder.Services.AddCratisArcCore();
+
         var configSection = configSectionPath ?? ConfigurationPath.Combine(HostBuilderExtensions.DefaultSectionPaths);
         builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
 
@@ -41,7 +43,6 @@ public static class ArcApplicationBuilderExtensions
             }
         }
 
-        builder.Services.AddCratisArcCore();
         builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();
         builder.Services.AddTransient<IObservableQueryHandler, StreamingQueryHandler>();
 
