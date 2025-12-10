@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <AssemblyName>Cratis.Arc.AspNetCore</AssemblyName>
-        <RootNamespace>Cratis.Arc.AspNetCore</RootNamespace>
+        <AssemblyName>Cratis.Arc</AssemblyName>
+        <RootNamespace>Cratis.Arc</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
