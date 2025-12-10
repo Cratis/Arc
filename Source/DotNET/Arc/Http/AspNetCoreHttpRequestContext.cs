@@ -50,6 +50,9 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public ClaimsPrincipal User => httpContext.User;
 
     /// <inheritdoc/>
+    public IDictionary<string, object> Items => httpContext.Items;
+
+    /// <inheritdoc/>
     public bool IsHttps => httpContext.Request.IsHttps;
 
     /// <inheritdoc/>

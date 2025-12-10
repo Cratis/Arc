@@ -56,6 +56,11 @@ public interface IHttpRequestContext
     ClaimsPrincipal User { get; }
 
     /// <summary>
+    /// Gets a dictionary for storing arbitrary data during the request lifecycle.
+    /// </summary>
+    IDictionary<string, object> Items { get; }
+
+    /// <summary>
     /// Gets a value indicating whether the request is HTTPS.
     /// </summary>
     bool IsHttps { get; }

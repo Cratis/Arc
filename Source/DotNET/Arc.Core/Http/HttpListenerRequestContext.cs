@@ -20,6 +20,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
 {
     static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
     readonly HttpListenerContext _context = context;
+    readonly Dictionary<string, object> _items = [];
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query => ParseQueryString(_context.Request.QueryString);
@@ -47,6 +48,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
 
     /// <inheritdoc/>
     public ClaimsPrincipal User => (_context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
+
+    /// <inheritdoc/>
+    public IDictionary<string, object> Items => _items;
 
     /// <inheritdoc/>
     public bool IsHttps => _context.Request.Url?.Scheme == "https";
