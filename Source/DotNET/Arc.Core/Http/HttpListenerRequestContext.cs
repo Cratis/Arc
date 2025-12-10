@@ -50,7 +50,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public ClaimsPrincipal User => (_context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
 
     /// <inheritdoc/>
-    public IDictionary<string, object?> Items => _items;
+    public IDictionary<object, object?> Items => _items;
 
     /// <inheritdoc/>
     public bool IsHttps => _context.Request.Url?.Scheme == "https";

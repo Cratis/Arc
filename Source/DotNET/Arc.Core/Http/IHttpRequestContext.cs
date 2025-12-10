@@ -58,7 +58,7 @@ public interface IHttpRequestContext
     /// <summary>
     /// Gets a dictionary for storing arbitrary data during the request lifecycle.
     /// </summary>
-    IDictionary<string, object?> Items { get; }
+    IDictionary<object, object?> Items { get; }
 
     /// <summary>
     /// Gets a value indicating whether the request is HTTPS.
