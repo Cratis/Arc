@@ -9,4 +9,14 @@
     <ItemGroup>
         <ProjectReference Include="..\Arc.Core\Arc.Core.csproj" />
     </ItemGroup>
+
+    <!-- Disable the old Microsoft.Extensions.Logging.Generators to prevent duplicate implementations
+         when both it and Microsoft.Gen.Logging (newer generator) are present.
+         The old generator from Microsoft.Extensions.Logging.Abstractions conflicts with the new one. -->
+    <Target Name="RemoveOldLoggingGenerator" BeforeTargets="CoreCompile">
+        <ItemGroup>
+            <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::new('%(Analyzer.Identity)').Contains('Microsoft.Extensions.Logging.Generators.dll'))" />
+        </ItemGroup>
+        <Message Text="Removed old logging generators: @(Analyzer -> '%(Identity)')" Importance="high" Condition="$([System.String]::new('%(Analyzer.Identity)').Contains('Microsoft.Extensions.Logging.Generators.dll'))" />
+    </Target>
 </Project>
