@@ -20,6 +20,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
             ? endpoints.MapGroup(string.Empty)
             : endpoints.MapGroup(groupPrefix);
     readonly HashSet<string> _existingEndpoints = [];
+    readonly object _lock = new();
 
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
@@ -48,15 +49,21 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     /// <inheritdoc/>
     public bool EndpointExists(string name)
     {
-        return _existingEndpoints.Contains(name);
+        lock (_lock)
+        {
+            return _existingEndpoints.Contains(name);
+        }
     }
 
     void ApplyMetadata(RouteHandlerBuilder builder, EndpointMetadata? metadata)
     {
         if (metadata is null) return;
 
-        builder.WithName(metadata.Name);
-        _existingEndpoints.Add(metadata.Name);
+        lock (_lock)
+        {
+            builder.WithName(metadata.Name);
+            _existingEndpoints.Add(metadata.Name);
+        }
 
         if (!string.IsNullOrEmpty(metadata.Summary))
         {
