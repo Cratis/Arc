@@ -50,7 +50,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public ClaimsPrincipal User => httpContext.User;
 
     /// <inheritdoc/>
-    public IDictionary<string, object> Items => httpContext.Items;
+    public IDictionary<string, object?> Items => httpContext.Items;
 
     /// <inheritdoc/>
     public bool IsHttps => httpContext.Request.IsHttps;
@@ -94,7 +94,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     }
 
     /// <inheritdoc/>
-    public void AppendCookie(string key, string value, Cratis.Arc.Http.CookieOptions options)
+    public void AppendCookie(string key, string value, Arc.Http.CookieOptions options)
     {
         var aspNetCoreOptions = new Microsoft.AspNetCore.Http.CookieOptions
         {
@@ -102,9 +102,9 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
             Secure = options.Secure,
             SameSite = options.SameSite switch
             {
-                Cratis.Arc.Http.SameSiteMode.None => Microsoft.AspNetCore.Http.SameSiteMode.None,
-                Cratis.Arc.Http.SameSiteMode.Lax => Microsoft.AspNetCore.Http.SameSiteMode.Lax,
-                Cratis.Arc.Http.SameSiteMode.Strict => Microsoft.AspNetCore.Http.SameSiteMode.Strict,
+                Arc.Http.SameSiteMode.None => Microsoft.AspNetCore.Http.SameSiteMode.None,
+                Arc.Http.SameSiteMode.Lax => Microsoft.AspNetCore.Http.SameSiteMode.Lax,
+                Arc.Http.SameSiteMode.Strict => Microsoft.AspNetCore.Http.SameSiteMode.Strict,
                 _ => Microsoft.AspNetCore.Http.SameSiteMode.Unspecified
             },
             Path = options.Path,
