@@ -2,6 +2,8 @@
   href: overview.md
 - name: Getting Started
   href: getting-started.md
+- name: Endpoint Mapping
+  href: endpoint-mapping.md
 - name: Authentication
   href: authentication.md
 - name: Authorization
