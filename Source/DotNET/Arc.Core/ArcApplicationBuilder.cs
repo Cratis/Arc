@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
 
@@ -45,7 +46,8 @@ public class ArcApplicationBuilder(string[]? args = null) : IHostApplicationBuil
     public ArcApplication Build()
     {
         var host = _hostBuilder.Build();
-        return new ArcApplication(host);
+        var options = host.Services.GetRequiredService<IOptions<ArcOptions>>();
+        return new ArcApplication(host, options.Value);
     }
 
     /// <inheritdoc/>

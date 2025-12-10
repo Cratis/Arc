@@ -10,7 +10,8 @@ namespace Cratis.Arc;
 /// Represents an Arc application.
 /// </summary>
 /// <param name="host">The underlying <see cref="IHost"/>.</param>
-public class ArcApplication(IHost host) : IHost, IAsyncDisposable
+/// <param name="options">The <see cref="ArcOptions"/>.</param>
+public class ArcApplication(IHost host, ArcOptions options) : IHost, IAsyncDisposable
 {
     readonly IHost _host = host;
     readonly List<Func<IServiceProvider, Task>> _startupActions = [];
@@ -18,6 +19,11 @@ public class ArcApplication(IHost host) : IHost, IAsyncDisposable
 
     /// <inheritdoc/>
     public IServiceProvider Services => _host.Services;
+
+    /// <summary>
+    /// Gets the options for this Arc application.
+    /// </summary>
+    public ArcOptions Options { get; } = options;
 
     /// <summary>
     /// Gets the endpoint mapper for this application.
