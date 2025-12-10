@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <AssemblyName>Cratis.Arc</AssemblyName>
+        <AssemblyName>Cratis.Ar.Core</AssemblyName>
         <RootNamespace>Cratis.Arc</RootNamespace>
     </PropertyGroup>
 
