@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
 using Cratis.Arc;
+using Cratis.Arc.MongoDB;
 using Cratis.Arc.Queries;
 using Cratis.Concepts;
 using Microsoft.Extensions.DependencyInjection;

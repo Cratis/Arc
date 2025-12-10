@@ -18,7 +18,7 @@ public class ClientEnumerableObservable<T>(
     IAsyncEnumerable<T> enumerable,
     JsonOptions jsonOptions,
     IWebSocketConnectionHandler webSocketConnectionHandler,
-    ILogger<ClientEnumerableObservable<T>> logger)
+    ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
 {
     /// <inheritdoc/>
