@@ -27,6 +27,9 @@ public static class ArcApplicationExtensions
     {
         var prefixes = GetHttpPrefixes(app);
 
+        Internals.ServiceProvider = app.Services;
+        Internals.EndpointMapper = app.EndpointMapper!;
+
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var logger = app.Services.GetRequiredService<ILogger<HttpListenerEndpointMapper>>();
         _endpointMapper = new HttpListenerEndpointMapper(logger, [.. prefixes]);
