@@ -6,3 +6,5 @@
   href: authentication.md
 - name: Authorization
   href: authorization.md
+- name: OpenAPI Specifications
+  href: openapi.md

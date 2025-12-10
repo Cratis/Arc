@@ -28,6 +28,7 @@ Arc.Core is designed for developers who want the power of Arc's developer experi
 - [Getting Started](getting-started.md) - Build your first Arc.Core application
 - [Authentication](authentication.md) - Implement custom authentication handlers
 - [Authorization](authorization.md) - Protect your endpoints with authorization attributes
+- [OpenAPI Specifications](openapi.md) - Generate OpenAPI documentation for your API
 
 ## Next Steps
 
