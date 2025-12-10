@@ -27,6 +27,11 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
         kvp => kvp.Value.ToString());
 
     /// <inheritdoc/>
+    public IReadOnlyDictionary<string, string> Cookies => httpContext.Request.Cookies.ToDictionary(
+        kvp => kvp.Key,
+        kvp => kvp.Value);
+
+    /// <inheritdoc/>
     public string Path => httpContext.Request.Path;
 
     /// <inheritdoc/>
@@ -105,6 +110,12 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
             Domain = options.Domain
         };
         httpContext.Response.Cookies.Append(key, value, aspNetCoreOptions);
+    }
+
+    /// <inheritdoc/>
+    public void RemoveCookie(string key)
+    {
+        httpContext.Response.Cookies.Delete(key);
     }
 
     /// <inheritdoc/>

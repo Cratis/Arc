@@ -28,6 +28,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public IReadOnlyDictionary<string, string> Headers => ParseHeaders(_context.Request.Headers);
 
     /// <inheritdoc/>
+    public IReadOnlyDictionary<string, string> Cookies => ParseCookies(_context.Request.Cookies);
+
+    /// <inheritdoc/>
     public string Path => _context.Request.Url?.AbsolutePath ?? string.Empty;
 
     /// <inheritdoc/>
@@ -112,6 +115,16 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
+    public void RemoveCookie(string key)
+    {
+        var cookie = new Cookie(key, string.Empty)
+        {
+            Expires = DateTime.Now.AddDays(-1)
+        };
+        _context.Response.Cookies.Add(cookie);
+    }
+
+    /// <inheritdoc/>
     public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
     {
         var buffer = Encoding.UTF8.GetBytes(text);
@@ -143,6 +156,16 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
             {
                 result[key] = headers[key] ?? string.Empty;
             }
+        }
+        return result.AsReadOnly();
+    }
+
+    static ReadOnlyDictionary<string, string> ParseCookies(CookieCollection cookies)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Cookie cookie in cookies)
+        {
+            result[cookie.Name] = cookie.Value;
         }
         return result.AsReadOnly();
     }

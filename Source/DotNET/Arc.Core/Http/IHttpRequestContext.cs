@@ -21,6 +21,11 @@ public interface IHttpRequestContext
     IReadOnlyDictionary<string, string> Headers { get; }
 
     /// <summary>
+    /// Gets the request cookies.
+    /// </summary>
+    IReadOnlyDictionary<string, string> Cookies { get; }
+
+    /// <summary>
     /// Gets the request path.
     /// </summary>
     string Path { get; }
@@ -102,6 +107,12 @@ public interface IHttpRequestContext
     /// <param name="value">The cookie value.</param>
     /// <param name="options">The cookie options.</param>
     void AppendCookie(string key, string value, CookieOptions options);
+
+    /// <summary>
+    /// Removes a cookie from the response.
+    /// </summary>
+    /// <param name="key">The cookie name.</param>
+    void RemoveCookie(string key);
 
     /// <summary>
     /// Writes text to the response.
