@@ -21,11 +21,11 @@ public static class ArcApplicationExtensions
     /// Configures Cratis Arc middleware and endpoints.
     /// </summary>
     /// <param name="app">The <see cref="ArcApplication"/>.</param>
-    /// <param name="prefixes">Optional HTTP prefixes to listen on. Defaults to http://localhost:5000/.</param>
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
-    public static ArcApplication UseCratisArc(this ArcApplication app, params string[] prefixes)
+    public static ArcApplication UseCratisArc(this ArcApplication app)
     {
 #pragma warning disable CA2000 // Dispose objects before losing scope
+        var prefixes = app.Options.Hosting.ApplicationUrl.Split(';', StringSplitOptions.RemoveEmptyEntries);
         _endpointMapper = new HttpListenerEndpointMapper(prefixes);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         app.SetEndpointMapper(_endpointMapper);
