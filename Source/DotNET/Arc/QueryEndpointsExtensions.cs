@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Http;
 using Cratis.Arc.Queries;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -18,9 +17,9 @@ public static class QueryEndpointsExtensions
     /// <returns><see cref="IApplicationBuilder"/> for continuation.</returns>
     public static IApplicationBuilder UseQueryEndpoints(this IApplicationBuilder app)
     {
-        if (app is IEndpointRouteBuilder)
+        if (app is IEndpointRouteBuilder endpoints)
         {
-            var mapper = app.ApplicationServices.GetRequiredService<IEndpointMapper>();
+            var mapper = new AspNetCoreEndpointMapper(endpoints);
             mapper.MapQueryEndpoints(app.ApplicationServices);
         }
 

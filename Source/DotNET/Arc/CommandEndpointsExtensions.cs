@@ -3,7 +3,6 @@
 
 using Cratis.Arc;
 using Cratis.Arc.Commands;
-using Cratis.Arc.Http;
 using Cratis.Execution;
 using Cratis.Json;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -25,7 +24,7 @@ public static class CommandEndpointsExtensions
     {
         if (app is IEndpointRouteBuilder endpoints)
         {
-            var mapper = app.ApplicationServices.GetRequiredService<IEndpointMapper>();
+            var mapper = new AspNetCoreEndpointMapper(endpoints);
             mapper.MapCommandEndpoints(app.ApplicationServices);
 
             // Map controller-based command validation endpoints

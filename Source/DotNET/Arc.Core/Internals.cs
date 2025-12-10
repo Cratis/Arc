@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Http;
 using Cratis.Serialization;
 using Cratis.Types;
 
@@ -19,7 +18,6 @@ internal static class Internals
     static IServiceProvider? _serviceProvider;
     static ITypes? _types;
     static IDerivedTypes? _derivedTypes;
-    static IEndpointMapper? _endpointMapper;
 
     /// <summary>
     /// Internal: The service provider.
@@ -49,15 +47,5 @@ internal static class Internals
     {
         get => _derivedTypes ?? throw new DerivedTypesSystemNotConfigured();
         set => _derivedTypes = value;
-    }
-
-    /// <summary>
-    /// Internal: The endpoint mapper.
-    /// </summary>
-    /// <exception cref="EndpointMapperNotConfigured">Thrown if the endpoint mapper has not been configured.</exception>
-    internal static IEndpointMapper EndpointMapper
-    {
-        get => _endpointMapper ?? throw new EndpointMapperNotConfigured();
-        set => _endpointMapper = value;
     }
 }

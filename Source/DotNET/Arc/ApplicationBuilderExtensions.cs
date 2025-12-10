@@ -27,10 +27,7 @@ public static class ApplicationBuilderExtensions
         app.Properties[CratisArcInitializedKey] = true;
 
         Internals.ServiceProvider = app.ApplicationServices;
-        if (app is IEndpointRouteBuilder endpoints)
-        {
-            Internals.EndpointMapper = new AspNetCoreEndpointMapper(endpoints);
-        }
+
         app.MapIdentityProvider();
         app.UseCommandEndpoints();
         app.UseQueryEndpoints();

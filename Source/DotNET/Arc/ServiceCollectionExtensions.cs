@@ -34,7 +34,6 @@ public static class ServiceCollectionExtensions
 
         var discoverableValidators = new DiscoverableValidators(types);
         services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
-        services.AddSingleton(_ => Internals.EndpointMapper);
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
         services.AddTenancy();
         services.AddCorrelationId();
