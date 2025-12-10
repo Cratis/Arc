@@ -46,13 +46,6 @@ public class ArcApplicationBuilder(string[]? args = null)
     public IMetricsBuilder Metrics => _hostBuilder.Metrics;
 
     /// <summary>
-    /// Creates a new instance of the <see cref="ArcApplicationBuilder"/>.
-    /// </summary>
-    /// <param name="args">Command line arguments.</param>
-    /// <returns>A new instance of the <see cref="ArcApplicationBuilder"/>.</returns>
-    public static ArcApplicationBuilder CreateBuilder(string[]? args = null) => new (args);
-
-    /// <summary>
     /// Builds the <see cref="ArcApplication"/>.
     /// </summary>
     /// <returns>A configured <see cref="ArcApplication"/>.</returns>

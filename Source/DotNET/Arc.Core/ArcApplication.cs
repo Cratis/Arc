@@ -24,6 +24,13 @@ public class ArcApplication(IHost host) : IHost, IAsyncDisposable
     /// </summary>
     internal IEndpointMapper? EndpointMapper => _endpointMapper;
 
+    /// <summary>
+    /// Creates a new instance of the <see cref="ArcApplicationBuilder"/>.
+    /// </summary>
+    /// <param name="args">Command line arguments.</param>
+    /// <returns>A new instance of the <see cref="ArcApplicationBuilder"/>.</returns>
+    public static ArcApplicationBuilder CreateBuilder(string[]? args = null) => new (args);
+
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
