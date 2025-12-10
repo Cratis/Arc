@@ -7,4 +7,11 @@ namespace Cratis.Arc.Authentication;
 /// Represents the reason for an authentication failure.
 /// </summary>
 /// <param name="Value">The reason value.</param>
-public record AuthenticationFailureReason(string Value) : ConceptAs<string>(Value);
+public record AuthenticationFailureReason(string Value) : ConceptAs<string>(Value)
+{
+    /// <summary>
+    /// Implicitly converts a string to an <see cref="AuthenticationFailureReason"/>.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    public static implicit operator AuthenticationFailureReason(string value) => new(value);
+}
