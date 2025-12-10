@@ -27,8 +27,19 @@ public static class ArcApplicationBuilderExtensions
         var configSection = configSectionPath ?? ConfigurationPath.Combine(HostBuilderExtensions.DefaultSectionPaths);
         builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
 
-        builder.Services.AddOptions<ArcOptions>()
+        var optionsBuilder = builder.Services
+            .AddOptions<ArcOptions>()
             .ValidateOnStart();
+
+        if (arcBuilderCallback is not null)
+        {
+            var arcBuilder = new ArcBuilder(builder.Services, Internals.Types);
+            arcBuilderCallback(arcBuilder);
+            if (arcBuilder.ConfigureOptions is not null)
+            {
+                optionsBuilder.Configure(arcBuilder.ConfigureOptions);
+            }
+        }
 
         builder.Services.AddCratisArcCore();
         builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();
@@ -42,12 +53,6 @@ public static class ArcApplicationBuilderExtensions
         else
         {
             builder.Services.AddIdentityProvider(Internals.Types);
-        }
-
-        if (arcBuilderCallback is not null)
-        {
-            var arcBuilder = new ArcBuilder(builder.Services, Internals.Types);
-            arcBuilderCallback(arcBuilder);
         }
 
         return builder;
