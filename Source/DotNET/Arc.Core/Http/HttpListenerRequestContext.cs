@@ -20,7 +20,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
 {
     static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
     readonly HttpListenerContext _context = context;
-    readonly Dictionary<string, object?> _items = [];
+    readonly Dictionary<object, object?> _items = [];
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query => ParseQueryString(_context.Request.QueryString);
