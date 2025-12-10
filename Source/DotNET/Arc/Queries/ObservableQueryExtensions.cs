@@ -3,9 +3,7 @@
 
 using System.Reactive.Subjects;
 using Cratis.Reflection;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;

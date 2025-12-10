@@ -4,7 +4,6 @@
 using System.Collections.Immutable;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.Http;
 
 namespace Cratis.Arc.Identity;
 

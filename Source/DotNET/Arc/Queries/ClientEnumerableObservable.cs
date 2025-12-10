@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -19,7 +18,7 @@ public class ClientEnumerableObservable<T>(
     IAsyncEnumerable<T> enumerable,
     JsonOptions jsonOptions,
     IWebSocketConnectionHandler webSocketConnectionHandler,
-    ILogger<ClientEnumerableObservable<T>> logger)
+    ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
 {
     /// <inheritdoc/>

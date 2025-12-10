@@ -3,7 +3,6 @@
 
 using Cratis.Arc.Validation;
 using Cratis.Strings;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -19,12 +18,12 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/>.</param>
 /// <param name="queryProviders"><see cref="IQueryRenderers"/>.</param>
-/// <param name="webSocketQueryHandler"><see cref="IObservableQueryHandler"/>.</param>
+/// <param name="webSocketQueryHandler"><see cref="ObservableQueryHandler"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 public class QueryActionFilter(
     IQueryContextManager queryContextManager,
     IQueryRenderers queryProviders,
-    IObservableQueryHandler webSocketQueryHandler,
+    ObservableQueryHandler webSocketQueryHandler,
     ILogger<QueryActionFilter> logger) : IAsyncActionFilter
 {
     /// <inheritdoc/>
@@ -41,7 +40,7 @@ public class QueryActionFilter(
             if (callResult.Result?.Result is ObjectResult objectResult && objectResult.IsStreamingResult())
             {
                 // Handle streaming results - both WebSocket and HTTP JSON streaming
-                await webSocketQueryHandler.HandleStreamingResult(context, callResult.Result, objectResult);
+                await webSocketQueryHandler.HandleControllerStreamingResult(context, callResult.Result, objectResult);
                 return; // Early return to avoid processing as regular query result
             }
 
@@ -146,7 +145,7 @@ public class QueryActionFilter(
                 }
                 while (exception is not null);
 
-                result.Exception = null!;
+                result.Exception = null;
             }
 
             if (result.Result is ObjectResult objectResult)

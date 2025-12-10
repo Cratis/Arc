@@ -20,7 +20,6 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
     /// <inheritdoc/>
     public async Task HandleIncomingMessages(WebSocket webSocket, CancellationToken token, ILogger? logger = default)
     {
-        logger ??= handlerLogger;
         try
         {
             var buffer = new byte[BufferSize];
@@ -36,39 +35,39 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
 
                     received = null!;
                     received = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-                    logger.ObservableReceivedMessage();
+                    handlerLogger.ReceivedMessage();
                 }
                 while (!received.CloseStatus.HasValue);
             }
             catch (TaskCanceledException)
             {
-                logger.ObservableCloseConnection(received?.CloseStatusDescription);
+                handlerLogger.CloseConnection(received?.CloseStatusDescription);
                 await webSocket.CloseOutputAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
             }
             finally
             {
                 if (received is not null)
                 {
-                    logger.ObservableCloseConnection(received.CloseStatusDescription);
+                    handlerLogger.CloseConnection(received.CloseStatusDescription);
                     await webSocket.CloseOutputAsync(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
                 }
             }
         }
         catch (WebSocketException ex)
         {
-            logger.ObservableWebSocketErrorReceivingMessage(ex);
+            handlerLogger.WebSocketErrorReceivingMessage(ex);
         }
         catch (OperationCanceledException)
         {
-            logger.ObservableCloseConnection("Operation was cancelled");
+            handlerLogger.OperationCancelled();
         }
         catch (Exception ex)
         {
-            logger.ObservableErrorReceivingMessage(ex);
+            handlerLogger.ErrorReceivingMessage(ex);
         }
         finally
         {
-            logger.ObservableClientDisconnected();
+            handlerLogger.ClientDisconnected();
         }
     }
 
@@ -80,7 +79,6 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
         CancellationToken token,
         ILogger? logger = null)
     {
-        logger ??= handlerLogger;
         try
         {
             var message = JsonSerializer.SerializeToUtf8Bytes(queryResult, jsonSerializerOptions);
@@ -90,7 +88,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
         }
         catch (Exception ex)
         {
-            logger.ObservableErrorSendingMessage(ex);
+            handlerLogger.ErrorSendingMessage(ex);
             return ex;
         }
     }

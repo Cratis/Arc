@@ -3,7 +3,6 @@
 
 using Cratis.Arc.Execution;
 using Cratis.Arc.Tenancy;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 
 namespace Cratis.Arc;

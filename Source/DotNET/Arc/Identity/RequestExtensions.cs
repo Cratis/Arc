@@ -3,7 +3,6 @@
 
 using System.Text.Json;
 using Cratis.Json;
-using Microsoft.AspNetCore.Http;
 
 namespace Cratis.Arc.Identity;
 

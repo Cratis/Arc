@@ -3,13 +3,11 @@
 
 using System.Text.Json;
 using Cratis.Arc.Execution;
+using Cratis.Arc.Http;
 using Cratis.Execution;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.AspNetCore.Routing;
 
 namespace Cratis.Arc.Commands;
 
@@ -20,11 +18,13 @@ namespace Cratis.Arc.Commands;
 /// <param name="commandPipeline">The command pipeline for executing validation.</param>
 /// <param name="correlationIdAccessor">Accessor for correlation IDs.</param>
 /// <param name="jsonSerializerOptions">JSON serialization options.</param>
+/// <param name="endpointMapper">The endpoint mapper for checking existing endpoints.</param>
 public class ControllerCommandEndpointMapper(
     IActionDescriptorCollectionProvider actionDescriptorCollectionProvider,
     ICommandPipeline commandPipeline,
     ICorrelationIdAccessor correlationIdAccessor,
-    JsonSerializerOptions jsonSerializerOptions)
+    JsonSerializerOptions jsonSerializerOptions,
+    IEndpointMapper endpointMapper)
 {
     static readonly string[] _postHttpMethod = ["POST"];
 
@@ -43,7 +43,7 @@ public class ControllerCommandEndpointMapper(
             if (commandType is null) continue;
 
             var endpointName = $"Validate{action.ControllerName}{action.ActionName}";
-            if (endpoints.EndpointExists(endpointName))
+            if (endpointMapper.EndpointExists(endpointName))
             {
                 continue;
             }
