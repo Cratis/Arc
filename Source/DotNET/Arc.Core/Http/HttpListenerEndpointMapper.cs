@@ -102,6 +102,22 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         _pathBase = pathBase.TrimEnd('/');
     }
 
+    /// <summary>
+    /// Gets all registered routes with their metadata.
+    /// </summary>
+    /// <returns>A collection of route information.</returns>
+    public IEnumerable<RouteInfo> GetRoutes()
+    {
+        foreach (var kvp in _routes)
+        {
+            var parts = kvp.Key.Split(':', 2);
+            var method = parts[0];
+            var pattern = parts[1];
+
+            yield return new RouteInfo(method, pattern, kvp.Value.Metadata);
+        }
+    }
+
     void MapRoute(string method, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
         var fullPattern = string.IsNullOrEmpty(_pathBase) ? pattern : $"{_pathBase}{pattern}";

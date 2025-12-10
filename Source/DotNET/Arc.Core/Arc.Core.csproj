@@ -16,5 +16,6 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="Microsoft.Extensions.Logging" />
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
+        <PackageReference Include="Microsoft.OpenApi" />
     </ItemGroup>
 </Project>
