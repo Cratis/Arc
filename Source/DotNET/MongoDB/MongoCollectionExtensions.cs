@@ -274,6 +274,7 @@ public static class MongoCollectionExtensions
             completedCleanup = true;
             logger.CleaningUp();
             cancellationTokenSource?.Dispose();
+            cancellationTokenSource = default;
             subject?.OnCompleted();
         }
     }
