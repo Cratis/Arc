@@ -60,7 +60,6 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
-        "@cratis/fundamentals": "^7.2.3",
         "tsyringe": "^4.10.0"
     },
     "peerDependencies": {
