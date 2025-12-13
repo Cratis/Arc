@@ -56,7 +56,6 @@
     "dependencies": {
         "@cratis/arc": "1.0.0",
         "@cratis/arc.react": "1.0.0",
-        "@cratis/fundamentals": "^7.2.3",
         "mobx": "^6.15.0",
         "mobx-react": "^9.2.1",
         "reflect-metadata": "^0.2.2",

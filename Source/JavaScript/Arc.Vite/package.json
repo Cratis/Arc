@@ -39,8 +39,7 @@
         "up": "yarn g:up"
     },
     "dependencies": {
-        "@cratis/arc": "1.0.0",
-        "@cratis/fundamentals": "^7.2.3"
+        "@cratis/arc": "1.0.0"
     },
     "peerDependencies": {
         "react": "^18.0.0 || ^19.0.0"
