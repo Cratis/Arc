@@ -65,6 +65,7 @@ public static class TypeExtensions
         { typeof(DateTime).FullName!, _dateTargetType },
         { typeof(DateTimeOffset).FullName!, _dateTargetType },
         { typeof(Guid).FullName!, new(typeof(Guid), "Guid", "Guid", "@cratis/fundamentals", FromPackage: true) },
+        { typeof(TimeSpan).FullName!, new(typeof(TimeSpan), "TimeSpan", "TimeSpan", "@cratis/fundamentals", FromPackage: true) },
         { typeof(DateOnly).FullName!, _dateTargetType },
         { typeof(TimeOnly).FullName!, _dateTargetType },
         { typeof(System.Text.Json.Nodes.JsonNode).FullName!, AnyTypeFinal },

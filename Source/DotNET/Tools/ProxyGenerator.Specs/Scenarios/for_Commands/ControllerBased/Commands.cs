@@ -32,7 +32,8 @@ public class ControllerCommandsController : ControllerBase
         return Ok(new ControllerCommandResult
         {
             Message = $"Received: {command.Input}",
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            ReceivedRetryDelay = command.RetryDelay
         });
     }
 
@@ -109,6 +110,11 @@ public class ControllerCommandWithResult
     /// Gets or sets the input.
     /// </summary>
     public string Input { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the retry delay.
+    /// </summary>
+    public TimeSpan RetryDelay { get; set; }
 }
 
 /// <summary>
@@ -125,6 +131,11 @@ public class ControllerCommandResult
     /// Gets or sets the timestamp.
     /// </summary>
     public DateTime Timestamp { get; set; }
+
+    /// <summary>
+    /// Gets or sets the received retry delay.
+    /// </summary>
+    public TimeSpan ReceivedRetryDelay { get; set; }
 }
 
 /// <summary>

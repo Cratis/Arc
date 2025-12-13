@@ -109,7 +109,8 @@ public class ControllerQueriesController : ControllerBase
             Nested = new ControllerNestedItem
             {
                 Description = "Nested data",
-                Amount = 123.45m
+                Amount = 123.45m,
+                ProcessingDuration = TimeSpan.FromSeconds(45)
             },
             Items = [1, 2, 3],
             Tags = new Dictionary<string, string>
@@ -187,4 +188,9 @@ public class ControllerNestedItem
     /// Gets or sets the amount.
     /// </summary>
     public decimal Amount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the processing duration.
+    /// </summary>
+    public TimeSpan ProcessingDuration { get; set; }
 }
