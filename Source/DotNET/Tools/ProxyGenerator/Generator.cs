@@ -89,17 +89,18 @@ public static class Generator
 
         var typesInvolved = new List<Type>();
         var directories = new List<string>();
+        var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
 
-        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, currentIndex);
+        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, currentIndex, generatedFiles);
 
         var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
-        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, currentIndex);
+        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, currentIndex, generatedFiles);
 
         var enumerableQueries = queries.Where(_ => _.IsEnumerable).ToList();
-        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, currentIndex);
+        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, currentIndex, generatedFiles);
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
-        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, currentIndex);
+        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, currentIndex, generatedFiles);
 
         typesInvolved.AddRange(identityDetailsTypesProvider.IdentityDetailsTypes.Except(typesInvolved));
 
@@ -107,26 +108,25 @@ public static class Generator
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
         var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_)).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
-        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, currentIndex);
+        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, currentIndex, generatedFiles);
 
         var enumDescriptors = enums.ConvertAll(_ => _.ToEnumDescriptor());
-        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, currentIndex);
+        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, currentIndex, generatedFiles);
 
+        // Find and remove orphaned files
         var stopwatch = Stopwatch.StartNew();
-        var directoriesWithContent = directories.Distinct().Select(_ => new DirectoryInfo(_));
-        foreach (var directory in directoriesWithContent)
+        var orphanedFiles = FileMetadataScanner.FindOrphanedFiles(outputPath, generatedFiles);
+        var removedCount = FileMetadataScanner.RemoveOrphanedFiles(outputPath, orphanedFiles, message);
+        if (removedCount > 0)
         {
-            var exports = directory
-                .GetFiles("*.ts*")
-                .Where(_ => _.Name != "index.ts")
-                .Select(_ => $"./{Path.GetFileNameWithoutExtension(_.Name)}")
-                .OrderBy(_ => _.Split('/')[^1]);
-            var descriptor = new IndexDescriptor(exports);
-            var content = TemplateTypes.Index(descriptor);
-            await File.WriteAllTextAsync(Path.Join(directory.FullName, "index.ts"), content);
+            message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
         }
 
-        message($"  {directoriesWithContent.Count()} index files written in {stopwatch.Elapsed}");
+        // Update index files intelligently
+        stopwatch.Restart();
+        var distinctDirectories = directories.Distinct().ToList();
+        IndexFileManager.UpdateAllIndexFiles(distinctDirectories, message, outputPath);
+        message($"  {distinctDirectories.Count} index files updated in {stopwatch.Elapsed}");
 
         // Clean up removed files and save the new index
         if (!skipFileIndexTracking && currentIndex is not null && previousIndex is not null && effectiveProjectDirectory is not null)
