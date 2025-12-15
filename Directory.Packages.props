@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="14.13.9" />
+    <PackageVersion Include="Cratis.Chronicle" Version="14.13.10" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.3.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.3.0" />
     <!-- Microsoft -->
