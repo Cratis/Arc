@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 using System.Security.Claims;
 using Cratis.Arc.Http;
+using Cratis.Types;
 
 namespace Cratis.Arc.Authorization.for_AuthorizationEvaluator.given;
 
@@ -11,6 +12,8 @@ public class an_authorization_helper : Specification
     protected IHttpRequestContext _httpRequestContext;
     protected AuthorizationEvaluator _authorizationHelper;
     protected ClaimsPrincipal _user;
+    protected IInstancesOf<IAnonymousEvaluator> _anonymousEvaluators;
+    protected IInstancesOf<IAuthorizationAttributeEvaluator> _authorizationAttributeEvaluators;
 
     void Establish()
     {
@@ -21,7 +24,13 @@ public class an_authorization_helper : Specification
         _httpRequestContextAccessor.Current.Returns(_httpRequestContext);
         _httpRequestContext.User.Returns(_user);
 
-        _authorizationHelper = new AuthorizationEvaluator(_httpRequestContextAccessor);
+        _anonymousEvaluators = Substitute.For<IInstancesOf<IAnonymousEvaluator>>();
+        _anonymousEvaluators.GetEnumerator().Returns(_ => new List<IAnonymousEvaluator> { new AnonymousEvaluator() }.GetEnumerator());
+
+        _authorizationAttributeEvaluators = Substitute.For<IInstancesOf<IAuthorizationAttributeEvaluator>>();
+        _authorizationAttributeEvaluators.GetEnumerator().Returns(_ => new List<IAuthorizationAttributeEvaluator> { new AuthorizationAttributeEvaluator() }.GetEnumerator());
+
+        _authorizationHelper = new AuthorizationEvaluator(_httpRequestContextAccessor, _anonymousEvaluators, _authorizationAttributeEvaluators);
     }
 
     protected void SetupAuthenticatedUser(params string[] roles)
