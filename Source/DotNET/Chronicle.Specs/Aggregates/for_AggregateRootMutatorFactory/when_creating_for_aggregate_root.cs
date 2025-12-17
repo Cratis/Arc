@@ -7,7 +7,7 @@ using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutatorFactory;
 
-public class when_creating_for_stateless_aggregate_root : given.an_aggregate_root_mutator_factory
+public class when_creating_for_aggregate_root : given.an_aggregate_root_mutator_factory
 {
     AggregateRootContext _context;
     IAggregateRootMutator _result;
@@ -18,12 +18,12 @@ public class when_creating_for_stateless_aggregate_root : given.an_aggregate_roo
         EventStreamType.All,
         EventStreamId.Default,
         Substitute.For<IEventSequence>(),
-        new StatelessAggregateRoot(),
+        new TestAggregateRoot(),
         Substitute.For<IUnitOfWork>(),
         EventSequenceNumber.First,
         EventSequenceNumber.First);
 
-    async Task Because() => _result = await _factory.Create<StatelessAggregateRoot>(_context);
+    async Task Because() => _result = await _factory.Create<TestAggregateRoot>(_context);
 
-    [Fact] void should_return_a_stateful_mutator() => _result.ShouldBeOfExactType<StatelessAggregateRootMutator>();
+    [Fact] void should_return_an_aggregate_root_mutator() => _result.ShouldBeOfExactType<AggregateRootMutator>();
 }

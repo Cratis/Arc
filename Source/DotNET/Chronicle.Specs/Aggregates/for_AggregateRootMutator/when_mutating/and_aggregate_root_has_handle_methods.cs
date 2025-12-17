@@ -3,9 +3,9 @@
 
 using Cratis.Chronicle.Events;
 
-namespace Cratis.Arc.Chronicle.Aggregates.for_StatelessAggregateRootMutator.when_mutating;
+namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutator.when_mutating;
 
-public class and_aggregate_root_has_handle_methods : given.a_stateless_aggregate_root_mutator
+public class and_aggregate_root_has_handle_methods : given.an_aggregate_root_mutator
 {
     string _event;
 

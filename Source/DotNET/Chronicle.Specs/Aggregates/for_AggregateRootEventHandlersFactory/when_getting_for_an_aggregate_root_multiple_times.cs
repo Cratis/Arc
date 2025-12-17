@@ -20,8 +20,8 @@ public class when_getting_for_an_aggregate_root_multiple_times : Specification
 
     void Because()
     {
-        _firstResult = _factory.GetFor(new StatefulAggregateRoot());
-        _secondResult = _factory.GetFor(new StatefulAggregateRoot());
+        _firstResult = _factory.GetFor(new TestAggregateRoot());
+        _secondResult = _factory.GetFor(new TestAggregateRoot());
     }
 
     [Fact] void should_return_same_object() => _firstResult.ShouldBeSame(_secondResult);

@@ -17,7 +17,7 @@ public class when_getting_for_an_aggregate_root : Specification
         _factory = new(_eventTypes);
     }
 
-    void Because() => _result = _factory.GetFor(new StatefulAggregateRoot());
+    void Because() => _result = _factory.GetFor(new TestAggregateRoot());
 
     [Fact] void should_the_default_implementation() => _result.ShouldBeOfExactType<AggregateRootEventHandlers>();
 }

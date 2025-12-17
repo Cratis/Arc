@@ -3,7 +3,7 @@
 
 namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRoot;
 
-public class when_committing : given.a_stateless_aggregate_root
+public class when_committing : given.an_aggregate_root
 {
     AggregateRootCommitResult _expectedResult;
     AggregateRootCommitResult _result;
