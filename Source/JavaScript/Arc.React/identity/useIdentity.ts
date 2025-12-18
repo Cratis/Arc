@@ -29,6 +29,9 @@ export function useIdentity<TDetails = object>(
     const identity = contextValue.identity as IIdentity<TDetails>;
     
     // Determine if first argument is a Constructor or default details
+    // Constructors are functions, but regular functions would be unusual here.
+    // We rely on the type system and developer intent - if a function is passed, 
+    // it's expected to be a constructor class.
     const isConstructor = typeof typeOrDefaultDetails === 'function';
     const actualDefaultDetails = isConstructor ? defaultDetails : typeOrDefaultDetails;
     
