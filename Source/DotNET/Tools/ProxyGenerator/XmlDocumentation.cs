@@ -146,7 +146,7 @@ public static class XmlDocumentation
         return member switch
         {
             MethodInfo method => GetMethodName(method),
-            PropertyInfo property => $"P:{property.DeclaringType?.FullName}.{property.Name}",
+            PropertyInfo property => $"P:{property.DeclaringType?.FullName ?? property.DeclaringType?.Name}.{property.Name}",
             Type type => GetTypeName(type),
             _ => string.Empty
         };
@@ -168,7 +168,7 @@ public static class XmlDocumentation
 
     static string GetTypeName(Type type)
     {
-        return $"T:{type.FullName}";
+        return $"T:{type.FullName ?? type.Name}";
     }
 
     static string GetTypeFullName(Type type)
