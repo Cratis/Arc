@@ -16,8 +16,11 @@ public static class PropertyExtensions
     /// </summary>
     /// <param name="property">Property to convert.</param>
     /// <returns><see cref="PropertyDescriptor"/>.</returns>
-    public static PropertyDescriptor ToPropertyDescriptor(this PropertyInfo property) =>
-        ToPropertyDescriptor(property.PropertyType, property.Name);
+    public static PropertyDescriptor ToPropertyDescriptor(this PropertyInfo property)
+    {
+        var documentation = property.GetDocumentation();
+        return ToPropertyDescriptor(property.PropertyType, property.Name, documentation);
+    }
 
     /// <summary>
     /// Check if a property is optional - typically for arguments or properties.
@@ -35,10 +38,13 @@ public static class PropertyExtensions
     /// </summary>
     /// <param name="parameterInfo">Parameter to convert.</param>
     /// <returns><see cref="PropertyDescriptor"/>.</returns>
-    public static PropertyDescriptor ToPropertyDescriptor(this ParameterInfo parameterInfo) =>
-        ToPropertyDescriptor(parameterInfo.ParameterType, parameterInfo.Name!);
+    public static PropertyDescriptor ToPropertyDescriptor(this ParameterInfo parameterInfo)
+    {
+        var documentation = parameterInfo.GetDocumentation();
+        return ToPropertyDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, documentation);
+    }
 
-    static PropertyDescriptor ToPropertyDescriptor(Type propertyType, string name)
+    static PropertyDescriptor ToPropertyDescriptor(Type propertyType, string name, string? documentation = null)
     {
         var isEnumerable = false;
         var isNullable = false;
@@ -66,6 +72,7 @@ public static class PropertyExtensions
             targetType.Module,
             isEnumerable,
             isNullable,
-            propertyType.IsAPrimitiveType());
+            propertyType.IsAPrimitiveType(),
+            documentation);
     }
 }

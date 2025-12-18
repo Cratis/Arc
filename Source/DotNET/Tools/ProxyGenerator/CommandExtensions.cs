@@ -51,6 +51,8 @@ public static class CommandExtensions
 
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
+        var documentation = method.GetDocumentation();
+
         return new(
             method.DeclaringType!,
             method,
@@ -61,6 +63,7 @@ public static class CommandExtensions
             parameters,
             hasResponse,
             responseModel,
-            [.. typesInvolved, .. additionalTypesInvolved]);
+            [.. typesInvolved, .. additionalTypesInvolved],
+            documentation);
     }
 }

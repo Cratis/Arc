@@ -12,10 +12,12 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="Constructor">The JavaScript constructor for the type.</param>
 /// <param name="IsOptional">Whether or not the argument is nullable / optional.</param>
 /// <param name="IsQueryStringParameter">Whether or not the argument is a query string parameter.</param>
+/// <param name="Documentation">JSDoc documentation for the parameter.</param>
 public record RequestParameterDescriptor(
     Type OriginalType,
     string Name,
     string Type,
     string Constructor,
     bool IsOptional,
-    bool IsQueryStringParameter = false);
+    bool IsQueryStringParameter = false,
+    string? Documentation = null);
