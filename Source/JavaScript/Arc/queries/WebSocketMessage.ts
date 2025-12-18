@@ -8,17 +8,17 @@ export enum WebSocketMessageType {
     /**
      * A data message containing query results.
      */
-    Data = 'data',
+    Data = 'Data',
 
     /**
      * A ping message sent from client to server.
      */
-    Ping = 'ping',
+    Ping = 'Ping',
 
     /**
      * A pong message sent from server to client in response to a ping.
      */
-    Pong = 'pong'
+    Pong = 'Pong'
 }
 
 /**
