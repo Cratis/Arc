@@ -16,6 +16,15 @@ internal static partial class WebSocketConnectionHandlerLogMessages
     [LoggerMessage(LogLevel.Trace, "Received message")]
     internal static partial void ReceivedMessage(this ILogger<WebSocketConnectionHandler> logger);
 
+    [LoggerMessage(LogLevel.Trace, "Received ping message")]
+    internal static partial void ReceivedPingMessage(this ILogger<WebSocketConnectionHandler> logger);
+
+    [LoggerMessage(LogLevel.Trace, "Sent pong message")]
+    internal static partial void SentPongMessage(this ILogger<WebSocketConnectionHandler> logger);
+
+    [LoggerMessage(LogLevel.Warning, "Error handling ping message")]
+    internal static partial void ErrorHandlingPingMessage(this ILogger<WebSocketConnectionHandler> logger, Exception exception);
+
     [LoggerMessage(LogLevel.Debug, "Closing connection. Description: {Description}")]
     internal static partial void CloseConnection(this ILogger<WebSocketConnectionHandler> logger, string? description);
 
