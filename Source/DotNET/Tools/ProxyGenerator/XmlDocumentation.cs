@@ -181,6 +181,10 @@ public static class XmlDocumentation
                 var backTickIndex = genericTypeName.IndexOf('`');
                 genericTypeName = backTickIndex >= 0 ? genericTypeName[..backTickIndex] : genericTypeName;
             }
+            else
+            {
+                genericTypeName = type.Name;
+            }
             var genericArgs = string.Join(',', type.GetGenericArguments().Select(GetTypeFullName));
             return $"{genericTypeName}{{{genericArgs}}}";
         }
