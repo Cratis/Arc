@@ -16,7 +16,7 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
     private _socket!: WebSocket;
     private _disconnected = false;
     private _url: string;
-    private _pingInterval?: number;
+    private _pingInterval?: ReturnType<typeof setInterval>;
     private _pingIntervalMs: number = 10000;
     private _lastPingSentTime?: number;
     private _lastPongLatency: number = 0;
@@ -151,14 +151,14 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
 
     private startPinging() {
         this.stopPinging();
-        this._pingInterval = window.setInterval(() => {
+        this._pingInterval = setInterval(() => {
             this.sendPing();
         }, this._pingIntervalMs);
     }
 
     private stopPinging() {
         if (this._pingInterval) {
-            window.clearInterval(this._pingInterval);
+            clearInterval(this._pingInterval);
             this._pingInterval = undefined;
         }
     }
@@ -178,15 +178,19 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
     }
 
     private handleMessage(rawData: string, dataReceived: DataReceived<TDataType>) {
-        const message = JSON.parse(rawData) as WebSocketMessage;
+        try {
+            const message = JSON.parse(rawData) as WebSocketMessage;
 
-        // Handle messages based on type
-        if (message.type === WebSocketMessageType.Pong) {
-            this.handlePong(message);
-        } else if (message.type === WebSocketMessageType.Data || !message.type) {
-            // For backward compatibility, treat messages without a type as data messages
-            const data = message.data ?? message;
-            dataReceived(data as QueryResult<TDataType>);
+            // Handle messages based on type
+            if (message.type === WebSocketMessageType.Pong) {
+                this.handlePong(message);
+            } else if (message.type === WebSocketMessageType.Data || !message.type) {
+                // For backward compatibility, treat messages without a type as data messages
+                const data = message.data ?? message;
+                dataReceived(data as QueryResult<TDataType>);
+            }
+        } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
         }
     }
 

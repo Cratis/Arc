@@ -107,7 +107,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
             var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, count);
             var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText);
 
-            if (message?.Type == Queries.WebSocketMessageType.Ping)
+            if (message is not null && message.Type == Queries.WebSocketMessageType.Ping)
             {
                 handlerLogger.ReceivedPingMessage();
                 var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
