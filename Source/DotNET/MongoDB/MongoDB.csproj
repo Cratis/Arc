@@ -10,7 +10,7 @@
     <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals" />
         <PackageReference Include="Cratis.Metrics.Roslyn" />
-        <PackageReference Include="polly.core" />
+        <PackageReference Include="Microsoft.Extensions.Resilience" />
         <PackageReference Include="castle.core" />
         <PackageReference Include="MongoDB.Driver" />
         <PackageReference Include="Microsoft.Extensions.Logging" />
