@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useState, useEffect, useContext } from 'react';
+import { Constructor } from '@cratis/fundamentals';
 import { IIdentity } from '@cratis/arc/identity';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { GetHttpHeaders } from '@cratis/arc';
@@ -20,16 +21,26 @@ const defaultIdentityContext: IIdentity = {
     }
 };
 
-export const IdentityProviderContext = React.createContext<IIdentity>(defaultIdentityContext);
+type IdentityContextValue = {
+    identity: IIdentity;
+    detailsConstructor?: Constructor;
+};
+
+const defaultContextValue: IdentityContextValue = {
+    identity: defaultIdentityContext
+};
+
+export const IdentityProviderContext = React.createContext<IdentityContextValue>(defaultContextValue);
 
 export interface IdentityProviderProps {
     children?: JSX.Element | JSX.Element[],
-    httpHeadersCallback?: GetHttpHeaders
+    httpHeadersCallback?: GetHttpHeaders,
+    detailsType?: Constructor
 }
 
 export const IdentityProvider = (props: IdentityProviderProps) => {
     const arc = useContext(ArcContext);
-    const [context, setContext] = useState<IIdentity>(defaultIdentityContext);
+    const [context, setContext] = useState<IdentityContextValue>(defaultContextValue);
 
     const wrapRefresh = (identity: IIdentity): IIdentity => {
         const originalRefresh = identity.refresh.bind(identity);
@@ -39,7 +50,10 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
                 return new Promise<IIdentity>(resolve => {
                     originalRefresh().then(newIdentity => {
                         const wrappedIdentity = wrapRefresh(newIdentity);
-                        setContext(wrappedIdentity);
+                        setContext({
+                            identity: wrappedIdentity,
+                            detailsConstructor: props.detailsType
+                        });
                         resolve(wrappedIdentity);
                     });
                 });
@@ -51,9 +65,12 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         RootIdentityProvider.setHttpHeadersCallback(props.httpHeadersCallback!);
         RootIdentityProvider.setApiBasePath(arc.apiBasePath ?? '');
         RootIdentityProvider.setOrigin(arc.origin ?? '');
-        RootIdentityProvider.getCurrent().then(identity => {
+        RootIdentityProvider.getCurrent(props.detailsType).then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
-            setContext(wrappedIdentity);
+            setContext({
+                identity: wrappedIdentity,
+                detailsConstructor: props.detailsType
+            });
         });
     }, []);
 

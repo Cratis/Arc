@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { IIdentityProvider } from './IIdentityProvider';
 import { IIdentity } from './IIdentity';
 import { IdentityProviderResult } from './IdentityProviderResult';
@@ -44,32 +45,34 @@ export class IdentityProvider extends IIdentityProvider {
 
     /**
      * Gets the current identity by optionally specifying the details type.
+     * @param type Optional constructor for the details type to enable type-safe deserialization.
      * @returns The current identity as {@link IIdentity}.
      */
-    static async getCurrent<TDetails = object>(): Promise<IIdentity<TDetails>> {
+    static async getCurrent<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
         const cookie = this.getCookie();
         if (cookie.length == 2) {
             const json = atob(cookie[1]);
             const result = JSON.parse(json) as IdentityProviderResult;
+            const details = type ? JsonSerializer.deserializeFromInstance(type, result.details) : result.details;
             return {
                 id: result.id,
                 name: result.name,
-                details: result.details,
+                details: details as TDetails,
                 isSet: true,
-                refresh: IdentityProvider.refresh
+                refresh: () => IdentityProvider.refresh(type)
             } as IIdentity<TDetails>;
         } else {
-            const identity = await this.refresh<TDetails>();
+            const identity = await this.refresh<TDetails>(type);
             return identity;
         }
     }
 
     /** @inheritdoc */
-    async getCurrent<TDetails = object>(): Promise<IIdentity<TDetails>> {
-        return IdentityProvider.getCurrent<TDetails>();
+    async getCurrent<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
+        return IdentityProvider.getCurrent<TDetails>(type);
     }
 
-    static async refresh<TDetails = object>(): Promise<IIdentity<TDetails>> {
+    static async refresh<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
         IdentityProvider.clearCookie();
         const apiBasePath = IdentityProvider.apiBasePath || Globals.apiBasePath || '';
         const url = joinPaths(apiBasePath, '/.cratis/me');
@@ -80,13 +83,14 @@ export class IdentityProvider extends IIdentityProvider {
         });
 
         const result = await response.json() as IdentityProviderResult;
+        const details = type ? JsonSerializer.deserializeFromInstance(type, result.details) : result.details;
 
         return {
             id: result.id,
             name: result.name,
-            details: result.details as TDetails,
+            details: details as TDetails,
             isSet: true,
-            refresh: IdentityProvider.refresh
+            refresh: () => IdentityProvider.refresh(type)
         };
     }
 
