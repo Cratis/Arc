@@ -11,7 +11,7 @@ class TestDetails {
     role: string = '';
 }
 
-describe('when getting current with type safe details', given(an_identity_provider, context => {
+describe('when getting current with type safe details', given(an_identity_provider, () => {
     let result: { id: string; name: string; details: TestDetails };
 
     beforeEach(async () => {
