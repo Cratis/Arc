@@ -120,7 +120,7 @@ public static class DbSetObserveExtensions
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
         var queryContext = queryContextManager.Current;
 
-        var idProperty = GetIdProperty<TEntity>(dbSet);
+        var idProperty = GetIdProperty(dbSet);
         var entities = new QueryContextAwareSet<TEntity>(queryContext, idProperty);
 
         // Get table name for database notifications
@@ -324,7 +324,7 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         // Use IInfrastructure to get the service provider from DbSet
-        var infrastructure = dbSet as Infrastructure.IInfrastructure<IServiceProvider>;
+        var infrastructure = dbSet as IInfrastructure<IServiceProvider>;
         var serviceProvider = infrastructure?.Instance
             ?? throw new InvalidOperationException("Unable to get service provider from DbSet");
 
