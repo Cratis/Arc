@@ -4,11 +4,13 @@
 import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 
 describe('with valid arguments', given(a_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     const mockResponse = {
         data: 'test-result',
         isSuccess: true,
@@ -27,8 +29,9 @@ describe('with valid arguments', given(a_query_for, context => {
     };
 
     beforeEach(async () => {
-        // Setup fetch mock
-        fetchStub = sinon.stub(global, 'fetch');
+        // Setup fetch mock using helper
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -44,7 +47,7 @@ describe('with valid arguments', given(a_query_for, context => {
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should return successful result', () => {

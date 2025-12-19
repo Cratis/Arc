@@ -3,9 +3,11 @@
 
 import sinon from 'sinon';
 import { IdentityProvider } from '../../IdentityProvider';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 
 export class an_identity_provider {
     fetchStub: sinon.SinonStub;
+    fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     originalApiBasePath: string;
     originalOrigin: string;
 
@@ -18,10 +20,7 @@ export class an_identity_provider {
             (global as { document?: { cookie: string } }).document = { cookie: '' };
         }
         
-        // Restore any existing fetch stub before creating a new one
-        if ((globalThis.fetch as sinon.SinonStub)?.restore) {
-            (globalThis.fetch as sinon.SinonStub).restore();
-        }
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
+        this.fetchHelper = createFetchHelper();
+        this.fetchStub = this.fetchHelper.stubFetch();
     }
 }

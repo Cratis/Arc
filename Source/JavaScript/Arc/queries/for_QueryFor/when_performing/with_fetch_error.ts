@@ -5,15 +5,18 @@ import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 
 describe('with fetch error', given(a_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     beforeEach(async () => {
         // Setup fetch mock to reject
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.rejects(new Error('Network error'));
 
         context.query.setOrigin('https://api.example.com');
@@ -29,7 +32,7 @@ describe('with fetch error', given(a_query_for, context => {
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should return no success result', () => {

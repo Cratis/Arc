@@ -5,12 +5,14 @@ import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 
 describe('with abort controller', given(a_query_for, context => {
     let result1: QueryResult<string>;
     let result2: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     let firstAbortController: AbortController;
     const mockResponse = {
         data: 'test-result',
@@ -31,7 +33,8 @@ describe('with abort controller', given(a_query_for, context => {
 
     beforeEach(async () => {
         // Setup fetch mock
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -49,7 +52,7 @@ describe('with abort controller', given(a_query_for, context => {
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should create new abort controller on second call', () => {
