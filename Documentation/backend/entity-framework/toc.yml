@@ -6,6 +6,8 @@
   href: read-only.md
 - name: Automatic Database hookup
   href: automatic-database-hookup.md
+- name: Observing DbSet
+  href: observing.md
 - name: Common Column Types
   href: common-column-types.md
 - name: Property Extensions
