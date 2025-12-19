@@ -170,6 +170,11 @@ public class ComplexCommand
     public Dictionary<string, int> Values { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the timeout duration.
+    /// </summary>
+    public TimeSpan Timeout { get; set; }
+
+    /// <summary>
     /// Handles the command and returns a result.
     /// </summary>
     /// <returns>The complex command result.</returns>
@@ -177,7 +182,8 @@ public class ComplexCommand
     {
         ReceivedNested = Nested?.Name,
         ItemCount = Items.Count,
-        ValueCount = Values.Count
+        ValueCount = Values.Count,
+        ReceivedTimeout = Timeout
     };
 }
 
@@ -200,6 +206,11 @@ public class ComplexCommandResult
     /// Gets or sets the value count.
     /// </summary>
     public int ValueCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the received timeout.
+    /// </summary>
+    public TimeSpan ReceivedTimeout { get; set; }
 }
 
 /// <summary>

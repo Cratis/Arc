@@ -10,6 +10,8 @@ namespace Microsoft.AspNetCore.Builder;
 /// </summary>
 public static class ApplicationBuilderExtensions
 {
+    const string CratisArcInitializedKey = "Cratis.Arc.Initialized";
+
     /// <summary>
     /// Use Cratis default setup.
     /// </summary>
@@ -17,7 +19,15 @@ public static class ApplicationBuilderExtensions
     /// <returns><see cref="IApplicationBuilder"/> for continuation.</returns>
     public static IApplicationBuilder UseCratisArc(this IApplicationBuilder app)
     {
+        // Prevent double initialization for the same app instance
+        if (app.Properties.ContainsKey(CratisArcInitializedKey))
+        {
+            return app;
+        }
+        app.Properties[CratisArcInitializedKey] = true;
+
         Internals.ServiceProvider = app.ApplicationServices;
+
         app.MapIdentityProvider();
         app.UseCommandEndpoints();
         app.UseQueryEndpoints();

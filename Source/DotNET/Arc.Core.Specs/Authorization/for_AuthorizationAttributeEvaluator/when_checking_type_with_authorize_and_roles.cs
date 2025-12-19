@@ -1,0 +1,14 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Cratis.Arc.Authorization.for_AuthorizationAttributeEvaluator;
+
+public class when_checking_type_with_authorize_and_roles : given.an_authorization_attribute_evaluator
+{
+    (bool HasAuthorize, string? Roles)? _result;
+
+    void Because() => _result = _evaluator.GetAuthorizationInfo(typeof(given.TypeWithAuthorizeAndRoles));
+
+    [Fact] void should_return_has_authorize_true() => _result?.HasAuthorize.ShouldBeTrue();
+    [Fact] void should_return_roles() => _result?.Roles.ShouldEqual("Admin,User");
+}

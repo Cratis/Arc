@@ -14,6 +14,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="IsEnumerable">Whether or not the property is an enumerable or not.</param>
 /// <param name="IsNullable">Whether or not the property is nullable or not.</param>
 /// <param name="isPrimitive">Whether or not the property is a primitive type.</param>
+/// <param name="Documentation">JSDoc documentation for the property.</param>
 public record PropertyDescriptor(
     Type OriginalType,
     string Name,
@@ -22,4 +23,5 @@ public record PropertyDescriptor(
     string Module,
     bool IsEnumerable,
     bool IsNullable,
-    bool isPrimitive);
+    bool isPrimitive,
+    string? Documentation);

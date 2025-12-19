@@ -211,7 +211,8 @@ public class ComplexReadModel
         {
             Description = "Nested description",
             Amount = 123.45m,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Duration = TimeSpan.FromHours(2.5)
         },
         Items =
         [
@@ -256,6 +257,11 @@ public class ReadModelNestedData
     /// Gets or sets the created timestamp.
     /// </summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the duration.
+    /// </summary>
+    public TimeSpan Duration { get; set; }
 }
 
 /// <summary>

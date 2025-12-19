@@ -18,6 +18,16 @@ export class NullObservableQueryConnection<TDataType> implements IObservableQuer
     }
 
     /** @inheritdoc */
+    get lastPingLatency(): number {
+        return 0;
+    }
+
+    /** @inheritdoc */
+    get averageLatency(): number {
+        return 0;
+    }
+
+    /** @inheritdoc */
     connect(dataReceived: DataReceived<TDataType>) {
         dataReceived(QueryResult.empty(this.defaultValue));
     }

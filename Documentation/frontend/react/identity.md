@@ -112,6 +112,61 @@ export const Home = () => {
 };
 ```
 
+### Type-safe identity with complex types
+
+If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by providing a constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
+
+First, define your identity details class:
+
+```typescript
+import { Guid } from '@cratis/fundamentals';
+
+class UserIdentityDetails {
+    userId: Guid = Guid.empty;
+    firstName: string = '';
+    lastName: string = '';
+}
+```
+
+Then, configure the `IdentityProvider` with the details type:
+
+```typescript
+import { IdentityProvider } from '@cratis/arc.react/identity';
+
+export const App = () => {
+    return (
+        <IdentityProvider detailsType={UserIdentityDetails}>
+            {/* ... your app content ... */}
+        </IdentityProvider>
+    );
+};
+```
+
+Finally, use the `useIdentity()` hook with the constructor:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
+import { Guid } from '@cratis/fundamentals';
+
+class UserIdentityDetails {
+    userId: Guid = Guid.empty;
+    firstName: string = '';
+    lastName: string = '';
+}
+
+export const Home = () => {
+    const identity = useIdentity(UserIdentityDetails);
+
+    // Now identity.details.userId is a proper Guid instance with all its methods
+    return (
+        <h3>User ID: {identity.details.userId.toString()}</h3>
+        <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+    );
+};
+```
+
+This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateTime`, and other custom types are properly instantiated rather than being plain JSON objects.
+
 ### Refreshing with hook
 
 Since the `useIdentity()` returns an instance of the `IIdentityContext`. So for refreshing with a hook, its easily
@@ -164,3 +219,31 @@ export const Home = () => {
     );
 };
 ```
+
+When using the type-safe overload with a constructor, the default value is provided as the second parameter:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
+import { Guid } from '@cratis/fundamentals';
+
+class UserIdentityDetails {
+    userId: Guid = Guid.empty;
+    firstName: string = '';
+    lastName: string = '';
+}
+
+export const Home = () => {
+    const defaultDetails: UserIdentityDetails = {
+        userId: Guid.empty,
+        firstName: '[N/A]',
+        lastName: '[N/A]'
+    };
+    
+    const identity = useIdentity(UserIdentityDetails, defaultDetails);
+
+    return (
+        <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+    );
+};
+```
+

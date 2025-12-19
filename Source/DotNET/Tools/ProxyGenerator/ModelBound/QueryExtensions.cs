@@ -108,6 +108,8 @@ public static class QueryExtensions
 
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
+        var documentation = method.GetDocumentation();
+
         return new(
             readModelType,
             method,
@@ -121,7 +123,8 @@ public static class QueryExtensions
             parameters,
             [.. parameters.Where(_ => !_.IsOptional)],
             properties,
-            [.. typesInvolved, .. additionalTypesInvolved]);
+            [.. typesInvolved, .. additionalTypesInvolved],
+            documentation);
     }
 
     /// <summary>
@@ -164,9 +167,10 @@ public static class QueryExtensions
     {
         var type = parameterInfo.ParameterType.GetTargetType();
         var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
+        var documentation = parameterInfo.GetDocumentation();
 
         // All query parameters are considered query string parameters
-        return new RequestParameterDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, type.Type, type.Constructor, optional, true);
+        return new RequestParameterDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, type.Type, type.Constructor, optional, true, documentation);
     }
 
     /// <summary>

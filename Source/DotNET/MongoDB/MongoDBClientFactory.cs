@@ -68,7 +68,7 @@ public class MongoDBClientFactory(
         var resiliencePipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
-                ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+                ShouldHandle = args => args.Outcome.Exception is not null ? PredicateResult.True() : PredicateResult.False(),
                 UseJitter = true,
                 MaxRetryAttempts = 5,
                 Delay = TimeSpan.FromMilliseconds(500)

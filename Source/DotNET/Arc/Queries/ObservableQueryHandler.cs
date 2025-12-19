@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -16,14 +16,13 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents an implementation of <see cref="IObservableQueryHandler"/>.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="ObservableQueryHandler"/> class.
-/// </remarks>
+/// <param name="httpContextAccessor"><see cref="IHttpContextAccessor"/>.</param>
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/>.</param>
 /// <param name="options"><see cref="JsonOptions"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 [Singleton]
 public class ObservableQueryHandler(
+    IHttpContextAccessor httpContextAccessor,
     IQueryContextManager queryContextManager,
     IOptions<JsonOptions> options,
     ILogger<ObservableQueryHandler> logger) : IObservableQueryHandler
@@ -31,10 +30,22 @@ public class ObservableQueryHandler(
     readonly JsonOptions _options = options.Value;
 
     /// <inheritdoc/>
+    public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
+        context.WebSockets.IsWebSocketRequest;
+
+    /// <summary>
+    /// Determines if the current request should be handled as a WebSocket connection.
+    /// </summary>
+    /// <param name="context">The <see cref="ActionExecutingContext"/>.</param>
+    /// <returns>True if the request should be handled as WebSocket, false otherwise.</returns>
     public bool ShouldHandleAsWebSocket(ActionExecutingContext context) =>
         context.HttpContext.WebSockets.IsWebSocketRequest;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Determines if the current request should be handled as a WebSocket connection.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/>.</param>
+    /// <returns>True if the request should be handled as WebSocket, false otherwise.</returns>
     public bool ShouldHandleAsWebSocket(HttpContext httpContext) =>
         httpContext.WebSockets.IsWebSocketRequest;
 
@@ -43,8 +54,14 @@ public class ObservableQueryHandler(
         data?.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) is true ||
         data?.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)) is true;
 
-    /// <inheritdoc/>
-    public async Task HandleStreamingResult(
+    /// <summary>
+    /// Handles streaming result for controller-based actions.
+    /// </summary>
+    /// <param name="context">The <see cref="ActionExecutingContext"/>.</param>
+    /// <param name="actionExecutedContext">The <see cref="ActionExecutedContext"/> from the action execution.</param>
+    /// <param name="objectResult">The <see cref="ObjectResult"/> containing the streaming data.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task HandleControllerStreamingResult(
         ActionExecutingContext context,
         ActionExecutedContext? actionExecutedContext,
         ObjectResult objectResult)
@@ -68,10 +85,55 @@ public class ObservableQueryHandler(
 
     /// <inheritdoc/>
     public async Task HandleStreamingResult(
-        HttpContext httpContext,
+        IHttpRequestContext context,
+        QueryName queryName,
+        object streamingData)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        httpContext.HandleWebSocketHeadersForMultipleProxies(logger);
+
+        if (IsSubjectResult(streamingData))
+        {
+            await HandleSubjectResultForEndpoint(httpContext, queryName, streamingData);
+        }
+        else if (IsAsyncEnumerableResult(streamingData))
+        {
+            await HandleAsyncEnumerableResultForEndpoint(httpContext, queryName, streamingData);
+        }
+    }
+
+    /// <summary>
+    /// Handles streaming result with query context for controller-based actions.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    /// <param name="queryName">The name of the query being executed.</param>
+    /// <param name="streamingData">The streaming data (Subject or AsyncEnumerable).</param>
+    /// <param name="queryContext">The query context.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+#pragma warning disable IDE0060 // Remove unused parameter - kept for backward compatibility
+    public async Task HandleStreamingResult(
+        IHttpRequestContext context,
         QueryName queryName,
         object streamingData,
         QueryContext queryContext)
+#pragma warning restore IDE0060
+    {
+        // For now, just delegate to the simpler version
+        // QueryContext might be useful in the future for enhanced features
+        await HandleStreamingResult(context, queryName, streamingData);
+    }
+
+    /// <summary>
+    /// Handles streaming result for controller-based actions.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the request.</param>
+    /// <param name="queryName">The name of the query being executed.</param>
+    /// <param name="streamingData">The streaming data (Subject or AsyncEnumerable).</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public async Task HandleStreamingResult(
+        HttpContext httpContext,
+        QueryName queryName,
+        object streamingData)
     {
         httpContext.HandleWebSocketHeadersForMultipleProxies(logger);
 

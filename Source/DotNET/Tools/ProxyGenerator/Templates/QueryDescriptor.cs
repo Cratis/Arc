@@ -21,6 +21,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="RequiredParameters">Parameters that are required for the query.</param>
 /// <param name="Properties">Properties for the query.</param>
 /// <param name="TypesInvolved">Collection of types involved in the query.</param>
+/// <param name="Documentation">JSDoc documentation for the query.</param>
 public record QueryDescriptor(
     Type Type,
     MethodInfo Method,
@@ -34,4 +35,5 @@ public record QueryDescriptor(
     IEnumerable<RequestParameterDescriptor> Parameters,
     IEnumerable<RequestParameterDescriptor> RequiredParameters,
     IEnumerable<PropertyDescriptor> Properties,
-    IEnumerable<Type> TypesInvolved) : IDescriptor;
+    IEnumerable<Type> TypesInvolved,
+    string? Documentation) : IDescriptor;

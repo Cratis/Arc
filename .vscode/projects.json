@@ -1,8 +1,8 @@
 [
     {
-        "name": "eCommerce",
-        "path": "${workspaceFolder}/Samples/eCommerce/Basic/Main",
-        "outputPath": "${workspaceFolder}/Samples/eCommerce/Basic/Main/bin/Debug/net9.0/Main.dll"
+        "name": "TestConsole",
+        "path": "${workspaceFolder}/Source/DotNET/TestConsole",
+        "outputPath": "${workspaceFolder}/Source/DotNET/TestConsole/bin/Debug/net10.0/TestConsole.dll"
     },
     {
         "name": "ProxyGenerator",

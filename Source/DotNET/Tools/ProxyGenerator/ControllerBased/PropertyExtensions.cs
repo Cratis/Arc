@@ -43,12 +43,14 @@ public static class PropertyExtensions
     {
         var type = propertyInfo.PropertyType.GetTargetType();
         var optional = propertyInfo.IsOptional();
+        var documentation = propertyInfo.GetDocumentation();
         return new RequestParameterDescriptor(
             propertyInfo.PropertyType,
             propertyInfo.Name!,
             type.Type,
             type.Constructor,
             optional,
-            propertyInfo.IsFromQueryParameter());
+            propertyInfo.IsFromQueryParameter(),
+            documentation);
     }
 }
