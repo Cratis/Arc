@@ -6,15 +6,16 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { QueryFor, QueryResultWithState, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, QueryParameterValidators, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
 {{else}}
-import { QueryFor, QueryResultWithState, Sorting, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, QueryParameterValidators, Sorting, Paging } from '@cratis/arc/queries';
 {{/if}}
 import { useQuery, useQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize } from '@cratis/arc.react/queries';
 {{else}}
-import { QueryFor, QueryResultWithState } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, QueryParameterValidators } from '@cratis/arc/queries';
 import { useQuery, PerformQuery } from '@cratis/arc.react/queries';
 {{/if}}
+import { Validator } from '@cratis/arc/validation';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{Type}} } from '{{Module}}';
@@ -51,6 +52,14 @@ class {{Name}}SortByWithoutQuery {
 {{/Properties}}
 }
 {{/if}}
+
+export class {{Name}}Validator extends QueryValidator {
+    readonly parameters: QueryParameterValidators = {
+        {{#Parameters}}
+        {{camelcase Name}}: new Validator(),
+        {{/Parameters}}
+    };
+}
 
 {{#if Parameters.[0]}}
 {{#if Documentation}}
@@ -96,6 +105,7 @@ export class {{Name}} extends QueryFor<{{Model}}> {
 {{/if}}
 {{/if}}
     readonly route: string = '{{{Route}}}';
+    readonly validation: QueryValidator = new {{Name}}Validator();
 {{#if IsEnumerable}}
     readonly defaultValue: {{Model}}[] = [];
     private readonly _sortBy: {{Name}}SortBy;

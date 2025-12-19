@@ -70,6 +70,11 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     async execute(): Promise<CommandResult<TCommandResponse>> {
+        const clientValidationErrors = this.validation.validate(this);
+        if (clientValidationErrors.length > 0) {
+            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        }
+
         const validationErrors = this.validateRequiredProperties();
         if (validationErrors.length > 0) {
             return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
