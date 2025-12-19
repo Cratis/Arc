@@ -20,7 +20,7 @@ import { GreaterThanRule, GreaterThanOrEqualRule, LessThanRule, LessThanOrEqualR
  * @returns The rule builder for chaining.
  */
 export function notEmpty<T, TProperty>(this: RuleBuilder<T, TProperty>): RuleBuilder<T, TProperty> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => TProperty })._propertyAccessor;
     return this.addRule(new NotEmptyRule<T>(propertyAccessor));
 }
 
@@ -32,7 +32,7 @@ export function notEmpty<T, TProperty>(this: RuleBuilder<T, TProperty>): RuleBui
  * @returns The rule builder for chaining.
  */
 export function notNull<T, TProperty>(this: RuleBuilder<T, TProperty>): RuleBuilder<T, TProperty> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => TProperty })._propertyAccessor;
     return this.addRule(new NotNullRule<T>(propertyAccessor));
 }
 
@@ -44,7 +44,7 @@ export function notNull<T, TProperty>(this: RuleBuilder<T, TProperty>): RuleBuil
  * @returns The rule builder for chaining.
  */
 export function minLength<T>(this: RuleBuilder<T, string>, length: number): RuleBuilder<T, string> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
     return this.addRule(new MinLengthRule<T>(propertyAccessor, length));
 }
 
@@ -56,7 +56,7 @@ export function minLength<T>(this: RuleBuilder<T, string>, length: number): Rule
  * @returns The rule builder for chaining.
  */
 export function maxLength<T>(this: RuleBuilder<T, string>, length: number): RuleBuilder<T, string> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
     return this.addRule(new MaxLengthRule<T>(propertyAccessor, length));
 }
 
@@ -69,7 +69,7 @@ export function maxLength<T>(this: RuleBuilder<T, string>, length: number): Rule
  * @returns The rule builder for chaining.
  */
 export function length<T>(this: RuleBuilder<T, string>, min: number, max: number): RuleBuilder<T, string> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
     return this.addRule(new LengthRule<T>(propertyAccessor, min, max));
 }
 
@@ -80,7 +80,7 @@ export function length<T>(this: RuleBuilder<T, string>, min: number, max: number
  * @returns The rule builder for chaining.
  */
 export function emailAddress<T>(this: RuleBuilder<T, string>): RuleBuilder<T, string> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
     return this.addRule(new EmailRule<T>(propertyAccessor));
 }
 
@@ -93,7 +93,7 @@ export function emailAddress<T>(this: RuleBuilder<T, string>): RuleBuilder<T, st
  * @returns The rule builder for chaining.
  */
 export function matches<T>(this: RuleBuilder<T, string>, pattern: RegExp, errorMessage?: string): RuleBuilder<T, string> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
     return this.addRule(new RegexRule<T>(propertyAccessor, pattern, errorMessage));
 }
 
@@ -105,7 +105,7 @@ export function matches<T>(this: RuleBuilder<T, string>, pattern: RegExp, errorM
  * @returns The rule builder for chaining.
  */
 export function greaterThan<T>(this: RuleBuilder<T, number>, threshold: number): RuleBuilder<T, number> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => number })._propertyAccessor;
     return this.addRule(new GreaterThanRule<T>(propertyAccessor, threshold));
 }
 
@@ -117,7 +117,7 @@ export function greaterThan<T>(this: RuleBuilder<T, number>, threshold: number):
  * @returns The rule builder for chaining.
  */
 export function greaterThanOrEqual<T>(this: RuleBuilder<T, number>, threshold: number): RuleBuilder<T, number> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => number })._propertyAccessor;
     return this.addRule(new GreaterThanOrEqualRule<T>(propertyAccessor, threshold));
 }
 
@@ -129,7 +129,7 @@ export function greaterThanOrEqual<T>(this: RuleBuilder<T, number>, threshold: n
  * @returns The rule builder for chaining.
  */
 export function lessThan<T>(this: RuleBuilder<T, number>, threshold: number): RuleBuilder<T, number> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => number })._propertyAccessor;
     return this.addRule(new LessThanRule<T>(propertyAccessor, threshold));
 }
 
@@ -141,42 +141,36 @@ export function lessThan<T>(this: RuleBuilder<T, number>, threshold: number): Ru
  * @returns The rule builder for chaining.
  */
 export function lessThanOrEqual<T>(this: RuleBuilder<T, number>, threshold: number): RuleBuilder<T, number> {
-    const propertyAccessor = (this as any)._propertyAccessor;
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => number })._propertyAccessor;
     return this.addRule(new LessThanOrEqualRule<T>(propertyAccessor, threshold));
 }
 
 // Add the extension methods to the RuleBuilder prototype
 RuleBuilder.prototype.notEmpty = notEmpty;
 RuleBuilder.prototype.notNull = notNull;
-RuleBuilder.prototype.minLength = minLength;
-RuleBuilder.prototype.maxLength = maxLength;
-RuleBuilder.prototype.length = length;
-RuleBuilder.prototype.emailAddress = emailAddress;
-RuleBuilder.prototype.matches = matches;
-RuleBuilder.prototype.greaterThan = greaterThan;
-RuleBuilder.prototype.greaterThanOrEqual = greaterThanOrEqual;
-RuleBuilder.prototype.lessThan = lessThan;
-RuleBuilder.prototype.lessThanOrEqual = lessThanOrEqual;
+(RuleBuilder.prototype as unknown as { minLength: typeof minLength }).minLength = minLength;
+(RuleBuilder.prototype as unknown as { maxLength: typeof maxLength }).maxLength = maxLength;
+(RuleBuilder.prototype as unknown as { length: typeof length }).length = length;
+(RuleBuilder.prototype as unknown as { emailAddress: typeof emailAddress }).emailAddress = emailAddress;
+(RuleBuilder.prototype as unknown as { matches: typeof matches }).matches = matches;
+(RuleBuilder.prototype as unknown as { greaterThan: typeof greaterThan }).greaterThan = greaterThan;
+(RuleBuilder.prototype as unknown as { greaterThanOrEqual: typeof greaterThanOrEqual }).greaterThanOrEqual = greaterThanOrEqual;
+(RuleBuilder.prototype as unknown as { lessThan: typeof lessThan }).lessThan = lessThan;
+(RuleBuilder.prototype as unknown as { lessThanOrEqual: typeof lessThanOrEqual }).lessThanOrEqual = lessThanOrEqual;
 
 // Extend the RuleBuilder interface to include these methods
 declare module './RuleBuilder' {
     interface RuleBuilder<T, TProperty> {
         notEmpty(): RuleBuilder<T, TProperty>;
         notNull(): RuleBuilder<T, TProperty>;
-    }
-
-    interface RuleBuilder<T, string> {
-        minLength(length: number): RuleBuilder<T, string>;
-        maxLength(length: number): RuleBuilder<T, string>;
-        length(min: number, max: number): RuleBuilder<T, string>;
-        emailAddress(): RuleBuilder<T, string>;
-        matches(pattern: RegExp, errorMessage?: string): RuleBuilder<T, string>;
-    }
-
-    interface RuleBuilder<T, number> {
-        greaterThan(threshold: number): RuleBuilder<T, number>;
-        greaterThanOrEqual(threshold: number): RuleBuilder<T, number>;
-        lessThan(threshold: number): RuleBuilder<T, number>;
-        lessThanOrEqual(threshold: number): RuleBuilder<T, number>;
+        minLength(length: number): RuleBuilder<T, TProperty>;
+        maxLength(length: number): RuleBuilder<T, TProperty>;
+        length(min: number, max: number): RuleBuilder<T, TProperty>;
+        emailAddress(): RuleBuilder<T, TProperty>;
+        matches(pattern: RegExp, errorMessage?: string): RuleBuilder<T, TProperty>;
+        greaterThan(threshold: number): RuleBuilder<T, TProperty>;
+        greaterThanOrEqual(threshold: number): RuleBuilder<T, TProperty>;
+        lessThan(threshold: number): RuleBuilder<T, TProperty>;
+        lessThanOrEqual(threshold: number): RuleBuilder<T, TProperty>;
     }
 }

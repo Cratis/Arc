@@ -27,7 +27,7 @@ public static class ValidationRulesExtractor
         var validatorType = FindValidatorForType(assembly, type);
         if (validatorType == null)
         {
-            return Enumerable.Empty<PropertyValidationDescriptor>();
+            return [];
         }
 
         try
@@ -45,11 +45,11 @@ public static class ValidationRulesExtractor
 
                     foreach (var rule in member)
                     {
-                        var ruleDescriptors = ExtractRulesFromValidationRule(rule);
+                        var ruleDescriptors = ExtractRulesFromPropertyRule(rule);
                         rules.AddRange(ruleDescriptors);
                     }
 
-                    if (rules.Any())
+                    if (rules.Count > 0)
                     {
                         propertyValidations.Add(new PropertyValidationDescriptor(propertyName, rules));
                     }
@@ -63,7 +63,7 @@ public static class ValidationRulesExtractor
             // If we can't create the validator or extract rules, just return empty
         }
 
-        return Enumerable.Empty<PropertyValidationDescriptor>();
+        return [];
     }
 
     static Type? FindValidatorForType(Assembly assembly, Type type)
@@ -80,25 +80,14 @@ public static class ValidationRulesExtractor
         return validatorType;
     }
 
-    static IEnumerable<ValidationRuleDescriptor> ExtractRulesFromValidationRule(IValidationRule rule)
+    static List<ValidationRuleDescriptor> ExtractRulesFromPropertyRule((IPropertyValidator Validator, IRuleComponent Options) rule)
     {
-        var rules = new List<ValidationRuleDescriptor>();
-
-        foreach (var component in rule.Components)
-        {
-            var ruleDescriptor = ExtractRuleFromComponent(component);
-            if (ruleDescriptor != null)
-            {
-                rules.Add(ruleDescriptor);
-            }
-        }
-
-        return rules;
+        var ruleDescriptor = ExtractRuleFromValidator(rule.Validator, rule.Options);
+        return ruleDescriptor != null ? [ruleDescriptor] : [];
     }
 
-    static ValidationRuleDescriptor? ExtractRuleFromComponent(IRuleComponent component)
+    static ValidationRuleDescriptor? ExtractRuleFromValidator(IPropertyValidator validator, IRuleComponent component)
     {
-        var validator = component.Validator;
         var errorMessage = GetCustomErrorMessage(component);
 
         return validator switch
@@ -123,11 +112,9 @@ public static class ValidationRulesExtractor
 
             if (errorMessageSource != null)
             {
-                var message = errorMessageSource.GetType()
+                return errorMessageSource.GetType()
                     .GetProperty("ErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                     ?.GetValue(errorMessageSource) as string;
-
-                return message;
             }
         }
         catch
@@ -147,11 +134,13 @@ public static class ValidationRulesExtractor
         {
             return new ValidationRuleDescriptor("length", [min, max], errorMessage);
         }
-        else if (min > 0)
+
+        if (min > 0)
         {
             return new ValidationRuleDescriptor("minLength", [min], errorMessage);
         }
-        else if (max < int.MaxValue)
+
+        if (max < int.MaxValue)
         {
             return new ValidationRuleDescriptor("maxLength", [max], errorMessage);
         }

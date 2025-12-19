@@ -65,7 +65,7 @@ export class Validator<T = object> {
     private getPropertyName<TProperty>(propertyAccessor: (instance: T) => TProperty): string {
         // Create a proxy to capture property access
         const propertyNames: string[] = [];
-        const proxy = new Proxy({} as T, {
+        const proxy = new Proxy({} as Record<string, unknown>, {
             get(_target, prop) {
                 if (typeof prop === 'string') {
                     propertyNames.push(prop);
@@ -75,7 +75,7 @@ export class Validator<T = object> {
         });
 
         try {
-            propertyAccessor(proxy);
+            propertyAccessor(proxy as T);
         } catch {
             // Ignore errors - we're just capturing the property name
         }
