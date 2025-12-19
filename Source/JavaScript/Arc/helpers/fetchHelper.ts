@@ -3,6 +3,7 @@
 
 import sinon from 'sinon';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function createFetchHelper() {
     const originalFetch = (globalThis as any).fetch;
     let currentStub: sinon.SinonStub | null = null;
