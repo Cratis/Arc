@@ -8,6 +8,8 @@
   href: automatic-database-hookup.md
 - name: Common Column Types
   href: common-column-types.md
+- name: Adding Columns in Migrations
+  href: migrations-add-columns.md
 - name: Property Extensions
   href: property-extensions.md
 - name: JSON Conversion
