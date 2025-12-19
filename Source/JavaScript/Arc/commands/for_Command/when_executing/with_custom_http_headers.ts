@@ -3,11 +3,13 @@
 
 import sinon from 'sinon';
 import { SomeCommand } from '../SomeCommand';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { given } from '../../../given';
 
 describe("when executing with custom http headers", given(class {
     command: SomeCommand;
     fetchStub: sinon.SinonStub;
+    fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     constructor() {
         this.command = new SomeCommand();
@@ -19,7 +21,8 @@ describe("when executing with custom http headers", given(class {
             'X-Custom-Header': 'custom-value',
             'Authorization': 'Bearer token123'
         }));
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
+        this.fetchHelper = createFetchHelper();
+        this.fetchStub = this.fetchHelper.stubFetch();
     }
 }, context => {
     const responseData = {

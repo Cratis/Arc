@@ -4,12 +4,14 @@
 import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 import { expect } from 'chai';
 
 describe('with route parameters and unused parameters', given(a_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     const mockResponse = {
         data: 'test-result',
         isSuccess: true,
@@ -28,7 +30,8 @@ describe('with route parameters and unused parameters', given(a_query_for, conte
     };
 
     beforeEach(async () => {
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -43,7 +46,7 @@ describe('with route parameters and unused parameters', given(a_query_for, conte
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should return successful result', () => {

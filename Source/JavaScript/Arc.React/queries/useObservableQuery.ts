@@ -26,7 +26,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         return instance;
     }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.empty(queryInstance.current.defaultValue));
+    const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current.defaultValue));
     const argumentsDependency = queryInstance.current.requiredRequestParameters.map(_ => args?.[_]);
 
     useEffect(() => {

@@ -21,8 +21,9 @@ public static class CommandExtensions
     /// <param name="route">Route of the command.</param>
     /// <param name="targetPath">The target path the proxies are generated to.</param>
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
+    /// <param name="overrideDocumentation">Optional documentation to override the method's documentation (used for model-bound commands).</param>
     /// <returns>Converted <see cref="CommandDescriptor"/>.</returns>
-    public static CommandDescriptor ToCommandDescriptor(this MethodInfo method, string commandName, IEnumerable<PropertyDescriptor> properties, IEnumerable<RequestParameterDescriptor> parameters, string route, string targetPath, int segmentsToSkip)
+    public static CommandDescriptor ToCommandDescriptor(this MethodInfo method, string commandName, IEnumerable<PropertyDescriptor> properties, IEnumerable<RequestParameterDescriptor> parameters, string route, string targetPath, int segmentsToSkip, string? overrideDocumentation = null)
     {
         var (hasResponse, responseModel) = method.GetResponseModel();
         var typesInvolved = new List<Type>();
@@ -51,6 +52,9 @@ public static class CommandExtensions
 
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
+        // Use override documentation if provided (for model-bound commands), otherwise use method documentation
+        var documentation = overrideDocumentation ?? method.GetDocumentation();
+
         return new(
             method.DeclaringType!,
             method,
@@ -61,6 +65,7 @@ public static class CommandExtensions
             parameters,
             hasResponse,
             responseModel,
-            [.. typesInvolved, .. additionalTypesInvolved]);
+            [.. typesInvolved, .. additionalTypesInvolved],
+            documentation);
     }
 }

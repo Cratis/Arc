@@ -2,12 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { SomeCommand } from '../SomeCommand';
 import { given } from '../../../given';
 
 describe("when executing with origin and api base path", given(class {
     command: SomeCommand;
     fetchStub: sinon.SinonStub;
+    fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     constructor() {
         this.command = new SomeCommand();
@@ -15,7 +17,8 @@ describe("when executing with origin and api base path", given(class {
         this.command.setOrigin('https://api.example.com');
         this.command.setApiBasePath('/api/v1');
         this.command.someProperty = 'test-value';
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
+        this.fetchHelper = createFetchHelper();
+        this.fetchStub = this.fetchHelper.stubFetch();
     }
 }, context => {
     const responseData = {
@@ -40,7 +43,7 @@ describe("when executing with origin and api base path", given(class {
     });
 
     afterEach(() => {
-        context.fetchStub.restore();
+        context.fetchHelper.restore();
     });
 
     it("should_construct_url_with_origin_and_base_path", () => {

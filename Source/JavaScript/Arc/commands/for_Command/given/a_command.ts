@@ -3,10 +3,12 @@
 
 import sinon from 'sinon';
 import { SomeCommand } from '../SomeCommand';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 
 export class a_command {
     command: SomeCommand;
     fetchStub: sinon.SinonStub;
+    fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     constructor() {
         this.command = new SomeCommand();
@@ -15,10 +17,7 @@ export class a_command {
         this.command.setApiBasePath('/api');
         this.command.someProperty = 'test-value';
         
-        // Restore any existing fetch stub before creating a new one
-        if ((globalThis.fetch as sinon.SinonStub)?.restore) {
-            (globalThis.fetch as sinon.SinonStub).restore();
-        }
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
+        this.fetchHelper = createFetchHelper();
+        this.fetchStub = this.fetchHelper.stubFetch();
     }
 }

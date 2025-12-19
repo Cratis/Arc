@@ -65,6 +65,7 @@ public static class QueryExtensions
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
+        var documentation = method.GetDocumentation();
 
         return new(
             method.DeclaringType!,
@@ -79,6 +80,7 @@ public static class QueryExtensions
             arguments,
             [.. arguments.Where(_ => !_.IsOptional)],
             propertyDescriptors,
-            [.. typesInvolved, .. additionalTypesInvolved]);
+            [.. typesInvolved, .. additionalTypesInvolved],
+            documentation);
     }
 }

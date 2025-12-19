@@ -22,6 +22,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
     <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>
     <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
     <CratisProxiesSkipFileIndexTracking>false</CratisProxiesSkipFileIndexTracking>
+    <CratisProxiesSkipIndexGeneration>false</CratisProxiesSkipIndexGeneration>
 </PropertyGroup>
 ```
 
@@ -36,6 +37,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 | `CratisProxiesSkipQueryNameInRoute` | `false` | When `true`, excludes the query name from the generated route for query endpoints |
 | `CratisProxiesApiPrefix` | `api` | The API prefix used in generated routes |
 | `CratisProxiesSkipFileIndexTracking` | `false` | When `true`, disables file index tracking for incremental cleanup |
+| `CratisProxiesSkipIndexGeneration` | `false` | When `true`, skips generating `index.ts` files for directories |
 
 ## Namespace Segment Skipping
 
