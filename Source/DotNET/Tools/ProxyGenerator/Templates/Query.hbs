@@ -53,8 +53,18 @@ class {{Name}}SortByWithoutQuery {
 {{/if}}
 
 {{#if Parameters.[0]}}
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 export interface {{Name}}Parameters {
     {{#Parameters}}
+    {{#if Documentation}}
+    /**
+     * {{Documentation}}
+     */
+    {{/if}}
     {{#if IsOptional}}
     {{camelcase Name}}?: {{Type}};
     {{else}}
@@ -63,12 +73,22 @@ export interface {{Name}}Parameters {
     {{/Parameters}}
 }
 
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 {{#if IsEnumerable}}
 export class {{Name}} extends QueryFor<{{Model}}[], {{Name}}Parameters> {
 {{else}}
 export class {{Name}} extends QueryFor<{{Model}}, {{Name}}Parameters> {
 {{/if}}
 {{else}}
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 {{#if IsEnumerable}}
 export class {{Name}} extends QueryFor<{{Model}}[]> {
 {{else}}

@@ -20,13 +20,15 @@ public static class ParameterInfoExtensions
     {
         var type = parameterInfo.ParameterType.GetTargetType();
         var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
+        var documentation = parameterInfo.GetDocumentation();
         return new RequestParameterDescriptor(
             parameterInfo.ParameterType,
             parameterInfo.Name!,
             type.Type,
             type.Constructor,
             optional,
-            parameterInfo.IsFromQueryArgument());
+            parameterInfo.IsFromQueryArgument(),
+            documentation);
     }
 
     /// <summary>

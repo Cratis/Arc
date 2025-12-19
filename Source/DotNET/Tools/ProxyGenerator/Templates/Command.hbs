@@ -13,8 +13,18 @@ import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { {{Type}} } from '{{Module}}';
 {{/Imports}}
 
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 export interface I{{Name}} {
     {{#Properties}}
+    {{#if Documentation}}
+    /**
+     * {{Documentation}}
+     */
+    {{/if}}
     {{#if IsEnumerable}}
     {{camelcase Name}}?: {{Type}}[];
     {{else}}
@@ -31,6 +41,11 @@ export class {{Name}}Validator extends CommandValidator {
     };
 }
 
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 {{#if HasResponse }}
 export class {{Name}} extends Command<I{{Name}}, {{ResponseType.Name}}> implements I{{Name}} {
 {{else}}
@@ -79,6 +94,11 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     }
 
     {{#Properties}}
+    {{#if Documentation}}
+    /**
+     * {{Documentation}}
+     */
+    {{/if}}
     {{#if IsEnumerable}}
     get {{camelcase Name}}(): {{Type}}[] {
         return this._{{camelcase Name}};

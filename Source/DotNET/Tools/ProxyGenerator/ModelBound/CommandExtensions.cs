@@ -35,6 +35,9 @@ public static class CommandExtensions
         route = route.ToLowerInvariant();
         var handleMethod = commandType.GetHandleMethod();
 
-        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip);
+        // For model-bound commands, we want the documentation from the command type, not the Handle method
+        var documentation = commandType.GetDocumentation();
+
+        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation);
     }
 }
