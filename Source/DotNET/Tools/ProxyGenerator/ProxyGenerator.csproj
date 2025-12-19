@@ -17,10 +17,5 @@
         <PackageReference Include="handlebars.net" />
         <PackageReference Include="Microsoft.Extensions.DependencyModel" />
         <PackageReference Include="System.Reflection.MetadataLoadContext" />
-        <PackageReference Include="FluentValidation" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\..\Arc.Core\Arc.Core.csproj" />
     </ItemGroup>
 </Project>

@@ -3,11 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
-using Cratis.Arc.Validation;
-using Cratis.Strings;
-using FluentValidation;
-using FluentValidation.Internal;
-using FluentValidation.Validators;
 
 namespace Cratis.Arc.ProxyGenerator;
 
@@ -16,6 +11,15 @@ namespace Cratis.Arc.ProxyGenerator;
 /// </summary>
 public static class ValidationRulesExtractor
 {
+    const string FluentValidationAbstractValidatorType = "FluentValidation.AbstractValidator`1";
+    const string FluentValidationBaseValidatorType = "Cratis.Arc.Validation.BaseValidator`1";
+    const string NotNullValidatorType = "FluentValidation.Validators.INotNullValidator";
+    const string NotEmptyValidatorType = "FluentValidation.Validators.INotEmptyValidator";
+    const string EmailValidatorType = "FluentValidation.Validators.IEmailValidator";
+    const string LengthValidatorType = "FluentValidation.Validators.ILengthValidator";
+    const string ComparisonValidatorType = "FluentValidation.Validators.IComparisonValidator";
+    const string RegularExpressionValidatorType = "FluentValidation.Validators.IRegularExpressionValidator";
+
     /// <summary>
     /// Extract validation rules for a specific type.
     /// </summary>
@@ -33,30 +37,66 @@ public static class ValidationRulesExtractor
         try
         {
             var validator = Activator.CreateInstance(validatorType);
-            if (validator is IValidator fluentValidator)
+            if (validator == null)
             {
-                var descriptor = fluentValidator.CreateDescriptor();
-                var propertyValidations = new List<PropertyValidationDescriptor>();
+                return [];
+            }
 
-                foreach (var member in descriptor.GetMembersWithValidators())
+            // Call CreateDescriptor() method using reflection
+            var createDescriptorMethod = validatorType.GetMethod("CreateDescriptor", BindingFlags.Public | BindingFlags.Instance);
+            if (createDescriptorMethod == null)
+            {
+                return [];
+            }
+
+            var descriptor = createDescriptorMethod.Invoke(validator, null);
+            if (descriptor == null)
+            {
+                return [];
+            }
+
+            var propertyValidations = new List<PropertyValidationDescriptor>();
+
+            // Call GetMembersWithValidators() using reflection
+            var getMembersMethod = descriptor.GetType().GetMethod("GetMembersWithValidators");
+            if (getMembersMethod == null)
+            {
+                return [];
+            }
+
+            var members = getMembersMethod.Invoke(descriptor, null);
+            if (members == null)
+            {
+                return [];
+            }
+
+            // Iterate through members
+            foreach (var member in (System.Collections.IEnumerable)members)
+            {
+                var keyProperty = member.GetType().GetProperty("Key");
+                var propertyName = keyProperty?.GetValue(member)?.ToString()?.ToCamelCase();
+
+                if (string.IsNullOrEmpty(propertyName))
                 {
-                    var propertyName = member.Key.ToCamelCase();
-                    var rules = new List<ValidationRuleDescriptor>();
-
-                    foreach (var rule in member)
-                    {
-                        var ruleDescriptors = ExtractRulesFromPropertyRule(rule);
-                        rules.AddRange(ruleDescriptors);
-                    }
-
-                    if (rules.Count > 0)
-                    {
-                        propertyValidations.Add(new PropertyValidationDescriptor(propertyName, rules));
-                    }
+                    continue;
                 }
 
-                return propertyValidations;
+                var rules = new List<ValidationRuleDescriptor>();
+
+                // Enumerate the validation rules for this member
+                foreach (var rule in (System.Collections.IEnumerable)member)
+                {
+                    var ruleDescriptors = ExtractRulesFromPropertyRule(rule);
+                    rules.AddRange(ruleDescriptors);
+                }
+
+                if (rules.Count > 0)
+                {
+                    propertyValidations.Add(new PropertyValidationDescriptor(propertyName, rules));
+                }
             }
+
+            return propertyValidations;
         }
         catch
         {
@@ -68,41 +108,105 @@ public static class ValidationRulesExtractor
 
     static Type? FindValidatorForType(Assembly assembly, Type type)
     {
-        var baseValidatorType = typeof(BaseValidator<>).MakeGenericType(type);
-        var abstractValidatorType = typeof(AbstractValidator<>).MakeGenericType(type);
-
-        var validatorType = assembly.GetTypes()
+        return assembly.GetTypes()
             .FirstOrDefault(t =>
-                !t.IsAbstract &&
-                !t.IsInterface &&
-                (baseValidatorType.IsAssignableFrom(t) || abstractValidatorType.IsAssignableFrom(t)));
+            {
+                if (t.IsAbstract || t.IsInterface)
+                {
+                    return false;
+                }
 
-        return validatorType;
+                // Check if it's a BaseValidator<T> or AbstractValidator<T>
+                var baseType = t.BaseType;
+                while (baseType != null)
+                {
+                    if (baseType.IsGenericType)
+                    {
+                        var genericTypeDef = baseType.GetGenericTypeDefinition();
+                        var fullName = genericTypeDef.FullName;
+
+                        if (fullName == FluentValidationAbstractValidatorType || fullName == FluentValidationBaseValidatorType)
+                        {
+                            var genericArgs = baseType.GetGenericArguments();
+                            if (genericArgs.Length == 1 && genericArgs[0] == type)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    baseType = baseType.BaseType;
+                }
+
+                return false;
+            });
     }
 
-    static List<ValidationRuleDescriptor> ExtractRulesFromPropertyRule((IPropertyValidator Validator, IRuleComponent Options) rule)
+    static List<ValidationRuleDescriptor> ExtractRulesFromPropertyRule(object rule)
     {
-        var ruleDescriptor = ExtractRuleFromValidator(rule.Validator, rule.Options);
+        // rule is a tuple (IPropertyValidator Validator, IRuleComponent Options)
+        var validatorProperty = rule.GetType().GetProperty("Validator");
+        var optionsProperty = rule.GetType().GetProperty("Options");
+
+        if (validatorProperty == null || optionsProperty == null)
+        {
+            return [];
+        }
+
+        var validator = validatorProperty.GetValue(rule);
+        var options = optionsProperty.GetValue(rule);
+
+        if (validator == null || options == null)
+        {
+            return [];
+        }
+
+        var ruleDescriptor = ExtractRuleFromValidator(validator, options);
         return ruleDescriptor != null ? [ruleDescriptor] : [];
     }
 
-    static ValidationRuleDescriptor? ExtractRuleFromValidator(IPropertyValidator validator, IRuleComponent component)
+    static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)
     {
+        var validatorType = validator.GetType();
         var errorMessage = GetCustomErrorMessage(component);
 
-        return validator switch
+        // Check validator type by interface
+        var interfaces = validatorType.GetInterfaces();
+        var interfaceNames = interfaces.Select(i => i.FullName ?? i.Name).ToHashSet();
+
+        if (interfaceNames.Contains(NotNullValidatorType))
         {
-            INotNullValidator => new ValidationRuleDescriptor("notNull", [], errorMessage),
-            INotEmptyValidator => new ValidationRuleDescriptor("notEmpty", [], errorMessage),
-            IEmailValidator => new ValidationRuleDescriptor("emailAddress", [], errorMessage),
-            ILengthValidator lengthValidator => ExtractLengthRule(lengthValidator, errorMessage),
-            IComparisonValidator comparisonValidator => ExtractComparisonRule(comparisonValidator, errorMessage),
-            IRegularExpressionValidator regexValidator => ExtractRegexRule(regexValidator, errorMessage),
-            _ => null
-        };
+            return new ValidationRuleDescriptor("notNull", [], errorMessage);
+        }
+
+        if (interfaceNames.Contains(NotEmptyValidatorType))
+        {
+            return new ValidationRuleDescriptor("notEmpty", [], errorMessage);
+        }
+
+        if (interfaceNames.Contains(EmailValidatorType))
+        {
+            return new ValidationRuleDescriptor("emailAddress", [], errorMessage);
+        }
+
+        if (interfaceNames.Contains(LengthValidatorType))
+        {
+            return ExtractLengthRule(validator, errorMessage);
+        }
+
+        if (interfaceNames.Contains(ComparisonValidatorType))
+        {
+            return ExtractComparisonRule(validator, errorMessage);
+        }
+
+        if (interfaceNames.Contains(RegularExpressionValidatorType))
+        {
+            return ExtractRegexRule(validator, errorMessage);
+        }
+
+        return null;
     }
 
-    static string? GetCustomErrorMessage(IRuleComponent component)
+    static string? GetCustomErrorMessage(object component)
     {
         try
         {
@@ -125,10 +229,14 @@ public static class ValidationRulesExtractor
         return null;
     }
 
-    static ValidationRuleDescriptor ExtractLengthRule(ILengthValidator validator, string? errorMessage)
+    static ValidationRuleDescriptor ExtractLengthRule(object validator, string? errorMessage)
     {
-        var min = validator.Min;
-        var max = validator.Max;
+        var validatorType = validator.GetType();
+        var minProperty = validatorType.GetProperty("Min");
+        var maxProperty = validatorType.GetProperty("Max");
+
+        var min = minProperty?.GetValue(validator) as int? ?? 0;
+        var max = maxProperty?.GetValue(validator) as int? ?? int.MaxValue;
 
         if (min > 0 && max < int.MaxValue)
         {
@@ -148,27 +256,43 @@ public static class ValidationRulesExtractor
         return new ValidationRuleDescriptor("notEmpty", [], errorMessage);
     }
 
-    static ValidationRuleDescriptor? ExtractComparisonRule(IComparisonValidator validator, string? errorMessage)
+    static ValidationRuleDescriptor? ExtractComparisonRule(object validator, string? errorMessage)
     {
-        var valueToCompare = validator.ValueToCompare;
+        var validatorType = validator.GetType();
+        var valueToCompareProperty = validatorType.GetProperty("ValueToCompare");
+        var comparisonProperty = validatorType.GetProperty("Comparison");
+
+        var valueToCompare = valueToCompareProperty?.GetValue(validator);
         if (valueToCompare == null)
         {
             return null;
         }
 
-        return validator.Comparison switch
+        var comparison = comparisonProperty?.GetValue(validator);
+        if (comparison == null)
         {
-            Comparison.GreaterThan => new ValidationRuleDescriptor("greaterThan", [valueToCompare], errorMessage),
-            Comparison.GreaterThanOrEqual => new ValidationRuleDescriptor("greaterThanOrEqual", [valueToCompare], errorMessage),
-            Comparison.LessThan => new ValidationRuleDescriptor("lessThan", [valueToCompare], errorMessage),
-            Comparison.LessThanOrEqual => new ValidationRuleDescriptor("lessThanOrEqual", [valueToCompare], errorMessage),
+            return null;
+        }
+
+        // Comparison is an enum, get its string value
+        var comparisonName = comparison.ToString();
+
+        return comparisonName switch
+        {
+            "GreaterThan" => new ValidationRuleDescriptor("greaterThan", [valueToCompare], errorMessage),
+            "GreaterThanOrEqual" => new ValidationRuleDescriptor("greaterThanOrEqual", [valueToCompare], errorMessage),
+            "LessThan" => new ValidationRuleDescriptor("lessThan", [valueToCompare], errorMessage),
+            "LessThanOrEqual" => new ValidationRuleDescriptor("lessThanOrEqual", [valueToCompare], errorMessage),
             _ => null
         };
     }
 
-    static ValidationRuleDescriptor ExtractRegexRule(IRegularExpressionValidator validator, string? errorMessage)
+    static ValidationRuleDescriptor ExtractRegexRule(object validator, string? errorMessage)
     {
-        var pattern = validator.Expression;
+        var validatorType = validator.GetType();
+        var expressionProperty = validatorType.GetProperty("Expression");
+        var pattern = expressionProperty?.GetValue(validator)?.ToString() ?? string.Empty;
+
         return new ValidationRuleDescriptor("matches", [pattern], errorMessage);
     }
 }
