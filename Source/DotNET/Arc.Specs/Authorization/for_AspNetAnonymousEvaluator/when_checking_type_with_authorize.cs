@@ -9,5 +9,5 @@ public class when_checking_type_with_authorize : given.an_aspnet_anonymous_evalu
 
     void Because() => _result = _evaluator.IsAnonymousAllowed(typeof(given.TypeWithAuthorize));
 
-    [Fact] void should_return_false() => _result.Value.ShouldBeFalse();
+    [Fact] void should_return_false() => _result!.Value.ShouldBeFalse();
 }

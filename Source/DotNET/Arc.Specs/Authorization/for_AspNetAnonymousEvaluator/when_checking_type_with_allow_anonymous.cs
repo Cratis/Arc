@@ -9,5 +9,5 @@ public class when_checking_type_with_allow_anonymous : given.an_aspnet_anonymous
 
     void Because() => _result = _evaluator.IsAnonymousAllowed(typeof(given.TypeWithAllowAnonymous));
 
-    [Fact] void should_return_true() => _result.Value.ShouldBeTrue();
+    [Fact] void should_return_true() => _result!.Value.ShouldBeTrue();
 }

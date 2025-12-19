@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 using System.Security.Claims;
 using Cratis.Arc.Http;
-using Cratis.Types;
 
 namespace Cratis.Arc.Authorization.for_AuthorizationEvaluator.given;
 
