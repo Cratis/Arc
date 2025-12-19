@@ -22,8 +22,8 @@ public static class AllowAnonymousExtensions
     /// <exception cref="AmbiguousAuthorizationLevel">The member has both [Authorize] and [AllowAnonymous] attributes.</exception>
     public static bool IsAnonymousAllowed(this MemberInfo member)
     {
-        var hasAllowAnonymous = member.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0;
-        var hasAuthorize = member.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Length > 0;
+        var hasAllowAnonymous = Attribute.IsDefined(member, typeof(AllowAnonymousAttribute), inherit: true);
+        var hasAuthorize = Attribute.IsDefined(member, typeof(AuthorizeAttribute), inherit: true);
 
         if (hasAllowAnonymous && hasAuthorize)
         {

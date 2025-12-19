@@ -130,7 +130,7 @@ public static partial class IndexFileManager
         }
     }
 
-    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture)]
+    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex ExportRegex();
 
     static string GetRelativePath(string basePath, string fullPath)

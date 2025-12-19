@@ -13,8 +13,8 @@ public class AnonymousEvaluator : IAnonymousEvaluator
     /// <inheritdoc/>
     public bool? IsAnonymousAllowed(Type type)
     {
-        var hasAllowAnonymous = type.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0;
-        var hasAuthorize = type.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Length > 0;
+        var hasAllowAnonymous = Attribute.IsDefined(type, typeof(AllowAnonymousAttribute), inherit: true);
+        var hasAuthorize = Attribute.IsDefined(type, typeof(AuthorizeAttribute), inherit: true);
 
         if (hasAllowAnonymous && hasAuthorize)
         {
@@ -37,8 +37,8 @@ public class AnonymousEvaluator : IAnonymousEvaluator
     /// <inheritdoc/>
     public bool? IsAnonymousAllowed(MethodInfo method)
     {
-        var hasAllowAnonymous = method.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0;
-        var hasAuthorize = method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Length > 0;
+        var hasAllowAnonymous = Attribute.IsDefined(method, typeof(AllowAnonymousAttribute), inherit: true);
+        var hasAuthorize = Attribute.IsDefined(method, typeof(AuthorizeAttribute), inherit: true);
 
         if (hasAllowAnonymous && hasAuthorize)
         {
