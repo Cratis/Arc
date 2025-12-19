@@ -56,7 +56,17 @@ class {{Name}}SortByWithoutQuery {
 export class {{Name}}Validator extends QueryValidator {
     readonly parameters: QueryParameterValidators = {
         {{#Parameters}}
-        {{camelcase Name}}: new Validator(),
+        {{camelcase Name}}: (() => {
+            const validator = new Validator<{{#if ../Parameters.[0]}}{{../Name}}Parameters{{else}}object{{/if}}>();
+            {{#each ../ValidationRules}}
+            {{#if (eq PropertyName (camelcase ../Name))}}
+            {{#each Rules}}
+            validator.ruleFor(c => c.{{../PropertyName}}){{#if Arguments.0}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+            {{/each}}
+            {{/if}}
+            {{/each}}
+            return validator;
+        })(),
         {{/Parameters}}
     };
 }
