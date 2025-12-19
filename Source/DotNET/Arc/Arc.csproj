@@ -4,9 +4,6 @@
         <RootNamespace>Cratis.Arc</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
-        <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore" />
-        <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.Specs" />
-        <InternalsVisibleTo Include="Cratis.Arc.MongoDB" />
         <InternalsVisibleTo Include="Cratis.Arc.Specs" />
     </ItemGroup>
     <ItemGroup>
