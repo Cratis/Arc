@@ -6,16 +6,15 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { QueryFor, QueryResultWithState, QueryValidator, QueryParameterValidators, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
 {{else}}
-import { QueryFor, QueryResultWithState, QueryValidator, QueryParameterValidators, Sorting, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, Sorting, Paging } from '@cratis/arc/queries';
 {{/if}}
 import { useQuery, useQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize } from '@cratis/arc.react/queries';
 {{else}}
-import { QueryFor, QueryResultWithState, QueryValidator, QueryParameterValidators } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
 import { useQuery, PerformQuery } from '@cratis/arc.react/queries';
 {{/if}}
-import { Validator } from '@cratis/arc/validation';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{Type}} } from '{{Module}}';
@@ -53,22 +52,15 @@ class {{Name}}SortByWithoutQuery {
 }
 {{/if}}
 
-export class {{Name}}Validator extends QueryValidator {
-    readonly parameters: QueryParameterValidators = {
-        {{#Parameters}}
-        {{camelcase Name}}: (() => {
-            const validator = new Validator<{{#if ../Parameters.[0]}}{{../Name}}Parameters{{else}}object{{/if}}>();
-            {{#each ../ValidationRules}}
-            {{#if (eq PropertyName (camelcase ../Name))}}
-            {{#each Rules}}
-            validator.ruleFor(c => c.{{../PropertyName}}){{#if Arguments.0}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
-            {{/each}}
-            {{/if}}
-            {{/each}}
-            return validator;
-        })(),
-        {{/Parameters}}
-    };
+export class {{Name}}Validator extends QueryValidator<{{#if Parameters.[0]}}{{Name}}Parameters{{else}}object{{/if}}> {
+    constructor() {
+        super();
+        {{#each ValidationRules}}
+        {{#each Rules}}
+        this.ruleFor(c => c.{{../PropertyName}}){{#if Arguments.0}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+        {{/each}}
+        {{/each}}
+    }
 }
 
 {{#if Parameters.[0]}}

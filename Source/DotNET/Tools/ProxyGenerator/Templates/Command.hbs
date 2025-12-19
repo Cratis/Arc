@@ -5,9 +5,8 @@
 /* eslint-disable sort-imports */
 /* eslint-disable @typescript-eslint/no-empty-interface */
 // eslint-disable-next-line header/header
-import { Command, CommandPropertyValidators, CommandValidator } from '@cratis/arc/commands';
+import { Command, CommandValidator } from '@cratis/arc/commands';
 import { useCommand, SetCommandValues, ClearCommandValues } from '@cratis/arc.react/commands';
-import { Validator } from '@cratis/arc/validation';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{Type}} } from '{{Module}}';
@@ -33,22 +32,15 @@ export interface I{{Name}} {
     {{/Properties}}
 }
 
-export class {{Name}}Validator extends CommandValidator {
-    readonly properties: CommandPropertyValidators = {
-        {{#Properties}}
-        {{camelcase Name}}: (() => {
-            const validator = new Validator<I{{../Name}}>();
-            {{#each ../ValidationRules}}
-            {{#if (eq PropertyName (camelcase ../Name))}}
-            {{#each Rules}}
-            validator.ruleFor(c => c.{{../PropertyName}}){{#if Arguments.0}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
-            {{/each}}
-            {{/if}}
-            {{/each}}
-            return validator;
-        })(),
-        {{/Properties}}
-    };
+export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
+    constructor() {
+        super();
+        {{#each ValidationRules}}
+        {{#each Rules}}
+        this.ruleFor(c => c.{{../PropertyName}}){{#if Arguments.0}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+        {{/each}}
+        {{/each}}
+    }
 }
 
 {{#if Documentation}}

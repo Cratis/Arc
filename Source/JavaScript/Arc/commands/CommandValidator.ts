@@ -3,36 +3,28 @@
 
 import { Validator } from '../validation/Validator';
 import { ValidationResult } from '../validation/ValidationResult';
-
-export type CommandPropertyValidators = { [key: string]: Validator; };
+import { RuleBuilder } from '../validation/RuleBuilder';
 
 /**
  * Represents the command validator
  */
-export abstract class CommandValidator {
-    abstract readonly properties: CommandPropertyValidators;
-
+export abstract class CommandValidator<T = object> extends Validator<T> {
     /**
      * Validate the command.
      * @param command The command to validate.
      * @returns An array of validation results, empty if valid.
      */
-    validate(command: object): ValidationResult[] {
-        const results: ValidationResult[] = [];
-        for (const propertyName in this.properties) {
-            const validator = this.properties[propertyName];
-            const propertyResults = validator.validate(command);
-            results.push(...propertyResults);
-        }
-        return results;
+    validate(command: T): ValidationResult[] {
+        return super.validate(command);
     }
 
     /**
-     * Gets whether or not the command is valid.
-     * @param command The command to validate.
-     * @returns True if valid, false otherwise.
+     * Define validation rules for a property.
+     * @template TProperty The type of the property.
+     * @param propertyAccessor Function to access the property from the instance.
+     * @returns A rule builder for the property.
      */
-    isValid(command: object): boolean {
-        return this.validate(command).length === 0;
+    ruleFor<TProperty>(propertyAccessor: (instance: T) => TProperty): RuleBuilder<T, TProperty> {
+        return super.ruleFor(propertyAccessor);
     }
 }

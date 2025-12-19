@@ -3,36 +3,28 @@
 
 import { Validator } from '../validation/Validator';
 import { ValidationResult } from '../validation/ValidationResult';
-
-export type QueryParameterValidators = { [key: string]: Validator; };
+import { RuleBuilder } from '../validation/RuleBuilder';
 
 /**
  * Represents the query validator
  */
-export abstract class QueryValidator {
-    abstract readonly parameters: QueryParameterValidators;
-
+export abstract class QueryValidator<T = object> extends Validator<T> {
     /**
      * Validate the query parameters.
      * @param query The query to validate.
      * @returns An array of validation results, empty if valid.
      */
-    validate(query: object): ValidationResult[] {
-        const results: ValidationResult[] = [];
-        for (const parameterName in this.parameters) {
-            const validator = this.parameters[parameterName];
-            const parameterResults = validator.validate(query);
-            results.push(...parameterResults);
-        }
-        return results;
+    validate(query: T): ValidationResult[] {
+        return super.validate(query);
     }
 
     /**
-     * Gets whether or not the query is valid.
-     * @param query The query to validate.
-     * @returns True if valid, false otherwise.
+     * Define validation rules for a property.
+     * @template TProperty The type of the property.
+     * @param propertyAccessor Function to access the property from the instance.
+     * @returns A rule builder for the property.
      */
-    isValid(query: object): boolean {
-        return this.validate(query).length === 0;
+    ruleFor<TProperty>(propertyAccessor: (instance: T) => TProperty): RuleBuilder<T, TProperty> {
+        return super.ruleFor(propertyAccessor);
     }
 }
