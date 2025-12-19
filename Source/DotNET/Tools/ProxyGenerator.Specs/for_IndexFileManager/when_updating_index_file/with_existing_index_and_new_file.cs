@@ -26,7 +26,7 @@ public class with_existing_index_and_new_file : Specification
 
     void Because() => IndexFileManager.UpdateIndexFile(
         _tempDir,
-        Directory.GetFiles(_tempDir, "*.ts").Where(f => Path.GetFileName(f) != "index.ts"),
+        [Path.Combine(_tempDir, "FileA.ts"), Path.Combine(_tempDir, "FileB.ts")],
         _messages.Add,
         _tempDir);
 

@@ -24,7 +24,7 @@ public class with_manual_comments_in_index : Specification
 
     void Because() => IndexFileManager.UpdateIndexFile(
         _tempDir,
-        Directory.GetFiles(_tempDir, "*.ts").Where(f => Path.GetFileName(f) != "index.ts"),
+        [Path.Combine(_tempDir, "FileA.ts")],
         _messages.Add,
         _tempDir);
 

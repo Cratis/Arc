@@ -27,6 +27,7 @@ public static class Generator
     /// <param name="apiPrefix">The API prefix to use in the route.</param>
     /// <param name="projectDirectory">The project directory where .cratis folder will be created for file index tracking.</param>
     /// <param name="skipFileIndexTracking">True to skip file index tracking, false to enable it.</param>
+    /// <param name="skipIndexGeneration">True to skip index.ts file generation, false to enable it.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -39,7 +40,8 @@ public static class Generator
         bool skipQueryNameInRoute = false,
         string apiPrefix = "api",
         string? projectDirectory = null,
-        bool skipFileIndexTracking = false)
+        bool skipFileIndexTracking = false,
+        bool skipIndexGeneration = false)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -123,10 +125,17 @@ public static class Generator
         }
 
         // Update index files intelligently
-        stopwatch.Restart();
-        var distinctDirectories = directories.Distinct().ToList();
-        IndexFileManager.UpdateAllIndexFiles(distinctDirectories, message, outputPath);
-        message($"  {distinctDirectories.Count} index files updated in {stopwatch.Elapsed}");
+        if (!skipIndexGeneration)
+        {
+            stopwatch.Restart();
+            var distinctDirectories = directories.Distinct().ToList();
+            IndexFileManager.UpdateAllIndexFiles(distinctDirectories, generatedFiles.Keys, message, outputPath);
+            message($"  {distinctDirectories.Count} index files updated in {stopwatch.Elapsed}");
+        }
+        else
+        {
+            message("  Index file generation skipped");
+        }
 
         // Clean up removed files and save the new index
         if (!skipFileIndexTracking && currentIndex is not null && previousIndex is not null && effectiveProjectDirectory is not null)

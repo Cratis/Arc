@@ -14,15 +14,20 @@ public static partial class IndexFileManager
     /// Updates or creates an index.ts file for a directory, preserving manual edits.
     /// </summary>
     /// <param name="directory">The directory to create/update the index.ts file in.</param>
-    /// <param name="currentFiles">Collection of .ts files currently in the directory (excluding index.ts).</param>
+    /// <param name="generatedFiles">Collection of generated file paths (full paths) that should be included in the index.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path for relative path calculation.</param>
-    public static void UpdateIndexFile(string directory, IEnumerable<string> currentFiles, Action<string> message, string outputPath)
+    public static void UpdateIndexFile(string directory, IEnumerable<string> generatedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
-        var fileNames = currentFiles.Select(f => Path.GetFileNameWithoutExtension(f)).ToHashSet();
 
-        // If there are no files, remove the index if it exists
+        // Filter to only files in this directory and extract their names
+        var fileNames = generatedFiles
+            .Where(f => Path.GetDirectoryName(f) == directory)
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .ToHashSet();
+
+        // If there are no generated files in this directory, remove the index if it exists
         if (fileNames.Count == 0)
         {
             if (File.Exists(indexPath))
@@ -112,17 +117,16 @@ public static partial class IndexFileManager
     /// Updates all index.ts files in directories that have generated content.
     /// </summary>
     /// <param name="directories">Collection of directories with generated content.</param>
+    /// <param name="generatedFiles">Collection of all generated file paths.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path.</param>
-    public static void UpdateAllIndexFiles(IEnumerable<string> directories, Action<string> message, string outputPath)
+    public static void UpdateAllIndexFiles(IEnumerable<string> directories, IEnumerable<string> generatedFiles, Action<string> message, string outputPath)
     {
+        var generatedFilesList = generatedFiles.ToList();
+
         foreach (var directory in directories)
         {
-            var files = Directory.GetFiles(directory, "*.ts")
-                .Where(f => Path.GetFileName(f) != "index.ts")
-                .ToList();
-
-            UpdateIndexFile(directory, files, message, outputPath);
+            UpdateIndexFile(directory, generatedFilesList, message, outputPath);
         }
     }
 
