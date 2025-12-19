@@ -3,7 +3,6 @@
 
 import { Validator } from '../validation/Validator';
 import { ValidationResult } from '../validation/ValidationResult';
-import { RuleBuilder } from '../validation/RuleBuilder';
 
 /**
  * Represents the command validator
@@ -16,15 +15,5 @@ export abstract class CommandValidator<T = object> extends Validator<T> {
      */
     validate(command: T): ValidationResult[] {
         return super.validate(command);
-    }
-
-    /**
-     * Define validation rules for a property.
-     * @template TProperty The type of the property.
-     * @param propertyAccessor Function to access the property from the instance.
-     * @returns A rule builder for the property.
-     */
-    ruleFor<TProperty>(propertyAccessor: (instance: T) => TProperty): RuleBuilder<T, TProperty> {
-        return super.ruleFor(propertyAccessor);
     }
 }
