@@ -4,9 +4,9 @@ Entity Framework Core observation support allows you to monitor changes to your 
 
 ## Configuration
 
-To enable observation support, you need to configure both the service collection and your DbContext.
+To enable observation support, you only need to register the observation services in your service collection.
 
-### 1. Register Observation Services
+### Register Observation Services
 
 Add observation services to your service collection:
 
@@ -16,9 +16,11 @@ services.AddEntityFrameworkCoreObservation();
 
 This registers the necessary services for tracking entity changes and database-level notifications.
 
-### 2. Configure DbContext
+If your DbContext inherits from `BaseDbContext`, observation support is automatically enabled when the services are registered. No additional configuration is needed.
 
-Add observation support to your DbContext configuration:
+### Manual Configuration (Advanced)
+
+If you're not using `BaseDbContext`, you can manually add observation support:
 
 ```csharp
 protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
