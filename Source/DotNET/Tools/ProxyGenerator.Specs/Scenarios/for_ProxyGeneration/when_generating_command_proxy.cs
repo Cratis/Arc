@@ -33,7 +33,8 @@ public class when_generating_command_proxy : Specification, IDisposable
             false,
             ModelDescriptor.Empty,
             [],
-            null);
+            null,
+            []);
     }
 
     void Because()

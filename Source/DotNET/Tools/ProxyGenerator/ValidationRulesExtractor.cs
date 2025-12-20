@@ -100,10 +100,9 @@ public static class ValidationRulesExtractor
         }
         catch
         {
-            // If we can't create the validator or extract rules, just return empty
+            // Silently fail if we can't extract rules
+            return [];
         }
-
-        return [];
     }
 
     static Type? FindValidatorForType(Assembly assembly, Type type)
@@ -144,16 +143,17 @@ public static class ValidationRulesExtractor
     static List<ValidationRuleDescriptor> ExtractRulesFromPropertyRule(object rule)
     {
         // rule is a tuple (IPropertyValidator Validator, IRuleComponent Options)
-        var validatorProperty = rule.GetType().GetProperty("Validator");
-        var optionsProperty = rule.GetType().GetProperty("Options");
+        // ValueTuple uses fields (Item1, Item2) not properties
+        var validatorField = rule.GetType().GetField("Item1");
+        var optionsField = rule.GetType().GetField("Item2");
 
-        if (validatorProperty == null || optionsProperty == null)
+        if (validatorField == null || optionsField == null)
         {
             return [];
         }
 
-        var validator = validatorProperty.GetValue(rule);
-        var options = optionsProperty.GetValue(rule);
+        var validator = validatorField.GetValue(rule);
+        var options = optionsField.GetValue(rule);
 
         if (validator == null || options == null)
         {
@@ -210,15 +210,36 @@ public static class ValidationRulesExtractor
     {
         try
         {
+            // Try FluentValidation 11.x approach
             var errorMessageSource = component.GetType()
                 .GetProperty("ErrorMessageSource", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.GetValue(component);
 
             if (errorMessageSource != null)
             {
-                return errorMessageSource.GetType()
+                var errorMessage = errorMessageSource.GetType()
                     .GetProperty("ErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                     ?.GetValue(errorMessageSource) as string;
+                
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    return errorMessage;
+                }
+            }
+
+            // Try FluentValidation 12.x approach - check for GetErrorMessage method
+            var getErrorMessageMethod = component.GetType()
+                .GetMethod("GetErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            
+            if (getErrorMessageMethod != null)
+            {
+                var context = new { PropertyName = "property", PropertyValue = (object?)null };
+                var errorMessage = getErrorMessageMethod.Invoke(component, [context]) as string;
+                
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    return errorMessage;
+                }
             }
         }
         catch
@@ -238,17 +259,20 @@ public static class ValidationRulesExtractor
         var min = minProperty?.GetValue(validator) as int? ?? 0;
         var max = maxProperty?.GetValue(validator) as int? ?? int.MaxValue;
 
-        if (min > 0 && max < int.MaxValue)
+        // Check for both min and max being set (both positive and less than MaxValue)
+        if (min > 0 && max > 0 && max < int.MaxValue)
         {
             return new ValidationRuleDescriptor("length", [min, max], errorMessage);
         }
 
+        // Check for minimum length only (max will be -1 or int.MaxValue)
         if (min > 0)
         {
             return new ValidationRuleDescriptor("minLength", [min], errorMessage);
         }
 
-        if (max < int.MaxValue)
+        // Check for maximum length only (max will be positive and less than MaxValue)
+        if (max > 0 && max < int.MaxValue)
         {
             return new ValidationRuleDescriptor("maxLength", [max], errorMessage);
         }
