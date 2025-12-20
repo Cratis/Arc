@@ -71,7 +71,7 @@ public static class QueryExtensions
         var queryType = method.GetQueryType();
         var validationRules = queryType != null
             ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, queryType)
-            : Enumerable.Empty<PropertyValidationDescriptor>();
+            : [];
 
         return new(
             method.DeclaringType!,

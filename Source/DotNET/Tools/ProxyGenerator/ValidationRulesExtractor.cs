@@ -210,7 +210,21 @@ public static class ValidationRulesExtractor
     {
         try
         {
-            // Try FluentValidation 11.x approach
+            // FluentValidation 12.x stores custom messages in the _errorMessage field on RuleComponent
+            var errorMessageField = component.GetType()
+                .GetField("_errorMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (errorMessageField != null)
+            {
+                var errorMessage = errorMessageField.GetValue(component) as string;
+
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    return errorMessage;
+                }
+            }
+
+            // Fallback: Try FluentValidation 11.x approach with ErrorMessageSource property
             var errorMessageSource = component.GetType()
                 .GetProperty("ErrorMessageSource", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 ?.GetValue(component);
@@ -220,22 +234,7 @@ public static class ValidationRulesExtractor
                 var errorMessage = errorMessageSource.GetType()
                     .GetProperty("ErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                     ?.GetValue(errorMessageSource) as string;
-                
-                if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    return errorMessage;
-                }
-            }
 
-            // Try FluentValidation 12.x approach - check for GetErrorMessage method
-            var getErrorMessageMethod = component.GetType()
-                .GetMethod("GetErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            
-            if (getErrorMessageMethod != null)
-            {
-                var context = new { PropertyName = "property", PropertyValue = (object?)null };
-                var errorMessage = getErrorMessageMethod.Invoke(component, [context]) as string;
-                
                 if (!string.IsNullOrEmpty(errorMessage))
                 {
                     return errorMessage;

@@ -61,6 +61,7 @@ public class when_generating_command_with_validation : Specification, IDisposabl
     [Fact] void should_contain_rule_for_email() => _generatedCode.ShouldContain("this.ruleFor(c => c.email)");
     [Fact] void should_contain_not_empty_rule_for_email() => _generatedCode.ShouldContain(".notEmpty()");
     [Fact] void should_contain_email_address_rule() => _generatedCode.ShouldContain(".emailAddress()");
+    [Fact] void should_contain_custom_message_for_email() => _generatedCode.ShouldContain(".withMessage('Email is required')");
     [Fact] void should_contain_rule_for_age() => _generatedCode.ShouldContain("this.ruleFor(c => c.age)");
     [Fact] void should_contain_greater_than_or_equal_rule() => _generatedCode.ShouldContain(".greaterThanOrEqual(18)");
     [Fact] void should_contain_min_length_rule_for_name() => _generatedCode.ShouldContain(".minLength(2)");

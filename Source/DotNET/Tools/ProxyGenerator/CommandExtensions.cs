@@ -59,7 +59,7 @@ public static class CommandExtensions
         var commandType = method.GetCommandType();
         var validationRules = commandType != null
             ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
-            : Enumerable.Empty<PropertyValidationDescriptor>();
+            : [];
 
         return new(
             method.DeclaringType!,

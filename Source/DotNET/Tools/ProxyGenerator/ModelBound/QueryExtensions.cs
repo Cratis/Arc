@@ -114,7 +114,7 @@ public static class QueryExtensions
         var queryType = readModelType.AsType();
         var validationRules = queryType != null
             ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, queryType)
-            : Enumerable.Empty<PropertyValidationDescriptor>();
+            : [];
 
         return new(
             readModelType,
