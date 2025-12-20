@@ -18,6 +18,7 @@ export class FakeCommand implements ICommand {
     setApiBasePath: sinon.SinonStub;
     setOrigin: sinon.SinonStub;
     setHttpHeadersCallback: sinon.SinonStub;
+    setMicroservice: sinon.SinonStub;
     setInitialValues: sinon.SinonStub;
     propertyChanged: sinon.SinonStub;
     onPropertyChanged: sinon.SinonStub;
@@ -41,6 +42,7 @@ export class FakeCommand implements ICommand {
         this.setApiBasePath = sinon.stub();
         this.setOrigin = sinon.stub();
         this.setHttpHeadersCallback = sinon.stub();
+        this.setMicroservice = sinon.stub();
         this.setInitialValues = sinon.stub();
         this.propertyChanged = sinon.stub();
         this.onPropertyChanged = sinon.stub();
