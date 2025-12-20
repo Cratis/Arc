@@ -115,6 +115,7 @@ function __getArcModuleExports(subPath) {
                 QueryFor: Query,
                 QueryResult: QueryResult,
                 QueryResultWithState: QueryResult,
+                QueryValidator: function() { this.properties = {}; },
                 Sorting: Sorting,
                 SortingActions: SortingActions,
                 SortingActionsForQuery: SortingActionsForQuery,
