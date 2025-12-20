@@ -8,6 +8,8 @@
   href: commands.md
 - name: Queries
   href: queries.md
+- name: Validation
+  href: validation.md
 - name: Identity Details
   href: identity-details.md
 - name: File Index Tracking
