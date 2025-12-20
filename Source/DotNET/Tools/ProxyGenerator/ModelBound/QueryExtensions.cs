@@ -110,6 +110,12 @@ public static class QueryExtensions
 
         var documentation = method.GetDocumentation();
 
+        // Extract validation rules for query parameters
+        var queryType = readModelType.AsType();
+        var validationRules = queryType != null
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, queryType)
+            : [];
+
         return new(
             readModelType,
             method,
@@ -124,7 +130,8 @@ public static class QueryExtensions
             [.. parameters.Where(_ => !_.IsOptional)],
             properties,
             [.. typesInvolved, .. additionalTypesInvolved],
-            documentation);
+            documentation,
+            validationRules);
     }
 
     /// <summary>

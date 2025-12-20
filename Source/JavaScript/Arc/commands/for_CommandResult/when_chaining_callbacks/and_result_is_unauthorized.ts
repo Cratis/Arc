@@ -13,6 +13,7 @@ describe('when chaining callbacks and result is unauthorized', () => {
         validationResults: [],
         exceptionMessages: [],
         exceptionStackTrace: '',
+        authorizationFailureReason: '',
         response: {}
     }, Object, false);
 

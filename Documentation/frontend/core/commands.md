@@ -50,12 +50,29 @@ command.onPropertyChanged((property: string) => {
 });
 ```
 
+### Client-Side Validation
+
+Commands automatically run client-side validation before executing server calls. Validation rules are defined on the backend using FluentValidation and automatically extracted by the ProxyGenerator:
+
+```typescript
+const command = new CreateUserCommand();
+command.email = '';  // Invalid
+command.age = 15;    // Invalid
+
+const result = await command.execute();
+// Validation runs client-side before server call
+// result.isValid === false
+// result.validationResults contains error details
+```
+
+For more information about validation, see [Validation](./validation/index.md).
+
 ### Execution and Results
 
 Commands return a `CommandResult<TCommandResponse>` that includes:
 
 - Success/failure status
-- Validation errors
+- Validation errors (both client-side and server-side)
 - Response data
 - Exception details
 
@@ -99,10 +116,6 @@ command.setMicroservice('user-service');
 ```
 
 **It's recommended to configure this globally** through the `<Arc />` component's `microservice` property. This automatically applies to all commands and queries in your application. See the [Arc Configuration](../react/arc.md#microservice-support) for details.
-
-### API Base Path Configuration
-
-Similarly, API base paths can be set per command:
 
 ### API Base Path Configuration
 

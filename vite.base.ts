@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-/// <reference types="vitest/config" />
 import commonjs from 'vite-plugin-commonjs';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
@@ -42,7 +41,7 @@ export function createConfig() {
                     '**/declarations.ts',
                 ],
             },
-            exclude: ['**/dist/**', '**/node_modules/**', 'node_modules/**', '**/wwwroot/**', 'wwwroot/**'],
+            exclude: ['**/dist/**', '**/node_modules/**', 'node_modules/**', '**/wwwroot/**', 'wwwroot/**', '**/given/**'],
             include: ['**/for_*/when_*/**/*.ts', '**/for_*/**/when_*.ts'],
             setupFiles: `${__dirname}/vitest.setup.ts`
         },

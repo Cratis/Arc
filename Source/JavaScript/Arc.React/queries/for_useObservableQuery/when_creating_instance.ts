@@ -78,7 +78,7 @@ describe('when creating instance', () => {
         callback!.should.not.be.undefined;
 
         await act(async () => {
-            callback({
+            callback(new QueryResult({
                 data: [{ id: '1', name: 'Test' }],
                 isSuccess: true,
                 isAuthorized: true,
@@ -88,7 +88,7 @@ describe('when creating instance', () => {
                 exceptionMessages: [],
                 exceptionStackTrace: '',
                 paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 }
-            } as QueryResult<any[]>);
+            }, Array, true));
         });
 
         capturedIsPerformingInitial!.should.be.true;

@@ -13,6 +13,7 @@ describe('when chaining callbacks and result is successful', () => {
         validationResults: [],
         exceptionMessages: [],
         exceptionStackTrace: '',
+        authorizationFailureReason: '',
         response: 'The ultimate response'
     }, Object, false);
 

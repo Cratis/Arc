@@ -67,6 +67,12 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
+        // Extract validation rules for query parameters
+        var queryType = method.GetQueryType();
+        var validationRules = queryType != null
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, queryType)
+            : [];
+
         return new(
             method.DeclaringType!,
             method,
@@ -81,6 +87,7 @@ public static class QueryExtensions
             [.. arguments.Where(_ => !_.IsOptional)],
             propertyDescriptors,
             [.. typesInvolved, .. additionalTypesInvolved],
-            documentation);
+            documentation,
+            validationRules);
     }
 }

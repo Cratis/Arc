@@ -21,9 +21,18 @@
             "path": "../Arc.React"
         }
     ],
+    "files": [
+        "../../../test.d.ts",
+        "../../../global.d.ts"
+    ],
+    "include": [
+        "**/*.ts",
+        "**/*.tsx"
+    ],
      "exclude": [
         "dist",
-        "**/for_*/**",
-        "vite.config.mts"
+
+        "vite.config.mts",
+        "given.ts"
     ]
 }

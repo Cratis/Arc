@@ -28,10 +28,6 @@ describe('when performing with paging', given(an_observable_query_for, context =
     };
 
     beforeEach(async () => {
-        // Restore any existing fetch stub before creating a new one
-        if ((globalThis.fetch as sinon.SinonStub)?.restore) {
-            (globalThis.fetch as sinon.SinonStub).restore();
-        }
         fetchHelper = createFetchHelper();
         fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({

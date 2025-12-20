@@ -4,6 +4,8 @@
   href: command-result.md
 - name: Command Validation
   href: command-validation.md
+- name: Validation
+  href: validation/toc.yml
 - name: Queries
   href: queries.md
 - name: Identity

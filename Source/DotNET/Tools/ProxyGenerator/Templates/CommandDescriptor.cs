@@ -19,6 +19,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="ResponseType">The details about the response type.</param>
 /// <param name="TypesInvolved">Collection of types involved in the command.</param>
 /// <param name="Documentation">JSDoc documentation for the command.</param>
+/// <param name="ValidationRules">Validation rules for the command properties.</param>
 public record CommandDescriptor(
     Type Type,
     MethodInfo Method,
@@ -30,4 +31,5 @@ public record CommandDescriptor(
     bool HasResponse,
     ModelDescriptor ResponseType,
     IEnumerable<Type> TypesInvolved,
-    string? Documentation) : IDescriptor;
+    string? Documentation,
+    IEnumerable<PropertyValidationDescriptor> ValidationRules) : IDescriptor;

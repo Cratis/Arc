@@ -30,10 +30,6 @@ describe('with query without required parameters', given(a_query_for, context =>
     };
 
     beforeEach(async () => {
-        // Setup fetch mock - restore any existing stub first
-        if ((global.fetch as sinon.SinonStub)?.restore) {
-            (global.fetch as sinon.SinonStub).restore();
-        }
         fetchHelper = createFetchHelper();
         fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({

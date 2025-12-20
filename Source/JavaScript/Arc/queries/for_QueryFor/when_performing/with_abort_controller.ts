@@ -56,7 +56,7 @@ describe('with abort controller', given(a_query_for, context => {
     });
 
     it('should create new abort controller on second call', () => {
-        context.query.abortController.should.not.equal(firstAbortController);
+        context.query.abortController!.should.not.equal(firstAbortController);
     });
 
     it('should abort first controller when performing second query', () => {

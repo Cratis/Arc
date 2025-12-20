@@ -55,6 +55,12 @@ public static class CommandExtensions
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
+        // Extract validation rules for the command type
+        var commandType = method.GetCommandType();
+        var validationRules = commandType != null
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
+            : [];
+
         return new(
             method.DeclaringType!,
             method,
@@ -66,6 +72,7 @@ public static class CommandExtensions
             hasResponse,
             responseModel,
             [.. typesInvolved, .. additionalTypesInvolved],
-            documentation);
+            documentation,
+            validationRules);
     }
 }

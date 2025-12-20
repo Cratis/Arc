@@ -3,6 +3,8 @@
 Query parameters can be validated using Arc's validation infrastructure.
 The validation happens in the query pipeline through validation filters before query performers are executed.
 
+> **💡 Client-Side Validation**: When using FluentValidation, validation rules are automatically extracted by the [ProxyGenerator](../proxy-generation/validation.md) and run on the client before server calls. This provides immediate feedback to users and reduces unnecessary server requests.
+
 ## Validation Filters
 
 Arc provides two validation filters that automatically validate query parameters:

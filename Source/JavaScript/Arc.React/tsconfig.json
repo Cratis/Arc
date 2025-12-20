@@ -4,12 +4,22 @@
         "baseUrl": ".",
         "rootDir": ".",
         "outDir": "dist/esm",
+        "noEmit": false,
         "paths": {
             "@cratis/arc/*": [
                 "../Arc/dist/esm/*"
             ]
         }
     },
+    "files": [
+        "../../../test.d.ts",
+        "../../../global.d.ts",
+        "global.d.ts"
+    ],
+    "include": [
+        "**/*.ts",
+        "**/*.tsx"
+    ],
     "references": [
         {
             "path": "../Arc"
@@ -17,7 +27,6 @@
     ],
     "exclude": [
         "dist",
-        "**/for_*/**",
         "vite.config.mts"
     ]
 }

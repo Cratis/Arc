@@ -50,7 +50,7 @@ describe('with sorting', given(a_query_for, context => {
         });
 
         afterEach(() => {
-            fetchStub.restore();
+            fetchHelper.restore();
         });
 
         it('should call fetch with URL including sorting parameters', () => {

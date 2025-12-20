@@ -34,6 +34,28 @@ public static class MethodInfoExtensions
         return (hasResponse, responseModel);
     }
 
+    /// <summary>
+    /// Get the command type from a method's parameters.
+    /// </summary>
+    /// <param name="method">Method to inspect.</param>
+    /// <returns>The command type if found, otherwise null.</returns>
+    public static Type? GetCommandType(this MethodInfo method)
+    {
+        var parameters = method.GetParameters();
+        return parameters.FirstOrDefault()?.ParameterType;
+    }
+
+    /// <summary>
+    /// Get the query type from a method.
+    /// </summary>
+    /// <param name="method">Method to inspect.</param>
+    /// <returns>The query type if this is a query method, otherwise null.</returns>
+    public static Type? GetQueryType(this MethodInfo method)
+    {
+        // For queries, the method itself represents the query, so we use the declaring type
+        return method.DeclaringType;
+    }
+
     static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type)
     {
         if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))
