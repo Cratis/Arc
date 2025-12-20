@@ -13,10 +13,10 @@ describe('when property changes on added command', () => {
     let thisArgForCallback: object = {};
 
     const command = new FakeCommand(true);
-    command.onPropertyChanged = (callback: PropertyChanged, thisArg: object): void => {
+    command.onPropertyChanged.callsFake((callback: PropertyChanged, thisArg: object): void => {
         callbackToCall = callback;
         thisArgForCallback = thisArg;
-    };
+    });
 
     scope.addCommand(command);
 
