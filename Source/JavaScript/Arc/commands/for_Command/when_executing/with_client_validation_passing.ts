@@ -3,7 +3,6 @@
 
 import { Command } from '../../Command';
 import { CommandValidator } from '../../CommandValidator';
-import { CommandResult } from '../../CommandResult';
 import { PropertyDescriptor } from '../../reflection/PropertyDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 import sinon from 'sinon';
