@@ -12,11 +12,11 @@ import { {{Type}} } from '{{Module}}';
 export class {{Name}} {
     {{#Properties}}
     {{#if Documentation}}
+
     /**
      * {{Documentation}}
      */
     {{/if}}
-
     {{#if IsEnumerable}}
     @field({{Constructor}}, true)
     {{#if IsNullable}}
