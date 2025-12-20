@@ -11,5 +11,5 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="ErrorMessage">Optional custom error message.</param>
 public record ValidationRuleDescriptor(
     string RuleName,
-    IEnumerable<object> Arguments,
+    object[] Arguments,
     string? ErrorMessage);

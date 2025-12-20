@@ -17,6 +17,9 @@ public static class ValidationRulesExtractor
     const string NotEmptyValidatorType = "FluentValidation.Validators.INotEmptyValidator";
     const string EmailValidatorType = "FluentValidation.Validators.IEmailValidator";
     const string LengthValidatorType = "FluentValidation.Validators.ILengthValidator";
+    const string MinimumLengthValidatorType = "FluentValidation.Validators.IMinimumLengthValidator";
+    const string MaximumLengthValidatorType = "FluentValidation.Validators.IMaximumLengthValidator";
+    const string ExactLengthValidatorType = "FluentValidation.Validators.IExactLengthValidator";
     const string ComparisonValidatorType = "FluentValidation.Validators.IComparisonValidator";
     const string RegularExpressionValidatorType = "FluentValidation.Validators.IRegularExpressionValidator";
 
@@ -92,7 +95,7 @@ public static class ValidationRulesExtractor
 
                 if (rules.Count > 0)
                 {
-                    propertyValidations.Add(new PropertyValidationDescriptor(propertyName, rules));
+                    propertyValidations.Add(new PropertyValidationDescriptor(propertyName, [.. rules]));
                 }
             }
 
@@ -188,6 +191,22 @@ public static class ValidationRulesExtractor
             return new ValidationRuleDescriptor("emailAddress", [], errorMessage);
         }
 
+        // Handle specific length validators first before the generic ILengthValidator
+        if (interfaceNames.Contains(MinimumLengthValidatorType))
+        {
+            return ExtractMinimumLengthRule(validator, errorMessage);
+        }
+
+        if (interfaceNames.Contains(MaximumLengthValidatorType))
+        {
+            return ExtractMaximumLengthRule(validator, errorMessage);
+        }
+
+        if (interfaceNames.Contains(ExactLengthValidatorType))
+        {
+            return ExtractExactLengthRule(validator, errorMessage);
+        }
+
         if (interfaceNames.Contains(LengthValidatorType))
         {
             return ExtractLengthRule(validator, errorMessage);
@@ -252,31 +271,55 @@ public static class ValidationRulesExtractor
     static ValidationRuleDescriptor ExtractLengthRule(object validator, string? errorMessage)
     {
         var validatorType = validator.GetType();
-        var minProperty = validatorType.GetProperty("Min");
-        var maxProperty = validatorType.GetProperty("Max");
+        var minProperty = validatorType.GetProperty("Min", BindingFlags.Public | BindingFlags.Instance);
+        var maxProperty = validatorType.GetProperty("Max", BindingFlags.Public | BindingFlags.Instance);
 
-        var min = minProperty?.GetValue(validator) as int? ?? 0;
-        var max = maxProperty?.GetValue(validator) as int? ?? int.MaxValue;
+        var min = minProperty?.GetValue(validator) as int? ?? -1;
+        var max = maxProperty?.GetValue(validator) as int? ?? -1;
 
-        // Check for both min and max being set (both positive and less than MaxValue)
-        if (min > 0 && max > 0 && max < int.MaxValue)
+        // Check for both min and max being set (both non-negative and max is not -1)
+        if (min >= 0 && max >= 0 && max != -1)
         {
             return new ValidationRuleDescriptor("length", [min, max], errorMessage);
         }
 
-        // Check for minimum length only (max will be -1 or int.MaxValue)
-        if (min > 0)
+        // Check for minimum length only
+        if (min >= 0 && (max == -1 || max == int.MaxValue))
         {
             return new ValidationRuleDescriptor("minLength", [min], errorMessage);
         }
 
-        // Check for maximum length only (max will be positive and less than MaxValue)
-        if (max > 0 && max < int.MaxValue)
+        // Check for maximum length only
+        if (max >= 0 && max != -1 && (min == -1 || min == 0))
         {
             return new ValidationRuleDescriptor("maxLength", [max], errorMessage);
         }
 
         return new ValidationRuleDescriptor("notEmpty", [], errorMessage);
+    }
+
+    static ValidationRuleDescriptor ExtractMinimumLengthRule(object validator, string? errorMessage)
+    {
+        var validatorType = validator.GetType();
+        var minProperty = validatorType.GetProperty("Min", BindingFlags.Public | BindingFlags.Instance);
+        var min = minProperty?.GetValue(validator) as int? ?? 0;
+        return new ValidationRuleDescriptor("minLength", [min], errorMessage);
+    }
+
+    static ValidationRuleDescriptor ExtractMaximumLengthRule(object validator, string? errorMessage)
+    {
+        var validatorType = validator.GetType();
+        var maxProperty = validatorType.GetProperty("Max", BindingFlags.Public | BindingFlags.Instance);
+        var max = maxProperty?.GetValue(validator) as int? ?? 0;
+        return new ValidationRuleDescriptor("maxLength", [max], errorMessage);
+    }
+
+    static ValidationRuleDescriptor ExtractExactLengthRule(object validator, string? errorMessage)
+    {
+        var validatorType = validator.GetType();
+        var lengthProperty = validatorType.GetProperty("Length", BindingFlags.Public | BindingFlags.Instance);
+        var length = lengthProperty?.GetValue(validator) as int? ?? 0;
+        return new ValidationRuleDescriptor("length", [length, length], errorMessage);
     }
 
     static ValidationRuleDescriptor? ExtractComparisonRule(object validator, string? errorMessage)
