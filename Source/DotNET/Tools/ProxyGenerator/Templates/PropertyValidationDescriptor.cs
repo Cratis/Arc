@@ -10,4 +10,4 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="Rules">The validation rules for this property.</param>
 public record PropertyValidationDescriptor(
     string PropertyName,
-    ValidationRuleDescriptor[] Rules);
+    IEnumerable<ValidationRuleDescriptor> Rules);
