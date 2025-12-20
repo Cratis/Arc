@@ -4,7 +4,7 @@
 import { Command } from '../../Command';
 import { CommandValidator } from '../../CommandValidator';
 import { CommandResult } from '../../CommandResult';
-import { PropertyDescriptor } from '../../reflection/PropertyDescriptor';
+import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 
 class TestCommandValidator extends CommandValidator<{ name: string; age: number }> {
@@ -21,6 +21,10 @@ class TestCommand extends Command<{ name: string; age: number }, void> {
     readonly propertyDescriptors: PropertyDescriptor[] = [];
     name = '';
     age = 0;
+
+    constructor() {
+        super(Object, false);
+    }
 
     get requestParameters(): string[] {
         return [];

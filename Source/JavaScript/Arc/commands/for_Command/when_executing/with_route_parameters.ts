@@ -9,6 +9,7 @@ import { given } from '../../../given';
 describe("when executing with route parameters", given(class {
     command: CommandWithRouteParams;
     fetchStub: sinon.SinonStub;
+    fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     constructor() {
         this.command = new CommandWithRouteParams();

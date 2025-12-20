@@ -25,6 +25,10 @@ class TestQuery extends QueryFor<string, TestParams> {
     defaultValue = '';
     parameters: TestParams = { minAge: 0 };
 
+    constructor() {
+        super(String, false);
+    }
+
     get requiredRequestParameters(): string[] {
         return [];
     }
@@ -35,7 +39,7 @@ describe("when performing with client validation passing", () => {
     let fetchStub: sinon.SinonStub;
 
     beforeEach(() => {
-        query = new TestQuery(String);
+        query = new TestQuery();
         query.setOrigin('http://localhost');
         query.parameters = { minAge: 18 };
 

@@ -4,7 +4,7 @@
 import { QueryFor } from '../../QueryFor';
 import { QueryValidator } from '../../QueryValidator';
 import { QueryResult } from '../../QueryResult';
-import { ParameterDescriptor } from '../../reflection/ParameterDescriptor';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 
 interface TestParams {
@@ -25,6 +25,10 @@ class TestQuery extends QueryFor<string, TestParams> {
     defaultValue = '';
     parameters: TestParams = { minAge: -1 };
 
+    constructor() {
+        super(String, false);
+    }
+
     get requiredRequestParameters(): string[] {
         return [];
     }
@@ -35,7 +39,7 @@ describe("when performing with client validation failing", () => {
     let result: QueryResult<string>;
 
     beforeEach(async () => {
-        query = new TestQuery(String);
+        query = new TestQuery();
         query.parameters = { minAge: -5 };
 
         result = await query.perform(query.parameters);

@@ -27,7 +27,6 @@
     ],
     "exclude": [
         "dist",
-        "vite.config.mts",
-        "given.ts"
+        "vite.config.mts"
     ]
 }

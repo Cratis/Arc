@@ -28,6 +28,10 @@ class TestCommand extends Command<ITestCommand> {
     email = '';
     age = 0;
 
+    constructor() {
+        super(Object, false);
+    }
+
     get requestParameters(): string[] {
         return [];
     }

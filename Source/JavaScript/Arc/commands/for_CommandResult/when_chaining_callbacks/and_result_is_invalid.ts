@@ -18,6 +18,7 @@ describe('when chaining callbacks and result is invalid', () => {
         ],
         exceptionMessages: [],
         exceptionStackTrace: '',
+        authorizationFailureReason: '',
         response: {}
     }, Object, false);
 

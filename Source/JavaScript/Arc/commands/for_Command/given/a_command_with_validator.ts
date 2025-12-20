@@ -23,11 +23,15 @@ class TestCommandValidator extends CommandValidator<ITestCommand> {
 
 class TestCommand extends Command<ITestCommand> {
     readonly route: string = '/api/test-command';
-    readonly validation: CommandValidator = new TestCommandValidator();
+    readonly validation = new TestCommandValidator();
     readonly propertyDescriptors: PropertyDescriptor[] = [];
     
     email: string = '';
     age: number = 0;
+
+    constructor() {
+        super(Object, false);
+    }
     
     get requestParameters(): string[] {
         return [];

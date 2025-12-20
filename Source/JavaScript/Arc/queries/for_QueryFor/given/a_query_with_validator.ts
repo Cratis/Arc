@@ -3,7 +3,7 @@
 
 import { QueryFor } from '../../QueryFor';
 import { QueryValidator } from '../../QueryValidator';
-import { ParameterDescriptor } from '../../reflection/ParameterDescriptor';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
 import { createFetchHelper } from '../../../helpers/fetchHelper';
 import sinon from 'sinon';
 import '../../../validation/RuleBuilderExtensions';
@@ -27,13 +27,13 @@ class TestQueryValidator extends QueryValidator<ITestParams> {
 
 class TestQuery extends QueryFor<ITestResult, ITestParams> {
     readonly route: string = '/api/test-query';
-    readonly validation: QueryValidator = new TestQueryValidator();
+    readonly validation = new TestQueryValidator();
     readonly parameterDescriptors: ParameterDescriptor[] = [];
     defaultValue: ITestResult = { data: '' };
     parameters: ITestParams = { searchTerm: '', minAge: 0 };
     
     constructor() {
-        super(Object);
+        super(Object, false);
     }
     
     get requiredRequestParameters(): string[] {

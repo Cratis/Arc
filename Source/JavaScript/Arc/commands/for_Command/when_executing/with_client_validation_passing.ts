@@ -3,7 +3,7 @@
 
 import { Command } from '../../Command';
 import { CommandValidator } from '../../CommandValidator';
-import { PropertyDescriptor } from '../../reflection/PropertyDescriptor';
+import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 import sinon from 'sinon';
 
@@ -19,6 +19,10 @@ class TestCommand extends Command<{ name: string }, void> {
     readonly validation = new TestCommandValidator();
     readonly propertyDescriptors: PropertyDescriptor[] = [];
     name = '';
+
+    constructor() {
+        super(Object, false);
+    }
 
     get requestParameters(): string[] {
         return [];

@@ -27,7 +27,9 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     private _origin: string;
     private _httpHeadersCallback: GetHttpHeaders;
     abstract readonly route: string;
-    readonly validation?: CommandValidator;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    readonly validation?: CommandValidator<any>;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
     abstract get properties(): string[];
