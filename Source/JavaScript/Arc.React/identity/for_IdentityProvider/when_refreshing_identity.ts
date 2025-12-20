@@ -6,7 +6,7 @@ import { render } from '@testing-library/react';
 import { IdentityProvider } from '../IdentityProvider';
 import { useIdentity } from '../useIdentity';
 import { IIdentity } from '@cratis/arc/identity';
-import sinon from 'sinon';
+import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 describe('when refreshing identity', async () => {
     let capturedIdentity: IIdentity | null = null;
@@ -22,7 +22,8 @@ describe('when refreshing identity', async () => {
         return React.createElement('div', null, 'Test');
     };
 
-    const mockFetch = sinon.stub(global, 'fetch');
+    const fetchHelper = createFetchHelper();
+    const mockFetch = fetchHelper.stubFetch();
     mockFetch.onFirstCall().resolves({
         json: async () => ({
             id: 'initial-id',
@@ -55,5 +56,5 @@ describe('when refreshing identity', async () => {
     it('should have new id', () => newId.should.equal('new-id'));
     it('should have new name', () => newName.should.equal('Updated User'));
 
-    mockFetch.restore();
+    fetchHelper.restore();
 });

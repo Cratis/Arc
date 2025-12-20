@@ -6,6 +6,7 @@ import { CommandValidator } from '../../CommandValidator';
 import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 import sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 
 class TestCommandValidator extends CommandValidator<{ name: string }> {
     constructor() {
@@ -36,20 +37,23 @@ class TestCommand extends Command<{ name: string }, void> {
 describe("when executing with client validation passing", () => {
     let command: TestCommand;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     beforeEach(() => {
         command = new TestCommand();
         command.setOrigin('http://localhost');
-        command.name = 'John';
+        command.name = 'test';
 
-        fetchStub = sinon.stub(global, 'fetch').resolves({
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
+        fetchStub.resolves({
             ok: true,
             json: async () => ({ isSuccess: true, isValid: true })
         } as Response);
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it("should_call_server", async () => {

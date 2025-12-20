@@ -7,6 +7,7 @@ import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 import sinon from 'sinon';
 import { CommandResult } from '../../CommandResult';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 
 interface ITestCommand {
     email: string;
@@ -44,6 +45,7 @@ class TestCommand extends Command<ITestCommand> {
 describe("when validating with client validation passing", () => {
     let command: TestCommand;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     let result: CommandResult<object>;
 
     beforeEach(async () => {
@@ -52,7 +54,9 @@ describe("when validating with client validation passing", () => {
         command.email = 'test@example.com';
         command.age = 25;
 
-        fetchStub = sinon.stub(global, 'fetch').resolves({
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
+        fetchStub.resolves({
             ok: true,
             json: async () => ({ isSuccess: true, isValid: true, validationResults: [] })
         } as Response);
@@ -61,7 +65,7 @@ describe("when validating with client validation passing", () => {
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it("should_call_server", () => fetchStub.calledOnce.should.be.true);

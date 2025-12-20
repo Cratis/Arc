@@ -7,11 +7,13 @@ import sinon from 'sinon';
 import { useQuery } from '../useQuery';
 import { FakeQuery } from './FakeQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when creating instance without optional context values', () => {
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     let queryInstance: FakeQuery | null = null;
 
     const captureInstance = (instance: FakeQuery) => {
@@ -19,13 +21,15 @@ describe('when creating instance without optional context values', () => {
     };
 
     beforeEach(() => {
-        fetchStub = sinon.stub(global, 'fetch').resolves({
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
+        fetchStub.resolves({
             json: async () => ({ data: [], isSuccess: true, isAuthorized: true, isValid: true, hasExceptions: false, validationResults: [], exceptionMessages: [], exceptionStackTrace: '' })
         } as Response);
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     const config: ArcConfiguration = {

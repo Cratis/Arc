@@ -6,6 +6,7 @@ import { QueryValidator } from '../../QueryValidator';
 import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
 import '../../../validation/RuleBuilderExtensions';
 import sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 
 interface TestParams {
     minAge: number;
@@ -37,20 +38,23 @@ class TestQuery extends QueryFor<string, TestParams> {
 describe("when performing with client validation passing", () => {
     let query: TestQuery;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     beforeEach(() => {
         query = new TestQuery();
         query.setOrigin('http://localhost');
         query.parameters = { minAge: 18 };
 
-        fetchStub = sinon.stub(global, 'fetch').resolves({
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
+        fetchStub.resolves({
             ok: true,
             json: async () => ({ data: 'result', isSuccess: true, isValid: true })
         } as Response);
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it("should_call_server", async () => {
