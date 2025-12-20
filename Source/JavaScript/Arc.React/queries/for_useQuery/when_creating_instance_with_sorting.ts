@@ -6,7 +6,7 @@ import { render } from '@testing-library/react';
 import { useQuery } from '../useQuery';
 import { FakeQuery } from './FakeQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { Sorting, SortDirection } from '@cratis/arc/queries';
+import { Sorting } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 describe('when creating instance with sorting', () => {
