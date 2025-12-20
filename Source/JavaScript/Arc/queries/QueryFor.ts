@@ -26,7 +26,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
     private _origin: string;
     private _httpHeadersCallback: GetHttpHeaders;
     abstract readonly route: string;
-    abstract readonly validation: QueryValidator;
+    readonly validation?: QueryValidator;
     abstract readonly parameterDescriptors: ParameterDescriptor[];
     abstract get requiredRequestParameters(): string[];
     abstract defaultValue: TDataType;
@@ -75,7 +75,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
 
         args = args || this.parameters;
 
-        const clientValidationErrors = this.validation.validate(args as object || {});
+        const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
         if (clientValidationErrors.length > 0) {
             return new QueryResult({
                 data: this.defaultValue as object,

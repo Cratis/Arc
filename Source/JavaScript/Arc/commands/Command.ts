@@ -27,7 +27,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     private _origin: string;
     private _httpHeadersCallback: GetHttpHeaders;
     abstract readonly route: string;
-    abstract readonly validation: CommandValidator;
+    readonly validation?: CommandValidator;
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
     abstract get properties(): string[];
@@ -70,7 +70,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     async execute(): Promise<CommandResult<TCommandResponse>> {
-        const clientValidationErrors = this.validation.validate(this);
+        const clientValidationErrors = this.validation?.validate(this) || [];
         if (clientValidationErrors.length > 0) {
             return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
         }
