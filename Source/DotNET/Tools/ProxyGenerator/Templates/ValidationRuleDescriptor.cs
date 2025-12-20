@@ -11,5 +11,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="ErrorMessage">Optional custom error message.</param>
 public record ValidationRuleDescriptor(
     string RuleName,
-    IEnumerable<object> Arguments,
+#pragma warning disable CA1819 // Properties should not return arrays. We use this directly in the .hbs files assuming its an array with `.length` property.
+    object[] Arguments,
+#pragma warning restore CA1819 // Properties should not return arrays
     string? ErrorMessage);
