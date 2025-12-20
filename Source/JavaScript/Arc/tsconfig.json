@@ -6,12 +6,17 @@
         "outDir": "dist/esm"
     },
     "references": [],
+    "files": [
+        "../../../test.d.ts",
+        "../../../global.d.ts"
+    ],
     "include": [
         "**/*.ts",
         "**/*.tsx"
     ],
     "exclude": [
         "dist",
-        "**/for_*/**"
+        "vite.config.mts",
+        "given.ts"
     ]
 }

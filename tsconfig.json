@@ -41,9 +41,12 @@
         "preserveConstEnums": true,
         "newLine": "lf"
     },
+    "include": [
+        "test.d.ts",
+        "global.d.ts"
+    ],
     "exclude": [
         "**/dist",
-        "**/for_*/**",
         "**/vite.config.mts"
     ],
     "references": [
