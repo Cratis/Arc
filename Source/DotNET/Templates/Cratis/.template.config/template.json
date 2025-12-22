@@ -31,11 +31,12 @@
         {
           "condition": "(!EnableFrontend)",
           "exclude": [
-            "web/**/*",
-            "tsconfig.json",
-            "vite.config.ts",
-            "package.json",
-            ".yarnrc.yml"
+            "Source/**/*.html",
+            "Source/**/*.ts",
+            "Source/**/*.tsx",
+            "Source/**/*.css",
+            "Source/package.json",
+            "Source/tsconfig.json",
           ]
         }
       ]

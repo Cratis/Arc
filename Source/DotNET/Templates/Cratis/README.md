@@ -63,13 +63,20 @@ The application will be available at:
 
 ## Project Structure
 
-- `Program.cs` - Application entry point
-- `appsettings.json` - Configuration
+- `Source/` - All source code (backend and frontend side by side)
+  - `Program.cs` - Application entry point
+  - `appsettings.json` - Configuration
+  - `CratisApp.csproj` - .NET project file
+  //#if (EnableFrontend)
+  - `index.html` - Frontend entry point
+  - `App.tsx`, `main.tsx` - Frontend components
+  - `App.css`, `index.css` - Styles
+  - `package.json` - Node.js dependencies
+  - `vite.config.ts` - Vite configuration
+  - `tsconfig.json` - TypeScript configuration
+  //#endif
 - `docker-compose.yml` - Infrastructure services
-//#if (EnableFrontend)
-- `web/` - Frontend source code (React + TypeScript + Vite)
 - `wwwroot/` - Built frontend files (generated)
-//#endif
 
 ## Learn More
 
