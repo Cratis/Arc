@@ -1,84 +1,90 @@
 {
-  "$schema": "http://json.schemastore.org/template",
-  "author": "Cratis",
-  "classifications": [ "Web", "ASP.NET", "Cratis", "Arc", "Chronicle" ],
-  "identity": "Cratis.Templates.Web",
-  "name": "Cratis Web Application",
-  "shortName": "cratis",
-  "tags": {
-    "language": "C#",
-    "type": "project"
-  },
-  "sourceName": "CratisApp",
-  "preferNameDirectory": true,
-  "symbols": {
-    "EnableFrontend": {
-      "type": "parameter",
-      "datatype": "bool",
-      "defaultValue": "false",
-      "description": "Enable React/TypeScript/Vite frontend"
+    "$schema": "http://json.schemastore.org/template",
+    "author": "Cratis",
+    "classifications": [
+        "Web",
+        "ASP.NET",
+        "Cratis",
+        "Arc",
+        "Chronicle"
+    ],
+    "identity": "Cratis.Templates.Web",
+    "name": "Cratis Web Application",
+    "shortName": "cratis",
+    "tags": {
+        "language": "C#",
+        "type": "project"
     },
-    "skipRestore": {
-      "type": "parameter",
-      "datatype": "bool",
-      "defaultValue": "false",
-      "description": "If specified, skips the automatic restore of the project on create."
-    }
-  },
-  "sources": [
-    {
-      "modifiers": [
-        {
-          "condition": "(!EnableFrontend)",
-          "exclude": [
-            "Source/**/*.html",
-            "Source/**/*.ts",
-            "Source/**/*.tsx",
-            "Source/**/*.css",
-            "Source/package.json",
-            "Source/tsconfig.json",
-          ]
+    "sourceName": "CratisApp",
+    "preferNameDirectory": true,
+    "symbols": {
+        "EnableFrontend": {
+            "type": "parameter",
+            "datatype": "bool",
+            "defaultValue": "false",
+            "description": "Enable React/TypeScript/Vite frontend"
+        },
+        "skipRestore": {
+            "type": "parameter",
+            "datatype": "bool",
+            "defaultValue": "false",
+            "description": "If specified, skips the automatic restore of the project on create."
         }
-      ]
-    }
-  ],
-  "postActions": [
-    {
-      "condition": "(!skipRestore)",
-      "description": "Restore NuGet packages required by this project.",
-      "manualInstructions": [
-        {
-          "text": "Run 'dotnet restore'"
-        }
-      ],
-      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
-      "continueOnError": true
     },
-    {
-      "condition": "(EnableFrontend)",
-      "description": "Update Cratis packages to latest versions.",
-      "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
-      "args": {
-        "executable": "node",
-        "args": ".template.config/update-dependencies.js"
-      },
-      "continueOnError": true,
-      "manualInstructions": [
+    "sources": [
         {
-          "text": "To manually update dependencies, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update Source/package.json accordingly"
+            "modifiers": [
+                {
+                    "condition": "(!EnableFrontend)",
+                    "exclude": [
+                        "Source/**/*.html",
+                        "Source/**/*.ts",
+                        "Source/**/*.tsx",
+                        "Source/**/*.css",
+                        "Source/package.json",
+                        "Source/tsconfig.json",
+                    ]
+                }
+            ]
         }
-      ]
-    },
-    {
-      "condition": "(EnableFrontend)",
-      "description": "Install frontend dependencies with yarn.",
-      "manualInstructions": [
+    ],
+    "postActions": [
         {
-          "text": "Run 'cd Source && yarn install'"
+            "condition": "(!skipRestore)",
+            "description": "Restore NuGet packages required by this project.",
+            "manualInstructions": [
+                {
+                    "text": "Run 'dotnet restore'"
+                }
+            ],
+            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+            "continueOnError": true
+        },
+        {
+            "condition": "(EnableFrontend)",
+            "description": "Update Cratis packages to latest versions.",
+            "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
+            "args": {
+                "executable": "node",
+                "args": ".template.config/update-dependencies.js"
+            },
+            "continueOnError": true,
+            "manualInstructions": [
+                {
+                    "text": "To manually update dependencies, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update Source/package.json accordingly"
+                }
+            ]
+        },
+        {
+            "condition": "(EnableFrontend)",
+            "description": "Install frontend dependencies with yarn.",
+            "manualInstructions": [
+                {
+                    "text": "Run 'cd Source && yarn install'"
+                }
+            ],
+            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+            "continueOnError": true
         }
-      ],
-      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
-      "continueOnError": true
-    }
-  ]
+    ]
 }
