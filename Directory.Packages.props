@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Cratis -->
     <PackageVersion Include="Cratis.Chronicle" Version="14.13.10" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="14.13.10" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.3.1" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.3.1" />
     <!-- Microsoft -->

@@ -16,8 +16,7 @@ public static class ApplicationBuilderExtensions
     public static IApplicationBuilder UseCratis(this IApplicationBuilder app)
     {
         app.UseCratisArc();
-        app.UseSwagger();
-        app.UseSwaggerUI();
+        app.UseCratisChronicle();
         return app;
     }
 }
