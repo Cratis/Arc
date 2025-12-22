@@ -79,20 +79,6 @@
     ],
     "postActions": [
         {
-            "description": "Update Cratis dependencies to latest versions.",
-            "actionId": "CB8F3B80-9C51-11E6-9F33-2C4D65430DBE",
-            "args": {
-                "executable": "node",
-                "args": "update-dependencies.js"
-            },
-            "continueOnError": true,
-            "manualInstructions": [
-                {
-                    "text": "Run 'dotnet add *.csproj package Cratis' and 'dotnet add *.csproj package Cratis.Arc.ProxyGenerator.Build'. If frontend is enabled, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update package.json accordingly"
-                }
-            ]
-        },
-        {
             "condition": "(!skipRestore)",
             "description": "Restore NuGet packages required by this project.",
             "manualInstructions": [
@@ -101,11 +87,6 @@
                 }
             ],
             "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
-            "args": {
-                "targetFiles": [
-                    "CratisApp.csproj"
-                ]
-            },
             "continueOnError": true
         },
         {
@@ -116,11 +97,18 @@
                     "text": "Run 'yarn install'"
                 }
             ],
-            "actionId": "CB8F3B80-9C51-11E6-9F33-2C4D65430DBE",
-            "args": {
-                "executable": "yarn",
-                "args": "install"
-            },
+            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+            "continueOnError": true
+        },
+        {
+            "condition": "(EnableFrontend && !skipRestore)",
+            "description": "Add latest Cratis packages.",
+            "manualInstructions": [
+                {
+                    "text": "Run 'yarn add @cratis/arc @cratis/arc.react'"
+                }
+            ],
+            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
             "continueOnError": true
         }
     ]
