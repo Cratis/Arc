@@ -6,10 +6,10 @@ A web application built with Cratis Arc and Chronicle.
 
 - .NET 9.0 or later
 - Docker and Docker Compose (for running Chronicle and Aspire Dashboard)
-<!--#if (EnableFrontend) -->
+//#if (EnableFrontend)
 - Node.js 20 or later
 - Yarn
-<!--#endif -->
+//#endif
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ This will start:
 - Chronicle (with MongoDB on port 27017)
 - Aspire Dashboard (on port 18888)
 
-<!--#if (EnableFrontend) -->
+//#if (EnableFrontend)
 2. Install frontend dependencies:
 
 ```bash
@@ -48,7 +48,7 @@ The application will be available at:
 - Frontend: http://localhost:5173 (Vite dev server)
 - Aspire Dashboard: http://localhost:18888
 
-<!--#else -->
+//#else
 2. Run the application:
 
 ```bash
@@ -59,17 +59,17 @@ The application will be available at:
 - API: http://localhost:5000
 - Swagger UI: http://localhost:5000/swagger
 - Aspire Dashboard: http://localhost:18888
-<!--#endif -->
+//#endif
 
 ## Project Structure
 
 - `Program.cs` - Application entry point
 - `appsettings.json` - Configuration
 - `docker-compose.yml` - Infrastructure services
-<!--#if (EnableFrontend) -->
+//#if (EnableFrontend)
 - `web/` - Frontend source code (React + TypeScript + Vite)
 - `wwwroot/` - Built frontend files (generated)
-<!--#endif -->
+//#endif
 
 ## Learn More
 

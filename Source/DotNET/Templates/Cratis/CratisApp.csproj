@@ -7,8 +7,8 @@
 
     <ItemGroup>
         <PackageReference Include="Cratis" />
-<!--#if (EnableFrontend) -->
+        <!--#if (EnableFrontend)-->
         <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" />
-<!--#endif -->
+        <!--#endif-->
     </ItemGroup>
 </Project>

@@ -3,10 +3,10 @@ builder.AddCratis();
 
 var app = builder.Build();
 app.UseCratis();
+//#if (EnableFrontend)
 
-<!--#if (EnableFrontend) -->
 app.UseDefaultFiles();
 app.UseStaticFiles();
-<!--#endif -->
+//#endif
 
 app.Run();
