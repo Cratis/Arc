@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <PackageType>Template</PackageType>
+        <PackageId>Cratis.Templates</PackageId>
+        <PackageVersion>1.0.0</PackageVersion>
+        <Title>Cratis Templates</Title>
+        <Description>A collection of templates for creating applications with Cratis Arc and Chronicle</Description>
+        <Author>Cratis</Author>
+        <PackageTags>dotnet;templates;cratis;arc;chronicle;web;aspnetcore</PackageTags>
+        <RepositoryUrl>https://github.com/Cratis/Arc</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <License>MIT</License>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Content Include="Cratis\.template.config\**\*" />
+        <Content Include="Cratis\Source\**\*" />
+        <Content Include="Cratis\docker-compose.yml" />
+        <Content Include="Cratis\README.md" />
+    </ItemGroup>
+</Project>
