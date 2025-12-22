@@ -53,6 +53,32 @@
       ],
       "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
       "continueOnError": true
+    },
+    {
+      "condition": "(EnableFrontend)",
+      "description": "Update Cratis packages to latest versions.",
+      "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
+      "args": {
+        "executable": "node",
+        "args": ".template.config/update-dependencies.js"
+      },
+      "continueOnError": true,
+      "manualInstructions": [
+        {
+          "text": "To manually update dependencies, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update Source/package.json accordingly"
+        }
+      ]
+    },
+    {
+      "condition": "(EnableFrontend)",
+      "description": "Install frontend dependencies with yarn.",
+      "manualInstructions": [
+        {
+          "text": "Run 'cd Source && yarn install'"
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
     }
   ]
 }
