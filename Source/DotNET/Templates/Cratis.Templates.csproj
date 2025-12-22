@@ -10,7 +10,14 @@
         <RepositoryUrl>https://github.com/Cratis/Arc</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <License>MIT</License>
+        <IncludeContentInPack>true</IncludeContentInPack>
+        <NoWarn>$(NoWarn);CS8805;CS0103;IDE0073;SA1512;SA1515;SA1005</NoWarn>
     </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="Cratis\**\*" />
+        <None Remove="Cratis\**\*" />
+    </ItemGroup>
 
     <ItemGroup>
         <Content Include="Cratis\.template.config\**\*" />
