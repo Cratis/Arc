@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis</AssemblyName>
+        <RootNamespace>Cratis</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc/Arc.csproj" />
+        <ProjectReference Include="../Chronicle/Chronicle.csproj" />
+        <ProjectReference Include="../MongoDB/MongoDB.csproj" />
+        <ProjectReference Include="../Swagger/Swagger.csproj" />
+    </ItemGroup>
+</Project>
