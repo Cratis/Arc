@@ -61,12 +61,12 @@
                 {
                     "condition": "(!EnableFrontend)",
                     "exclude": [
-                        "Source/**/*.html",
-                        "Source/**/*.ts",
-                        "Source/**/*.tsx",
-                        "Source/**/*.css",
-                        "Source/package.json",
-                        "Source/tsconfig.json",
+                        "**/*.html",
+                        "**/*.ts",
+                        "**/*.tsx",
+                        "**/*.css",
+                        "package.json",
+                        "tsconfig.json",
                     ]
                 }
             ]
@@ -95,7 +95,7 @@
             "continueOnError": true,
             "manualInstructions": [
                 {
-                    "text": "To manually update dependencies, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update Source/package.json accordingly"
+                    "text": "To manually update dependencies, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update package.json accordingly"
                 }
             ]
         },
@@ -104,7 +104,7 @@
             "description": "Install frontend dependencies with yarn.",
             "manualInstructions": [
                 {
-                    "text": "Run 'cd Source && yarn install'"
+                    "text": "Run 'yarn install'"
                 }
             ],
             "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",

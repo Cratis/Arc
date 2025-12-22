@@ -20,9 +20,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="Cratis\.template.config\**\*" />
-        <Content Include="Cratis\Source\**\*" />
-        <Content Include="Cratis\docker-compose.yml" />
-        <Content Include="Cratis\README.md" />
+        <Content Include="Cratis/**/*" />
     </ItemGroup>
 </Project>
