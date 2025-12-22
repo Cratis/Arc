@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <AssemblyName>CratisApp</AssemblyName>
+        <RootNamespace>CratisApp</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cratis" />
+<!--#if (EnableFrontend) -->
+        <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" />
+<!--#endif -->
+    </ItemGroup>
+</Project>

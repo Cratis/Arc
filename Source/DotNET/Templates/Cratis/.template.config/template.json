@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Cratis",
+  "classifications": [ "Web", "ASP.NET", "Cratis", "Arc", "Chronicle" ],
+  "identity": "Cratis.Templates.Web",
+  "name": "Cratis Web Application",
+  "shortName": "cratis",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "CratisApp",
+  "preferNameDirectory": true,
+  "symbols": {
+    "EnableFrontend": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Enable React/TypeScript/Vite frontend"
+    },
+    "skipRestore": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "If specified, skips the automatic restore of the project on create."
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "condition": "(!EnableFrontend)",
+          "exclude": [
+            "web/**/*",
+            "tsconfig.json",
+            "vite.config.ts",
+            "package.json",
+            ".yarnrc.yml"
+          ]
+        }
+      ]
+    }
+  ],
+  "postActions": [
+    {
+      "condition": "(!skipRestore)",
+      "description": "Restore NuGet packages required by this project.",
+      "manualInstructions": [
+        {
+          "text": "Run 'dotnet restore'"
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    }
+  ]
+}
