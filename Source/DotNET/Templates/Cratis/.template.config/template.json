@@ -76,7 +76,7 @@
             ]
         },
         {
-            "condition": "(EnableFrontend)",
+            "condition": "(EnableFrontend && !skipRestore)",
             "description": "Install frontend dependencies with yarn.",
             "manualInstructions": [
                 {
