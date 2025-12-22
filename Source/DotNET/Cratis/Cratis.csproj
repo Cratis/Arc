@@ -2,6 +2,8 @@
     <PropertyGroup>
         <AssemblyName>Cratis</AssemblyName>
         <RootNamespace>Cratis</RootNamespace>
+        <Description>Simplified setup for Cratis Arc applications with Chronicle event sourcing and MongoDB storage</Description>
+        <PackageTags>cratis;arc;chronicle;event-sourcing;cqrs;mongodb</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -11,5 +13,8 @@
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
         <ProjectReference Include="../MongoDB/MongoDB.csproj" />
         <ProjectReference Include="../Swagger/Swagger.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>
