@@ -4,11 +4,4 @@
         <AssemblyName>CratisApp</AssemblyName>
         <RootNamespace>CratisApp</RootNamespace>
     </PropertyGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Cratis" />
-        <!--#if (EnableFrontend)-->
-        <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" />
-        <!--#endif-->
-    </ItemGroup>
 </Project>

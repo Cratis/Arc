@@ -31,13 +31,6 @@
             "description": "Enable React/TypeScript/Vite frontend",
             "prompt": "Add React frontend?"
         },
-        "skipRestore": {
-            "type": "parameter",
-            "datatype": "bool",
-            "defaultValue": "false",
-            "description": "Skip restore on template instantiation",
-            "prompt": "Skip restore?"
-        },
         "Framework": {
             "type": "parameter",
             "datatype": "choice",
@@ -79,7 +72,35 @@
     ],
     "postActions": [
         {
-            "condition": "(!skipRestore)",
+            "description": "Add Cratis package.",
+            "manualInstructions": [
+                {
+                    "text": "Run 'dotnet add package Cratis'"
+                }
+            ],
+            "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
+            "args": {
+                "executable": "dotnet",
+                "args": "add package Cratis"
+            },
+            "continueOnError": true
+        },
+        {
+            "condition": "(EnableFrontend)",
+            "description": "Add Cratis ProxyGenerator package.",
+            "manualInstructions": [
+                {
+                    "text": "Run 'dotnet add package Cratis.Arc.ProxyGenerator.Build'"
+                }
+            ],
+            "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
+            "args": {
+                "executable": "dotnet",
+                "args": "add package Cratis.Arc.ProxyGenerator.Build"
+            },
+            "continueOnError": true
+        },
+        {
             "description": "Restore NuGet packages required by this project.",
             "manualInstructions": [
                 {
@@ -90,25 +111,33 @@
             "continueOnError": true
         },
         {
-            "condition": "(EnableFrontend && !skipRestore)",
-            "description": "Install frontend dependencies with yarn.",
-            "manualInstructions": [
-                {
-                    "text": "Run 'yarn install'"
-                }
-            ],
-            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
-            "continueOnError": true
-        },
-        {
-            "condition": "(EnableFrontend && !skipRestore)",
+            "condition": "(EnableFrontend)",
             "description": "Add latest Cratis packages.",
             "manualInstructions": [
                 {
                     "text": "Run 'yarn add @cratis/arc @cratis/arc.react'"
                 }
             ],
-            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+            "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
+            "args": {
+                "executable": "yarn",
+                "args": "add @cratis/arc @cratis/arc.react"
+            },
+            "continueOnError": true
+        },
+        {
+            "condition": "(EnableFrontend)",
+            "description": "Install frontend dependencies with yarn.",
+            "manualInstructions": [
+                {
+                    "text": "Run 'yarn install'"
+                }
+            ],
+            "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
+            "args": {
+                "executable": "yarn",
+                "args": "install"
+            },
             "continueOnError": true
         }
     ]
