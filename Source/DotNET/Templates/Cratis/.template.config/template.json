@@ -18,6 +18,11 @@
     },
     "sourceName": "CratisApp",
     "preferNameDirectory": true,
+    "primaryOutputs": [
+        {
+            "path": "CratisApp.csproj"
+        }
+    ],
     "symbols": {
         "EnableFrontend": {
             "type": "parameter",
@@ -66,13 +71,27 @@
                         "**/*.tsx",
                         "**/*.css",
                         "package.json",
-                        "tsconfig.json",
+                        "tsconfig.json"
                     ]
                 }
             ]
         }
     ],
     "postActions": [
+        {
+            "description": "Update Cratis dependencies to latest versions.",
+            "actionId": "CB8F3B80-9C51-11E6-9F33-2C4D65430DBE",
+            "args": {
+                "executable": "node",
+                "args": "update-dependencies.js"
+            },
+            "continueOnError": true,
+            "manualInstructions": [
+                {
+                    "text": "Run 'dotnet add *.csproj package Cratis' and 'dotnet add *.csproj package Cratis.Arc.ProxyGenerator.Build'. If frontend is enabled, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update package.json accordingly"
+                }
+            ]
+        },
         {
             "condition": "(!skipRestore)",
             "description": "Restore NuGet packages required by this project.",
@@ -82,22 +101,12 @@
                 }
             ],
             "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
-            "continueOnError": true
-        },
-        {
-            "condition": "(EnableFrontend)",
-            "description": "Update Cratis packages to latest versions.",
-            "actionId": "3A7C4B45-1F5D-4A30-959A-51B88EABA521",
             "args": {
-                "executable": "node",
-                "args": ".template.config/update-dependencies.js"
+                "targetFiles": [
+                    "CratisApp.csproj"
+                ]
             },
-            "continueOnError": true,
-            "manualInstructions": [
-                {
-                    "text": "To manually update dependencies, run 'npm view @cratis/arc version' and 'npm view @cratis/arc.react version' and update package.json accordingly"
-                }
-            ]
+            "continueOnError": true
         },
         {
             "condition": "(EnableFrontend && !skipRestore)",
@@ -107,7 +116,11 @@
                     "text": "Run 'yarn install'"
                 }
             ],
-            "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+            "actionId": "CB8F3B80-9C51-11E6-9F33-2C4D65430DBE",
+            "args": {
+                "executable": "yarn",
+                "args": "install"
+            },
             "continueOnError": true
         }
     ]
