@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)\..\contentFiles\cs\any\GlobalUsings.cs" Link="GlobalUsings.Cratis.cs" Visible="false" />
+  </ItemGroup>
+</Project>
