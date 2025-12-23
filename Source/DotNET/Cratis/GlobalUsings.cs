@@ -11,6 +11,7 @@ global using Cratis.Arc.Commands.ModelBound;
 global using Cratis.Arc.Identity;
 global using Cratis.Arc.Queries;
 global using Cratis.Arc.Queries.ModelBound;
+global using Cratis.Arc.Swagger;
 global using Cratis.Arc.Validation;
 global using Cratis.Chronicle;
 global using Cratis.Chronicle.Events;
