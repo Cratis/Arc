@@ -15,7 +15,7 @@ public class with_file_generated_using_path_join : Specification
         _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tempDir);
 
-        var subDir = "commands";
+        const string subDir = "commands";
         _generatedFilePath = Path.Join(_tempDir, subDir, "CreateOrder.ts");
         var directory = Path.GetDirectoryName(_generatedFilePath)!;
         Directory.CreateDirectory(directory);

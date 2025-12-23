@@ -17,8 +17,8 @@ public class simulating_real_generation_flow : Specification
         _generatedFiles = [];
 
         var targetPath = _tempDir;
-        var path = "commands";
-        var fileName = "CreateOrder.ts";
+        const string path = "commands";
+        const string fileName = "CreateOrder.ts";
 
         var fullPath = Path.Join(targetPath, path, fileName);
         var normalizedFullPath = Path.GetFullPath(fullPath);
