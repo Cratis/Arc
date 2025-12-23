@@ -4,6 +4,7 @@
         <RootNamespace>Cratis</RootNamespace>
         <Description>Simplified setup for Cratis Arc applications with Chronicle event sourcing and MongoDB storage</Description>
         <PackageTags>cratis;arc;chronicle;event-sourcing;cqrs;mongodb</PackageTags>
+        <NoWarn>$(NoWarn);IDE0005</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
