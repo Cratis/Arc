@@ -19,12 +19,17 @@ public static class WebApplicationBuilderExtensions
     /// Cratis:Arc section path.
     /// </remarks>
     /// <param name="builder"><see cref="WebApplicationBuilder"/> to extend.</param>
-    /// <param name="arcBuilderCallback">Callback for configuring the <see cref="IArcBuilder"/>.</param>
+    /// <param name="configureOptions">The optional callback for configuring <see cref="ArcOptions"/>.</param>
+    /// <param name="configureBuilder">Callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns><see cref="WebApplicationBuilder"/> for building continuation.</returns>
-    public static WebApplicationBuilder AddCratisArc(this WebApplicationBuilder builder, Action<IArcBuilder> arcBuilderCallback, string? configSectionPath = null)
+    public static WebApplicationBuilder AddCratisArc(
+        this WebApplicationBuilder builder,
+        Action<ArcOptions>? configureOptions = default,
+        Action<IArcBuilder>? configureBuilder = default,
+        string? configSectionPath = default)
     {
-        builder.Host.AddCratisArc(arcBuilderCallback, configSectionPath);
+        builder.Host.AddCratisArc(configureOptions, configureBuilder, configSectionPath);
         return builder;
     }
 }

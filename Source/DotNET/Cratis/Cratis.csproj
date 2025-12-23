@@ -11,13 +11,9 @@
     <ItemGroup>
         <ProjectReference Include="../Arc/Arc.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
-        <ProjectReference Include="../MongoDB/MongoDB.csproj" />
         <ProjectReference Include="../Swagger/Swagger.csproj" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.AspNetCore" />
-    </ItemGroup>
-    <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>
