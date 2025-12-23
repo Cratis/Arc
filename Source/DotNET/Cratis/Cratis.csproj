@@ -16,4 +16,7 @@
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.AspNetCore" />
     </ItemGroup>
+    <ItemGroup>
+        <None Include="GlobalUsings.cs" Pack="true" PackagePath="contentFiles/cs/any;content" />
+    </ItemGroup>
 </Project>
