@@ -23,7 +23,6 @@ public static class DescriptorExtensions
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="typeNameToEcho">The type name to echo for statistics.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
-    /// <param name="fileIndex">Optional file index to track generated files.</param>
     /// <param name="generatedFiles">Optional collection to track generated file paths and their metadata.</param>
     /// <returns>Awaitable task.</returns>
     public static async Task Write(
@@ -35,7 +34,6 @@ public static class DescriptorExtensions
         int segmentsToSkip,
         string typeNameToEcho,
         Action<string> message,
-        GeneratedFileIndex? fileIndex = null,
         IDictionary<string, GeneratedFileMetadata>? generatedFiles = null)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -58,13 +56,6 @@ public static class DescriptorExtensions
             var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime);
             var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
             await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
-
-            // Track the generated file in the index
-            if (fileIndex is not null)
-            {
-                var relativePath = Path.GetRelativePath(targetPath, normalizedFullPath);
-                fileIndex.AddFile(relativePath);
-            }
 
             // Track generated file metadata
             if (generatedFiles is not null)
