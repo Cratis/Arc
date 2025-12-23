@@ -26,18 +26,23 @@ public static class HostBuilderExtensions
     /// Cratis:Arc section path.
     /// </remarks>
     /// <param name="builder"><see cref="IHostBuilder"/> to extend.</param>
-    /// <param name="arcBuilderCallback">Optional callback for configuring the <see cref="IArcBuilder"/>.</param>
+    /// <param name="configureOptions">The optional callback for configuring <see cref="ArcOptions"/>.</param>
+    /// <param name="configureBuilder">Optional callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns><see cref="IHostBuilder"/> for building continuation.</returns>
-    public static IHostBuilder AddCratisArc(this IHostBuilder builder, Action<IArcBuilder>? arcBuilderCallback = default, string? configSectionPath = null)
+    public static IHostBuilder AddCratisArc(
+        this IHostBuilder builder,
+        Action<ArcOptions>? configureOptions = default,
+        Action<IArcBuilder>? configureBuilder = default,
+        string? configSectionPath = default)
     {
-        builder.AddCratisArcCore(_ => { });
+        builder.AddCratisArcCore();
         builder.AddArcImplementation();
         builder.ConfigureServices(_ =>
         {
             var arcBuilder = new ArcBuilder(_, Internals.Types);
-            arcBuilderCallback?.Invoke(arcBuilder);
-            AddOptions(_, arcBuilder.ConfigureOptions)
+            configureBuilder?.Invoke(arcBuilder);
+            AddOptions(_, configureOptions)
                 .BindConfiguration(configSectionPath ?? ConfigurationPath.Combine(DefaultArcSectionPaths));
         });
 

@@ -20,9 +20,4 @@ public interface IArcBuilder
     /// Gets the types system used by Arc.
     /// </summary>
     ITypes Types { get; }
-
-    /// <summary>
-    /// Gets or sets the Arc options configurator.
-    /// </summary>
-    Action<ArcOptions>? ConfigureOptions { get; set; }
 }

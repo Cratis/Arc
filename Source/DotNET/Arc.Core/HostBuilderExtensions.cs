@@ -27,23 +27,33 @@ public static class HostBuilderExtensions
     /// Add Cratis Arc core services with the <see cref="IHostBuilder"/>.
     /// </summary>
     /// <param name="builder"><see cref="IHostBuilder"/> to extend.</param>
-    /// <param name="arcBuilderCallback">Callback for configuring the <see cref="IArcBuilder"/>.</param>
+    /// <param name="configureOptions">Optional callback for configuring <see cref="ArcOptions"/>.</param>
+    /// <param name="configureBuilder">Callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns><see cref="IHostBuilder"/> for building continuation.</returns>
-    public static IHostBuilder AddCratisArcCore(this IHostBuilder builder, Action<IArcBuilder> arcBuilderCallback, string? configSectionPath = null)
+    public static IHostBuilder AddCratisArcCore(
+        this IHostBuilder builder,
+        Action<ArcOptions>? configureOptions = default,
+        Action<IArcBuilder>? configureBuilder = default,
+        string? configSectionPath = default)
     {
         builder.ConfigureServices((context, services) =>
         {
             var configSection = configSectionPath ?? ConfigurationPath.Combine(DefaultSectionPaths);
             services.Configure<ArcOptions>(context.Configuration.GetSection(configSection));
 
-            services.AddOptions<ArcOptions>()
+            var optionsBuilder = services.AddOptions<ArcOptions>()
                 .ValidateOnStart();
+
+            if (configureOptions is not null)
+            {
+                optionsBuilder.Configure(configureOptions);
+            }
 
             services.AddCratisArcCore();
 
             var arcBuilder = new ArcBuilder(services, Internals.Types);
-            arcBuilderCallback(arcBuilder);
+            configureBuilder?.Invoke(arcBuilder);
         });
 
         return builder;
