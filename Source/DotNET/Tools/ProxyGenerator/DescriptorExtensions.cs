@@ -45,7 +45,8 @@ public static class DescriptorExtensions
         {
             var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
             var fullPath = Path.Join(targetPath, path, $"{descriptor.Name}.ts");
-            var directory = Path.GetDirectoryName(fullPath)!;
+            var normalizedFullPath = Path.GetFullPath(fullPath);
+            var directory = Path.GetDirectoryName(normalizedFullPath)!;
             if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
             if (!directories.Contains(directory))
@@ -56,19 +57,19 @@ public static class DescriptorExtensions
             var proxyContent = template(descriptor);
             var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime);
             var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
-            await File.WriteAllTextAsync(fullPath, contentWithMetadata);
+            await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
 
             // Track the generated file in the index
             if (fileIndex is not null)
             {
-                var relativePath = Path.GetRelativePath(targetPath, fullPath);
+                var relativePath = Path.GetRelativePath(targetPath, normalizedFullPath);
                 fileIndex.AddFile(relativePath);
             }
 
             // Track generated file metadata
             if (generatedFiles is not null)
             {
-                generatedFiles[fullPath] = metadata;
+                generatedFiles[normalizedFullPath] = metadata;
             }
         }
 
