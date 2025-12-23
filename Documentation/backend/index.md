@@ -2,6 +2,7 @@
 
 | Topic | Description |
 | ------- | ----------- |
+| [Getting Started](./getting-started/) | Quick-start guides for building applications with Arc. |
 | [Standalone Applications](./standalone-applications.md) | Build lightweight applications using Arc.Core without ASP.NET Core. |
 | [Commands](./commands/) | How to work with commands and what the Application Model is offering. |
 | [Entity Framework Core](./entity-framework/) | Enhanced Entity Framework Core support with automatic configuration and patterns. |
