@@ -59,7 +59,7 @@ public class and_file_already_exists_with_different_hash : Specification, IDispo
             _messages.Add,
             _generatedFiles);
 
-        _newContent = File.ReadAllText(_filePath);
+        _newContent = await File.ReadAllTextAsync(_filePath);
     }
 
     [Fact] void should_modify_file() => _newContent.ShouldNotEqual(_originalContent);
@@ -76,6 +76,4 @@ public class and_file_already_exists_with_different_hash : Specification, IDispo
     }
 }
 
-public class ModifiedType
-{
-}
+public class ModifiedType;

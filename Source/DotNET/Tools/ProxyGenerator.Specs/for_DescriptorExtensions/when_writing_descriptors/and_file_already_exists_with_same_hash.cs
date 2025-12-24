@@ -39,17 +39,21 @@ public class and_file_already_exists_with_same_hash : Specification, IDisposable
         var directory = Path.GetDirectoryName(_filePath)!;
         Directory.CreateDirectory(directory);
 
-        const string proxyContent = @"/*---------------------------------------------------------------------------------------------
- *  **DO NOT EDIT** - This file is an automatically generated file.
- *--------------------------------------------------------------------------------------------*/
+#pragma warning disable MA0136 // Raw String contains an implicit end of line character
+        const string proxyContent = """
+            /*---------------------------------------------------------------------------------------------
+             *  **DO NOT EDIT** - This file is an automatically generated file.
+             *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable sort-imports */
-// eslint-disable-next-line header/header
-import { field } from '@cratis/fundamentals';
+            /* eslint-disable sort-imports */
+            // eslint-disable-next-line header/header
+            import { field } from '@cratis/fundamentals';
 
-export class SimpleType {
-}
-";
+            export class SimpleType {
+            }
+
+            """;
+#pragma warning restore MA0136 // Raw String contains an implicit end of line character
         var hash = GeneratedFileMetadata.ComputeHash(proxyContent);
         var metadata = new GeneratedFileMetadata("Cratis.Arc.ProxyGenerator.for_DescriptorExtensions.when_writing_descriptors.SimpleType", DateTime.UtcNow, hash);
         _originalContent = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
@@ -82,6 +86,4 @@ export class SimpleType {
     }
 }
 
-public class SimpleType
-{
-}
+public class SimpleType;

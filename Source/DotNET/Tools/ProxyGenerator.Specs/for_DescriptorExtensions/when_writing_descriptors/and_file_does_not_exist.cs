@@ -64,6 +64,4 @@ public class and_file_does_not_exist : Specification, IDisposable
     }
 }
 
-public class NewType
-{
-}
+public class NewType;
