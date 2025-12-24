@@ -3,6 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line header/header
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 export enum {{Name}} {
     {{#Values}}
     {{camelcase Name}} = {{Value}},

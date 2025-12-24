@@ -10,8 +10,10 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="Name">Name of the enum.</param>
 /// <param name="Values">The values on the enum.</param>
 /// <param name="TypesInvolved">Additional types involved.</param>
+/// <param name="Documentation">JSDoc documentation for the enum.</param>
 public record EnumDescriptor(
     Type Type,
     string Name,
     IEnumerable<EnumMemberDescriptor> Values,
-    IEnumerable<Type> TypesInvolved) : IDescriptor;
+    IEnumerable<Type> TypesInvolved,
+    string? Documentation = null) : IDescriptor;

@@ -38,6 +38,7 @@ public static class DescriptorExtensions
     {
         var stopwatch = Stopwatch.StartNew();
         var generationTime = DateTime.UtcNow;
+        var skippedCount = 0;
 
         foreach (var descriptor in descriptors)
         {
@@ -53,7 +54,26 @@ public static class DescriptorExtensions
             }
 
             var proxyContent = template(descriptor);
-            var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime);
+            var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
+            var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime, contentHash);
+
+            // Check if file exists with the same hash
+            if (File.Exists(normalizedFullPath))
+            {
+                if (GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
+                    existingMetadata is not null &&
+                    existingMetadata.ContentHash == contentHash)
+                {
+                    // File hasn't changed, skip writing
+                    skippedCount++;
+                    if (generatedFiles is not null)
+                    {
+                        generatedFiles[normalizedFullPath] = metadata;
+                    }
+                    continue;
+                }
+            }
+
             var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
             await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
 
@@ -75,7 +95,9 @@ public static class DescriptorExtensions
         var count = descriptors.Count();
         if (count > 0)
         {
-            message($"  {count} {typeNameToEcho} in {stopwatch.Elapsed}");
+            var writtenCount = count - skippedCount;
+            var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
+            message($"  {writtenCount} {typeNameToEcho} written{skippedInfo} in {stopwatch.Elapsed}");
         }
     }
 }
