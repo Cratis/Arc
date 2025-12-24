@@ -142,6 +142,40 @@ public class ControllerQueriesController : ControllerBase
             new() { Id = Guid.NewGuid(), Name = email, Value = minAge }
         });
     }
+
+    internal static int DataAnnotationsValidatedCallCount;
+
+    /// <summary>
+    /// Searches with DataAnnotations validation.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="name">The name filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <param name="website">Website URL.</param>
+    /// <returns>Collection of items.</returns>
+    [HttpGet("data-annotations-validated")]
+    public ActionResult<IEnumerable<ControllerQueryItem>> SearchDataAnnotationsValidated(
+        [FromQuery]
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        string email,
+        [FromQuery]
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 3)]
+        string name,
+        [FromQuery]
+        [System.ComponentModel.DataAnnotations.Range(0, 150)]
+        int minAge,
+        [FromQuery]
+        [System.ComponentModel.DataAnnotations.Url]
+        string website)
+    {
+        DataAnnotationsValidatedCallCount++;
+        return Ok(new List<ControllerQueryItem>
+        {
+            new() { Id = Guid.NewGuid(), Name = name, Value = minAge }
+        });
+    }
 }
 
 /// <summary>

@@ -578,8 +578,8 @@ Query.prototype.setHttpHeadersCallback = function(callback) {
 Query.prototype.perform = function(args) {
     var self = this;
     
-    // Use args if provided, otherwise use this.parameters
-    var parametersToValidate = args || this.parameters || {};
+    // Use args if provided, otherwise use this (the query instance) for validation
+    var parametersToValidate = args || this;
     
     // Perform client-side validation if validator is present
     if (this.validation && this.validation.validate) {

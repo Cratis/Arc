@@ -129,6 +129,26 @@ public class a_scenario_web_application : Specification, IDisposable
         Bridge.LoadTypeScript(code);
     }
 
+    /// <summary>
+    /// Generates and loads a controller-based query proxy for the given controller method.
+    /// </summary>
+    /// <typeparam name="TController">The controller type.</typeparam>
+    /// <param name="methodName">The name of the controller method.</param>
+    /// <exception cref="InvalidOperationException">The exception that is thrown when the method is not found.</exception>
+    protected void LoadControllerQueryProxy<TController>(string methodName)
+    {
+        var controllerType = typeof(TController).GetTypeInfo();
+        var method = controllerType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException($"Method '{methodName}' not found on type '{controllerType.Name}'");
+
+        var descriptor = method.ToQueryDescriptor(
+            targetPath: string.Empty,
+            segmentsToSkip: 0);
+
+        var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
+        Bridge.LoadTypeScript(code);
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

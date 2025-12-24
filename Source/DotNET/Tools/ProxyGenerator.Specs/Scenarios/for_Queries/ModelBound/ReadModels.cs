@@ -358,3 +358,64 @@ public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<
         RuleFor(q => q.Age).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
     }
 }
+
+/// <summary>
+/// A read model with DataAnnotations validation for parameters.
+/// </summary>
+[ReadModel]
+public class DataAnnotationsValidatedReadModel
+{
+    internal static int GetByEmailCallCount;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets or sets the website.
+    /// </summary>
+    public string Website { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets items by email and age with DataAnnotations validation.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="name">The name filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <param name="website">Website URL.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<DataAnnotationsValidatedReadModel> GetByEmailAndAge(
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        string email,
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 3)]
+        string name,
+        [System.ComponentModel.DataAnnotations.Range(0, 150)]
+        int minAge,
+        [System.ComponentModel.DataAnnotations.Url]
+        string website)
+    {
+        GetByEmailCallCount++;
+        return
+        [
+            new DataAnnotationsValidatedReadModel { Id = Guid.NewGuid(), Email = email, Name = name, Age = minAge, Website = website }
+        ];
+    }
+}
