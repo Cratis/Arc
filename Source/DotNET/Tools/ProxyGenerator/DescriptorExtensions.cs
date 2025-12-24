@@ -58,20 +58,17 @@ public static class DescriptorExtensions
             var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime, contentHash);
 
             // Check if file exists with the same hash
-            if (File.Exists(normalizedFullPath))
-            {
-                if (GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
+            if (File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
                     existingMetadata is not null &&
                     existingMetadata.ContentHash == contentHash)
+            {
+                // File hasn't changed, skip writing
+                skippedCount++;
+                if (generatedFiles is not null)
                 {
-                    // File hasn't changed, skip writing
-                    skippedCount++;
-                    if (generatedFiles is not null)
-                    {
-                        generatedFiles[normalizedFullPath] = metadata;
-                    }
-                    continue;
+                    generatedFiles[normalizedFullPath] = metadata;
                 }
+                continue;
             }
 
             var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
