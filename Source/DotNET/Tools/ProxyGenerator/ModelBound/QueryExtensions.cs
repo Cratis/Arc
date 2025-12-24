@@ -110,11 +110,16 @@ public static class QueryExtensions
 
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules for query parameters
-        var queryType = readModelType.AsType();
-        var validationRules = queryType != null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, queryType)
-            : [];
+        // Extract validation rules from query method parameters (not from the readModel/response type)
+        var validationRules = new List<Templates.PropertyValidationDescriptor>();
+        foreach (var param in method.GetParameters())
+        {
+            var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+            if (rules.Count > 0)
+            {
+                validationRules.Add(new Templates.PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+            }
+        }
 
         return new(
             readModelType,

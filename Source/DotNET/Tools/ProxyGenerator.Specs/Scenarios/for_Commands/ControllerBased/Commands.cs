@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using Cratis.Arc.Commands;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -97,6 +98,20 @@ public class ControllerCommandsController : ControllerBase
     public IActionResult ExecuteFluentValidated([FromBody] ControllerFluentValidatedCommand command)
     {
         FluentValidatedCallCount++;
+        return Ok();
+    }
+
+    internal static int DataAnnotationsValidatedCallCount;
+
+    /// <summary>
+    /// Executes a data annotations validated command.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("data-annotations-validated")]
+    public IActionResult ExecuteDataAnnotationsValidated([FromBody] ControllerDataAnnotationsValidatedCommand command)
+    {
+        DataAnnotationsValidatedCallCount++;
         return Ok();
     }
 }
@@ -268,4 +283,42 @@ public class ControllerAbstractValidatedCommandValidator : AbstractValidator<Con
         RuleFor(c => c.Code).NotEmpty().Length(5).WithMessage("Code must be exactly 5 characters");
         RuleFor(c => c.Amount).GreaterThan(0).WithMessage("Amount must be positive");
     }
+}
+
+/// <summary>
+/// A controller-based command with data annotations validation.
+/// </summary>
+public class ControllerDataAnnotationsValidatedCommand
+{
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    [Required(ErrorMessage = "Name is required")]
+    [StringLength(50, MinimumLength = 3, ErrorMessage = "Name must be between 3 and 50 characters")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    [Range(18, 100, ErrorMessage = "Age must be between 18 and 100")]
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    [Required]
+    [EmailAddress(ErrorMessage = "Invalid email address")]
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the phone.
+    /// </summary>
+    [Phone(ErrorMessage = "Invalid phone number")]
+    public string Phone { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the website.
+    /// </summary>
+    [Url(ErrorMessage = "Invalid URL")]
+    public string Website { get; set; } = string.Empty;
 }

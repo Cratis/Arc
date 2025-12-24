@@ -89,24 +89,38 @@ public static class ValidationRulesExtractor
 
         foreach (var attribute in attributes)
         {
-            var rule = attribute switch
+            switch (attribute)
             {
-                RequiredAttribute required => new ValidationRuleDescriptor("notEmpty", [], required.ErrorMessage),
-                StringLengthAttribute stringLength => ExtractStringLengthRule(stringLength),
-                MinLengthAttribute minLength => new ValidationRuleDescriptor("minLength", [minLength.Length], minLength.ErrorMessage),
-                MaxLengthAttribute maxLength => new ValidationRuleDescriptor("maxLength", [maxLength.Length], maxLength.ErrorMessage),
-                RangeAttribute range => ExtractRangeRule(range),
-                RegularExpressionAttribute regex => new ValidationRuleDescriptor("matches", [regex.Pattern], regex.ErrorMessage),
-                EmailAddressAttribute email => new ValidationRuleDescriptor("emailAddress", [], email.ErrorMessage),
-                PhoneAttribute phone => new ValidationRuleDescriptor("phone", [], phone.ErrorMessage),
-                UrlAttribute url => new ValidationRuleDescriptor("url", [], url.ErrorMessage),
-                CreditCardAttribute creditCard => new ValidationRuleDescriptor("creditCard", [], creditCard.ErrorMessage),
-                _ => null
-            };
-
-            if (rule != null)
-            {
-                rules.Add(rule);
+                case RequiredAttribute required:
+                    rules.Add(new ValidationRuleDescriptor("notEmpty", [], required.ErrorMessage));
+                    break;
+                case StringLengthAttribute stringLength:
+                    rules.Add(ExtractStringLengthRule(stringLength));
+                    break;
+                case MinLengthAttribute minLength:
+                    rules.Add(new ValidationRuleDescriptor("minLength", [minLength.Length], minLength.ErrorMessage));
+                    break;
+                case MaxLengthAttribute maxLength:
+                    rules.Add(new ValidationRuleDescriptor("maxLength", [maxLength.Length], maxLength.ErrorMessage));
+                    break;
+                case RangeAttribute range:
+                    rules.AddRange(ExtractRangeRules(range));
+                    break;
+                case RegularExpressionAttribute regex:
+                    rules.Add(new ValidationRuleDescriptor("matches", [regex.Pattern], regex.ErrorMessage));
+                    break;
+                case EmailAddressAttribute email:
+                    rules.Add(new ValidationRuleDescriptor("emailAddress", [], email.ErrorMessage));
+                    break;
+                case PhoneAttribute phone:
+                    rules.Add(new ValidationRuleDescriptor("phone", [], phone.ErrorMessage));
+                    break;
+                case UrlAttribute url:
+                    rules.Add(new ValidationRuleDescriptor("url", [], url.ErrorMessage));
+                    break;
+                case CreditCardAttribute creditCard:
+                    rules.Add(new ValidationRuleDescriptor("creditCard", [], creditCard.ErrorMessage));
+                    break;
             }
         }
 
@@ -128,12 +142,14 @@ public static class ValidationRulesExtractor
         return new ValidationRuleDescriptor("maxLength", [attribute.MaximumLength], attribute.ErrorMessage);
     }
 
-    static ValidationRuleDescriptor ExtractRangeRule(RangeAttribute attribute)
+    static List<ValidationRuleDescriptor> ExtractRangeRules(RangeAttribute attribute)
     {
         // For range, we need both min and max
-        // We'll create a composite rule with both greaterThanOrEqual and lessThanOrEqual
-        // For now, just use greaterThanOrEqual with the minimum
-        return new ValidationRuleDescriptor("greaterThanOrEqual", [attribute.Minimum], attribute.ErrorMessage);
+        return
+        [
+            new ValidationRuleDescriptor("greaterThanOrEqual", [attribute.Minimum], attribute.ErrorMessage),
+            new ValidationRuleDescriptor("lessThanOrEqual", [attribute.Maximum], attribute.ErrorMessage)
+        ];
     }
 
     static List<PropertyValidationDescriptor> MergeValidationRules(

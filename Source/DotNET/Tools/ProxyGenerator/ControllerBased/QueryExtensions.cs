@@ -67,11 +67,16 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules for query parameters
-        var queryType = method.GetQueryType();
-        var validationRules = queryType != null
-            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, queryType)
-            : [];
+        // Extract validation rules from query method parameters (not from controller or response types)
+        var validationRules = new List<Templates.PropertyValidationDescriptor>();
+        foreach (var param in method.GetParameters())
+        {
+            var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+            if (rules.Count > 0)
+            {
+                validationRules.Add(new Templates.PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+            }
+        }
 
         return new(
             method.DeclaringType!,
