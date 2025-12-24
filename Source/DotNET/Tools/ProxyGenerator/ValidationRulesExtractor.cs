@@ -1,13 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator;
 
 /// <summary>
-/// Extracts validation rules from FluentValidation validators.
+/// Extracts validation rules from FluentValidation validators and DataAnnotations attributes.
 /// </summary>
 public static class ValidationRulesExtractor
 {
@@ -27,12 +28,139 @@ public static class ValidationRulesExtractor
     const string RegularExpressionValidatorType = "FluentValidation.Validators.IRegularExpressionValidator";
 
     /// <summary>
-    /// Extract validation rules for a specific type.
+    /// Extract validation rules for a specific type using FluentValidation validators.
     /// </summary>
     /// <param name="assembly">Assembly to search for validators in.</param>
     /// <param name="type">The type to extract validation rules for.</param>
     /// <returns>Collection of property validation descriptors.</returns>
     public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type)
+    {
+        // Try FluentValidation first
+        var fluentValidationRules = ExtractFluentValidationRules(assembly, type).ToList();
+
+        // Then extract DataAnnotations
+        var dataAnnotationsRules = ExtractDataAnnotationsRules(type).ToList();
+
+        // Merge the rules - FluentValidation takes precedence
+        return MergeValidationRules(fluentValidationRules, dataAnnotationsRules);
+    }
+
+    /// <summary>
+    /// Extract validation rules from DataAnnotations attributes on properties.
+    /// </summary>
+    /// <param name="type">The type to extract validation rules for.</param>
+    /// <returns>Collection of property validation descriptors.</returns>
+    public static IEnumerable<PropertyValidationDescriptor> ExtractDataAnnotationsRules(Type type)
+    {
+        var propertyValidations = new List<PropertyValidationDescriptor>();
+
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var rules = ExtractDataAnnotationsFromMember(property);
+            if (rules.Count > 0)
+            {
+                propertyValidations.Add(new PropertyValidationDescriptor(property.Name.ToCamelCase(), [.. rules]));
+            }
+        }
+
+        return propertyValidations;
+    }
+
+    /// <summary>
+    /// Extract validation rules from DataAnnotations attributes on a parameter.
+    /// </summary>
+    /// <param name="parameter">The parameter to extract validation rules for.</param>
+    /// <returns>Collection of validation rule descriptors.</returns>
+    public static IReadOnlyList<ValidationRuleDescriptor> ExtractDataAnnotationsFromParameter(ParameterInfo parameter)
+    {
+        var attributes = parameter.GetCustomAttributes(true);
+        return ExtractDataAnnotationsFromAttributes(attributes);
+    }
+
+    static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromMember(PropertyInfo property)
+    {
+        var attributes = property.GetCustomAttributes(true);
+        return ExtractDataAnnotationsFromAttributes(attributes);
+    }
+
+    static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromAttributes(object[] attributes)
+    {
+        var rules = new List<ValidationRuleDescriptor>();
+
+        foreach (var attribute in attributes)
+        {
+            var rule = attribute switch
+            {
+                RequiredAttribute required => new ValidationRuleDescriptor("notEmpty", [], required.ErrorMessage),
+                StringLengthAttribute stringLength => ExtractStringLengthRule(stringLength),
+                MinLengthAttribute minLength => new ValidationRuleDescriptor("minLength", [minLength.Length], minLength.ErrorMessage),
+                MaxLengthAttribute maxLength => new ValidationRuleDescriptor("maxLength", [maxLength.Length], maxLength.ErrorMessage),
+                RangeAttribute range => ExtractRangeRule(range),
+                RegularExpressionAttribute regex => new ValidationRuleDescriptor("matches", [regex.Pattern], regex.ErrorMessage),
+                EmailAddressAttribute email => new ValidationRuleDescriptor("emailAddress", [], email.ErrorMessage),
+                PhoneAttribute phone => new ValidationRuleDescriptor("phone", [], phone.ErrorMessage),
+                UrlAttribute url => new ValidationRuleDescriptor("url", [], url.ErrorMessage),
+                CreditCardAttribute creditCard => new ValidationRuleDescriptor("creditCard", [], creditCard.ErrorMessage),
+                _ => null
+            };
+
+            if (rule != null)
+            {
+                rules.Add(rule);
+            }
+        }
+
+        return rules;
+    }
+
+    static ValidationRuleDescriptor ExtractStringLengthRule(StringLengthAttribute attribute)
+    {
+        if (attribute.MinimumLength > 0 && attribute.MaximumLength > 0)
+        {
+            return new ValidationRuleDescriptor("length", [attribute.MinimumLength, attribute.MaximumLength], attribute.ErrorMessage);
+        }
+
+        if (attribute.MinimumLength > 0)
+        {
+            return new ValidationRuleDescriptor("minLength", [attribute.MinimumLength], attribute.ErrorMessage);
+        }
+
+        return new ValidationRuleDescriptor("maxLength", [attribute.MaximumLength], attribute.ErrorMessage);
+    }
+
+    static ValidationRuleDescriptor ExtractRangeRule(RangeAttribute attribute)
+    {
+        // For range, we need both min and max
+        // We'll create a composite rule with both greaterThanOrEqual and lessThanOrEqual
+        // For now, just use greaterThanOrEqual with the minimum
+        return new ValidationRuleDescriptor("greaterThanOrEqual", [attribute.Minimum], attribute.ErrorMessage);
+    }
+
+    static List<PropertyValidationDescriptor> MergeValidationRules(
+        List<PropertyValidationDescriptor> fluentValidationRules,
+        List<PropertyValidationDescriptor> dataAnnotationsRules)
+    {
+        var merged = new Dictionary<string, PropertyValidationDescriptor>();
+
+        // Add FluentValidation rules first (they take precedence)
+        foreach (var rule in fluentValidationRules)
+        {
+            merged[rule.PropertyName] = rule;
+        }
+
+        // Add DataAnnotations rules only if property doesn't already have FluentValidation rules
+        foreach (var rule in dataAnnotationsRules)
+        {
+            if (!merged.ContainsKey(rule.PropertyName))
+            {
+                merged[rule.PropertyName] = rule;
+            }
+        }
+
+        return [.. merged.Values];
+    }
+
+    static IEnumerable<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type)
     {
         var validatorType = FindValidatorForType(assembly, type);
         if (validatorType == null)

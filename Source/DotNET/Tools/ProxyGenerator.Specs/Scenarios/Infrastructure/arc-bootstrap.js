@@ -299,6 +299,107 @@ RuleBuilder.prototype.lessThan = function(maxValue) {
     return this;
 };
 
+RuleBuilder.prototype.maxLength = function(maxLength) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            return value.length <= maxLength;
+        },
+        message: 'Value must be at most ' + maxLength + ' characters'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.lessThanOrEqual = function(maxValue) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            return value <= maxValue;
+        },
+        message: 'Value must be less than or equal to ' + maxValue
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.matches = function(pattern) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            var regex = new RegExp(pattern);
+            return regex.test(value);
+        },
+        message: 'Value must match pattern ' + pattern
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.phone = function() {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            // Simple phone validation - digits, spaces, dashes, parens, plus
+            var phoneRegex = /^[\d\s\-\(\)\+]+$/;
+            return phoneRegex.test(value) && value.replace(/\D/g, '').length >= 7;
+        },
+        message: 'Invalid phone number'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.url = function() {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            var urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+            return urlRegex.test(value);
+        },
+        message: 'Invalid URL'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.creditCard = function() {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            // Luhn algorithm for credit card validation
+            var num = value.replace(/\D/g, '');
+            if (num.length < 13 || num.length > 19) return false;
+            var sum = 0;
+            var isEven = false;
+            for (var i = num.length - 1; i >= 0; i--) {
+                var digit = parseInt(num.charAt(i), 10);
+                if (isEven) {
+                    digit *= 2;
+                    if (digit > 9) digit -= 9;
+                }
+                sum += digit;
+                isEven = !isEven;
+            }
+            return (sum % 10) === 0;
+        },
+        message: 'Invalid credit card number'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
 RuleBuilder.prototype.withMessage = function(message) {
     if (this._currentRule) {
         this._currentRule.message = message;
