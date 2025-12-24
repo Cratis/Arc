@@ -38,6 +38,9 @@ public static class CommandExtensions
         // For model-bound commands, we want the documentation from the command type, not the Handle method
         var documentation = commandType.GetDocumentation();
 
-        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation);
+        // Extract validation rules for the command type
+        var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
+
+        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation, validationRules);
     }
 }

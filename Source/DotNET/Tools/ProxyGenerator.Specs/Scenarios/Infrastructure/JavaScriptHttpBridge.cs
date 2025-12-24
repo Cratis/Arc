@@ -84,8 +84,15 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "    __cmdDone = true;" +
             "});");
 
-        // Process the pending fetch request
-        var result = await ProcessPendingFetchAsync();
+        // Check if there's a pending fetch (client-side validation might prevent roundtrip)
+        var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
+        FetchResult? result = null;
+        
+        if (hasPendingFetch)
+        {
+            // Process the pending fetch request
+            result = await ProcessPendingFetchAsync();
+        }
 
         // Wait for promise resolution
         SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(5));
@@ -101,7 +108,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
-        return new CommandExecutionResult<TResult>(commandResult, result.ResponseJson);
+        return new CommandExecutionResult<TResult>(commandResult, result?.ResponseJson);
     }
 
     /// <summary>
@@ -137,8 +144,15 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "    __queryDone = true;" +
             "});");
 
-        // Process the pending fetch request
-        var result = await ProcessPendingFetchAsync();
+        // Check if there's a pending fetch (client-side validation might prevent roundtrip)
+        var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
+        FetchResult? result = null;
+        
+        if (hasPendingFetch)
+        {
+            // Process the pending fetch request
+            result = await ProcessPendingFetchAsync();
+        }
 
         // Wait for promise resolution
         SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__queryDone")!, TimeSpan.FromSeconds(5));
@@ -154,7 +168,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
         var queryResult = JsonSerializer.Deserialize<Queries.QueryResult>(resultJson, _jsonOptions);
 
-        return new QueryExecutionResult<TResult>(queryResult, result.ResponseJson, result.Url);
+        return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, result?.Url);
     }
 
     /// <inheritdoc/>

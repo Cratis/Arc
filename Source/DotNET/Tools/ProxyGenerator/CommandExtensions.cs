@@ -22,8 +22,18 @@ public static class CommandExtensions
     /// <param name="targetPath">The target path the proxies are generated to.</param>
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="overrideDocumentation">Optional documentation to override the method's documentation (used for model-bound commands).</param>
+    /// <param name="validationRules">Optional validation rules to use (if not provided, will be extracted from command type).</param>
     /// <returns>Converted <see cref="CommandDescriptor"/>.</returns>
-    public static CommandDescriptor ToCommandDescriptor(this MethodInfo method, string commandName, IEnumerable<PropertyDescriptor> properties, IEnumerable<RequestParameterDescriptor> parameters, string route, string targetPath, int segmentsToSkip, string? overrideDocumentation = null)
+    public static CommandDescriptor ToCommandDescriptor(
+        this MethodInfo method,
+        string commandName,
+        IEnumerable<PropertyDescriptor> properties,
+        IEnumerable<RequestParameterDescriptor> parameters,
+        string route,
+        string targetPath,
+        int segmentsToSkip,
+        string? overrideDocumentation = null,
+        IEnumerable<PropertyValidationDescriptor>? validationRules = null)
     {
         var (hasResponse, responseModel) = method.GetResponseModel();
         var typesInvolved = new List<Type>();
@@ -55,11 +65,15 @@ public static class CommandExtensions
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
-        // Extract validation rules for the command type
-        var commandType = method.GetCommandType();
-        var validationRules = commandType != null
-            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
-            : [];
+        // Use provided validation rules or extract them from command type
+        IEnumerable<PropertyValidationDescriptor> rules = validationRules ?? [];
+        if (!rules.Any())
+        {
+            var commandType = method.GetCommandType();
+            rules = commandType != null
+                ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
+                : [];
+        }
 
         return new(
             method.DeclaringType!,
@@ -73,6 +87,6 @@ public static class CommandExtensions
             responseModel,
             [.. typesInvolved, .. additionalTypesInvolved],
             documentation,
-            validationRules);
+            rules);
     }
 }

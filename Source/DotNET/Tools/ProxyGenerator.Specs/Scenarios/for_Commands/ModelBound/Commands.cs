@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
@@ -243,4 +245,88 @@ public class NestedChild
     /// Gets or sets the value.
     /// </summary>
     public double Value { get; set; }
+}
+
+/// <summary>
+/// A command with FluentValidation validator for testing.
+/// </summary>
+[Command]
+public class FluentValidatedCommand
+{
+    internal static Action OnHandle = () => { };
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Handles the command.
+    /// </summary>
+    public void Handle()
+    {
+        OnHandle();
+    }
+}
+
+/// <summary>
+/// Validator for FluentValidatedCommand using CommandValidator.
+/// </summary>
+public class FluentValidatedCommandValidator : CommandValidator<FluentValidatedCommand>
+{
+    public FluentValidatedCommandValidator()
+    {
+        RuleFor(c => c.Name).NotEmpty().WithMessage("Name is required");
+        RuleFor(c => c.Age).GreaterThanOrEqualTo(18).WithMessage("Age must be at least 18");
+        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
+    }
+}
+
+/// <summary>
+/// A command with AbstractValidator for testing.
+/// </summary>
+[Command]
+public class AbstractValidatedCommand
+{
+    internal static Action OnHandle = () => { };
+
+    /// <summary>
+    /// Gets or sets the username.
+    /// </summary>
+    public string Username { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the password.
+    /// </summary>
+    public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Handles the command.
+    /// </summary>
+    public void Handle()
+    {
+        OnHandle();
+    }
+}
+
+/// <summary>
+/// Validator for AbstractValidatedCommand using AbstractValidator directly.
+/// </summary>
+public class AbstractValidatedCommandValidator : AbstractValidator<AbstractValidatedCommand>
+{
+    public AbstractValidatedCommandValidator()
+    {
+        RuleFor(c => c.Username).NotEmpty().MinimumLength(3).WithMessage("Username must be at least 3 characters");
+        RuleFor(c => c.Password).NotEmpty().MinimumLength(8).WithMessage("Password must be at least 8 characters");
+    }
 }

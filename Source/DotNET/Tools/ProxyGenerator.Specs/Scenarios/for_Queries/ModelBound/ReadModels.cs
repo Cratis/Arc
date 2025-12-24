@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
@@ -305,3 +307,106 @@ public enum ReadModelStatus
     /// </summary>
     Archived = 3
 }
+
+/// <summary>
+/// A read model with FluentValidation for parameters.
+/// </summary>
+[ReadModel]
+public class FluentValidatedReadModel
+{
+    internal static int GetByEmailCallCount = 0;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets items by email and age.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<FluentValidatedReadModel> GetByEmailAndAge(string email, int minAge)
+    {
+        GetByEmailCallCount++;
+        return
+        [
+            new FluentValidatedReadModel { Id = Guid.NewGuid(), Email = email, Age = minAge }
+        ];
+    }
+}
+
+/// <summary>
+/// Validator for FluentValidatedReadModel query parameters using QueryValidator.
+/// </summary>
+public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<FluentValidatedReadModel>
+{
+    public FluentValidatedReadModelGetByEmailAndAgeValidator()
+    {
+        RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
+        RuleFor(q => q.Age).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
+    }
+}
+
+/// <summary>
+/// A read model with AbstractValidator for parameters.
+/// </summary>
+[ReadModel]
+public class AbstractValidatedReadModel
+{
+    internal static int SearchByCodeCallCount = 0;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the code.
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the amount.
+    /// </summary>
+    public decimal Amount { get; set; }
+
+    /// <summary>
+    /// Searches by code and amount.
+    /// </summary>
+    /// <param name="code">The code filter.</param>
+    /// <param name="minAmount">Minimum amount.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<AbstractValidatedReadModel> SearchByCode(string code, decimal minAmount)
+    {
+        SearchByCodeCallCount++;
+        return
+        [
+            new AbstractValidatedReadModel { Id = Guid.NewGuid(), Code = code, Amount = minAmount }
+        ];
+    }
+}
+
+/// <summary>
+/// Validator for AbstractValidatedReadModel query parameters using AbstractValidator directly.
+/// </summary>
+public class AbstractValidatedReadModelSearchByCodeValidator : AbstractValidator<AbstractValidatedReadModel>
+{
+    public AbstractValidatedReadModelSearchByCodeValidator()
+    {
+        RuleFor(q => q.Code).NotEmpty().Length(5, 10).WithMessage("Code must be between 5 and 10 characters");
+        RuleFor(q => q.Amount).GreaterThan(0).WithMessage("Amount must be positive");
+    }
+}
+

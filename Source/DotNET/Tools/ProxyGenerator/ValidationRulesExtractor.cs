@@ -13,6 +13,9 @@ public static class ValidationRulesExtractor
 {
     const string FluentValidationAbstractValidatorType = "FluentValidation.AbstractValidator`1";
     const string FluentValidationBaseValidatorType = "Cratis.Arc.Validation.BaseValidator`1";
+    const string DiscoverableValidatorType = "Cratis.Arc.Validation.DiscoverableValidator`1";
+    const string CommandValidatorType = "Cratis.Arc.Commands.CommandValidator`1";
+    const string QueryValidatorType = "Cratis.Arc.Queries.QueryValidator`1";
     const string NotNullValidatorType = "FluentValidation.Validators.INotNullValidator";
     const string NotEmptyValidatorType = "FluentValidation.Validators.INotEmptyValidator";
     const string EmailValidatorType = "FluentValidation.Validators.IEmailValidator";
@@ -118,7 +121,7 @@ public static class ValidationRulesExtractor
                     return false;
                 }
 
-                // Check if it's a BaseValidator<T> or AbstractValidator<T>
+                // Check if it's a BaseValidator<T>, DiscoverableValidator<T>, CommandValidator<T>, QueryValidator<T>, or AbstractValidator<T>
                 var baseType = t.BaseType;
                 while (baseType != null)
                 {
@@ -127,7 +130,11 @@ public static class ValidationRulesExtractor
                         var genericTypeDef = baseType.GetGenericTypeDefinition();
                         var fullName = genericTypeDef.FullName;
 
-                        if (fullName == FluentValidationAbstractValidatorType || fullName == FluentValidationBaseValidatorType)
+                        if (fullName == FluentValidationAbstractValidatorType ||
+                            fullName == FluentValidationBaseValidatorType ||
+                            fullName == DiscoverableValidatorType ||
+                            fullName == CommandValidatorType ||
+                            fullName == QueryValidatorType)
                         {
                             var genericArgs = baseType.GetGenericArguments();
                             if (genericArgs.Length == 1 && genericArgs[0] == type)

@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Queries;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -120,6 +122,46 @@ public class ControllerQueriesController : ControllerBase
             }
         });
     }
+
+    internal static int FluentValidatedCallCount = 0;
+
+    /// <summary>
+    /// Searches with fluent validation.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <returns>Collection of items.</returns>
+    [HttpGet("fluent-validated")]
+    public ActionResult<IEnumerable<ControllerQueryItem>> SearchFluentValidated(
+        [FromQuery] string email,
+        [FromQuery] int minAge)
+    {
+        FluentValidatedCallCount++;
+        return Ok(new List<ControllerQueryItem>
+        {
+            new() { Id = Guid.NewGuid(), Name = email, Value = minAge }
+        });
+    }
+
+    internal static int AbstractValidatedCallCount = 0;
+
+    /// <summary>
+    /// Searches with abstract validation.
+    /// </summary>
+    /// <param name="code">The code filter.</param>
+    /// <param name="minAmount">Minimum amount.</param>
+    /// <returns>Collection of items.</returns>
+    [HttpGet("abstract-validated")]
+    public ActionResult<IEnumerable<ControllerQueryItem>> SearchAbstractValidated(
+        [FromQuery] string code,
+        [FromQuery] decimal minAmount)
+    {
+        AbstractValidatedCallCount++;
+        return Ok(new List<ControllerQueryItem>
+        {
+            new() { Id = Guid.NewGuid(), Name = code, Value = (int)minAmount }
+        });
+    }
 }
 
 /// <summary>
@@ -193,4 +235,60 @@ public class ControllerNestedItem
     /// Gets or sets the processing duration.
     /// </summary>
     public TimeSpan ProcessingDuration { get; set; }
+}
+
+/// <summary>
+/// Query DTO for fluent validated search.
+/// </summary>
+public class ControllerFluentValidatedQuery
+{
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the minimum age.
+    /// </summary>
+    public int MinAge { get; set; }
+}
+
+/// <summary>
+/// Validator for ControllerFluentValidatedQuery using QueryValidator.
+/// </summary>
+public class ControllerFluentValidatedQueryValidator : QueryValidator<ControllerFluentValidatedQuery>
+{
+    public ControllerFluentValidatedQueryValidator()
+    {
+        RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
+    }
+}
+
+/// <summary>
+/// Query DTO for abstract validated search.
+/// </summary>
+public class ControllerAbstractValidatedQuery
+{
+    /// <summary>
+    /// Gets or sets the code.
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the minimum amount.
+    /// </summary>
+    public decimal MinAmount { get; set; }
+}
+
+/// <summary>
+/// Validator for ControllerAbstractValidatedQuery using AbstractValidator directly.
+/// </summary>
+public class ControllerAbstractValidatedQueryValidator : AbstractValidator<ControllerAbstractValidatedQuery>
+{
+    public ControllerAbstractValidatedQueryValidator()
+    {
+        RuleFor(q => q.Code).NotEmpty().Length(5, 10).WithMessage("Code must be between 5 and 10 characters");
+        RuleFor(q => q.MinAmount).GreaterThan(0).WithMessage("Amount must be positive");
+    }
 }

@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -83,6 +85,34 @@ public class ControllerCommandsController : ControllerBase
     [HttpPost("authorized")]
     [Authorize]
     public IActionResult ExecuteAuthorized([FromBody] ControllerAuthorizedCommand command) => Ok();
+
+    internal static int FluentValidatedCallCount = 0;
+
+    /// <summary>
+    /// Executes a fluent validated command.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("fluent-validated")]
+    public IActionResult ExecuteFluentValidated([FromBody] ControllerFluentValidatedCommand command)
+    {
+        FluentValidatedCallCount++;
+        return Ok();
+    }
+
+    internal static int AbstractValidatedCallCount = 0;
+
+    /// <summary>
+    /// Executes an abstract validated command.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("abstract-validated")]
+    public IActionResult ExecuteAbstractValidated([FromBody] ControllerAbstractValidatedCommand command)
+    {
+        AbstractValidatedCallCount++;
+        return Ok();
+    }
 }
 
 /// <summary>
@@ -190,4 +220,66 @@ public class ControllerAuthorizedCommand
     /// Gets or sets the data.
     /// </summary>
     public string Data { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// A controller-based command with fluent validation.
+/// </summary>
+public class ControllerFluentValidatedCommand
+{
+    /// <summary>
+    /// Gets or sets the title.
+    /// </summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the quantity.
+    /// </summary>
+    public int Quantity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Validator for ControllerFluentValidatedCommand using CommandValidator.
+/// </summary>
+public class ControllerFluentValidatedCommandValidator : CommandValidator<ControllerFluentValidatedCommand>
+{
+    public ControllerFluentValidatedCommandValidator()
+    {
+        RuleFor(c => c.Title).NotEmpty().WithMessage("Title is required");
+        RuleFor(c => c.Quantity).GreaterThan(0).WithMessage("Quantity must be greater than 0");
+        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
+    }
+}
+
+/// <summary>
+/// A controller-based command with abstract validator.
+/// </summary>
+public class ControllerAbstractValidatedCommand
+{
+    /// <summary>
+    /// Gets or sets the code.
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the amount.
+    /// </summary>
+    public decimal Amount { get; set; }
+}
+
+/// <summary>
+/// Validator for ControllerAbstractValidatedCommand using AbstractValidator directly.
+/// </summary>
+public class ControllerAbstractValidatedCommandValidator : AbstractValidator<ControllerAbstractValidatedCommand>
+{
+    public ControllerAbstractValidatedCommandValidator()
+    {
+        RuleFor(c => c.Code).NotEmpty().Length(5).WithMessage("Code must be exactly 5 characters");
+        RuleFor(c => c.Amount).GreaterThan(0).WithMessage("Amount must be positive");
+    }
 }

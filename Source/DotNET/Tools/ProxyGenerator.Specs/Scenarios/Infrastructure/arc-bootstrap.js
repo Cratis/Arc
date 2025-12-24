@@ -107,7 +107,7 @@ function __getArcModuleExports(subPath) {
             return {
                 Command: Command,
                 CommandPropertyValidators: function() { this.validators = {}; },
-                CommandValidator: function() { this.properties = {}; }
+                CommandValidator: CommandValidator
             };
         case 'queries':
             return {
@@ -115,7 +115,7 @@ function __getArcModuleExports(subPath) {
                 QueryFor: Query,
                 QueryResult: QueryResult,
                 QueryResultWithState: QueryResult,
-                QueryValidator: function() { this.properties = {}; },
+                QueryValidator: QueryValidator,
                 Sorting: Sorting,
                 SortingActions: SortingActions,
                 SortingActionsForQuery: SortingActionsForQuery,
@@ -123,7 +123,10 @@ function __getArcModuleExports(subPath) {
             };
         case 'validation':
             return {
-                Validator: function() { this.validate = function() { return []; }; }
+                Validator: Validator,
+                ValidationResult: ValidationResult,
+                PropertyValidator: PropertyValidator,
+                RuleBuilder: RuleBuilder
             };
         case 'reflection':
             return {
@@ -164,6 +167,212 @@ function PropertyDescriptor(name, constructor) {
     this.constructor = constructor;
 }
 
+// ValidationResult class
+function ValidationResult(propertyName, message, severity) {
+    this.propertyName = propertyName || '';
+    this.message = message || '';
+    this.severity = severity || 0;
+    this.members = [propertyName];
+    this.state = null;
+}
+
+// PropertyValidator class
+function PropertyValidator(propertyName) {
+    this.propertyName = propertyName;
+    this.rules = [];
+}
+
+PropertyValidator.prototype.addRule = function(rule) {
+    this.rules.push(rule);
+};
+
+PropertyValidator.prototype.validate = function(instance) {
+    var results = [];
+    for (var i = 0; i < this.rules.length; i++) {
+        var rule = this.rules[i];
+        if (!rule.validate(instance)) {
+            results.push(new ValidationResult(this.propertyName, rule.message, 0));
+        }
+    }
+    return results;
+};
+
+// RuleBuilder class
+function RuleBuilder(propertyValidator, propertyAccessor) {
+    this._propertyValidator = propertyValidator;
+    this._propertyAccessor = propertyAccessor;
+    this._currentRule = null;
+}
+
+RuleBuilder.prototype.notEmpty = function() {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            return value !== null && value !== undefined && value !== '';
+        },
+        message: 'Value cannot be empty'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.emailAddress = function() {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(value);
+        },
+        message: 'Invalid email address'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.greaterThanOrEqual = function(minValue) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            return value >= minValue;
+        },
+        message: 'Value must be greater than or equal to ' + minValue
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.minLength = function(minLength) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            return value.length >= minLength;
+        },
+        message: 'Value must be at least ' + minLength + ' characters'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.length = function(minLength, maxLength) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            if (!value) return true; // Skip if empty (use notEmpty to enforce)
+            return value.length >= minLength && value.length <= maxLength;
+        },
+        message: 'Value must be between ' + minLength + ' and ' + maxLength + ' characters'
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.greaterThan = function(minValue) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            return value > minValue;
+        },
+        message: 'Value must be greater than ' + minValue
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.lessThan = function(maxValue) {
+    var self = this;
+    this._currentRule = {
+        validate: function(instance) {
+            var value = self._propertyAccessor(instance);
+            return value < maxValue;
+        },
+        message: 'Value must be less than ' + maxValue
+    };
+    this._propertyValidator.addRule(this._currentRule);
+    return this;
+};
+
+RuleBuilder.prototype.withMessage = function(message) {
+    if (this._currentRule) {
+        this._currentRule.message = message;
+    }
+    return this;
+};
+
+// Validator base class
+function Validator() {
+    this._propertyValidators = {};
+}
+
+Validator.prototype.ruleFor = function(propertyAccessor) {
+    var propertyName = this._getPropertyName(propertyAccessor);
+    var propertyValidator = this._propertyValidators[propertyName];
+    
+    if (!propertyValidator) {
+        propertyValidator = new PropertyValidator(propertyName);
+        this._propertyValidators[propertyName] = propertyValidator;
+    }
+
+    return new RuleBuilder(propertyValidator, propertyAccessor);
+};
+
+Validator.prototype.validate = function(instance) {
+    var results = [];
+    for (var key in this._propertyValidators) {
+        var propertyValidator = this._propertyValidators[key];
+        var propertyResults = propertyValidator.validate(instance);
+        results = results.concat(propertyResults);
+    }
+    return results;
+};
+
+Validator.prototype.isValidFor = function(instance) {
+    return this.validate(instance).length === 0;
+};
+
+Validator.prototype._getPropertyName = function(propertyAccessor) {
+    var propertyNames = [];
+    var proxy = new Proxy({}, {
+        get: function(target, prop) {
+            if (typeof prop === 'string') {
+                propertyNames.push(prop);
+            }
+            return undefined;
+        }
+    });
+
+    try {
+        propertyAccessor(proxy);
+    } catch (e) {
+        // Ignore errors - we're just capturing the property name
+    }
+
+    return propertyNames[0] || 'unknown';
+};
+
+// CommandValidator extends Validator
+function CommandValidator() {
+    Validator.call(this);
+}
+
+CommandValidator.prototype = Object.create(Validator.prototype);
+CommandValidator.prototype.constructor = CommandValidator;
+
+// QueryValidator extends Validator
+function QueryValidator() {
+    Validator.call(this);
+}
+
+QueryValidator.prototype = Object.create(Validator.prototype);
+QueryValidator.prototype.constructor = QueryValidator;
+
 // Base Command class for proxy generation
 function Command(responseType, isResponseTypeEnumerable) {
     this.route = '';
@@ -198,6 +407,24 @@ Command.prototype.setHttpHeadersCallback = function(callback) {
 
 Command.prototype.execute = function() {
     var self = this;
+    
+    // Perform client-side validation if validator is present
+    if (this.validation && this.validation.validate) {
+        var clientValidationErrors = this.validation.validate(this) || [];
+        if (clientValidationErrors.length > 0) {
+            // Return a failed CommandResult with validation errors
+            return Promise.resolve({
+                isSuccess: false,
+                isValid: false,
+                isAuthorized: true,
+                hasExceptions: false,
+                validationResults: clientValidationErrors,
+                exceptionMessages: [],
+                exceptionStackTrace: ''
+            });
+        }
+    }
+    
     var body = {};
     
     // Gather all properties from the command using propertyDescriptors
@@ -248,6 +475,42 @@ Query.prototype.setHttpHeadersCallback = function(callback) {
 };
 
 Query.prototype.perform = function(args) {
+    var self = this;
+    
+    // Use args if provided, otherwise use this.parameters
+    var parametersToValidate = args || this.parameters || {};
+    
+    // Perform client-side validation if validator is present
+    if (this.validation && this.validation.validate) {
+        var clientValidationErrors = this.validation.validate(parametersToValidate) || [];
+        if (clientValidationErrors.length > 0) {
+            // Return a failed QueryResult with validation errors
+            return Promise.resolve({
+                data: this.defaultValue,
+                isSuccess: false,
+                isAuthorized: true,
+                isValid: false,
+                hasExceptions: false,
+                validationResults: clientValidationErrors.map(function(error) {
+                    return {
+                        severity: error.severity,
+                        message: error.message,
+                        members: error.members,
+                        state: error.state
+                    };
+                }),
+                exceptionMessages: [],
+                exceptionStackTrace: '',
+                paging: {
+                    totalItems: 0,
+                    totalPages: 0,
+                    page: 0,
+                    size: 0
+                }
+            });
+        }
+    }
+    
     var params = [];
     
     // Gather all parameters from the query (from parameterDescriptors)
