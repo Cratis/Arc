@@ -123,7 +123,7 @@ public class ControllerQueriesController : ControllerBase
         });
     }
 
-    internal static int FluentValidatedCallCount = 0;
+    internal static int FluentValidatedCallCount;
 
     /// <summary>
     /// Searches with fluent validation.
@@ -140,26 +140,6 @@ public class ControllerQueriesController : ControllerBase
         return Ok(new List<ControllerQueryItem>
         {
             new() { Id = Guid.NewGuid(), Name = email, Value = minAge }
-        });
-    }
-
-    internal static int AbstractValidatedCallCount = 0;
-
-    /// <summary>
-    /// Searches with abstract validation.
-    /// </summary>
-    /// <param name="code">The code filter.</param>
-    /// <param name="minAmount">Minimum amount.</param>
-    /// <returns>Collection of items.</returns>
-    [HttpGet("abstract-validated")]
-    public ActionResult<IEnumerable<ControllerQueryItem>> SearchAbstractValidated(
-        [FromQuery] string code,
-        [FromQuery] decimal minAmount)
-    {
-        AbstractValidatedCallCount++;
-        return Ok(new List<ControllerQueryItem>
-        {
-            new() { Id = Guid.NewGuid(), Name = code, Value = (int)minAmount }
         });
     }
 }

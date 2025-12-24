@@ -5,28 +5,26 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
 
-public class when_executing_abstract_validated_command_with_validation_errors : given.a_scenario_web_application
+public class when_executing_command_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
     int _serverCallCount;
 
     void Establish()
     {
-        LoadCommandProxy<AbstractValidatedCommand>();
+        LoadCommandProxy<FluentValidatedCommand>();
         _serverCallCount = 0;
 
-        AbstractValidatedCommand.OnHandle = () =>
-        {
-            _serverCallCount++;
-        };
+        FluentValidatedCommand.OnHandle = () => _serverCallCount++;
     }
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new AbstractValidatedCommand
+        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new FluentValidatedCommand
         {
-            Username = "ab",
-            Password = "short"
+            Name = string.Empty,
+            Age = 15,
+            Email = "not-an-email"
         });
         _result = executionResult.Result;
     }
@@ -34,7 +32,8 @@ public class when_executing_abstract_validated_command_with_validation_errors : 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
-    [Fact] void should_have_username_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("username"));
-    [Fact] void should_have_password_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("password"));
+    [Fact] void should_have_name_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name"));
+    [Fact] void should_have_age_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("age"));
+    [Fact] void should_have_email_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
     [Fact] void should_not_roundtrip_to_server() => _serverCallCount.ShouldEqual(0);
 }

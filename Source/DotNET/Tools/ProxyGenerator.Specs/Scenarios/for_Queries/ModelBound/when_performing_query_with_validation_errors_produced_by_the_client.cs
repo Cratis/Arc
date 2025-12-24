@@ -5,14 +5,14 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
-public class when_performing_abstract_validated_query_with_validation_errors : given.a_scenario_web_application
+public class when_performing_query_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
-    QueryExecutionResult<IEnumerable<AbstractValidatedReadModel>>? _executionResult;
+    QueryExecutionResult<IEnumerable<FluentValidatedReadModel>>? _executionResult;
 
     void Establish()
     {
-        LoadQueryProxy<AbstractValidatedReadModel>("SearchByCode");
-        AbstractValidatedReadModel.SearchByCodeCallCount = 0;
+        LoadQueryProxy<FluentValidatedReadModel>("SearchByCode");
+        FluentValidatedReadModel.GetByEmailCallCount = 0;
     }
 
     async Task Because()
@@ -23,11 +23,11 @@ public class when_performing_abstract_validated_query_with_validation_errors : g
             ["minAmount"] = -100
         };
 
-        _executionResult = await Bridge.PerformQueryViaProxyAsync<IEnumerable<AbstractValidatedReadModel>>("SearchByCode", parameters);
+        _executionResult = await Bridge.PerformQueryViaProxyAsync<IEnumerable<FluentValidatedReadModel>>("SearchByCode", parameters);
     }
 
     [Fact] void should_not_be_successful() => _executionResult.Result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_valid() => _executionResult.Result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _executionResult.Result.ValidationResults.ShouldNotBeEmpty();
-    [Fact] void should_not_roundtrip_to_server() => AbstractValidatedReadModel.SearchByCodeCallCount.ShouldEqual(0);
+    [Fact] void should_not_roundtrip_to_server() => FluentValidatedReadModel.GetByEmailCallCount.ShouldEqual(0);
 }

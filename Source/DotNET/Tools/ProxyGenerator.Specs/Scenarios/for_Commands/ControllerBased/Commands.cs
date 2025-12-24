@@ -86,7 +86,7 @@ public class ControllerCommandsController : ControllerBase
     [Authorize]
     public IActionResult ExecuteAuthorized([FromBody] ControllerAuthorizedCommand command) => Ok();
 
-    internal static int FluentValidatedCallCount = 0;
+    internal static int FluentValidatedCallCount;
 
     /// <summary>
     /// Executes a fluent validated command.
@@ -97,20 +97,6 @@ public class ControllerCommandsController : ControllerBase
     public IActionResult ExecuteFluentValidated([FromBody] ControllerFluentValidatedCommand command)
     {
         FluentValidatedCallCount++;
-        return Ok();
-    }
-
-    internal static int AbstractValidatedCallCount = 0;
-
-    /// <summary>
-    /// Executes an abstract validated command.
-    /// </summary>
-    /// <param name="command">The command.</param>
-    /// <returns>The result.</returns>
-    [HttpPost("abstract-validated")]
-    public IActionResult ExecuteAbstractValidated([FromBody] ControllerAbstractValidatedCommand command)
-    {
-        AbstractValidatedCallCount++;
         return Ok();
     }
 }

@@ -5,7 +5,7 @@ using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ControllerBased;
 
-public class when_performing_controller_fluent_validated_query_with_validation_errors : given.a_scenario_web_application
+public class when_performing_controller_query_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     QueryResult? _result;
 

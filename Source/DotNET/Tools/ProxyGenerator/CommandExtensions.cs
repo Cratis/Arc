@@ -66,7 +66,7 @@ public static class CommandExtensions
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
         // Use provided validation rules or extract them from command type
-        IEnumerable<PropertyValidationDescriptor> rules = validationRules ?? [];
+        var rules = validationRules ?? [];
         if (!rules.Any())
         {
             var commandType = method.GetCommandType();

@@ -160,7 +160,7 @@ public static class ValidationRulesExtractor
         return [.. merged.Values];
     }
 
-    static IEnumerable<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type)
+    static List<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type)
     {
         var validatorType = FindValidatorForType(assembly, type);
         if (validatorType == null)

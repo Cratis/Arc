@@ -314,7 +314,7 @@ public enum ReadModelStatus
 [ReadModel]
 public class FluentValidatedReadModel
 {
-    internal static int GetByEmailCallCount = 0;
+    internal static int GetByEmailCallCount;
 
     /// <summary>
     /// Gets or sets the ID.
@@ -358,55 +358,3 @@ public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<
         RuleFor(q => q.Age).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
     }
 }
-
-/// <summary>
-/// A read model with AbstractValidator for parameters.
-/// </summary>
-[ReadModel]
-public class AbstractValidatedReadModel
-{
-    internal static int SearchByCodeCallCount = 0;
-
-    /// <summary>
-    /// Gets or sets the ID.
-    /// </summary>
-    public Guid Id { get; set; }
-
-    /// <summary>
-    /// Gets or sets the code.
-    /// </summary>
-    public string Code { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the amount.
-    /// </summary>
-    public decimal Amount { get; set; }
-
-    /// <summary>
-    /// Searches by code and amount.
-    /// </summary>
-    /// <param name="code">The code filter.</param>
-    /// <param name="minAmount">Minimum amount.</param>
-    /// <returns>Collection of matching read models.</returns>
-    public static IEnumerable<AbstractValidatedReadModel> SearchByCode(string code, decimal minAmount)
-    {
-        SearchByCodeCallCount++;
-        return
-        [
-            new AbstractValidatedReadModel { Id = Guid.NewGuid(), Code = code, Amount = minAmount }
-        ];
-    }
-}
-
-/// <summary>
-/// Validator for AbstractValidatedReadModel query parameters using AbstractValidator directly.
-/// </summary>
-public class AbstractValidatedReadModelSearchByCodeValidator : AbstractValidator<AbstractValidatedReadModel>
-{
-    public AbstractValidatedReadModelSearchByCodeValidator()
-    {
-        RuleFor(q => q.Code).NotEmpty().Length(5, 10).WithMessage("Code must be between 5 and 10 characters");
-        RuleFor(q => q.Amount).GreaterThan(0).WithMessage("Amount must be positive");
-    }
-}
-

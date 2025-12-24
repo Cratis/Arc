@@ -87,7 +87,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
         FetchResult? result = null;
-        
+
         if (hasPendingFetch)
         {
             // Process the pending fetch request
@@ -147,7 +147,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
         FetchResult? result = null;
-        
+
         if (hasPendingFetch)
         {
             // Process the pending fetch request

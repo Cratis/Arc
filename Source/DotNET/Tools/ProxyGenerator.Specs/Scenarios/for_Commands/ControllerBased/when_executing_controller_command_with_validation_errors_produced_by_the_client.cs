@@ -6,7 +6,7 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased;
 
-public class when_executing_controller_fluent_validated_command_with_validation_errors : given.a_scenario_web_application
+public class when_executing_controller_command_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
 
