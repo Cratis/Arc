@@ -3,6 +3,7 @@
 The ProxyGenerator automatically extracts validation rules from your backend validators and generates corresponding TypeScript validation code for the frontend. This ensures that validation rules are defined once on the backend and automatically enforced on both client and server.
 
 The system supports two validation approaches:
+
 - **FluentValidation**: Class-based validators using the FluentValidation library
 - **DataAnnotations**: Attribute-based validation using `System.ComponentModel.DataAnnotations`
 
