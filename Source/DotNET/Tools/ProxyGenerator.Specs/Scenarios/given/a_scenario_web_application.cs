@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.ProxyGenerator.ControllerBased;
 using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Microsoft.AspNetCore.Builder;
@@ -86,6 +87,26 @@ public class a_scenario_web_application : Specification, IDisposable
     }
 
     /// <summary>
+    /// Generates and loads a controller-based command proxy for the given controller method.
+    /// </summary>
+    /// <typeparam name="TController">The controller type.</typeparam>
+    /// <param name="methodName">The name of the controller method.</param>
+    /// <exception cref="InvalidOperationException">The exception that is thrown when the method is not found.</exception>
+    protected void LoadControllerCommandProxy<TController>(string methodName)
+    {
+        var controllerType = typeof(TController).GetTypeInfo();
+        var method = controllerType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException($"Method '{methodName}' not found on type '{controllerType.Name}'");
+
+        var descriptor = method.ToCommandDescriptor(
+            targetPath: string.Empty,
+            segmentsToSkip: 0);
+
+        var code = InMemoryProxyGenerator.GenerateCommand(descriptor);
+        Bridge.LoadTypeScript(code);
+    }
+
+    /// <summary>
     /// Generates and loads a query proxy for the given read model type and query method.
     /// </summary>
     /// <typeparam name="TReadModel">The read model type.</typeparam>
@@ -103,6 +124,26 @@ public class a_scenario_web_application : Specification, IDisposable
             segmentsToSkip: 0,
             skipQueryNameInRoute: false,
             apiPrefix: "api");
+
+        var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
+        Bridge.LoadTypeScript(code);
+    }
+
+    /// <summary>
+    /// Generates and loads a controller-based query proxy for the given controller method.
+    /// </summary>
+    /// <typeparam name="TController">The controller type.</typeparam>
+    /// <param name="methodName">The name of the controller method.</param>
+    /// <exception cref="InvalidOperationException">The exception that is thrown when the method is not found.</exception>
+    protected void LoadControllerQueryProxy<TController>(string methodName)
+    {
+        var controllerType = typeof(TController).GetTypeInfo();
+        var method = controllerType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException($"Method '{methodName}' not found on type '{controllerType.Name}'");
+
+        var descriptor = method.ToQueryDescriptor(
+            targetPath: string.Empty,
+            segmentsToSkip: 0);
 
         var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
         Bridge.LoadTypeScript(code);

@@ -110,11 +110,59 @@ public static class QueryExtensions
 
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules for query parameters
-        var queryType = readModelType.AsType();
-        var validationRules = queryType != null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, queryType)
-            : [];
+        // Extract validation rules from query method parameters
+        // First, try to find a FluentValidation validator for a parameters class
+        // The parameters class should have properties that match the method parameters
+        var validationRules = new List<PropertyValidationDescriptor>();
+        var parameterTypeNames = new[]
+        {
+            $"{method.Name}Parameters",
+            $"{readModelType.Name}{method.Name}Parameters"
+        };
+
+        Type? parametersType = null;
+        foreach (var typeName in parameterTypeNames)
+        {
+            var candidateType = readModelType.Assembly.GetTypes().FirstOrDefault(t => t.Name == typeName);
+            if (candidateType != null)
+            {
+                // Verify that the candidate type's properties match the method parameters
+                var candidateProperties = candidateType.GetProperties();
+                var methodParams = method.GetParameters();
+
+                // Check if all method parameters have corresponding properties in the candidate type
+                var allParamsMatch = methodParams.All(param =>
+                    candidateProperties.Any(prop =>
+                        prop.Name.Equals(param.Name, StringComparison.OrdinalIgnoreCase) &&
+                        prop.PropertyType == param.ParameterType));
+
+                if (allParamsMatch)
+                {
+                    parametersType = candidateType;
+                    break;
+                }
+            }
+        }
+
+        if (parametersType != null)
+        {
+            // Found a parameters class, extract FluentValidation rules from it
+            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType);
+            validationRules.AddRange(fluentValidationRules);
+        }
+
+        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
+        if (validationRules.Count == 0)
+        {
+            foreach (var param in method.GetParameters())
+            {
+                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+                if (rules.Count > 0)
+                {
+                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+                }
+            }
+        }
 
         return new(
             readModelType,

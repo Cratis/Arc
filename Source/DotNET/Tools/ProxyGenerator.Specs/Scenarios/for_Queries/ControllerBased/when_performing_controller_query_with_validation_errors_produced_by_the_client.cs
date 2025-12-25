@@ -1,0 +1,37 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
+
+namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ControllerBased;
+
+public class when_performing_controller_query_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
+{
+    QueryExecutionResult<object[]>? _executionResult;
+
+    void Establish()
+    {
+        LoadControllerQueryProxy<ControllerQueriesController>(nameof(ControllerQueriesController.SearchFluentValidated));
+        ControllerQueriesController.FluentValidatedCallCount = 0;
+    }
+
+    async Task Because()
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            ["email"] = "invalid-email",
+            ["minAge"] = 200
+        };
+
+        _executionResult = await Bridge.PerformQueryViaProxyAsync<object[]>("SearchFluentValidated", parameters);
+    }
+
+    [Fact] void should_not_be_successful() => _executionResult.Result.IsSuccess.ShouldBeFalse();
+    [Fact] void should_not_be_valid() => _executionResult.Result.IsValid.ShouldBeFalse();
+    [Fact] void should_have_validation_results() => _executionResult.Result.ValidationResults.ShouldNotBeEmpty();
+    [Fact] void should_have_email_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
+    [Fact] void should_have_email_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == ControllerFluentValidatedQueryValidator.EmailRequiredMessage);
+    [Fact] void should_have_minAge_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge"));
+    [Fact] void should_have_minAge_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge") && v.Message == ControllerFluentValidatedQueryValidator.AgeRangeMessage);
+    [Fact] void should_not_roundtrip_to_server() => ControllerQueriesController.FluentValidatedCallCount.ShouldEqual(0);
+}

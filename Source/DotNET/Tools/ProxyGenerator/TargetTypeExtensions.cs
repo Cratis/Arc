@@ -17,7 +17,7 @@ public static class TargetTypeExtensions
     /// <param name="targetType">The target type.</param>
     /// <param name="importStatement">The resulting import statement if it requires so.</param>
     /// <returns>True if it needs an import statement, false if not.</returns>
-    public static bool TryGetImportStatement(this TargetType targetType, [NotNullWhen(true)]out ImportStatement? importStatement)
+    public static bool TryGetImportStatement(this TargetType targetType, [NotNullWhen(true)] out ImportStatement? importStatement)
     {
         importStatement = null;
         var requiresImport = !string.IsNullOrEmpty(targetType.Module);
