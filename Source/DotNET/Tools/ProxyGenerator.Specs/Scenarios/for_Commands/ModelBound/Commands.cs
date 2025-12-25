@@ -40,22 +40,26 @@ public class SimpleCommand
 [Command]
 public class ValidatedCommand
 {
+    public const string NameRequiredMessage = "Name is required";
+    public const string ValueRangeMessage = "Value must be between 1 and 100";
+    public const string EmailFormatMessage = "Invalid email format";
+
     /// <summary>
     /// Gets or sets the required name.
     /// </summary>
-    [Required(ErrorMessage = "Name is required")]
+    [Required(ErrorMessage = NameRequiredMessage)]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the value with range validation.
     /// </summary>
-    [Range(1, 100, ErrorMessage = "Value must be between 1 and 100")]
+    [Range(1, 100, ErrorMessage = ValueRangeMessage)]
     public int Value { get; set; }
 
     /// <summary>
     /// Gets or sets the email.
     /// </summary>
-    [EmailAddress(ErrorMessage = "Invalid email format")]
+    [EmailAddress(ErrorMessage = EmailFormatMessage)]
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
@@ -284,10 +288,14 @@ public class FluentValidatedCommand
 /// </summary>
 public class FluentValidatedCommandValidator : CommandValidator<FluentValidatedCommand>
 {
+    public const string NameRequiredMessage = "Name is required";
+    public const string AgeMinimumMessage = "Age must be at least 18";
+    public const string EmailRequiredMessage = "Valid email is required";
+
     public FluentValidatedCommandValidator()
     {
-        RuleFor(c => c.Name).NotEmpty().WithMessage("Name is required");
-        RuleFor(c => c.Age).GreaterThanOrEqualTo(18).WithMessage("Age must be at least 18");
-        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
+        RuleFor(c => c.Name).NotEmpty().WithMessage(NameRequiredMessage);
+        RuleFor(c => c.Age).GreaterThanOrEqualTo(18).WithMessage(AgeMinimumMessage);
+        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
     }
 }

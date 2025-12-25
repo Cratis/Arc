@@ -29,5 +29,9 @@ public class when_performing_query_with_validation_errors_produced_by_the_client
     [Fact] void should_not_be_successful() => _executionResult.Result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_valid() => _executionResult.Result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _executionResult.Result.ValidationResults.ShouldNotBeEmpty();
+    [Fact] void should_have_email_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
+    [Fact] void should_have_email_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == FluentValidatedReadModelGetByEmailAndAgeValidator.EmailRequiredMessage);
+    [Fact] void should_have_minAge_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge"));
+    [Fact] void should_have_minAge_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge") && v.Message == "Value must be greater than or equal to 0");
     [Fact] void should_not_roundtrip_to_server() => FluentValidatedReadModel.GetByEmailCallCount.ShouldEqual(0);
 }

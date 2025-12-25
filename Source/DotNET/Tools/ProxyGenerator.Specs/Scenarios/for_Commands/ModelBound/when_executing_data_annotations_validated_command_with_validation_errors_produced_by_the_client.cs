@@ -29,6 +29,9 @@ public class when_executing_data_annotations_validated_command_with_validation_e
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_name_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name"));
+    [Fact] void should_have_name_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name") && v.Message == ValidatedCommand.NameRequiredMessage);
     [Fact] void should_have_value_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("value"));
+    [Fact] void should_have_value_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("value") && v.Message == ValidatedCommand.ValueRangeMessage);
     [Fact] void should_have_email_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
+    [Fact] void should_have_email_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == ValidatedCommand.EmailFormatMessage);
 }

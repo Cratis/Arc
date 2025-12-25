@@ -33,7 +33,10 @@ public class when_executing_command_with_validation_errors_produced_by_the_clien
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_name_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name"));
+    [Fact] void should_have_name_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name") && v.Message == FluentValidatedCommandValidator.NameRequiredMessage);
     [Fact] void should_have_age_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("age"));
+    [Fact] void should_have_age_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("age") && v.Message == FluentValidatedCommandValidator.AgeMinimumMessage);
     [Fact] void should_have_email_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
+    [Fact] void should_have_email_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == FluentValidatedCommandValidator.EmailRequiredMessage);
     [Fact] void should_not_roundtrip_to_server() => _serverCallCount.ShouldEqual(0);
 }

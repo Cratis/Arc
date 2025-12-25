@@ -249,11 +249,15 @@ public class ControllerFluentValidatedCommand
 /// </summary>
 public class ControllerFluentValidatedCommandValidator : CommandValidator<ControllerFluentValidatedCommand>
 {
+    public const string TitleRequiredMessage = "Title is required";
+    public const string QuantityMinimumMessage = "Quantity must be greater than 0";
+    public const string EmailRequiredMessage = "Valid email is required";
+
     public ControllerFluentValidatedCommandValidator()
     {
-        RuleFor(c => c.Title).NotEmpty().WithMessage("Title is required");
-        RuleFor(c => c.Quantity).GreaterThan(0).WithMessage("Quantity must be greater than 0");
-        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
+        RuleFor(c => c.Title).NotEmpty().WithMessage(TitleRequiredMessage);
+        RuleFor(c => c.Quantity).GreaterThan(0).WithMessage(QuantityMinimumMessage);
+        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
     }
 }
 
@@ -290,35 +294,42 @@ public class ControllerAbstractValidatedCommandValidator : AbstractValidator<Con
 /// </summary>
 public class ControllerDataAnnotationsValidatedCommand
 {
+    public const string NameRequiredMessage = "Name is required";
+    public const string NameLengthMessage = "Name must be between 3 and 50 characters";
+    public const string AgeRangeMessage = "Age must be between 18 and 100";
+    public const string EmailFormatMessage = "Invalid email address";
+    public const string PhoneFormatMessage = "Invalid phone number";
+    public const string UrlFormatMessage = "Invalid URL";
+
     /// <summary>
     /// Gets or sets the name.
     /// </summary>
-    [Required(ErrorMessage = "Name is required")]
-    [StringLength(50, MinimumLength = 3, ErrorMessage = "Name must be between 3 and 50 characters")]
+    [Required(ErrorMessage = NameRequiredMessage)]
+    [StringLength(50, MinimumLength = 3, ErrorMessage = NameLengthMessage)]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the age.
     /// </summary>
-    [Range(18, 100, ErrorMessage = "Age must be between 18 and 100")]
+    [Range(18, 100, ErrorMessage = AgeRangeMessage)]
     public int Age { get; set; }
 
     /// <summary>
     /// Gets or sets the email.
     /// </summary>
     [Required]
-    [EmailAddress(ErrorMessage = "Invalid email address")]
+    [EmailAddress(ErrorMessage = EmailFormatMessage)]
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the phone.
     /// </summary>
-    [Phone(ErrorMessage = "Invalid phone number")]
+    [Phone(ErrorMessage = PhoneFormatMessage)]
     public string Phone { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the website.
     /// </summary>
-    [Url(ErrorMessage = "Invalid URL")]
+    [Url(ErrorMessage = UrlFormatMessage)]
     public string Website { get; set; } = string.Empty;
 }

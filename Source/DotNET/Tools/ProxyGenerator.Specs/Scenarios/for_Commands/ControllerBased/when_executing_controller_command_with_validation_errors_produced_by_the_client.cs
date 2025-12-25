@@ -31,7 +31,10 @@ public class when_executing_controller_command_with_validation_errors_produced_b
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_title_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("title"));
+    [Fact] void should_have_title_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("title") && v.Message == ControllerFluentValidatedCommandValidator.TitleRequiredMessage);
     [Fact] void should_have_quantity_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("quantity"));
+    [Fact] void should_have_quantity_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("quantity") && v.Message == ControllerFluentValidatedCommandValidator.QuantityMinimumMessage);
     [Fact] void should_have_email_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
+    [Fact] void should_have_email_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == ControllerFluentValidatedCommandValidator.EmailRequiredMessage);
     [Fact] void should_not_roundtrip_to_server() => ControllerCommandsController.FluentValidatedCallCount.ShouldEqual(0);
 }

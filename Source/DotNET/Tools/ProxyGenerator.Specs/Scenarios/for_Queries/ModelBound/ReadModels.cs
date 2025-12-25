@@ -368,10 +368,13 @@ public class GetByEmailAndAgeParameters
 /// </summary>
 public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<GetByEmailAndAgeParameters>
 {
+    public const string EmailRequiredMessage = "Valid email is required";
+    public const string AgeRangeMessage = "Age must be between 0 and 150";
+
     public FluentValidatedReadModelGetByEmailAndAgeValidator()
     {
-        RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
-        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
+        RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).LessThan(150).WithMessage(AgeRangeMessage);
     }
 }
 

@@ -33,9 +33,14 @@ public class when_executing_controller_data_annotations_validated_command_with_v
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_name_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name"));
+    [Fact] void should_have_name_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("name") && v.Message == ControllerDataAnnotationsValidatedCommand.NameLengthMessage);
     [Fact] void should_have_age_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("age"));
+    [Fact] void should_have_age_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("age") && v.Message == ControllerDataAnnotationsValidatedCommand.AgeRangeMessage);
     [Fact] void should_have_email_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
+    [Fact] void should_have_email_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == ControllerDataAnnotationsValidatedCommand.EmailFormatMessage);
     [Fact] void should_have_phone_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("phone"));
+    [Fact] void should_have_phone_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("phone") && v.Message == ControllerDataAnnotationsValidatedCommand.PhoneFormatMessage);
     [Fact] void should_have_website_validation_error() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("website"));
+    [Fact] void should_have_website_validation_message() => _result.ValidationResults.ShouldContain(v => v.Members.Contains("website") && v.Message == ControllerDataAnnotationsValidatedCommand.UrlFormatMessage);
     [Fact] void should_not_roundtrip_to_server() => ControllerCommandsController.DataAnnotationsValidatedCallCount.ShouldEqual(0);
 }
