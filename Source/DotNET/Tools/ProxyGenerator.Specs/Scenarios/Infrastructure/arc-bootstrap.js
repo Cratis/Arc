@@ -363,7 +363,7 @@ RuleBuilder.prototype.url = function() {
         validate: function(instance) {
             var value = self._propertyAccessor(instance);
             if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            var urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+            var urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})(\/[\w \.-]*)*\/?$/;
             return urlRegex.test(value);
         },
         message: 'Invalid URL'
