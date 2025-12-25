@@ -11,7 +11,7 @@ public class when_performing_query_with_validation_errors_produced_by_the_client
 
     void Establish()
     {
-        LoadQueryProxy<FluentValidatedReadModel>("SearchByCode");
+        LoadQueryProxy<FluentValidatedReadModel>("GetByEmailAndAge");
         FluentValidatedReadModel.GetByEmailCallCount = 0;
     }
 
@@ -19,11 +19,11 @@ public class when_performing_query_with_validation_errors_produced_by_the_client
     {
         var parameters = new Dictionary<string, object>
         {
-            ["code"] = "AB",
-            ["minAmount"] = -100
+            ["email"] = "invalid-email",
+            ["minAge"] = -10
         };
 
-        _executionResult = await Bridge.PerformQueryViaProxyAsync<IEnumerable<FluentValidatedReadModel>>("SearchByCode", parameters);
+        _executionResult = await Bridge.PerformQueryViaProxyAsync<IEnumerable<FluentValidatedReadModel>>("GetByEmailAndAge", parameters);
     }
 
     [Fact] void should_not_be_successful() => _executionResult.Result.IsSuccess.ShouldBeFalse();

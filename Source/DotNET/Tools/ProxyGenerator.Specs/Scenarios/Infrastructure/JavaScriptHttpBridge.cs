@@ -56,8 +56,19 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// <returns>The command execution result.</returns>
     /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
     public async Task<CommandExecutionResult<TResult>> ExecuteCommandViaProxyAsync<TResult>(object command)
+        => await ExecuteCommandViaProxyAsync<TResult>(command, command.GetType().Name);
+
+    /// <summary>
+    /// Executes a command through its JavaScript proxy class with an explicit class name.
+    /// The proxy's execute() method will call fetch(), which is intercepted and routed to HTTP.
+    /// </summary>
+    /// <typeparam name="TResult">The expected result type.</typeparam>
+    /// <param name="command">The command object.</param>
+    /// <param name="commandClassName">The JavaScript class name to use.</param>
+    /// <returns>The command execution result.</returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
+    public async Task<CommandExecutionResult<TResult>> ExecuteCommandViaProxyAsync<TResult>(object command, string commandClassName)
     {
-        var commandClassName = command.GetType().Name;
         var commandAsDocument = JsonSerializer.SerializeToDocument(command, _jsonOptions);
         var properties = new Dictionary<string, object>();
         foreach (var prop in commandAsDocument.RootElement.EnumerateObject())

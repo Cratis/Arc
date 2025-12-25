@@ -477,7 +477,6 @@ QueryValidator.prototype.constructor = QueryValidator;
 // Base Command class for proxy generation
 function Command(responseType, isResponseTypeEnumerable) {
     this.route = '';
-    this.validation = { properties: {} };
     this.propertyDescriptors = [];
     this._responseType = responseType || Object;
     this._isResponseTypeEnumerable = isResponseTypeEnumerable || false;

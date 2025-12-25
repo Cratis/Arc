@@ -348,14 +348,30 @@ public class FluentValidatedReadModel
 }
 
 /// <summary>
-/// Validator for FluentValidatedReadModel query parameters using QueryValidator.
+/// Parameters for GetByEmailAndAge query.
 /// </summary>
-public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<FluentValidatedReadModel>
+public class GetByEmailAndAgeParameters
+{
+    /// <summary>
+    /// Gets or sets the email filter.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the minimum age.
+    /// </summary>
+    public int MinAge { get; set; }
+}
+
+/// <summary>
+/// Validator for GetByEmailAndAge query parameters using QueryValidator.
+/// </summary>
+public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<GetByEmailAndAgeParameters>
 {
     public FluentValidatedReadModelGetByEmailAndAgeValidator()
     {
         RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage("Valid email is required");
-        RuleFor(q => q.Age).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).LessThan(150).WithMessage("Age must be between 0 and 150");
     }
 }
 

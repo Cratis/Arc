@@ -26,13 +26,6 @@ public class when_generating_proxy_for_fluent_validated_command : Specification
 
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeNull();
     [Fact] void should_have_validation_rules() => _descriptor!.ValidationRules.ShouldNotBeEmpty();
-    [Fact]
-    void should_output_generated_code()
-    {
-        Console.WriteLine("========== GENERATED CODE ==========");
-        Console.WriteLine(_generatedCode);
-        Console.WriteLine("====================================");
-    }
     [Fact] void should_contain_validator_class() => _generatedCode.ShouldContain("class FluentValidatedCommandValidator");
     [Fact] void should_contain_name_validation_rule() => _generatedCode.ShouldContain("ruleFor(c => c.name)");
     [Fact] void should_contain_age_validation_rule() => _generatedCode.ShouldContain("ruleFor(c => c.age)");

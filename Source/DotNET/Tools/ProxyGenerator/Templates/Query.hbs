@@ -52,17 +52,6 @@ class {{Name}}SortByWithoutQuery {
 }
 {{/if}}
 
-export class {{Name}}Validator extends QueryValidator<{{#if Parameters.[0]}}{{Name}}Parameters{{else}}object{{/if}}> {
-    constructor() {
-        super();
-        {{#each ValidationRules}}
-        {{#each Rules}}
-        this.ruleFor(c => c.{{../PropertyName}}){{#if Arguments.length}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
-        {{/each}}
-        {{/each}}
-    }
-}
-
 {{#if Parameters.[0]}}
 {{#if Documentation}}
 /**
@@ -75,7 +64,7 @@ export interface {{Name}}Parameters {
     
     /**
      * {{Documentation}}
-     */
+    */
     {{/if}}
     {{#if IsOptional}}
     {{camelcase Name}}?: {{Type}};
@@ -83,6 +72,17 @@ export interface {{Name}}Parameters {
     {{camelcase Name}}: {{Type}};
     {{/if}}
     {{/Parameters}}
+}
+
+export class {{Name}}Validator extends QueryValidator<{{Name}}Parameters> {
+    constructor() {
+        super();
+        {{#each ValidationRules}}
+        {{#each Rules}}
+        this.ruleFor(c => c.{{camelcase ../PropertyName}}){{#if Arguments.length}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+        {{/each}}
+        {{/each}}
+    }
 }
 
 {{#if Documentation}}
@@ -96,6 +96,17 @@ export class {{Name}} extends QueryFor<{{Model}}[], {{Name}}Parameters> {
 export class {{Name}} extends QueryFor<{{Model}}, {{Name}}Parameters> {
 {{/if}}
 {{else}}
+export class {{Name}}Validator extends QueryValidator<object> {
+    constructor() {
+        super();
+        {{#each ValidationRules}}
+        {{#each Rules}}
+        this.ruleFor(c => c.{{camelcase ../PropertyName}}){{#if Arguments.length}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+        {{/each}}
+        {{/each}}
+    }
+}
+
 {{#if Documentation}}
 /**
  * {{Documentation}}

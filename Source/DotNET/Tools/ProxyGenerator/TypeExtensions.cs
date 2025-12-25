@@ -302,7 +302,14 @@ public static class TypeExtensions
             return value;
         }
 
-        return new TargetType(type, type.Name, type.Name);
+        var typeName = type.Name;
+        var backtickIndex = typeName.IndexOf('`');
+        if (backtickIndex >= 0)
+        {
+            typeName = typeName[..backtickIndex];
+        }
+
+        return new TargetType(type, typeName, typeName);
     }
 
     /// <summary>
