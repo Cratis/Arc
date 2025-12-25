@@ -24,6 +24,8 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 
 - `CratisProxiesOutputPath`: Specifies where the generated TypeScript files will be written. This should typically point to your frontend project directory.
 
+> **Note**: By default, the proxy generator deletes the entire output directory on every build to ensure clean generation. If your proxies are intertwined with other source files (not in a dedicated folder), you should set `<CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>` to enable incremental generation. See [Configuration - Output Deletion Behavior](configuration.md#output-deletion-behavior) for details.
+
 ## Frontend Prerequisites
 
 The generated proxies depend on the [@cratis/arc](https://www.npmjs.com/package/@cratis/arc) NPM package. Install it in your frontend project:
