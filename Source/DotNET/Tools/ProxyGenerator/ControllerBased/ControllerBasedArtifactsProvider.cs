@@ -29,7 +29,7 @@ public class ControllerBasedArtifactsProvider : IArtifactsProvider
 
         foreach (var controller in TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsController()))
         {
-            var methods = controller.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+            var methods = controller.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
             methods.Where(_ => _.IsQueryMethod()).ToList().ForEach(queries.Add);
             methods.Where(_ => _.IsCommandMethod()).ToList().ForEach(commands.Add);
