@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 
@@ -73,83 +72,155 @@ public static class ValidationRulesExtractor
     /// <returns>Collection of validation rule descriptors.</returns>
     public static IReadOnlyList<ValidationRuleDescriptor> ExtractDataAnnotationsFromParameter(ParameterInfo parameter)
     {
-        var attributes = parameter.GetCustomAttributes(true);
-        return ExtractDataAnnotationsFromAttributes(attributes);
+        var attributesData = parameter.GetCustomAttributesData();
+        return ExtractDataAnnotationsFromAttributesData(attributesData);
     }
 
     static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromMember(PropertyInfo property)
     {
-        var attributes = property.GetCustomAttributes(true);
-        return ExtractDataAnnotationsFromAttributes(attributes);
+        var attributesData = property.GetCustomAttributesData();
+        return ExtractDataAnnotationsFromAttributesData(attributesData);
     }
 
-    static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromAttributes(object[] attributes)
+    static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromAttributesData(IList<CustomAttributeData> attributesData)
     {
         var rules = new List<ValidationRuleDescriptor>();
 
-        foreach (var attribute in attributes)
+        foreach (var attributeData in attributesData)
         {
-            switch (attribute)
+            var attributeType = attributeData.AttributeType;
+            var attributeTypeName = attributeType.FullName;
+
+            if (attributeTypeName == null)
             {
-                case RequiredAttribute required:
-                    rules.Add(new ValidationRuleDescriptor("notEmpty", [], required.ErrorMessage));
-                    break;
-                case StringLengthAttribute stringLength:
-                    rules.Add(ExtractStringLengthRule(stringLength));
-                    break;
-                case MinLengthAttribute minLength:
-                    rules.Add(new ValidationRuleDescriptor("minLength", [minLength.Length], minLength.ErrorMessage));
-                    break;
-                case MaxLengthAttribute maxLength:
-                    rules.Add(new ValidationRuleDescriptor("maxLength", [maxLength.Length], maxLength.ErrorMessage));
-                    break;
-                case RangeAttribute range:
-                    rules.AddRange(ExtractRangeRules(range));
-                    break;
-                case RegularExpressionAttribute regex:
-                    rules.Add(new ValidationRuleDescriptor("matches", [regex.Pattern], regex.ErrorMessage));
-                    break;
-                case EmailAddressAttribute email:
-                    rules.Add(new ValidationRuleDescriptor("emailAddress", [], email.ErrorMessage));
-                    break;
-                case PhoneAttribute phone:
-                    rules.Add(new ValidationRuleDescriptor("phone", [], phone.ErrorMessage));
-                    break;
-                case UrlAttribute url:
-                    rules.Add(new ValidationRuleDescriptor("url", [], url.ErrorMessage));
-                    break;
-                case CreditCardAttribute creditCard:
-                    rules.Add(new ValidationRuleDescriptor("creditCard", [], creditCard.ErrorMessage));
-                    break;
+                continue;
+            }
+
+            switch (attributeTypeName)
+            {
+                case "System.ComponentModel.DataAnnotations.RequiredAttribute":
+                    {
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("notEmpty", [], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.StringLengthAttribute":
+                    {
+                        var maximumLength = GetConstructorArgument<int>(attributeData, 0);
+                        var minimumLength = GetNamedArgument<int>(attributeData, "MinimumLength");
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(ExtractStringLengthRuleFromData(minimumLength, maximumLength, errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.MinLengthAttribute":
+                    {
+                        var length = GetConstructorArgument<int>(attributeData, 0);
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("minLength", [length], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.MaxLengthAttribute":
+                    {
+                        var length = GetConstructorArgument<int>(attributeData, 0);
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("maxLength", [length], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.RangeAttribute":
+                    {
+                        var minimum = GetConstructorArgument<object>(attributeData, 0);
+                        var maximum = GetConstructorArgument<object>(attributeData, 1);
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.AddRange(ExtractRangeRulesFromData(minimum, maximum, errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.RegularExpressionAttribute":
+                    {
+                        var pattern = GetConstructorArgument<string>(attributeData, 0) ?? string.Empty;
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("matches", [pattern], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.EmailAddressAttribute":
+                    {
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("emailAddress", [], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.PhoneAttribute":
+                    {
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("phone", [], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.UrlAttribute":
+                    {
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("url", [], errorMessage));
+                        break;
+                    }
+                case "System.ComponentModel.DataAnnotations.CreditCardAttribute":
+                    {
+                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+                        rules.Add(new ValidationRuleDescriptor("creditCard", [], errorMessage));
+                        break;
+                    }
             }
         }
 
         return rules;
     }
 
-    static ValidationRuleDescriptor ExtractStringLengthRule(StringLengthAttribute attribute)
+    static ValidationRuleDescriptor ExtractStringLengthRuleFromData(int minimumLength, int maximumLength, string? errorMessage)
     {
-        if (attribute.MinimumLength > 0 && attribute.MaximumLength > 0)
+        if (minimumLength > 0 && maximumLength > 0)
         {
-            return new ValidationRuleDescriptor("length", [attribute.MinimumLength, attribute.MaximumLength], attribute.ErrorMessage);
+            return new ValidationRuleDescriptor("length", [minimumLength, maximumLength], errorMessage);
         }
 
-        if (attribute.MinimumLength > 0)
+        if (minimumLength > 0)
         {
-            return new ValidationRuleDescriptor("minLength", [attribute.MinimumLength], attribute.ErrorMessage);
+            return new ValidationRuleDescriptor("minLength", [minimumLength], errorMessage);
         }
 
-        return new ValidationRuleDescriptor("maxLength", [attribute.MaximumLength], attribute.ErrorMessage);
+        return new ValidationRuleDescriptor("maxLength", [maximumLength], errorMessage);
     }
 
-    static List<ValidationRuleDescriptor> ExtractRangeRules(RangeAttribute attribute)
+    static List<ValidationRuleDescriptor> ExtractRangeRulesFromData(object? minimum, object? maximum, string? errorMessage)
     {
         // For range, we need both min and max
         return
         [
-            new ValidationRuleDescriptor("greaterThanOrEqual", [attribute.Minimum], attribute.ErrorMessage),
-            new ValidationRuleDescriptor("lessThanOrEqual", [attribute.Maximum], attribute.ErrorMessage)
+            new ValidationRuleDescriptor("greaterThanOrEqual", [minimum ?? 0], errorMessage),
+            new ValidationRuleDescriptor("lessThanOrEqual", [maximum ?? 0], errorMessage)
         ];
+    }
+
+    static T? GetConstructorArgument<T>(CustomAttributeData attributeData, int index)
+    {
+        if (attributeData.ConstructorArguments.Count <= index)
+        {
+            return default;
+        }
+
+        var value = attributeData.ConstructorArguments[index].Value;
+        if (value is T typedValue)
+        {
+            return typedValue;
+        }
+
+        return default;
+    }
+
+    static T? GetNamedArgument<T>(CustomAttributeData attributeData, string name)
+    {
+        var namedArgument = attributeData.NamedArguments.FirstOrDefault(arg => arg.MemberName == name);
+        if (namedArgument.TypedValue.Value is T typedValue)
+        {
+            return typedValue;
+        }
+
+        return default;
     }
 
     static List<PropertyValidationDescriptor> MergeValidationRules(
