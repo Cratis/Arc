@@ -24,7 +24,7 @@ public static class CommandAttributeExtensions
     /// <param name="type">Type to check.</param>
     /// <returns>True if the type has a Handle method; otherwise, false.</returns>
     public static bool HasHandleMethod(this Type type) =>
-        type.GetMethod("Handle") is not null;
+        type.GetMethod("Handle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) is not null;
 
     /// <summary>
     /// Gets the Handle method from a type.
@@ -32,5 +32,5 @@ public static class CommandAttributeExtensions
     /// <param name="type">Type to get the Handle method from.</param>
     /// <returns>The Handle method.</returns>
     public static MethodInfo GetHandleMethod(this Type type) =>
-        type.GetMethod("Handle")!;
+        type.GetMethod("Handle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!;
 }
