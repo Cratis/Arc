@@ -33,9 +33,9 @@ public class when_executing_data_annotations_validated_query_with_validation_err
     [Fact] void should_have_validation_results() => _executionResult.Result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_email_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("email"));
     [Fact] void should_have_name_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("name"));
-    [Fact] void should_have_name_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("name") && _.Message.Contains("3") && _.Message.Contains("50"));
+    [Fact] void should_have_name_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("name") && _.Message.Contains('3') && _.Message.Contains("50"));
     [Fact] void should_have_minAge_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("minAge"));
-    [Fact] void should_have_minAge_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("minAge") && _.Message.Contains("0") && _.Message.Contains("150"));
+    [Fact] void should_have_minAge_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("minAge") && _.Message.Contains('0') && _.Message.Contains("150"));
     [Fact] void should_have_website_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(_ => _.Members.Contains("website"));
     [Fact] void should_not_roundtrip_to_server() => DataAnnotationsValidatedReadModel.GetByEmailCallCount.ShouldEqual(0);
 }
