@@ -174,12 +174,12 @@ public static class QueryExtensions
             responseModel.IsEnumerable,
             responseModel.IsObservable,
             imports.ToOrderedImports(),
-            parameters,
-            [.. parameters.Where(_ => !_.IsOptional)],
-            properties,
-            [.. typesInvolved, .. additionalTypesInvolved],
+            parameters.OrderBy(_ => _.Name),
+            [.. parameters.Where(_ => !_.IsOptional).OrderBy(_ => _.Name)],
+            properties.OrderBy(_ => _.Name),
+            [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            validationRules);
+            validationRules.OrderBy(_ => _.PropertyName));
     }
 
     /// <summary>

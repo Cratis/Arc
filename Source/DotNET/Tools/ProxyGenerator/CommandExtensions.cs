@@ -80,13 +80,13 @@ public static class CommandExtensions
             method,
             route,
             commandName,
-            properties,
+            properties.OrderBy(_ => _.Name),
             imports.OrderBy(_ => _.Module),
-            parameters,
+            parameters.OrderBy(_ => _.Name),
             hasResponse,
             responseModel,
-            [.. typesInvolved, .. additionalTypesInvolved],
+            [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            rules);
+            rules.OrderBy(_ => _.PropertyName));
     }
 }

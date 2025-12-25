@@ -32,12 +32,41 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 |----------|---------|-------------|
 | `CratisProxiesOutputPath` | *(Required)* | The output directory for generated TypeScript files |
 | `CratisProxiesSegmentsToSkip` | `0` | Number of namespace segments to skip when creating the folder structure |
-| `CratisProxiesSkipOutputDeletion` | `false` | When `true`, preserves existing files in the output directory |
+| `CratisProxiesSkipOutputDeletion` | `false` | **When `false` (default), the entire output directory is deleted on every build.** Set to `true` to enable incremental generation. See [Output Deletion Behavior](#output-deletion-behavior) below. |
 | `CratisProxiesSkipCommandNameInRoute` | `false` | When `true`, excludes the command name from the generated route for command endpoints |
 | `CratisProxiesSkipQueryNameInRoute` | `false` | When `true`, excludes the query name from the generated route for query endpoints |
 | `CratisProxiesApiPrefix` | `api` | The API prefix used in generated routes |
 | `CratisProxiesSkipFileIndexTracking` | `false` | When `true`, disables file index tracking for incremental cleanup |
 | `CratisProxiesSkipIndexGeneration` | `false` | When `true`, skips generating `index.ts` files for directories |
+
+## Output Deletion Behavior
+
+**Important**: By default (`CratisProxiesSkipOutputDeletion=false`), the proxy generator **deletes the entire output directory** before generating proxies on every build. This ensures a clean generation but means:
+
+- All proxies are regenerated on every build
+- Any manual files in the output directory will be deleted
+- Build times may be longer as everything is recreated each time
+
+This default behavior is ideal when:
+- Proxies are in a dedicated folder separate from other source files
+- You want guaranteed clean state with no stale files
+- Your project structure keeps generated code isolated from feature code
+
+**To enable incremental generation**, set:
+
+```xml
+<PropertyGroup>
+    <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
+</PropertyGroup>
+```
+
+When output deletion is skipped:
+- The generator only updates changed proxies
+- [File index tracking](file-index-tracking.md) automatically removes orphaned files from renamed/deleted commands or queries
+- Build times are faster as only necessary files are regenerated
+- You can safely mix generated proxies with other code in the same directory
+
+**Recommendation**: Use `CratisProxiesSkipOutputDeletion=true` when your proxies are intertwined with feature code in your frontend. Use the default `false` when proxies are in a dedicated output folder.
 
 ## Namespace Segment Skipping
 

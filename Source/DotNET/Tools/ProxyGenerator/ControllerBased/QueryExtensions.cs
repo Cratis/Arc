@@ -124,11 +124,11 @@ public static class QueryExtensions
             responseModel.IsEnumerable,
             responseModel.IsObservable,
             imports.ToOrderedImports(),
-            arguments,
-            [.. arguments.Where(_ => !_.IsOptional)],
-            propertyDescriptors,
-            [.. typesInvolved, .. additionalTypesInvolved],
+            arguments.OrderBy(_ => _.Name),
+            [.. arguments.Where(_ => !_.IsOptional).OrderBy(_ => _.Name)],
+            propertyDescriptors.OrderBy(_ => _.Name),
+            [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            validationRules);
+            validationRules.OrderBy(_ => _.PropertyName));
     }
 }
