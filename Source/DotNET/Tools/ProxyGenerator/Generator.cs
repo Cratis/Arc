@@ -82,7 +82,7 @@ public static class Generator
         var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
         await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, generatedFiles);
 
-        var enumerableQueries = queries.Where(_ => _.IsEnumerable).ToList();
+        var enumerableQueries = queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList();
         await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, generatedFiles);
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
