@@ -228,28 +228,6 @@ this.ruleFor(c => c.email)
     .withMessage('Email address is required');
 ```
 
-## Version Independence
-
-The ProxyGenerator uses reflection-based type checking instead of hard dependencies on FluentValidation. This prevents version conflicts between the ProxyGenerator tool and your application's FluentValidation version.
-
-### Type Detection Pattern
-
-The generator identifies FluentValidation types using string-based comparisons:
-
-```csharp
-// Instead of hard references, uses string matching:
-if (baseType.FullName == "FluentValidation.AbstractValidator`1")
-{
-    // Extract validation rules
-}
-```
-
-This approach:
-
-- **Eliminates version coupling** between ProxyGenerator and target assemblies
-- **Prevents dependency conflicts** when updating FluentValidation
-- **Maintains compatibility** across different FluentValidation versions
-
 ## Query Validation
 
 Query parameters can also be validated using the same approach:
