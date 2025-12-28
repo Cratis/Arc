@@ -4,11 +4,13 @@
 import { an_observable_query_for } from '../given/an_observable_query_for';
 import { given } from '../../../given';
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 
 describe('with partial parameter descriptor values', given(an_observable_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     const mockResponse = {
         data: 'test-result',
         isSuccess: true,
@@ -27,7 +29,8 @@ describe('with partial parameter descriptor values', given(an_observable_query_f
     };
 
     beforeEach(async () => {
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -45,7 +48,7 @@ describe('with partial parameter descriptor values', given(an_observable_query_f
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should return successful result', () => {

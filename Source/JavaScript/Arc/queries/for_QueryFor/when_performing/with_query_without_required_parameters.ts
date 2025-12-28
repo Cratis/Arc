@@ -5,11 +5,13 @@ import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 
 describe('with query without required parameters', given(a_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     const mockResponse = {
         data: 'test-result',
         isSuccess: true,
@@ -28,11 +30,8 @@ describe('with query without required parameters', given(a_query_for, context =>
     };
 
     beforeEach(async () => {
-        // Setup fetch mock - restore any existing stub first
-        if ((global.fetch as sinon.SinonStub)?.restore) {
-            (global.fetch as sinon.SinonStub).restore();
-        }
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -46,7 +45,7 @@ describe('with query without required parameters', given(a_query_for, context =>
     });
 
     afterEach(() => {
-        fetchStub?.restore();
+        fetchHelper.restore();
     });
 
     it('should return successful result', () => {

@@ -4,10 +4,12 @@
 import { an_observable_query_for } from '../given/an_observable_query_for';
 import { given } from '../../../given';
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { Paging } from '../../Paging';
 
 describe('when performing with paging', given(an_observable_query_for, context => {
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     const mockResponse = {
         data: 'test-result',
         isSuccess: true,
@@ -26,11 +28,8 @@ describe('when performing with paging', given(an_observable_query_for, context =
     };
 
     beforeEach(async () => {
-        // Restore any existing fetch stub before creating a new one
-        if ((globalThis.fetch as sinon.SinonStub)?.restore) {
-            (globalThis.fetch as sinon.SinonStub).restore();
-        }
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -44,7 +43,7 @@ describe('when performing with paging', given(an_observable_query_for, context =
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should include page parameter in URL', () => {

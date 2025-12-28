@@ -3,14 +3,14 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import sinon from 'sinon';
 import { useQuery } from '../useQuery';
 import { FakeQuery } from './FakeQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
 import { Sorting } from '@cratis/arc/queries';
+import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 describe('when creating instance with sorting', () => {
-    let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     let queryInstance: FakeQuery | null = null;
 
     const captureInstance = (instance: FakeQuery) => {
@@ -18,13 +18,15 @@ describe('when creating instance with sorting', () => {
     };
 
     beforeEach(() => {
-        fetchStub = sinon.stub(global, 'fetch').resolves({
+        fetchHelper = createFetchHelper();
+        const fetchStub = fetchHelper.stubFetch();
+        fetchStub.resolves({
             json: async () => ({ data: [], isSuccess: true, isAuthorized: true, isValid: true, hasExceptions: false, validationResults: [], exceptionMessages: [], exceptionStackTrace: '' })
         } as Response);
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     const config: ArcConfiguration = {

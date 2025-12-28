@@ -2,12 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { CommandWithRouteParams } from '../CommandWithRouteParams';
 import { given } from '../../../given';
 
 describe("when executing with route parameters", given(class {
     command: CommandWithRouteParams;
     fetchStub: sinon.SinonStub;
+    fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     constructor() {
         this.command = new CommandWithRouteParams();
@@ -15,7 +17,8 @@ describe("when executing with route parameters", given(class {
         this.command.setApiBasePath('/api');
         this.command.id = '123';
         this.command.name = 'Test Item';
-        this.fetchStub = sinon.stub(globalThis, 'fetch');
+        this.fetchHelper = createFetchHelper();
+        this.fetchStub = this.fetchHelper.stubFetch();
     }
 }, context => {
     const responseData = {
@@ -40,7 +43,7 @@ describe("when executing with route parameters", given(class {
     });
 
     afterEach(() => {
-        context.fetchStub.restore();
+        context.fetchHelper.restore();
     });
 
     it("should_replace_route_parameters_in_url", () => {

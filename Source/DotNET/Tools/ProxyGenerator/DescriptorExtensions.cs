@@ -23,7 +23,7 @@ public static class DescriptorExtensions
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="typeNameToEcho">The type name to echo for statistics.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
-    /// <param name="fileIndex">Optional file index to track generated files.</param>
+    /// <param name="generatedFiles">Optional collection to track generated file paths and their metadata.</param>
     /// <returns>Awaitable task.</returns>
     public static async Task Write(
         this IEnumerable<IDescriptor> descriptors,
@@ -34,14 +34,18 @@ public static class DescriptorExtensions
         int segmentsToSkip,
         string typeNameToEcho,
         Action<string> message,
-        GeneratedFileIndex? fileIndex = null)
+        IDictionary<string, GeneratedFileMetadata>? generatedFiles = null)
     {
         var stopwatch = Stopwatch.StartNew();
+        var generationTime = DateTime.UtcNow;
+        var skippedCount = 0;
+
         foreach (var descriptor in descriptors)
         {
             var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
             var fullPath = Path.Join(targetPath, path, $"{descriptor.Name}.ts");
-            var directory = Path.GetDirectoryName(fullPath)!;
+            var normalizedFullPath = Path.GetFullPath(fullPath);
+            var directory = Path.GetDirectoryName(normalizedFullPath)!;
             if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
             if (!directories.Contains(directory))
@@ -50,13 +54,30 @@ public static class DescriptorExtensions
             }
 
             var proxyContent = template(descriptor);
-            await File.WriteAllTextAsync(fullPath, proxyContent);
+            var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
+            var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime, contentHash);
 
-            // Track the generated file in the index
-            if (fileIndex is not null)
+            // Check if file exists with the same hash
+            if (File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
+                    existingMetadata is not null &&
+                    existingMetadata.ContentHash == contentHash)
             {
-                var relativePath = Path.GetRelativePath(targetPath, fullPath);
-                fileIndex.AddFile(relativePath);
+                // File hasn't changed, skip writing
+                skippedCount++;
+                if (generatedFiles is not null)
+                {
+                    generatedFiles[normalizedFullPath] = metadata;
+                }
+                continue;
+            }
+
+            var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
+            await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
+
+            // Track generated file metadata
+            if (generatedFiles is not null)
+            {
+                generatedFiles[normalizedFullPath] = metadata;
             }
         }
 
@@ -71,7 +92,9 @@ public static class DescriptorExtensions
         var count = descriptors.Count();
         if (count > 0)
         {
-            message($"  {count} {typeNameToEcho} in {stopwatch.Elapsed}");
+            var writtenCount = count - skippedCount;
+            var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
+            message($"  {writtenCount} {typeNameToEcho} written{skippedInfo} in {stopwatch.Elapsed}");
         }
     }
 }

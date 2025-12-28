@@ -17,7 +17,7 @@ describe("when asking has data and it is defined instance", () => {
             totalItems: 0,
             totalPages: 0,
             page: 0,
-            items: 0
+            size: 0
         },
         validationResults: [],
         data: {}

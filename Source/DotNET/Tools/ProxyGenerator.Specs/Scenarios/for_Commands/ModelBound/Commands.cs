@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
@@ -38,22 +40,26 @@ public class SimpleCommand
 [Command]
 public class ValidatedCommand
 {
+    public const string NameRequiredMessage = "Name is required";
+    public const string ValueRangeMessage = "Value must be between 1 and 100";
+    public const string EmailFormatMessage = "Invalid email format";
+
     /// <summary>
     /// Gets or sets the required name.
     /// </summary>
-    [Required(ErrorMessage = "Name is required")]
+    [Required(ErrorMessage = NameRequiredMessage)]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the value with range validation.
     /// </summary>
-    [Range(1, 100, ErrorMessage = "Value must be between 1 and 100")]
+    [Range(1, 100, ErrorMessage = ValueRangeMessage)]
     public int Value { get; set; }
 
     /// <summary>
     /// Gets or sets the email.
     /// </summary>
-    [EmailAddress(ErrorMessage = "Invalid email format")]
+    [EmailAddress(ErrorMessage = EmailFormatMessage)]
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
@@ -243,4 +249,53 @@ public class NestedChild
     /// Gets or sets the value.
     /// </summary>
     public double Value { get; set; }
+}
+
+/// <summary>
+/// A command with FluentValidation validator for testing.
+/// </summary>
+[Command]
+public class FluentValidatedCommand
+{
+    internal static Action OnHandle = () => { };
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Handles the command.
+    /// </summary>
+    public void Handle()
+    {
+        OnHandle();
+    }
+}
+
+/// <summary>
+/// Validator for FluentValidatedCommand using CommandValidator.
+/// </summary>
+public class FluentValidatedCommandValidator : CommandValidator<FluentValidatedCommand>
+{
+    public const string NameRequiredMessage = "Name is required";
+    public const string AgeMinimumMessage = "Age must be at least 18";
+    public const string EmailRequiredMessage = "Valid email is required";
+
+    public FluentValidatedCommandValidator()
+    {
+        RuleFor(c => c.Name).NotEmpty().WithMessage(NameRequiredMessage);
+        RuleFor(c => c.Age).GreaterThanOrEqualTo(18).WithMessage(AgeMinimumMessage);
+        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
+    }
 }

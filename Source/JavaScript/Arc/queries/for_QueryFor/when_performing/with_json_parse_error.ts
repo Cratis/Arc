@@ -5,15 +5,18 @@ import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 
 describe('with json parse error', given(a_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     beforeEach(async () => {
-        // Setup fetch mock with json parse error
-        fetchStub = sinon.stub(global, 'fetch');
+        // Setup fetch mock with json parse error using helper
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().rejects(new Error('Invalid JSON')),
             ok: true,
@@ -27,7 +30,7 @@ describe('with json parse error', given(a_query_for, context => {
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should return no success result', () => {

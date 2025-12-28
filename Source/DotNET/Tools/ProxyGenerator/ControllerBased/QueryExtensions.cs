@@ -65,6 +65,54 @@ public static class QueryExtensions
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
+        var documentation = method.GetDocumentation();
+
+        // Extract validation rules from query method parameters
+        // Try to find a FluentValidation validator by looking for a type whose properties match the query parameters
+        var validationRules = new List<PropertyValidationDescriptor>();
+
+        // Look for a type in the assembly whose properties match the method parameters
+        // Prefer types with "Query" in the name to avoid false matches
+        var methodParams = method.GetParameters();
+        var matchingTypes = method.DeclaringType!.Assembly.GetTypes()
+            .Where(t =>
+            {
+                var properties = t.GetProperties();
+                if (properties.Length == 0 || properties.Length != methodParams.Length)
+                {
+                    return false;
+                }
+
+                // Check if all properties on the type correspond to method parameters
+                return properties.All(prop =>
+                    methodParams.Any(param =>
+                        param.Name.Equals(prop.Name, StringComparison.OrdinalIgnoreCase) &&
+                        param.ParameterType == prop.PropertyType));
+            })
+            .OrderByDescending(t => t.Name.Contains("Query", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var matchingType = matchingTypes.FirstOrDefault();
+
+        if (matchingType != null)
+        {
+            // Found a matching DTO type, extract FluentValidation rules from it
+            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType.Assembly, matchingType);
+            validationRules.AddRange(fluentValidationRules);
+        }
+
+        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
+        if (validationRules.Count == 0)
+        {
+            foreach (var param in method.GetParameters())
+            {
+                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+                if (rules.Count > 0)
+                {
+                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+                }
+            }
+        }
 
         return new(
             method.DeclaringType!,
@@ -76,9 +124,11 @@ public static class QueryExtensions
             responseModel.IsEnumerable,
             responseModel.IsObservable,
             imports.ToOrderedImports(),
-            arguments,
-            [.. arguments.Where(_ => !_.IsOptional)],
-            propertyDescriptors,
-            [.. typesInvolved, .. additionalTypesInvolved]);
+            arguments.OrderBy(_ => _.Name),
+            [.. arguments.Where(_ => !_.IsOptional).OrderBy(_ => _.Name)],
+            propertyDescriptors.OrderBy(_ => _.Name),
+            [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
+            documentation,
+            validationRules.OrderBy(_ => _.PropertyName));
     }
 }

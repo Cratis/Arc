@@ -33,7 +33,9 @@ public class when_generating_query_proxy : Specification, IDisposable
             [],
             [],
             [],
-            [readModelType]);
+            [readModelType],
+            null,
+            []);
     }
 
     void Because()

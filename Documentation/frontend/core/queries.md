@@ -40,6 +40,22 @@ interface IQueryFor<TDataType, TParameters = object> extends IQuery {
 
 ## Key Features
 
+### Client-Side Validation
+
+Queries automatically validate parameters before executing server calls. Validation rules are defined on the backend using FluentValidation and automatically extracted by the ProxyGenerator:
+
+```typescript
+const query = new SearchUsersQuery();
+query.parameters = { searchTerm: 'ab', minAge: -5 };  // Invalid
+
+const result = await query.perform();
+// Validation runs client-side before server call
+// result.isValid === false
+// result.validationResults contains error details
+```
+
+For more information about validation, see [Validation](./validation/index.md).
+
 ### Parameter Validation
 
 Queries automatically validate required parameters before execution, preventing unnecessary network requests for incomplete data.

@@ -16,6 +16,7 @@ describe('when chaining callbacks and result has exceptions', () => {
             'Something is not right'
         ],
         exceptionStackTrace: 'Some stack trace',
+        authorizationFailureReason: '',
         response: {}
     }, Object, false);
 

@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
@@ -304,4 +306,135 @@ public enum ReadModelStatus
     /// Archived status.
     /// </summary>
     Archived = 3
+}
+
+/// <summary>
+/// A read model with FluentValidation for parameters.
+/// </summary>
+[ReadModel]
+public class FluentValidatedReadModel
+{
+    internal static int GetByEmailCallCount;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets items by email and age.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<FluentValidatedReadModel> GetByEmailAndAge(string email, int minAge)
+    {
+        GetByEmailCallCount++;
+        return
+        [
+            new FluentValidatedReadModel { Id = Guid.NewGuid(), Email = email, Age = minAge }
+        ];
+    }
+}
+
+/// <summary>
+/// Parameters for GetByEmailAndAge query.
+/// </summary>
+public class GetByEmailAndAgeParameters
+{
+    /// <summary>
+    /// Gets or sets the email filter.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the minimum age.
+    /// </summary>
+    public int MinAge { get; set; }
+}
+
+/// <summary>
+/// Validator for GetByEmailAndAge query parameters using QueryValidator.
+/// </summary>
+public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<GetByEmailAndAgeParameters>
+{
+    public const string EmailRequiredMessage = "Valid email is required";
+    public const string AgeRangeMessage = "Age must be between 0 and 150";
+
+    public FluentValidatedReadModelGetByEmailAndAgeValidator()
+    {
+        RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).LessThan(150).WithMessage(AgeRangeMessage);
+    }
+}
+
+/// <summary>
+/// A read model with DataAnnotations validation for parameters.
+/// </summary>
+[ReadModel]
+public class DataAnnotationsValidatedReadModel
+{
+    internal static int GetByEmailCallCount;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets or sets the website.
+    /// </summary>
+    public string Website { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets items by email and age with DataAnnotations validation.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="name">The name filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <param name="website">Website URL.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<DataAnnotationsValidatedReadModel> GetByEmailAndAge(
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        string email,
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 3)]
+        string name,
+        [System.ComponentModel.DataAnnotations.Range(0, 150)]
+        int minAge,
+        [System.ComponentModel.DataAnnotations.Url]
+        string website)
+    {
+        GetByEmailCallCount++;
+        return
+        [
+            new DataAnnotationsValidatedReadModel { Id = Guid.NewGuid(), Email = email, Name = name, Age = minAge, Website = website }
+        ];
+    }
 }

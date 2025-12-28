@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
+using Cratis.Arc.Commands;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -83,6 +86,34 @@ public class ControllerCommandsController : ControllerBase
     [HttpPost("authorized")]
     [Authorize]
     public IActionResult ExecuteAuthorized([FromBody] ControllerAuthorizedCommand command) => Ok();
+
+    internal static int FluentValidatedCallCount;
+
+    /// <summary>
+    /// Executes a fluent validated command.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("fluent-validated")]
+    public IActionResult ExecuteFluentValidated([FromBody] ControllerFluentValidatedCommand command)
+    {
+        FluentValidatedCallCount++;
+        return Ok();
+    }
+
+    internal static int DataAnnotationsValidatedCallCount;
+
+    /// <summary>
+    /// Executes a data annotations validated command.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("data-annotations-validated")]
+    public IActionResult ExecuteDataAnnotationsValidated([FromBody] ControllerDataAnnotationsValidatedCommand command)
+    {
+        DataAnnotationsValidatedCallCount++;
+        return Ok();
+    }
 }
 
 /// <summary>
@@ -190,4 +221,115 @@ public class ControllerAuthorizedCommand
     /// Gets or sets the data.
     /// </summary>
     public string Data { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// A controller-based command with fluent validation.
+/// </summary>
+public class ControllerFluentValidatedCommand
+{
+    /// <summary>
+    /// Gets or sets the title.
+    /// </summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the quantity.
+    /// </summary>
+    public int Quantity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Validator for ControllerFluentValidatedCommand using CommandValidator.
+/// </summary>
+public class ControllerFluentValidatedCommandValidator : CommandValidator<ControllerFluentValidatedCommand>
+{
+    public const string TitleRequiredMessage = "Title is required";
+    public const string QuantityMinimumMessage = "Quantity must be greater than 0";
+    public const string EmailRequiredMessage = "Valid email is required";
+
+    public ControllerFluentValidatedCommandValidator()
+    {
+        RuleFor(c => c.Title).NotEmpty().WithMessage(TitleRequiredMessage);
+        RuleFor(c => c.Quantity).GreaterThan(0).WithMessage(QuantityMinimumMessage);
+        RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
+    }
+}
+
+/// <summary>
+/// A controller-based command with abstract validator.
+/// </summary>
+public class ControllerAbstractValidatedCommand
+{
+    /// <summary>
+    /// Gets or sets the code.
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the amount.
+    /// </summary>
+    public decimal Amount { get; set; }
+}
+
+/// <summary>
+/// Validator for ControllerAbstractValidatedCommand using AbstractValidator directly.
+/// </summary>
+public class ControllerAbstractValidatedCommandValidator : AbstractValidator<ControllerAbstractValidatedCommand>
+{
+    public ControllerAbstractValidatedCommandValidator()
+    {
+        RuleFor(c => c.Code).NotEmpty().Length(5).WithMessage("Code must be exactly 5 characters");
+        RuleFor(c => c.Amount).GreaterThan(0).WithMessage("Amount must be positive");
+    }
+}
+
+/// <summary>
+/// A controller-based command with data annotations validation.
+/// </summary>
+public class ControllerDataAnnotationsValidatedCommand
+{
+    public const string NameRequiredMessage = "Name is required";
+    public const string NameLengthMessage = "Name must be between 3 and 50 characters";
+    public const string AgeRangeMessage = "Age must be between 18 and 100";
+    public const string EmailFormatMessage = "Invalid email address";
+    public const string PhoneFormatMessage = "Invalid phone number";
+    public const string UrlFormatMessage = "Invalid URL";
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    [Required(ErrorMessage = NameRequiredMessage)]
+    [StringLength(50, MinimumLength = 3, ErrorMessage = NameLengthMessage)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the age.
+    /// </summary>
+    [Range(18, 100, ErrorMessage = AgeRangeMessage)]
+    public int Age { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    [Required]
+    [EmailAddress(ErrorMessage = EmailFormatMessage)]
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the phone.
+    /// </summary>
+    [Phone(ErrorMessage = PhoneFormatMessage)]
+    public string Phone { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the website.
+    /// </summary>
+    [Url(ErrorMessage = UrlFormatMessage)]
+    public string Website { get; set; } = string.Empty;
 }

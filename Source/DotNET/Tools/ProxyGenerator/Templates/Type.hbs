@@ -9,9 +9,19 @@ import { field } from '@cratis/fundamentals';
 import { {{Type}} } from '{{Module}}';
 {{/Imports}}
 
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 export class {{Name}} {
     {{#Properties}}
+    {{#if Documentation}}
 
+    /**
+     * {{Documentation}}
+     */
+    {{/if}}
     {{#if IsEnumerable}}
     @field({{Constructor}}, true)
     {{#if IsNullable}}

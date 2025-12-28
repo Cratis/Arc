@@ -1,0 +1,23 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "composite": false,
+        "noEmit": true,
+        "rootDir": "../../..",
+        "types": ["vitest/globals", "chai", "sinon", "mocha", "sinon-chai", "node"]
+    },
+    "include": [
+        "**/for_*/**/*.ts",
+        "**/for_*/**/*.tsx",
+        "**/*.ts",
+        "**/*.tsx",
+        "../../../vitest.setup.ts",
+        "../../../test.d.ts",
+        "../../../global.d.ts",
+        "given.ts"
+    ],
+    "exclude": [
+        "dist",
+        "node_modules"
+    ]
+}

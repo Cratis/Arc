@@ -27,7 +27,9 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     private _origin: string;
     private _httpHeadersCallback: GetHttpHeaders;
     abstract readonly route: string;
-    abstract readonly validation: CommandValidator;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    readonly validation?: CommandValidator<any>;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
     abstract get properties(): string[];
@@ -70,6 +72,11 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     async execute(): Promise<CommandResult<TCommandResponse>> {
+        const clientValidationErrors = this.validation?.validate(this) || [];
+        if (clientValidationErrors.length > 0) {
+            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        }
+
         const validationErrors = this.validateRequiredProperties();
         if (validationErrors.length > 0) {
             return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
@@ -90,6 +97,16 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     async validate(): Promise<CommandResult<TCommandResponse>> {
+        const clientValidationErrors = this.validation?.validate(this) || [];
+        if (clientValidationErrors.length > 0) {
+            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        }
+
+        const validationErrors = this.validateRequiredProperties();
+        if (validationErrors.length > 0) {
+            return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
+        }
+
         const actualRoute = `${this.route}/validate`;
         return this.performRequest(actualRoute, 'Command validation endpoint not found at route', 'Error during validation call');
     }

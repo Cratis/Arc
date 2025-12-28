@@ -11,9 +11,11 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="Properties">Properties on the type.</param>
 /// <param name="Imports">Additional import statements.</param>
 /// <param name="TypesInvolved">Collection of types involved in the command.</param>
+/// <param name="Documentation">JSDoc documentation for the type.</param>
 public record TypeDescriptor(
     Type Type,
     string Name,
     IEnumerable<PropertyDescriptor> Properties,
     IOrderedEnumerable<ImportStatement> Imports,
-    IEnumerable<Type> TypesInvolved) : IDescriptor;
+    IEnumerable<Type> TypesInvolved,
+    string? Documentation = null) : IDescriptor;

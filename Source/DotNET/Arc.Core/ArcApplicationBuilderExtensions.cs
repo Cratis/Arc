@@ -16,12 +16,14 @@ public static class ArcApplicationBuilderExtensions
     /// Adds Cratis Arc services to the application.
     /// </summary>
     /// <param name="builder">The <see cref="ArcApplicationBuilder"/>.</param>
-    /// <param name="arcBuilderCallback">Optional callback for configuring the <see cref="IArcBuilder"/>.</param>
+    /// <param name="configureOptions">Optional callback for configuring <see cref="ArcOptions"/>.</param>
+    /// <param name="configureBuilder">Optional callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns>The <see cref="ArcApplicationBuilder"/> for continuation.</returns>
     public static ArcApplicationBuilder AddCratisArc(
         this ArcApplicationBuilder builder,
-        Action<IArcBuilder>? arcBuilderCallback = null,
+        Action<ArcOptions>? configureOptions = null,
+        Action<IArcBuilder>? configureBuilder = null,
         string? configSectionPath = null)
     {
         builder.Services.AddCratisArcCore();
@@ -33,14 +35,15 @@ public static class ArcApplicationBuilderExtensions
             .AddOptions<ArcOptions>()
             .ValidateOnStart();
 
-        if (arcBuilderCallback is not null)
+        if (configureOptions is not null)
+        {
+            optionsBuilder.Configure(configureOptions);
+        }
+
+        if (configureBuilder is not null)
         {
             var arcBuilder = new ArcBuilder(builder.Services, Internals.Types);
-            arcBuilderCallback(arcBuilder);
-            if (arcBuilder.ConfigureOptions is not null)
-            {
-                optionsBuilder.Configure(arcBuilder.ConfigureOptions);
-            }
+            configureBuilder.Invoke(arcBuilder);
         }
 
         builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();

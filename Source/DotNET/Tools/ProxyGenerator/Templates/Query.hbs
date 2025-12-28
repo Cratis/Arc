@@ -6,13 +6,13 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { QueryFor, QueryResultWithState, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
 {{else}}
-import { QueryFor, QueryResultWithState, Sorting, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, Sorting, Paging } from '@cratis/arc/queries';
 {{/if}}
 import { useQuery, useQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize } from '@cratis/arc.react/queries';
 {{else}}
-import { QueryFor, QueryResultWithState } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
 import { useQuery, PerformQuery } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
@@ -53,8 +53,19 @@ class {{Name}}SortByWithoutQuery {
 {{/if}}
 
 {{#if Parameters.[0]}}
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 export interface {{Name}}Parameters {
     {{#Parameters}}
+    {{#if Documentation}}
+    
+    /**
+     * {{Documentation}}
+    */
+    {{/if}}
     {{#if IsOptional}}
     {{camelcase Name}}?: {{Type}};
     {{else}}
@@ -63,12 +74,44 @@ export interface {{Name}}Parameters {
     {{/Parameters}}
 }
 
+export class {{Name}}Validator extends QueryValidator<{{Name}}Parameters> {
+    constructor() {
+        super();
+        {{#each ValidationRules}}
+        {{#each Rules}}
+        this.ruleFor(c => c.{{camelcase ../PropertyName}}){{#if Arguments.length}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+        {{/each}}
+        {{/each}}
+    }
+}
+
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 {{#if IsEnumerable}}
 export class {{Name}} extends QueryFor<{{Model}}[], {{Name}}Parameters> {
 {{else}}
 export class {{Name}} extends QueryFor<{{Model}}, {{Name}}Parameters> {
 {{/if}}
 {{else}}
+export class {{Name}}Validator extends QueryValidator<object> {
+    constructor() {
+        super();
+        {{#each ValidationRules}}
+        {{#each Rules}}
+        this.ruleFor(c => c.{{camelcase ../PropertyName}}){{#if Arguments.length}}.{{RuleName}}({{#each Arguments}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}){{else}}.{{RuleName}}(){{/if}}{{#if ErrorMessage}}.withMessage('{{ErrorMessage}}'){{/if}};
+        {{/each}}
+        {{/each}}
+    }
+}
+
+{{#if Documentation}}
+/**
+ * {{Documentation}}
+ */
+{{/if}}
 {{#if IsEnumerable}}
 export class {{Name}} extends QueryFor<{{Model}}[]> {
 {{else}}
@@ -76,6 +119,7 @@ export class {{Name}} extends QueryFor<{{Model}}> {
 {{/if}}
 {{/if}}
     readonly route: string = '{{{Route}}}';
+    readonly validation: QueryValidator = new {{Name}}Validator();
 {{#if IsEnumerable}}
     readonly defaultValue: {{Model}}[] = [];
     private readonly _sortBy: {{Name}}SortBy;

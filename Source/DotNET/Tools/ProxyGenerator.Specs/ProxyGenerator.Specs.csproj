@@ -5,6 +5,7 @@
         <RootNamespace>Cratis.Arc.ProxyGenerator</RootNamespace>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!-- Disable StyleCop rules for test helper files containing multiple types -->
         <NoWarn>$(NoWarn);SA1649;SA1402</NoWarn>
         <!-- Enable runtime-specific native libraries for ClearScript V8 -->

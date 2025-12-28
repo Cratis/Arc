@@ -5,6 +5,7 @@ import { a_query_for } from '../given/a_query_for';
 import { given } from '../../../given';
 
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { QueryResult } from '../../QueryResult';
 import { Sorting } from '../../Sorting';
 import { SortDirection } from '../../SortDirection';
@@ -12,6 +13,7 @@ import { SortDirection } from '../../SortDirection';
 describe('with sorting', given(a_query_for, context => {
     let result: QueryResult<string>;
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
                 const mockResponse = {
                 data: 'test-result',
                 isSuccess: true,
@@ -32,7 +34,8 @@ describe('with sorting', given(a_query_for, context => {
     describe('and ascending direction', () => {
         beforeEach(async () => {
             // Setup fetch mock
-            fetchStub = sinon.stub(global, 'fetch');
+            fetchHelper = createFetchHelper();
+            fetchStub = fetchHelper.stubFetch();
             fetchStub.resolves({
                 json: sinon.stub().resolves(mockResponse),
                 ok: true,
@@ -47,7 +50,7 @@ describe('with sorting', given(a_query_for, context => {
         });
 
         afterEach(() => {
-            fetchStub.restore();
+            fetchHelper.restore();
         });
 
         it('should call fetch with URL including sorting parameters', () => {
@@ -66,7 +69,8 @@ describe('with sorting', given(a_query_for, context => {
     describe('and descending direction', () => {
         beforeEach(async () => {
             // Setup fetch mock
-            fetchStub = sinon.stub(global, 'fetch');
+            fetchHelper = createFetchHelper();
+            fetchStub = fetchHelper.stubFetch();
             fetchStub.resolves({
                 json: sinon.stub().resolves(mockResponse),
                 ok: true,
@@ -81,7 +85,7 @@ describe('with sorting', given(a_query_for, context => {
         });
 
         afterEach(() => {
-            fetchStub.restore();
+            fetchHelper.restore();
         });
 
         it('should call fetch with URL including sorting parameters', () => {

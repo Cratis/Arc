@@ -2,16 +2,18 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Validator } from '../validation/Validator';
-
-export type CommandPropertyValidators = { [key: string]: Validator; };
+import { ValidationResult } from '../validation/ValidationResult';
 
 /**
  * Represents the command validator
  */
-export abstract class CommandValidator {
-    abstract readonly properties: CommandPropertyValidators;
-
-    get isValid() {
-        return true;
+export abstract class CommandValidator<T = object> extends Validator<T> {
+    /**
+     * Validate the command.
+     * @param command The command to validate.
+     * @returns An array of validation results, empty if valid.
+     */
+    validate(command: T): ValidationResult[] {
+        return super.validate(command);
     }
 }

@@ -3,6 +3,7 @@
 
 import { IQueryFor } from './IQueryFor';
 import { QueryResult } from "./QueryResult";
+import { QueryValidator } from './QueryValidator';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
 import { Constructor } from '@cratis/fundamentals';
 import { Paging } from './Paging';
@@ -25,6 +26,9 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
     private _origin: string;
     private _httpHeadersCallback: GetHttpHeaders;
     abstract readonly route: string;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    readonly validation?: QueryValidator<any>;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     abstract readonly parameterDescriptors: ParameterDescriptor[];
     abstract get requiredRequestParameters(): string[];
     abstract defaultValue: TDataType;
@@ -72,6 +76,31 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
         const noSuccess = { ...QueryResult.noSuccess, ...{ data: this.defaultValue } } as QueryResult<TDataType>;
 
         args = args || this.parameters;
+
+        const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
+        if (clientValidationErrors.length > 0) {
+            return new QueryResult({
+                data: this.defaultValue as object,
+                isSuccess: false,
+                isAuthorized: true,
+                isValid: false,
+                hasExceptions: false,
+                validationResults: clientValidationErrors.map(_ => ({
+                    severity: _.severity,
+                    message: _.message,
+                    members: _.members,
+                    state: _.state
+                })),
+                exceptionMessages: [],
+                exceptionStackTrace: '',
+                paging: {
+                    totalItems: 0,
+                    totalPages: 0,
+                    page: 0,
+                    size: 0
+                }
+            }, this.modelType, this.enumerable) as QueryResult<TDataType>;
+        }
 
         if (!ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, args as object)) {
             return new Promise<QueryResult<TDataType>>((resolve) => {

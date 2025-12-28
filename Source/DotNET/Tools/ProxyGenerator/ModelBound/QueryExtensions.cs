@@ -108,6 +108,62 @@ public static class QueryExtensions
 
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
+        var documentation = method.GetDocumentation();
+
+        // Extract validation rules from query method parameters
+        // First, try to find a FluentValidation validator for a parameters class
+        // The parameters class should have properties that match the method parameters
+        var validationRules = new List<PropertyValidationDescriptor>();
+        var parameterTypeNames = new[]
+        {
+            $"{method.Name}Parameters",
+            $"{readModelType.Name}{method.Name}Parameters"
+        };
+
+        Type? parametersType = null;
+        foreach (var typeName in parameterTypeNames)
+        {
+            var candidateType = readModelType.Assembly.GetTypes().FirstOrDefault(t => t.Name == typeName);
+            if (candidateType != null)
+            {
+                // Verify that the candidate type's properties match the method parameters
+                var candidateProperties = candidateType.GetProperties();
+                var methodParams = method.GetParameters();
+
+                // Check if all method parameters have corresponding properties in the candidate type
+                var allParamsMatch = methodParams.All(param =>
+                    candidateProperties.Any(prop =>
+                        prop.Name.Equals(param.Name, StringComparison.OrdinalIgnoreCase) &&
+                        prop.PropertyType == param.ParameterType));
+
+                if (allParamsMatch)
+                {
+                    parametersType = candidateType;
+                    break;
+                }
+            }
+        }
+
+        if (parametersType != null)
+        {
+            // Found a parameters class, extract FluentValidation rules from it
+            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType);
+            validationRules.AddRange(fluentValidationRules);
+        }
+
+        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
+        if (validationRules.Count == 0)
+        {
+            foreach (var param in method.GetParameters())
+            {
+                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+                if (rules.Count > 0)
+                {
+                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+                }
+            }
+        }
+
         return new(
             readModelType,
             method,
@@ -118,10 +174,12 @@ public static class QueryExtensions
             responseModel.IsEnumerable,
             responseModel.IsObservable,
             imports.ToOrderedImports(),
-            parameters,
-            [.. parameters.Where(_ => !_.IsOptional)],
-            properties,
-            [.. typesInvolved, .. additionalTypesInvolved]);
+            parameters.OrderBy(_ => _.Name),
+            [.. parameters.Where(_ => !_.IsOptional).OrderBy(_ => _.Name)],
+            properties.OrderBy(_ => _.Name),
+            [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
+            documentation,
+            validationRules.OrderBy(_ => _.PropertyName));
     }
 
     /// <summary>
@@ -164,9 +222,10 @@ public static class QueryExtensions
     {
         var type = parameterInfo.ParameterType.GetTargetType();
         var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
+        var documentation = parameterInfo.GetDocumentation();
 
         // All query parameters are considered query string parameters
-        return new RequestParameterDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, type.Type, type.Constructor, optional, true);
+        return new RequestParameterDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, type.Type, type.Constructor, optional, true, documentation);
     }
 
     /// <summary>

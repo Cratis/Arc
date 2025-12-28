@@ -4,11 +4,13 @@
 import { an_observable_query_for } from '../given/an_observable_query_for';
 import { given } from '../../../given';
 import * as sinon from 'sinon';
+import { createFetchHelper } from '../../../helpers/fetchHelper';
 import { Sorting } from '../../Sorting';
 import { SortDirection } from '../../SortDirection';
 
 describe('when performing with sorting', given(an_observable_query_for, context => {
     let fetchStub: sinon.SinonStub;
+    let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     const mockResponse = {
         data: 'test-result',
         isSuccess: true,
@@ -27,7 +29,8 @@ describe('when performing with sorting', given(an_observable_query_for, context 
     };
 
     beforeEach(async () => {
-        fetchStub = sinon.stub(global, 'fetch');
+        fetchHelper = createFetchHelper();
+        fetchStub = fetchHelper.stubFetch();
         fetchStub.resolves({
             json: sinon.stub().resolves(mockResponse),
             ok: true,
@@ -41,7 +44,7 @@ describe('when performing with sorting', given(an_observable_query_for, context 
     });
 
     afterEach(() => {
-        fetchStub.restore();
+        fetchHelper.restore();
     });
 
     it('should include sortBy parameter in URL', () => {

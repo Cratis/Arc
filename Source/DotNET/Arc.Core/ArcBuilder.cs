@@ -11,10 +11,4 @@ namespace Cratis.Arc;
 /// </summary>
 /// <param name="Services">The service collection to which services can be added.</param>
 /// <param name="Types">The types system used by Arc.</param>
-public record ArcBuilder(IServiceCollection Services, ITypes Types) : IArcBuilder
-{
-    /// <summary>
-    /// Gets or sets the Arc options configurator.
-    /// </summary>
-    public Action<ArcOptions>? ConfigureOptions { get; set; }
-}
+public record ArcBuilder(IServiceCollection Services, ITypes Types) : IArcBuilder;

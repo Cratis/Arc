@@ -1,14 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics.Metrics;
-using Cratis.Arc;
 using Cratis.Arc.MongoDB;
-using Cratis.Metrics;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using MongoDB.Driver;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -17,9 +11,6 @@ namespace Microsoft.Extensions.Hosting;
 /// </summary>
 public static class HostBuilderExtensions
 {
-    static IMongoDBClientFactory? _clientFactory;
-    static IMongoServerResolver? _serverResolver;
-
     /// <summary>
     /// Add MongoDB to the solution. Configures default settings for the MongoDB Driver.
     /// </summary>
@@ -36,92 +27,8 @@ public static class HostBuilderExtensions
         this IHostBuilder builder,
         Action<MongoDBOptions>? configureOptions = default,
         Action<IMongoDBBuilder>? configureMongoDB = default,
-        string? mongoDBConfigSectionPath = null)
-    {
-        var mongoDBBuilder = CreateMongoDBBuilder(configureMongoDB);
-
-        ConfigureNamingPolicy(mongoDBBuilder);
-        MongoDBDefaults.Initialize(mongoDBBuilder);
-        builder.ConfigureServices((_, services) => AddServices(
-            services,
-            mongoDBBuilder,
-            mongoDBConfigSectionPath ?? ConfigurationPath.Combine("Cratis", "MongoDB"),
-            configureOptions));
-        return builder;
-    }
-
-    static void ConfigureNamingPolicy(MongoDBBuilder mongoDBBuilder)
-    {
-        if (mongoDBBuilder.NamingPolicy is not null)
-        {
-            DatabaseExtensions.SetNamingPolicy(mongoDBBuilder.NamingPolicy);
-        }
-    }
-
-    static void AddServices(
-        IServiceCollection services,
-        MongoDBBuilder mongoDBBuilder,
-        string? mongoDBConfigSectionPath = null,
-        Action<MongoDBOptions>? configureOptions = default)
-    {
-        var optionsBuilder = AddOptions(services, configureOptions);
-        if (!string.IsNullOrWhiteSpace(mongoDBConfigSectionPath))
-        {
-            optionsBuilder.BindConfiguration(mongoDBConfigSectionPath);
-        }
-
-        services.AddKeyedSingleton<IMeter<IMongoClient>>(Internals.MeterName, (sp, key) =>
-        {
-            var meter = sp.GetRequiredKeyedService<Meter>(key);
-            return new Meter<IMongoClient>(meter);
-        });
-
-        if (mongoDBBuilder.NamingPolicy is not null)
-        {
-            services.AddSingleton(mongoDBBuilder.NamingPolicy);
-        }
-
-        services.AddSingleton(typeof(IMongoServerResolver), mongoDBBuilder.ServerResolverType);
-        services.AddSingleton(typeof(IMongoDatabaseNameResolver), mongoDBBuilder.DatabaseNameResolverType);
-        services.AddSingleton<IMongoDBClientFactory, MongoDBClientFactory>();
-        services.AddScoped(sp =>
-        {
-            // TODO: This will not work when multi tenant.
-            _clientFactory ??= sp.GetRequiredService<IMongoDBClientFactory>();
-            _serverResolver ??= sp.GetRequiredService<IMongoServerResolver>();
-            return _clientFactory.Create();
-        });
-
-        services.AddScoped(sp =>
-        {
-            var client = sp.GetRequiredService<IMongoClient>();
-            var databaseNameResolver = sp.GetRequiredService<IMongoDatabaseNameResolver>();
-            return client.GetDatabase(databaseNameResolver.Resolve());
-        });
-
-        services.AddScoped(typeof(IMongoCollection<>), typeof(MongoCollectionAdapter<>));
-    }
-
-    static MongoDBBuilder CreateMongoDBBuilder(Action<MongoDBBuilder>? configure)
-    {
-        var builder = new MongoDBBuilder();
-        configure?.Invoke(builder);
-        builder.Validate();
-        return builder;
-    }
-
-    static OptionsBuilder<MongoDBOptions> AddOptions(IServiceCollection services, Action<MongoDBOptions>? configureOptions = default)
-    {
-        var builder = services
-            .AddOptions<MongoDBOptions>()
-            .ValidateOnStart()
-            .ValidateDataAnnotations();
-
-        if (configureOptions is not null)
-        {
-            builder.Configure(configureOptions);
-        }
-
-        return builder;
-    }
+        string? mongoDBConfigSectionPath = null) => builder.ConfigureServices((context, services) => services.AddCratisMongoDB(
+            configureOptions,
+            configureMongoDB,
+            mongoDBConfigSectionPath));
 }

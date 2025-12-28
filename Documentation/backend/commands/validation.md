@@ -7,6 +7,8 @@ The validators are performed before the commands handler method is invoked. If a
 validation error, it will not invoke the command handler and just return a `CommandResult` with the errors
 in it.
 
+> **💡 Client-Side Validation**: When using FluentValidation, validation rules are automatically extracted by the [ProxyGenerator](../proxy-generation/validation.md) and run on the client before server calls. This provides immediate feedback to users and reduces unnecessary server requests.
+
 ## Data Annotations
 
 Depending on how you like to do your validation, with data annotations you can adorn a value on

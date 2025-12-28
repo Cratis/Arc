@@ -302,7 +302,14 @@ public static class TypeExtensions
             return value;
         }
 
-        return new TargetType(type, type.Name, type.Name);
+        var typeName = type.Name;
+        var backtickIndex = typeName.IndexOf('`');
+        if (backtickIndex >= 0)
+        {
+            typeName = typeName[..backtickIndex];
+        }
+
+        return new TargetType(type, typeName, typeName);
     }
 
     /// <summary>
@@ -337,12 +344,15 @@ public static class TypeExtensions
                     .DistinctBy(_ => _.Type)
                     .Where(_ => propertyDescriptors.Exists(pd => pd.Type == _.Type) && _.OriginalType != type)];
 
+        var documentation = type.GetDocumentation();
+
         return new TypeDescriptor(
             type,
             type.GetTargetType().Type,
             propertyDescriptors,
             imports.ToOrderedImports(),
-            typesInvolved);
+            typesInvolved,
+            documentation);
     }
 
     /// <summary>
@@ -390,7 +400,8 @@ public static class TypeExtensions
         var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
-        return new EnumDescriptor(type, type.Name, members, []);
+        var documentation = type.GetDocumentation();
+        return new EnumDescriptor(type, type.Name, members, [], documentation);
     }
 
     /// <summary>

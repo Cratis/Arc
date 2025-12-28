@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Command } from '../Command';
-import { CommandValidator } from '../CommandValidator';
 import { PropertyDescriptor } from '../../reflection/PropertyDescriptor';
 
 export interface ICommandWithRouteParams {
@@ -11,7 +10,6 @@ export interface ICommandWithRouteParams {
 }
 
 export class CommandWithRouteParams extends Command<ICommandWithRouteParams> implements ICommandWithRouteParams {
-    validation!: CommandValidator;
     route = '/api/items/{id}';
     propertyDescriptors: PropertyDescriptor[] = [
         new PropertyDescriptor('id', String),

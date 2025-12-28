@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.Http;
+using Cratis.Types;
 
 namespace Cratis.Arc.Authorization;
 
@@ -10,38 +11,85 @@ namespace Cratis.Arc.Authorization;
 /// Helper class for performing authorization checks.
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> to access the current HTTP request context.</param>
-public class AuthorizationEvaluator(IHttpRequestContextAccessor httpRequestContextAccessor) : IAuthorizationEvaluator
+/// <param name="anonymousEvaluators">The collection of <see cref="IAnonymousEvaluator"/> instances.</param>
+/// <param name="authorizationAttributeEvaluators">The collection of <see cref="IAuthorizationAttributeEvaluator"/> instances.</param>
+public class AuthorizationEvaluator(
+    IHttpRequestContextAccessor httpRequestContextAccessor,
+    IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
+    IInstancesOf<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators) : IAuthorizationEvaluator
 {
     /// <inheritdoc/>
     public bool IsAuthorized(Type type)
     {
-        if (type.IsAnonymousAllowed())
+        // Check all anonymous evaluators first
+        foreach (var evaluator in anonymousEvaluators)
         {
-            return true;
+            var result = evaluator.IsAnonymousAllowed(type);
+            if (result.HasValue)
+            {
+                if (result.Value)
+                {
+                    return true;
+                }
+
+                // If any evaluator explicitly denies (returns false), we continue checking authorization
+                break;
+            }
         }
 
-        var authorizeAttribute = type.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
-            .OfType<AuthorizeAttribute>()
-            .FirstOrDefault();
+        // Check all authorization attribute evaluators
+        var hasAuthorize = false;
+        string? roles = null;
+        foreach (var evaluator in authorizationAttributeEvaluators)
+        {
+            var authInfo = evaluator.GetAuthorizationInfo(type);
+            if (authInfo.HasValue && authInfo.Value.HasAuthorize)
+            {
+                hasAuthorize = true;
+                roles = authInfo.Value.Roles;
+                break;
+            }
+        }
 
-        return IsAuthorizedWithAttribute(authorizeAttribute);
+        return IsAuthorizedWithRoles(hasAuthorize, roles);
     }
 
     /// <inheritdoc/>
     public bool IsAuthorized(MethodInfo method)
     {
-        if (method.IsAnonymousAllowed())
+        // Check all anonymous evaluators first
+        foreach (var evaluator in anonymousEvaluators)
         {
-            return true;
+            var result = evaluator.IsAnonymousAllowed(method);
+            if (result.HasValue)
+            {
+                if (result.Value)
+                {
+                    return true;
+                }
+
+                // If any evaluator explicitly denies (returns false), we continue checking authorization
+                break;
+            }
         }
 
-        var methodAuthorizeAttribute = method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
-            .OfType<AuthorizeAttribute>()
-            .FirstOrDefault();
-
-        if (methodAuthorizeAttribute is not null)
+        // Check all authorization attribute evaluators for the method
+        var hasAuthorize = false;
+        string? roles = null;
+        foreach (var evaluator in authorizationAttributeEvaluators)
         {
-            return IsAuthorizedWithAttribute(methodAuthorizeAttribute);
+            var authInfo = evaluator.GetAuthorizationInfo(method);
+            if (authInfo.HasValue && authInfo.Value.HasAuthorize)
+            {
+                hasAuthorize = true;
+                roles = authInfo.Value.Roles;
+                break;
+            }
+        }
+
+        if (hasAuthorize)
+        {
+            return IsAuthorizedWithRoles(hasAuthorize, roles);
         }
 
         var declaringType = method.DeclaringType;
@@ -53,9 +101,9 @@ public class AuthorizationEvaluator(IHttpRequestContextAccessor httpRequestConte
         return true;
     }
 
-    bool IsAuthorizedWithAttribute(AuthorizeAttribute? authorizeAttribute)
+    bool IsAuthorizedWithRoles(bool hasAuthorize, string? roles)
     {
-        if (authorizeAttribute is null)
+        if (!hasAuthorize)
         {
             return true;
         }
@@ -71,9 +119,9 @@ public class AuthorizationEvaluator(IHttpRequestContextAccessor httpRequestConte
             return false;
         }
 
-        if (!string.IsNullOrEmpty(authorizeAttribute.Roles))
+        if (!string.IsNullOrEmpty(roles))
         {
-            var requiredRoles = authorizeAttribute.Roles.Split(',').Select(r => r.Trim());
+            var requiredRoles = roles.Split(',').Select(r => r.Trim());
             var userHasRequiredRole = requiredRoles.Any(user.IsInRole);
 
             if (!userHasRequiredRole)

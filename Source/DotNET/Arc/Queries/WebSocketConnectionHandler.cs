@@ -36,6 +36,12 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
                     received = null!;
                     received = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                     handlerLogger.ReceivedMessage();
+
+                    // Handle ping messages
+                    if (received.MessageType == System.Net.WebSockets.WebSocketMessageType.Text && !received.CloseStatus.HasValue)
+                    {
+                        await HandlePotentialPingMessage(webSocket, buffer, received.Count, token);
+                    }
                 }
                 while (!received.CloseStatus.HasValue);
             }
@@ -81,8 +87,9 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
     {
         try
         {
-            var message = JsonSerializer.SerializeToUtf8Bytes(queryResult, jsonSerializerOptions);
-            await webSocket.SendAsync(message, WebSocketMessageType.Text, true, token);
+            var envelope = WebSocketMessage.CreateData(queryResult);
+            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, jsonSerializerOptions);
+            await webSocket.SendAsync(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             message = null!;
             return null;
         }
@@ -90,6 +97,32 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
         {
             handlerLogger.ErrorSendingMessage(ex);
             return ex;
+        }
+    }
+
+    async Task HandlePotentialPingMessage(WebSocket webSocket, byte[] buffer, int count, CancellationToken token)
+    {
+        try
+        {
+            var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, count);
+            var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText);
+
+            if (message is not null && message.Type == WebSocketMessageType.Ping)
+            {
+                handlerLogger.ReceivedPingMessage();
+                var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage);
+                await webSocket.SendAsync(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
+                handlerLogger.SentPongMessage();
+            }
+        }
+        catch (JsonException)
+        {
+            // Not a valid JSON message or not a ping message, ignore
+        }
+        catch (Exception ex)
+        {
+            handlerLogger.ErrorHandlingPingMessage(ex);
         }
     }
 }
