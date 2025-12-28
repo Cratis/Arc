@@ -26,20 +26,6 @@ public class MyAggregateRoot : AggregateRoot
 }
 ```
 
-For aggregate roots that need to maintain state, you can use the generic version:
-
-```csharp
-public class MyStatefulAggregateRoot : AggregateRoot<MyState>
-{
-    // Access to state via the protected State property
-    public void DoSomething()
-    {
-        var currentValue = State?.SomeProperty;
-        // Domain logic using state
-    }
-}
-```
-
 ## Working with Events
 
 ### Applying Events
@@ -111,72 +97,15 @@ Event handlers can have different signatures:
 
 ## State Management
 
-Chronicle provides three approaches for managing state in aggregate roots:
+Chronicle provides multiple approaches for managing state in aggregate roots. For stateful aggregates, you can take a dependency on a read model in the constructor. If there is a projection or reducer for that read model, it will be automatically used to realize the state. The read model will be resolved using the same key as the aggregate root.
 
-### 1. Manual State Management (On Methods)
+### 1. Using Read Models with Projections
 
-You can manually manage state by handling events in `On` methods:
-
-```csharp
-public class UserAggregateRoot : AggregateRoot
-{
-    private string _firstName = string.Empty;
-    private string _lastName = string.Empty;
-    private bool _isActive;
-
-    public void OnUserCreated(UserCreated @event)
-    {
-        _firstName = @event.FirstName;
-        _lastName = @event.LastName;
-        _isActive = true;
-    }
-
-    public void OnUserDeactivated(UserDeactivated @event)
-    {
-        _isActive = false;
-    }
-}
-```
-
-### 2. Using Reducers
-
-Create a reducer that builds state from events and use it with a stateful aggregate root:
+Take a dependency on a read model in your aggregate root's constructor. The framework will automatically resolve and populate it based on the aggregate's event stream:
 
 ```csharp
 public record UserState(string FirstName, string LastName, bool IsActive);
 
-public class UserReducer : IReducer<UserState>
-{
-    public UserState? Reduce(UserState? previous, object @event) => @event switch
-    {
-        UserCreated created => new UserState(created.FirstName, created.LastName, true),
-        UserNameChanged nameChanged => previous with { FirstName = nameChanged.FirstName, LastName = nameChanged.LastName },
-        UserDeactivated => previous with { IsActive = false },
-        _ => previous
-    };
-}
-
-public class UserAggregateRoot : AggregateRoot<UserState>
-{
-    public async Task ChangeName(string firstName, string lastName)
-    {
-        if (State?.IsActive != true)
-            throw new InvalidOperationException("Cannot change name of inactive user");
-
-        await Apply(new UserNameChanged
-        {
-            FirstName = firstName,
-            LastName = lastName
-        });
-    }
-}
-```
-
-### 3. Using Projections
-
-Use a projection to build read models and access them as state:
-
-```csharp
 public class UserProjection : IProjection<UserState>
 {
     public void On(UserCreated @event, UserState model, EventContext context)
@@ -198,11 +127,18 @@ public class UserProjection : IProjection<UserState>
     }
 }
 
-public class UserAggregateRoot : AggregateRoot<UserState>
+public class UserAggregateRoot : AggregateRoot
 {
+    readonly UserState _state;
+
+    public UserAggregateRoot(UserState state)
+    {
+        _state = state;
+    }
+
     public async Task ChangeName(string firstName, string lastName)
     {
-        if (State?.IsActive != true)
+        if (!_state.IsActive)
             throw new InvalidOperationException("Cannot change name of inactive user");
 
         await Apply(new UserNameChanged
@@ -213,6 +149,86 @@ public class UserAggregateRoot : AggregateRoot<UserState>
     }
 }
 ```
+
+### 2. Using Read Models with Reducers
+
+Similarly, you can use a reducer to build state from events:
+
+```csharp
+public record UserState(string FirstName, string LastName, bool IsActive);
+
+public class UserReducer : IReducer<UserState>
+{
+    public UserState? Reduce(UserState? previous, object @event) => @event switch
+    {
+        UserCreated created => new UserState(created.FirstName, created.LastName, true),
+        UserNameChanged nameChanged => previous with { FirstName = nameChanged.FirstName, LastName = nameChanged.LastName },
+        UserDeactivated => previous with { IsActive = false },
+        _ => previous
+    };
+}
+
+public class UserAggregateRoot : AggregateRoot
+{
+    readonly UserState _state;
+
+    public UserAggregateRoot(UserState state)
+    {
+        _state = state;
+    }
+
+    public async Task ChangeName(string firstName, string lastName)
+    {
+        if (!_state.IsActive)
+            throw new InvalidOperationException("Cannot change name of inactive user");
+
+        await Apply(new UserNameChanged
+        {
+            FirstName = firstName,
+            LastName = lastName
+        });
+    }
+}
+```
+
+### 3. Manual State Management (On Methods)
+
+You can still manually manage state by handling events in `On` methods. These methods are automatically discovered and called when events are applied or when rehydrating the aggregate:
+
+```csharp
+public class UserAggregateRoot : AggregateRoot
+{
+    private string _firstName = string.Empty;
+    private string _lastName = string.Empty;
+    private bool _isActive;
+
+    public void OnUserCreated(UserCreated @event)
+    {
+        _firstName = @event.FirstName;
+        _lastName = @event.LastName;
+        _isActive = true;
+    }
+
+    public void OnUserDeactivated(UserDeactivated @event)
+    {
+        _isActive = false;
+    }
+
+    public async Task ChangeName(string firstName, string lastName)
+    {
+        if (!_isActive)
+            throw new InvalidOperationException("Cannot change name of inactive user");
+
+        await Apply(new UserNameChanged
+        {
+            FirstName = firstName,
+            LastName = lastName
+        });
+    }
+}
+```
+
+> **Note:** The `On` methods are still fully supported and work alongside the read model approach. You can use them for additional side effects or internal state management even when using read models.
 
 ## Aggregate Root Factory
 
@@ -242,9 +258,10 @@ public class UserService
 1. **Keep aggregates focused** - Each aggregate should represent a single business concept
 2. **Validate within aggregates** - Business rules and validation should be enforced in the aggregate
 3. **Emit meaningful events** - Events should represent business events, not technical operations
-4. **Use appropriate state management** - Choose between manual state, reducers, or projections based on complexity
+4. **Use appropriate state management** - Choose between read models (with projections/reducers) or manual state management (`On` methods) based on your needs
 5. **Handle invariants** - Use the current state to enforce business rules before applying new events
 6. **Keep aggregates small** - Large aggregates can lead to performance and concurrency issues
+7. **Leverage dependency injection** - Take dependencies on read models to get automatically resolved state based on the aggregate's event stream
 
 ## Error Handling
 
