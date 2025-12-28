@@ -48,5 +48,3 @@ public class AggregateRoot : IAggregateRoot
     /// <returns>Awaitable task.</returns>
     protected virtual Task OnActivate() => Task.CompletedTask;
 }
-
-
