@@ -8,7 +8,7 @@ namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootEventHandlers.given;
 public class aggregate_root_event_handlers : Specification
 {
     protected AggregateRootEventHandlers handlers;
-    protected StatelessAggregateRoot aggregate_root;
+    protected TestAggregateRoot aggregate_root;
     protected IEventTypes event_types;
 
     void Establish()
@@ -16,6 +16,6 @@ public class aggregate_root_event_handlers : Specification
         aggregate_root = new();
         event_types = new EventTypesForSpecifications();
 
-        handlers = new AggregateRootEventHandlers(event_types, typeof(StatelessAggregateRoot));
+        handlers = new AggregateRootEventHandlers(event_types, typeof(TestAggregateRoot));
     }
 }

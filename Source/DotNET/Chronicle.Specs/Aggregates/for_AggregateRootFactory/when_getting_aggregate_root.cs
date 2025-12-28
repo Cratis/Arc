@@ -7,17 +7,16 @@ namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootFactory;
 
 public class when_getting_aggregate_root : given.an_aggregate_root_factory
 {
-    StatelessAggregateRoot _result;
+    TestAggregateRoot _result;
     EventSourceId _eventSourceId;
 
     void Establish() => _eventSourceId = EventSourceId.New();
 
-    async Task Because() => _result = await _factory.Get<StatelessAggregateRoot>(_eventSourceId);
+    async Task Because() => _result = await _factory.Get<TestAggregateRoot>(_eventSourceId);
 
     [Fact] void should_return_an_instance() => _result.ShouldNotBeNull();
-    [Fact] void should_return_an_instance_of_the_correct_type() => _result.ShouldBeOfExactType<StatelessAggregateRoot>();
+    [Fact] void should_return_an_instance_of_the_correct_type() => _result.ShouldBeOfExactType<TestAggregateRoot>();
     [Fact] void should_set_context_with_event_source_id() => _result._context.EventSourceId.ShouldEqual(_eventSourceId);
-    [Fact] void should_set_context_with_event_sequence() => _result._context.EventSequence.ShouldEqual(_eventSequence);
     [Fact] void should_set_context_with_aggregate_root() => _result._context.AggregateRoot.ShouldEqual(_result);
     [Fact] void should_set_mutation() => _result._mutation.ShouldNotBeNull();
     [Fact] void should_rehydrate() => _mutator.Received(1).Rehydrate();

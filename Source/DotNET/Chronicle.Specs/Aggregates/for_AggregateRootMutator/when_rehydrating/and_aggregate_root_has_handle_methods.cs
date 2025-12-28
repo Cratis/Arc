@@ -5,9 +5,9 @@ using System.Collections.Immutable;
 using System.Dynamic;
 using Cratis.Chronicle.Events;
 
-namespace Cratis.Arc.Chronicle.Aggregates.for_StatelessAggregateRootMutator.when_rehydrating;
+namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutator.when_rehydrating;
 
-public class and_aggregate_root_has_handle_methods : given.a_stateless_aggregate_root_mutator
+public class and_aggregate_root_has_handle_methods : given.an_aggregate_root_mutator
 {
     ExpandoObject _firstEvent;
     ExpandoObject _secondEvent;

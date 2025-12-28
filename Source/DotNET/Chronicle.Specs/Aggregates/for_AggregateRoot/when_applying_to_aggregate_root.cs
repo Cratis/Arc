@@ -3,15 +3,13 @@
 
 namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRoot;
 
-public class when_applying_to_stateless_aggregate_root : given.a_stateless_aggregate_root
+public class when_applying_to_aggregate_root : given.an_aggregate_root
 {
     FirstEventType _eventToApply;
-    StateForAggregateRoot _state;
 
     void Establish()
     {
         _eventToApply = new(Guid.NewGuid().ToString());
-        _state = new StateForAggregateRoot(Guid.NewGuid().ToString());
     }
 
     async Task Because() => await _aggregateRoot.Apply(_eventToApply);

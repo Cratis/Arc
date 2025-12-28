@@ -3,9 +3,9 @@
 
 using Cratis.Chronicle.Events;
 
-namespace Cratis.Arc.Chronicle.Aggregates.for_StatelessAggregateRootMutator.when_rehydrating;
+namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutator.when_rehydrating;
 
-public class and_aggregate_root_does_not_have_any_handle_methods_but_has_events : given.a_stateless_aggregate_root_mutator
+public class and_aggregate_root_does_not_have_any_handle_methods_but_has_events : given.an_aggregate_root_mutator
 {
     void Establish()
     {

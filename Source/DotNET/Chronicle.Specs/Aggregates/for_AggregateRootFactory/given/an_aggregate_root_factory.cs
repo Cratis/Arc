@@ -27,7 +27,7 @@ public class an_aggregate_root_factory : Specification
         _unitOfWorkManager = Substitute.For<IUnitOfWorkManager>();
         _serviceProvider = Substitute.For<IServiceProvider>();
         _mutator = Substitute.For<IAggregateRootMutator>();
-        _mutatorFactory.Create<StatelessAggregateRoot>(Arg.Any<AggregateRootContext>()).Returns(_mutator);
+        _mutatorFactory.Create<TestAggregateRoot>(Arg.Any<AggregateRootContext>()).Returns(_mutator);
 
         _factory = new AggregateRootFactory(
             _eventStore,

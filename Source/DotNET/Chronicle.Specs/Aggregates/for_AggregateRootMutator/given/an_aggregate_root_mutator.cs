@@ -7,11 +7,11 @@ using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
 using Cratis.Execution;
 
-namespace Cratis.Arc.Chronicle.Aggregates.for_StatelessAggregateRootMutator.given;
+namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutator.given;
 
-public class a_stateless_aggregate_root_mutator : Specification
+public class an_aggregate_root_mutator : Specification
 {
-    protected StatelessAggregateRoot _aggregateRoot;
+    protected TestAggregateRoot _aggregateRoot;
 
     protected IEventStore _eventStore;
     protected EventSourceId _eventSourceId;
@@ -25,7 +25,7 @@ public class a_stateless_aggregate_root_mutator : Specification
 
     void Establish()
     {
-        _aggregateRoot = new StatelessAggregateRoot();
+        _aggregateRoot = new TestAggregateRoot();
         _eventStore = Substitute.For<IEventStore>();
         _eventSourceId = EventSourceId.New();
         _eventSerializer = Substitute.For<IEventSerializer>();
@@ -46,7 +46,7 @@ public class a_stateless_aggregate_root_mutator : Specification
         _eventHandlers = Substitute.For<IAggregateRootEventHandlers>();
         _correlationIdAccessor = Substitute.For<ICorrelationIdAccessor>();
 
-        _mutator = new StatelessAggregateRootMutator(
+        _mutator = new AggregateRootMutator(
             _aggregateRootContext,
             _eventStore,
             _eventSerializer,

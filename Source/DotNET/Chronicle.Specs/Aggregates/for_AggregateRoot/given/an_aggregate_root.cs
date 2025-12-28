@@ -6,9 +6,9 @@ using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRoot.given;
 
-public class a_stateless_aggregate_root : all_dependencies
+public class an_aggregate_root : all_dependencies
 {
-    protected StatelessAggregateRoot _aggregateRoot;
+    protected TestAggregateRoot _aggregateRoot;
     protected EventSourceType EventSourceType;
     protected EventSourceId _eventSourceId;
     protected IAggregateRootContext _aggregateRootContext;

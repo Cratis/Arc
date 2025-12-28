@@ -48,20 +48,3 @@ public class AggregateRoot : IAggregateRoot
     /// <returns>Awaitable task.</returns>
     protected virtual Task OnActivate() => Task.CompletedTask;
 }
-
-/// <summary>
-/// Represents a stateful implementation of <see cref="IAggregateRoot"/>.
-/// </summary>
-/// <typeparam name="TState">Type of state for the aggregate root.</typeparam>
-public class AggregateRoot<TState> : AggregateRoot
-{
-    /// <summary>
-    /// State of the aggregate root - accessible only to Chronicle Internally.
-    /// </summary>
-    internal IAggregateRootState<TState> _state = default!;
-
-    /// <summary>
-    /// Gets the current state of the aggregate root.
-    /// </summary>
-    protected TState? State => _state.State;
-}

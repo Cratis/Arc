@@ -5,7 +5,7 @@ using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Aggregates;
 
-public class StatelessAggregateRoot : AggregateRoot
+public class TestAggregateRoot : AggregateRoot
 {
     public FirstEventType FirstEventTypeInstance;
     public SecondEventType SecondEventTypeInstance;
