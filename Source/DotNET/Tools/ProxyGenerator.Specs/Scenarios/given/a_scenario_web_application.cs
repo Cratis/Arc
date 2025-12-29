@@ -7,6 +7,8 @@ using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -41,6 +43,8 @@ public class a_scenario_web_application : Specification, IDisposable
 
     void Establish()
     {
+        File.WriteAllText("/tmp/establish-called.txt", "Establish() called at " + DateTime.Now);
+
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
 
@@ -59,6 +63,15 @@ public class a_scenario_web_application : Specification, IDisposable
         app.UseRouting();
         app.UseCratisArc();
         app.MapControllers();
+
+        // Debug: List all registered endpoints
+        if (app is IEndpointRouteBuilder routeBuilder)
+        {
+            var endpoints = routeBuilder.DataSources.SelectMany(ds => ds.Endpoints).ToArray();
+            File.WriteAllText("/tmp/registered-endpoints.txt",
+                string.Join("\n", endpoints.Select(e =>
+                    e is RouteEndpoint re ? re.RoutePattern.RawText : e.DisplayName)));
+        }
 
         // Start the application
         Host = app;
@@ -146,7 +159,22 @@ public class a_scenario_web_application : Specification, IDisposable
             File.WriteAllText(saveToFile, code);
         }
 
-        Bridge.LoadTypeScript(code);
+        // For Observable queries, don't wrap in module scope to avoid prototype chain issues
+        var isObservable = descriptor.IsObservable;
+        
+        File.WriteAllText("/tmp/isobservable.txt", $"IsObservable={isObservable}, wrapInModuleScope={!isObservable}");
+        
+        if (Bridge is null)
+        {
+            File.WriteAllText("/tmp/bridge-null.txt", "Bridge is null!");
+            throw new InvalidOperationException("Bridge is null!");
+        }
+
+        File.WriteAllText("/tmp/calling-loadtypescript.txt", $"Calling LoadTypeScript, wrapInModuleScope={!isObservable}");
+
+        Bridge.LoadTypeScript(code, wrapInModuleScope: !isObservable);
+
+        File.WriteAllText("/tmp/loadtypescript-returned.txt", "LoadTypeScript returned");
     }
 
     /// <summary>

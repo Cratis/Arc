@@ -589,94 +589,152 @@ Command.prototype.execute = function() {
 };
 
 // Base Query class for proxy generation (also serves as QueryFor)
-function Query(modelType, isEnumerable) {
-    this.route = '';
-    this.defaultValue = isEnumerable ? [] : {};
-    this.parameterDescriptors = [];
-    this.modelType = modelType || Object;
-    this.enumerable = isEnumerable || false;
-    this.sorting = Sorting.none;
-    this.paging = Paging.noPaging;
-}
-
-Query.prototype.setMicroservice = function(microservice) {
-    this._microservice = microservice;
-};
-
-Query.prototype.setApiBasePath = function(apiBasePath) {
-    this._apiBasePath = apiBasePath;
-};
-
-Query.prototype.setOrigin = function(origin) {
-    this._origin = origin;
-};
-
-Query.prototype.setHttpHeadersCallback = function(callback) {
-    this._httpHeadersCallback = callback;
-};
-
-Query.prototype.perform = function(args) {
-    var self = this;
-    
-    // Use args if provided, otherwise use this (the query instance) for validation
-    var parametersToValidate = args || this;
-    
-    // Perform client-side validation if validator is present
-    if (this.validation && this.validation.validate) {
-        var clientValidationErrors = this.validation.validate(parametersToValidate) || [];
-        if (clientValidationErrors.length > 0) {
-            // Return a failed QueryResult with validation errors
-            return Promise.resolve({
-                data: this.defaultValue,
-                isSuccess: false,
-                isAuthorized: true,
-                isValid: false,
-                hasExceptions: false,
-                validationResults: clientValidationErrors.map(function(error) {
-                    return {
-                        severity: error.severity,
-                        message: error.message,
-                        members: error.members,
-                        state: error.state
-                    };
-                }),
-                exceptionMessages: [],
-                exceptionStackTrace: '',
-                paging: {
-                    totalItems: 0,
-                    totalPages: 0,
-                    page: 0,
-                    size: 0
-                }
-            });
-        }
+class Query {
+    constructor(modelType, isEnumerable) {
+        this.route = '';
+        this.defaultValue = isEnumerable ? [] : {};
+        this.parameterDescriptors = [];
+        this.modelType = modelType || Object;
+        this.enumerable = isEnumerable || false;
+        this.sorting = Sorting.none;
+        this.paging = Paging.noPaging;
     }
-    
-    var params = [];
-    
-    // Gather all parameters from the query (from parameterDescriptors)
-    if (this.parameterDescriptors) {
-        for (var i = 0; i < this.parameterDescriptors.length; i++) {
-            var propName = this.parameterDescriptors[i].name;
-            var value = args ? args[propName] : this[propName];
-            if (value !== undefined && value !== null) {
-                params.push(encodeURIComponent(propName) + '=' + encodeURIComponent(value));
+
+    setMicroservice(microservice) {
+        this._microservice = microservice;
+    }
+
+    setApiBasePath(apiBasePath) {
+        this._apiBasePath = apiBasePath;
+    }
+
+    setOrigin(origin) {
+        this._origin = origin;
+    }
+
+    setHttpHeadersCallback(callback) {
+        this._httpHeadersCallback = callback;
+    }
+
+    perform(args) {
+        var self = this;
+        
+        // Use args if provided, otherwise use this (the query instance) for validation
+        var parametersToValidate = args || this;
+        
+        // Perform client-side validation if validator is present
+        if (this.validation && this.validation.validate) {
+            var clientValidationErrors = this.validation.validate(parametersToValidate) || [];
+            if (clientValidationErrors.length > 0) {
+                // Return a failed QueryResult with validation errors
+                return Promise.resolve({
+                    data: this.defaultValue,
+                    isSuccess: false,
+                    isAuthorized: true,
+                    isValid: false,
+                    hasExceptions: false,
+                    validationResults: clientValidationErrors.map(function(error) {
+                        return {
+                            severity: error.severity,
+                            message: error.message,
+                            members: error.members,
+                            state: error.state
+                        };
+                    }),
+                    exceptionMessages: [],
+                    exceptionStackTrace: '',
+                    paging: {
+                        totalItems: 0,
+                        totalPages: 0,
+                        page: 0,
+                        size: 0
+                    }
+                });
             }
         }
+        
+        var params = [];
+        
+        // Gather all parameters from the query (from parameterDescriptors)
+        if (this.parameterDescriptors) {
+            for (var i = 0; i < this.parameterDescriptors.length; i++) {
+                var propName = this.parameterDescriptors[i].name;
+                var value = args ? args[propName] : this[propName];
+                if (value !== undefined && value !== null) {
+                    params.push(encodeURIComponent(propName) + '=' + encodeURIComponent(value));
+                }
+            }
+        }
+        
+        var url = this.route;
+        if (params.length > 0) {
+            url += '?' + params.join('&');
+        }
+        
+        return fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        }).then(function(response) {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+            }
+            return response.json();
+        }).then(function(data) {
+            // Debug: Log the actual response data
+            if (typeof __logFetchResponse === 'function') {
+                __logFetchResponse(url, data);
+            }
+            return data;
+        });
     }
-    
-    var url = this.route;
-    if (params.length > 0) {
-        url += '?' + params.join('&');
+}
+
+// ObservableQueryFor class for observable queries (extends Query)
+class ObservableQueryFor extends Query {
+    constructor(modelType, isEnumerable) {
+        super(modelType, isEnumerable);
+        this._connection = null;
     }
-    
-    return fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-    }).then(function(response) {
-        return response.json();
-    });
-};
+
+    // Add subscribe method for observable queries
+    subscribe(callback, args) {
+        var self = this;
+        
+        // Simulate WebSocket connection by performing initial query
+        this.perform(args).then(function(result) {
+            // Call callback with initial result
+            callback(result);
+        }).catch(function(error) {
+            // Handle error
+            callback({
+                data: self.defaultValue,
+                isSuccess: false,
+                isAuthorized: true,
+                isValid: true,
+                hasExceptions: true,
+                validationResults: [],
+                exceptionMessages: [error.message || 'Unknown error'],
+                exceptionStackTrace: error.stack || '',
+                paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 },
+                sorting: []
+            });
+        });
+        
+        // Return a subscription object
+        return {
+            dispose: function() {
+                // Cleanup if needed
+            }
+        };
+    }
+}
+
+
+// SortingActionsForObservableQuery class
+function SortingActionsForObservableQuery(field, query) {
+    this.field = field || '';
+    this.query = query;
+}
 
 // ParameterDescriptor class
 function ParameterDescriptor(name, type, required) {
@@ -792,3 +850,102 @@ Headers.prototype.append = function(key, value) {
 Headers.prototype.get = function(key) {
     return this._headers[key.toLowerCase()];
 };
+
+// Export base classes for modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        Command: Command,
+        Query: Query,
+        QueryFor: Query,
+        ObservableQueryFor: ObservableQueryFor,
+        Sorting: Sorting,
+        SortingActions: SortingActions,
+        SortingActionsForQuery: SortingActionsForQuery,
+        SortingActionsForObservableQuery: SortingActionsForObservableQuery,
+        Paging: Paging,
+        ParameterDescriptor: ParameterDescriptor,
+        QueryResult: QueryResult
+    };
+}
+
+// Simple module system for transpiled TypeScript
+var __modules = {
+    '@cratis/arc/queries': {
+        Query: Query,
+        QueryFor: Query,
+        QueryValidator: QueryValidator,
+        ObservableQueryFor: ObservableQueryFor,
+        QueryResultWithState: QueryResult,
+        Sorting: Sorting,
+        SortingActions: SortingActions,
+        SortingActionsForQuery: SortingActionsForQuery,
+        SortingActionsForObservableQuery: SortingActionsForObservableQuery,
+        Paging: Paging,
+        ParameterDescriptor: ParameterDescriptor,
+        QueryResult: QueryResult
+    },
+    '@cratis/arc/commands': {
+        Command: Command,
+        CommandFor: Command,
+        CommandValidator: CommandValidator
+    },
+    '@cratis/arc.react/commands': {
+        useCommand: function() { return [null, function() {}]; },
+        SetCommandValues: function() {},
+        ClearCommandValues: function() {}
+    },
+    '@cratis/arc.react/queries': {
+        useQuery: function() { return { data: null, isLoading: false }; },
+        useQueryWithPaging: function() { return { data: null, isLoading: false }; },
+        useObservableQuery: function(callback) { return { data: null, isLoading: false }; },
+        useObservableQueryWithPaging: function(callback) { return { data: null, isLoading: false }; },
+        PerformQuery: function() {},
+        SetSorting: function() {},
+        SetPage: function() {},
+        SetPageSize: function() {}
+    },
+    '@cratis/arc/reflection': {
+        ParameterDescriptor: ParameterDescriptor,
+        PropertyDescriptor: PropertyDescriptor
+    },
+    '@cratis/fundamentals': {
+        Constructor: Object,
+        JsonSerializer: { serialize: function(obj) { return JSON.stringify(obj); }, deserialize: function(json) { return JSON.parse(json); } },
+        field: field
+    }
+};
+
+function require(moduleName) {
+    if (__modules[moduleName]) {
+        var mod = __modules[moduleName];
+        // Verify ObservableQueryFor is correct
+        if (moduleName === '@cratis/arc/queries' && mod.ObservableQueryFor !== ObservableQueryFor) {
+            throw new Error('Module ObservableQueryFor mismatch!');
+        }
+        return mod;
+    }
+    
+    // Return empty object for unregistered modules
+    return {};
+}
+
+// Make require available globally
+globalThis.require = require;
+
+// Make base classes available globally for direct reference
+globalThis.Query = Query;
+globalThis.QueryFor = Query;
+globalThis.ObservableQueryFor = ObservableQueryFor;
+// Ensure ObservableQueryFor is also available directly without module system
+if (typeof window !== 'undefined') {
+    window.ObservableQueryFor = ObservableQueryFor;
+}
+globalThis.Command = Command;
+globalThis.CommandFor = Command;
+globalThis.Sorting = Sorting;
+globalThis.SortingActions = SortingActions;
+globalThis.SortingActionsForQuery = SortingActionsForQuery;
+globalThis.SortingActionsForObservableQuery = SortingActionsForObservableQuery;
+globalThis.Paging = Paging;
+globalThis.ParameterDescriptor = ParameterDescriptor;
+globalThis.QueryResult = QueryResult;

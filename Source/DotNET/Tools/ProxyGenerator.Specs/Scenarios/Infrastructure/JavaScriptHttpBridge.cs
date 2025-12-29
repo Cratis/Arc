@@ -46,6 +46,17 @@ public sealed class JavaScriptHttpBridge : IDisposable
     {
         var jsCode = Runtime.TranspileTypeScript(typeScriptCode);
 
+        // DEBUG: Save ALL transpiled code for inspection
+        var debugDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "arc-debug");
+        System.IO.Directory.CreateDirectory(debugDir);
+
+        var timestamp = DateTime.Now.ToString("HHmmss-fff");
+        var tsPath = System.IO.Path.Combine(debugDir, $"code_{timestamp}.ts");
+        System.IO.File.WriteAllText(tsPath, typeScriptCode);
+
+        var jsPath = System.IO.Path.Combine(debugDir, $"code_{timestamp}.js");
+        System.IO.File.WriteAllText(jsPath, jsCode);
+
         if (wrapInModuleScope)
         {
             // Wrap in module scope to prevent variable collisions when multiple files
@@ -209,6 +220,98 @@ public sealed class JavaScriptHttpBridge : IDisposable
         return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, result?.Url);
     }
 
+    /// <summary>
+    /// Performs an observable query through its JavaScript proxy class.
+    /// The proxy's subscribe() method simulates a WebSocket connection for real-time updates.
+    /// </summary>
+    /// <typeparam name="TResult">The expected result type.</typeparam>
+    /// <param name="queryClassName">The name of the query class.</param>
+    /// <param name="parameters">Optional parameter values for the query.</param>
+    /// <returns>The observable query execution result with updates.</returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
+    public async Task<ObservableQueryExecutionResult<TResult>> PerformObservableQueryViaProxyAsync<TResult>(
+        string queryClassName,
+        object? parameters = null)
+    {
+        var paramDict = parameters is not null
+            ? JsonSerializer.Deserialize<Dictionary<string, object>>(
+                JsonSerializer.Serialize(parameters, _jsonOptions),
+                _jsonOptions)
+            : null;
+
+        // Set up parameters on the query
+        var paramAssignments = paramDict is not null
+            ? string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
+            : string.Empty;
+
+        // Add debug logging function
+        Runtime.Execute("var __fetchResponses = []; var __logFetchResponse = function(url, data) { __fetchResponses.push({url: url, data: data}); };");
+
+        // Create query instance, set parameters, and subscribe
+        Runtime.Execute(
+            "var __obsQuery = new " + queryClassName + "();" +
+            paramAssignments +
+            "var __obsUpdates = [];" +
+            "var __obsError = null;" +
+            "var __obsSubscription = __obsQuery.subscribe(function(result) {" +
+            "    __obsUpdates.push(result);" +
+            "});");
+
+        // Process the pending fetch from subscribe
+        var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
+        if (!hasPendingFetch)
+        {
+            throw new JavaScriptProxyExecutionFailed("Observable query subscribe did not initiate a fetch");
+        }
+
+        // Process the fetch to get the initial data
+        await ProcessPendingFetchAsync();
+
+        // Give the promise time to resolve
+        await Task.Delay(10);
+
+        // Log what fetch actually returned
+        var fetchResponseCount = Runtime.Evaluate<int>("__fetchResponses.length");
+        if (fetchResponseCount > 0)
+        {
+            var fetchResponseJson = Runtime.Evaluate<string>("JSON.stringify(__fetchResponses[0])") ?? "{}";
+            System.IO.File.WriteAllText("/tmp/fetch-response.json", fetchResponseJson);
+        }
+
+        // Get the initial result
+        var hasUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
+        if (!hasUpdates)
+        {
+            throw new JavaScriptProxyExecutionFailed("Observable query did not produce any initial result");
+        }
+
+        var updates = new List<TResult>();
+        var updateCount = Runtime.Evaluate<int>("__obsUpdates.length");
+
+        for (var i = 0; i < updateCount; i++)
+        {
+            var fullUpdateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}])") ?? "{}";
+            System.IO.File.WriteAllText($"/tmp/obs-update-{i}.json", fullUpdateJson);
+            
+            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
+            System.IO.File.WriteAllText($"/tmp/obs-data-{i}.json", updateJson);
+            
+            var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
+            if (update is not null)
+            {
+                updates.Add(update);
+            }
+        }
+
+        var firstResultJson = Runtime.Evaluate<string>("JSON.stringify(__obsUpdates[0])") ?? "{}";
+        var firstResult = JsonSerializer.Deserialize<Queries.QueryResult>(firstResultJson, _jsonOptions);
+
+        return new ObservableQueryExecutionResult<TResult>(
+            firstResult!,
+            updates,
+            updates[^1]);
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -316,3 +419,12 @@ public record CommandExecutionResult<TResult>(Commands.CommandResult<TResult>? R
 /// <param name="RawJson">The raw JSON response.</param>
 /// <param name="RequestUrl">The URL that was requested.</param>
 public record QueryExecutionResult<TResult>(Queries.QueryResult? Result, string RawJson, string RequestUrl);
+
+/// <summary>
+/// Represents the result of performing an observable query through the JavaScript proxy.
+/// </summary>
+/// <typeparam name="TResult">The type of the data.</typeparam>
+/// <param name="Result">The initial query result.</param>
+/// <param name="Updates">All updates received.</param>
+/// <param name="LatestData">The most recent data from updates.</param>
+public record ObservableQueryExecutionResult<TResult>(Queries.QueryResult Result, List<TResult> Updates, TResult LatestData);
