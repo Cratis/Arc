@@ -51,6 +51,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             // Wrap in module scope to prevent variable collisions when multiple files
             // import from the same modules (e.g., @cratis/fundamentals), but still export
             // classes to global scope so they're accessible
+#pragma warning disable MA0136 // Raw String contains an implicit end of line character
             var wrappedCode = $$"""
 (function() {
     var module = { exports: {} };
@@ -64,6 +65,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
     }
 })();
 """;
+#pragma warning restore MA0136 // Raw String contains an implicit end of line character
             Runtime.Execute(wrappedCode);
         }
         else

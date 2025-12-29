@@ -227,6 +227,14 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
         Bridge.Runtime.Evaluate<string>("__queryResult.data.jsonArrayValue[3]").ShouldEqual("four");
 
     [Fact]
+    void should_have_json_array_second_element() =>
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue[1]").ShouldEqual(2);
+
+    [Fact]
+    void should_have_json_array_third_element() =>
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue[2]").ShouldEqual(3);
+
+    [Fact]
     void should_have_json_document_value() =>
         Bridge.Runtime.Evaluate<bool>("__queryResult.data.jsonDocumentValue !== null && __queryResult.data.jsonDocumentValue !== undefined").ShouldBeTrue();
 
