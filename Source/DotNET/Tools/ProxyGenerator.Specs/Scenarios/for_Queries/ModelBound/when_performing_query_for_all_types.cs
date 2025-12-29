@@ -13,7 +13,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     void Establish()
     {
-        LoadQueryProxy<AllTypesReadModel>("GetWithAllTypes", "/tmp/AllTypesReadModel.GetWithAllTypes.ts");
+        LoadQueryProxy<AllTypesReadModel>("GetWithAllTypes");
     }
 
     async Task Because()
