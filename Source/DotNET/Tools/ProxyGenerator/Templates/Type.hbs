@@ -6,7 +6,7 @@
 // eslint-disable-next-line header/header
 import { field } from '@cratis/fundamentals';
 {{#Imports}}
-import { {{Type}} } from '{{Module}}';
+import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
 
 {{#if Documentation}}
@@ -25,16 +25,16 @@ export class {{Name}} {
     {{#if IsEnumerable}}
     @field({{Constructor}}, true)
     {{#if IsNullable}}
-    {{camelcase Name}}?: {{Type}}[];
+    {{camelcase Name}}?: {{{Type}}}[];
     {{else}}
-    {{camelcase Name}}!: {{Type}}[];
+    {{camelcase Name}}!: {{{Type}}}[];
     {{/if}}
     {{else}}
     @field({{Constructor}})
     {{#if IsNullable}}
-    {{camelcase Name}}?: {{Type}};
+    {{camelcase Name}}?: {{{Type}}};
     {{else}}
-    {{camelcase Name}}!: {{Type}};
+    {{camelcase Name}}!: {{{Type}}};
     {{/if}}
     {{/if}}
     {{/Properties}}

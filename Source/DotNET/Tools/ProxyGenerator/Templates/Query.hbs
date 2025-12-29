@@ -17,23 +17,23 @@ import { useQuery, PerformQuery } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
-import { {{Type}} } from '{{Module}}';
+import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
 
 {{#if IsEnumerable}}
 class {{Name}}SortBy {
 {{#Properties}}
-    private _{{camelCase Name}}: SortingActionsForQuery<{{../Model}}[]>;
+    private _{{camelCase Name}}: SortingActionsForQuery<{{{../Model}}}[]>;
 {{/Properties}}
 
     constructor(readonly query: {{Name}}) {
 {{#Properties}}
-        this._{{camelCase Name}} = new SortingActionsForQuery<{{../Model}}[]>('{{camelCase Name}}', query);
+        this._{{camelCase Name}} = new SortingActionsForQuery<{{{../Model}}}[]>('{{camelCase Name}}', query);
 {{/Properties}}
     }
 
 {{#Properties}}
-    get {{camelCase Name}}(): SortingActionsForQuery<{{../Model}}[]> {
+    get {{camelCase Name}}(): SortingActionsForQuery<{{{../Model}}}[]> {
         return this._{{camelCase Name}};
     }
 {{/Properties}}
@@ -67,9 +67,9 @@ export interface {{Name}}Parameters {
     */
     {{/if}}
     {{#if IsOptional}}
-    {{camelcase Name}}?: {{Type}};
+    {{camelcase Name}}?: {{{Type}}};
     {{else}}
-    {{camelcase Name}}: {{Type}};
+    {{camelcase Name}}: {{{Type}}};
     {{/if}}
     {{/Parameters}}
 }
@@ -91,9 +91,9 @@ export class {{Name}}Validator extends QueryValidator<{{Name}}Parameters> {
  */
 {{/if}}
 {{#if IsEnumerable}}
-export class {{Name}} extends QueryFor<{{Model}}[], {{Name}}Parameters> {
+export class {{Name}} extends QueryFor<{{{Model}}}[], {{Name}}Parameters> {
 {{else}}
-export class {{Name}} extends QueryFor<{{Model}}, {{Name}}Parameters> {
+export class {{Name}} extends QueryFor<{{{Model}}}, {{Name}}Parameters> {
 {{/if}}
 {{else}}
 export class {{Name}}Validator extends QueryValidator<object> {
@@ -113,23 +113,23 @@ export class {{Name}}Validator extends QueryValidator<object> {
  */
 {{/if}}
 {{#if IsEnumerable}}
-export class {{Name}} extends QueryFor<{{Model}}[]> {
+export class {{Name}} extends QueryFor<{{{Model}}}[]> {
 {{else}}
-export class {{Name}} extends QueryFor<{{Model}}> {
+export class {{Name}} extends QueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
     readonly route: string = '{{{Route}}}';
     readonly validation: QueryValidator = new {{Name}}Validator();
 {{#if IsEnumerable}}
-    readonly defaultValue: {{Model}}[] = [];
+    readonly defaultValue: {{{Model}}}[] = [];
     private readonly _sortBy: {{Name}}SortBy;
     private static readonly _sortBy: {{Name}}SortByWithoutQuery = new {{Name}}SortByWithoutQuery();
 {{else}}
-    readonly defaultValue: {{Model}} = {} as any;
+    readonly defaultValue: {{{Model}}} = {} as any;
 {{/if}}
 
     constructor() {
-        super({{Constructor}}, {{lowercase IsEnumerable}});
+        super({{{Constructor}}}, {{lowercase IsEnumerable}});
 {{#if IsEnumerable}}        
         this._sortBy = new {{Name}}SortBy(this);
 {{/if}}
@@ -145,7 +145,7 @@ export class {{Name}} extends QueryFor<{{Model}}> {
 
     readonly parameterDescriptors: ParameterDescriptor[] = [
         {{#Parameters}}
-        new ParameterDescriptor('{{camelcase Name}}', {{Constructor}}),
+        new ParameterDescriptor('{{camelcase Name}}', {{{Constructor}}}),
         {{/Parameters}}
     ];
 
@@ -165,31 +165,31 @@ export class {{Name}} extends QueryFor<{{Model}}> {
 
 {{#if Parameters.[0]}}
 {{#if IsEnumerable}}
-    static use(args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{Model}}[]>, PerformQuery<{{Name}}Parameters>, SetSorting] {
-        return useQuery<{{Model}}[], {{Name}}, {{Name}}Parameters>({{Name}}, args, sorting);
+    static use(args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery<{{Name}}Parameters>, SetSorting] {
+        return useQuery<{{{Model}}}[], {{Name}}, {{Name}}Parameters>({{Name}}, args, sorting);
     }
 
-    static useWithPaging(pageSize: number, args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{Model}}[]>, PerformQuery, SetSorting, SetPage, SetPageSize] {
-        return useQueryWithPaging<{{Model}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), args, sorting);
+    static useWithPaging(pageSize: number, args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery, SetSorting, SetPage, SetPageSize] {
+        return useQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), args, sorting);
     }
 {{else}}
-    static use(args?: {{Name}}Parameters): [QueryResultWithState<{{Model}}>, PerformQuery<{{Name}}Parameters>] {
-        const [result, perform] = useQuery<{{Model}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
+    static use(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>] {
+        const [result, perform] = useQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
         return [result, perform];
     }
 {{/if}}
 {{else}}
 {{#if IsEnumerable}}
-    static use(sorting?: Sorting): [QueryResultWithState<{{Model}}[]>, PerformQuery, SetSorting] {
-        return useQuery<{{Model}}[], {{Name}}>({{Name}}, undefined, sorting);
+    static use(sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery, SetSorting] {
+        return useQuery<{{{Model}}}[], {{Name}}>({{Name}}, undefined, sorting);
     }
 
-    static useWithPaging(pageSize: number, sorting?: Sorting): [QueryResultWithState<{{Model}}[]>, PerformQuery, SetSorting, SetPage, SetPageSize] {
-        return useQueryWithPaging<{{Model}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), undefined, sorting);
+    static useWithPaging(pageSize: number, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery, SetSorting, SetPage, SetPageSize] {
+        return useQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), undefined, sorting);
     }
 {{else}}
-    static use(): [QueryResultWithState<{{Model}}>, PerformQuery] {
-        const [result, perform] = useQuery<{{Model}}, {{Name}}>({{Name}});
+    static use(): [QueryResultWithState<{{{Model}}}>, PerformQuery] {
+        const [result, perform] = useQuery<{{{Model}}}, {{Name}}>({{Name}});
         return [result, perform];
     }
 {{/if}}

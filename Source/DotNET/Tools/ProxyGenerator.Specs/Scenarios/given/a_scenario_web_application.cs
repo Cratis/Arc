@@ -73,7 +73,8 @@ public class a_scenario_web_application : Specification, IDisposable
     /// Generates and loads a command proxy for the given command type.
     /// </summary>
     /// <typeparam name="TCommand">The command type.</typeparam>
-    protected void LoadCommandProxy<TCommand>()
+    /// <param name="saveToFile">Optional file path to save the generated TypeScript code.</param>
+    protected void LoadCommandProxy<TCommand>(string? saveToFile = null)
     {
         var commandType = typeof(TCommand).GetTypeInfo();
         var descriptor = commandType.ToCommandDescriptor(
@@ -82,7 +83,16 @@ public class a_scenario_web_application : Specification, IDisposable
             skipCommandNameInRoute: false,
             apiPrefix: "api");
 
+        // Load all types and enums that are involved
+        LoadTypesAndEnums(descriptor.TypesInvolved, saveToFile);
+
         var code = InMemoryProxyGenerator.GenerateCommand(descriptor);
+
+        if (!string.IsNullOrEmpty(saveToFile))
+        {
+            File.WriteAllText(saveToFile, code);
+        }
+
         Bridge.LoadTypeScript(code);
     }
 
@@ -111,8 +121,9 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     /// <typeparam name="TReadModel">The read model type.</typeparam>
     /// <param name="methodName">The name of the query method.</param>
+    /// <param name="saveToFile">Optional file path to save the generated TypeScript code.</param>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the method is not found.</exception>
-    protected void LoadQueryProxy<TReadModel>(string methodName)
+    protected void LoadQueryProxy<TReadModel>(string methodName, string? saveToFile = null)
     {
         var readModelType = typeof(TReadModel).GetTypeInfo();
         var method = readModelType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static)
@@ -125,8 +136,61 @@ public class a_scenario_web_application : Specification, IDisposable
             skipQueryNameInRoute: false,
             apiPrefix: "api");
 
+        // Load all types and enums that are involved
+        LoadTypesAndEnums(descriptor.TypesInvolved, saveToFile);
+
         var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
+
+        if (!string.IsNullOrEmpty(saveToFile))
+        {
+            File.WriteAllText(saveToFile, code);
+        }
+
         Bridge.LoadTypeScript(code);
+    }
+
+    /// <summary>
+    /// Loads all types and enums into the JavaScript runtime.
+    /// </summary>
+    /// <param name="types">The types to load.</param>
+    /// <param name="saveBasePath">Optional base path for saving generated files.</param>
+    protected void LoadTypesAndEnums(IEnumerable<Type> types, string? saveBasePath = null)
+    {
+        var typesList = types.Distinct().ToList();
+        var enums = typesList.Where(_ => _.IsEnum).ToList();
+        var nonEnums = typesList.Where(_ => !_.IsEnum).ToList();
+
+        var baseDir = !string.IsNullOrEmpty(saveBasePath) ? Path.GetDirectoryName(saveBasePath) : null;
+
+        // Generate and load enum files
+        foreach (var enumType in enums)
+        {
+            var enumDescriptor = enumType.ToEnumDescriptor();
+            var enumCode = InMemoryProxyGenerator.GenerateEnum(enumDescriptor);
+
+            if (!string.IsNullOrEmpty(baseDir))
+            {
+                var enumFile = Path.Combine(baseDir, $"{enumDescriptor.Name}.ts");
+                File.WriteAllText(enumFile, enumCode);
+            }
+
+            Bridge.LoadTypeScript(enumCode);
+        }
+
+        // Generate and load type files
+        foreach (var type in nonEnums)
+        {
+            var typeDescriptor = type.ToTypeDescriptor(string.Empty, 0);
+            var typeCode = InMemoryProxyGenerator.GenerateType(typeDescriptor);
+
+            if (!string.IsNullOrEmpty(baseDir))
+            {
+                var typeFile = Path.Combine(baseDir, $"{typeDescriptor.Name}.ts");
+                File.WriteAllText(typeFile, typeCode);
+            }
+
+            Bridge.LoadTypeScript(typeCode);
+        }
     }
 
     /// <summary>

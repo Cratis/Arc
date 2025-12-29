@@ -17,14 +17,9 @@ namespace Cratis.Arc.ProxyGenerator;
 public static class TypeExtensions
 {
     /// <summary>
-    /// Gets the definition of any type.
+    /// Gets the definition of object type that is a final one.
     /// </summary>
-    public static readonly TargetType AnyType = new(typeof(object), "any", "Object");
-
-    /// <summary>
-    /// Gets the definition of any type that is a final one.
-    /// </summary>
-    public static readonly TargetType AnyTypeFinal = new(typeof(object), "any", "Object", Final: true);
+    public static readonly TargetType ObjectTypeFinal = new(typeof(object), "Record<string, unknown>", "Object", Final: true);
 
 #pragma warning disable SA1600 // Elements should be documented
     internal static Type _conceptType = typeof(NoConcept);
@@ -47,7 +42,7 @@ public static class TypeExtensions
 
     static readonly Dictionary<string, TargetType> _primitiveTypeMap = new()
     {
-        { typeof(object).FullName!, AnyTypeFinal },
+        { typeof(object).FullName!, ObjectTypeFinal },
         { typeof(char).FullName!, _stringTargetType },
         { typeof(byte).FullName!, _numberTargetType },
         { typeof(sbyte).FullName!, _numberTargetType },
@@ -68,10 +63,10 @@ public static class TypeExtensions
         { typeof(TimeSpan).FullName!, new(typeof(TimeSpan), "TimeSpan", "TimeSpan", "@cratis/fundamentals", FromPackage: true) },
         { typeof(DateOnly).FullName!, _dateTargetType },
         { typeof(TimeOnly).FullName!, _dateTargetType },
-        { typeof(System.Text.Json.Nodes.JsonNode).FullName!, AnyTypeFinal },
-        { typeof(System.Text.Json.Nodes.JsonObject).FullName!, AnyTypeFinal },
-        { typeof(System.Text.Json.Nodes.JsonArray).FullName!, AnyTypeFinal },
-        { typeof(System.Text.Json.JsonDocument).FullName!, AnyTypeFinal },
+        { typeof(System.Text.Json.Nodes.JsonNode).FullName!, ObjectTypeFinal },
+        { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
+        { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },
+        { typeof(System.Text.Json.JsonDocument).FullName!, ObjectTypeFinal },
         { typeof(Uri).FullName!, _dateTargetType }
     };
 
@@ -289,7 +284,7 @@ public static class TypeExtensions
 
         if (type.IsDictionary())
         {
-            return AnyTypeFinal;
+            return ObjectTypeFinal;
         }
 
         if (type.IsConcept())
@@ -470,7 +465,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept()) return;
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType()) return;
         typesInvolved.Add(property.OriginalType);
         foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -486,7 +481,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType)) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType()) return;
         typesInvolved.Add(parameter.OriginalType);
         foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {

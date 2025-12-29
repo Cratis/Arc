@@ -9,7 +9,7 @@ import { Command, CommandValidator } from '@cratis/arc/commands';
 import { useCommand, SetCommandValues, ClearCommandValues } from '@cratis/arc.react/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
-import { {{Type}} } from '{{Module}}';
+import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
 
 {{#if Documentation}}
@@ -26,9 +26,9 @@ export interface I{{Name}} {
      */
     {{/if}}
     {{#if IsEnumerable}}
-    {{camelcase Name}}?: {{Type}}[];
+    {{camelcase Name}}?: {{{Type}}}[];
     {{else}}
-    {{camelcase Name}}?: {{Type}};
+    {{camelcase Name}}?: {{{Type}}};
     {{/if}}
     {{/Properties}}
 }
@@ -50,7 +50,7 @@ export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
  */
 {{/if}}
 {{#if HasResponse }}
-export class {{Name}} extends Command<I{{Name}}, {{ResponseType.Name}}> implements I{{Name}} {
+export class {{Name}} extends Command<I{{Name}}, {{{ResponseType.Name}}}> implements I{{Name}} {
 {{else}}
 export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{/if}}
@@ -58,21 +58,21 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     readonly validation: CommandValidator = new {{Name}}Validator();
     readonly propertyDescriptors: PropertyDescriptor[] = [
         {{#Properties}}
-        new PropertyDescriptor('{{camelcase Name}}', {{Constructor}}),
+        new PropertyDescriptor('{{camelcase Name}}', {{{Constructor}}}),
         {{/Properties}}
     ];
 
     {{#Properties}}
     {{#if IsEnumerable}}
-    private _{{camelcase Name}}!: {{Type}}[];
+    private _{{camelcase Name}}!: {{{Type}}}[];
     {{else}}
-    private _{{camelcase Name}}!: {{Type}};
+    private _{{camelcase Name}}!: {{{Type}}};
     {{/if}}
     {{/Properties}}
 
 {{#if HasResponse }}
     constructor() {
-        super({{ResponseType.Constructor}}, {{lowercase ResponseType.IsEnumerable}});
+        super({{{ResponseType.Constructor}}}, {{lowercase ResponseType.IsEnumerable}});
     }
 {{else}}
     constructor() {
@@ -103,20 +103,20 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
      */
     {{/if}}
     {{#if IsEnumerable}}
-    get {{camelcase Name}}(): {{Type}}[] {
+    get {{camelcase Name}}(): {{{Type}}}[] {
         return this._{{camelcase Name}};
     }
 
-    set {{camelcase Name}}(value: {{Type}}[]) {
+    set {{camelcase Name}}(value: {{{Type}}}[]) {
         this._{{camelcase Name}} = value;
         this.propertyChanged('{{camelcase Name}}');
     }
     {{else}}
-    get {{camelcase Name}}(): {{Type}} {
+    get {{camelcase Name}}(): {{{Type}}} {
         return this._{{camelcase Name}};
     }
 
-    set {{camelcase Name}}(value: {{Type}}) {
+    set {{camelcase Name}}(value: {{{Type}}}) {
         this._{{camelcase Name}} = value;
         this.propertyChanged('{{camelcase Name}}');
     }

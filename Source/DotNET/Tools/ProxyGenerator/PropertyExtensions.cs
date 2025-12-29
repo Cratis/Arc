@@ -47,18 +47,23 @@ public static class PropertyExtensions
     static PropertyDescriptor ToPropertyDescriptor(Type propertyType, string name, string? documentation = null)
     {
         var isEnumerable = false;
-        var isNullable = false;
-        if (!propertyType.IsKnownType())
+        var isNullable = propertyType.IsNullable();
+        if (isNullable)
+        {
+            propertyType = propertyType.GetGenericArguments()[0];
+        }
+
+        // Special handling for JsonArray - treat it as an enumerable
+        if (propertyType.FullName == typeof(System.Text.Json.Nodes.JsonArray).FullName)
+        {
+            isEnumerable = true;
+        }
+        else if (!propertyType.IsKnownType())
         {
             isEnumerable = propertyType.IsEnumerable();
             if (isEnumerable)
             {
                 propertyType = propertyType.GetEnumerableElementType()!;
-            }
-            isNullable = propertyType.IsNullable();
-            if (isNullable)
-            {
-                propertyType = propertyType.GetGenericArguments()[0];
             }
         }
 

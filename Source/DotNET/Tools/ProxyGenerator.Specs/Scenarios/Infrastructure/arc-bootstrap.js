@@ -94,7 +94,7 @@ function __loadFundamentalsModule(subPath) {
     var key = '@cratis/fundamentals/' + subPath;
     if (__moduleCache[key]) return __moduleCache[key].exports;
 
-    var module = { exports: {} };
+    var module = { exports: __getFundamentalsModuleExports(subPath) };
     __moduleCache[key] = module;
 
     return module.exports;
@@ -160,6 +160,47 @@ function __getArcReactModuleExports(subPath) {
             return {};
     }
 }
+
+// Fundamentals module exports provider
+function __getFundamentalsModuleExports(subPath) {
+    switch(subPath) {
+        case 'index':
+            return {
+                field: field,
+                Guid: Guid,
+                TimeSpan: TimeSpan
+            };
+        default:
+            return {
+                field: field,
+                Guid: Guid,
+                TimeSpan: TimeSpan
+            };
+    }
+}
+
+// field decorator (used by generated types)
+function field(type) {
+    return function(target, propertyKey) {
+        // Just a decorator, doesn't do anything in tests
+    };
+}
+
+// Guid class (simple string wrapper)
+function Guid(value) {
+    this.value = value || '00000000-0000-0000-0000-000000000000';
+}
+Guid.prototype.toString = function() {
+    return this.value;
+};
+
+// TimeSpan class (simple string wrapper for duration)
+function TimeSpan(value) {
+    this.value = value || '00:00:00';
+}
+TimeSpan.prototype.toString = function() {
+    return this.value;
+};
 
 // PropertyDescriptor class
 function PropertyDescriptor(name, constructor) {
