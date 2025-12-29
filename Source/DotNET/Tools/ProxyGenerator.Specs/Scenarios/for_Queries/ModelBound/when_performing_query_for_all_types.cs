@@ -8,7 +8,8 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 public class when_performing_query_for_all_types : given.a_scenario_web_application
 {
     QueryExecutionResult<AllTypesReadModel>? _executionResult;
-    dynamic? _jsData;
+    IDictionary<string, object?>? _data;
+    IDictionary<string, object?>? _types;
 
     void Establish()
     {
@@ -19,250 +20,126 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
     {
         _executionResult = await Bridge.PerformQueryViaProxyAsync<AllTypesReadModel>("GetWithAllTypes");
 
-        // Get the raw JavaScript data object to inspect types
+        // Get the data values once
         var dataJson = Bridge.Runtime.Evaluate<string>("JSON.stringify(__queryResult.data)");
-        _jsData = System.Text.Json.JsonSerializer.Deserialize<System.Dynamic.ExpandoObject>(dataJson, Json.Globals.JsonSerializerOptions);
+        _data = System.Text.Json.JsonSerializer.Deserialize<System.Dynamic.ExpandoObject>(dataJson, Json.Globals.JsonSerializerOptions);
+
+        // Get all typeof checks in a single evaluation
+#pragma warning disable MA0101 // String contains an implicit end of line character
+        var typesJson = Bridge.Runtime.Evaluate<string>(@"
+            JSON.stringify({
+                byteValue: typeof __queryResult.data.byteValue,
+                signedByteValue: typeof __queryResult.data.signedByteValue,
+                shortValue: typeof __queryResult.data.shortValue,
+                intValue: typeof __queryResult.data.intValue,
+                longValue: typeof __queryResult.data.longValue,
+                unsignedShortValue: typeof __queryResult.data.unsignedShortValue,
+                unsignedIntValue: typeof __queryResult.data.unsignedIntValue,
+                unsignedLongValue: typeof __queryResult.data.unsignedLongValue,
+                floatValue: typeof __queryResult.data.floatValue,
+                doubleValue: typeof __queryResult.data.doubleValue,
+                decimalValue: typeof __queryResult.data.decimalValue,
+                stringValue: typeof __queryResult.data.stringValue,
+                charValue: typeof __queryResult.data.charValue,
+                booleanValue: typeof __queryResult.data.booleanValue,
+                id: typeof __queryResult.data.id,
+                guidValue: typeof __queryResult.data.guidValue,
+                timeSpanValue: typeof __queryResult.data.timeSpanValue,
+                jsonNodeValue: typeof __queryResult.data.jsonNodeValue,
+                jsonObjectValue: typeof __queryResult.data.jsonObjectValue,
+                jsonDocumentValue: typeof __queryResult.data.jsonDocumentValue,
+                objectValue: typeof __queryResult.data.objectValue,
+                isJsonArrayArray: Array.isArray(__queryResult.data.jsonArrayValue),
+                isJsonDocumentItemsArray: Array.isArray(__queryResult.data.jsonDocumentValue.items)
+            })
+        ");
+#pragma warning restore MA0101 // String contains an implicit end of line character
+        _types = System.Text.Json.JsonSerializer.Deserialize<System.Dynamic.ExpandoObject>(typesJson, Json.Globals.JsonSerializerOptions);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_data() => _executionResult.Result.Data.ShouldNotBeNull();
 
-    [Fact]
-    void should_have_byte_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.byteValue").ShouldEqual("number");
+    [Fact] void should_have_byte_as_number() => _types["byteValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_byte_value() => Convert.ToByte(((System.Text.Json.JsonElement)_data["byteValue"]!).GetInt32()).ShouldEqual((byte)255);
 
-    [Fact]
-    void should_have_correct_byte_value() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.byteValue").ShouldEqual(255);
+    [Fact] void should_have_sbyte_as_number() => _types["signedByteValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_sbyte_value() => Convert.ToSByte(((System.Text.Json.JsonElement)_data["signedByteValue"]!).GetInt32()).ShouldEqual((sbyte)-128);
 
-    [Fact]
-    void should_have_sbyte_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.signedByteValue").ShouldEqual("number");
+    [Fact] void should_have_short_as_number() => _types["shortValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_short_value() => ((System.Text.Json.JsonElement)_data["shortValue"]!).GetInt32().ShouldEqual(-32768);
 
-    [Fact]
-    void should_have_correct_sbyte_value() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.signedByteValue").ShouldEqual(-128);
+    [Fact] void should_have_int_as_number() => _types["intValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_int_value() => ((System.Text.Json.JsonElement)_data["intValue"]!).GetInt32().ShouldEqual(42);
 
-    [Fact]
-    void should_have_short_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.shortValue").ShouldEqual("number");
+    [Fact] void should_have_long_as_number() => _types["longValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_long_value() => ((System.Text.Json.JsonElement)_data["longValue"]!).GetDouble().ShouldEqual(9223372036854775807L);
 
-    [Fact]
-    void should_have_correct_short_value() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.shortValue").ShouldEqual(-32768);
+    [Fact] void should_have_ushort_as_number() => _types["unsignedShortValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_ushort_value() => ((System.Text.Json.JsonElement)_data["unsignedShortValue"]!).GetInt32().ShouldEqual(65535);
 
-    [Fact]
-    void should_have_int_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.intValue").ShouldEqual("number");
+    [Fact] void should_have_uint_as_number() => _types["unsignedIntValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_uint_value() => ((System.Text.Json.JsonElement)_data["unsignedIntValue"]!).GetInt64().ShouldEqual(4294967295);
 
-    [Fact]
-    void should_have_correct_int_value() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.intValue").ShouldEqual(42);
+    [Fact] void should_have_ulong_as_number() => _types["unsignedLongValue"].ToString().ShouldEqual("number");
 
-    [Fact]
-    void should_have_long_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.longValue").ShouldEqual("number");
+    [Fact] void should_have_float_as_number() => _types["floatValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_float_value() => ((System.Text.Json.JsonElement)_data["floatValue"]!).GetDouble().ShouldBeInRange(3.13, 3.15);
 
-    [Fact]
-    void should_have_correct_long_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.longValue").ShouldEqual(9223372036854775807L);
+    [Fact] void should_have_double_as_number() => _types["doubleValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_double_value() => ((System.Text.Json.JsonElement)_data["doubleValue"]!).GetDouble().ShouldBeInRange(2.71, 2.72);
 
-    [Fact]
-    void should_have_ushort_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.unsignedShortValue").ShouldEqual("number");
+    [Fact] void should_have_decimal_as_number() => _types["decimalValue"].ToString().ShouldEqual("number");
+    [Fact] void should_have_correct_decimal_value() => ((System.Text.Json.JsonElement)_data["decimalValue"]!).GetDouble().ShouldBeInRange(123.45, 123.46);
 
-    [Fact]
-    void should_have_correct_ushort_value() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.unsignedShortValue").ShouldEqual(65535);
+    [Fact] void should_have_string_as_string() => _types["stringValue"].ToString().ShouldEqual("string");
+    [Fact] void should_have_correct_string_value() => ((System.Text.Json.JsonElement)_data["stringValue"]!).GetString().ShouldEqual("Test String");
 
-    [Fact]
-    void should_have_uint_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.unsignedIntValue").ShouldEqual("number");
-    [Fact]
-    void should_have_correct_uint_value() =>
-        Bridge.Runtime.Evaluate<long>("__queryResult.data.unsignedIntValue").ShouldEqual(4294967295);
+    [Fact] void should_have_char_as_string() => _types["charValue"].ToString().ShouldEqual("string");
+    [Fact] void should_have_correct_char_value() => ((System.Text.Json.JsonElement)_data["charValue"]!).GetString().ShouldEqual("X");
 
-    [Fact]
-    void should_have_ulong_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.unsignedLongValue").ShouldEqual("number");
+    [Fact] void should_have_boolean_as_boolean() => _types["booleanValue"].ToString().ShouldEqual("boolean");
+    [Fact] void should_have_correct_boolean_value() => ((System.Text.Json.JsonElement)_data["booleanValue"]!).GetBoolean().ShouldBeTrue();
 
-    [Fact]
-    void should_have_float_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.floatValue").ShouldEqual("number");
+    [Fact] void should_have_datetime_value() => _data["dateTimeValue"].ShouldNotBeNull();
+    [Fact] void should_have_datetimeoffset_value() => _data["dateTimeOffsetValue"].ShouldNotBeNull();
+    [Fact] void should_have_dateonly_value() => _data["dateOnlyValue"].ShouldNotBeNull();
+    [Fact] void should_have_timeonly_value() => _data["timeOnlyValue"].ShouldNotBeNull();
 
-    [Fact]
-    void should_have_correct_float_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.floatValue").ShouldBeInRange(3.13, 3.15);
+    [Fact] void should_have_guid_as_string() => _types["id"].ToString().ShouldEqual("string");
+    [Fact] void should_have_correct_guid_value() => ((System.Text.Json.JsonElement)_data["id"]!).GetString().ShouldEqual("12345678-1234-1234-1234-123456789abc");
 
-    [Fact]
-    void should_have_double_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.doubleValue").ShouldEqual("number");
+    [Fact] void should_have_guid_value_as_string() => _types["guidValue"].ToString().ShouldEqual("string");
+    [Fact] void should_have_correct_guid_value_property() => ((System.Text.Json.JsonElement)_data["guidValue"]!).GetString().ShouldEqual("87654321-4321-4321-4321-cba987654321");
 
-    [Fact]
-    void should_have_correct_double_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.doubleValue").ShouldBeInRange(2.71, 2.72);
+    [Fact] void should_have_timespan_as_string() => _types["timeSpanValue"].ToString().ShouldEqual("string");
+    [Fact] void should_have_uri_value() => _data["uriValue"].ShouldNotBeNull();
 
-    [Fact]
-    void should_have_decimal_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.decimalValue").ShouldEqual("number");
+    [Fact] void should_have_json_node_value() => _data["jsonNodeValue"].ShouldNotBeNull();
+    [Fact] void should_have_json_node_as_object() => _types["jsonNodeValue"].ToString().ShouldEqual("object");
+    [Fact] void should_have_json_node_nested_property() => ((System.Text.Json.JsonElement)_data["jsonNodeValue"]!).GetProperty("nested").GetString().ShouldEqual("value");
+    [Fact] void should_have_json_node_number_property() => ((System.Text.Json.JsonElement)_data["jsonNodeValue"]!).GetProperty("number").GetInt32().ShouldEqual(42);
 
-    [Fact]
-    void should_have_correct_decimal_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.decimalValue").ShouldBeInRange(123.45, 123.46);
+    [Fact] void should_have_json_object_value() => _data["jsonObjectValue"].ShouldNotBeNull();
+    [Fact] void should_have_json_object_as_object() => _types["jsonObjectValue"].ToString().ShouldEqual("object");
+    [Fact] void should_have_json_object_key1_property() => ((System.Text.Json.JsonElement)_data["jsonObjectValue"]!).GetProperty("key1").GetString().ShouldEqual("value1");
+    [Fact] void should_have_json_object_key2_property() => ((System.Text.Json.JsonElement)_data["jsonObjectValue"]!).GetProperty("key2").GetInt32().ShouldEqual(123);
 
-    [Fact]
-    void should_have_string_as_string() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.stringValue").ShouldEqual("string");
+    [Fact] void should_have_json_array_value() => _data["jsonArrayValue"].ShouldNotBeNull();
+    [Fact] void should_have_json_array_as_array() => ((System.Text.Json.JsonElement)_types["isJsonArrayArray"]!).GetBoolean().ShouldBeTrue();
+    [Fact] void should_have_json_array_with_correct_length() => ((System.Text.Json.JsonElement)_data["jsonArrayValue"]!).GetArrayLength().ShouldEqual(4);
+    [Fact] void should_have_json_array_first_element() => ((System.Text.Json.JsonElement)_data["jsonArrayValue"]!)[0].GetInt32().ShouldEqual(1);
+    [Fact] void should_have_json_array_last_element() => ((System.Text.Json.JsonElement)_data["jsonArrayValue"]!)[3].GetString().ShouldEqual("four");
+    [Fact] void should_have_json_array_second_element() => ((System.Text.Json.JsonElement)_data["jsonArrayValue"]!)[1].GetInt32().ShouldEqual(2);
+    [Fact] void should_have_json_array_third_element() => ((System.Text.Json.JsonElement)_data["jsonArrayValue"]!)[2].GetInt32().ShouldEqual(3);
 
-    [Fact]
-    void should_have_correct_string_value() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.stringValue").ShouldEqual("Test String");
+    [Fact] void should_have_json_document_value() => _data["jsonDocumentValue"].ShouldNotBeNull();
+    [Fact] void should_have_json_document_as_object() => _types["jsonDocumentValue"].ToString().ShouldEqual("object");
+    [Fact] void should_have_json_document_document_property() => ((System.Text.Json.JsonElement)_data["jsonDocumentValue"]!).GetProperty("document").GetString().ShouldEqual("data");
+    [Fact] void should_have_json_document_items_as_array() => ((System.Text.Json.JsonElement)_types["isJsonDocumentItemsArray"]!).GetBoolean().ShouldBeTrue();
 
-    [Fact]
-    void should_have_char_as_string() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.charValue").ShouldEqual("string");
-
-    [Fact]
-    void should_have_correct_char_value() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.charValue").ShouldEqual("X");
-
-    [Fact]
-    void should_have_boolean_as_boolean() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.booleanValue").ShouldEqual("boolean");
-
-    [Fact]
-    void should_have_correct_boolean_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.booleanValue").ShouldBeTrue();
-
-    [Fact]
-    void should_have_datetime_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.dateTimeValue !== null && __queryResult.data.dateTimeValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_datetimeoffset_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.dateTimeOffsetValue !== null && __queryResult.data.dateTimeOffsetValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_dateonly_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.dateOnlyValue !== null && __queryResult.data.dateOnlyValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_timeonly_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.timeOnlyValue !== null && __queryResult.data.timeOnlyValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_guid_as_string() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.id").ShouldEqual("string");
-
-    [Fact]
-    void should_have_correct_guid_value() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.id").ShouldEqual("12345678-1234-1234-1234-123456789abc");
-
-    [Fact]
-    void should_have_guid_value_as_string() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.guidValue").ShouldEqual("string");
-
-    [Fact]
-    void should_have_correct_guid_value_property() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.guidValue").ShouldEqual("87654321-4321-4321-4321-cba987654321");
-
-    [Fact]
-    void should_have_timespan_as_string() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.timeSpanValue").ShouldEqual("string");
-
-    [Fact]
-    void should_have_uri_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.uriValue !== null && __queryResult.data.uriValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_json_node_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.jsonNodeValue !== null && __queryResult.data.jsonNodeValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_json_node_as_object() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.jsonNodeValue").ShouldEqual("object");
-
-    [Fact]
-    void should_have_json_node_nested_property() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.jsonNodeValue.nested").ShouldEqual("value");
-
-    [Fact]
-    void should_have_json_node_number_property() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonNodeValue.number").ShouldEqual(42);
-
-    [Fact]
-    void should_have_json_object_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.jsonObjectValue !== null && __queryResult.data.jsonObjectValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_json_object_as_object() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.jsonObjectValue").ShouldEqual("object");
-
-    [Fact]
-    void should_have_json_object_key1_property() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.jsonObjectValue.key1").ShouldEqual("value1");
-
-    [Fact]
-    void should_have_json_object_key2_property() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonObjectValue.key2").ShouldEqual(123);
-
-    [Fact]
-    void should_have_json_array_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.jsonArrayValue !== null && __queryResult.data.jsonArrayValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_json_array_as_array() =>
-        Bridge.Runtime.Evaluate<bool>("Array.isArray(__queryResult.data.jsonArrayValue)").ShouldBeTrue();
-
-    [Fact]
-    void should_have_json_array_with_correct_length() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue.length").ShouldEqual(4);
-
-    [Fact]
-    void should_have_json_array_first_element() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue[0]").ShouldEqual(1);
-
-    [Fact]
-    void should_have_json_array_last_element() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.jsonArrayValue[3]").ShouldEqual("four");
-
-    [Fact]
-    void should_have_json_array_second_element() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue[1]").ShouldEqual(2);
-
-    [Fact]
-    void should_have_json_array_third_element() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue[2]").ShouldEqual(3);
-
-    [Fact]
-    void should_have_json_document_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.jsonDocumentValue !== null && __queryResult.data.jsonDocumentValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_json_document_as_object() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.jsonDocumentValue").ShouldEqual("object");
-
-    [Fact]
-    void should_have_json_document_document_property() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.jsonDocumentValue.document").ShouldEqual("data");
-
-    [Fact]
-    void should_have_json_document_items_as_array() =>
-        Bridge.Runtime.Evaluate<bool>("Array.isArray(__queryResult.data.jsonDocumentValue.items)").ShouldBeTrue();
-
-    [Fact]
-    void should_have_object_value() =>
-        Bridge.Runtime.Evaluate<bool>("__queryResult.data.objectValue !== null && __queryResult.data.objectValue !== undefined").ShouldBeTrue();
-
-    [Fact]
-    void should_have_object_as_object() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.objectValue").ShouldEqual("object");
-
-    [Fact]
-    void should_have_object_dynamic_property() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.objectValue.dynamic").ShouldEqual("Content");
-
-    [Fact]
-    void should_have_object_value_property() =>
-        Bridge.Runtime.Evaluate<int>("__queryResult.data.objectValue.value").ShouldEqual(999);
+    [Fact] void should_have_object_value() => _data["objectValue"].ShouldNotBeNull();
+    [Fact] void should_have_object_as_object() => _types["objectValue"].ToString().ShouldEqual("object");
+    [Fact] void should_have_object_dynamic_property() => ((System.Text.Json.JsonElement)_data["objectValue"]!).GetProperty("dynamic").GetString().ShouldEqual("Content");
+    [Fact] void should_have_object_value_property() => ((System.Text.Json.JsonElement)_data["objectValue"]!).GetProperty("value").GetInt32().ShouldEqual(999);
 }
