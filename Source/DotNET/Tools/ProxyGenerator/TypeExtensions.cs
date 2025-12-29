@@ -465,7 +465,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept()) return;
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType()) return;
         typesInvolved.Add(property.OriginalType);
         foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -481,7 +481,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType)) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType()) return;
         typesInvolved.Add(parameter.OriginalType);
         foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
