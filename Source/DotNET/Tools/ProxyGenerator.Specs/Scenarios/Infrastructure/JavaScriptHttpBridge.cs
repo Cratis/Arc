@@ -41,10 +41,35 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// Loads TypeScript code into the runtime by transpiling it first.
     /// </summary>
     /// <param name="typeScriptCode">The TypeScript code to load.</param>
-    public void LoadTypeScript(string typeScriptCode)
+    /// <param name="wrapInModuleScope">Whether to wrap in an IIFE to prevent variable collisions. Set to false for query/command proxies that need global scope.</param>
+    public void LoadTypeScript(string typeScriptCode, bool wrapInModuleScope = true)
     {
         var jsCode = Runtime.TranspileTypeScript(typeScriptCode);
-        Runtime.Execute(jsCode);
+
+        if (wrapInModuleScope)
+        {
+            // Wrap in module scope to prevent variable collisions when multiple files
+            // import from the same modules (e.g., @cratis/fundamentals), but still export
+            // classes to global scope so they're accessible
+            var wrappedCode = $$"""
+(function() {
+    var module = { exports: {} };
+    var exports = module.exports;
+    {{jsCode}}
+    // Export any classes to global scope
+    for (var key in module.exports) {
+        if (module.exports.hasOwnProperty(key)) {
+            globalThis[key] = module.exports[key];
+        }
+    }
+})();
+""";
+            Runtime.Execute(wrappedCode);
+        }
+        else
+        {
+            Runtime.Execute(jsCode);
+        }
     }
 
     /// <summary>

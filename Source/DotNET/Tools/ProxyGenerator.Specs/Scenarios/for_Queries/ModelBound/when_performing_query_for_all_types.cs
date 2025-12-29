@@ -33,15 +33,15 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_correct_byte_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.byteValue").ShouldEqual(255);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.byteValue").ShouldEqual(255);
 
     [Fact]
     void should_have_sbyte_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.SByteValue").ShouldEqual("number");
+        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.signedByteValue").ShouldEqual("number");
 
     [Fact]
     void should_have_correct_sbyte_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.SByteValue").ShouldEqual(-128);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.signedByteValue").ShouldEqual(-128);
 
     [Fact]
     void should_have_short_as_number() =>
@@ -49,7 +49,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_correct_short_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.shortValue").ShouldEqual(-32768);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.shortValue").ShouldEqual(-32768);
 
     [Fact]
     void should_have_int_as_number() =>
@@ -57,7 +57,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_correct_int_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.intValue").ShouldEqual(42);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.intValue").ShouldEqual(42);
 
     [Fact]
     void should_have_long_as_number() =>
@@ -69,22 +69,22 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_ushort_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.UShortValue").ShouldEqual("number");
+        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.unsignedShortValue").ShouldEqual("number");
 
     [Fact]
     void should_have_correct_ushort_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.UShortValue").ShouldEqual(65535);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.unsignedShortValue").ShouldEqual(65535);
 
     [Fact]
     void should_have_uint_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.UIntValue").ShouldEqual("number");
+        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.unsignedIntValue").ShouldEqual("number");
     [Fact]
     void should_have_correct_uint_value() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.UIntValue").ShouldEqual(4294967295);
+        Bridge.Runtime.Evaluate<long>("__queryResult.data.unsignedIntValue").ShouldEqual(4294967295);
 
     [Fact]
     void should_have_ulong_as_number() =>
-        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.ULongValue").ShouldEqual("number");
+        Bridge.Runtime.Evaluate<string>("typeof __queryResult.data.unsignedLongValue").ShouldEqual("number");
 
     [Fact]
     void should_have_float_as_number() =>
@@ -188,7 +188,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_json_node_number_property() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.jsonNodeValue.number").ShouldEqual(42);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonNodeValue.number").ShouldEqual(42);
 
     [Fact]
     void should_have_json_object_value() =>
@@ -204,7 +204,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_json_object_key2_property() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.jsonObjectValue.key2").ShouldEqual(123);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonObjectValue.key2").ShouldEqual(123);
 
     [Fact]
     void should_have_json_array_value() =>
@@ -216,11 +216,11 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_json_array_with_correct_length() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.jsonArrayValue.length").ShouldEqual(4);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue.length").ShouldEqual(4);
 
     [Fact]
     void should_have_json_array_first_element() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.jsonArrayValue[0]").ShouldEqual(1);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.jsonArrayValue[0]").ShouldEqual(1);
 
     [Fact]
     void should_have_json_array_last_element() =>
@@ -252,9 +252,9 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     [Fact]
     void should_have_object_dynamic_property() =>
-        Bridge.Runtime.Evaluate<string>("__queryResult.data.objectValue.Dynamic").ShouldEqual("Content");
+        Bridge.Runtime.Evaluate<string>("__queryResult.data.objectValue.dynamic").ShouldEqual("Content");
 
     [Fact]
     void should_have_object_value_property() =>
-        Bridge.Runtime.Evaluate<double>("__queryResult.data.objectValue.Value").ShouldEqual(999);
+        Bridge.Runtime.Evaluate<int>("__queryResult.data.objectValue.value").ShouldEqual(999);
 }

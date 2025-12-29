@@ -399,7 +399,7 @@ public class AllTypesReadModel
     /// <summary>
     /// Gets or sets the sbyte value.
     /// </summary>
-    public sbyte SByteValue { get; set; }
+    public sbyte SignedByteValue { get; set; }
 
     /// <summary>
     /// Gets or sets the short value.
@@ -419,17 +419,17 @@ public class AllTypesReadModel
     /// <summary>
     /// Gets or sets the ushort value.
     /// </summary>
-    public ushort UShortValue { get; set; }
+    public ushort UnsignedShortValue { get; set; }
 
     /// <summary>
     /// Gets or sets the uint value.
     /// </summary>
-    public uint UIntValue { get; set; }
+    public uint UnsignedIntValue { get; set; }
 
     /// <summary>
     /// Gets or sets the ulong value.
     /// </summary>
-    public ulong ULongValue { get; set; }
+    public ulong UnsignedLongValue { get; set; }
 
     /// <summary>
     /// Gets or sets the float value.
@@ -545,13 +545,13 @@ public class AllTypesReadModel
         {
             Id = testId,
             ByteValue = 255,
-            SByteValue = -128,
+            SignedByteValue = -128,
             ShortValue = -32768,
             IntValue = 42,
             LongValue = 9223372036854775807L,
-            UShortValue = 65535,
-            UIntValue = 4294967295,
-            ULongValue = 18446744073709551615UL,
+            UnsignedShortValue = 65535,
+            UnsignedIntValue = 4294967295,
+            UnsignedLongValue = 18446744073709551615UL,
             FloatValue = 3.14f,
             DoubleValue = 2.718281828,
             DecimalValue = 123.456m,
