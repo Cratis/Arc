@@ -18,24 +18,24 @@ type QueryPerformer<TQuery extends IQueryFor<TDataType>, TDataType, TArguments =
 
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
-    paging ??= Paging.noPaging;
-    sorting ??= Sorting.none;
+    const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
+    const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
     const queryInstance = useRef<TQuery | null>(null);
-    const [renderCounter, setRenderCounter] = useState(0);
 
     queryInstance.current = useMemo(() => {
         const instance = new query() as TQuery;
-        instance.paging = paging;
-        instance.sorting = sorting;
+        instance.paging = currentPaging;
+        instance.sorting = currentSorting;
         instance.setMicroservice(arc.microservice);
         instance.setApiBasePath(arc.apiBasePath ?? '');
         instance.setOrigin(arc.origin ?? '');
         instance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
         return instance;
-    }, []);
+    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
 
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current!.defaultValue));
+    const argumentsDependency = queryInstance.current!.requiredRequestParameters.map(_ => args?.[_]);
 
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
@@ -50,11 +50,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     useEffect(() => {
         queryExecutor(args);
-    }, []);
-
-    const invalidate = () => {
-        setRenderCounter(renderCounter + 1);
-    };
+    }, [...argumentsDependency, ...[currentPaging, currentSorting]]);
 
     return [
         result!,
@@ -63,22 +59,13 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
             await queryExecutor(args);
         },
         async (sorting: Sorting) => {
-            setResult(QueryResultWithState.fromQueryResult(result!, true));
-            queryInstance.current!.sorting = sorting;
-            invalidate();
-            await queryExecutor(args);
+            setCurrentSorting(sorting);
         },
         async (page: number) => {
-            setResult(QueryResultWithState.fromQueryResult(result!, true));
-            queryInstance.current!.paging = new Paging(page, queryInstance.current!.paging?.pageSize ?? 0);
-            invalidate();
-            await queryExecutor(args);
+            setCurrentPaging(new Paging(page, currentPaging.pageSize));
         },
         async (pageSize: number) => {
-            setResult(QueryResultWithState.fromQueryResult(result!, true));
-            queryInstance.current!.paging = new Paging(queryInstance.current!.paging?.page ?? 0, pageSize);
-            invalidate();
-            await queryExecutor(args);
+            setCurrentPaging(new Paging(currentPaging.page, pageSize));
         }];
 }
 
