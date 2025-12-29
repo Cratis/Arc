@@ -19,7 +19,7 @@ public static class TypeExtensions
     /// <summary>
     /// Gets the definition of object type that is a final one.
     /// </summary>
-    public static readonly TargetType ObjectTypeFinal = new(typeof(object), "object", "Object", Final: true);
+    public static readonly TargetType ObjectTypeFinal = new(typeof(object), "Record<string, unknown>", "Object", Final: true);
 
 #pragma warning disable SA1600 // Elements should be documented
     internal static Type _conceptType = typeof(NoConcept);
