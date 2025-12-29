@@ -19,12 +19,12 @@ public static class TypeExtensions
     /// <summary>
     /// Gets the definition of any type.
     /// </summary>
-    public static readonly TargetType AnyType = new(typeof(object), "any", "Object");
+    public static readonly TargetType UnknownType = new(typeof(object), "unknown", "Object");
 
     /// <summary>
     /// Gets the definition of any type that is a final one.
     /// </summary>
-    public static readonly TargetType AnyTypeFinal = new(typeof(object), "any", "Object", Final: true);
+    public static readonly TargetType UnknownTypeFinal = new(typeof(object), "unknown", "Object", Final: true);
 
 #pragma warning disable SA1600 // Elements should be documented
     internal static Type _conceptType = typeof(NoConcept);
@@ -47,7 +47,7 @@ public static class TypeExtensions
 
     static readonly Dictionary<string, TargetType> _primitiveTypeMap = new()
     {
-        { typeof(object).FullName!, AnyTypeFinal },
+        { typeof(object).FullName!, UnknownTypeFinal },
         { typeof(char).FullName!, _stringTargetType },
         { typeof(byte).FullName!, _numberTargetType },
         { typeof(sbyte).FullName!, _numberTargetType },
@@ -68,10 +68,10 @@ public static class TypeExtensions
         { typeof(TimeSpan).FullName!, new(typeof(TimeSpan), "TimeSpan", "TimeSpan", "@cratis/fundamentals", FromPackage: true) },
         { typeof(DateOnly).FullName!, _dateTargetType },
         { typeof(TimeOnly).FullName!, _dateTargetType },
-        { typeof(System.Text.Json.Nodes.JsonNode).FullName!, AnyTypeFinal },
-        { typeof(System.Text.Json.Nodes.JsonObject).FullName!, AnyTypeFinal },
-        { typeof(System.Text.Json.Nodes.JsonArray).FullName!, AnyTypeFinal },
-        { typeof(System.Text.Json.JsonDocument).FullName!, AnyTypeFinal },
+        { typeof(System.Text.Json.Nodes.JsonNode).FullName!, UnknownTypeFinal },
+        { typeof(System.Text.Json.Nodes.JsonObject).FullName!, UnknownTypeFinal },
+        { typeof(System.Text.Json.Nodes.JsonArray).FullName!, UnknownTypeFinal },
+        { typeof(System.Text.Json.JsonDocument).FullName!, UnknownTypeFinal },
         { typeof(Uri).FullName!, _dateTargetType }
     };
 
@@ -289,7 +289,7 @@ public static class TypeExtensions
 
         if (type.IsDictionary())
         {
-            return AnyTypeFinal;
+            return UnknownTypeFinal;
         }
 
         if (type.IsConcept())
