@@ -679,12 +679,6 @@ class Query {
                 throw new Error('HTTP ' + response.status + ': ' + response.statusText);
             }
             return response.json();
-        }).then(function(data) {
-            // Debug: Log the actual response data
-            if (typeof __logFetchResponse === 'function') {
-                __logFetchResponse(url, data);
-            }
-            return data;
         });
     }
 }

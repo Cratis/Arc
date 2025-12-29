@@ -244,8 +244,11 @@ public sealed class JavaScriptHttpBridge : IDisposable
             ? string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
             : string.Empty;
 
-        // Add debug logging function
-        Runtime.Execute("var __fetchResponses = []; var __logFetchResponse = function(url, data) { __fetchResponses.push({url: url, data: data}); };");
+        // Create TaskCompletionSource for synchronization
+        var updateReceived = new TaskCompletionSource<bool>();
+
+        // Expose function to JavaScript that signals when update is received
+        Runtime.Engine.AddHostObject("__signalUpdateReceived", new Action(() => updateReceived.TrySetResult(true)));
 
         // Create query instance, set parameters, and subscribe
         Runtime.Execute(
@@ -255,6 +258,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "var __obsError = null;" +
             "var __obsSubscription = __obsQuery.subscribe(function(result) {" +
             "    __obsUpdates.push(result);" +
+            "    __signalUpdateReceived();" +
             "});");
 
         // Process the pending fetch from subscribe
@@ -267,15 +271,12 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Process the fetch to get the initial data
         await ProcessPendingFetchAsync();
 
-        // Give the promise time to resolve
-        await Task.Delay(10);
-
-        // Log what fetch actually returned
-        var fetchResponseCount = Runtime.Evaluate<int>("__fetchResponses.length");
-        if (fetchResponseCount > 0)
+        // Wait for the JavaScript promise to resolve and signal us (with timeout)
+        var timeout = TimeSpan.FromSeconds(5);
+        var completedTask = await Task.WhenAny(updateReceived.Task, Task.Delay(timeout));
+        if (completedTask != updateReceived.Task)
         {
-            var fetchResponseJson = Runtime.Evaluate<string>("JSON.stringify(__fetchResponses[0])") ?? "{}";
-            System.IO.File.WriteAllText("/tmp/fetch-response.json", fetchResponseJson);
+            throw new JavaScriptProxyExecutionFailed($"Observable query did not receive initial update within {timeout.TotalSeconds} seconds");
         }
 
         // Get the initial result
@@ -290,11 +291,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         for (var i = 0; i < updateCount; i++)
         {
-            var fullUpdateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}])") ?? "{}";
-            System.IO.File.WriteAllText($"/tmp/obs-update-{i}.json", fullUpdateJson);
-            
             var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
-            System.IO.File.WriteAllText($"/tmp/obs-data-{i}.json", updateJson);
             
             var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
             if (update is not null)
