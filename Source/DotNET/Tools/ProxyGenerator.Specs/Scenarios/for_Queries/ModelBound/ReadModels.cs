@@ -379,6 +379,202 @@ public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<
 }
 
 /// <summary>
+/// A read model with all supported types for comprehensive type mapping testing.
+/// </summary>
+[ReadModel]
+public class AllTypesReadModel
+{
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    // Numeric types
+
+    /// <summary>
+    /// Gets or sets the byte value.
+    /// </summary>
+    public byte ByteValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sbyte value.
+    /// </summary>
+    public sbyte SByteValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the short value.
+    /// </summary>
+    public short ShortValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the int value.
+    /// </summary>
+    public int IntValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the long value.
+    /// </summary>
+    public long LongValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the ushort value.
+    /// </summary>
+    public ushort UShortValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the uint value.
+    /// </summary>
+    public uint UIntValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the ulong value.
+    /// </summary>
+    public ulong ULongValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the float value.
+    /// </summary>
+    public float FloatValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the double value.
+    /// </summary>
+    public double DoubleValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the decimal value.
+    /// </summary>
+    public decimal DecimalValue { get; set; }
+
+    // String types
+
+    /// <summary>
+    /// Gets or sets the string value.
+    /// </summary>
+    public string StringValue { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the char value.
+    /// </summary>
+    public char CharValue { get; set; }
+
+    // Boolean type
+
+    /// <summary>
+    /// Gets or sets the boolean value.
+    /// </summary>
+    public bool BooleanValue { get; set; }
+
+    // Date/Time types
+
+    /// <summary>
+    /// Gets or sets the DateTime value.
+    /// </summary>
+    public DateTime DateTimeValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DateTimeOffset value.
+    /// </summary>
+    public DateTimeOffset DateTimeOffsetValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DateOnly value.
+    /// </summary>
+    public DateOnly DateOnlyValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TimeOnly value.
+    /// </summary>
+    public TimeOnly TimeOnlyValue { get; set; }
+
+    // Special types
+
+    /// <summary>
+    /// Gets or sets the Guid value.
+    /// </summary>
+    public Guid GuidValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the TimeSpan value.
+    /// </summary>
+    public TimeSpan TimeSpanValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Uri value.
+    /// </summary>
+    public Uri UriValue { get; set; } = null!;
+
+    // JSON types - these are the ones suspected to have issues
+
+    /// <summary>
+    /// Gets or sets the JsonNode value.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonNode? JsonNodeValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JsonObject value.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonObject? JsonObjectValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JsonArray value.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonArray? JsonArrayValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JsonDocument value.
+    /// </summary>
+    public System.Text.Json.JsonDocument? JsonDocumentValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets an object value.
+    /// </summary>
+    public object? ObjectValue { get; set; }
+
+    /// <summary>
+    /// Gets a read model with all types populated.
+    /// </summary>
+    /// <returns>A read model with all supported types.</returns>
+    public static AllTypesReadModel GetWithAllTypes()
+    {
+        var testId = new Guid(0x12345678, 0x1234, 0x1234, 0x12, 0x34, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc) /* 12345678-1234-1234-1234-123456789abc */;
+        var testGuid = new Guid(0x87654321, 0x4321, 0x4321, 0x43, 0x21, 0xcb, 0xa9, 0x87, 0x65, 0x43, 0x21) /* 87654321-4321-4321-4321-cba987654321 */;
+        var testDate = new DateTime(2024, 3, 15, 14, 30, 45, DateTimeKind.Utc);
+
+        return new AllTypesReadModel
+        {
+            Id = testId,
+            ByteValue = 255,
+            SByteValue = -128,
+            ShortValue = -32768,
+            IntValue = 42,
+            LongValue = 9223372036854775807L,
+            UShortValue = 65535,
+            UIntValue = 4294967295,
+            ULongValue = 18446744073709551615UL,
+            FloatValue = 3.14f,
+            DoubleValue = 2.718281828,
+            DecimalValue = 123.456m,
+            StringValue = "Test String",
+            CharValue = 'X',
+            BooleanValue = true,
+            DateTimeValue = testDate,
+            DateTimeOffsetValue = new DateTimeOffset(testDate),
+            DateOnlyValue = new DateOnly(2024, 3, 15),
+            TimeOnlyValue = new TimeOnly(14, 30, 45),
+            GuidValue = testGuid,
+            TimeSpanValue = TimeSpan.FromHours(2.5),
+            UriValue = new Uri("https://example.com/test"),
+            JsonNodeValue = System.Text.Json.Nodes.JsonNode.Parse("{\"nested\": \"value\", \"number\": 42}"),
+            JsonObjectValue = System.Text.Json.Nodes.JsonNode.Parse("{\"key1\": \"value1\", \"key2\": 123}")?.AsObject(),
+            JsonArrayValue = System.Text.Json.Nodes.JsonNode.Parse("[1, 2, 3, \"four\"]")?.AsArray(),
+            JsonDocumentValue = System.Text.Json.JsonDocument.Parse("{\"document\": \"data\", \"items\": [1, 2, 3]}"),
+            ObjectValue = new { Dynamic = "Content", Value = 999 }
+        };
+    }
+}
+
+/// <summary>
 /// A read model with DataAnnotations validation for parameters.
 /// </summary>
 [ReadModel]
