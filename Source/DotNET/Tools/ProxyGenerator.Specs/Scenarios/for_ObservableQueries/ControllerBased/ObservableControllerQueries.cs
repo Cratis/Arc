@@ -11,19 +11,8 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 /// </summary>
 [ApiController]
 [Route("api/observable-controller-queries")]
-public class ObservableControllerQueriesController : ControllerBase
+public class ObservableControllerQueriesController(ObservableControllerQueriesState state) : ControllerBase
 {
-    static readonly BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> _allItemsSubject = new([
-        new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Controller Item 1", Value = 1 },
-        new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Controller Item 2", Value = 2 },
-        new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3), Name = "Controller Item 3", Value = 3 }
-    ]);
-
-    static readonly BehaviorSubject<ObservableControllerQueryItem> _singleItemSubject = new(
-        new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 }
-    );
-
-    static readonly Dictionary<string, BehaviorSubject<IEnumerable<ObservableControllerQueryItem>>> _categorySubjects = [];
 
     /// <summary>
     /// Gets all items as an observable stream.
@@ -32,7 +21,7 @@ public class ObservableControllerQueriesController : ControllerBase
     [HttpGet("observe/items")]
     public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveAll()
     {
-        return _allItemsSubject;
+        return state.AllItemsSubject;
     }
 
     /// <summary>
@@ -42,7 +31,7 @@ public class ObservableControllerQueriesController : ControllerBase
     [HttpGet("observe/single")]
     public ISubject<ObservableControllerQueryItem> ObserveSingle()
     {
-        return _singleItemSubject;
+        return state.SingleItemSubject;
     }
 
     /// <summary>
@@ -63,7 +52,7 @@ public class ObservableControllerQueriesController : ControllerBase
     [HttpGet("observe/items/category/{category}")]
     public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveByCategory([FromRoute] string category)
     {
-        if (_categorySubjects.TryGetValue(category, out var subject))
+        if (state.CategorySubjects.TryGetValue(category, out var subject))
         {
             return subject;
         }
@@ -72,7 +61,7 @@ public class ObservableControllerQueriesController : ControllerBase
             new ObservableControllerQueryItem { Id = Guid.NewGuid(), Name = $"{category} Controller Item 1", Value = 1 },
             new ObservableControllerQueryItem { Id = Guid.NewGuid(), Name = $"{category} Controller Item 2", Value = 2 }
         ]);
-        _categorySubjects[category] = newSubject;
+        state.CategorySubjects[category] = newSubject;
         return newSubject;
     }
 
@@ -114,7 +103,7 @@ public class ObservableControllerQueriesController : ControllerBase
     [HttpPost("update/items")]
     public IActionResult UpdateAllItems([FromBody] ObservableControllerQueryItem[] items)
     {
-        _allItemsSubject.OnNext(items);
+        state.AllItemsSubject.OnNext(items);
         return Ok();
     }
 
@@ -126,7 +115,7 @@ public class ObservableControllerQueriesController : ControllerBase
     [HttpPost("update/single")]
     public IActionResult UpdateSingleItem([FromBody] ObservableControllerQueryItem item)
     {
-        _singleItemSubject.OnNext(item);
+        state.SingleItemSubject.OnNext(item);
         return Ok();
     }
 
@@ -139,7 +128,7 @@ public class ObservableControllerQueriesController : ControllerBase
     [HttpPost("update/category/{category}")]
     public IActionResult UpdateItemsForCategory([FromRoute] string category, [FromBody] ObservableControllerQueryItem[] items)
     {
-        if (_categorySubjects.TryGetValue(category, out var subject))
+        if (state.CategorySubjects.TryGetValue(category, out var subject))
         {
             subject.OnNext(items);
         }

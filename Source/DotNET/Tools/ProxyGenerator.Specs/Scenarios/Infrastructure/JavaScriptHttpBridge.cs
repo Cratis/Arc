@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net.WebSockets;
+using System.Reflection;
+using System.Text;
 using System.Text.Json;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
@@ -8,10 +11,15 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 /// <summary>
 /// Bridges the JavaScript runtime with an HTTP client for testing proxies end-to-end.
 /// Intercepts fetch calls from JavaScript and routes them to the test HTTP client.
+/// Provides WebSocket simulation for observable queries.
 /// </summary>
 public sealed class JavaScriptHttpBridge : IDisposable
 {
     readonly JsonSerializerOptions _jsonOptions;
+    readonly Dictionary<string, WebSocketConnection> _webSockets = [];
+    readonly object _webSocketLock = new();
+    readonly string _serverUrl;
+    int _nextWebSocketId;
     bool _disposed;
 
     /// <summary>
@@ -19,12 +27,16 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// </summary>
     /// <param name="runtime">The JavaScript runtime.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
-    public JavaScriptHttpBridge(JavaScriptRuntime runtime, HttpClient httpClient)
+    /// <param name="serverUrl">The base URL of the server.</param>
+    public JavaScriptHttpBridge(JavaScriptRuntime runtime, HttpClient httpClient, string serverUrl)
     {
         Runtime = runtime;
         HttpClient = httpClient;
+        _serverUrl = serverUrl;
         _jsonOptions = Json.Globals.JsonSerializerOptions;
         SetupFetchInterceptor();
+        SetupWebSocketPolyfill();
+        SetupArcGlobals();
     }
 
     /// <summary>
@@ -56,6 +68,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
 (function() {
     var module = { exports: {} };
     var exports = module.exports;
+    var require = globalThis.require || function(id) { throw new Error('Module not found: ' + id); };
     {{jsCode}}
     // Export any classes to global scope
     for (var key in module.exports) {
@@ -113,8 +126,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
             propAssignments +
             "var __cmdResult = null;" +
             "var __cmdError = null;" +
-            "var __cmdDone = false;" +
-            "__cmd.execute().then(function(result) {" +
+            "var __cmdDone = false;" +            "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
+            "__write_to_file('[Command] Origin: ' + __cmd._origin);" +
+            "__write_to_file('[Command] Route: ' + __cmd.route);" +            "__cmd.execute().then(function(result) {" +
             "    __cmdResult = result;" +
             "    __cmdDone = true;" +
             "}).catch(function(error) {" +
@@ -211,7 +225,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
     /// <summary>
     /// Performs an observable query through its JavaScript proxy class.
-    /// The proxy's subscribe() method simulates a WebSocket connection for real-time updates.
+    /// The proxy's subscribe() method opens a WebSocket connection for real-time updates.
     /// </summary>
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="queryClassName">The name of the query class.</param>
@@ -233,11 +247,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
             ? string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
             : string.Empty;
 
-        // Create TaskCompletionSource for synchronization
-        var updateReceived = new TaskCompletionSource<bool>();
-
-        // Expose function to JavaScript that signals when update is received
-        Runtime.Engine.AddHostObject("__signalUpdateReceived", new Action(() => updateReceived.TrySetResult(true)));
+        var logPath = "/tmp/websocket-debug.txt";
+        File.AppendAllText(logPath, $"\n[JavaScript] Creating query: {queryClassName}\n");
+        File.AppendAllText(logPath, $"[JavaScript] Parameters: {paramAssignments}\n");
 
         // Create query instance, set parameters, and subscribe
         Runtime.Execute(
@@ -245,36 +257,47 @@ public sealed class JavaScriptHttpBridge : IDisposable
             paramAssignments +
             "var __obsUpdates = [];" +
             "var __obsError = null;" +
+            "__write_to_file('[JavaScript] Created query instance');" +
             "var __obsSubscription = __obsQuery.subscribe(function(result) {" +
+            "    __write_to_file('[JavaScript] Subscribe callback invoked');" +
+            "    __write_to_file('[JavaScript] Received result: ' + JSON.stringify(result));" +
             "    __obsUpdates.push(result);" +
-            "    __signalUpdateReceived();" +
-            "});");
+            "    __write_to_file('[JavaScript] __obsUpdates length is now: ' + __obsUpdates.length);" +
+            "});" +
+            "__write_to_file('[JavaScript] Subscription created');");
 
-        // Process the pending fetch from subscribe
-        var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
-        if (!hasPendingFetch)
+        File.AppendAllText(logPath, $"[JavaScript] Subscribe called, waiting for updates...\n");
+
+        // Wait for the initial WebSocket message
+        var timeout = TimeSpan.FromSeconds(10);
+        var start = DateTime.UtcNow;
+        
+        while (DateTime.UtcNow - start < timeout)
         {
-            throw new JavaScriptProxyExecutionFailed("Observable query subscribe did not initiate a fetch");
+            var hasUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
+            var error = Runtime.Evaluate<string>("__obsError ? JSON.stringify(__obsError) : null");
+            
+            if (error is not null)
+            {
+                File.AppendAllText(logPath, $"[JavaScript] Error detected: {error}\n");
+                throw new JavaScriptProxyExecutionFailed($"Observable query failed: {error}");
+            }
+            
+            if (hasUpdates)
+            {
+                File.AppendAllText(logPath, $"[JavaScript] Found {Runtime.Evaluate<int>("__obsUpdates.length")} updates\n");
+                break;
+            }
+            await Task.Delay(50);
         }
 
-        // Process the fetch to get the initial data
-        await ProcessPendingFetchAsync();
-
-        // Wait for the JavaScript promise to resolve and signal us (with timeout)
-        var timeout = TimeSpan.FromSeconds(5);
-        var completedTask = await Task.WhenAny(updateReceived.Task, Task.Delay(timeout));
-        if (completedTask != updateReceived.Task)
+        var hasAnyUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
+        if (!hasAnyUpdates)
         {
             throw new JavaScriptProxyExecutionFailed($"Observable query did not receive initial update within {timeout.TotalSeconds} seconds");
         }
 
-        // Get the initial result
-        var hasUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
-        if (!hasUpdates)
-        {
-            throw new JavaScriptProxyExecutionFailed("Observable query did not produce any initial result");
-        }
-
+        // Get all current updates
         var updates = new List<TResult>();
         var updateCount = Runtime.Evaluate<int>("__obsUpdates.length");
 
@@ -298,35 +321,39 @@ public sealed class JavaScriptHttpBridge : IDisposable
     }
 
     /// <summary>
-    /// Syncs observable updates by making a fresh HTTP request to get the latest data.
+    /// Waits for new WebSocket updates to arrive and adds them to the result.
     /// </summary>
     /// <typeparam name="TResult">The type of data.</typeparam>
-    /// <param name="result">The execution result to sync updates into.</param>
-    public async Task SyncObservableUpdates<TResult>(ObservableQueryExecutionResult<TResult> result)
+    /// <param name="result">The execution result to add updates to.</param>
+    /// <param name="timeout">Maximum time to wait for updates.</param>
+    public async Task WaitForWebSocketUpdates<TResult>(ObservableQueryExecutionResult<TResult> result, TimeSpan? timeout = null)
     {
-        // For HTTP-based observables, we need to make a new request to get updated data
-        // Trigger a fresh subscribe which will make a new HTTP call
-        Runtime.Execute(
-            "__obsQuery.subscribe(function(result) {" +
-            "    __obsUpdates.push(result);" +
-            "});");
+        timeout ??= TimeSpan.FromSeconds(5);
+        var start = DateTime.UtcNow;
+        var initialCount = result.Updates.Count;
 
-        // Process the new fetch
-        await ProcessPendingFetchAsync();
-
-        // Get the newly added updates (after the initial ones)
-        var currentCount = result.Updates.Count;
-        var jsUpdateCount = Runtime.Evaluate<int>("__obsUpdates.length");
-
-        for (var i = currentCount; i < jsUpdateCount; i++)
+        // Wait for new updates to arrive via WebSocket
+        while (DateTime.UtcNow - start < timeout)
         {
-            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
-            var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
-            if (update is not null)
+            var currentCount = Runtime.Evaluate<int>("__obsUpdates.length");
+            if (currentCount > initialCount)
             {
-                result.Updates.Add(update);
+                // Get the newly added updates
+                for (var i = initialCount; i < currentCount; i++)
+                {
+                    var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
+                    var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
+                    if (update is not null)
+                    {
+                        result.Updates.Add(update);
+                    }
+                }
+                return;
             }
+            await Task.Delay(50);
         }
+
+        throw new JavaScriptProxyExecutionFailed($"No new WebSocket updates received within {timeout.Value.TotalSeconds} seconds");
     }
 
     /// <inheritdoc/>
@@ -334,8 +361,180 @@ public sealed class JavaScriptHttpBridge : IDisposable
     {
         if (!_disposed)
         {
+            // Close all active WebSocket connections
+            lock (_webSocketLock)
+            {
+                foreach (var ws in _webSockets.Values)
+                {
+                    ws.Dispose();
+                }
+                _webSockets.Clear();
+            }
+
             Runtime.Dispose();
             _disposed = true;
+        }
+    }
+
+    void SetupArcGlobals()
+    {
+        // Set up Arc Globals for origin and API base path
+        var uri = new Uri(_serverUrl);
+        var origin = $"{uri.Scheme}://{uri.Authority}";
+        
+        File.AppendAllText("/tmp/websocket-debug.txt", $"\n[SetupArcGlobals] Server URL: {_serverUrl}\n");
+        File.AppendAllText("/tmp/websocket-debug.txt", $"[SetupArcGlobals] Origin: {origin}\n");
+        
+        Runtime.Execute($@"
+// Set up Arc Globals by loading and modifying the Globals module
+try {{
+    var ArcModule = require('@cratis/arc');
+    if (ArcModule && ArcModule.Globals) {{
+        __write_to_file('[SetupArcGlobals] Before: origin=' + ArcModule.Globals.origin);
+        ArcModule.Globals.origin = '{origin}';
+        ArcModule.Globals.apiBasePath = '';
+        ArcModule.Globals.microservice = '';
+        __write_to_file('[SetupArcGlobals] After: origin=' + ArcModule.Globals.origin);
+        __write_to_file('[SetupArcGlobals] Successfully set Globals.origin to: ' + ArcModule.Globals.origin);
+    }} else {{
+        __write_to_file('[SetupArcGlobals] WARNING: ArcModule or ArcModule.Globals is null');
+    }}
+    
+    // Also set on globalThis for compatibility
+    if (!globalThis.Globals) {{
+        globalThis.Globals = ArcModule.Globals;
+    }} else {{
+        globalThis.Globals.origin = '{origin}';
+        globalThis.Globals.apiBasePath = '';
+        globalThis.Globals.microservice = '';
+    }}
+}} catch (e) {{
+    __write_to_file('[SetupArcGlobals] ERROR: ' + e.message);
+    console.error('Failed to setup Arc Globals:', e.message);
+    throw e;
+}}
+");
+    }
+
+    void SetupWebSocketPolyfill()
+    {
+        // Expose file logging function
+        Runtime.Engine.AddHostObject("__write_to_file", new Action<string>((message) =>
+        {
+            File.AppendAllText("/tmp/websocket-debug.txt", message + "\n");
+        }));
+
+        // Expose function to JavaScript that creates a WebSocket connection
+        Runtime.Engine.AddHostObject("__createWebSocket", new Func<string, string>((url) =>
+        {
+            var wsId = CreateWebSocketConnection(url);
+            return wsId;
+        }));
+
+        // Expose function to send WebSocket messages
+        Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>((wsId, message) =>
+        {
+            SendWebSocketMessage(wsId, message);
+        }));
+
+        // Expose function to close WebSocket
+        Runtime.Engine.AddHostObject("__webSocketClose", new Action<string>((wsId) =>
+        {
+            CloseWebSocketConnection(wsId);
+        }));
+
+        // Set up the WebSocket polyfill
+        Runtime.Execute(@"
+class WebSocket {
+    constructor(url) {
+        this.url = url;
+        this.readyState = 0; // CONNECTING
+        this.onopen = null;
+        this.onmessage = null;
+        this.onerror = null;
+        this.onclose = null;
+        this._id = __createWebSocket(url);
+        
+        // Store reference so C# can call callbacks
+        if (!globalThis.__webSockets) {
+            globalThis.__webSockets = {};
+        }
+        globalThis.__webSockets[this._id] = this;
+    }
+    
+    send(data) {
+        if (this.readyState !== 1) { // OPEN
+            throw new Error('WebSocket is not open');
+        }
+        __webSocketSend(this._id, typeof data === 'string' ? data : JSON.stringify(data));
+    }
+    
+    close() {
+        if (this.readyState === 2 || this.readyState === 3) { // CLOSING or CLOSED
+            return;
+        }
+        this.readyState = 2; // CLOSING
+        __webSocketClose(this._id);
+    }
+}
+
+// WebSocket constants
+WebSocket.CONNECTING = 0;
+WebSocket.OPEN = 1;
+WebSocket.CLOSING = 2;
+WebSocket.CLOSED = 3;
+");
+    }
+
+    string CreateWebSocketConnection(string url)
+    {
+        var wsId = $"ws_{Interlocked.Increment(ref _nextWebSocketId)}";
+        
+        var logPath = "/tmp/websocket-debug.txt";
+        File.AppendAllText(logPath, $"\n[JavaScriptHttpBridge] Creating WebSocket: {wsId}\n");
+        File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Original URL: {url}\n");
+        File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Server URL: {_serverUrl}\n");
+        
+        // Convert relative URL to absolute using server URL
+        var absoluteUrl = url.StartsWith("http", StringComparison.OrdinalIgnoreCase) 
+            ? url 
+            : new Uri(new Uri(_serverUrl), url).ToString();
+        
+        File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Absolute URL: {absoluteUrl}\n");
+        
+        var connection = new WebSocketConnection(wsId, absoluteUrl, Runtime);
+        
+        lock (_webSocketLock)
+        {
+            _webSockets[wsId] = connection;
+        }
+
+        // Start the connection in the background
+        _ = connection.ConnectAsync();
+
+        return wsId;
+    }
+
+    void SendWebSocketMessage(string wsId, string message)
+    {
+        lock (_webSocketLock)
+        {
+            if (_webSockets.TryGetValue(wsId, out var connection))
+            {
+                _ = connection.SendAsync(message);
+            }
+        }
+    }
+
+    void CloseWebSocketConnection(string wsId)
+    {
+        lock (_webSocketLock)
+        {
+            if (_webSockets.TryGetValue(wsId, out var connection))
+            {
+                connection.Dispose();
+                _webSockets.Remove(wsId);
+            }
         }
     }
 
@@ -345,9 +544,12 @@ public sealed class JavaScriptHttpBridge : IDisposable
         Runtime.Execute(
             "var __pendingFetch = null;" +
             "function fetch(url, options) {" +
+            "    __write_to_file('[Fetch] URL: ' + url);" +
+            "    __write_to_file('[Fetch] URL type: ' + typeof url);" +
+            "    var urlString = (typeof url === 'object' && url.href) ? url.href : String(url);" +
             "    return new Promise(function(resolve, reject) {" +
             "        __pendingFetch = {" +
-            "            url: url," +
+            "            url: urlString," +
             "            options: options || {}," +
             "            resolve: resolve," +
             "            reject: reject" +
@@ -462,4 +664,163 @@ public class ObservableQueryExecutionResult<TResult>(Queries.QueryResult result,
     /// Gets the most recent data from updates.
     /// </summary>
     public TResult LatestData => Updates[^1];
+}
+
+/// <summary>
+/// Represents a WebSocket connection bridged between JavaScript and .NET.
+/// </summary>
+sealed class WebSocketConnection : IDisposable
+{
+    readonly string _id;
+    readonly string _url;
+    readonly JavaScriptRuntime _runtime;
+    readonly CancellationTokenSource _cts = new();
+    ClientWebSocket? _webSocket;
+    bool _disposed;
+
+    public WebSocketConnection(string id, string url, JavaScriptRuntime runtime)
+    {
+        _id = id;
+        _url = url;
+        _runtime = runtime;
+    }
+
+    public async Task ConnectAsync()
+    {
+        var logPath = "/tmp/websocket-debug.txt";
+        try
+        {
+            _webSocket = new ClientWebSocket();
+
+            // Convert http/https URL to ws/wss
+            var uri = new Uri(_url);
+            var wsUri = new UriBuilder(uri)
+            {
+                Scheme = uri.Scheme == "https" ? "wss" : "ws"
+            }.Uri;
+
+            File.AppendAllText(logPath, $"[WebSocket {_id}] Connecting to: {wsUri}\n");
+
+            // Connect to the real Kestrel server
+            await _webSocket.ConnectAsync(wsUri, _cts.Token);
+
+            File.AppendAllText(logPath, $"[WebSocket {_id}] Connected successfully\n");
+
+            // Notify JavaScript that connection is open
+            _runtime.Execute($@"
+if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+    var ws = globalThis.__webSockets['{_id}'];
+    ws.readyState = 1; // OPEN
+    if (ws.onopen) ws.onopen({{ type: 'open' }});
+}}");
+
+            // Start receiving messages
+            _ = Task.Run(async () => await ReceiveLoop());
+        }
+        catch (Exception ex)
+        {
+            File.AppendAllText(logPath, $"[WebSocket {_id}] Connection failed: {ex.Message}\n");
+            File.AppendAllText(logPath, $"[WebSocket {_id}] Stack trace: {ex.StackTrace}\n");
+            
+            // Notify JavaScript of error
+            var errorMsg = ex.Message.Replace("'", "\\'").Replace("\n", "\\n");
+            _runtime.Execute($@"
+if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+    var ws = globalThis.__webSockets['{_id}'];
+    ws.readyState = 3; // CLOSED
+    if (ws.onerror) ws.onerror({{ type: 'error', message: '{errorMsg}' }});
+    if (ws.onclose) ws.onclose({{ type: 'close', code: 1006, reason: '{errorMsg}' }});
+}}");
+        }
+    }
+
+    public async Task SendAsync(string message)
+    {
+        if (_webSocket?.State == WebSocketState.Open)
+        {
+            var buffer = Encoding.UTF8.GetBytes(message);
+            await _webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, _cts.Token);
+        }
+    }
+
+    async Task ReceiveLoop()
+    {
+        if (_webSocket is null) return;
+
+        var logPath = "/tmp/websocket-debug.txt";
+        File.AppendAllText(logPath, $"[WebSocket {_id}] ReceiveLoop started\n");
+
+        var buffer = new byte[1024 * 4];
+        try
+        {
+            while (_webSocket.State == WebSocketState.Open && !_cts.Token.IsCancellationRequested)
+            {
+                File.AppendAllText(logPath, $"[WebSocket {_id}] Waiting for message...\n");
+                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
+                File.AppendAllText(logPath, $"[WebSocket {_id}] Received message type: {result.MessageType}, count: {result.Count}\n");
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
+                    
+                    _runtime.Execute($@"
+if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+    var ws = globalThis.__webSockets['{_id}'];
+    ws.readyState = 3; // CLOSED
+    if (ws.onclose) ws.onclose({{ type: 'close', code: 1000, reason: 'Normal closure' }});
+}}");
+                    break;
+                }
+
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                File.AppendAllText(logPath, $"[WebSocket {_id}] Message content: {message.Substring(0, Math.Min(200, message.Length))}...\n");
+                
+                // Escape the message for JavaScript
+                var escapedMessage = message
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("\n", "\\n")
+                    .Replace("\r", "\\r");
+
+                File.AppendAllText(logPath, $"[WebSocket {_id}] About to call JavaScript onmessage\n");
+                
+                // Notify JavaScript of message
+                // NOTE: ev.data should be the raw string, not parsed JSON
+                _runtime.Execute($@"
+if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+    var ws = globalThis.__webSockets['{_id}'];
+    if (ws.onmessage) {{
+        ws.onmessage({{ type: 'message', data: '{escapedMessage}' }});
+    }}
+}}");
+
+                File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage called\n");            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal cancellation
+        }
+        catch (Exception ex)
+        {
+            var errorMsg = ex.Message.Replace("'", "\\'").Replace("\n", "\\n");
+            _runtime.Execute($@"
+if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+    var ws = globalThis.__webSockets['{_id}'];
+    ws.readyState = 3; // CLOSED
+    if (ws.onerror) ws.onerror({{ type: 'error', message: '{errorMsg}' }});
+    if (ws.onclose) ws.onclose({{ type: 'close', code: 1006, reason: '{errorMsg}' }});
+}}");
+        }
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _cts.Cancel();
+            _webSocket?.Dispose();
+            _cts.Dispose();
+            _disposed = true;
+        }
+    }
 }

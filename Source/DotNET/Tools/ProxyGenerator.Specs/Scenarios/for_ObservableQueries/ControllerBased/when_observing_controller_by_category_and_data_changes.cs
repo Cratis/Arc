@@ -32,7 +32,7 @@ public class when_observing_controller_by_category_and_data_changes : given.a_sc
         await HttpClient.PostAsJsonAsync($"/api/observable-controller-queries/update/category/Electronics", _updatedData);
 
         // Sync observable updates to get fresh HTTP snapshot
-        await Bridge.SyncObservableUpdates(_executionResult);
+        await Bridge.WaitForWebSocketUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

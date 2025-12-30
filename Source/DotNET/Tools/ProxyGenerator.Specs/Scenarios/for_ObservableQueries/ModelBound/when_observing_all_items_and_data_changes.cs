@@ -30,7 +30,7 @@ public class when_observing_all_items_and_data_changes : given.a_scenario_web_ap
         ObservableReadModel.UpdateAllItems(_updatedData);
 
         // Sync any new updates from JavaScript
-        await Bridge.SyncObservableUpdates(_executionResult);
+        await Bridge.WaitForWebSocketUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

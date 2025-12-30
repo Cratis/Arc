@@ -2,13 +2,16 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Net;
 using Cratis.Arc.ProxyGenerator.ControllerBased;
 using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -40,7 +43,12 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     protected JavaScriptHttpBridge? Bridge { get; set; }
 
-    void Establish()
+    /// <summary>
+    /// Gets the base URL of the running server.
+    /// </summary>
+    protected string? ServerUrl { get; set; }
+
+    async Task Establish()
     {
         // Reset static test data for test isolation - must happen BEFORE test runs
         for_ObservableQueries.ModelBound.ObservableReadModel.Reset();
@@ -48,7 +56,18 @@ public class a_scenario_web_application : Specification, IDisposable
         for_ObservableQueries.ModelBound.ComplexObservableReadModel.Reset();
 
         var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseTestServer();
+
+        // Register controller state as singleton for test isolation
+        builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
+        
+        // Use Kestrel instead of TestServer to support real WebSocket connections
+        builder.WebHost.UseKestrel(options =>
+        {
+            options.Listen(IPAddress.Loopback, 0, listenOptions =>
+            {
+                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+            });
+        });
 
         // Suppress verbose logging during tests
         builder.Logging.ClearProviders();
@@ -62,6 +81,7 @@ public class a_scenario_web_application : Specification, IDisposable
 
         var app = builder.Build();
 
+        app.UseWebSockets();
         app.UseRouting();
         app.UseCratisArc();
         app.MapControllers();
@@ -77,11 +97,20 @@ public class a_scenario_web_application : Specification, IDisposable
 
         // Start the application
         Host = app;
-        app.Start();
+        await app.StartAsync();
 
-        HttpClient = app.GetTestClient();
+        // Get the actual server address
+        var server = app.Services.GetRequiredService<IServer>();
+        var addresses = server.Features.Get<IServerAddressesFeature>();
+        ServerUrl = addresses?.Addresses.FirstOrDefault() ?? "http://localhost:5000";
+
+        File.AppendAllText("/tmp/websocket-debug.txt", $"\n[Test Server] Started on: {ServerUrl}\n");
+
+        // Create HTTP client pointing to the real server
+        HttpClient = new HttpClient { BaseAddress = new Uri(ServerUrl) };
+        
         Runtime = new JavaScriptRuntime();
-        Bridge = new JavaScriptHttpBridge(Runtime, HttpClient);
+        Bridge = new JavaScriptHttpBridge(Runtime, HttpClient, ServerUrl);
     }
 
     /// <summary>
@@ -116,8 +145,9 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     /// <typeparam name="TController">The controller type.</typeparam>
     /// <param name="methodName">The name of the controller method.</param>
+    /// <param name="saveToFile">Optional file path to save the generated TypeScript code.</param>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the method is not found.</exception>
-    protected void LoadControllerCommandProxy<TController>(string methodName)
+    protected void LoadControllerCommandProxy<TController>(string methodName, string? saveToFile = null)
     {
         var controllerType = typeof(TController).GetTypeInfo();
         var method = controllerType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)
@@ -128,6 +158,12 @@ public class a_scenario_web_application : Specification, IDisposable
             segmentsToSkip: 0);
 
         var code = InMemoryProxyGenerator.GenerateCommand(descriptor);
+
+        if (!string.IsNullOrEmpty(saveToFile))
+        {
+            File.WriteAllText(saveToFile, code);
+        }
+
         Bridge.LoadTypeScript(code);
     }
 
@@ -239,8 +275,30 @@ public class a_scenario_web_application : Specification, IDisposable
             targetPath: string.Empty,
             segmentsToSkip: 0);
 
+        var logPath = "/tmp/websocket-debug.txt";
+        File.AppendAllText(logPath, $"\n[Proxy Generation] Method: {methodName}\n");
+        File.AppendAllText(logPath, $"[Proxy Generation] IsObservable: {descriptor.IsObservable}\n");
+        File.AppendAllText(logPath, $"[Proxy Generation] Return type: {method.ReturnType.FullName}\n");
+
         var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
+        
+        File.WriteAllText("/tmp/generated-proxy-full.ts", code);
+        File.AppendAllText(logPath, $"[Proxy Generation] Full code saved to /tmp/generated-proxy-full.ts\n");
+        File.AppendAllText(logPath, $"[Proxy Generation] Generated code length: {code.Length} chars\n");
+        File.AppendAllText(logPath, $"[Proxy Generation] First 500 chars:\n{code.Substring(0, Math.Min(500, code.Length))}\n");
+        
         Bridge.LoadTypeScript(code);
+        
+        // Try to instantiate the class to see if it loaded correctly
+        try
+        {
+            Bridge.Runtime.Execute($"var __testQuery = new {descriptor.Name}();");
+            File.AppendAllText(logPath, $"[Proxy Generation] Successfully created {descriptor.Name} instance\n");
+        }
+        catch (Exception ex)
+        {
+            File.AppendAllText(logPath, $"[Proxy Generation] ERROR creating instance: {ex.Message}\n");
+        }
     }
 
     /// <inheritdoc/>

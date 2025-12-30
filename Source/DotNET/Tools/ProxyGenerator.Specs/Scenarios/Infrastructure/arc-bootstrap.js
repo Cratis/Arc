@@ -1,945 +1,406 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-// Arc Runtime Bootstrap for ClearScript V8
-// This sets up a CommonJS-like module environment for testing generated proxies
-
-// Node.js process shim (required by TypeScript compiler)
-var process = {
-    env: {},
-    platform: 'darwin',
-    version: 'v20.0.0',
-    versions: { node: '20.0.0' },
-    cwd: function() { return '/'; },
-    nextTick: function(fn) { setTimeout(fn, 0); },
-    stderr: { write: function() {} },
-    stdout: { write: function() {} }
-};
-
-// CommonJS module shims (required for transpiled TypeScript)
-var module = { exports: {} };
-var exports = module.exports;
-
-var __modules = {};
-var __moduleCache = {};
-
-// Simple require implementation
-function require(modulePath) {
-    if (__moduleCache[modulePath]) {
-        return __moduleCache[modulePath].exports;
+// Arc Module Loader - Loads built JavaScript files from dist/cjs
+(function() {
+    // Node.js process shim (required by some modules)
+    if (!globalThis.process) {
+        globalThis.process = {
+            env: {},
+            platform: 'darwin',
+            version: 'v20.0.0',
+            versions: { node: '20.0.0' },
+            cwd: function() { return '/'; },
+            nextTick: function(fn) { setTimeout(fn, 0); },
+            stderr: { write: function() {} },
+            stdout: { write: function() {} }
+        };
     }
 
-    // Handle Arc package imports
-    if (modulePath === '@cratis/arc' || modulePath.startsWith('@cratis/arc/')) {
-        var subPath = modulePath === '@cratis/arc' ? 'index' : modulePath.replace('@cratis/arc/', '');
-        return __loadArcModule(subPath);
-    }
-
-    // Handle Arc.React package imports
-    if (modulePath === '@cratis/arc.react' || modulePath.startsWith('@cratis/arc.react/')) {
-        var subPath = modulePath === '@cratis/arc.react' ? 'index' : modulePath.replace('@cratis/arc.react/', '');
-        return __loadArcReactModule(subPath);
-    }
-
-    // Handle Fundamentals imports
-    if (modulePath === '@cratis/fundamentals' || modulePath.startsWith('@cratis/fundamentals/')) {
-        var subPath = modulePath === '@cratis/fundamentals' ? 'index' : modulePath.replace('@cratis/fundamentals/', '');
-        return __loadFundamentalsModule(subPath);
-    }
-
-    // Handle relative imports (e.g., './CommandResultData', './ComplexCommandResult')
-    // These are typically DTO/data classes that just need empty constructor functions
-    if (modulePath.startsWith('./') || modulePath.startsWith('../')) {
-        var typeName = modulePath.replace(/^\.\.?\//, '').replace(/\.js$/, '');
-        return __createRelativeModule(typeName);
-    }
-
-    throw new Error('Module not found: ' + modulePath);
-}
-
-// Creates a module for relative imports (typically DTO classes)
-function __createRelativeModule(typeName) {
-    var module = { exports: {} };
-    
-    // Create a simple constructor function for the type
-    var TypeConstructor = function() {};
-    TypeConstructor.prototype = {};
-    
-    module.exports[typeName] = TypeConstructor;
-    
-    return module.exports;
-}
-
-function __loadArcModule(subPath) {
-    var key = '@cratis/arc/' + subPath;
-    if (__moduleCache[key]) return __moduleCache[key].exports;
-
-    var module = { exports: __getArcModuleExports(subPath) };
-    __moduleCache[key] = module;
-
-    return module.exports;
-}
-
-function __loadArcReactModule(subPath) {
-    var key = '@cratis/arc.react/' + subPath;
-    if (__moduleCache[key]) return __moduleCache[key].exports;
-
-    var module = { exports: __getArcReactModuleExports(subPath) };
-    __moduleCache[key] = module;
-
-    return module.exports;
-}
-
-function __loadFundamentalsModule(subPath) {
-    var key = '@cratis/fundamentals/' + subPath;
-    if (__moduleCache[key]) return __moduleCache[key].exports;
-
-    var module = { exports: __getFundamentalsModuleExports(subPath) };
-    __moduleCache[key] = module;
-
-    return module.exports;
-}
-
-// Arc module exports provider
-function __getArcModuleExports(subPath) {
-    switch(subPath) {
-        case 'commands':
-            return {
-                Command: Command,
-                CommandPropertyValidators: function() { this.validators = {}; },
-                CommandValidator: CommandValidator
-            };
-        case 'queries':
-            return {
-                Query: Query,
-                QueryFor: Query,
-                QueryResult: QueryResult,
-                QueryResultWithState: QueryResult,
-                QueryValidator: QueryValidator,
-                Sorting: Sorting,
-                SortingActions: SortingActions,
-                SortingActionsForQuery: SortingActionsForQuery,
-                Paging: Paging
-            };
-        case 'validation':
-            return {
-                Validator: Validator,
-                ValidationResult: ValidationResult,
-                PropertyValidator: PropertyValidator,
-                RuleBuilder: RuleBuilder
-            };
-        case 'reflection':
-            return {
-                PropertyDescriptor: PropertyDescriptor,
-                ParameterDescriptor: ParameterDescriptor
-            };
-        default:
-            return {};
-    }
-}
-
-// Arc.React module exports provider
-function __getArcReactModuleExports(subPath) {
-    switch(subPath) {
-        case 'commands':
-            return {
-                useCommand: function() { return [null, function() {}]; },
-                SetCommandValues: function() {},
-                ClearCommandValues: function() {}
-            };
-        case 'queries':
-            return {
-                useQuery: function() { return { data: null, isLoading: false }; },
-                useQueryWithPaging: function() { return { data: null, isLoading: false }; },
-                PerformQuery: function() {},
-                SetSorting: function() {},
-                SetPage: function() {},
-                SetPageSize: function() {}
-            };
-        default:
-            return {};
-    }
-}
-
-// Fundamentals module exports provider
-function __getFundamentalsModuleExports(subPath) {
-    switch(subPath) {
-        case 'index':
-            return {
-                field: field,
-                Guid: Guid,
-                TimeSpan: TimeSpan
-            };
-        default:
-            return {
-                field: field,
-                Guid: Guid,
-                TimeSpan: TimeSpan
-            };
-    }
-}
-
-// field decorator (used by generated types)
-function field(type) {
-    return function(target, propertyKey) {
-        // Just a decorator, doesn't do anything in tests
-    };
-}
-
-// Guid class (simple string wrapper)
-function Guid(value) {
-    this.value = value || '00000000-0000-0000-0000-000000000000';
-}
-Guid.prototype.toString = function() {
-    return this.value;
-};
-
-// TimeSpan class (simple string wrapper for duration)
-function TimeSpan(value) {
-    this.value = value || '00:00:00';
-}
-TimeSpan.prototype.toString = function() {
-    return this.value;
-};
-
-// PropertyDescriptor class
-function PropertyDescriptor(name, constructor) {
-    this.name = name;
-    this.constructor = constructor;
-}
-
-// ValidationResult class
-function ValidationResult(propertyName, message, severity) {
-    this.propertyName = propertyName || '';
-    this.message = message || '';
-    this.severity = severity || 0;
-    this.members = [propertyName];
-    this.state = null;
-}
-
-// PropertyValidator class
-function PropertyValidator(propertyName) {
-    this.propertyName = propertyName;
-    this.rules = [];
-}
-
-PropertyValidator.prototype.addRule = function(rule) {
-    this.rules.push(rule);
-};
-
-PropertyValidator.prototype.validate = function(instance) {
-    var results = [];
-    for (var i = 0; i < this.rules.length; i++) {
-        var rule = this.rules[i];
-        if (!rule.validate(instance)) {
-            results.push(new ValidationResult(this.propertyName, rule.message, 0));
-        }
-    }
-    return results;
-};
-
-// RuleBuilder class
-function RuleBuilder(propertyValidator, propertyAccessor) {
-    this._propertyValidator = propertyValidator;
-    this._propertyAccessor = propertyAccessor;
-    this._currentRule = null;
-}
-
-RuleBuilder.prototype.notEmpty = function() {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            return value !== null && value !== undefined && value !== '';
-        },
-        message: 'Value cannot be empty'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.emailAddress = function() {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return emailRegex.test(value);
-        },
-        message: 'Invalid email address'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.greaterThanOrEqual = function(minValue) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            return value >= minValue;
-        },
-        message: 'Value must be greater than or equal to ' + minValue
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.minLength = function(minLength) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            return value.length >= minLength;
-        },
-        message: 'Value must be at least ' + minLength + ' characters'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.length = function(minLength, maxLength) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            return value.length >= minLength && value.length <= maxLength;
-        },
-        message: 'Value must be between ' + minLength + ' and ' + maxLength + ' characters'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.greaterThan = function(minValue) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            return value > minValue;
-        },
-        message: 'Value must be greater than ' + minValue
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.lessThan = function(maxValue) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            return value < maxValue;
-        },
-        message: 'Value must be less than ' + maxValue
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.maxLength = function(maxLength) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            return value.length <= maxLength;
-        },
-        message: 'Value must be at most ' + maxLength + ' characters'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.lessThanOrEqual = function(maxValue) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            return value <= maxValue;
-        },
-        message: 'Value must be less than or equal to ' + maxValue
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.matches = function(pattern) {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            var regex = new RegExp(pattern);
-            return regex.test(value);
-        },
-        message: 'Value must match pattern ' + pattern
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.phone = function() {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            // Simple phone validation - digits, spaces, dashes, parens, plus
-            var phoneRegex = /^[\d\s\-\(\)\+]+$/;
-            return phoneRegex.test(value) && value.replace(/\D/g, '').length >= 7;
-        },
-        message: 'Invalid phone number'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.url = function() {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            var urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})(\/[\w \.-]*)*\/?$/;
-            return urlRegex.test(value);
-        },
-        message: 'Invalid URL'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.creditCard = function() {
-    var self = this;
-    this._currentRule = {
-        validate: function(instance) {
-            var value = self._propertyAccessor(instance);
-            if (!value) return true; // Skip if empty (use notEmpty to enforce)
-            // Luhn algorithm for credit card validation
-            var num = value.replace(/\D/g, '');
-            if (num.length < 13 || num.length > 19) return false;
-            var sum = 0;
-            var isEven = false;
-            for (var i = num.length - 1; i >= 0; i--) {
-                var digit = parseInt(num.charAt(i), 10);
-                if (isEven) {
-                    digit *= 2;
-                    if (digit > 9) digit -= 9;
+    // URL API shim (required by some modules)
+    if (!globalThis.URL) {
+        globalThis.URL = class URL {
+            constructor(url, base) {
+                // Simple URL combination logic
+                if (base && !url.startsWith('http')) {
+                    // Remove trailing slash from base
+                    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+                    // Add leading slash to url if missing
+                    const cleanUrl = url.startsWith('/') ? url : '/' + url;
+                    this.href = cleanBase + cleanUrl;
+                } else {
+                    this.href = url;
                 }
-                sum += digit;
-                isEven = !isEven;
-            }
-            return (sum % 10) === 0;
-        },
-        message: 'Invalid credit card number'
-    };
-    this._propertyValidator.addRule(this._currentRule);
-    return this;
-};
-
-RuleBuilder.prototype.withMessage = function(message) {
-    if (this._currentRule) {
-        this._currentRule.message = message;
-    }
-    return this;
-};
-
-// Validator base class
-function Validator() {
-    this._propertyValidators = {};
-}
-
-Validator.prototype.ruleFor = function(propertyAccessor) {
-    var propertyName = this._getPropertyName(propertyAccessor);
-    var propertyValidator = this._propertyValidators[propertyName];
-    
-    if (!propertyValidator) {
-        propertyValidator = new PropertyValidator(propertyName);
-        this._propertyValidators[propertyName] = propertyValidator;
-    }
-
-    return new RuleBuilder(propertyValidator, propertyAccessor);
-};
-
-Validator.prototype.validate = function(instance) {
-    var results = [];
-    for (var key in this._propertyValidators) {
-        var propertyValidator = this._propertyValidators[key];
-        var propertyResults = propertyValidator.validate(instance);
-        results = results.concat(propertyResults);
-    }
-    return results;
-};
-
-Validator.prototype.isValidFor = function(instance) {
-    return this.validate(instance).length === 0;
-};
-
-Validator.prototype._getPropertyName = function(propertyAccessor) {
-    var propertyNames = [];
-    var proxy = new Proxy({}, {
-        get: function(target, prop) {
-            if (typeof prop === 'string') {
-                propertyNames.push(prop);
-            }
-            return undefined;
-        }
-    });
-
-    try {
-        propertyAccessor(proxy);
-    } catch (e) {
-        // Ignore errors - we're just capturing the property name
-    }
-
-    return propertyNames[0] || 'unknown';
-};
-
-// CommandValidator extends Validator
-function CommandValidator() {
-    Validator.call(this);
-}
-
-CommandValidator.prototype = Object.create(Validator.prototype);
-CommandValidator.prototype.constructor = CommandValidator;
-
-// QueryValidator extends Validator
-function QueryValidator() {
-    Validator.call(this);
-}
-
-QueryValidator.prototype = Object.create(Validator.prototype);
-QueryValidator.prototype.constructor = QueryValidator;
-
-// Base Command class for proxy generation
-function Command(responseType, isResponseTypeEnumerable) {
-    this.route = '';
-    this.propertyDescriptors = [];
-    this._responseType = responseType || Object;
-    this._isResponseTypeEnumerable = isResponseTypeEnumerable || false;
-    this._initialValues = {};
-    this._hasChanges = false;
-}
-
-Command.prototype.propertyChanged = function(propertyName) {
-    // Track property changes - for testing we just mark as changed
-    this._hasChanges = true;
-};
-
-Command.prototype.setMicroservice = function(microservice) {
-    this._microservice = microservice;
-};
-
-Command.prototype.setApiBasePath = function(apiBasePath) {
-    this._apiBasePath = apiBasePath;
-};
-
-Command.prototype.setOrigin = function(origin) {
-    this._origin = origin;
-};
-
-Command.prototype.setHttpHeadersCallback = function(callback) {
-    this._httpHeadersCallback = callback;
-};
-
-Command.prototype.execute = function() {
-    var self = this;
-    
-    // Perform client-side validation if validator is present
-    if (this.validation && this.validation.validate) {
-        var clientValidationErrors = this.validation.validate(this) || [];
-        if (clientValidationErrors.length > 0) {
-            // Return a failed CommandResult with validation errors
-            return Promise.resolve({
-                isSuccess: false,
-                isValid: false,
-                isAuthorized: true,
-                hasExceptions: false,
-                validationResults: clientValidationErrors,
-                exceptionMessages: [],
-                exceptionStackTrace: ''
-            });
-        }
-    }
-    
-    var body = {};
-    
-    // Gather all properties from the command using propertyDescriptors
-    if (this.propertyDescriptors) {
-        for (var i = 0; i < this.propertyDescriptors.length; i++) {
-            var propName = this.propertyDescriptors[i].name;
-            var privateName = '_' + propName;
-            if (this[privateName] !== undefined) {
-                body[propName] = this[privateName];
-            }
-        }
-    }
-    
-    return fetch(this.route, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    }).then(function(response) {
-        return response.json();
-    });
-};
-
-// Base Query class for proxy generation (also serves as QueryFor)
-class Query {
-    constructor(modelType, isEnumerable) {
-        this.route = '';
-        this.defaultValue = isEnumerable ? [] : {};
-        this.parameterDescriptors = [];
-        this.modelType = modelType || Object;
-        this.enumerable = isEnumerable || false;
-        this.sorting = Sorting.none;
-        this.paging = Paging.noPaging;
-    }
-
-    setMicroservice(microservice) {
-        this._microservice = microservice;
-    }
-
-    setApiBasePath(apiBasePath) {
-        this._apiBasePath = apiBasePath;
-    }
-
-    setOrigin(origin) {
-        this._origin = origin;
-    }
-
-    setHttpHeadersCallback(callback) {
-        this._httpHeadersCallback = callback;
-    }
-
-    perform(args) {
-        var self = this;
-        
-        // Use args if provided, otherwise use this (the query instance) for validation
-        var parametersToValidate = args || this;
-        
-        // Perform client-side validation if validator is present
-        if (this.validation && this.validation.validate) {
-            var clientValidationErrors = this.validation.validate(parametersToValidate) || [];
-            if (clientValidationErrors.length > 0) {
-                // Return a failed QueryResult with validation errors
-                return Promise.resolve({
-                    data: this.defaultValue,
-                    isSuccess: false,
-                    isAuthorized: true,
-                    isValid: false,
-                    hasExceptions: false,
-                    validationResults: clientValidationErrors.map(function(error) {
-                        return {
-                            severity: error.severity,
-                            message: error.message,
-                            members: error.members,
-                            state: error.state
-                        };
-                    }),
-                    exceptionMessages: [],
-                    exceptionStackTrace: '',
-                    paging: {
-                        totalItems: 0,
-                        totalPages: 0,
-                        page: 0,
-                        size: 0
-                    }
-                });
-            }
-        }
-        
-        var params = [];
-        
-        // Gather all parameters from the query (from parameterDescriptors)
-        if (this.parameterDescriptors) {
-            for (var i = 0; i < this.parameterDescriptors.length; i++) {
-                var propName = this.parameterDescriptors[i].name;
-                var value = args ? args[propName] : this[propName];
-                if (value !== undefined && value !== null) {
-                    params.push(encodeURIComponent(propName) + '=' + encodeURIComponent(value));
+                
+                // Parse the URL
+                const urlObj = this.href.match(/^(https?):\/\/([^/:]+)(:(\d+))?(\/.*)?$/);
+                if (urlObj) {
+                    this.protocol = urlObj[1] + ':';
+                    this.hostname = urlObj[2];
+                    this.port = urlObj[4] || '';
+                    this.host = this.port ? `${this.hostname}:${this.port}` : this.hostname;
+                    this.pathname = urlObj[5] || '/';
+                    this.search = '';
+                    this.hash = '';
+                } else {
+                    // Fallback for malformed URLs
+                    this.protocol = '';
+                    this.host = '';
+                    this.hostname = '';
+                    this.port = '';
+                    this.pathname = this.href;
+                    this.search = '';
+                    this.hash = '';
                 }
             }
-        }
-        
-        var url = this.route;
-        if (params.length > 0) {
-            url += '?' + params.join('&');
-        }
-        
-        return fetch(url, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        }).then(function(response) {
-            if (!response.ok) {
-                throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-            }
-            return response.json();
-        });
-    }
-}
-
-// ObservableQueryFor class for observable queries (extends Query)
-class ObservableQueryFor extends Query {
-    constructor(modelType, isEnumerable) {
-        super(modelType, isEnumerable);
-        this._connection = null;
-    }
-
-    // Add subscribe method for observable queries
-    subscribe(callback, args) {
-        var self = this;
-        
-        // Simulate WebSocket connection by performing initial query
-        this.perform(args).then(function(result) {
-            // Call callback with initial result
-            callback(result);
-        }).catch(function(error) {
-            // Handle error
-            callback({
-                data: self.defaultValue,
-                isSuccess: false,
-                isAuthorized: true,
-                isValid: true,
-                hasExceptions: true,
-                validationResults: [],
-                exceptionMessages: [error.message || 'Unknown error'],
-                exceptionStackTrace: error.stack || '',
-                paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 },
-                sorting: []
-            });
-        });
-        
-        // Return a subscription object
-        return {
-            dispose: function() {
-                // Cleanup if needed
+            toString() {
+                return this.href;
             }
         };
     }
-}
 
-
-// SortingActionsForObservableQuery class
-function SortingActionsForObservableQuery(field, query) {
-    this.field = field || '';
-    this.query = query;
-}
-
-// ParameterDescriptor class
-function ParameterDescriptor(name, type, required) {
-    this.name = name;
-    this.type = type || String;
-    this.required = required !== undefined ? required : true;
-}
-
-// Sorting class
-function Sorting(field, direction) {
-    this.field = field || '';
-    this.direction = direction || 0;
-}
-Sorting.none = new Sorting('', 0);
-Sorting.prototype.hasSorting = function() { return this.field !== ''; };
-
-// Paging class
-function Paging(page, pageSize) {
-    this.page = page || 0;
-    this.pageSize = pageSize || 0;
-}
-Paging.noPaging = new Paging(0, 0);
-Paging.prototype.hasPaging = function() { return this.pageSize > 0; };
-
-// SortingActions class
-function SortingActions(field) {
-    this.field = field || '';
-}
-
-// SortingActionsForQuery class
-function SortingActionsForQuery(field, query) {
-    this.field = field || '';
-    this.query = query;
-}
-
-// QueryResult class
-function QueryResult(data, isSuccess, isAuthorized, isValid, hasExceptions, validationResults, exceptionMessages, exceptionStackTrace, paging, sorting) {
-    this.data = data;
-    this.isSuccess = isSuccess !== undefined ? isSuccess : true;
-    this.isAuthorized = isAuthorized !== undefined ? isAuthorized : true;
-    this.isValid = isValid !== undefined ? isValid : true;
-    this.hasExceptions = hasExceptions !== undefined ? hasExceptions : false;
-    this.validationResults = validationResults || [];
-    this.exceptionMessages = exceptionMessages || [];
-    this.exceptionStackTrace = exceptionStackTrace || '';
-    this.paging = paging || { page: 0, size: 0, totalItems: 0, totalPages: 0 };
-    this.sorting = sorting || [];
-}
-
-// Globals for Arc
-var Globals = {
-    microservice: '',
-    apiBasePath: '',
-    microserviceHttpHeader: 'X-Cratis-Microservice'
-};
-
-// Mock fetch that will be intercepted by the test bridge
-var __fetchHandler = null;
-
-function fetch(url, options) {
-    return new Promise(function(resolve, reject) {
-        if (__fetchHandler) {
-            __fetchHandler(url, options, resolve, reject);
-        } else {
-            reject(new Error('No fetch handler configured'));
-        }
-    });
-}
-
-// AbortController mock
-var AbortController = function() {
-    this.signal = {};
-};
-AbortController.prototype.abort = function() {};
-
-// URLSearchParams
-var URLSearchParams = function(init) {
-    this._params = {};
-    if (init) {
-        var pairs = init.toString().split('&');
-        for (var i = 0; i < pairs.length; i++) {
-            var pair = pairs[i].split('=');
-            if (pair[0]) this._params[pair[0]] = pair[1] || '';
-        }
+    // AbortController API shim (required by fetch for cancellation)
+    if (!globalThis.AbortController) {
+        globalThis.AbortController = class AbortController {
+            constructor() {
+                this.signal = {
+                    aborted: false,
+                    addEventListener: function() {},
+                    removeEventListener: function() {}
+                };
+            }
+            abort() {
+                this.signal.aborted = true;
+            }
+        };
     }
-};
-URLSearchParams.prototype.append = function(key, value) {
-    this._params[key] = value;
-};
-URLSearchParams.prototype.toString = function() {
-    var parts = [];
-    for (var key in this._params) {
-        parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(this._params[key]));
+
+    // URLSearchParams API shim (required for query string manipulation)
+    if (!globalThis.URLSearchParams) {
+        globalThis.URLSearchParams = class URLSearchParams {
+            constructor(init) {
+                this._params = {};
+                if (typeof init === 'string') {
+                    // Parse query string
+                    if (init.startsWith('?')) init = init.slice(1);
+                    init.split('&').forEach(pair => {
+                        const [key, value] = pair.split('=');
+                        if (key) this._params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+                    });
+                } else if (init) {
+                    // Copy from object or another URLSearchParams
+                    for (const key in init) {
+                        this._params[key] = init[key];
+                    }
+                }
+            }
+            append(name, value) {
+                this._params[name] = String(value);
+            }
+            set(name, value) {
+                this._params[name] = String(value);
+            }
+            get(name) {
+                return this._params[name] || null;
+            }
+            has(name) {
+                return name in this._params;
+            }
+            delete(name) {
+                delete this._params[name];
+            }
+            toString() {
+                return Object.keys(this._params)
+                    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(this._params[key])}`)
+                    .join('&');
+            }
+        };
     }
-    return parts.join('&');
-};
-URLSearchParams.prototype.get = function(key) {
-    return this._params[key];
-};
 
-// Headers mock
-var Headers = function(init) {
-    this._headers = {};
-    if (init) {
-        for (var key in init) {
-            this._headers[key.toLowerCase()] = init[key];
-        }
-    }
-};
-Headers.prototype.append = function(key, value) {
-    this._headers[key.toLowerCase()] = value;
-};
-Headers.prototype.get = function(key) {
-    return this._headers[key.toLowerCase()];
-};
-
-// Export base classes for modules
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        Command: Command,
-        Query: Query,
-        QueryFor: Query,
-        ObservableQueryFor: ObservableQueryFor,
-        Sorting: Sorting,
-        SortingActions: SortingActions,
-        SortingActionsForQuery: SortingActionsForQuery,
-        SortingActionsForObservableQuery: SortingActionsForObservableQuery,
-        Paging: Paging,
-        ParameterDescriptor: ParameterDescriptor,
-        QueryResult: QueryResult
-    };
-}
-
-// Simple module system for transpiled TypeScript
-var __modules = {
-    '@cratis/arc/queries': {
-        Query: Query,
-        QueryFor: Query,
-        QueryValidator: QueryValidator,
-        ObservableQueryFor: ObservableQueryFor,
-        QueryResultWithState: QueryResult,
-        Sorting: Sorting,
-        SortingActions: SortingActions,
-        SortingActionsForQuery: SortingActionsForQuery,
-        SortingActionsForObservableQuery: SortingActionsForObservableQuery,
-        Paging: Paging,
-        ParameterDescriptor: ParameterDescriptor,
-        QueryResult: QueryResult
-    },
-    '@cratis/arc/commands': {
-        Command: Command,
-        CommandFor: Command,
-        CommandValidator: CommandValidator
-    },
-    '@cratis/arc.react/commands': {
-        useCommand: function() { return [null, function() {}]; },
-        SetCommandValues: function() {},
-        ClearCommandValues: function() {}
-    },
-    '@cratis/arc.react/queries': {
-        useQuery: function() { return { data: null, isLoading: false }; },
-        useQueryWithPaging: function() { return { data: null, isLoading: false }; },
-        useObservableQuery: function(callback) { return { data: null, isLoading: false }; },
-        useObservableQueryWithPaging: function(callback) { return { data: null, isLoading: false }; },
-        PerformQuery: function() {},
-        SetSorting: function() {},
-        SetPage: function() {},
-        SetPageSize: function() {}
-    },
-    '@cratis/arc/reflection': {
-        ParameterDescriptor: ParameterDescriptor,
-        PropertyDescriptor: PropertyDescriptor
-    },
-    '@cratis/fundamentals': {
-        Constructor: Object,
-        JsonSerializer: { serialize: function(obj) { return JSON.stringify(obj); }, deserialize: function(json) { return JSON.parse(json); } },
-        field: field
-    }
-};
-
-function require(moduleName) {
-    if (__modules[moduleName]) {
-        var mod = __modules[moduleName];
-        // Verify ObservableQueryFor is correct
-        if (moduleName === '@cratis/arc/queries' && mod.ObservableQueryFor !== ObservableQueryFor) {
-            throw new Error('Module ObservableQueryFor mismatch!');
-        }
-        return mod;
+    // Timer API shims (required by WebSocket and other modules)
+    const timers = {};
+    let nextTimerId = 1;
+    
+    if (!globalThis.setTimeout) {
+        globalThis.setTimeout = function(callback, delay, ...args) {
+            const timerId = nextTimerId++;
+            timers[timerId] = {
+                callback: callback,
+                args: args,
+                type: 'timeout'
+            };
+            // Since we can't actually schedule it, execute immediately
+            // This is a limitation of the test environment, but it won't block
+            try {
+                callback(...args);
+            } catch (e) {
+                console.error('setTimeout callback error:', e);
+            }
+            return timerId;
+        };
     }
     
-    // Return empty object for unregistered modules
-    return {};
-}
+    if (!globalThis.setInterval) {
+        globalThis.setInterval = function(callback, delay, ...args) {
+            const timerId = nextTimerId++;
+            timers[timerId] = {
+                callback: callback,
+                args: args,
+                type: 'interval'
+            };
+            // We can't truly schedule intervals in V8, so we just store the reference
+            // The actual interval behavior won't work, but it won't crash
+            return timerId;
+        };
+    }
+    
+    if (!globalThis.clearTimeout) {
+        globalThis.clearTimeout = function(timerId) {
+            delete timers[timerId];
+        };
+    }
+    
+    if (!globalThis.clearInterval) {
+        globalThis.clearInterval = function(timerId) {
+            delete timers[timerId];
+        };
+    }
 
-// Make require available globally
-globalThis.require = require;
+    // Module cache and loading state tracking
+    const moduleCache = {};
+    const loadingModules = new Set(); // Track modules currently being loaded to prevent circular loops
+    
+    // Map of module specifiers to built JavaScript file paths (dist/cjs)
+    const modulePathMap = {
+        '@cratis/fundamentals': 'node_modules/@cratis/fundamentals/dist/cjs/index.js',
+        'reflect-metadata': 'node_modules/reflect-metadata/Reflect.js',
+        '@cratis/arc/queries': 'Arc/dist/cjs/queries/index.js',
+        '@cratis/arc/commands': 'Arc/dist/cjs/commands/index.js',
+        '@cratis/arc/reflection': 'Arc/dist/cjs/reflection/index.js',
+        '@cratis/arc/validation': 'Arc/dist/cjs/validation/index.js',
+        '@cratis/arc/identity': 'Arc/dist/cjs/identity/index.js',
+        '@cratis/arc': 'Arc/dist/cjs/index.js',
+        '@cratis/arc.react/queries': 'Arc.React/dist/cjs/queries/index.js',
+        '@cratis/arc.react/commands': 'Arc.React/dist/cjs/commands/index.js',
+        '@cratis/arc.react/identity': 'Arc.React/dist/cjs/identity/index.js',
+        '@cratis/arc.react/dialogs': 'Arc.React/dist/cjs/dialogs/index.js',
+        '@cratis/arc.react': 'Arc.React/dist/cjs/index.js'
+    };
 
-// Make base classes available globally for direct reference
-globalThis.Query = Query;
-globalThis.QueryFor = Query;
-globalThis.ObservableQueryFor = ObservableQueryFor;
-// Ensure ObservableQueryFor is also available directly without module system
-if (typeof window !== 'undefined') {
-    window.ObservableQueryFor = ObservableQueryFor;
-}
-globalThis.Command = Command;
-globalThis.CommandFor = Command;
-globalThis.Sorting = Sorting;
-globalThis.SortingActions = SortingActions;
-globalThis.SortingActionsForQuery = SortingActionsForQuery;
-globalThis.SortingActionsForObservableQuery = SortingActionsForObservableQuery;
-globalThis.Paging = Paging;
-globalThis.ParameterDescriptor = ParameterDescriptor;
-globalThis.QueryResult = QueryResult;
+    // Resolve module specifier to file path
+    function resolveModulePath(specifier, fromPath) {
+        // Special handling for React and JSX runtime - these are polyfills, not real modules
+        if (specifier === 'react' || specifier === 'react/jsx-runtime') {
+            return '__POLYFILL__' + specifier;
+        }
+        
+        // Direct mapping for package imports
+        if (modulePathMap[specifier]) {
+            return modulePathMap[specifier];
+        }
+        
+        // Relative imports (e.g., './ObservableQueryConnection', './commands')
+        if (specifier.startsWith('./') || specifier.startsWith('../')) {
+            if (!fromPath) {
+                throw new Error(`Cannot resolve relative import '${specifier}' without context`);
+            }
+            
+            // Get directory of the current module
+            const fromDir = fromPath.substring(0, fromPath.lastIndexOf('/'));
+            
+            // Resolve relative path
+            let resolved = fromDir + '/' + specifier;
+            
+            // Normalize path (remove './' and '../')
+            const parts = resolved.split('/');
+            const normalized = [];
+            for (let i = 0; i < parts.length; i++) {
+                if (parts[i] === '.' || parts[i] === '') continue;
+                if (parts[i] === '..') {
+                    normalized.pop();
+                } else {
+                    normalized.push(parts[i]);
+                }
+            }
+            resolved = normalized.join('/');
+            
+            // Add .js extension if not present
+            if (!resolved.endsWith('.js')) {
+                // Check if it's a directory import (like './commands')
+                const indexPath = resolved + '/index.js';
+                if (__fileExists(indexPath)) {
+                    return indexPath;
+                }
+                // Otherwise it's a file import
+                resolved += '.js';
+            }
+            
+            return resolved;
+        }
+        
+        throw new Error(`Unknown module: ${specifier}`);
+    }
+
+    // Load a JavaScript module
+    function loadModule(modulePath, fromPath) {
+        // Handle polyfill markers
+        if (modulePath && modulePath.startsWith('__POLYFILL__')) {
+            const specifier = modulePath.substring('__POLYFILL__'.length);
+            if (specifier === 'react') {
+                return getReactShim();
+            }
+            if (specifier === 'react/jsx-runtime') {
+                return {
+                    jsx: function(type, props) {
+                        return { type: type, props: props || {} };
+                    },
+                    jsxs: function(type, props) {
+                        return { type: type, props: props || {} };
+                    },
+                    Fragment: 'Fragment'
+                };
+            }
+        }
+        
+        // Check cache first
+        if (moduleCache[modulePath]) {
+            return moduleCache[modulePath].exports;
+        }
+
+        // Check if we're already loading this module (circular dependency)
+        if (loadingModules.has(modulePath)) {
+            // Return a placeholder that will be filled in when the module finishes loading
+            // Create an empty exports object that will be populated
+            if (!moduleCache[modulePath]) {
+                moduleCache[modulePath] = { exports: {} };
+            }
+            return moduleCache[modulePath].exports;
+        }
+
+        // Mark this module as being loaded
+        loadingModules.add(modulePath);
+
+        try {
+            // Read JavaScript source from filesystem
+            let jsCode;
+            try {
+                jsCode = __readJavaScriptFile(modulePath);
+            } catch (error) {
+                throw new Error(`Failed to read module '${modulePath}': ${error.message}`);
+            }
+
+            // Create module context
+            const module = { exports: {} };
+            const exports = module.exports;
+            
+            // Cache the module immediately (before execution) to handle circular dependencies
+            moduleCache[modulePath] = module;
+            
+            // Create a require function for this module
+            const moduleRequire = function(specifier) {
+                // Handle built-in polyfills
+                if (specifier === 'react') {
+                    return getReactShim();
+                }
+                if (specifier === 'react/jsx-runtime') {
+                    return {
+                        jsx: function(type, props) {
+                            return { type: type, props: props || {} };
+                        },
+                        jsxs: function(type, props) {
+                            return { type: type, props: props || {} };
+                        },
+                        Fragment: 'Fragment'
+                    };
+                }
+                
+                const resolvedPath = resolveModulePath(specifier, modulePath);
+                return loadModule(resolvedPath, modulePath);
+            };
+            
+            // Wrap in function to provide CommonJS module scope
+            const moduleFunction = new Function('require', 'module', 'exports', '__dirname', '__filename', jsCode);
+            
+            // Execute module
+            const dirname = modulePath.substring(0, modulePath.lastIndexOf('/'));
+            moduleFunction(moduleRequire, module, exports, dirname, modulePath);
+            
+            return module.exports;
+        } finally {
+            // Remove from loading set after execution completes
+            loadingModules.delete(modulePath);
+        }
+    }
+
+    // Minimal React shim for type compatibility
+    function getReactShim() {
+        return {
+            createElement: function() { return {}; },
+            Component: class Component {},
+            useState: function() { return [null, function() {}]; },
+            useEffect: function() {},
+            useMemo: function(fn) { return fn(); },
+            useCallback: function(fn) { return fn; },
+            useContext: function() { return {}; },
+            createContext: function() { return {}; }
+        };
+    }
+
+    // Global require function
+    globalThis.require = function(specifier) {
+        try {
+            // Handle built-in polyfills
+            if (specifier === 'react') {
+                return getReactShim();
+            }
+            
+            // Handle react/jsx-runtime - used by JSX transpiled code
+            if (specifier === 'react/jsx-runtime') {
+                return {
+                    jsx: function(type, props) {
+                        return { type: type, props: props || {} };
+                    },
+                    jsxs: function(type, props) {
+                        return { type: type, props: props || {} };
+                    },
+                    Fragment: 'Fragment'
+                };
+            }
+            
+            // Handle relative imports (DTO classes) - these don't have a fromPath context
+            // so we create simple constructor functions for them
+            if (specifier.startsWith('./') || specifier.startsWith('../')) {
+                // Extract the class name from the path
+                const className = specifier.split('/').pop().replace(/\.js$/, '');
+                // Return a module with an empty constructor
+                return {
+                    [className]: class {}
+                };
+            }
+            
+            const modulePath = resolveModulePath(specifier);
+            return loadModule(modulePath);
+        } catch (error) {
+            console.error(`Error loading module '${specifier}':`, error.message);
+            throw error;
+        }
+    };
+
+    // Mock fetch for testing
+    globalThis.fetch = function(url, options) {
+        return new Promise(function(resolve, reject) {
+            if (globalThis.__fetchHandler) {
+                globalThis.__fetchHandler(url, options, resolve, reject);
+            } else {
+                reject(new Error('No fetch handler configured'));
+            }
+        });
+    };
+
+    // Export for debugging
+    globalThis.__moduleRegistry = {
+        cache: moduleCache,
+        loadingModules: loadingModules,
+        require: globalThis.require
+    };
+})();

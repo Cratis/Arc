@@ -11,7 +11,7 @@ public class when_executing_controller_data_annotations_validated_command_with_v
 
     void Establish()
     {
-        LoadControllerCommandProxy<ControllerCommandsController>(nameof(ControllerCommandsController.ExecuteDataAnnotationsValidated));
+        LoadControllerCommandProxy<ControllerCommandsController>(nameof(ControllerCommandsController.ExecuteDataAnnotationsValidated), "/tmp/data-annotations-command.ts");
         ControllerCommandsController.DataAnnotationsValidatedCallCount = 0;
     }
 

@@ -18,6 +18,9 @@ public sealed class JavaScriptRuntime : IDisposable
     public JavaScriptRuntime()
     {
         Engine = new V8ScriptEngine();
+        Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
+        Engine.AddHostObject("__readJavaScriptFile", new Func<string, string>(ReadJavaScriptFile));
+        Engine.AddHostObject("__fileExists", new Func<string, bool>(FileExists));
         InitializeRuntime();
     }
 
@@ -33,7 +36,14 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The transpiled JavaScript code.</returns>
     public string TranspileTypeScript(string typeScriptCode)
     {
-        var escapedCode = typeScriptCode.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
+        // Strip decorators before transpiling to avoid decorator helper code that uses 'this'
+        // Decorators like @field(Type) are just metadata and not needed at runtime
+        var codeWithoutDecorators = System.Text.RegularExpressions.Regex.Replace(
+            typeScriptCode,
+            @"@\w+\([^)]*\)\s*[\r\n]*",
+            string.Empty);
+
+        var escapedCode = codeWithoutDecorators.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
         var result = Engine.Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }})");
         return result?.ToString() ?? string.Empty;
     }
@@ -93,5 +103,65 @@ public sealed class JavaScriptRuntime : IDisposable
         // Load Arc bootstrap code (sets up module environment with shims)
         var arcBootstrap = JavaScriptResources.GetArcBootstrap();
         Engine.Execute(arcBootstrap);
+    }
+
+    string ReadTypeScriptFile(string relativePath)
+    {
+        // Resolve paths relative to the Source/JavaScript directory
+        var baseDir = Path.Combine(
+            Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
+            "..", "..", "..", "..", "..", "..", "JavaScript");
+        
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"TypeScript file not found: {relativePath}", fullPath);
+        }
+        
+        return File.ReadAllText(fullPath);
+    }
+
+    string ReadJavaScriptFile(string relativePath)
+    {
+        // For node_modules, resolve relative to workspace root; otherwise relative to Source/JavaScript
+        var baseDir = relativePath.StartsWith("node_modules/")
+            ? Path.Combine(
+                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
+                "..", "..", "..", "..", "..", "..", "..")  // 7 levels up to workspace root
+            : Path.Combine(
+                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
+                "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
+        
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        
+        // Debug logging
+        var logPath = "/tmp/websocket-debug.txt";
+        File.AppendAllText(logPath, $"\n[ReadJavaScriptFile] relativePath={relativePath}\n");
+        File.AppendAllText(logPath, $"[ReadJavaScriptFile] baseDir={baseDir}\n");
+        File.AppendAllText(logPath, $"[ReadJavaScriptFile] fullPath={fullPath}\n");
+        File.AppendAllText(logPath, $"[ReadJavaScriptFile] exists={File.Exists(fullPath)}\n");
+        
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"JavaScript file not found: {relativePath}", fullPath);
+        }
+        
+        return File.ReadAllText(fullPath);
+    }
+
+    bool FileExists(string relativePath)
+    {
+        // For node_modules, resolve relative to workspace root; otherwise relative to Source/JavaScript
+        var baseDir = relativePath.StartsWith("node_modules/")
+            ? Path.Combine(
+                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
+                "..", "..", "..", "..", "..", "..", "..")  // 7 levels up to workspace root
+            : Path.Combine(
+                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
+                "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
+        
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        return File.Exists(fullPath);
     }
 }

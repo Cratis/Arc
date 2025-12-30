@@ -359,26 +359,11 @@ public class ObservableQueryHandler(
 
         // Primary constructor parameters in C# are stored with <parameterName>P naming convention
         var allFields = clientObservableType.GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var subjectField = allFields.FirstOrDefault(f => f.Name.Contains("subject"));
-
-        if (subjectField is null)
-        {
-            throw new InvalidOperationException("ClientObservable does not contain expected subject field");
-        }
-
-        var subject = subjectField.GetValue(clientObservable);
-        if (subject is null)
-        {
-            throw new InvalidOperationException("ClientObservable subject is null");
-        }
+        var subjectField = allFields.FirstOrDefault(f => f.Name.Contains("subject")) ?? throw new InvalidOperationException("ClientObservable does not contain expected subject field");
+        var subject = subjectField.GetValue(clientObservable) ?? throw new InvalidOperationException("ClientObservable subject is null");
 
         // Get the Value property from BehaviorSubject
-        var valueProperty = subject.GetType().GetProperty("Value");
-        if (valueProperty is null)
-        {
-            throw new InvalidOperationException("Subject does not have a Value property");
-        }
-
+        var valueProperty = subject.GetType().GetProperty("Value") ?? throw new InvalidOperationException("Subject does not have a Value property");
         var currentValue = valueProperty.GetValue(subject);
 
         return new QueryResult
