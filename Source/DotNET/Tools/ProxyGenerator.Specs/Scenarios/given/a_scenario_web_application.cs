@@ -7,7 +7,6 @@ using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,7 +42,10 @@ public class a_scenario_web_application : Specification, IDisposable
 
     void Establish()
     {
-        File.WriteAllText("/tmp/establish-called.txt", "Establish() called at " + DateTime.Now);
+        // Reset static test data for test isolation - must happen BEFORE test runs
+        for_ObservableQueries.ModelBound.ObservableReadModel.Reset();
+        for_ObservableQueries.ModelBound.ParameterizedObservableReadModel.Reset();
+        for_ObservableQueries.ModelBound.ComplexObservableReadModel.Reset();
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -161,9 +163,9 @@ public class a_scenario_web_application : Specification, IDisposable
 
         // For Observable queries, don't wrap in module scope to avoid prototype chain issues
         var isObservable = descriptor.IsObservable;
-        
+
         File.WriteAllText("/tmp/isobservable.txt", $"IsObservable={isObservable}, wrapInModuleScope={!isObservable}");
-        
+
         if (Bridge is null)
         {
             File.WriteAllText("/tmp/bridge-null.txt", "Bridge is null!");
