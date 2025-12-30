@@ -40,14 +40,11 @@ public class when_observing_complex_data_and_data_changes : given.a_scenario_web
     {
         _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ComplexObservableReadModel>>("ObserveComplex");
 
-        // Wait a bit for the initial connection
-        await Task.Delay(100);
-
-        // Update the data on the backend
+        // Update the complex data on the backend
         ComplexObservableReadModel.UpdateComplexItems(_updatedData);
 
-        // Wait for the update to propagate
-        await Task.Delay(200);
+        // Sync any new updates from JavaScript
+        await Bridge.SyncObservableUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

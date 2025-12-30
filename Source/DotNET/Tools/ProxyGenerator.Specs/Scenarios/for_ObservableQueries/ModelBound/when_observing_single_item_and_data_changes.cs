@@ -20,14 +20,11 @@ public class when_observing_single_item_and_data_changes : given.a_scenario_web_
     {
         _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<ObservableReadModel>("ObserveSingle");
 
-        // Wait a bit for the initial connection
-        await Task.Delay(100);
-
         // Update the data on the backend
         ObservableReadModel.UpdateSingleItem(_updatedData);
 
-        // Wait for the update to propagate
-        await Task.Delay(200);
+        // Sync any new updates from JavaScript
+        await Bridge.SyncObservableUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

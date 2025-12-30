@@ -26,14 +26,11 @@ public class when_observing_all_items_and_data_changes : given.a_scenario_web_ap
     {
         _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ObservableReadModel>>("ObserveAll");
 
-        // Wait a bit for the initial connection
-        await Task.Delay(100);
-
         // Update the data on the backend
         ObservableReadModel.UpdateAllItems(_updatedData);
 
-        // Wait for the update to propagate
-        await Task.Delay(200);
+        // Sync any new updates from JavaScript
+        await Bridge.SyncObservableUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

@@ -28,14 +28,11 @@ public class when_observing_controller_by_category_and_data_changes : given.a_sc
             "ObserveByCategory",
             new { category = "Electronics" });
 
-        // Wait a bit for the initial connection
-        await Task.Delay(100);
-
         // Update the data on the backend via HTTP POST
-        await HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/category/Electronics", _updatedData);
+        await HttpClient.PostAsJsonAsync($"/api/observable-controller-queries/update/category/Electronics", _updatedData);
 
-        // Wait for the update to propagate
-        await Task.Delay(200);
+        // Sync observable updates to get fresh HTTP snapshot
+        await Bridge.SyncObservableUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

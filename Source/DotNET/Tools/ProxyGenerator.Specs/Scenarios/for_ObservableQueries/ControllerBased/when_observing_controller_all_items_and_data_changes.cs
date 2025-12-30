@@ -26,14 +26,11 @@ public class when_observing_controller_all_items_and_data_changes : given.a_scen
     {
         _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ObservableControllerQueryItem>>("ObserveAll");
 
-        // Wait a bit for the initial connection
-        await Task.Delay(100);
-
         // Update the data on the backend via HTTP POST
         await HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/items", _updatedData);
 
-        // Wait for the update to propagate
-        await Task.Delay(200);
+        // Sync observable updates to get fresh HTTP snapshot
+        await Bridge.SyncObservableUpdates(_executionResult);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

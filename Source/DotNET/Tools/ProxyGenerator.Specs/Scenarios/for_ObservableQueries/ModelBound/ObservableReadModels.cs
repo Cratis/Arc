@@ -41,7 +41,12 @@ public class ObservableReadModel
     /// Gets all items as an observable stream.
     /// </summary>
     /// <returns>Observable collection of read models.</returns>
-    public static ISubject<IEnumerable<ObservableReadModel>> ObserveAll() => _allItemsSubject;
+    public static ISubject<IEnumerable<ObservableReadModel>> ObserveAll()
+    {
+        var newSubject = new BehaviorSubject<IEnumerable<ObservableReadModel>>(_allItemsSubject.Value);
+        _allItemsSubject.Subscribe(newSubject);
+        return newSubject;
+    }
 
     /// <summary>
     /// Gets a single item by ID as an observable stream.
@@ -56,7 +61,12 @@ public class ObservableReadModel
     /// Gets a single item as an observable stream.
     /// </summary>
     /// <returns>Observable read model.</returns>
-    public static ISubject<ObservableReadModel> ObserveSingle() => _singleItemSubject;
+    public static ISubject<ObservableReadModel> ObserveSingle()
+    {
+        var newSubject = new BehaviorSubject<ObservableReadModel>(_singleItemSubject.Value);
+        _singleItemSubject.Subscribe(newSubject);
+        return newSubject;
+    }
 
     /// <summary>
     /// Updates all items - for testing data changes.
@@ -69,6 +79,22 @@ public class ObservableReadModel
     /// </summary>
     /// <param name="item">The new item.</param>
     public static void UpdateSingleItem(ObservableReadModel item) => _singleItemSubject.OnNext(item);
+
+    /// <summary>
+    /// Resets all static subjects to their initial values - for test isolation.
+    /// </summary>
+    public static void Reset()
+    {
+        _allItemsSubject.OnNext([
+            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Observable Item 1", Value = 1 },
+            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Observable Item 2", Value = 2 },
+            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3), Name = "Observable Item 3", Value = 3 }
+        ]);
+
+        _singleItemSubject.OnNext(
+            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
+        );
+    }
 }
 
 /// <summary>
@@ -106,16 +132,17 @@ public class ParameterizedObservableReadModel
     /// <returns>Observable collection of matching read models.</returns>
     public static ISubject<IEnumerable<ParameterizedObservableReadModel>> ObserveByCategory(string category)
     {
-        if (_subjectsByCategory.TryGetValue(category, out var subject))
+        if (!_subjectsByCategory.ContainsKey(category))
         {
-            return subject;
+            _subjectsByCategory[category] = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>([
+                new ParameterizedObservableReadModel { Id = Guid.NewGuid(), Name = $"{category} Item 1", Category = category, Value = 1 },
+                new ParameterizedObservableReadModel { Id = Guid.NewGuid(), Name = $"{category} Item 2", Category = category, Value = 2 }
+            ]);
         }
 
-        var newSubject = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>([
-            new ParameterizedObservableReadModel { Id = Guid.NewGuid(), Name = $"{category} Item 1", Category = category, Value = 1 },
-            new ParameterizedObservableReadModel { Id = Guid.NewGuid(), Name = $"{category} Item 2", Category = category, Value = 2 }
-        ]);
-        _subjectsByCategory[category] = newSubject;
+        var categorySubject = _subjectsByCategory[category];
+        var newSubject = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>(categorySubject.Value);
+        categorySubject.Subscribe(newSubject);
         return newSubject;
     }
 
@@ -141,6 +168,14 @@ public class ParameterizedObservableReadModel
         {
             subject.OnNext(items);
         }
+    }
+
+    /// <summary>
+    /// Resets all category subjects - for test isolation.
+    /// </summary>
+    public static void Reset()
+    {
+        _subjectsByCategory.Clear();
     }
 }
 
@@ -184,13 +219,34 @@ public class ComplexObservableReadModel
     /// Observes all complex items.
     /// </summary>
     /// <returns>Observable collection of complex read models.</returns>
-    public static ISubject<IEnumerable<ComplexObservableReadModel>> ObserveComplex() => _complexItemsSubject;
+    public static ISubject<IEnumerable<ComplexObservableReadModel>> ObserveComplex()
+    {
+        var newSubject = new BehaviorSubject<IEnumerable<ComplexObservableReadModel>>(_complexItemsSubject.Value);
+        _complexItemsSubject.Subscribe(newSubject);
+        return newSubject;
+    }
 
     /// <summary>
     /// Updates complex items - for testing data changes.
     /// </summary>
     /// <param name="items">The new items.</param>
     public static void UpdateComplexItems(IEnumerable<ComplexObservableReadModel> items) => _complexItemsSubject.OnNext(items);
+
+    /// <summary>
+    /// Resets complex items to initial values - for test isolation.
+    /// </summary>
+    public static void Reset()
+    {
+        _complexItemsSubject.OnNext([
+            new ComplexObservableReadModel
+            {
+                Id = Guid.NewGuid(),
+                Name = "Complex Item 1",
+                Metadata = new Metadata { CreatedAt = DateTime.UtcNow, Tags = ["tag1", "tag2"] },
+                Items = [new NestedItem { Key = "key1", Value = "value1" }]
+            }
+        ]);
+    }
 }
 
 /// <summary>

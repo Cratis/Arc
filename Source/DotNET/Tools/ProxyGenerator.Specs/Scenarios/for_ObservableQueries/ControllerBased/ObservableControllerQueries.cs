@@ -30,7 +30,7 @@ public class ObservableControllerQueriesController : ControllerBase
     /// </summary>
     /// <returns>Observable collection of items.</returns>
     [HttpGet("observe/items")]
-    public IObservable<IEnumerable<ObservableControllerQueryItem>> ObserveAll()
+    public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveAll()
     {
         return _allItemsSubject;
     }
@@ -40,7 +40,7 @@ public class ObservableControllerQueriesController : ControllerBase
     /// </summary>
     /// <returns>Observable item.</returns>
     [HttpGet("observe/single")]
-    public IObservable<ObservableControllerQueryItem> ObserveSingle()
+    public ISubject<ObservableControllerQueryItem> ObserveSingle()
     {
         return _singleItemSubject;
     }
@@ -51,7 +51,7 @@ public class ObservableControllerQueriesController : ControllerBase
     /// <param name="id">The item ID.</param>
     /// <returns>Observable item.</returns>
     [HttpGet("observe/items/{id}")]
-    public IObservable<ObservableControllerQueryItem> ObserveById([FromRoute] Guid id) =>
+    public ISubject<ObservableControllerQueryItem> ObserveById([FromRoute] Guid id) =>
         new BehaviorSubject<ObservableControllerQueryItem>(
             new ObservableControllerQueryItem { Id = id, Name = $"Controller Item {id}", Value = 100 });
 
@@ -61,7 +61,7 @@ public class ObservableControllerQueriesController : ControllerBase
     /// <param name="category">The category filter.</param>
     /// <returns>Observable collection of items.</returns>
     [HttpGet("observe/items/category/{category}")]
-    public IObservable<IEnumerable<ObservableControllerQueryItem>> ObserveByCategory([FromRoute] string category)
+    public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveByCategory([FromRoute] string category)
     {
         if (_categorySubjects.TryGetValue(category, out var subject))
         {
@@ -83,7 +83,7 @@ public class ObservableControllerQueriesController : ControllerBase
     /// <param name="minValue">The minimum value filter.</param>
     /// <returns>Observable collection of items.</returns>
     [HttpGet("observe/items/search")]
-    public IObservable<IEnumerable<ObservableControllerQueryItem>> ObserveSearch(
+    public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveSearch(
         [FromQuery] string? name,
         [FromQuery] int? minValue) =>
         new BehaviorSubject<IEnumerable<ObservableControllerQueryItem>>([
@@ -95,7 +95,7 @@ public class ObservableControllerQueriesController : ControllerBase
     /// </summary>
     /// <returns>Observable collection of complex items.</returns>
     [HttpGet("observe/complex")]
-    public IObservable<IEnumerable<ComplexObservableControllerItem>> ObserveComplex() =>
+    public ISubject<IEnumerable<ComplexObservableControllerItem>> ObserveComplex() =>
         new BehaviorSubject<IEnumerable<ComplexObservableControllerItem>>([
             new ComplexObservableControllerItem
             {
