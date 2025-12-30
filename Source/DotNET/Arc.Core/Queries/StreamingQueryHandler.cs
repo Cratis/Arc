@@ -108,10 +108,29 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
     async Task HandleSubjectViaHttp(IHttpRequestContext context, object streamingData)
 #pragma warning restore IDE0060
     {
-        // For HTTP, we need to serialize the current state
-        // This is a simplified version - in reality you might want to buffer initial values
-        await context.WriteResponseAsJsonAsync(new { message = "Observable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
+        // For HTTP, serialize the current state from BehaviorSubject if available
+        // This allows HTTP clients to get a snapshot of the observable's current value
+        var type = streamingData.GetType();
+        var subjectType = type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
+
+        if (subjectType is not null)
+        {
+            var elementType = subjectType.GetGenericArguments()[0];
+
+            // Check if it's a BehaviorSubject which has a Value property
+            var valueProperty = type.GetProperty("Value");
+            if (valueProperty is not null)
+            {
+                var currentValue = valueProperty.GetValue(streamingData);
+                context.SetStatusCode(200);
+                await context.WriteResponseAsJsonAsync(new { data = currentValue }, typeof(object), context.RequestAborted);
+                return;
+            }
+        }
+
+        // Fallback: observable queries without current state require WebSocket
         context.SetStatusCode(400);
+        await context.WriteResponseAsJsonAsync(new { message = "Observable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
     }
 
     async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
