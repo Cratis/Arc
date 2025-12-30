@@ -46,17 +46,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
     {
         var jsCode = Runtime.TranspileTypeScript(typeScriptCode);
 
-        // DEBUG: Save ALL transpiled code for inspection
-        var debugDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "arc-debug");
-        System.IO.Directory.CreateDirectory(debugDir);
-
-        var timestamp = DateTime.Now.ToString("HHmmss-fff");
-        var tsPath = System.IO.Path.Combine(debugDir, $"code_{timestamp}.ts");
-        System.IO.File.WriteAllText(tsPath, typeScriptCode);
-
-        var jsPath = System.IO.Path.Combine(debugDir, $"code_{timestamp}.js");
-        System.IO.File.WriteAllText(jsPath, jsCode);
-
         if (wrapInModuleScope)
         {
             // Wrap in module scope to prevent variable collisions when multiple files
@@ -292,7 +281,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         for (var i = 0; i < updateCount; i++)
         {
             var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
-            
+
             var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
             if (update is not null)
             {
@@ -304,9 +293,40 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var firstResult = JsonSerializer.Deserialize<Queries.QueryResult>(firstResultJson, _jsonOptions);
 
         return new ObservableQueryExecutionResult<TResult>(
-            firstResult!,
-            updates,
-            updates[^1]);
+            firstResult,
+            updates);
+    }
+
+    /// <summary>
+    /// Syncs observable updates by making a fresh HTTP request to get the latest data.
+    /// </summary>
+    /// <typeparam name="TResult">The type of data.</typeparam>
+    /// <param name="result">The execution result to sync updates into.</param>
+    public async Task SyncObservableUpdates<TResult>(ObservableQueryExecutionResult<TResult> result)
+    {
+        // For HTTP-based observables, we need to make a new request to get updated data
+        // Trigger a fresh subscribe which will make a new HTTP call
+        Runtime.Execute(
+            "__obsQuery.subscribe(function(result) {" +
+            "    __obsUpdates.push(result);" +
+            "});");
+
+        // Process the new fetch
+        await ProcessPendingFetchAsync();
+
+        // Get the newly added updates (after the initial ones)
+        var currentCount = result.Updates.Count;
+        var jsUpdateCount = Runtime.Evaluate<int>("__obsUpdates.length");
+
+        for (var i = currentCount; i < jsUpdateCount; i++)
+        {
+            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
+            var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
+            if (update is not null)
+            {
+                result.Updates.Add(update);
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -421,7 +441,25 @@ public record QueryExecutionResult<TResult>(Queries.QueryResult? Result, string 
 /// Represents the result of performing an observable query through the JavaScript proxy.
 /// </summary>
 /// <typeparam name="TResult">The type of the data.</typeparam>
-/// <param name="Result">The initial query result.</param>
-/// <param name="Updates">All updates received.</param>
-/// <param name="LatestData">The most recent data from updates.</param>
-public record ObservableQueryExecutionResult<TResult>(Queries.QueryResult Result, List<TResult> Updates, TResult LatestData);
+/// <remarks>
+/// Initializes a new instance of the <see cref="ObservableQueryExecutionResult{TResult}"/> class.
+/// </remarks>
+/// <param name="result">The initial query result.</param>
+/// <param name="updates">All updates received.</param>
+public class ObservableQueryExecutionResult<TResult>(Queries.QueryResult result, List<TResult> updates)
+{
+    /// <summary>
+    /// Gets the initial query result.
+    /// </summary>
+    public Queries.QueryResult Result { get; } = result;
+
+    /// <summary>
+    /// Gets all updates received.
+    /// </summary>
+    public List<TResult> Updates { get; } = updates;
+
+    /// <summary>
+    /// Gets the most recent data from updates.
+    /// </summary>
+    public TResult LatestData => Updates[^1];
+}
