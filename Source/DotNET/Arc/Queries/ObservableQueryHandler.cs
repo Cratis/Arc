@@ -172,13 +172,17 @@ public class ObservableQueryHandler(
         else
         {
             logger.RequestIsHttp();
+
+            // For HTTP, extract the current snapshot from the BehaviorSubject
+            var snapshot = ExtractSnapshotFromClientObservable(clientObservable);
+
             if (callResult?.Result is ObjectResult objResult)
             {
-                objResult.Value = clientObservable;
+                objResult.Value = snapshot;
             }
             else if (callResult is not null)
             {
-                callResult.Result = new ObjectResult(clientObservable);
+                callResult.Result = new ObjectResult(snapshot);
             }
         }
     }
@@ -336,6 +340,46 @@ public class ObservableQueryHandler(
 
         await (Task)task;
         var currentValue = ((dynamic)task).Result;
+
+        return new QueryResult
+        {
+            Data = currentValue!,
+            IsAuthorized = true,
+            ValidationResults = [],
+            ExceptionMessages = [],
+            ExceptionStackTrace = string.Empty,
+            Paging = new(queryContextManager.Current.Paging.Page, queryContextManager.Current.Paging.Size, queryContextManager.Current.TotalItems)
+        };
+    }
+
+    QueryResult ExtractSnapshotFromClientObservable(IClientObservable clientObservable)
+    {
+        // ClientObservable wraps a BehaviorSubject - extract its current value
+        var clientObservableType = clientObservable.GetType();
+
+        // Primary constructor parameters in C# are stored with <parameterName>P naming convention
+        var allFields = clientObservableType.GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var subjectField = allFields.FirstOrDefault(f => f.Name.Contains("subject"));
+
+        if (subjectField is null)
+        {
+            throw new InvalidOperationException("ClientObservable does not contain expected subject field");
+        }
+
+        var subject = subjectField.GetValue(clientObservable);
+        if (subject is null)
+        {
+            throw new InvalidOperationException("ClientObservable subject is null");
+        }
+
+        // Get the Value property from BehaviorSubject
+        var valueProperty = subject.GetType().GetProperty("Value");
+        if (valueProperty is null)
+        {
+            throw new InvalidOperationException("Subject does not have a Value property");
+        }
+
+        var currentValue = valueProperty.GetValue(subject);
 
         return new QueryResult
         {
