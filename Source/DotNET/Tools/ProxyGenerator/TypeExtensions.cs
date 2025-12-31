@@ -359,6 +359,16 @@ public static class TypeExtensions
     /// <returns>Converted <see cref="ModelDescriptor"/>.</returns>
     public static ModelDescriptor ToModelDescriptor(this Type type)
     {
+        // Unwrap ActionResult<T> or ActionResult (for controller-based queries/commands)
+        if (type.IsGenericType)
+        {
+            var genericTypeDefinition = type.GetGenericTypeDefinition();
+            if (genericTypeDefinition.FullName == "Microsoft.AspNetCore.Mvc.ActionResult`1")
+            {
+                type = type.GetGenericArguments()[0];
+            }
+        }
+
         var isSubject = type.IsSubject();
         if (isSubject)
         {
