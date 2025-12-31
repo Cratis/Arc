@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reflection;
 using System.Net;
+using System.Reflection;
 using Cratis.Arc.ProxyGenerator.ControllerBased;
 using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
@@ -61,15 +61,9 @@ public class a_scenario_web_application : Specification, IDisposable
 
         // Register controller state as singleton for test isolation
         builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
-        
+
         // Use Kestrel instead of TestServer to support real WebSocket connections
-        builder.WebHost.UseKestrel(options =>
-        {
-            options.Listen(IPAddress.Loopback, 0, listenOptions =>
-            {
-                listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-            });
-        });
+        builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0, listenOptions => listenOptions.Protocols = HttpProtocols.Http1AndHttp2));
 
         // Suppress verbose logging during tests
         builder.Logging.ClearProviders();
@@ -110,7 +104,7 @@ public class a_scenario_web_application : Specification, IDisposable
 
         // Create HTTP client pointing to the real server
         HttpClient = new HttpClient { BaseAddress = new Uri(ServerUrl) };
-        
+
         Runtime = new JavaScriptRuntime();
         Bridge = new JavaScriptHttpBridge(Runtime, HttpClient, ServerUrl);
     }
@@ -288,14 +282,14 @@ public class a_scenario_web_application : Specification, IDisposable
         File.AppendAllText(logPath, $"[Proxy Generation] Return type: {method.ReturnType.FullName}\n");
 
         var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
-        
+
         File.WriteAllText("/tmp/generated-proxy-full.ts", code);
         File.AppendAllText(logPath, $"[Proxy Generation] Full code saved to /tmp/generated-proxy-full.ts\n");
         File.AppendAllText(logPath, $"[Proxy Generation] Generated code length: {code.Length} chars\n");
         File.AppendAllText(logPath, $"[Proxy Generation] First 500 chars:\n{code.Substring(0, Math.Min(500, code.Length))}\n");
-        
+
         Bridge.LoadTypeScript(code);
-        
+
         // Try to instantiate the class to see if it loaded correctly
         try
         {

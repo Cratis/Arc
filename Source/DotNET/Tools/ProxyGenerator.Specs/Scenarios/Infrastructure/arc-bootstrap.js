@@ -352,6 +352,33 @@
             const dirname = modulePath.substring(0, modulePath.lastIndexOf('/'));
             moduleFunction(moduleRequire, module, exports, dirname, modulePath);
             
+            // Export important classes from @cratis/fundamentals to globalThis
+            // so they're available everywhere (especially for Fields metadata access)
+            if (modulePath.includes('fundamentals')) {
+                if (module.exports.Fields) {
+                    if (!globalThis.Fields) {
+                        globalThis.Fields = module.exports.Fields;
+                        console.log('[Module] Exported Fields to globalThis');
+                    } else {
+                        // Replace module exports with globalThis version to ensure singleton
+                        module.exports.Fields = globalThis.Fields;
+                        console.log('[Module] Using existing globalThis.Fields');
+                    }
+                }
+                if (module.exports.JsonSerializer) {
+                    if (!globalThis.JsonSerializer) {
+                        globalThis.JsonSerializer = module.exports.JsonSerializer;
+                        console.log('[Module] Exported JsonSerializer to globalThis');
+                    } else {
+                        // Replace module exports with globalThis version to ensure singleton
+                        module.exports.JsonSerializer = globalThis.JsonSerializer;
+                        console.log('[Module] Using existing globalThis.JsonSerializer');
+                    }
+                }
+                // Update the cache to reflect the singleton exports
+                moduleCache[modulePath] = module;
+            }
+            
             return module.exports;
         } finally {
             // Remove from loading set after execution completes
@@ -400,16 +427,42 @@
             if (specifier.startsWith('./') || specifier.startsWith('../')) {
                 // Extract the class name from the path
                 const className = specifier.split('/').pop().replace(/\.js$/, '');
+                
+                // Cache key for relative imports - use just the class name since they're in globalThis
+                const cacheKey = '__relative__' + className;
+                
+                console.log('[GlobalRequire] Relative import: ' + specifier + ', className: ' + className);
+                console.log('[GlobalRequire] globalThis[' + className + '] exists: ' + (globalThis[className] !== undefined));
+                
+                // Check cache first to ensure we always return the same wrapper object
+                if (moduleCache[cacheKey]) {
+                    console.log('[GlobalRequire] Returning cached module for: ' + className);
+                    return moduleCache[cacheKey].exports;
+                }
+                
                 // Return the class from globalThis if it exists, otherwise return empty stub
                 if (globalThis[className]) {
-                    return {
+                    const result = {
                         [className]: globalThis[className]
                     };
+                    console.log('[GlobalRequire] Returning: ' + JSON.stringify(Object.keys(result)));
+                    // Only check Fields if it exists
+                    if (typeof Fields !== 'undefined' && Fields && Fields.getFieldsForType) {
+                        console.log('[GlobalRequire] Class has Fields metadata: ' + Fields.getFieldsForType(globalThis[className]).length);
+                    }
+                    
+                    // Cache the module for future requires
+                    moduleCache[cacheKey] = { exports: result };
+                    
+                    return result;
                 }
                 // Fallback to empty constructor if class not found in globalThis
-                return {
+                console.log('[GlobalRequire] WARNING: Returning empty stub for ' + className);
+                const emptyResult = {
                     [className]: class {}
                 };
+                moduleCache[cacheKey] = { exports: emptyResult };
+                return emptyResult;
             }
             
             const modulePath = resolveModulePath(specifier);

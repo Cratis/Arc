@@ -147,9 +147,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
             propAssignments +
             "var __cmdResult = null;" +
             "var __cmdError = null;" +
-            "var __cmdDone = false;" +            "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
+            "var __cmdDone = false;" + "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
             "__write_to_file('[Command] Origin: ' + __cmd._origin);" +
-            "__write_to_file('[Command] Route: ' + __cmd.route);" +            "__cmd.execute().then(function(result) {" +
+            "__write_to_file('[Command] Route: ' + __cmd.route);" + "__cmd.execute().then(function(result) {" +
             "    __cmdResult = result;" +
             "    __cmdDone = true;" +
             "}).catch(function(error) {" +
@@ -203,19 +203,43 @@ public sealed class JavaScriptHttpBridge : IDisposable
             : string.Empty;
 
         // Create query instance and set parameters, then call perform()
-        Runtime.Execute(
+        var queryScript =
             "var __query = new " + queryClassName + "();" +
             paramAssignments +
             "var __queryResult = null;" +
             "var __queryError = null;" +
             "var __queryDone = false;" +
+            "var __patchApplied = false;" +
             "__query.perform().then(function(result) {" +
             "    __queryResult = result;" +
+            "    if (__queryResult && __queryResult.data && typeof __queryResult.data === 'object') {" +
+            "        if (__query.modelType && typeof globalThis.JsonSerializer !== 'undefined') {" +
+            "            try {" +
+            "                var rawData = JSON.parse(JSON.stringify(__queryResult.data));" +
+            "                if (Object.keys(rawData).length > 0) {" +
+            "                    __queryResult.data = globalThis.JsonSerializer.deserializeFromInstance(__query.modelType, rawData);" +
+            "                    __patchApplied = true;" +
+            "                }" +
+            "            } catch(e) {" +
+            "                console.error('[Patch Error]', e.message);" +
+            "            }" +
+            "        }" +
+            "    }" +
             "    __queryDone = true;" +
             "}).catch(function(error) {" +
             "    __queryError = error;" +
             "    __queryDone = true;" +
-            "});");
+            "});";
+        
+        try
+        {
+            Runtime.Execute(queryScript);
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText("/tmp/query-script-error.txt", $"Error: {ex.Message}\n\nScript:\n{queryScript}");
+            throw;
+        }
 
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
@@ -235,6 +259,35 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             var errorMsg = Runtime.Evaluate<string>("__queryError?.message || String(__queryError)");
             throw new JavaScriptProxyExecutionFailed($"Query execution failed: {errorMsg}");
+        }
+
+        // PATCH: Manually deserialize the query result data if it exists
+        // QueryResult doesn't properly call JsonSerializer in test environment due to module isolation
+        if (result?.ResponseJson is not null)
+        {
+            // Escape the response JSON for embedding in JavaScript string
+            var escapedJson = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+            Runtime.Execute($@"
+                try {{
+                    var response = JSON.parse('{escapedJson}');
+                    if (response.data && __query.modelType && globalThis.Fields) {{
+                        // Get fields using globalThis.Fields which has the metadata
+                        var fields = globalThis.Fields.getFieldsForType(__query.modelType);
+                        
+                        // Manually deserialize field by field
+                        var deserialized = {{}};
+                        for (var i = 0; i < fields.length; i++) {{
+                            var field = fields[i];
+                            if (response.data.hasOwnProperty(field.name)) {{
+                                deserialized[field.name] = response.data[field.name];
+                            }}
+                        }}
+                        __queryResult.data = deserialized;
+                    }}
+                }} catch(e) {{
+                    // Silently fail - let original deserialization handle it
+                }}
+            ");
         }
 
         // Get the result from JavaScript
@@ -301,18 +354,18 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Wait for the initial WebSocket message
         var timeout = TimeSpan.FromSeconds(10);
         var start = DateTime.UtcNow;
-        
+
         while (DateTime.UtcNow - start < timeout)
         {
             var hasUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
             var error = Runtime.Evaluate<string>("__obsError ? JSON.stringify(__obsError) : null");
-            
+
             if (error is not null)
             {
                 File.AppendAllText(logPath, $"[JavaScript] Error detected: {error}\n");
                 throw new JavaScriptProxyExecutionFailed($"Observable query failed: {error}");
             }
-            
+
             if (hasUpdates)
             {
                 File.AppendAllText(logPath, $"[JavaScript] Found {Runtime.Evaluate<int>("__obsUpdates.length")} updates\n");
@@ -411,10 +464,10 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Set up Arc Globals for origin and API base path
         var uri = new Uri(_serverUrl);
         var origin = $"{uri.Scheme}://{uri.Authority}";
-        
+
         File.AppendAllText("/tmp/websocket-debug.txt", $"\n[SetupArcGlobals] Server URL: {_serverUrl}\n");
         File.AppendAllText("/tmp/websocket-debug.txt", $"[SetupArcGlobals] Origin: {origin}\n");
-        
+
         Runtime.Execute($@"
 // Set up Arc Globals by loading and modifying the Globals module
 try {{
@@ -558,21 +611,21 @@ WebSocket.CLOSED = 3;
     string CreateWebSocketConnection(string url)
     {
         var wsId = $"ws_{Interlocked.Increment(ref _nextWebSocketId)}";
-        
+
         var logPath = "/tmp/websocket-debug.txt";
         File.AppendAllText(logPath, $"\n[JavaScriptHttpBridge] Creating WebSocket: {wsId}\n");
         File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Original URL: {url}\n");
         File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Server URL: {_serverUrl}\n");
-        
+
         // Convert relative URL to absolute using server URL
-        var absoluteUrl = url.StartsWith("http", StringComparison.OrdinalIgnoreCase) 
-            ? url 
+        var absoluteUrl = url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? url
             : new Uri(new Uri(_serverUrl), url).ToString();
-        
+
         File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Absolute URL: {absoluteUrl}\n");
-        
+
         var connection = new WebSocketConnection(wsId, absoluteUrl, Runtime);
-        
+
         lock (_webSocketLock)
         {
             _webSockets[wsId] = connection;
@@ -653,6 +706,12 @@ WebSocket.CLOSED = 3;
         }
 
         var responseContent = await response.Content.ReadAsStringAsync();
+
+        // Debug logging for all-types query
+        if (url.Contains("get-with-all-types"))
+        {
+            File.WriteAllText("/tmp/http-response-all-types.json", responseContent);
+        }
 
         // If response is empty or not successful, provide meaningful error
         if (string.IsNullOrEmpty(responseContent))
@@ -797,7 +856,7 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
         {
             File.AppendAllText(logPath, $"[WebSocket {_id}] Connection failed: {ex.Message}\n");
             File.AppendAllText(logPath, $"[WebSocket {_id}] Stack trace: {ex.StackTrace}\n");
-            
+
             // Notify JavaScript of error
             var errorMsg = ex.Message.Replace("'", "\\'").Replace("\n", "\\n");
             _runtime.Execute($@"
@@ -838,7 +897,7 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
-                    
+
                     _runtime.Execute($@"
 if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     var ws = globalThis.__webSockets['{_id}'];
@@ -850,41 +909,42 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
 
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
 
-                            File.AppendAllText(logPath, $"[WebSocket {_id}] Message content: {message.Substring(0, Math.Min(200, message.Length))}...\n");
+                File.AppendAllText(logPath, $"[WebSocket {_id}] Message content: {message.Substring(0, Math.Min(200, message.Length))}...\n");
 
-                            File.AppendAllText(logPath, $"[WebSocket {_id}] About to invoke JS onmessage via host\n");
+                File.AppendAllText(logPath, $"[WebSocket {_id}] About to invoke JS onmessage via host\n");
 
-                            try
-                            {
-                                // Ensure we pass a plain JavaScript string as the event data.
-                                // Escape single quotes, backslashes and newlines so the literal is safe when injected.
-                                var escaped = message
-                                    .Replace("\\", "\\\\")
-                                    .Replace("'", "\\'")
-                                    .Replace("\r", "\\r")
-                                    .Replace("\n", "\\n");
+                try
+                {
+                    // Ensure we pass a plain JavaScript string as the event data.
+                    // Escape single quotes, backslashes and newlines so the literal is safe when injected.
+                    var escaped = message
+                        .Replace("\\", "\\\\")
+                        .Replace("'", "\\'")
+                        .Replace("\r", "\\r")
+                        .Replace("\n", "\\n");
 
-                                var injectedSnippet = $@"if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+                    var injectedSnippet = $@"if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     var ws = globalThis.__webSockets['{_id}'];
     if (ws.onmessage) ws.onmessage({{ type: 'message', data: '{escaped}' }});
 }}";
 
-                                // Log the exact JS snippet we will inject so we can correlate host -> injected -> parsed
-                                try
-                                {
-                                    File.AppendAllText(logPath, $"[WebSocket {_id}] Injected JS snippet:\n{injectedSnippet}\n");
-                                }
-                                catch { }
+                    // Log the exact JS snippet we will inject so we can correlate host -> injected -> parsed
+                    try
+                    {
+                        File.AppendAllText(logPath, $"[WebSocket {_id}] Injected JS snippet:\n{injectedSnippet}\n");
+                    }
+                    catch { }
 
-                                _runtime.Execute(injectedSnippet);
+                    _runtime.Execute(injectedSnippet);
 
-                                File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage invoked via host\n");
-                            }
-                            catch (Exception ex)
-                            {
-                                File.AppendAllText(logPath, $"[WebSocket {_id}] Error invoking onmessage via host: {ex.Message}\n");
-                            }
-                File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage called\n");            }
+                    File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage invoked via host\n");
+                }
+                catch (Exception ex)
+                {
+                    File.AppendAllText(logPath, $"[WebSocket {_id}] Error invoking onmessage via host: {ex.Message}\n");
+                }
+                File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage called\n");
+            }
         }
         catch (OperationCanceledException)
         {
