@@ -94,6 +94,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
     // Export any classes to global scope
     for (var key in module.exports) {
         if (module.exports.hasOwnProperty(key)) {
+            if (typeof __write_to_file === 'function') {
+                __write_to_file('[ModuleWrapper] Exporting to globalThis: ' + key);
+            }
             globalThis[key] = module.exports[key];
         }
     }
@@ -258,6 +261,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasError)
         {
             var errorMsg = Runtime.Evaluate<string>("__queryError?.message || String(__queryError)");
+            var errorStack = Runtime.Evaluate<string>("__queryError?.stack || ''");
+            File.WriteAllText("/tmp/query-error-details.txt", $"Error: {errorMsg}\n\nStack:\n{errorStack}");
             throw new JavaScriptProxyExecutionFailed($"Query execution failed: {errorMsg}");
         }
 
@@ -271,18 +276,45 @@ public sealed class JavaScriptHttpBridge : IDisposable
                 try {{
                     var response = JSON.parse('{escapedJson}');
                     if (response.data && __query.modelType && globalThis.Fields) {{
-                        // Get fields using globalThis.Fields which has the metadata
-                        var fields = globalThis.Fields.getFieldsForType(__query.modelType);
-                        
-                        // Manually deserialize field by field
-                        var deserialized = {{}};
-                        for (var i = 0; i < fields.length; i++) {{
-                            var field = fields[i];
-                            if (response.data.hasOwnProperty(field.name)) {{
-                                deserialized[field.name] = response.data[field.name];
+                        // Helper function to deserialize an object using its type's fields
+                        function deserializeObject(data, type) {{
+                            if (!data || !type || !globalThis.Fields) return data;
+                            
+                            var fields = globalThis.Fields.getFieldsForType(type);
+                            if (!fields || fields.length === 0) return data;
+                            
+                            var deserialized = {{}};
+                            for (var i = 0; i < fields.length; i++) {{
+                                var field = fields[i];
+                                if (data.hasOwnProperty(field.name)) {{
+                                    var value = data[field.name];
+                                    
+                                    // Handle null/undefined
+                                    if (value === null || value === undefined) {{
+                                        deserialized[field.name] = value;
+                                    }}
+                                    // Handle arrays
+                                    else if (Array.isArray(value) && field.type && globalThis[field.type.name]) {{
+                                        deserialized[field.name] = value.map(item => 
+                                            typeof item === 'object' && item !== null 
+                                                ? deserializeObject(item, field.type) 
+                                                : item
+                                        );
+                                    }}
+                                    // Handle nested objects
+                                    else if (typeof value === 'object' && !Array.isArray(value) && field.type && globalThis[field.type.name]) {{
+                                        deserialized[field.name] = deserializeObject(value, field.type);
+                                    }}
+                                    // Handle primitives
+                                    else {{
+                                        deserialized[field.name] = value;
+                                    }}
+                                }}
                             }}
+                            return deserialized;
                         }}
-                        __queryResult.data = deserialized;
+                        
+                        __queryResult.data = deserializeObject(response.data, __query.modelType);
                     }}
                 }} catch(e) {{
                     // Silently fail - let original deserialization handle it
@@ -384,8 +416,45 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var updates = new List<TResult>();
         var updateCount = Runtime.Evaluate<int>("__obsUpdates.length");
 
+        // PATCH: Manually deserialize observable query updates field by field
+        // Observable queries don't properly deserialize in test environment due to module isolation
         for (var i = 0; i < updateCount; i++)
         {
+            // Apply the same field-by-field deserialization patch for observable query data
+            Runtime.Execute($@"
+                try {{
+                    var update = __obsUpdates[{i}];
+                    if (update.data && __obsQuery.modelType && globalThis.Fields) {{
+                        var fields = globalThis.Fields.getFieldsForType(__obsQuery.modelType);
+                        var deserialized = Array.isArray(update.data) ? [] : {{}};
+                        
+                        if (Array.isArray(update.data)) {{
+                            for (var idx = 0; idx < update.data.length; idx++) {{
+                                var item = update.data[idx];
+                                var deserializedItem = {{}};
+                                for (var i = 0; i < fields.length; i++) {{
+                                    var field = fields[i];
+                                    if (item.hasOwnProperty(field.name)) {{
+                                        deserializedItem[field.name] = item[field.name];
+                                    }}
+                                }}
+                                deserialized.push(deserializedItem);
+                            }}
+                        }} else {{
+                            for (var i = 0; i < fields.length; i++) {{
+                                var field = fields[i];
+                                if (update.data.hasOwnProperty(field.name)) {{
+                                    deserialized[field.name] = update.data[field.name];
+                                }}
+                            }}
+                        }}
+                        __obsUpdates[{i}].data = deserialized;
+                    }}
+                }} catch(e) {{
+                    // Silently fail - let original deserialization handle it
+                }}
+            ");
+
             var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
 
             var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);

@@ -218,9 +218,23 @@ public class a_scenario_web_application : Specification, IDisposable
     /// <param name="saveBasePath">Optional base path for saving generated files.</param>
     protected void LoadTypesAndEnums(IEnumerable<Type> types, string? saveBasePath = null)
     {
+        // Load types twice to ensure dependencies are available
+        // First pass loads types but some may have missing dependencies
+        // Second pass ensures all dependencies from first pass are now available
+        LoadTypesAndEnumsPass(types, saveBasePath);
+        LoadTypesAndEnumsPass(types, saveBasePath);
+    }
+
+    void LoadTypesAndEnumsPass(IEnumerable<Type> types, string? saveBasePath = null)
+    {
         var typesList = types.Distinct().Where(t => !_loadedTypes.Contains(t)).ToList();
         var enums = typesList.Where(_ => _.IsEnum).ToList();
         var nonEnums = typesList.Where(_ => !_.IsEnum).ToList();
+
+        if (typesList.Count == 0)
+        {
+            return;
+        }
 
         File.AppendAllText("/tmp/websocket-debug.txt", $"\n[LoadTypesAndEnums] Loading {typesList.Count} types (after filtering already loaded)\n");
         File.AppendAllText("/tmp/websocket-debug.txt", $"[LoadTypesAndEnums] Types: {string.Join(", ", typesList.Select(t => t.Name))}\n");
@@ -275,6 +289,9 @@ public class a_scenario_web_application : Specification, IDisposable
         var descriptor = method.ToQueryDescriptor(
             targetPath: string.Empty,
             segmentsToSkip: 0);
+
+        // Load all types and enums that are involved
+        LoadTypesAndEnums(descriptor.TypesInvolved);
 
         var logPath = "/tmp/websocket-debug.txt";
         File.AppendAllText(logPath, $"\n[Proxy Generation] Method: {methodName}\n");

@@ -434,6 +434,19 @@
                 console.log('[GlobalRequire] Relative import: ' + specifier + ', className: ' + className);
                 console.log('[GlobalRequire] globalThis[' + className + '] exists: ' + (globalThis[className] !== undefined));
                 
+                // Debug: List all available classes in globalThis that might match
+                if (!globalThis[className]) {
+                    var available = [];
+                    for (var key in globalThis) {
+                        if (key.indexOf(className) >= 0 || className.indexOf(key) >= 0) {
+                            available.push(key);
+                        }
+                    }
+                    if (available.length > 0) {
+                        console.log('[GlobalRequire] Similar names in globalThis: ' + available.join(', '));
+                    }
+                }
+                
                 // Check cache first to ensure we always return the same wrapper object
                 if (moduleCache[cacheKey]) {
                     console.log('[GlobalRequire] Returning cached module for: ' + className);
