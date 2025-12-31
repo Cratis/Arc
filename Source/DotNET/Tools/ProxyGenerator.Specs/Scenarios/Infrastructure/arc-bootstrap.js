@@ -3,6 +3,19 @@
 
 // Arc Module Loader - Loads built JavaScript files from dist/cjs
 (function() {
+    // Check if we've already been loaded
+    if (globalThis.__arcBootstrapLoaded) {
+        if (globalThis.__write_to_file) {
+            globalThis.__write_to_file('[ArcBootstrap] ALREADY LOADED - skipping re-initialization');
+        }
+        return;
+    }
+    globalThis.__arcBootstrapLoaded = true;
+    
+    if (globalThis.__write_to_file) {
+        globalThis.__write_to_file('[ArcBootstrap] LOADING for the first time');
+    }
+
     // Node.js process shim (required by some modules)
     if (!globalThis.process) {
         globalThis.process = {
@@ -264,6 +277,20 @@
         
         // Check cache first
         if (moduleCache[modulePath]) {
+            if (globalThis.__write_to_file && modulePath.includes('fundamentals')) {
+                globalThis.__write_to_file('[ModuleCache] HIT for: ' + modulePath);
+            }
+            return moduleCache[modulePath].exports;
+        }
+
+        if (globalThis.__write_to_file && modulePath.includes('fundamentals')) {
+            globalThis.__write_to_file('[ModuleCache] MISS for: ' + modulePath);
+        }
+
+        // Special handling for reflect-metadata to avoid reloading it if it's already global
+        // This prevents resetting the metadata store if the library is loaded multiple times
+        if (modulePath.includes('reflect-metadata/Reflect.js') && globalThis.Reflect && globalThis.Reflect.metadata) {
+            moduleCache[modulePath] = { exports: {} };
             return moduleCache[modulePath].exports;
         }
 
@@ -368,11 +395,18 @@
             }
             
             // Handle relative imports (DTO classes) - these don't have a fromPath context
-            // so we create simple constructor functions for them
+            // Instead of creating empty stubs, return the class from globalThis where it was
+            // exported by the module wrapper (with all its decorator metadata intact!)
             if (specifier.startsWith('./') || specifier.startsWith('../')) {
                 // Extract the class name from the path
                 const className = specifier.split('/').pop().replace(/\.js$/, '');
-                // Return a module with an empty constructor
+                // Return the class from globalThis if it exists, otherwise return empty stub
+                if (globalThis[className]) {
+                    return {
+                        [className]: globalThis[className]
+                    };
+                }
+                // Fallback to empty constructor if class not found in globalThis
                 return {
                     [className]: class {}
                 };

@@ -16,7 +16,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 public sealed class JavaScriptHttpBridge : IDisposable
 {
     readonly JsonSerializerOptions _jsonOptions;
-    readonly Dictionary<string, WebSocketConnection> _webSockets = [];
+    readonly Dictionary<string, WebSocketConnection> _webSockets = new();
     readonly object _webSocketLock = new();
     readonly string _serverUrl;
     int _nextWebSocketId;
@@ -62,13 +62,34 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             // Wrap in module scope to prevent variable collisions when multiple files
             // import from the same modules (e.g., @cratis/fundamentals), but still export
-            // classes to global scope so they're accessible
+            // classes to global scope so they're accessible.
+            // IMPORTANT: Don't create a local require variable - use globalThis.require
+            // to ensure module singletons are maintained across all loaded code.
 #pragma warning disable MA0136 // Raw String contains an implicit end of line character
             var wrappedCode = $$"""
 (function() {
+    try {
+        if (typeof __write_to_file === 'function') {
+            if (typeof Reflect === 'undefined') {
+                __write_to_file('[ModuleWrapper] Reflect is undefined');
+            } else {
+                __write_to_file('[ModuleWrapper] Reflect is defined');
+                __write_to_file('[ModuleWrapper] Reflect.decorate type: ' + typeof Reflect.decorate);
+                __write_to_file('[ModuleWrapper] Reflect.metadata type: ' + typeof Reflect.metadata);
+                __write_to_file('[ModuleWrapper] Reflect.defineMetadata type: ' + typeof Reflect.defineMetadata);
+            }
+        }
+    } catch (e) {
+        if (typeof __write_to_file === 'function') {
+            __write_to_file('[ModuleWrapper] Error checking Reflect: ' + e);
+        }
+    }
+
     var module = { exports: {} };
     var exports = module.exports;
-    var require = globalThis.require || function(id) { throw new Error('Module not found: ' + id); };
+    // CRITICAL: Use globalThis.require instead of creating a local variable
+    // This ensures @cratis/fundamentals is loaded as a singleton across all code
+    var require = globalThis.require;
     {{jsCode}}
     // Export any classes to global scope
     for (var key in module.exports) {
@@ -258,12 +279,21 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "var __obsUpdates = [];" +
             "var __obsError = null;" +
             "__write_to_file('[JavaScript] Created query instance');" +
+            "try {" +
+            "    var fundamentals = require('@cratis/fundamentals');" +
+            "    var fields = fundamentals.Fields.getFieldsForType(__obsQuery.modelType);" +
+            "    __write_to_file('[JavaScript] ModelType: ' + __obsQuery.modelType.name);" +
+            "    __write_to_file('[JavaScript] Fields: ' + JSON.stringify(fields));" +
+            "} catch (e) { __write_to_file('[JavaScript] Error checking fields: ' + e); }" +
             "var __obsSubscription = __obsQuery.subscribe(function(result) {" +
             "    __write_to_file('[JavaScript] Subscribe callback invoked');" +
             "    __write_to_file('[JavaScript] Received result: ' + JSON.stringify(result));" +
+            "    try { __write_to_file('[JavaScript] Result keys: ' + Object.keys(result).join(',')); } catch(e) { __write_to_file('Error keys: ' + e); }" +
+            "    try { __write_to_file('[JavaScript] Result.data keys: ' + (result.data ? Object.keys(result.data).join(',') : 'null')); } catch(e) { __write_to_file('Error data keys: ' + e); }" +
+            "    try { __write_to_file('[JavaScript] Result.data type: ' + typeof result.data); } catch(e) { __write_to_file('Error data type: ' + e); }" +
             "    __obsUpdates.push(result);" +
             "    __write_to_file('[JavaScript] __obsUpdates length is now: ' + __obsUpdates.length);" +
-            "});" +
+            "}, __obsQuery);" +
             "__write_to_file('[JavaScript] Subscription created');");
 
         File.AppendAllText(logPath, $"[JavaScript] Subscribe called, waiting for updates...\n");
@@ -431,6 +461,9 @@ try {{
             return wsId;
         }));
 
+        Runtime.Execute("var test = JSON.parse('{\"id\":\"123\"}'); __write_to_file('Test parse: ' + JSON.stringify(test));");
+
+
         // Expose function to send WebSocket messages
         Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>((wsId, message) =>
         {
@@ -442,6 +475,42 @@ try {{
         {
             CloseWebSocketConnection(wsId);
         }));
+
+        // Forward JS console output to file for debugging — accept a single object and stringify in JS
+        Runtime.Engine.AddHostObject("__console_forward", new Action<object>((arg) =>
+        {
+            try
+            {
+                var text = arg?.ToString() ?? "(null)";
+                File.AppendAllText("/tmp/websocket-debug.txt", "[console] " + text + "\n");
+            }
+            catch { }
+        }));
+
+        Runtime.Execute(@"
+if (!globalThis.console) { globalThis.console = {}; }
+function __stringifyArg(a) {
+    try { return JSON.stringify(a); } catch (e) { try { return String(a); } catch (_) { return '(unserializable)'; } }
+}
+console.log = function() {
+    try {
+        var parts = Array.prototype.slice.call(arguments).map(__stringifyArg);
+        __console_forward(parts.join(' '));
+    } catch (e) { __console_forward('console.log error: ' + (e && e.message || e)); }
+};
+console.error = function() {
+    try {
+        var parts = Array.prototype.slice.call(arguments).map(__stringifyArg);
+        __console_forward(parts.join(' '));
+    } catch (e) { __console_forward('console.error error: ' + (e && e.message || e)); }
+};
+console.info = function() {
+    try {
+        var parts = Array.prototype.slice.call(arguments).map(__stringifyArg);
+        __console_forward(parts.join(' '));
+    } catch (e) { __console_forward('console.info error: ' + (e && e.message || e)); }
+};
+");
 
         // Set up the WebSocket polyfill
         Runtime.Execute(@"
@@ -699,7 +768,14 @@ sealed class WebSocketConnection : IDisposable
                 Scheme = uri.Scheme == "https" ? "wss" : "ws"
             }.Uri;
 
+            // Set the Origin header to match the server URL, as browsers do
+            // This is often required by ASP.NET Core WebSocket middleware for security
+            var serverUri = new Uri(_runtime.Evaluate<string>("globalThis.Globals.origin") ?? _url);
+            var origin = $"{serverUri.Scheme}://{serverUri.Authority}";
+            _webSocket.Options.SetRequestHeader("Origin", origin);
+
             File.AppendAllText(logPath, $"[WebSocket {_id}] Connecting to: {wsUri}\n");
+            File.AppendAllText(logPath, $"[WebSocket {_id}] Origin: {origin}\n");
 
             // Connect to the real Kestrel server
             await _webSocket.ConnectAsync(wsUri, _cts.Token);
@@ -773,27 +849,41 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
                 }
 
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                File.AppendAllText(logPath, $"[WebSocket {_id}] Message content: {message.Substring(0, Math.Min(200, message.Length))}...\n");
-                
-                // Escape the message for JavaScript
-                var escapedMessage = message
-                    .Replace("\\", "\\\\")
-                    .Replace("'", "\\'")
-                    .Replace("\n", "\\n")
-                    .Replace("\r", "\\r");
 
-                File.AppendAllText(logPath, $"[WebSocket {_id}] About to call JavaScript onmessage\n");
-                
-                // Notify JavaScript of message
-                // NOTE: ev.data should be the raw string, not parsed JSON
-                _runtime.Execute($@"
-if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+                            File.AppendAllText(logPath, $"[WebSocket {_id}] Message content: {message.Substring(0, Math.Min(200, message.Length))}...\n");
+
+                            File.AppendAllText(logPath, $"[WebSocket {_id}] About to invoke JS onmessage via host\n");
+
+                            try
+                            {
+                                // Ensure we pass a plain JavaScript string as the event data.
+                                // Escape single quotes, backslashes and newlines so the literal is safe when injected.
+                                var escaped = message
+                                    .Replace("\\", "\\\\")
+                                    .Replace("'", "\\'")
+                                    .Replace("\r", "\\r")
+                                    .Replace("\n", "\\n");
+
+                                var injectedSnippet = $@"if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     var ws = globalThis.__webSockets['{_id}'];
-    if (ws.onmessage) {{
-        ws.onmessage({{ type: 'message', data: '{escapedMessage}' }});
-    }}
-}}");
+    if (ws.onmessage) ws.onmessage({{ type: 'message', data: '{escaped}' }});
+}}";
 
+                                // Log the exact JS snippet we will inject so we can correlate host -> injected -> parsed
+                                try
+                                {
+                                    File.AppendAllText(logPath, $"[WebSocket {_id}] Injected JS snippet:\n{injectedSnippet}\n");
+                                }
+                                catch { }
+
+                                _runtime.Execute(injectedSnippet);
+
+                                File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage invoked via host\n");
+                            }
+                            catch (Exception ex)
+                            {
+                                File.AppendAllText(logPath, $"[WebSocket {_id}] Error invoking onmessage via host: {ex.Message}\n");
+                            }
                 File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage called\n");            }
         }
         catch (OperationCanceledException)

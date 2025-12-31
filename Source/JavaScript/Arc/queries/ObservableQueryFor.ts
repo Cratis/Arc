@@ -177,7 +177,9 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     }
 
     private validateArguments(args?: TParameters): boolean {
-        return ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, args as object);
+        const parameterValues = ParametersHelper.collectParameterValues(this);
+        const combinedArgs = { ...(args as object || {}), ...parameterValues };
+        return ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, combinedArgs as object);
     }
 
     private buildRoute(args?: TParameters): string {

@@ -7,24 +7,21 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
 public class when_performing_query_for_all_types : given.a_scenario_web_application
 {
-    QueryExecutionResult<IEnumerable<AllTypesReadModel>>? _executionResult;
+    QueryExecutionResult<AllTypesReadModel>? _executionResult;
     IDictionary<string, object?>? _data;
     IDictionary<string, object?>? _types;
 
     void Establish()
     {
-        LoadQueryProxy<AllTypesReadModel>("GetWithAllTypes", "/tmp/alltypes-query-proxy.ts");
+        LoadQueryProxy<AllTypesReadModel>("GetWithAllTypes");
     }
 
     async Task Because()
     {
-        _executionResult = await Bridge.PerformQueryViaProxyAsync<IEnumerable<AllTypesReadModel>>("GetWithAllTypes");
+        _executionResult = await Bridge.PerformQueryViaProxyAsync<AllTypesReadModel>("GetWithAllTypes");
 
-        // Get the first item's data
-        var fullResultJson = Bridge.Runtime.Evaluate<string>("JSON.stringify(__queryResult)");
-        File.WriteAllText("/tmp/all-types-result.json", fullResultJson);
-        
-        var dataJson = Bridge.Runtime.Evaluate<string>("JSON.stringify(__queryResult.data[0])");
+        // Get the data
+        var dataJson = Bridge.Runtime.Evaluate<string>("JSON.stringify(__queryResult.data)");
         File.WriteAllText("/tmp/all-types-data.json", dataJson);
         _data = System.Text.Json.JsonSerializer.Deserialize<System.Dynamic.ExpandoObject>(dataJson, Json.Globals.JsonSerializerOptions);
 
@@ -32,29 +29,29 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 #pragma warning disable MA0101 // String contains an implicit end of line character
         var typesJson = Bridge.Runtime.Evaluate<string>(@"
             JSON.stringify({
-                byteValue: typeof __queryResult.data[0].byteValue,
-                signedByteValue: typeof __queryResult.data[0].signedByteValue,
-                shortValue: typeof __queryResult.data[0].shortValue,
-                intValue: typeof __queryResult.data[0].intValue,
-                longValue: typeof __queryResult.data[0].longValue,
-                unsignedShortValue: typeof __queryResult.data[0].unsignedShortValue,
-                unsignedIntValue: typeof __queryResult.data[0].unsignedIntValue,
-                unsignedLongValue: typeof __queryResult.data[0].unsignedLongValue,
-                floatValue: typeof __queryResult.data[0].floatValue,
-                doubleValue: typeof __queryResult.data[0].doubleValue,
-                decimalValue: typeof __queryResult.data[0].decimalValue,
-                stringValue: typeof __queryResult.data[0].stringValue,
-                charValue: typeof __queryResult.data[0].charValue,
-                booleanValue: typeof __queryResult.data[0].booleanValue,
-                id: typeof __queryResult.data[0].id,
-                guidValue: typeof __queryResult.data[0].guidValue,
-                timeSpanValue: typeof __queryResult.data[0].timeSpanValue,
-                jsonNodeValue: typeof __queryResult.data[0].jsonNodeValue,
-                jsonObjectValue: typeof __queryResult.data[0].jsonObjectValue,
-                jsonDocumentValue: typeof __queryResult.data[0].jsonDocumentValue,
-                objectValue: typeof __queryResult.data[0].objectValue,
-                isJsonArrayArray: Array.isArray(__queryResult.data[0].jsonArrayValue),
-                isJsonDocumentItemsArray: __queryResult.data[0].jsonDocumentValue ? Array.isArray(__queryResult.data[0].jsonDocumentValue.items) : false
+                byteValue: typeof __queryResult.data.byteValue,
+                signedByteValue: typeof __queryResult.data.signedByteValue,
+                shortValue: typeof __queryResult.data.shortValue,
+                intValue: typeof __queryResult.data.intValue,
+                longValue: typeof __queryResult.data.longValue,
+                unsignedShortValue: typeof __queryResult.data.unsignedShortValue,
+                unsignedIntValue: typeof __queryResult.data.unsignedIntValue,
+                unsignedLongValue: typeof __queryResult.data.unsignedLongValue,
+                floatValue: typeof __queryResult.data.floatValue,
+                doubleValue: typeof __queryResult.data.doubleValue,
+                decimalValue: typeof __queryResult.data.decimalValue,
+                stringValue: typeof __queryResult.data.stringValue,
+                charValue: typeof __queryResult.data.charValue,
+                booleanValue: typeof __queryResult.data.booleanValue,
+                id: typeof __queryResult.data.id,
+                guidValue: typeof __queryResult.data.guidValue,
+                timeSpanValue: typeof __queryResult.data.timeSpanValue,
+                jsonNodeValue: typeof __queryResult.data.jsonNodeValue,
+                jsonObjectValue: typeof __queryResult.data.jsonObjectValue,
+                jsonDocumentValue: typeof __queryResult.data.jsonDocumentValue,
+                objectValue: typeof __queryResult.data.objectValue,
+                isJsonArrayArray: Array.isArray(__queryResult.data.jsonArrayValue),
+                isJsonDocumentItemsArray: __queryResult.data.jsonDocumentValue ? Array.isArray(__queryResult.data.jsonDocumentValue.items) : false
             })
         ");
 #pragma warning restore MA0101 // String contains an implicit end of line character

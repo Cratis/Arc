@@ -1,7 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Microsoft.ClearScript;
 using Microsoft.ClearScript.V8;
+using System.IO;
+using System;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
@@ -21,7 +24,17 @@ public sealed class JavaScriptRuntime : IDisposable
         Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
         Engine.AddHostObject("__readJavaScriptFile", new Func<string, string>(ReadJavaScriptFile));
         Engine.AddHostObject("__fileExists", new Func<string, bool>(FileExists));
+        Engine.AddHostObject("__log", new Action<string>(Log));
         InitializeRuntime();
+    }
+
+    void Log(string message)
+    {
+        try
+        {
+            File.AppendAllText("/tmp/websocket-debug.txt", message + "\n");
+        }
+        catch { }
     }
 
     /// <summary>
@@ -36,16 +49,20 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The transpiled JavaScript code.</returns>
     public string TranspileTypeScript(string typeScriptCode)
     {
-        // Strip decorators before transpiling to avoid decorator helper code that uses 'this'
-        // Decorators like @field(Type) are just metadata and not needed at runtime
-        var codeWithoutDecorators = System.Text.RegularExpressions.Regex.Replace(
-            typeScriptCode,
-            @"@\w+\([^)]*\)\s*[\r\n]*",
-            string.Empty);
+        var escapedCode = typeScriptCode.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
+        var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
+        var js = result?.ToString() ?? string.Empty;
 
-        var escapedCode = codeWithoutDecorators.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
-        var result = Engine.Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }})");
-        return result?.ToString() ?? string.Empty;
+        if (typeScriptCode.Contains("class ObservableControllerQueryItem") || typeScriptCode.Contains("class ObserveByCategory"))
+        {
+            try
+            {
+                File.AppendAllText("/tmp/websocket-debug.txt", $"\n[TranspileTypeScript] {typeScriptCode.Substring(0, Math.Min(50, typeScriptCode.Length))}... transpiled:\n{js}\n");
+            }
+            catch {}
+        }
+
+        return js;
     }
 
     /// <summary>
@@ -54,8 +71,23 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <param name="javaScriptCode">The JavaScript code to execute.</param>
     public void Execute(string javaScriptCode)
     {
-        Engine.Execute(javaScriptCode);
-    }
+        try
+        {
+            Engine.Execute(javaScriptCode);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                File.AppendAllText(
+                    "/tmp/websocket-debug.txt",
+                    $"\n[JavaScriptRuntime.Execute] Exception: {ex}\nCode:\n{javaScriptCode}\n");
+            }
+            catch { }
+
+            throw;
+        }
+        }
 
     /// <summary>
     /// Executes JavaScript code and returns the result.
@@ -65,14 +97,29 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The result of the execution.</returns>
     public T? Evaluate<T>(string javaScriptCode)
     {
-        var result = Engine.Evaluate(javaScriptCode);
-        if (result is T typedResult)
+        try
         {
-            return typedResult;
-        }
+            var result = Engine.Evaluate(javaScriptCode);
+            if (result is T typedResult)
+            {
+                return typedResult;
+            }
 
-        return default;
-    }
+            return default;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                File.AppendAllText(
+                    "/tmp/websocket-debug.txt",
+                    $"\n[JavaScriptRuntime.Evaluate<T>] Exception: {ex}\nCode:\n{javaScriptCode}\n");
+            }
+            catch { }
+
+            throw;
+        }
+        }
 
     /// <summary>
     /// Executes JavaScript code and returns the raw result.
@@ -81,8 +128,23 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The result of the execution.</returns>
     public object? Evaluate(string javaScriptCode)
     {
-        return Engine.Evaluate(javaScriptCode);
-    }
+        try
+        {
+            return Engine.Evaluate(javaScriptCode);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                File.AppendAllText(
+                    "/tmp/websocket-debug.txt",
+                    $"\n[JavaScriptRuntime.Evaluate] Exception: {ex}\nCode:\n{javaScriptCode}\n");
+            }
+            catch { }
+
+            throw;
+        }
+        }
 
     /// <inheritdoc/>
     public void Dispose()
@@ -100,9 +162,46 @@ public sealed class JavaScriptRuntime : IDisposable
         var typeScriptCompiler = JavaScriptResources.GetTypeScriptCompiler();
         Engine.Execute(typeScriptCompiler);
 
+        // Define console shim
+        Engine.Execute(@"
+            if (typeof console === 'undefined') {
+                globalThis.console = {
+                    log: function(msg) { __log('[Console.log] ' + msg); },
+                    error: function(msg) { __log('[Console.error] ' + msg); },
+                    warn: function(msg) { __log('[Console.warn] ' + msg); },
+                    info: function(msg) { __log('[Console.info] ' + msg); }
+                };
+            }
+        ");
+
         // Load Arc bootstrap code (sets up module environment with shims)
         var arcBootstrap = JavaScriptResources.GetArcBootstrap();
         Engine.Execute(arcBootstrap);
+        
+        // Ensure a global module/exports shim exists so scripts executed directly
+        // (outside the module loader) that reference `exports`/`module` do not
+        // throw ReferenceError: exports is not defined.
+        Engine.Execute(@"
+            if (!globalThis.module) { globalThis.module = { exports: {} }; }
+            if (!globalThis.exports) { globalThis.exports = globalThis.module.exports; }
+        ");
+
+        // Load reflect-metadata polyfill directly
+        try 
+        {
+            var reflectMetadata = ReadJavaScriptFile("node_modules/reflect-metadata/Reflect.js");
+            Engine.Execute(reflectMetadata);
+            
+            var checkCode = "'[InitializeRuntime] Loaded reflect-metadata directly. Reflect type: ' + typeof Reflect + ', Reflect.decorate type: ' + (typeof Reflect !== 'undefined' ? typeof Reflect.decorate : 'undefined')";
+            var logMsg = Engine.Evaluate(checkCode) as string;
+            File.AppendAllText("/tmp/websocket-debug.txt", $"\n{logMsg}\n");
+        }
+        catch (Exception ex)
+        {
+            try {
+                File.AppendAllText("/tmp/websocket-debug.txt", $"\n[InitializeRuntime] Failed to load reflect-metadata: {ex.Message}\n");
+            } catch {}
+        }
     }
 
     string ReadTypeScriptFile(string relativePath)

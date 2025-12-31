@@ -23,6 +23,8 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.given;
 /// </summary>
 public class a_scenario_web_application : Specification, IDisposable
 {
+    readonly HashSet<Type> _loadedTypes = [];
+
     /// <summary>
     /// Gets or sets the web application factory.
     /// </summary>
@@ -222,9 +224,12 @@ public class a_scenario_web_application : Specification, IDisposable
     /// <param name="saveBasePath">Optional base path for saving generated files.</param>
     protected void LoadTypesAndEnums(IEnumerable<Type> types, string? saveBasePath = null)
     {
-        var typesList = types.Distinct().ToList();
+        var typesList = types.Distinct().Where(t => !_loadedTypes.Contains(t)).ToList();
         var enums = typesList.Where(_ => _.IsEnum).ToList();
         var nonEnums = typesList.Where(_ => !_.IsEnum).ToList();
+
+        File.AppendAllText("/tmp/websocket-debug.txt", $"\n[LoadTypesAndEnums] Loading {typesList.Count} types (after filtering already loaded)\n");
+        File.AppendAllText("/tmp/websocket-debug.txt", $"[LoadTypesAndEnums] Types: {string.Join(", ", typesList.Select(t => t.Name))}\n");
 
         var baseDir = !string.IsNullOrEmpty(saveBasePath) ? Path.GetDirectoryName(saveBasePath) : null;
 
@@ -241,6 +246,7 @@ public class a_scenario_web_application : Specification, IDisposable
             }
 
             Bridge.LoadTypeScript(enumCode);
+            _loadedTypes.Add(enumType);
         }
 
         // Generate and load type files
@@ -256,6 +262,7 @@ public class a_scenario_web_application : Specification, IDisposable
             }
 
             Bridge.LoadTypeScript(typeCode);
+            _loadedTypes.Add(type);
         }
     }
 

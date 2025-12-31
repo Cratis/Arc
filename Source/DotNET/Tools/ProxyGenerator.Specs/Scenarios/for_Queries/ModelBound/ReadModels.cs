@@ -535,17 +535,15 @@ public class AllTypesReadModel
     /// Gets a read model with all types populated.
     /// </summary>
     /// <returns>A collection with a single read model with all supported types.</returns>
-    public static IEnumerable<AllTypesReadModel> GetWithAllTypes()
+    public static AllTypesReadModel GetWithAllTypes()
     {
         var testId = new Guid(0x12345678, 0x1234, 0x1234, 0x12, 0x34, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc);
         var testGuid = new Guid(0x87654321, 0x4321, 0x4321, 0x43, 0x21, 0xcb, 0xa9, 0x87, 0x65, 0x43, 0x21);
         var testDate = new DateTime(2024, 3, 15, 14, 30, 45, DateTimeKind.Utc);
 
-        return
-        [
-            new AllTypesReadModel
-            {
-                Id = testId,
+        return new AllTypesReadModel
+        {
+            Id = testId,
                 ByteValue = 255,
                 SignedByteValue = -128,
                 ShortValue = -32768,
@@ -572,8 +570,7 @@ public class AllTypesReadModel
                 JsonArrayValue = System.Text.Json.Nodes.JsonNode.Parse("[1, 2, 3, \"four\"]")?.AsArray(),
                 JsonDocumentValue = System.Text.Json.JsonDocument.Parse("{\"document\": \"data\", \"items\": [1, 2, 3]}"),
                 ObjectValue = new { Dynamic = "Content", Value = 999 }
-            }
-        ];
+        };
     }
 }
 
