@@ -194,7 +194,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         Dictionary<string, object>? parameters = null)
     {
         // Build args object for perform() call
-        var argsObject = parameters?.Any() == true
+        var argsObject = parameters?.Count > 0
             ? JsonSerializer.Serialize(parameters, _jsonOptions)
             : "undefined";
 
@@ -350,6 +350,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         for (var i = 0; i < updateCount; i++)
         {
             // Apply the same field-by-field deserialization patch for observable query data
+#pragma warning disable MA0101 // String contains an implicit end of line character
             Runtime.Execute($@"
                 try {{
                     var update = __obsUpdates[{i}];
@@ -383,6 +384,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
                     // Silently fail - let original deserialization handle it
                 }}
             ");
+#pragma warning restore MA0101 // String contains an implicit end of line character
 
             var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
 
@@ -407,8 +409,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// <typeparam name="TResult">The type of data.</typeparam>
     /// <param name="result">The execution result to add updates to.</param>
     /// <param name="timeout">Maximum time to wait for updates.</param>
-    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
-    /// <exception cref="JavaScriptProxyExecutionFailed"></exception>
+    /// <returns>An awaitable task.</returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when no updates are received within the timeout.</exception>
     public async Task WaitForWebSocketUpdates<TResult>(ObservableQueryExecutionResult<TResult> result, TimeSpan? timeout = null)
     {
         timeout ??= TimeSpan.FromSeconds(5);
@@ -471,10 +473,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
     void SetupWebSocketPolyfill()
     {
         // Expose function to JavaScript that creates a WebSocket connection
-        Runtime.Engine.AddHostObject("__createWebSocket", new Func<string, string>((url) =>
-        {
-            return CreateWebSocketConnection(url);
-        }));
+        Runtime.Engine.AddHostObject("__createWebSocket", new Func<string, string>(CreateWebSocketConnection));
 
         // Expose function to send WebSocket messages
         Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>(SendWebSocketMessage));
