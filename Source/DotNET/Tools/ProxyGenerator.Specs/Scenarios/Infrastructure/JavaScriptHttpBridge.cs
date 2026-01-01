@@ -150,13 +150,18 @@ public sealed class JavaScriptHttpBridge : IDisposable
             propAssignments +
             "var __cmdResult = null;" +
             "var __cmdError = null;" +
-            "var __cmdDone = false;" + "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
+            "var __cmdDone = false;" +
+            "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
+            "__write_to_file('[Command] Properties: ' + JSON.stringify(__cmd));" +
             "__write_to_file('[Command] Origin: ' + __cmd._origin);" +
-            "__write_to_file('[Command] Route: ' + __cmd.route);" + "__cmd.execute().then(function(result) {" +
+            "__write_to_file('[Command] Route: ' + __cmd.route);" +
+            "__cmd.execute().then(function(result) {" +
             "    __cmdResult = result;" +
             "    __cmdDone = true;" +
             "}).catch(function(error) {" +
             "    __cmdError = error;" +
+            "    __write_to_file('[Command Error] ' + error.message);" +
+            "    __write_to_file('[Command Error Stack] ' + error.stack);" +
             "    __cmdDone = true;" +
             "});");
 
@@ -177,11 +182,14 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasError)
         {
             var errorMsg = Runtime.Evaluate<string>("__cmdError?.message || String(__cmdError)");
+            var errorStack = Runtime.Evaluate<string>("__cmdError?.stack || ''");
+            File.WriteAllText("/tmp/command-error-details.txt", $"Error: {errorMsg}\n\nStack:\n{errorStack}");
             throw new JavaScriptProxyExecutionFailed($"Command execution failed: {errorMsg}");
         }
 
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
+        File.WriteAllText("/tmp/command-result.json", resultJson);
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
         return new CommandExecutionResult<TResult>(commandResult, result?.ResponseJson);
