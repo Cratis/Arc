@@ -5,6 +5,7 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
 
+[Collection(ObservableQueriesCollection.Name)]
 public class when_observing_single_item : given.a_scenario_web_application
 {
     ObservableQueryExecutionResult<ObservableReadModel>? _executionResult;

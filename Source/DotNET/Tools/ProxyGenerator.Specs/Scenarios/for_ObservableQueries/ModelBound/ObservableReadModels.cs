@@ -268,12 +268,17 @@ public class ComplexObservableReadModel
             subscription.Dispose();
         }
 
+        // IMPORTANT: Create a fresh DateTime instance for each reset to prevent
+        // inconsistencies when tests check timestamps. Use a fixed past date
+        // for predictable comparison in tests.
+        var fixedDate = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
         _complexItemsSubject.OnNext([
             new ComplexObservableReadModel
             {
                 Id = Guid.NewGuid(),
                 Name = "Complex Item 1",
-                Metadata = new Metadata { CreatedAt = DateTime.UtcNow, Tags = ["tag1", "tag2"] },
+                Metadata = new Metadata { CreatedAt = fixedDate, Tags = ["tag1", "tag2"] },
                 Items = [new NestedItem { Key = "key1", Value = "value1" }]
             }
         ]);

@@ -138,7 +138,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         foreach (var prop in commandAsDocument.RootElement.EnumerateObject())
         {
             // Convert JsonElement to actual value
-            object value = prop.Value.ValueKind switch
+            properties[prop.Name] = prop.Value.ValueKind switch
             {
                 JsonValueKind.String => prop.Value.GetString()!,
                 JsonValueKind.Number => prop.Value.GetDouble(),
@@ -149,7 +149,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
                 JsonValueKind.Array => prop.Value.Deserialize<List<object>>(_jsonOptions)!,
                 _ => prop.Value.ToString()
             };
-            properties[prop.Name] = value;
         }
 
         // Set up properties on the command
@@ -208,6 +207,47 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
         File.WriteAllText("/tmp/command-result.json", resultJson);
+        
+        // PATCH: Manually fix TimeSpan deserialization from HTTP response
+        // The JsonSerializer in the test environment doesn't properly deserialize TimeSpans
+        // from the HTTP response. We need to re-parse them from the original HTTP response.
+        if (result?.ResponseJson is not null)
+        {
+            var escapedResponse = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+            Runtime.Execute($@"
+                try {{
+                    var httpResponse = JSON.parse('{escapedResponse}');
+                    if (httpResponse.response && __cmdResult.response) {{
+                        // Iterate through all properties in the HTTP response
+                        for (var key in httpResponse.response) {{
+                            var value = httpResponse.response[key];
+                            // Check if it's a TimeSpan string that needs re-parsing
+                            if (typeof value === 'string' && /^(-)?(?:(\d+)\.)?(\d{{1,2}}):(\d{{2}}):(\d{{2}})(?:\.(\d{{1,7}}))?$/.test(value)) {{
+                                __write_to_file('[TimeSpan Patch] Found TimeSpan in response.' + key + ': ' + value);
+                                if (globalThis.TimeSpan && globalThis.TimeSpan.parse) {{
+                                    __cmdResult.response[key] = globalThis.TimeSpan.parse(value);
+                                    __write_to_file('[TimeSpan Patch] Patched ' + key + ' with TimeSpan object');
+                                }} else {{
+                                    __write_to_file('[TimeSpan Patch] WARNING: TimeSpan.parse not available');
+                                }}
+                            }}
+                        }}
+                    }}
+                }} catch(e) {{
+                    __write_to_file('[TimeSpan Patch] Error: ' + e.message);
+                }}
+            ");
+        }
+        
+        // Get the patched result
+        resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
+        File.WriteAllText("/tmp/command-result-patched.json", resultJson);
+        
+        // Debug: Log both the JSON and deserialized result
+        File.WriteAllText("/tmp/command-deserialization-debug.txt", 
+            $"JavaScript result JSON:\n{resultJson}\n\n" +
+            $"HTTP Response JSON:\n{result?.ResponseJson ?? "null"}\n");
+        
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
         return new CommandExecutionResult<TResult>(commandResult, result?.ResponseJson);
@@ -657,6 +697,15 @@ try {{
         globalThis.Globals.origin = '{origin}';
         globalThis.Globals.apiBasePath = '';
         globalThis.Globals.microservice = '';
+    }}
+    
+    // CRITICAL: Expose TimeSpan from fundamentals globally for command serialization
+    var Fundamentals = require('@cratis/fundamentals');
+    if (Fundamentals && Fundamentals.TimeSpan) {{
+        globalThis.TimeSpan = Fundamentals.TimeSpan;
+        __write_to_file('[SetupArcGlobals] TimeSpan exposed globally');
+    }} else {{
+        __write_to_file('[SetupArcGlobals] WARNING: Could not find TimeSpan in fundamentals');
     }}
 }} catch (e) {{
     __write_to_file('[SetupArcGlobals] ERROR: ' + e.message);

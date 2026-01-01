@@ -6,6 +6,7 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBased;
 
+[Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_single_item_and_data_changes : given.a_scenario_web_application
 {
     ObservableQueryExecutionResult<ObservableControllerQueryItem>? _executionResult;

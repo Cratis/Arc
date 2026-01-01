@@ -32,6 +32,7 @@ public class when_executing_complex_command : given.a_scenario_web_application
             },
             Timeout = TimeSpan.FromMinutes(30)
         });
+
         _result = executionResult.Result;
     }
 
