@@ -59,9 +59,6 @@ public class a_scenario_web_application : Specification, IDisposable
 
         var builder = WebApplication.CreateBuilder();
 
-        // Register controller state as singleton for test isolation
-        builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
-
         // Use Kestrel instead of TestServer to support real WebSocket connections
         builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0, listenOptions => listenOptions.Protocols = HttpProtocols.Http1AndHttp2));
 
@@ -73,7 +70,10 @@ public class a_scenario_web_application : Specification, IDisposable
             .AddApplicationPart(typeof(a_scenario_web_application).Assembly);
 
         builder.Services.AddRouting();
-        builder.Host.AddCratisArc(_ => { });
+        builder.AddCratisArc(_ => { });
+
+        // Register controller state as singleton for test isolation
+        builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
 
         var app = builder.Build();
 

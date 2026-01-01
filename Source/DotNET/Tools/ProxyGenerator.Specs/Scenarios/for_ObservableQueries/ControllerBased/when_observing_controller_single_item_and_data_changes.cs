@@ -24,6 +24,9 @@ public class when_observing_controller_single_item_and_data_changes : given.a_sc
         // Update the data on the backend via HTTP POST
         await HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/single", _updatedData);
 
+        // Give the server a moment to process and send the WebSocket message
+        await Task.Delay(100);
+
         // Sync observable updates to get fresh HTTP snapshot
         await Bridge.WaitForWebSocketUpdates(_executionResult);
     }

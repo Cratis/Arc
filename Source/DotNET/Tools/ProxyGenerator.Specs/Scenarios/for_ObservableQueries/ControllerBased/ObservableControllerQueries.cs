@@ -11,8 +11,14 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 /// </summary>
 [ApiController]
 [Route("api/observable-controller-queries")]
-public class ObservableControllerQueriesController(ObservableControllerQueriesState state) : ControllerBase
+public class ObservableControllerQueriesController : ControllerBase
 {
+    readonly ObservableControllerQueriesState state;
+
+    public ObservableControllerQueriesController(ObservableControllerQueriesState state)
+    {
+        this.state = state;
+    }
 
     /// <summary>
     /// Gets all items as an observable stream.
@@ -29,10 +35,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     /// </summary>
     /// <returns>Observable item.</returns>
     [HttpGet("observe/single")]
-    public ISubject<ObservableControllerQueryItem> ObserveSingle()
-    {
-        return state.SingleItemSubject;
-    }
+    public ISubject<ObservableControllerQueryItem> ObserveSingle() => state.SingleItemSubject;
 
     /// <summary>
     /// Gets a single item by ID as an observable stream.

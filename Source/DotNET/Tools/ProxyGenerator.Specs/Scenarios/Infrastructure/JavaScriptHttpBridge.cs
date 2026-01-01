@@ -248,10 +248,13 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
         FetchResult? result = null;
 
+        File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] hasPendingFetch: {hasPendingFetch}\n");
+
         if (hasPendingFetch)
         {
             // Process the pending fetch request
             result = await ProcessPendingFetchAsync();
+            File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] result.ResponseJson length: {result?.ResponseJson?.Length ?? 0}\n");
         }
 
         // Wait for promise resolution
@@ -266,6 +269,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
             throw new JavaScriptProxyExecutionFailed($"Query execution failed: {errorMsg}");
         }
 
+        File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] Before patch - result null: {result is null}\n");
+
         // PATCH: Manually deserialize the query result data if it exists
         // QueryResult doesn't properly call JsonSerializer in test environment due to module isolation
         if (result?.ResponseJson is not null)
@@ -275,19 +280,45 @@ public sealed class JavaScriptHttpBridge : IDisposable
             Runtime.Execute($@"
                 try {{
                     var response = JSON.parse('{escapedJson}');
+                    
+                    if (typeof __write_to_file === 'function') {{
+                        __write_to_file('[PATCH] Response has data: ' + (response.data ? 'YES' : 'NO'));
+                        __write_to_file('[PATCH] __query defined: ' + (typeof __query !== 'undefined' ? 'YES' : 'NO'));
+                        __write_to_file('[PATCH] __query.modelType: ' + (typeof __query !== 'undefined' && __query.modelType ? __query.modelType.name : 'NONE'));
+                        __write_to_file('[PATCH] globalThis.Fields: ' + (globalThis.Fields ? 'YES' : 'NO'));
+                    }}
+                    
                     if (response.data && __query.modelType && globalThis.Fields) {{
                         // Helper function to deserialize an object using its type's fields
                         function deserializeObject(data, type) {{
                             if (!data || !type || !globalThis.Fields) return data;
                             
+                            if (typeof __write_to_file === 'function') {{
+                                __write_to_file('[Deserialize] Type: ' + (type.name || 'unknown'));
+                                __write_to_file('[Deserialize] Data keys: ' + Object.keys(data).join(', '));
+                            }}
+                            
                             var fields = globalThis.Fields.getFieldsForType(type);
-                            if (!fields || fields.length === 0) return data;
+                            if (!fields || fields.length === 0) {{
+                                if (typeof __write_to_file === 'function') {{
+                                    __write_to_file('[Deserialize] No fields found for type');
+                                }}
+                                return data;
+                            }}
+                            
+                            if (typeof __write_to_file === 'function') {{
+                                __write_to_file('[Deserialize] Found ' + fields.length + ' fields');
+                            }}
                             
                             var deserialized = {{}};
                             for (var i = 0; i < fields.length; i++) {{
                                 var field = fields[i];
                                 if (data.hasOwnProperty(field.name)) {{
                                     var value = data[field.name];
+                                    
+                                    if (typeof __write_to_file === 'function') {{
+                                        __write_to_file('[Deserialize] Field: ' + field.name + ', value type: ' + typeof value + ', field type: ' + (field.type ? field.type.name : 'none'));
+                                    }}
                                     
                                     // Handle null/undefined
                                     if (value === null || value === undefined) {{
@@ -303,6 +334,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
                                     }}
                                     // Handle nested objects
                                     else if (typeof value === 'object' && !Array.isArray(value) && field.type && globalThis[field.type.name]) {{
+                                        if (typeof __write_to_file === 'function') {{
+                                            __write_to_file('[Deserialize] Recursing for nested object: ' + field.name);
+                                        }}
                                         deserialized[field.name] = deserializeObject(value, field.type);
                                     }}
                                     // Handle primitives
@@ -317,7 +351,10 @@ public sealed class JavaScriptHttpBridge : IDisposable
                         __queryResult.data = deserializeObject(response.data, __query.modelType);
                     }}
                 }} catch(e) {{
-                    // Silently fail - let original deserialization handle it
+                    if (typeof __write_to_file === 'function') {{
+                        __write_to_file('[Deserialization] Error: ' + e.message);
+                        __write_to_file('[Deserialization] Stack: ' + e.stack);
+                    }}
                 }}
             ");
         }
@@ -651,22 +688,27 @@ class WebSocket {
             globalThis.__webSockets = {};
         }
         globalThis.__webSockets[this._id] = this;
+        __write_to_file('[WebSocket Constructor] Created WebSocket with ID: ' + this._id);
     }
     
     send(data) {
         if (this.readyState !== 1) { // OPEN
             throw new Error('WebSocket is not open');
         }
+        __write_to_file('[WebSocket.send] Sending data on ' + this._id);
         __webSocketSend(this._id, typeof data === 'string' ? data : JSON.stringify(data));
     }
     
     close() {
+        __write_to_file('[WebSocket.close] Called on ' + this._id + ', current state: ' + this.readyState);
+        __write_to_file('[WebSocket.close] Stack trace: ' + new Error().stack);
         if (this.readyState === 2 || this.readyState === 3) { // CLOSING or CLOSED
             return;
         }
         this.readyState = 2; // CLOSING
         __webSocketClose(this._id);
     }
+
 }
 
 // WebSocket constants

@@ -20,7 +20,7 @@ public class when_performing_query_for_complex_data : given.a_scenario_web_appli
     {
         var parameters = new Dictionary<string, object>
         {
-            ["id"] = _testId.ToString()
+            ["id"] = _testId
         };
 
         _executionResult = await Bridge.PerformQueryViaProxyAsync<ComplexReadModel>("GetComplex", parameters);

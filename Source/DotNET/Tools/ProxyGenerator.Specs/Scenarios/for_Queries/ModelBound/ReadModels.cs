@@ -373,8 +373,8 @@ public class FluentValidatedReadModelGetByEmailAndAgeValidator : QueryValidator<
 
     public FluentValidatedReadModelGetByEmailAndAgeValidator()
     {
-        RuleFor(q => q.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
-        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).LessThan(150).WithMessage(AgeRangeMessage);
+        RuleFor(q => q.Email).NotEmpty().WithMessage(EmailRequiredMessage).EmailAddress().WithMessage(EmailRequiredMessage);
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).WithMessage(AgeRangeMessage);
     }
 }
 
