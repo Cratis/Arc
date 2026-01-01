@@ -33,6 +33,10 @@ public class when_executing_complex_command : given.a_scenario_web_application
             Timeout = TimeSpan.FromMinutes(30)
         });
         _result = executionResult.Result;
+        
+        // Debug: Save result to file
+        var resultJson = System.Text.Json.JsonSerializer.Serialize(_result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText("/tmp/complex-command-result.json", resultJson);
     }
 
     [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();

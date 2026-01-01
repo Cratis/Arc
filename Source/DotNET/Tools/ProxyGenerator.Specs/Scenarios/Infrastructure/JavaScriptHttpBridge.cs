@@ -200,20 +200,20 @@ public sealed class JavaScriptHttpBridge : IDisposable
         string queryClassName,
         Dictionary<string, object>? parameters = null)
     {
-        // Set up parameters on the query
-        var paramAssignments = parameters is not null
-            ? string.Concat(parameters.Select(p => $"__query.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
-            : string.Empty;
+        // Build args object for perform() call
+        var argsObject = parameters is not null && parameters.Any()
+            ? JsonSerializer.Serialize(parameters, _jsonOptions)
+            : "undefined";
 
-        // Create query instance and set parameters, then call perform()
+        // Create query instance and call perform() with args
         var queryScript =
             "var __query = new " + queryClassName + "();" +
-            paramAssignments +
+            "var __args = " + argsObject + ";" +
             "var __queryResult = null;" +
             "var __queryError = null;" +
             "var __queryDone = false;" +
             "var __patchApplied = false;" +
-            "__query.perform().then(function(result) {" +
+            "__query.perform(__args).then(function(result) {" +
             "    __queryResult = result;" +
             "    if (__queryResult && __queryResult.data && typeof __queryResult.data === 'object') {" +
             "        if (__query.modelType && typeof globalThis.JsonSerializer !== 'undefined') {" +
@@ -247,14 +247,30 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
         FetchResult? result = null;
+        string? requestUrl = null;
 
         File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] hasPendingFetch: {hasPendingFetch}\n");
 
         if (hasPendingFetch)
         {
+            // Capture the URL before processing
+            requestUrl = Runtime.Evaluate<string>("__pendingFetch.url");
+            
             // Process the pending fetch request
             result = await ProcessPendingFetchAsync();
             File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] result.ResponseJson length: {result?.ResponseJson?.Length ?? 0}\n");
+        }
+        else
+        {
+            // No pending fetch (likely validation failed), but we can still construct the URL for testing
+            // Extract query route and build URL with parameters
+            var hasRoute = Runtime.Evaluate<bool>("__query && typeof __query.route === 'string'");
+            if (hasRoute)
+            {
+                var route = Runtime.Evaluate<string>("__query.route");
+                var queryParams = parameters?.Select(p => $"{p.Key}={Uri.EscapeDataString(JsonSerializer.Serialize(p.Value, _jsonOptions).Trim('"'))}");
+                requestUrl = route + (queryParams?.Any() == true ? "?" + string.Join("&", queryParams) : "");
+            }
         }
 
         // Wait for promise resolution
@@ -269,12 +285,25 @@ public sealed class JavaScriptHttpBridge : IDisposable
             throw new JavaScriptProxyExecutionFailed($"Query execution failed: {errorMsg}");
         }
 
+        // Debug: For complex queries, check what's in __queryResult before patch
+        if (queryClassName.Contains("Complex"))
+        {
+            var prePatchResult = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
+            File.WriteAllText("/tmp/complex-pre-patch-result.json", prePatchResult);
+        }
+
         File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] Before patch - result null: {result is null}\n");
 
         // PATCH: Manually deserialize the query result data if it exists
         // QueryResult doesn't properly call JsonSerializer in test environment due to module isolation
         if (result?.ResponseJson is not null)
         {
+            // Debug: Save raw response for complex queries
+            if (queryClassName.Contains("Complex"))
+            {
+                File.WriteAllText("/tmp/complex-raw-response.json", result.ResponseJson);
+            }
+
             // Escape the response JSON for embedding in JavaScript string
             var escapedJson = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
             Runtime.Execute($@"
@@ -363,7 +392,13 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
         var queryResult = JsonSerializer.Deserialize<Queries.QueryResult>(resultJson, _jsonOptions);
 
-        return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, result?.Url);
+        // Debug: Save result JSON for complex data queries
+        if (queryClassName.Contains("Complex"))
+        {
+            File.WriteAllText("/tmp/complex-query-result.json", resultJson);
+        }
+
+        return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, requestUrl ?? result?.Url);
     }
 
     /// <summary>

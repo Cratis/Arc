@@ -9,7 +9,7 @@ public class when_performing_query_with_parameters : given.a_scenario_web_applic
 {
     QueryExecutionResult<IEnumerable<ParameterizedReadModel>>? _executionResult;
 
-    void Establish() => LoadQueryProxy<ParameterizedReadModel>("Search");
+    void Establish() => LoadQueryProxy<ParameterizedReadModel>("Search", "/tmp/Search.ts");
 
     async Task Because()
     {
