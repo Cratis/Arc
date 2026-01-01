@@ -9,16 +9,12 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 /// <summary>
 /// Controller for testing controller-based observable queries.
 /// </summary>
+/// <param name="state">The state for observable controller queries.</param>
 [ApiController]
 [Route("api/observable-controller-queries")]
-public class ObservableControllerQueriesController : ControllerBase
+public class ObservableControllerQueriesController(ObservableControllerQueriesState state) : ControllerBase
 {
-    readonly ObservableControllerQueriesState state;
-
-    public ObservableControllerQueriesController(ObservableControllerQueriesState state)
-    {
-        this.state = state;
-    }
+    readonly ObservableControllerQueriesState state = state;
 
     /// <summary>
     /// Gets all items as an observable stream.
