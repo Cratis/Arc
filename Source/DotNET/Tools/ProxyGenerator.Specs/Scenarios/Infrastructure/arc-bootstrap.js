@@ -355,6 +355,41 @@
             // Export important classes from @cratis/fundamentals to globalThis
             // so they're available everywhere (especially for Fields metadata access)
             if (modulePath.includes('fundamentals')) {
+                // Add TimeSpan class for testing (not in actual @cratis/fundamentals package)
+                if (!module.exports.TimeSpan) {
+                    module.exports.TimeSpan = class TimeSpan {
+                        constructor(value) {
+                            console.log(`[TimeSpan] Constructor called with value:`, value, `type:`, typeof value);
+                            if (typeof value === 'string') {
+                                this.value = value;
+                            } else if (value && typeof value === 'object' && value.value) {
+                                this.value = value.value;  // Handle {value: "00:30:00"} from deserialization
+                            } else {
+                                this.value = '00:00:00';
+                            }
+                            console.log(`[TimeSpan] Final value:`, this.value);
+                        }
+                        toString() { return this.value; }
+                        toJSON() {
+                            console.log(`[TimeSpan] toJSON called, returning:`, this.value);
+                            return this.value;
+                        }
+                        static parse(value) { return new TimeSpan(value); }
+                    };
+                    console.log('[Module] Injected TimeSpan into @cratis/fundamentals');
+                }
+
+                // Export TimeSpan to globalThis for easy access
+                if (module.exports.TimeSpan) {
+                    if (!globalThis.TimeSpan) {
+                        globalThis.TimeSpan = module.exports.TimeSpan;
+                        console.log('[Module] Exported TimeSpan to globalThis');
+                    } else {
+                        module.exports.TimeSpan = globalThis.TimeSpan;
+                        console.log('[Module] Using existing globalThis.TimeSpan');
+                    }
+                }
+                
                 if (module.exports.Fields) {
                     if (!globalThis.Fields) {
                         globalThis.Fields = module.exports.Fields;

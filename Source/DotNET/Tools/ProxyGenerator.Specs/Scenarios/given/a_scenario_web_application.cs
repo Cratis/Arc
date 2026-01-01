@@ -62,9 +62,10 @@ public class a_scenario_web_application : Specification, IDisposable
         // Use Kestrel instead of TestServer to support real WebSocket connections
         builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0, listenOptions => listenOptions.Protocols = HttpProtocols.Http1AndHttp2));
 
-        // Suppress verbose logging during tests
+        // Enable logging for debugging
         builder.Logging.ClearProviders();
-        builder.Logging.SetMinimumLevel(LogLevel.Warning);
+        builder.Logging.AddConsole();
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
 
         builder.Services.AddControllers()
             .AddApplicationPart(typeof(a_scenario_web_application).Assembly);
@@ -76,6 +77,9 @@ public class a_scenario_web_application : Specification, IDisposable
         builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
 
         var app = builder.Build();
+
+        // Add exception handling for better error visibility
+        app.UseDeveloperExceptionPage();
 
         app.UseWebSockets();
         app.UseRouting();

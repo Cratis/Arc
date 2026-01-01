@@ -137,12 +137,27 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var properties = new Dictionary<string, object>();
         foreach (var prop in commandAsDocument.RootElement.EnumerateObject())
         {
-            properties[prop.Name] = prop.Value.Deserialize<object>(_jsonOptions)!;
+            // Convert JsonElement to actual value
+            object value = prop.Value.ValueKind switch
+            {
+                JsonValueKind.String => prop.Value.GetString()!,
+                JsonValueKind.Number => prop.Value.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => null!,
+                JsonValueKind.Object => prop.Value.Deserialize<Dictionary<string, object>>(_jsonOptions)!,
+                JsonValueKind.Array => prop.Value.Deserialize<List<object>>(_jsonOptions)!,
+                _ => prop.Value.ToString()
+            };
+            properties[prop.Name] = value;
         }
 
         // Set up properties on the command
         var propAssignments = string.Concat(properties.Select(p =>
-            $"__cmd.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"));
+        {
+            var jsonValue = JsonSerializer.Serialize(p.Value, _jsonOptions);
+            return $"__cmd.{p.Key} = {jsonValue};";
+        }));
 
         // Create command instance and set properties, then call execute()
         Runtime.Execute(
@@ -152,7 +167,10 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "var __cmdError = null;" +
             "var __cmdDone = false;" +
             "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
-            "__write_to_file('[Command] Properties: ' + JSON.stringify(__cmd));" +
+            "__write_to_file('[Command] Timeout value: ' + __cmd.timeout);" +
+            "__write_to_file('[Command] Timeout toJSON: ' + (typeof __cmd.timeout?.toJSON));" +
+            "__write_to_file('[Command] Timeout stringified: ' + JSON.stringify(__cmd.timeout));" +
+            "__write_to_file('[Command] Full command stringified: ' + JSON.stringify(__cmd));" +
             "__write_to_file('[Command] Origin: ' + __cmd._origin);" +
             "__write_to_file('[Command] Route: ' + __cmd.route);" +
             "__cmd.execute().then(function(result) {" +
@@ -847,6 +865,12 @@ WebSocket.CLOSED = 3;
         var method = Runtime.Evaluate<string>("__pendingFetch.options.method || 'GET'") ?? "GET";
         var bodyJson = Runtime.Evaluate<string>("__pendingFetch.options.body || null");
 
+        // Debug: Log the request body
+        if (!string.IsNullOrEmpty(bodyJson))
+        {
+            File.WriteAllText("/tmp/http-request-body.txt", $"URL: {url}\nMethod: {method}\nBody:\n{bodyJson}");
+        }
+
         // Make the actual HTTP request
         HttpResponseMessage response;
         if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
@@ -872,6 +896,10 @@ WebSocket.CLOSED = 3;
         {
             throw new InvalidOperationException($"HTTP {method} to '{url}' returned status {(int)response.StatusCode} with empty response body");
         }
+
+        // Debug: Log the raw response content
+        const string responseDebugFile = "/tmp/http-response-content.txt";
+        File.WriteAllText(responseDebugFile, $"Response from {url}:\n{responseContent}\n");
 
         // Resolve the JavaScript promise with the response
         var escapedResponse = responseContent
