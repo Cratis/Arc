@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
+using Cratis.Json;
 using Cratis.Reflection;
 using Microsoft.Extensions.Logging;
 
@@ -13,13 +14,12 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents an implementation of <see cref="IObservableQueryHandler"/> for base Arc.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="StreamingQueryHandler"/> class.
-/// </remarks>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 [Singleton]
 public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObservableQueryHandler
 {
+    readonly JsonSerializerOptions _jsonSerializerOptions = Globals.JsonSerializerOptions;
+
     /// <inheritdoc/>
     public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
         context.WebSockets.IsWebSocketRequest;
@@ -166,7 +166,7 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
             {
                 try
                 {
-                    var json = JsonSerializer.Serialize(value);
+                    var json = JsonSerializer.Serialize(value, _jsonSerializerOptions);
                     var bytes = System.Text.Encoding.UTF8.GetBytes(json);
                     webSocket.SendAsync(new ArraySegment<byte>(bytes), System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken).Wait(cancellationToken);
                 }
