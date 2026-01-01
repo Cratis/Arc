@@ -21,13 +21,14 @@ public sealed class JavaScriptRuntime : IDisposable
     {
         var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!;
 
-        // Find workspace root by looking for node_modules directory
+        // Find workspace root by looking for directory containing node_modules
         _workspaceRoot = FindDirectoryInHierarchy(assemblyDir, "node_modules")
             ?? throw new DirectoryNotFoundException("Could not find workspace root (node_modules directory not found in parent hierarchy)");
 
         // Find JavaScript source directory
-        _javaScriptDirectory = FindDirectoryInHierarchy(assemblyDir, "JavaScript")
+        var javaScriptParent = FindDirectoryInHierarchy(assemblyDir, "JavaScript")
             ?? throw new DirectoryNotFoundException("Could not find JavaScript source directory in parent hierarchy");
+        _javaScriptDirectory = Path.Combine(javaScriptParent, "JavaScript");
 
         Engine = new V8ScriptEngine();
         Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
