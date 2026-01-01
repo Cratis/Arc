@@ -1,10 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.ClearScript;
 using Microsoft.ClearScript.V8;
-using System.IO;
-using System;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
