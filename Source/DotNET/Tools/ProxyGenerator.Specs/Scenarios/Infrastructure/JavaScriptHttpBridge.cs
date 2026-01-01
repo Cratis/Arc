@@ -175,7 +175,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
-        
+
         // PATCH: Manually fix TimeSpan deserialization from HTTP response
         // The JsonSerializer in the test environment doesn't properly deserialize TimeSpans
         // from the HTTP response. We need to re-parse them from the original HTTP response.
@@ -202,10 +202,10 @@ public sealed class JavaScriptHttpBridge : IDisposable
                 }}
             ");
         }
-        
+
         // Get the patched result
         resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
-        
+
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
         return new CommandExecutionResult<TResult>(commandResult, result?.ResponseJson);
@@ -257,7 +257,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "    __queryError = error;" +
             "    __queryDone = true;" +
             "});";
-        
+
         try
         {
             Runtime.Execute(queryScript);
@@ -276,7 +276,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             // Capture the URL before processing
             requestUrl = Runtime.Evaluate<string>("__pendingFetch.url");
-            
+
             // Process the pending fetch request
             result = await ProcessPendingFetchAsync();
         }
@@ -868,13 +868,8 @@ sealed class WebSocketConnection : IDisposable
             var origin = $"{serverUri.Scheme}://{serverUri.Authority}";
             _webSocket.Options.SetRequestHeader("Origin", origin);
 
-            File.AppendAllText(logPath, $"[WebSocket {_id}] Connecting to: {wsUri}\n");
-            File.AppendAllText(logPath, $"[WebSocket {_id}] Origin: {origin}\n");
-
             // Connect to the real Kestrel server
             await _webSocket.ConnectAsync(wsUri, _cts.Token);
-
-            File.AppendAllText(logPath, $"[WebSocket {_id}] Connected successfully\n");
 
             // Notify JavaScript that connection is open
             _runtime.Execute($@"
@@ -889,9 +884,6 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
         }
         catch (Exception ex)
         {
-            File.AppendAllText(logPath, $"[WebSocket {_id}] Connection failed: {ex.Message}\n");
-            File.AppendAllText(logPath, $"[WebSocket {_id}] Stack trace: {ex.StackTrace}\n");
-
             // Notify JavaScript of error
             var errorMsg = ex.Message.Replace("'", "\\'").Replace("\n", "\\n");
             _runtime.Execute($@"
@@ -918,16 +910,13 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
         if (_webSocket is null) return;
 
         var logPath = "/tmp/websocket-debug.txt";
-        File.AppendAllText(logPath, $"[WebSocket {_id}] ReceiveLoop started\n");
 
         var buffer = new byte[1024 * 4];
         try
         {
             while (_webSocket.State == WebSocketState.Open && !_cts.Token.IsCancellationRequested)
             {
-                File.AppendAllText(logPath, $"[WebSocket {_id}] Waiting for message...\n");
                 var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
-                File.AppendAllText(logPath, $"[WebSocket {_id}] Received message type: {result.MessageType}, count: {result.Count}\n");
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
@@ -944,41 +933,20 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
 
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
 
-                File.AppendAllText(logPath, $"[WebSocket {_id}] Message content: {message.Substring(0, Math.Min(200, message.Length))}...\n");
+                // Ensure we pass a plain JavaScript string as the event data.
+                // Escape single quotes, backslashes and newlines so the literal is safe when injected.
+                var escaped = message
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("\r", "\\r")
+                    .Replace("\n", "\\n");
 
-                File.AppendAllText(logPath, $"[WebSocket {_id}] About to invoke JS onmessage via host\n");
-
-                try
-                {
-                    // Ensure we pass a plain JavaScript string as the event data.
-                    // Escape single quotes, backslashes and newlines so the literal is safe when injected.
-                    var escaped = message
-                        .Replace("\\", "\\\\")
-                        .Replace("'", "\\'")
-                        .Replace("\r", "\\r")
-                        .Replace("\n", "\\n");
-
-                    var injectedSnippet = $@"if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
+                var injectedSnippet = $@"if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     var ws = globalThis.__webSockets['{_id}'];
     if (ws.onmessage) ws.onmessage({{ type: 'message', data: '{escaped}' }});
 }}";
 
-                    // Log the exact JS snippet we will inject so we can correlate host -> injected -> parsed
-                    try
-                    {
-                        File.AppendAllText(logPath, $"[WebSocket {_id}] Injected JS snippet:\n{injectedSnippet}\n");
-                    }
-                    catch { }
-
-                    _runtime.Execute(injectedSnippet);
-
-                    File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage invoked via host\n");
-                }
-                catch (Exception ex)
-                {
-                    File.AppendAllText(logPath, $"[WebSocket {_id}] Error invoking onmessage via host: {ex.Message}\n");
-                }
-                File.AppendAllText(logPath, $"[WebSocket {_id}] JavaScript onmessage called\n");
+                _runtime.Execute(injectedSnippet);
             }
         }
         catch (OperationCanceledException)
