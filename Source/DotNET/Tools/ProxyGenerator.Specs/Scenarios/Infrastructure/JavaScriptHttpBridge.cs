@@ -68,23 +68,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
 #pragma warning disable MA0136 // Raw String contains an implicit end of line character
             var wrappedCode = $$"""
 (function() {
-    try {
-        if (typeof __write_to_file === 'function') {
-            if (typeof Reflect === 'undefined') {
-                __write_to_file('[ModuleWrapper] Reflect is undefined');
-            } else {
-                __write_to_file('[ModuleWrapper] Reflect is defined');
-                __write_to_file('[ModuleWrapper] Reflect.decorate type: ' + typeof Reflect.decorate);
-                __write_to_file('[ModuleWrapper] Reflect.metadata type: ' + typeof Reflect.metadata);
-                __write_to_file('[ModuleWrapper] Reflect.defineMetadata type: ' + typeof Reflect.defineMetadata);
-            }
-        }
-    } catch (e) {
-        if (typeof __write_to_file === 'function') {
-            __write_to_file('[ModuleWrapper] Error checking Reflect: ' + e);
-        }
-    }
-
     var module = { exports: {} };
     var exports = module.exports;
     // CRITICAL: Use globalThis.require instead of creating a local variable
@@ -94,9 +77,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
     // Export any classes to global scope
     for (var key in module.exports) {
         if (module.exports.hasOwnProperty(key)) {
-            if (typeof __write_to_file === 'function') {
-                __write_to_file('[ModuleWrapper] Exporting to globalThis: ' + key);
-            }
             globalThis[key] = module.exports[key];
         }
     }
@@ -165,20 +145,11 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "var __cmdResult = null;" +
             "var __cmdError = null;" +
             "var __cmdDone = false;" +
-            "__write_to_file('[Command] Created: ' + __cmd.constructor.name);" +
-            "__write_to_file('[Command] Timeout value: ' + __cmd.timeout);" +
-            "__write_to_file('[Command] Timeout toJSON: ' + (typeof __cmd.timeout?.toJSON));" +
-            "__write_to_file('[Command] Timeout stringified: ' + JSON.stringify(__cmd.timeout));" +
-            "__write_to_file('[Command] Full command stringified: ' + JSON.stringify(__cmd));" +
-            "__write_to_file('[Command] Origin: ' + __cmd._origin);" +
-            "__write_to_file('[Command] Route: ' + __cmd.route);" +
             "__cmd.execute().then(function(result) {" +
             "    __cmdResult = result;" +
             "    __cmdDone = true;" +
             "}).catch(function(error) {" +
             "    __cmdError = error;" +
-            "    __write_to_file('[Command Error] ' + error.message);" +
-            "    __write_to_file('[Command Error Stack] ' + error.stack);" +
             "    __cmdDone = true;" +
             "});");
 
@@ -199,14 +170,11 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasError)
         {
             var errorMsg = Runtime.Evaluate<string>("__cmdError?.message || String(__cmdError)");
-            var errorStack = Runtime.Evaluate<string>("__cmdError?.stack || ''");
-            File.WriteAllText("/tmp/command-error-details.txt", $"Error: {errorMsg}\n\nStack:\n{errorStack}");
             throw new JavaScriptProxyExecutionFailed($"Command execution failed: {errorMsg}");
         }
 
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
-        File.WriteAllText("/tmp/command-result.json", resultJson);
         
         // PATCH: Manually fix TimeSpan deserialization from HTTP response
         // The JsonSerializer in the test environment doesn't properly deserialize TimeSpans
@@ -223,30 +191,20 @@ public sealed class JavaScriptHttpBridge : IDisposable
                             var value = httpResponse.response[key];
                             // Check if it's a TimeSpan string that needs re-parsing
                             if (typeof value === 'string' && /^(-)?(?:(\d+)\.)?(\d{{1,2}}):(\d{{2}}):(\d{{2}})(?:\.(\d{{1,7}}))?$/.test(value)) {{
-                                __write_to_file('[TimeSpan Patch] Found TimeSpan in response.' + key + ': ' + value);
                                 if (globalThis.TimeSpan && globalThis.TimeSpan.parse) {{
                                     __cmdResult.response[key] = globalThis.TimeSpan.parse(value);
-                                    __write_to_file('[TimeSpan Patch] Patched ' + key + ' with TimeSpan object');
-                                }} else {{
-                                    __write_to_file('[TimeSpan Patch] WARNING: TimeSpan.parse not available');
                                 }}
                             }}
                         }}
                     }}
                 }} catch(e) {{
-                    __write_to_file('[TimeSpan Patch] Error: ' + e.message);
+                    // Ignore TimeSpan patch errors
                 }}
             ");
         }
         
         // Get the patched result
         resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
-        File.WriteAllText("/tmp/command-result-patched.json", resultJson);
-        
-        // Debug: Log both the JSON and deserialized result
-        File.WriteAllText("/tmp/command-deserialization-debug.txt", 
-            $"JavaScript result JSON:\n{resultJson}\n\n" +
-            $"HTTP Response JSON:\n{result?.ResponseJson ?? "null"}\n");
         
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
@@ -304,9 +262,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             Runtime.Execute(queryScript);
         }
-        catch (Exception ex)
+        catch
         {
-            File.WriteAllText("/tmp/query-script-error.txt", $"Error: {ex.Message}\n\nScript:\n{queryScript}");
             throw;
         }
 
@@ -315,8 +272,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
         FetchResult? result = null;
         string? requestUrl = null;
 
-        File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] hasPendingFetch: {hasPendingFetch}\n");
-
         if (hasPendingFetch)
         {
             // Capture the URL before processing
@@ -324,7 +279,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
             
             // Process the pending fetch request
             result = await ProcessPendingFetchAsync();
-            File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] result.ResponseJson length: {result?.ResponseJson?.Length ?? 0}\n");
         }
         else
         {
@@ -346,19 +300,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasError)
         {
             var errorMsg = Runtime.Evaluate<string>("__queryError?.message || String(__queryError)");
-            var errorStack = Runtime.Evaluate<string>("__queryError?.stack || ''");
-            File.WriteAllText("/tmp/query-error-details.txt", $"Error: {errorMsg}\n\nStack:\n{errorStack}");
             throw new JavaScriptProxyExecutionFailed($"Query execution failed: {errorMsg}");
         }
-
-        // Debug: For complex queries, check what's in __queryResult before patch
-        if (queryClassName.Contains("Complex"))
-        {
-            var prePatchResult = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
-            File.WriteAllText("/tmp/complex-pre-patch-result.json", prePatchResult);
-        }
-
-        File.AppendAllText("/tmp/websocket-debug.txt", $"[Query] Before patch - result null: {result is null}\n");
 
         // PATCH: Manually deserialize the query result data if it exists
         // QueryResult doesn't properly call JsonSerializer in test environment due to module isolation
@@ -376,33 +319,14 @@ public sealed class JavaScriptHttpBridge : IDisposable
                 try {{
                     var response = JSON.parse('{escapedJson}');
                     
-                    if (typeof __write_to_file === 'function') {{
-                        __write_to_file('[PATCH] Response has data: ' + (response.data ? 'YES' : 'NO'));
-                        __write_to_file('[PATCH] __query defined: ' + (typeof __query !== 'undefined' ? 'YES' : 'NO'));
-                        __write_to_file('[PATCH] __query.modelType: ' + (typeof __query !== 'undefined' && __query.modelType ? __query.modelType.name : 'NONE'));
-                        __write_to_file('[PATCH] globalThis.Fields: ' + (globalThis.Fields ? 'YES' : 'NO'));
-                    }}
-                    
                     if (response.data && __query.modelType && globalThis.Fields) {{
                         // Helper function to deserialize an object using its type's fields
                         function deserializeObject(data, type) {{
                             if (!data || !type || !globalThis.Fields) return data;
                             
-                            if (typeof __write_to_file === 'function') {{
-                                __write_to_file('[Deserialize] Type: ' + (type.name || 'unknown'));
-                                __write_to_file('[Deserialize] Data keys: ' + Object.keys(data).join(', '));
-                            }}
-                            
                             var fields = globalThis.Fields.getFieldsForType(type);
                             if (!fields || fields.length === 0) {{
-                                if (typeof __write_to_file === 'function') {{
-                                    __write_to_file('[Deserialize] No fields found for type');
-                                }}
                                 return data;
-                            }}
-                            
-                            if (typeof __write_to_file === 'function') {{
-                                __write_to_file('[Deserialize] Found ' + fields.length + ' fields');
                             }}
                             
                             var deserialized = {{}};
@@ -410,10 +334,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
                                 var field = fields[i];
                                 if (data.hasOwnProperty(field.name)) {{
                                     var value = data[field.name];
-                                    
-                                    if (typeof __write_to_file === 'function') {{
-                                        __write_to_file('[Deserialize] Field: ' + field.name + ', value type: ' + typeof value + ', field type: ' + (field.type ? field.type.name : 'none'));
-                                    }}
                                     
                                     // Handle null/undefined
                                     if (value === null || value === undefined) {{
@@ -429,9 +349,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
                                     }}
                                     // Handle nested objects
                                     else if (typeof value === 'object' && !Array.isArray(value) && field.type && globalThis[field.type.name]) {{
-                                        if (typeof __write_to_file === 'function') {{
-                                            __write_to_file('[Deserialize] Recursing for nested object: ' + field.name);
-                                        }}
                                         deserialized[field.name] = deserializeObject(value, field.type);
                                     }}
                                     // Handle primitives
@@ -446,10 +363,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
                         __queryResult.data = deserializeObject(response.data, __query.modelType);
                     }}
                 }} catch(e) {{
-                    if (typeof __write_to_file === 'function') {{
-                        __write_to_file('[Deserialization] Error: ' + e.message);
-                        __write_to_file('[Deserialization] Stack: ' + e.stack);
-                    }}
+                    // Ignore deserialization errors
                 }}
             ");
         }
@@ -457,12 +371,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
         var queryResult = JsonSerializer.Deserialize<Queries.QueryResult>(resultJson, _jsonOptions);
-
-        // Debug: Save result JSON for complex data queries
-        if (queryClassName.Contains("Complex"))
-        {
-            File.WriteAllText("/tmp/complex-query-result.json", resultJson);
-        }
 
         return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, requestUrl ?? result?.Url);
     }
@@ -491,35 +399,15 @@ public sealed class JavaScriptHttpBridge : IDisposable
             ? string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
             : string.Empty;
 
-        var logPath = "/tmp/websocket-debug.txt";
-        File.AppendAllText(logPath, $"\n[JavaScript] Creating query: {queryClassName}\n");
-        File.AppendAllText(logPath, $"[JavaScript] Parameters: {paramAssignments}\n");
-
         // Create query instance, set parameters, and subscribe
         Runtime.Execute(
             "var __obsQuery = new " + queryClassName + "();" +
             paramAssignments +
             "var __obsUpdates = [];" +
             "var __obsError = null;" +
-            "__write_to_file('[JavaScript] Created query instance');" +
-            "try {" +
-            "    var fundamentals = require('@cratis/fundamentals');" +
-            "    var fields = fundamentals.Fields.getFieldsForType(__obsQuery.modelType);" +
-            "    __write_to_file('[JavaScript] ModelType: ' + __obsQuery.modelType.name);" +
-            "    __write_to_file('[JavaScript] Fields: ' + JSON.stringify(fields));" +
-            "} catch (e) { __write_to_file('[JavaScript] Error checking fields: ' + e); }" +
             "var __obsSubscription = __obsQuery.subscribe(function(result) {" +
-            "    __write_to_file('[JavaScript] Subscribe callback invoked');" +
-            "    __write_to_file('[JavaScript] Received result: ' + JSON.stringify(result));" +
-            "    try { __write_to_file('[JavaScript] Result keys: ' + Object.keys(result).join(',')); } catch(e) { __write_to_file('Error keys: ' + e); }" +
-            "    try { __write_to_file('[JavaScript] Result.data keys: ' + (result.data ? Object.keys(result.data).join(',') : 'null')); } catch(e) { __write_to_file('Error data keys: ' + e); }" +
-            "    try { __write_to_file('[JavaScript] Result.data type: ' + typeof result.data); } catch(e) { __write_to_file('Error data type: ' + e); }" +
             "    __obsUpdates.push(result);" +
-            "    __write_to_file('[JavaScript] __obsUpdates length is now: ' + __obsUpdates.length);" +
-            "}, __obsQuery);" +
-            "__write_to_file('[JavaScript] Subscription created');");
-
-        File.AppendAllText(logPath, $"[JavaScript] Subscribe called, waiting for updates...\n");
+            "}, __obsQuery);");
 
         // Wait for the initial WebSocket message
         var timeout = TimeSpan.FromSeconds(10);
@@ -532,13 +420,11 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
             if (error is not null)
             {
-                File.AppendAllText(logPath, $"[JavaScript] Error detected: {error}\n");
                 throw new JavaScriptProxyExecutionFailed($"Observable query failed: {error}");
             }
 
             if (hasUpdates)
             {
-                File.AppendAllText(logPath, $"[JavaScript] Found {Runtime.Evaluate<int>("__obsUpdates.length")} updates\n");
                 break;
             }
             await Task.Delay(50);
@@ -672,22 +558,14 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var uri = new Uri(_serverUrl);
         var origin = $"{uri.Scheme}://{uri.Authority}";
 
-        File.AppendAllText("/tmp/websocket-debug.txt", $"\n[SetupArcGlobals] Server URL: {_serverUrl}\n");
-        File.AppendAllText("/tmp/websocket-debug.txt", $"[SetupArcGlobals] Origin: {origin}\n");
-
         Runtime.Execute($@"
 // Set up Arc Globals by loading and modifying the Globals module
 try {{
     var ArcModule = require('@cratis/arc');
     if (ArcModule && ArcModule.Globals) {{
-        __write_to_file('[SetupArcGlobals] Before: origin=' + ArcModule.Globals.origin);
         ArcModule.Globals.origin = '{origin}';
         ArcModule.Globals.apiBasePath = '';
         ArcModule.Globals.microservice = '';
-        __write_to_file('[SetupArcGlobals] After: origin=' + ArcModule.Globals.origin);
-        __write_to_file('[SetupArcGlobals] Successfully set Globals.origin to: ' + ArcModule.Globals.origin);
-    }} else {{
-        __write_to_file('[SetupArcGlobals] WARNING: ArcModule or ArcModule.Globals is null');
     }}
     
     // Also set on globalThis for compatibility
@@ -703,12 +581,8 @@ try {{
     var Fundamentals = require('@cratis/fundamentals');
     if (Fundamentals && Fundamentals.TimeSpan) {{
         globalThis.TimeSpan = Fundamentals.TimeSpan;
-        __write_to_file('[SetupArcGlobals] TimeSpan exposed globally');
-    }} else {{
-        __write_to_file('[SetupArcGlobals] WARNING: Could not find TimeSpan in fundamentals');
     }}
 }} catch (e) {{
-    __write_to_file('[SetupArcGlobals] ERROR: ' + e.message);
     console.error('Failed to setup Arc Globals:', e.message);
     throw e;
 }}
@@ -717,21 +591,12 @@ try {{
 
     void SetupWebSocketPolyfill()
     {
-        // Expose file logging function
-        Runtime.Engine.AddHostObject("__write_to_file", new Action<string>((message) =>
-        {
-            File.AppendAllText("/tmp/websocket-debug.txt", message + "\n");
-        }));
-
         // Expose function to JavaScript that creates a WebSocket connection
         Runtime.Engine.AddHostObject("__createWebSocket", new Func<string, string>((url) =>
         {
             var wsId = CreateWebSocketConnection(url);
             return wsId;
         }));
-
-        Runtime.Execute("var test = JSON.parse('{\"id\":\"123\"}'); __write_to_file('Test parse: ' + JSON.stringify(test));");
-
 
         // Expose function to send WebSocket messages
         Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>((wsId, message) =>
@@ -744,42 +609,6 @@ try {{
         {
             CloseWebSocketConnection(wsId);
         }));
-
-        // Forward JS console output to file for debugging — accept a single object and stringify in JS
-        Runtime.Engine.AddHostObject("__console_forward", new Action<object>((arg) =>
-        {
-            try
-            {
-                var text = arg?.ToString() ?? "(null)";
-                File.AppendAllText("/tmp/websocket-debug.txt", "[console] " + text + "\n");
-            }
-            catch { }
-        }));
-
-        Runtime.Execute(@"
-if (!globalThis.console) { globalThis.console = {}; }
-function __stringifyArg(a) {
-    try { return JSON.stringify(a); } catch (e) { try { return String(a); } catch (_) { return '(unserializable)'; } }
-}
-console.log = function() {
-    try {
-        var parts = Array.prototype.slice.call(arguments).map(__stringifyArg);
-        __console_forward(parts.join(' '));
-    } catch (e) { __console_forward('console.log error: ' + (e && e.message || e)); }
-};
-console.error = function() {
-    try {
-        var parts = Array.prototype.slice.call(arguments).map(__stringifyArg);
-        __console_forward(parts.join(' '));
-    } catch (e) { __console_forward('console.error error: ' + (e && e.message || e)); }
-};
-console.info = function() {
-    try {
-        var parts = Array.prototype.slice.call(arguments).map(__stringifyArg);
-        __console_forward(parts.join(' '));
-    } catch (e) { __console_forward('console.info error: ' + (e && e.message || e)); }
-};
-");
 
         // Set up the WebSocket polyfill
         Runtime.Execute(@"
@@ -798,20 +627,16 @@ class WebSocket {
             globalThis.__webSockets = {};
         }
         globalThis.__webSockets[this._id] = this;
-        __write_to_file('[WebSocket Constructor] Created WebSocket with ID: ' + this._id);
     }
     
     send(data) {
         if (this.readyState !== 1) { // OPEN
             throw new Error('WebSocket is not open');
         }
-        __write_to_file('[WebSocket.send] Sending data on ' + this._id);
         __webSocketSend(this._id, typeof data === 'string' ? data : JSON.stringify(data));
     }
     
     close() {
-        __write_to_file('[WebSocket.close] Called on ' + this._id + ', current state: ' + this.readyState);
-        __write_to_file('[WebSocket.close] Stack trace: ' + new Error().stack);
         if (this.readyState === 2 || this.readyState === 3) { // CLOSING or CLOSED
             return;
         }
@@ -833,17 +658,10 @@ WebSocket.CLOSED = 3;
     {
         var wsId = $"ws_{Interlocked.Increment(ref _nextWebSocketId)}";
 
-        var logPath = "/tmp/websocket-debug.txt";
-        File.AppendAllText(logPath, $"\n[JavaScriptHttpBridge] Creating WebSocket: {wsId}\n");
-        File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Original URL: {url}\n");
-        File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Server URL: {_serverUrl}\n");
-
         // Convert relative URL to absolute using server URL
         var absoluteUrl = url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
             ? url
             : new Uri(new Uri(_serverUrl), url).ToString();
-
-        File.AppendAllText(logPath, $"[JavaScriptHttpBridge] Absolute URL: {absoluteUrl}\n");
 
         var connection = new WebSocketConnection(wsId, absoluteUrl, Runtime);
 
@@ -887,8 +705,6 @@ WebSocket.CLOSED = 3;
         Runtime.Execute(
             "var __pendingFetch = null;" +
             "function fetch(url, options) {" +
-            "    __write_to_file('[Fetch] URL: ' + url);" +
-            "    __write_to_file('[Fetch] URL type: ' + typeof url);" +
             "    var urlString = (typeof url === 'object' && url.href) ? url.href : String(url);" +
             "    return new Promise(function(resolve, reject) {" +
             "        __pendingFetch = {" +
@@ -914,12 +730,6 @@ WebSocket.CLOSED = 3;
         var method = Runtime.Evaluate<string>("__pendingFetch.options.method || 'GET'") ?? "GET";
         var bodyJson = Runtime.Evaluate<string>("__pendingFetch.options.body || null");
 
-        // Debug: Log the request body
-        if (!string.IsNullOrEmpty(bodyJson))
-        {
-            File.WriteAllText("/tmp/http-request-body.txt", $"URL: {url}\nMethod: {method}\nBody:\n{bodyJson}");
-        }
-
         // Make the actual HTTP request
         HttpResponseMessage response;
         if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
@@ -933,12 +743,6 @@ WebSocket.CLOSED = 3;
         }
 
         var responseContent = await response.Content.ReadAsStringAsync();
-
-        // Debug logging for all-types query
-        if (url.Contains("get-with-all-types"))
-        {
-            File.WriteAllText("/tmp/http-response-all-types.json", responseContent);
-        }
 
         // If response is empty or not successful, provide meaningful error
         if (string.IsNullOrEmpty(responseContent))

@@ -21,17 +21,7 @@ public sealed class JavaScriptRuntime : IDisposable
         Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
         Engine.AddHostObject("__readJavaScriptFile", new Func<string, string>(ReadJavaScriptFile));
         Engine.AddHostObject("__fileExists", new Func<string, bool>(FileExists));
-        Engine.AddHostObject("__log", new Action<string>(Log));
         InitializeRuntime();
-    }
-
-    void Log(string message)
-    {
-        try
-        {
-            File.AppendAllText("/tmp/websocket-debug.txt", message + "\n");
-        }
-        catch { }
     }
 
     /// <summary>
@@ -50,15 +40,6 @@ public sealed class JavaScriptRuntime : IDisposable
         var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
         var js = result?.ToString() ?? string.Empty;
 
-        if (typeScriptCode.Contains("class ObservableControllerQueryItem") || typeScriptCode.Contains("class ObserveByCategory"))
-        {
-            try
-            {
-                File.AppendAllText("/tmp/websocket-debug.txt", $"\n[TranspileTypeScript] {typeScriptCode.Substring(0, Math.Min(50, typeScriptCode.Length))}... transpiled:\n{js}\n");
-            }
-            catch {}
-        }
-
         return js;
     }
 
@@ -72,19 +53,11 @@ public sealed class JavaScriptRuntime : IDisposable
         {
             Engine.Execute(javaScriptCode);
         }
-        catch (Exception ex)
+        catch
         {
-            try
-            {
-                File.AppendAllText(
-                    "/tmp/websocket-debug.txt",
-                    $"\n[JavaScriptRuntime.Execute] Exception: {ex}\nCode:\n{javaScriptCode}\n");
-            }
-            catch { }
-
             throw;
         }
-        }
+    }
 
     /// <summary>
     /// Executes JavaScript code and returns the result.
@@ -104,19 +77,11 @@ public sealed class JavaScriptRuntime : IDisposable
 
             return default;
         }
-        catch (Exception ex)
+        catch
         {
-            try
-            {
-                File.AppendAllText(
-                    "/tmp/websocket-debug.txt",
-                    $"\n[JavaScriptRuntime.Evaluate<T>] Exception: {ex}\nCode:\n{javaScriptCode}\n");
-            }
-            catch { }
-
             throw;
         }
-        }
+    }
 
     /// <summary>
     /// Executes JavaScript code and returns the raw result.
@@ -129,19 +94,11 @@ public sealed class JavaScriptRuntime : IDisposable
         {
             return Engine.Evaluate(javaScriptCode);
         }
-        catch (Exception ex)
+        catch
         {
-            try
-            {
-                File.AppendAllText(
-                    "/tmp/websocket-debug.txt",
-                    $"\n[JavaScriptRuntime.Evaluate] Exception: {ex}\nCode:\n{javaScriptCode}\n");
-            }
-            catch { }
-
             throw;
         }
-        }
+    }
 
     /// <inheritdoc/>
     public void Dispose()
@@ -158,18 +115,6 @@ public sealed class JavaScriptRuntime : IDisposable
         // Load TypeScript compiler from node_modules
         var typeScriptCompiler = JavaScriptResources.GetTypeScriptCompiler();
         Engine.Execute(typeScriptCompiler);
-
-        // Define console shim
-        Engine.Execute(@"
-            if (typeof console === 'undefined') {
-                globalThis.console = {
-                    log: function(msg) { __log('[Console.log] ' + msg); },
-                    error: function(msg) { __log('[Console.error] ' + msg); },
-                    warn: function(msg) { __log('[Console.warn] ' + msg); },
-                    info: function(msg) { __log('[Console.info] ' + msg); }
-                };
-            }
-        ");
 
         // Load Arc bootstrap code (sets up module environment with shims)
         var arcBootstrap = JavaScriptResources.GetArcBootstrap();
@@ -188,16 +133,10 @@ public sealed class JavaScriptRuntime : IDisposable
         {
             var reflectMetadata = ReadJavaScriptFile("node_modules/reflect-metadata/Reflect.js");
             Engine.Execute(reflectMetadata);
-            
-            var checkCode = "'[InitializeRuntime] Loaded reflect-metadata directly. Reflect type: ' + typeof Reflect + ', Reflect.decorate type: ' + (typeof Reflect !== 'undefined' ? typeof Reflect.decorate : 'undefined')";
-            var logMsg = Engine.Evaluate(checkCode) as string;
-            File.AppendAllText("/tmp/websocket-debug.txt", $"\n{logMsg}\n");
         }
-        catch (Exception ex)
+        catch
         {
-            try {
-                File.AppendAllText("/tmp/websocket-debug.txt", $"\n[InitializeRuntime] Failed to load reflect-metadata: {ex.Message}\n");
-            } catch {}
+            // Ignore errors loading reflect-metadata
         }
     }
 
@@ -230,13 +169,6 @@ public sealed class JavaScriptRuntime : IDisposable
                 "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
         
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
-        
-        // Debug logging
-        var logPath = "/tmp/websocket-debug.txt";
-        File.AppendAllText(logPath, $"\n[ReadJavaScriptFile] relativePath={relativePath}\n");
-        File.AppendAllText(logPath, $"[ReadJavaScriptFile] baseDir={baseDir}\n");
-        File.AppendAllText(logPath, $"[ReadJavaScriptFile] fullPath={fullPath}\n");
-        File.AppendAllText(logPath, $"[ReadJavaScriptFile] exists={File.Exists(fullPath)}\n");
         
         if (!File.Exists(fullPath))
         {

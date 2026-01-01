@@ -86,15 +86,6 @@ public class a_scenario_web_application : Specification, IDisposable
         app.UseCratisArc();
         app.MapControllers();
 
-        // Debug: List all registered endpoints
-        if (app is IEndpointRouteBuilder routeBuilder)
-        {
-            var endpoints = routeBuilder.DataSources.SelectMany(ds => ds.Endpoints).ToArray();
-            File.WriteAllText("/tmp/registered-endpoints.txt",
-                string.Join("\n", endpoints.Select(e =>
-                    e is RouteEndpoint re ? re.RoutePattern.RawText : e.DisplayName)));
-        }
-
         // Start the application
         Host = app;
         await app.StartAsync();
@@ -103,8 +94,6 @@ public class a_scenario_web_application : Specification, IDisposable
         var server = app.Services.GetRequiredService<IServer>();
         var addresses = server.Features.Get<IServerAddressesFeature>();
         ServerUrl = addresses?.Addresses.FirstOrDefault() ?? "http://localhost:5000";
-
-        File.AppendAllText("/tmp/websocket-debug.txt", $"\n[Test Server] Started on: {ServerUrl}\n");
 
         // Create HTTP client pointing to the real server
         HttpClient = new HttpClient { BaseAddress = new Uri(ServerUrl) };
