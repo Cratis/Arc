@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net.WebSockets;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
@@ -139,19 +138,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         }));
 
         // Create command instance and set properties, then call execute()
-        Runtime.Execute(
-            "var __cmd = new " + commandClassName + "();" +
-            propAssignments +
-            "var __cmdResult = null;" +
-            "var __cmdError = null;" +
-            "var __cmdDone = false;" +
-            "__cmd.execute().then(function(result) {" +
-            "    __cmdResult = result;" +
-            "    __cmdDone = true;" +
-            "}).catch(function(error) {" +
-            "    __cmdError = error;" +
-            "    __cmdDone = true;" +
-            "});");
+        Runtime.Execute(Scripts.ExecuteCommand(commandClassName, propAssignments));
 
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
@@ -182,25 +169,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (result?.ResponseJson is not null)
         {
             var escapedResponse = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
-            Runtime.Execute($@"
-                try {{
-                    var httpResponse = JSON.parse('{escapedResponse}');
-                    if (httpResponse.response && __cmdResult.response) {{
-                        // Iterate through all properties in the HTTP response
-                        for (var key in httpResponse.response) {{
-                            var value = httpResponse.response[key];
-                            // Check if it's a TimeSpan string that needs re-parsing
-                            if (typeof value === 'string' && /^(-)?(?:(\d+)\.)?(\d{{1,2}}):(\d{{2}}):(\d{{2}})(?:\.(\d{{1,7}}))?$/.test(value)) {{
-                                if (globalThis.TimeSpan && globalThis.TimeSpan.parse) {{
-                                    __cmdResult.response[key] = globalThis.TimeSpan.parse(value);
-                                }}
-                            }}
-                        }}
-                    }}
-                }} catch(e) {{
-                    // Ignore TimeSpan patch errors
-                }}
-            ");
+            Runtime.Execute(Scripts.PatchCommandTimeSpan(escapedResponse));
         }
 
         // Get the patched result
@@ -225,7 +194,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         Dictionary<string, object>? parameters = null)
     {
         // Build args object for perform() call
-        var argsObject = parameters is not null && parameters.Any()
+        var argsObject = parameters?.Any() == true
             ? JsonSerializer.Serialize(parameters, _jsonOptions)
             : "undefined";
 
@@ -258,14 +227,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             "    __queryDone = true;" +
             "});";
 
-        try
-        {
-            Runtime.Execute(queryScript);
-        }
-        catch
-        {
-            throw;
-        }
+        Runtime.Execute(queryScript);
 
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
@@ -289,7 +251,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             {
                 var route = Runtime.Evaluate<string>("__query.route");
                 var queryParams = parameters?.Select(p => $"{p.Key}={Uri.EscapeDataString(JsonSerializer.Serialize(p.Value, _jsonOptions).Trim('"'))}");
-                requestUrl = route + (queryParams?.Any() == true ? "?" + string.Join("&", queryParams) : "");
+                requestUrl = route + (queryParams?.Any() == true ? "?" + string.Join('&', queryParams) : "");
             }
         }
 
@@ -310,62 +272,12 @@ public sealed class JavaScriptHttpBridge : IDisposable
             // Debug: Save raw response for complex queries
             if (queryClassName.Contains("Complex"))
             {
-                File.WriteAllText("/tmp/complex-raw-response.json", result.ResponseJson);
+                await File.WriteAllTextAsync("/tmp/complex-raw-response.json", result.ResponseJson);
             }
 
             // Escape the response JSON for embedding in JavaScript string
             var escapedJson = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
-            Runtime.Execute($@"
-                try {{
-                    var response = JSON.parse('{escapedJson}');
-                    
-                    if (response.data && __query.modelType && globalThis.Fields) {{
-                        // Helper function to deserialize an object using its type's fields
-                        function deserializeObject(data, type) {{
-                            if (!data || !type || !globalThis.Fields) return data;
-                            
-                            var fields = globalThis.Fields.getFieldsForType(type);
-                            if (!fields || fields.length === 0) {{
-                                return data;
-                            }}
-                            
-                            var deserialized = {{}};
-                            for (var i = 0; i < fields.length; i++) {{
-                                var field = fields[i];
-                                if (data.hasOwnProperty(field.name)) {{
-                                    var value = data[field.name];
-                                    
-                                    // Handle null/undefined
-                                    if (value === null || value === undefined) {{
-                                        deserialized[field.name] = value;
-                                    }}
-                                    // Handle arrays
-                                    else if (Array.isArray(value) && field.type && globalThis[field.type.name]) {{
-                                        deserialized[field.name] = value.map(item => 
-                                            typeof item === 'object' && item !== null 
-                                                ? deserializeObject(item, field.type) 
-                                                : item
-                                        );
-                                    }}
-                                    // Handle nested objects
-                                    else if (typeof value === 'object' && !Array.isArray(value) && field.type && globalThis[field.type.name]) {{
-                                        deserialized[field.name] = deserializeObject(value, field.type);
-                                    }}
-                                    // Handle primitives
-                                    else {{
-                                        deserialized[field.name] = value;
-                                    }}
-                                }}
-                            }}
-                            return deserialized;
-                        }}
-                        
-                        __queryResult.data = deserializeObject(response.data, __query.modelType);
-                    }}
-                }} catch(e) {{
-                    // Ignore deserialization errors
-                }}
-            ");
+            Runtime.Execute(Scripts.DeserializeQueryResult(escapedJson));
         }
 
         // Get the result from JavaScript
@@ -400,14 +312,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             : string.Empty;
 
         // Create query instance, set parameters, and subscribe
-        Runtime.Execute(
-            "var __obsQuery = new " + queryClassName + "();" +
-            paramAssignments +
-            "var __obsUpdates = [];" +
-            "var __obsError = null;" +
-            "var __obsSubscription = __obsQuery.subscribe(function(result) {" +
-            "    __obsUpdates.push(result);" +
-            "}, __obsQuery);");
+        Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, paramAssignments));
 
         // Wait for the initial WebSocket message
         var timeout = TimeSpan.FromSeconds(10);
@@ -502,6 +407,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// <typeparam name="TResult">The type of data.</typeparam>
     /// <param name="result">The execution result to add updates to.</param>
     /// <param name="timeout">Maximum time to wait for updates.</param>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed"></exception>
     public async Task WaitForWebSocketUpdates<TResult>(ObservableQueryExecutionResult<TResult> result, TimeSpan? timeout = null)
     {
         timeout ??= TimeSpan.FromSeconds(5);
@@ -558,35 +465,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var uri = new Uri(_serverUrl);
         var origin = $"{uri.Scheme}://{uri.Authority}";
 
-        Runtime.Execute($@"
-// Set up Arc Globals by loading and modifying the Globals module
-try {{
-    var ArcModule = require('@cratis/arc');
-    if (ArcModule && ArcModule.Globals) {{
-        ArcModule.Globals.origin = '{origin}';
-        ArcModule.Globals.apiBasePath = '';
-        ArcModule.Globals.microservice = '';
-    }}
-    
-    // Also set on globalThis for compatibility
-    if (!globalThis.Globals) {{
-        globalThis.Globals = ArcModule.Globals;
-    }} else {{
-        globalThis.Globals.origin = '{origin}';
-        globalThis.Globals.apiBasePath = '';
-        globalThis.Globals.microservice = '';
-    }}
-    
-    // CRITICAL: Expose TimeSpan from fundamentals globally for command serialization
-    var Fundamentals = require('@cratis/fundamentals');
-    if (Fundamentals && Fundamentals.TimeSpan) {{
-        globalThis.TimeSpan = Fundamentals.TimeSpan;
-    }}
-}} catch (e) {{
-    console.error('Failed to setup Arc Globals:', e.message);
-    throw e;
-}}
-");
+        Runtime.Execute(Scripts.SetupArcGlobals(origin));
     }
 
     void SetupWebSocketPolyfill()
@@ -594,64 +473,17 @@ try {{
         // Expose function to JavaScript that creates a WebSocket connection
         Runtime.Engine.AddHostObject("__createWebSocket", new Func<string, string>((url) =>
         {
-            var wsId = CreateWebSocketConnection(url);
-            return wsId;
+            return CreateWebSocketConnection(url);
         }));
 
         // Expose function to send WebSocket messages
-        Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>((wsId, message) =>
-        {
-            SendWebSocketMessage(wsId, message);
-        }));
+        Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>(SendWebSocketMessage));
 
         // Expose function to close WebSocket
-        Runtime.Engine.AddHostObject("__webSocketClose", new Action<string>((wsId) =>
-        {
-            CloseWebSocketConnection(wsId);
-        }));
+        Runtime.Engine.AddHostObject("__webSocketClose", new Action<string>(CloseWebSocketConnection));
 
         // Set up the WebSocket polyfill
-        Runtime.Execute(@"
-class WebSocket {
-    constructor(url) {
-        this.url = url;
-        this.readyState = 0; // CONNECTING
-        this.onopen = null;
-        this.onmessage = null;
-        this.onerror = null;
-        this.onclose = null;
-        this._id = __createWebSocket(url);
-        
-        // Store reference so C# can call callbacks
-        if (!globalThis.__webSockets) {
-            globalThis.__webSockets = {};
-        }
-        globalThis.__webSockets[this._id] = this;
-    }
-    
-    send(data) {
-        if (this.readyState !== 1) { // OPEN
-            throw new Error('WebSocket is not open');
-        }
-        __webSocketSend(this._id, typeof data === 'string' ? data : JSON.stringify(data));
-    }
-    
-    close() {
-        if (this.readyState === 2 || this.readyState === 3) { // CLOSING or CLOSED
-            return;
-        }
-        this.readyState = 2; // CLOSING
-        __webSocketClose(this._id);
-    }
-
-}
-
-// WebSocket constants
-WebSocket.CONNECTING = 0;
-WebSocket.OPEN = 1;
-WebSocket.CLOSING = 2;
-WebSocket.CLOSED = 3;
-");
+        Runtime.Execute(Scripts.WebSocketPolyfill);
     }
 
     string CreateWebSocketConnection(string url)
@@ -702,19 +534,7 @@ WebSocket.CLOSED = 3;
     void SetupFetchInterceptor()
     {
         // Set up the fetch interceptor that stores pending requests
-        Runtime.Execute(
-            "var __pendingFetch = null;" +
-            "function fetch(url, options) {" +
-            "    var urlString = (typeof url === 'object' && url.href) ? url.href : String(url);" +
-            "    return new Promise(function(resolve, reject) {" +
-            "        __pendingFetch = {" +
-            "            url: urlString," +
-            "            options: options || {}," +
-            "            resolve: resolve," +
-            "            reject: reject" +
-            "        };" +
-            "    });" +
-            "}");
+        Runtime.Execute(Scripts.FetchInterceptor);
     }
 
     async Task<FetchResult> ProcessPendingFetchAsync()
@@ -734,7 +554,7 @@ WebSocket.CLOSED = 3;
         HttpResponseMessage response;
         if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
         {
-            var content = new StringContent(bodyJson ?? "{}", System.Text.Encoding.UTF8, "application/json");
+            var content = new StringContent(bodyJson ?? "{}", Encoding.UTF8, "application/json");
             response = await HttpClient.PostAsync(url, content);
         }
         else
@@ -752,7 +572,7 @@ WebSocket.CLOSED = 3;
 
         // Debug: Log the raw response content
         const string responseDebugFile = "/tmp/http-response-content.txt";
-        File.WriteAllText(responseDebugFile, $"Response from {url}:\n{responseContent}\n");
+        await File.WriteAllTextAsync(responseDebugFile, $"Response from {url}:\n{responseContent}\n");
 
         // Resolve the JavaScript promise with the response
         var escapedResponse = responseContent
@@ -832,25 +652,21 @@ public class ObservableQueryExecutionResult<TResult>(Queries.QueryResult result,
 /// <summary>
 /// Represents a WebSocket connection bridged between JavaScript and .NET.
 /// </summary>
-sealed class WebSocketConnection : IDisposable
+/// <param name="id"></param>
+/// <param name="url"></param>
+/// <param name="runtime"></param>
+sealed class WebSocketConnection(string id, string url, JavaScriptRuntime runtime) : IDisposable
 {
-    readonly string _id;
-    readonly string _url;
-    readonly JavaScriptRuntime _runtime;
+    readonly string _id = id;
+    readonly string _url = url;
+    readonly JavaScriptRuntime _runtime = runtime;
     readonly CancellationTokenSource _cts = new();
     ClientWebSocket? _webSocket;
     bool _disposed;
 
-    public WebSocketConnection(string id, string url, JavaScriptRuntime runtime)
-    {
-        _id = id;
-        _url = url;
-        _runtime = runtime;
-    }
-
     public async Task ConnectAsync()
     {
-        var logPath = "/tmp/websocket-debug.txt";
+        const string logPath = "/tmp/websocket-debug.txt";
         try
         {
             _webSocket = new ClientWebSocket();
@@ -880,7 +696,7 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
 }}");
 
             // Start receiving messages
-            _ = Task.Run(async () => await ReceiveLoop());
+            _ = Task.Run(ReceiveLoop);
         }
         catch (Exception ex)
         {
@@ -908,9 +724,6 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     async Task ReceiveLoop()
     {
         if (_webSocket is null) return;
-
-        var logPath = "/tmp/websocket-debug.txt";
-
         var buffer = new byte[1024 * 4];
         try
         {

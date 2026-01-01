@@ -38,9 +38,7 @@ public sealed class JavaScriptRuntime : IDisposable
     {
         var escapedCode = typeScriptCode.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
         var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
-        var js = result?.ToString() ?? string.Empty;
-
-        return js;
+        return result?.ToString() ?? string.Empty;
     }
 
     /// <summary>
@@ -49,14 +47,7 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <param name="javaScriptCode">The JavaScript code to execute.</param>
     public void Execute(string javaScriptCode)
     {
-        try
-        {
-            Engine.Execute(javaScriptCode);
-        }
-        catch
-        {
-            throw;
-        }
+        Engine.Execute(javaScriptCode);
     }
 
     /// <summary>
@@ -67,20 +58,13 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The result of the execution.</returns>
     public T? Evaluate<T>(string javaScriptCode)
     {
-        try
+        var result = Engine.Evaluate(javaScriptCode);
+        if (result is T typedResult)
         {
-            var result = Engine.Evaluate(javaScriptCode);
-            if (result is T typedResult)
-            {
-                return typedResult;
-            }
+            return typedResult;
+        }
 
-            return default;
-        }
-        catch
-        {
-            throw;
-        }
+        return default;
     }
 
     /// <summary>
@@ -90,14 +74,7 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The result of the execution.</returns>
     public object? Evaluate(string javaScriptCode)
     {
-        try
-        {
-            return Engine.Evaluate(javaScriptCode);
-        }
-        catch
-        {
-            throw;
-        }
+        return Engine.Evaluate(javaScriptCode);
     }
 
     /// <inheritdoc/>
@@ -119,17 +96,17 @@ public sealed class JavaScriptRuntime : IDisposable
         // Load Arc bootstrap code (sets up module environment with shims)
         var arcBootstrap = JavaScriptResources.GetArcBootstrap();
         Engine.Execute(arcBootstrap);
-        
+
         // Ensure a global module/exports shim exists so scripts executed directly
         // (outside the module loader) that reference `exports`/`module` do not
         // throw ReferenceError: exports is not defined.
-        Engine.Execute(@"
-            if (!globalThis.module) { globalThis.module = { exports: {} }; }
-            if (!globalThis.exports) { globalThis.exports = globalThis.module.exports; }
-        ");
+        Engine.Execute("\n" +
+                       "            if (!globalThis.module) { globalThis.module = { exports: {} }; }\n" +
+                       "            if (!globalThis.exports) { globalThis.exports = globalThis.module.exports; }\n" +
+                       "        ");
 
         // Load reflect-metadata polyfill directly
-        try 
+        try
         {
             var reflectMetadata = ReadJavaScriptFile("node_modules/reflect-metadata/Reflect.js");
             Engine.Execute(reflectMetadata);
@@ -146,14 +123,14 @@ public sealed class JavaScriptRuntime : IDisposable
         var baseDir = Path.Combine(
             Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
             "..", "..", "..", "..", "..", "..", "JavaScript");
-        
+
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
-        
+
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException($"TypeScript file not found: {relativePath}", fullPath);
         }
-        
+
         return File.ReadAllText(fullPath);
     }
 
@@ -163,18 +140,18 @@ public sealed class JavaScriptRuntime : IDisposable
         var baseDir = relativePath.StartsWith("node_modules/")
             ? Path.Combine(
                 Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-                "..", "..", "..", "..", "..", "..", "..")  // 7 levels up to workspace root
+                "..", "..", "..", "..", "..", "..", "..") // 7 levels up to workspace root
             : Path.Combine(
                 Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
                 "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
-        
+
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
-        
+
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException($"JavaScript file not found: {relativePath}", fullPath);
         }
-        
+
         return File.ReadAllText(fullPath);
     }
 
@@ -184,11 +161,11 @@ public sealed class JavaScriptRuntime : IDisposable
         var baseDir = relativePath.StartsWith("node_modules/")
             ? Path.Combine(
                 Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-                "..", "..", "..", "..", "..", "..", "..")  // 7 levels up to workspace root
+                "..", "..", "..", "..", "..", "..", "..") // 7 levels up to workspace root
             : Path.Combine(
                 Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
                 "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
-        
+
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
         return File.Exists(fullPath);
     }
