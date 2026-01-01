@@ -102,13 +102,10 @@ public sealed class JavaScriptRuntime : IDisposable
 
     void InitializeRuntime()
     {
-        // Load TypeScript compiler from node_modules
-        var typeScriptCompiler = JavaScriptResources.GetTypeScriptCompiler();
-        Engine.Execute(typeScriptCompiler);
-
-        // Load Arc bootstrap code (sets up module environment with shims)
-        var arcBootstrap = JavaScriptResources.GetArcBootstrap();
-        Engine.Execute(arcBootstrap);
+        // Use cached TypeScript compiler and bootstrap code to avoid disk I/O on every test
+        // The SharedJavaScriptRuntimeFixture loads these once on first access
+        Engine.Execute(SharedJavaScriptRuntimeFixture.TypeScriptCompilerCode);
+        Engine.Execute(SharedJavaScriptRuntimeFixture.ArcBootstrapCode);
 
         // Ensure a global module/exports shim exists so scripts executed directly
         // (outside the module loader) that reference `exports`/`module` do not
