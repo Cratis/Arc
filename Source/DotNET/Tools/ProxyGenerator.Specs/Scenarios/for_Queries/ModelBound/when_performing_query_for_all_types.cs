@@ -44,6 +44,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
         await File.WriteAllTextAsync("/tmp/because-end.txt", "Because finished");
 
         // Debug: Trace the deserialization in QueryResult
+#pragma warning disable MA0101 // String contains an implicit end of line character
         var deserializationTrace = Bridge.Runtime.Evaluate<string>(@"
             JSON.stringify({
                 resultExists: typeof __queryResult !== 'undefined',
@@ -72,6 +73,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
                 })()
             })
         ");
+#pragma warning restore MA0101 // String contains an implicit end of line character
         await File.WriteAllTextAsync("/tmp/deserialization-trace.json", deserializationTrace);
 
         // Debug: Check what the full queryResult looks like
@@ -84,6 +86,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
         _data = System.Text.Json.JsonSerializer.Deserialize<System.Dynamic.ExpandoObject>(dataJson, Json.Globals.JsonSerializerOptions);
 
         // Debug: Check Fields metadata
+#pragma warning disable MA0101 // String contains an implicit end of line character
         var fieldsDebug = Bridge.Runtime.Evaluate<string>(@"
             JSON.stringify({
                 isFieldsDefined: typeof globalThis.Fields !== 'undefined',
@@ -93,6 +96,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
                 firstField: typeof globalThis.Fields !== 'undefined' && typeof globalThis.AllTypesReadModel !== 'undefined' && globalThis.Fields.getFieldsForType && globalThis.Fields.getFieldsForType(globalThis.AllTypesReadModel).length > 0 ? globalThis.Fields.getFieldsForType(globalThis.AllTypesReadModel)[0].name : 'none'
             })
         ");
+#pragma warning restore MA0101 // String contains an implicit end of line character
         await File.WriteAllTextAsync("/tmp/fields-debug.json", fieldsDebug);
 
         // Get all typeof checks in a single evaluation - but check if jsonDocumentValue exists first

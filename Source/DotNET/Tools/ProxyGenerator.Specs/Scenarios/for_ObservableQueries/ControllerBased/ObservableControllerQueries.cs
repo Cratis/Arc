@@ -14,7 +14,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 [Route("api/observable-controller-queries")]
 public class ObservableControllerQueriesController(ObservableControllerQueriesState state) : ControllerBase
 {
-    readonly ObservableControllerQueriesState state = state;
+    readonly ObservableControllerQueriesState _state = state;
 
     /// <summary>
     /// Gets all items as an observable stream.
@@ -23,7 +23,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     [HttpGet("observe/items")]
     public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveAll()
     {
-        return state.AllItemsSubject;
+        return _state.AllItemsSubject;
     }
 
     /// <summary>
@@ -31,7 +31,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     /// </summary>
     /// <returns>Observable item.</returns>
     [HttpGet("observe/single")]
-    public ISubject<ObservableControllerQueryItem> ObserveSingle() => state.SingleItemSubject;
+    public ISubject<ObservableControllerQueryItem> ObserveSingle() => _state.SingleItemSubject;
 
     /// <summary>
     /// Gets a single item by ID as an observable stream.
@@ -51,7 +51,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     [HttpGet("observe/items/category/{category}")]
     public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveByCategory([FromRoute] string category)
     {
-        if (state.CategorySubjects.TryGetValue(category, out var subject))
+        if (_state.CategorySubjects.TryGetValue(category, out var subject))
         {
             return subject;
         }
@@ -60,7 +60,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
             new ObservableControllerQueryItem { Id = Guid.NewGuid(), Name = $"{category} Controller Item 1", Value = 1 },
             new ObservableControllerQueryItem { Id = Guid.NewGuid(), Name = $"{category} Controller Item 2", Value = 2 }
         ]);
-        state.CategorySubjects[category] = newSubject;
+        _state.CategorySubjects[category] = newSubject;
         return newSubject;
     }
 
@@ -102,7 +102,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     [HttpPost("update/items")]
     public IActionResult UpdateAllItems([FromBody] ObservableControllerQueryItem[] items)
     {
-        state.AllItemsSubject.OnNext(items);
+        _state.AllItemsSubject.OnNext(items);
         return Ok();
     }
 
@@ -114,7 +114,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     [HttpPost("update/single")]
     public IActionResult UpdateSingleItem([FromBody] ObservableControllerQueryItem item)
     {
-        state.SingleItemSubject.OnNext(item);
+        _state.SingleItemSubject.OnNext(item);
         return Ok();
     }
 
@@ -127,7 +127,7 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     [HttpPost("update/category/{category}")]
     public IActionResult UpdateItemsForCategory([FromRoute] string category, [FromBody] ObservableControllerQueryItem[] items)
     {
-        if (state.CategorySubjects.TryGetValue(category, out var subject))
+        if (_state.CategorySubjects.TryGetValue(category, out var subject))
         {
             subject.OnNext(items);
         }

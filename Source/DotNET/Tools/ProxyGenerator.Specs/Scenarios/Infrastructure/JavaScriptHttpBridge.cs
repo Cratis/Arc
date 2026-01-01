@@ -7,6 +7,8 @@ using System.Text.Json;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
+#pragma warning disable MA0101 // String contains an implicit end of line character
+
 /// <summary>
 /// Bridges the JavaScript runtime with an HTTP client for testing proxies end-to-end.
 /// Intercepts fetch calls from JavaScript and routes them to the test HTTP client.
@@ -332,7 +334,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             {
                 break;
             }
-            await Task.Delay(50);
+            await Task.Delay(10);
         }
 
         var hasAnyUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
@@ -350,7 +352,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
         for (var i = 0; i < updateCount; i++)
         {
             // Apply the same field-by-field deserialization patch for observable query data
-#pragma warning disable MA0101 // String contains an implicit end of line character
             Runtime.Execute($@"
                 try {{
                     var update = __obsUpdates[{i}];
@@ -384,7 +385,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
                     // Silently fail - let original deserialization handle it
                 }}
             ");
-#pragma warning restore MA0101 // String contains an implicit end of line character
 
             var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
 
@@ -435,7 +435,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
                 }
                 return;
             }
-            await Task.Delay(50);
+            await Task.Delay(10);
         }
 
         throw new JavaScriptProxyExecutionFailed($"No new WebSocket updates received within {timeout.Value.TotalSeconds} seconds");
@@ -651,9 +651,9 @@ public class ObservableQueryExecutionResult<TResult>(Queries.QueryResult result,
 /// <summary>
 /// Represents a WebSocket connection bridged between JavaScript and .NET.
 /// </summary>
-/// <param name="id"></param>
-/// <param name="url"></param>
-/// <param name="runtime"></param>
+/// <param name="id">The WebSocket connection ID.</param>
+/// <param name="url">The WebSocket URL.</param>
+/// <param name="runtime">The JavaScript runtime.</param>
 sealed class WebSocketConnection(string id, string url, JavaScriptRuntime runtime) : IDisposable
 {
     readonly string _id = id;
@@ -665,7 +665,6 @@ sealed class WebSocketConnection(string id, string url, JavaScriptRuntime runtim
 
     public async Task ConnectAsync()
     {
-        const string logPath = "/tmp/websocket-debug.txt";
         try
         {
             _webSocket = new ClientWebSocket();
@@ -786,6 +785,7 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
             _webSocket?.Dispose();
             _cts.Dispose();
             _disposed = true;
+            _runtime.Dispose();
         }
     }
 }
