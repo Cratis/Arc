@@ -10,6 +10,8 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 /// </summary>
 public sealed class JavaScriptRuntime : IDisposable
 {
+    readonly string _javaScriptDirectory;
+    readonly string _workspaceRoot;
     bool _disposed;
 
     /// <summary>
@@ -17,6 +19,16 @@ public sealed class JavaScriptRuntime : IDisposable
     /// </summary>
     public JavaScriptRuntime()
     {
+        var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!;
+
+        // Find workspace root by looking for node_modules directory
+        _workspaceRoot = FindDirectoryInHierarchy(assemblyDir, "node_modules")
+            ?? throw new DirectoryNotFoundException("Could not find workspace root (node_modules directory not found in parent hierarchy)");
+
+        // Find JavaScript source directory
+        _javaScriptDirectory = FindDirectoryInHierarchy(assemblyDir, "JavaScript")
+            ?? throw new DirectoryNotFoundException("Could not find JavaScript source directory in parent hierarchy");
+
         Engine = new V8ScriptEngine();
         Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
         Engine.AddHostObject("__readJavaScriptFile", new Func<string, string>(ReadJavaScriptFile));
@@ -119,12 +131,7 @@ public sealed class JavaScriptRuntime : IDisposable
 
     string ReadTypeScriptFile(string relativePath)
     {
-        // Resolve paths relative to the Source/JavaScript directory
-        var baseDir = Path.Combine(
-            Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-            "..", "..", "..", "..", "..", "..", "JavaScript");
-
-        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        var fullPath = Path.GetFullPath(Path.Combine(_javaScriptDirectory, relativePath));
 
         if (!File.Exists(fullPath))
         {
@@ -136,15 +143,8 @@ public sealed class JavaScriptRuntime : IDisposable
 
     string ReadJavaScriptFile(string relativePath)
     {
-        // For node_modules, resolve relative to workspace root; otherwise relative to Source/JavaScript
-        var baseDir = relativePath.StartsWith("node_modules/")
-            ? Path.Combine(
-                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-                "..", "..", "..", "..", "..", "..", "..") // 7 levels up to workspace root
-            : Path.Combine(
-                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-                "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
-
+        // For node_modules, resolve relative to workspace root; otherwise relative to JavaScript directory
+        var baseDir = relativePath.StartsWith("node_modules/") ? _workspaceRoot : _javaScriptDirectory;
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
 
         if (!File.Exists(fullPath))
@@ -157,16 +157,27 @@ public sealed class JavaScriptRuntime : IDisposable
 
     bool FileExists(string relativePath)
     {
-        // For node_modules, resolve relative to workspace root; otherwise relative to Source/JavaScript
-        var baseDir = relativePath.StartsWith("node_modules/")
-            ? Path.Combine(
-                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-                "..", "..", "..", "..", "..", "..", "..") // 7 levels up to workspace root
-            : Path.Combine(
-                Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!,
-                "..", "..", "..", "..", "..", "..", "JavaScript");  // 6 levels up to Source, then into JavaScript
-
+        // For node_modules, resolve relative to workspace root; otherwise relative to JavaScript directory
+        var baseDir = relativePath.StartsWith("node_modules/") ? _workspaceRoot : _javaScriptDirectory;
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
         return File.Exists(fullPath);
+    }
+
+    static string? FindDirectoryInHierarchy(string startPath, string directoryName)
+    {
+        var currentDir = new DirectoryInfo(startPath);
+
+        while (currentDir != null)
+        {
+            var targetPath = Path.Combine(currentDir.FullName, directoryName);
+            if (Directory.Exists(targetPath))
+            {
+                return currentDir.FullName;
+            }
+
+            currentDir = currentDir.Parent;
+        }
+
+        return null;
     }
 }
