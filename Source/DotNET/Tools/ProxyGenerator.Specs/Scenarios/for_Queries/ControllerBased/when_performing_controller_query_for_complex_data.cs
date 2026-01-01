@@ -18,13 +18,15 @@ public class when_performing_controller_query_for_complex_data : given.a_scenari
 
     [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_data() => _result.Data.ShouldNotBeNull();
-    [Fact] void should_deserialize_nested_data()
+    [Fact]
+    void should_deserialize_nested_data()
     {
         var complexItem = System.Text.Json.JsonSerializer.Deserialize<ControllerComplexItem>(_result.Data!.ToString()!, Json.Globals.JsonSerializerOptions);
         complexItem.ShouldNotBeNull();
         complexItem.Nested.ShouldNotBeNull();
     }
-    [Fact] void should_have_correct_processing_duration()
+    [Fact]
+    void should_have_correct_processing_duration()
     {
         var complexItem = System.Text.Json.JsonSerializer.Deserialize<ControllerComplexItem>(_result.Data!.ToString()!, Json.Globals.JsonSerializerOptions);
         complexItem!.Nested!.ProcessingDuration.ShouldEqual(TimeSpan.FromSeconds(45));

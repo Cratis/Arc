@@ -18,30 +18,30 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
 
     async Task Because()
     {
-        File.WriteAllText("/tmp/because-start.txt", "Because started");
+        await File.WriteAllTextAsync("/tmp/because-start.txt", "Because started");
         _executionResult = await Bridge.PerformQueryViaProxyAsync<AllTypesReadModel>("GetWithAllTypes");
-        File.WriteAllText("/tmp/because-after-query.txt", "After query");
+        await File.WriteAllTextAsync("/tmp/because-after-query.txt", "After query");
 
         try
         {
             // Debug: Check the actual modelType used by Query and whether it has fields
-            var modelTypeDebug = Bridge.Runtime.Evaluate<string>(@"
-                JSON.stringify({
-                    queryModelTypeName: __query.modelType ? __query.modelType.name : 'none',
-                    queryModelTypeHasFields: __query.modelType && globalThis.Fields ? globalThis.Fields.getFieldsForType(__query.modelType).length : -1,
-                    globalModelTypeName: globalThis.AllTypesReadModel ? globalThis.AllTypesReadModel.name : 'none',
-                    globalModelTypeHasFields: globalThis.AllTypesReadModel && globalThis.Fields ? globalThis.Fields.getFieldsForType(globalThis.AllTypesReadModel).length : -1,
-                    areTheSame: __query.modelType === globalThis.AllTypesReadModel
-                })
-            ");
-            File.WriteAllText("/tmp/model-type-comparison.json", modelTypeDebug);
+            var modelTypeDebug = Bridge.Runtime.Evaluate<string>("\n" +
+                                                                 "                JSON.stringify({\n" +
+                                                                 "                    queryModelTypeName: __query.modelType ? __query.modelType.name : 'none',\n" +
+                                                                 "                    queryModelTypeHasFields: __query.modelType && globalThis.Fields ? globalThis.Fields.getFieldsForType(__query.modelType).length : -1,\n" +
+                                                                 "                    globalModelTypeName: globalThis.AllTypesReadModel ? globalThis.AllTypesReadModel.name : 'none',\n" +
+                                                                 "                    globalModelTypeHasFields: globalThis.AllTypesReadModel && globalThis.Fields ? globalThis.Fields.getFieldsForType(globalThis.AllTypesReadModel).length : -1,\n" +
+                                                                 "                    areTheSame: __query.modelType === globalThis.AllTypesReadModel\n" +
+                                                                 "                })\n" +
+                                                                 "            ");
+            await File.WriteAllTextAsync("/tmp/model-type-comparison.json", modelTypeDebug);
         }
         catch (Exception ex)
         {
-            File.WriteAllText("/tmp/model-type-error.txt", ex.ToString());
+            await File.WriteAllTextAsync("/tmp/model-type-error.txt", ex.ToString());
         }
 
-        File.WriteAllText("/tmp/because-end.txt", "Because finished");
+        await File.WriteAllTextAsync("/tmp/because-end.txt", "Because finished");
 
         // Debug: Trace the deserialization in QueryResult
         var deserializationTrace = Bridge.Runtime.Evaluate<string>(@"
@@ -72,15 +72,15 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
                 })()
             })
         ");
-        File.WriteAllText("/tmp/deserialization-trace.json", deserializationTrace);
+        await File.WriteAllTextAsync("/tmp/deserialization-trace.json", deserializationTrace);
 
         // Debug: Check what the full queryResult looks like
         var rawQueryResult = Bridge.Runtime.Evaluate<string>("JSON.stringify(__queryResult)");
-        File.WriteAllText("/tmp/raw-query-result.json", rawQueryResult);
+        await File.WriteAllTextAsync("/tmp/raw-query-result.json", rawQueryResult);
 
         // Get the data
         var dataJson = Bridge.Runtime.Evaluate<string>("JSON.stringify(__queryResult.data)");
-        File.WriteAllText("/tmp/all-types-data.json", dataJson);
+        await File.WriteAllTextAsync("/tmp/all-types-data.json", dataJson);
         _data = System.Text.Json.JsonSerializer.Deserialize<System.Dynamic.ExpandoObject>(dataJson, Json.Globals.JsonSerializerOptions);
 
         // Debug: Check Fields metadata
@@ -93,7 +93,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
                 firstField: typeof globalThis.Fields !== 'undefined' && typeof globalThis.AllTypesReadModel !== 'undefined' && globalThis.Fields.getFieldsForType && globalThis.Fields.getFieldsForType(globalThis.AllTypesReadModel).length > 0 ? globalThis.Fields.getFieldsForType(globalThis.AllTypesReadModel)[0].name : 'none'
             })
         ");
-        File.WriteAllText("/tmp/fields-debug.json", fieldsDebug);
+        await File.WriteAllTextAsync("/tmp/fields-debug.json", fieldsDebug);
 
         // Get all typeof checks in a single evaluation - but check if jsonDocumentValue exists first
 #pragma warning disable MA0101 // String contains an implicit end of line character

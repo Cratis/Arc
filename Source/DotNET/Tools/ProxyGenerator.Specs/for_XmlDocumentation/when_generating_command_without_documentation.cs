@@ -29,7 +29,7 @@ public class when_generating_command_without_documentation : Specification
     [Fact] void should_not_contain_jsdoc_for_command() => _generatedCode.ShouldNotContain("/**\n * \n */\nexport class CommandWithoutDocumentation");
 }
 
-[Cratis.Arc.Commands.ModelBound.Command]
+[Commands.ModelBound.Command]
 public class CommandWithoutDocumentation
 {
     public string Name { get; set; } = string.Empty;

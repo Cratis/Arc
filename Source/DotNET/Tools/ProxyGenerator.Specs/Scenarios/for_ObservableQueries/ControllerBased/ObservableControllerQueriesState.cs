@@ -10,34 +10,28 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 /// </summary>
 public class ObservableControllerQueriesState
 {
-    readonly BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> _allItemsSubject = new([
+
+    public BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> AllItemsSubject { get; } = new([
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Controller Item 1", Value = 1 },
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Controller Item 2", Value = 2 },
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3), Name = "Controller Item 3", Value = 3 }
     ]);
-
-    readonly BehaviorSubject<ObservableControllerQueryItem> _singleItemSubject = new(
+    public BehaviorSubject<ObservableControllerQueryItem> SingleItemSubject { get; } = new(
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 }
     );
-
-    readonly Dictionary<string, BehaviorSubject<IEnumerable<ObservableControllerQueryItem>>> _categorySubjects = [];
-
-    public BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> AllItemsSubject => _allItemsSubject;
-    public BehaviorSubject<ObservableControllerQueryItem> SingleItemSubject => _singleItemSubject;
-    public Dictionary<string, BehaviorSubject<IEnumerable<ObservableControllerQueryItem>>> CategorySubjects => _categorySubjects;
+    public Dictionary<string, BehaviorSubject<IEnumerable<ObservableControllerQueryItem>>> CategorySubjects { get; } = [];
 
     public void Reset()
     {
-        _allItemsSubject.OnNext([
+        AllItemsSubject.OnNext([
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Controller Item 1", Value = 1 },
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Controller Item 2", Value = 2 },
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3), Name = "Controller Item 3", Value = 3 }
         ]);
 
-        _singleItemSubject.OnNext(
-            new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 }
-        );
+        SingleItemSubject.OnNext(
+            new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 });
 
-        _categorySubjects.Clear();
+        CategorySubjects.Clear();
     }
 }

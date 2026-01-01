@@ -30,7 +30,7 @@ public class when_observing_controller_by_category_and_data_changes : given.a_sc
             new { category = "Electronics" });
 
         // Update the data on the backend via HTTP POST
-        await HttpClient.PostAsJsonAsync($"/api/observable-controller-queries/update/category/Electronics", _updatedData);
+        await HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/category/Electronics", _updatedData);
 
         // Sync observable updates to get fresh HTTP snapshot
         await Bridge.WaitForWebSocketUpdates(_executionResult);

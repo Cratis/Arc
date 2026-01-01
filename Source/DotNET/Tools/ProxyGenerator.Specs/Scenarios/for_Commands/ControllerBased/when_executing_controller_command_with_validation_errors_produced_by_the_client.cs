@@ -18,11 +18,11 @@ public class when_executing_controller_command_with_validation_errors_produced_b
     async Task Because()
     {
         var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerFluentValidatedCommand
-            {
-                Title = string.Empty,
-                Quantity = -5,
-                Email = "invalid-email"
-            },
+        {
+            Title = string.Empty,
+            Quantity = -5,
+            Email = "invalid-email"
+        },
             "ExecuteFluentValidated");
         _result = executionResult.Result;
     }

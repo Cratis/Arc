@@ -104,8 +104,7 @@ public class ObservableReadModel
         ]);
 
         _singleItemSubject.OnNext(
-            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
-        );
+            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 });
     }
 }
 
@@ -145,15 +144,15 @@ public class ParameterizedObservableReadModel
     /// <returns>Observable collection of matching read models.</returns>
     public static ISubject<IEnumerable<ParameterizedObservableReadModel>> ObserveByCategory(string category)
     {
-        if (!_subjectsByCategory.ContainsKey(category))
+        if (!_subjectsByCategory.TryGetValue(category, out var categorySubject))
         {
-            _subjectsByCategory[category] = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>([
+            categorySubject = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>([
                 new ParameterizedObservableReadModel { Id = Guid.NewGuid(), Name = $"{category} Item 1", Category = category, Value = 1 },
                 new ParameterizedObservableReadModel { Id = Guid.NewGuid(), Name = $"{category} Item 2", Category = category, Value = 2 }
             ]);
+            _subjectsByCategory[category] = categorySubject;
         }
 
-        var categorySubject = _subjectsByCategory[category];
         var newSubject = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>(categorySubject.Value);
         var subscription = categorySubject.Subscribe(newSubject);
         _subscriptions.Add(subscription);

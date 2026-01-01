@@ -18,13 +18,13 @@ public class when_executing_controller_data_annotations_validated_command_with_v
     async Task Because()
     {
         var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerDataAnnotationsValidatedCommand
-            {
-                Name = "ab", // Too short (min 3)
-                Age = 15, // Too young (min 18)
-                Email = "invalid-email", // Invalid email format
-                Phone = "abc", // Invalid phone
-                Website = "not-a-url" // Invalid URL
-            },
+        {
+            Name = "ab", // Too short (min 3)
+            Age = 15, // Too young (min 18)
+            Email = "invalid-email", // Invalid email format
+            Phone = "abc", // Invalid phone
+            Website = "not-a-url" // Invalid URL
+        },
             "ExecuteDataAnnotationsValidated");
         _result = executionResult.Result;
     }

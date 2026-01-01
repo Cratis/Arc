@@ -28,13 +28,15 @@ public class when_performing_query_for_complex_data : given.a_scenario_web_appli
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_data() => _executionResult.Result.Data.ShouldNotBeNull();
-    [Fact] void should_have_nested_data()
+    [Fact]
+    void should_have_nested_data()
     {
         var complexData = System.Text.Json.JsonSerializer.Deserialize<ComplexReadModel>(_executionResult.Result.Data.ToString(), Json.Globals.JsonSerializerOptions);
         complexData.ShouldNotBeNull();
         complexData.NestedData.ShouldNotBeNull();
     }
-    [Fact] void should_have_correct_duration()
+    [Fact]
+    void should_have_correct_duration()
     {
         var complexData = System.Text.Json.JsonSerializer.Deserialize<ComplexReadModel>(_executionResult.Result.Data.ToString(), Json.Globals.JsonSerializerOptions);
         complexData.NestedData.Duration.ShouldEqual(TimeSpan.FromHours(2.5));
