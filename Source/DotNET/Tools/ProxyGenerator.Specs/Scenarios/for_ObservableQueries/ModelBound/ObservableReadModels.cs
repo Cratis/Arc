@@ -22,6 +22,8 @@ public class ObservableReadModel
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
     );
 
+    static readonly List<IDisposable> _subscriptions = new();
+
     /// <summary>
     /// Gets or sets the ID.
     /// </summary>
@@ -44,7 +46,8 @@ public class ObservableReadModel
     public static ISubject<IEnumerable<ObservableReadModel>> ObserveAll()
     {
         var newSubject = new BehaviorSubject<IEnumerable<ObservableReadModel>>(_allItemsSubject.Value);
-        _allItemsSubject.Subscribe(newSubject);
+        var subscription = _allItemsSubject.Subscribe(newSubject);
+        _subscriptions.Add(subscription);
         return newSubject;
     }
 
@@ -64,7 +67,8 @@ public class ObservableReadModel
     public static ISubject<ObservableReadModel> ObserveSingle()
     {
         var newSubject = new BehaviorSubject<ObservableReadModel>(_singleItemSubject.Value);
-        _singleItemSubject.Subscribe(newSubject);
+        var subscription = _singleItemSubject.Subscribe(newSubject);
+        _subscriptions.Add(subscription);
         return newSubject;
     }
 
@@ -85,6 +89,14 @@ public class ObservableReadModel
     /// </summary>
     public static void Reset()
     {
+        // Dispose all subscriptions from previous tests
+        var subscriptionsToDispose = _subscriptions.ToArray();
+        _subscriptions.Clear();
+        foreach (var subscription in subscriptionsToDispose)
+        {
+            subscription.Dispose();
+        }
+
         _allItemsSubject.OnNext([
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Observable Item 1", Value = 1 },
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Observable Item 2", Value = 2 },
@@ -104,6 +116,7 @@ public class ObservableReadModel
 public class ParameterizedObservableReadModel
 {
     static readonly Dictionary<string, BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>> _subjectsByCategory = [];
+    static readonly List<IDisposable> _subscriptions = new();
 
     /// <summary>
     /// Gets or sets the ID.
@@ -142,7 +155,8 @@ public class ParameterizedObservableReadModel
 
         var categorySubject = _subjectsByCategory[category];
         var newSubject = new BehaviorSubject<IEnumerable<ParameterizedObservableReadModel>>(categorySubject.Value);
-        categorySubject.Subscribe(newSubject);
+        var subscription = categorySubject.Subscribe(newSubject);
+        _subscriptions.Add(subscription);
         return newSubject;
     }
 
@@ -175,6 +189,14 @@ public class ParameterizedObservableReadModel
     /// </summary>
     public static void Reset()
     {
+        // Dispose all subscriptions from previous tests
+        var subscriptionsToDispose = _subscriptions.ToArray();
+        _subscriptions.Clear();
+        foreach (var subscription in subscriptionsToDispose)
+        {
+            subscription.Dispose();
+        }
+
         _subjectsByCategory.Clear();
     }
 }
@@ -185,6 +207,7 @@ public class ParameterizedObservableReadModel
 [ReadModel]
 public class ComplexObservableReadModel
 {
+    static readonly List<IDisposable> _subscriptions = new();
     static readonly BehaviorSubject<IEnumerable<ComplexObservableReadModel>> _complexItemsSubject = new([
         new ComplexObservableReadModel
         {
@@ -222,7 +245,8 @@ public class ComplexObservableReadModel
     public static ISubject<IEnumerable<ComplexObservableReadModel>> ObserveComplex()
     {
         var newSubject = new BehaviorSubject<IEnumerable<ComplexObservableReadModel>>(_complexItemsSubject.Value);
-        _complexItemsSubject.Subscribe(newSubject);
+        var subscription = _complexItemsSubject.Subscribe(newSubject);
+        _subscriptions.Add(subscription);
         return newSubject;
     }
 
@@ -237,6 +261,13 @@ public class ComplexObservableReadModel
     /// </summary>
     public static void Reset()
     {
+        var subscriptionsToDispose = _subscriptions.ToArray();
+        _subscriptions.Clear();
+        foreach (var subscription in subscriptionsToDispose)
+        {
+            subscription.Dispose();
+        }
+
         _complexItemsSubject.OnNext([
             new ComplexObservableReadModel
             {
