@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -64,8 +63,6 @@ public class a_scenario_web_application : Specification, IDisposable
 
         // Enable logging for debugging
         builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
-        builder.Logging.SetMinimumLevel(LogLevel.Information);
 
         builder.Services.AddControllers()
             .AddApplicationPart(typeof(a_scenario_web_application).Assembly);
@@ -229,9 +226,6 @@ public class a_scenario_web_application : Specification, IDisposable
             return;
         }
 
-        File.AppendAllText("/tmp/websocket-debug.txt", $"\n[LoadTypesAndEnums] Loading {typesList.Count} types (after filtering already loaded)\n");
-        File.AppendAllText("/tmp/websocket-debug.txt", $"[LoadTypesAndEnums] Types: {string.Join(", ", typesList.Select(t => t.Name))}\n");
-
         var baseDir = !string.IsNullOrEmpty(saveBasePath) ? Path.GetDirectoryName(saveBasePath) : null;
 
         // Generate and load enum files
@@ -286,30 +280,9 @@ public class a_scenario_web_application : Specification, IDisposable
         // Load all types and enums that are involved
         LoadTypesAndEnums(descriptor.TypesInvolved);
 
-        var logPath = "/tmp/websocket-debug.txt";
-        File.AppendAllText(logPath, $"\n[Proxy Generation] Method: {methodName}\n");
-        File.AppendAllText(logPath, $"[Proxy Generation] IsObservable: {descriptor.IsObservable}\n");
-        File.AppendAllText(logPath, $"[Proxy Generation] Return type: {method.ReturnType.FullName}\n");
-
         var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
-
-        File.WriteAllText("/tmp/generated-proxy-full.ts", code);
-        File.AppendAllText(logPath, $"[Proxy Generation] Full code saved to /tmp/generated-proxy-full.ts\n");
-        File.AppendAllText(logPath, $"[Proxy Generation] Generated code length: {code.Length} chars\n");
-        File.AppendAllText(logPath, $"[Proxy Generation] First 500 chars:\n{code.Substring(0, Math.Min(500, code.Length))}\n");
-
         Bridge.LoadTypeScript(code);
-
-        // Try to instantiate the class to see if it loaded correctly
-        try
-        {
-            Bridge.Runtime.Execute($"var __testQuery = new {descriptor.Name}();");
-            File.AppendAllText(logPath, $"[Proxy Generation] Successfully created {descriptor.Name} instance\n");
-        }
-        catch (Exception ex)
-        {
-            File.AppendAllText(logPath, $"[Proxy Generation] ERROR creating instance: {ex.Message}\n");
-        }
+        Bridge.Runtime.Execute($"var __testQuery = new {descriptor.Name}();");
     }
 
     /// <inheritdoc/>
