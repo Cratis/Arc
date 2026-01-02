@@ -69,16 +69,8 @@ public class ObservableQueryExecutionContext<TResult>(
         _updateReceived = new TaskCompletionSource<bool>();
         var initialCount = Updates.Count;
 
-        // Give JavaScript a moment to ensure WebSocket subscription is fully initialized
-        // This helps prevent race conditions on slower CI environments
-        await Task.Delay(50);
-
         // Trigger the update
         updateReceiver(data);
-
-        // Give the RxJS observable time to propagate the update through the WebSocket
-        // Different .NET versions handle async propagation differently
-        await Task.Delay(100);
 
         // Wait for WebSocket notification - kept high to account for slower CI/build server environments
         timeout ??= TimeSpan.FromSeconds(30);
