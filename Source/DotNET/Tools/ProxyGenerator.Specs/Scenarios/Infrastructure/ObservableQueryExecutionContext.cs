@@ -69,6 +69,10 @@ public class ObservableQueryExecutionContext<TResult>(
         _updateReceived = new TaskCompletionSource<bool>();
         var initialCount = Updates.Count;
 
+        // Give JavaScript a moment to ensure WebSocket subscription is fully initialized
+        // This helps prevent race conditions on slower CI environments
+        await Task.Delay(50);
+
         // Trigger the update
         updateReceiver(data);
 
@@ -79,10 +83,12 @@ public class ObservableQueryExecutionContext<TResult>(
         // Poll for updates with a short delay to handle race conditions where the update
         // arrives before we start waiting on the TaskCompletionSource
         var start = DateTime.UtcNow;
+        var lastCheckedCount = initialCount;
         while (DateTime.UtcNow - start < timeout)
         {
             // Check if JavaScript has received the update
             var currentCount = runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{SubscriptionId}'].updates.length");
+            lastCheckedCount = currentCount;
             if (currentCount > initialCount)
             {
                 // Update received, extract it
@@ -117,6 +123,12 @@ public class ObservableQueryExecutionContext<TResult>(
             }
         }
 
-        throw new JavaScriptProxyExecutionFailed($"No WebSocket update received within {timeout.Value.TotalSeconds} seconds for subscription {SubscriptionId}");
+        // Check WebSocket connection status
+        var wsExists = runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{SubscriptionId}'] !== undefined");
+        var subscriptionInfo = wsExists
+            ? $"Subscription exists with {lastCheckedCount} updates (expected > {initialCount})"
+            : "Subscription not found in JavaScript";
+
+        throw new JavaScriptProxyExecutionFailed($"No WebSocket update received within {timeout.Value.TotalSeconds} seconds for subscription {SubscriptionId}. {subscriptionInfo}");
     }
 }
