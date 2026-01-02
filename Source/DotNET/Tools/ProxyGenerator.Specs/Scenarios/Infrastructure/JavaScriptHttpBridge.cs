@@ -155,7 +155,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         }
 
         // Wait for promise resolution - kept high to account for slower CI/build server environments
-        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(15));
+        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(30));
 
         var hasError = Runtime.Evaluate<bool>("__cmdError !== null");
         if (hasError)
