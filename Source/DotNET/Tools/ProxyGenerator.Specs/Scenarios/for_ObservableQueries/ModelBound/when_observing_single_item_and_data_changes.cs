@@ -21,7 +21,7 @@ public class when_observing_single_item_and_data_changes : given.a_scenario_web_
     {
         _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<ObservableReadModel>(
             "ObserveSingle",
-            updateReceiver: data => ObservableReadModel.UpdateSingleItem(data));
+            updateReceiver: ObservableReadModel.UpdateSingleItem);
 
         // Trigger update and wait for notification
         await _executionResult.UpdateAndWaitAsync(_updatedData);

@@ -41,7 +41,7 @@ public class when_observing_complex_data_and_data_changes : given.a_scenario_web
     {
         _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ComplexObservableReadModel>>(
             "ObserveComplex",
-            updateReceiver: data => ComplexObservableReadModel.UpdateComplexItems(data));
+            updateReceiver: ComplexObservableReadModel.UpdateComplexItems);
 
         // Trigger update and wait for notification
         await _executionResult.UpdateAndWaitAsync(_updatedData);
