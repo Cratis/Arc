@@ -75,25 +75,48 @@ public class ObservableQueryExecutionContext<TResult>(
         // Wait for WebSocket notification - kept high to account for slower CI/build server environments
         timeout ??= TimeSpan.FromSeconds(30);
         using var cts = new CancellationTokenSource(timeout.Value);
-        try
-        {
-            await _updateReceived.Task.WaitAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            throw new JavaScriptProxyExecutionFailed($"No WebSocket update received within {timeout.Value.TotalSeconds} seconds for subscription {SubscriptionId}");
-        }
 
-        // Extract new updates from JavaScript
-        var currentCount = runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{SubscriptionId}'].updates.length");
-        for (var i = initialCount; i < currentCount; i++)
+        // Poll for updates with a short delay to handle race conditions where the update
+        // arrives before we start waiting on the TaskCompletionSource
+        var start = DateTime.UtcNow;
+        while (DateTime.UtcNow - start < timeout)
         {
-            var updateJson = runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{SubscriptionId}'].updates[{i}].data)") ?? "{}";
-            var update = System.Text.Json.JsonSerializer.Deserialize<TResult>(updateJson, jsonOptions);
-            if (update is not null)
+            // Check if JavaScript has received the update
+            var currentCount = runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{SubscriptionId}'].updates.length");
+            if (currentCount > initialCount)
             {
-                Updates.Add(update);
+                // Update received, extract it
+                for (var i = initialCount; i < currentCount; i++)
+                {
+                    var updateJson = runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{SubscriptionId}'].updates[{i}].data)") ?? "{}";
+                    var update = System.Text.Json.JsonSerializer.Deserialize<TResult>(updateJson, jsonOptions);
+                    if (update is not null)
+                    {
+                        Updates.Add(update);
+                    }
+                }
+
+                return;
+            }
+
+            // Wait for signal or short timeout
+            try
+            {
+                await _updateReceived.Task.WaitAsync(TimeSpan.FromMilliseconds(100), cts.Token);
+
+                // Signal received, check for updates in next iteration
+            }
+            catch (TimeoutException)
+            {
+                // No signal yet, loop will check updates again
+            }
+            catch (OperationCanceledException)
+            {
+                // Overall timeout reached
+                break;
             }
         }
+
+        throw new JavaScriptProxyExecutionFailed($"No WebSocket update received within {timeout.Value.TotalSeconds} seconds for subscription {SubscriptionId}");
     }
 }
