@@ -5,7 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBased;
 
-[Collection(ObservableQueriesCollection.Name)]
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_observing_controller_all_items : given.a_scenario_web_application
 {
     ObservableQueryExecutionContext<IEnumerable<ObservableControllerQueryItem>>? _executionResult;

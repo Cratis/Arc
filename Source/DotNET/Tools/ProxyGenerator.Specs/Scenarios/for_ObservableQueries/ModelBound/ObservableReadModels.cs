@@ -12,17 +12,17 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
 [ReadModel]
 public class ObservableReadModel
 {
-    static readonly BehaviorSubject<IEnumerable<ObservableReadModel>> _allItemsSubject = new([
+    static BehaviorSubject<IEnumerable<ObservableReadModel>> _allItemsSubject = new([
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Observable Item 1", Value = 1 },
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Observable Item 2", Value = 2 },
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3), Name = "Observable Item 3", Value = 3 }
     ]);
 
-    static readonly BehaviorSubject<ObservableReadModel> _singleItemSubject = new(
+    static BehaviorSubject<ObservableReadModel> _singleItemSubject = new(
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
     );
 
-    static readonly List<IDisposable> _subscriptions = new();
+    static readonly List<IDisposable> _subscriptions = [];
 
     /// <summary>
     /// Gets or sets the ID.
@@ -97,14 +97,23 @@ public class ObservableReadModel
             subscription.Dispose();
         }
 
-        _allItemsSubject.OnNext([
+        // Create fresh subjects with initial data BEFORE completing old ones
+        // This ensures new subscribers don't try to subscribe to completed subjects
+        var oldAllItems = _allItemsSubject;
+        var oldSingleItem = _singleItemSubject;
+
+        _allItemsSubject = new BehaviorSubject<IEnumerable<ObservableReadModel>>([
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Observable Item 1", Value = 1 },
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Observable Item 2", Value = 2 },
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3), Name = "Observable Item 3", Value = 3 }
         ]);
 
-        _singleItemSubject.OnNext(
+        _singleItemSubject = new BehaviorSubject<ObservableReadModel>(
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 });
+
+        // Complete old subjects to disconnect all subscribers (including old WebSocket connections)
+        oldAllItems.OnCompleted();
+        oldSingleItem.OnCompleted();
     }
 }
 
@@ -196,6 +205,12 @@ public class ParameterizedObservableReadModel
             subscription.Dispose();
         }
 
+        // Complete all old subjects to disconnect subscribers (including old WebSocket connections)
+        foreach (var subject in _subjectsByCategory.Values)
+        {
+            subject.OnCompleted();
+        }
+
         _subjectsByCategory.Clear();
     }
 }
@@ -207,7 +222,7 @@ public class ParameterizedObservableReadModel
 public class ComplexObservableReadModel
 {
     static readonly List<IDisposable> _subscriptions = new();
-    static readonly BehaviorSubject<IEnumerable<ComplexObservableReadModel>> _complexItemsSubject = new([
+    static BehaviorSubject<IEnumerable<ComplexObservableReadModel>> _complexItemsSubject = new([
         new ComplexObservableReadModel
         {
             Id = Guid.NewGuid(),
@@ -272,7 +287,10 @@ public class ComplexObservableReadModel
         // for predictable comparison in tests.
         var fixedDate = new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
-        _complexItemsSubject.OnNext([
+        // Create fresh subject with initial data BEFORE completing old one
+        var oldSubject = _complexItemsSubject;
+
+        _complexItemsSubject = new BehaviorSubject<IEnumerable<ComplexObservableReadModel>>([
             new ComplexObservableReadModel
             {
                 Id = Guid.NewGuid(),
@@ -281,6 +299,9 @@ public class ComplexObservableReadModel
                 Items = [new NestedItem { Key = "key1", Value = "value1" }]
             }
         ]);
+
+        // Complete old subject to disconnect all subscribers (including old WebSocket connections)
+        oldSubject.OnCompleted();
     }
 }
 

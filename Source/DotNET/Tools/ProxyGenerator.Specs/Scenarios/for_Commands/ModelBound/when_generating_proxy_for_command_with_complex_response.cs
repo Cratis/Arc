@@ -3,6 +3,8 @@
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_generating_proxy_for_command_with_complex_response : given.a_scenario_web_application
 {
     void Establish() => LoadCommandProxy<CommandWithComplexResponse>("/tmp/command-with-complex-response-generated.ts");

@@ -5,6 +5,8 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_executing_complex_command : given.a_scenario_web_application
 {
     CommandResult<ComplexCommandResult>? _result;

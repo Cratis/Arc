@@ -6,6 +6,8 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_executing_controller_command_that_throws_exception : given.a_scenario_web_application
 {
     CommandResult<object>? _result;

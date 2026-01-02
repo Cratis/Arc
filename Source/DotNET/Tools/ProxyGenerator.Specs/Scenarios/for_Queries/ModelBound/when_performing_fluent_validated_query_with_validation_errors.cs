@@ -5,6 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_fluent_validated_query_with_validation_errors : given.a_scenario_web_application
 {
     QueryExecutionResult<IEnumerable<FluentValidatedReadModel>>? _executionResult;
