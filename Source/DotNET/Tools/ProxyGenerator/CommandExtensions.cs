@@ -60,6 +60,15 @@ public static class CommandExtensions
             property.CollectTypesInvolved(additionalTypesInvolved);
         }
 
+        // Collect types involved from response model properties
+        if (responseModel.Type?.IsKnownType() == false)
+        {
+            foreach (var responseProperty in responseModel.Type.GetPropertyDescriptors())
+            {
+                responseProperty.CollectTypesInvolved(additionalTypesInvolved);
+            }
+        }
+
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
