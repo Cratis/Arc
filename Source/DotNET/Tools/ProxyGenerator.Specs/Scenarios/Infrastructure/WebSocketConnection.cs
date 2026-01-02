@@ -46,7 +46,6 @@ sealed class WebSocketConnection(string id, string url, JavaScriptRuntime runtim
             await _webSocket.ConnectAsync(wsUri, _cts.Token);
 
             // Notify JavaScript that connection is open
-
             _runtime.Execute($@"
 if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     var ws = globalThis.__webSockets['{_id}'];
