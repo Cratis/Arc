@@ -33,11 +33,8 @@
     </ItemGroup>
     <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild">
         <PropertyGroup>
-            <ArcJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc</ArcJavaScriptPath>
             <ArcReactJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc.React</ArcReactJavaScriptPath>
         </PropertyGroup>
-        <Message Text="Building @cratis/arc JavaScript package..." Importance="high" />
-        <Exec Command="yarn build" WorkingDirectory="$(ArcJavaScriptPath)" />
         <Message Text="Building @cratis/arc.react JavaScript package..." Importance="high" />
         <Exec Command="yarn build" WorkingDirectory="$(ArcReactJavaScriptPath)" />
     </Target>
