@@ -185,7 +185,9 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is observable, false if not.</returns>
-    public static bool IsSubject(this Type type) => type.FullName!.StartsWith("System.Reactive.Subjects.ISubject`1");
+    public static bool IsSubject(this Type type) =>
+        type.FullName!.StartsWith("System.Reactive.Subjects.ISubject`1") ||
+        type.FullName!.StartsWith("System.IObservable`1");
 
     /// <summary>
     /// Check if a type is a task or a task of T.
@@ -357,6 +359,16 @@ public static class TypeExtensions
     /// <returns>Converted <see cref="ModelDescriptor"/>.</returns>
     public static ModelDescriptor ToModelDescriptor(this Type type)
     {
+        // Unwrap ActionResult<T> or ActionResult (for controller-based queries/commands)
+        if (type.IsGenericType)
+        {
+            var genericTypeDefinition = type.GetGenericTypeDefinition();
+            if (genericTypeDefinition.FullName == "Microsoft.AspNetCore.Mvc.ActionResult`1")
+            {
+                type = type.GetGenericArguments()[0];
+            }
+        }
+
         var isSubject = type.IsSubject();
         if (isSubject)
         {

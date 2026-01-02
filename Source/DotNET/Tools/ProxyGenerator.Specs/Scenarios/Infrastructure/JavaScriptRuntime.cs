@@ -10,6 +10,8 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 /// </summary>
 public sealed class JavaScriptRuntime : IDisposable
 {
+    readonly string _javaScriptDirectory;
+    readonly string _workspaceRoot;
     bool _disposed;
 
     /// <summary>
@@ -17,7 +19,21 @@ public sealed class JavaScriptRuntime : IDisposable
     /// </summary>
     public JavaScriptRuntime()
     {
+        var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!;
+
+        // Find workspace root by looking for directory containing node_modules
+        _workspaceRoot = FindDirectoryInHierarchy(assemblyDir, "node_modules")
+            ?? throw new DirectoryNotFoundException("Could not find workspace root (node_modules directory not found in parent hierarchy)");
+
+        // Find JavaScript source directory
+        var javaScriptParent = FindDirectoryInHierarchy(assemblyDir, "JavaScript")
+            ?? throw new DirectoryNotFoundException("Could not find JavaScript source directory in parent hierarchy");
+        _javaScriptDirectory = Path.Combine(javaScriptParent, "JavaScript");
+
         Engine = new V8ScriptEngine();
+        Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
+        Engine.AddHostObject("__readJavaScriptFile", new Func<string, string>(ReadJavaScriptFile));
+        Engine.AddHostObject("__fileExists", new Func<string, bool>(FileExists));
         InitializeRuntime();
     }
 
@@ -34,7 +50,7 @@ public sealed class JavaScriptRuntime : IDisposable
     public string TranspileTypeScript(string typeScriptCode)
     {
         var escapedCode = typeScriptCode.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
-        var result = Engine.Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS }})");
+        var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
         return result?.ToString() ?? string.Empty;
     }
 
@@ -86,12 +102,80 @@ public sealed class JavaScriptRuntime : IDisposable
 
     void InitializeRuntime()
     {
-        // Load TypeScript compiler from node_modules
-        var typeScriptCompiler = JavaScriptResources.GetTypeScriptCompiler();
-        Engine.Execute(typeScriptCompiler);
+        // Use cached TypeScript compiler and bootstrap code to avoid disk I/O on every test
+        // The SharedJavaScriptRuntimeFixture loads these once on first access
+        Engine.Execute(SharedJavaScriptRuntimeFixture.TypeScriptCompilerCode);
+        Engine.Execute(SharedJavaScriptRuntimeFixture.ArcBootstrapCode);
 
-        // Load Arc bootstrap code (sets up module environment with shims)
-        var arcBootstrap = JavaScriptResources.GetArcBootstrap();
-        Engine.Execute(arcBootstrap);
+        // Ensure a global module/exports shim exists so scripts executed directly
+        // (outside the module loader) that reference `exports`/`module` do not
+        // throw ReferenceError: exports is not defined.
+        Engine.Execute("\n" +
+                       "            if (!globalThis.module) { globalThis.module = { exports: {} }; }\n" +
+                       "            if (!globalThis.exports) { globalThis.exports = globalThis.module.exports; }\n" +
+                       "        ");
+
+        // Load reflect-metadata polyfill directly
+        try
+        {
+            var reflectMetadata = ReadJavaScriptFile("node_modules/reflect-metadata/Reflect.js");
+            Engine.Execute(reflectMetadata);
+        }
+        catch
+        {
+            // Ignore errors loading reflect-metadata
+        }
+    }
+
+    string ReadTypeScriptFile(string relativePath)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(_javaScriptDirectory, relativePath));
+
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"TypeScript file not found: {relativePath}", fullPath);
+        }
+
+        return File.ReadAllText(fullPath);
+    }
+
+    string ReadJavaScriptFile(string relativePath)
+    {
+        // For node_modules, resolve relative to workspace root; otherwise relative to JavaScript directory
+        var baseDir = relativePath.StartsWith("node_modules/") ? _workspaceRoot : _javaScriptDirectory;
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"JavaScript file not found: {relativePath}", fullPath);
+        }
+
+        return File.ReadAllText(fullPath);
+    }
+
+    bool FileExists(string relativePath)
+    {
+        // For node_modules, resolve relative to workspace root; otherwise relative to JavaScript directory
+        var baseDir = relativePath.StartsWith("node_modules/") ? _workspaceRoot : _javaScriptDirectory;
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        return File.Exists(fullPath);
+    }
+
+    static string? FindDirectoryInHierarchy(string startPath, string directoryName)
+    {
+        var currentDir = new DirectoryInfo(startPath);
+
+        while (currentDir != null)
+        {
+            var targetPath = Path.Combine(currentDir.FullName, directoryName);
+            if (Directory.Exists(targetPath))
+            {
+                return currentDir.FullName;
+            }
+
+            currentDir = currentDir.Parent;
+        }
+
+        return null;
     }
 }

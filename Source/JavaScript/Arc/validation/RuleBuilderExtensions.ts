@@ -5,6 +5,8 @@ import { RuleBuilder } from './RuleBuilder';
 import { NotEmptyRule, NotNullRule } from './rules/NotEmptyRule';
 import { MinLengthRule, MaxLengthRule, LengthRule } from './rules/LengthRules';
 import { EmailRule } from './rules/EmailRule';
+import { PhoneRule } from './rules/PhoneRule';
+import { UrlRule } from './rules/UrlRule';
 import { RegexRule } from './rules/RegexRule';
 import { GreaterThanRule, GreaterThanOrEqualRule, LessThanRule, LessThanOrEqualRule } from './rules/ComparisonRules';
 
@@ -85,6 +87,28 @@ export function emailAddress<T>(this: RuleBuilder<T, string>): RuleBuilder<T, st
 }
 
 /**
+ * Add a rule that the string property must be a valid phone number.
+ * @template T The type being validated.
+ * @param this The rule builder instance.
+ * @returns The rule builder for chaining.
+ */
+export function phone<T>(this: RuleBuilder<T, string>): RuleBuilder<T, string> {
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
+    return this.addRule(new PhoneRule<T>(propertyAccessor));
+}
+
+/**
+ * Add a rule that the string property must be a valid URL.
+ * @template T The type being validated.
+ * @param this The rule builder instance.
+ * @returns The rule builder for chaining.
+ */
+export function url<T>(this: RuleBuilder<T, string>): RuleBuilder<T, string> {
+    const propertyAccessor = (this as unknown as { _propertyAccessor: (instance: T) => string })._propertyAccessor;
+    return this.addRule(new UrlRule<T>(propertyAccessor));
+}
+
+/**
  * Add a rule that the string property must match the specified regular expression.
  * @template T The type being validated.
  * @param this The rule builder instance.
@@ -152,6 +176,8 @@ RuleBuilder.prototype.notNull = notNull;
 (RuleBuilder.prototype as unknown as { maxLength: typeof maxLength }).maxLength = maxLength;
 (RuleBuilder.prototype as unknown as { length: typeof length }).length = length;
 (RuleBuilder.prototype as unknown as { emailAddress: typeof emailAddress }).emailAddress = emailAddress;
+(RuleBuilder.prototype as unknown as { phone: typeof phone }).phone = phone;
+(RuleBuilder.prototype as unknown as { url: typeof url }).url = url;
 (RuleBuilder.prototype as unknown as { matches: typeof matches }).matches = matches;
 (RuleBuilder.prototype as unknown as { greaterThan: typeof greaterThan }).greaterThan = greaterThan;
 (RuleBuilder.prototype as unknown as { greaterThanOrEqual: typeof greaterThanOrEqual }).greaterThanOrEqual = greaterThanOrEqual;
@@ -167,6 +193,8 @@ declare module './RuleBuilder' {
         maxLength(length: number): RuleBuilder<T, TProperty>;
         length(min: number, max: number): RuleBuilder<T, TProperty>;
         emailAddress(): RuleBuilder<T, TProperty>;
+        phone(): RuleBuilder<T, TProperty>;
+        url(): RuleBuilder<T, TProperty>;
         matches(pattern: RegExp, errorMessage?: string): RuleBuilder<T, TProperty>;
         greaterThan(threshold: number): RuleBuilder<T, TProperty>;
         greaterThanOrEqual(threshold: number): RuleBuilder<T, TProperty>;

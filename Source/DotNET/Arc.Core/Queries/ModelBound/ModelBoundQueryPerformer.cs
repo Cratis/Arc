@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Authorization;
-using Cratis.Reflection;
 using Cratis.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -83,6 +82,18 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         return result;
     }
 
+    static bool IsNullableOrOptional(ParameterInfo parameter)
+    {
+        if (parameter.HasDefaultValue)
+        {
+            return true;
+        }
+
+        var type = parameter.ParameterType;
+
+        return !type.IsValueType || Nullable.GetUnderlyingType(type) is not null;
+    }
+
     object?[] GetMethodArguments(ParameterInfo[] parameters, object[] dependencies, QueryArguments queryStringParameters)
     {
         var dependencyIndex = 0;
@@ -108,6 +119,10 @@ public class ModelBoundQueryPerformer : IQueryPerformer
                 {
                     args[i] = matchingQueryParam.Value.ConvertTo(parameter.ParameterType);
                 }
+                else if (parameter.HasDefaultValue)
+                {
+                    args[i] = parameter.DefaultValue;
+                }
             }
         }
 
@@ -122,7 +137,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
             var parameter = parameters[i];
             var arg = args[i];
 
-            if (arg is null && !parameter.ParameterType.IsNullable())
+            if (arg is null && !IsNullableOrOptional(parameter))
             {
                 throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
             }

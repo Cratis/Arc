@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
+using Cratis.Json;
 using Cratis.Reflection;
 using Microsoft.Extensions.Logging;
 
@@ -13,13 +14,12 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents an implementation of <see cref="IObservableQueryHandler"/> for base Arc.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="StreamingQueryHandler"/> class.
-/// </remarks>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 [Singleton]
 public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObservableQueryHandler
 {
+    readonly JsonSerializerOptions _jsonSerializerOptions = Globals.JsonSerializerOptions;
+
     /// <inheritdoc/>
     public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
         context.WebSockets.IsWebSocketRequest;
@@ -108,10 +108,29 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
     async Task HandleSubjectViaHttp(IHttpRequestContext context, object streamingData)
 #pragma warning restore IDE0060
     {
-        // For HTTP, we need to serialize the current state
-        // This is a simplified version - in reality you might want to buffer initial values
-        await context.WriteResponseAsJsonAsync(new { message = "Observable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
+        // For HTTP, serialize the current state from BehaviorSubject if available
+        // This allows HTTP clients to get a snapshot of the observable's current value
+        var type = streamingData.GetType();
+        var subjectType = type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
+
+        if (subjectType is not null)
+        {
+            var elementType = subjectType.GetGenericArguments()[0];
+
+            // Check if it's a BehaviorSubject which has a Value property
+            var valueProperty = type.GetProperty("Value");
+            if (valueProperty is not null)
+            {
+                var currentValue = valueProperty.GetValue(streamingData);
+                context.SetStatusCode(200);
+                await context.WriteResponseAsJsonAsync(new { data = currentValue }, typeof(object), context.RequestAborted);
+                return;
+            }
+        }
+
+        // Fallback: observable queries without current state require WebSocket
         context.SetStatusCode(400);
+        await context.WriteResponseAsJsonAsync(new { message = "Observable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
     }
 
     async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
@@ -141,15 +160,42 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
     async Task SubscribeToSubject<T>(ISubject<T> subject, IWebSocket webSocket, CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource();
+        var sendQueue = System.Threading.Channels.Channel.CreateUnbounded<byte[]>();
+
+        // Background task to process send queue
+        var sendTask = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await foreach (var bytes in sendQueue.Reader.ReadAllAsync(cancellationToken))
+                    {
+                        await webSocket.SendAsync(
+                            new ArraySegment<byte>(bytes),
+                            System.Net.WebSockets.WebSocketMessageType.Text,
+                            true,
+                            cancellationToken);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancelled
+                }
+                catch (Exception ex)
+                {
+                    logger.ErrorSendingWebSocketMessage(ex);
+                }
+            },
+            cancellationToken);
 
         using var subscription = subject.Subscribe(
             value =>
             {
                 try
                 {
-                    var json = JsonSerializer.Serialize(value);
+                    var json = JsonSerializer.Serialize(value, _jsonSerializerOptions);
                     var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-                    webSocket.SendAsync(new ArraySegment<byte>(bytes), System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken).Wait(cancellationToken);
+                    sendQueue.Writer.TryWrite(bytes);
                 }
                 catch (Exception ex)
                 {
@@ -159,17 +205,24 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
             error =>
             {
                 logger.ObservableError(error);
+                sendQueue.Writer.Complete();
                 tcs.TrySetResult();
             },
             () =>
             {
                 logger.StreamingObservableCompleted();
+                sendQueue.Writer.Complete();
                 tcs.TrySetResult();
             });
 
-        cancellationToken.Register(() => tcs.TrySetCanceled());
+        cancellationToken.Register(() =>
+        {
+            sendQueue.Writer.Complete();
+            tcs.TrySetCanceled();
+        });
 
         await tcs.Task;
+        await sendTask;
         await webSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "Completed", CancellationToken.None);
     }
 

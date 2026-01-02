@@ -5,6 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_query_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     QueryExecutionResult<IEnumerable<FluentValidatedReadModel>>? _executionResult;
@@ -32,6 +34,6 @@ public class when_performing_query_with_validation_errors_produced_by_the_client
     [Fact] void should_have_email_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("email"));
     [Fact] void should_have_email_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("email") && v.Message == FluentValidatedReadModelGetByEmailAndAgeValidator.EmailRequiredMessage);
     [Fact] void should_have_minAge_validation_error() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge"));
-    [Fact] void should_have_minAge_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge") && v.Message == "Value must be greater than or equal to 0");
+    [Fact] void should_have_minAge_validation_message() => _executionResult.Result.ValidationResults.ShouldContain(v => v.Members.Contains("minAge") && v.Message == FluentValidatedReadModelGetByEmailAndAgeValidator.AgeRangeMessage);
     [Fact] void should_not_roundtrip_to_server() => FluentValidatedReadModel.GetByEmailCallCount.ShouldEqual(0);
 }

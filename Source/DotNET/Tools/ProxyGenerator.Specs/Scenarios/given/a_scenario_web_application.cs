@@ -1,13 +1,16 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.ControllerBased;
 using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,6 +22,8 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.given;
 /// </summary>
 public class a_scenario_web_application : Specification, IDisposable
 {
+    readonly HashSet<Type> _loadedTypes = [];
+
     /// <summary>
     /// Gets or sets the web application factory.
     /// </summary>
@@ -39,34 +44,59 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     protected JavaScriptHttpBridge? Bridge { get; set; }
 
-    void Establish()
-    {
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseTestServer();
+    /// <summary>
+    /// Gets the base URL of the running server.
+    /// </summary>
+    protected string? ServerUrl { get; set; }
 
-        // Suppress verbose logging during tests
+    async Task Establish()
+    {
+        // Reset static test data for test isolation - must happen BEFORE test runs
+        for_ObservableQueries.ModelBound.ObservableReadModel.Reset();
+        for_ObservableQueries.ModelBound.ParameterizedObservableReadModel.Reset();
+        for_ObservableQueries.ModelBound.ComplexObservableReadModel.Reset();
+
+        var builder = WebApplication.CreateBuilder();
+
+        // Use Kestrel instead of TestServer to support real WebSocket connections
+        builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0, listenOptions => listenOptions.Protocols = HttpProtocols.Http1AndHttp2));
+
+        // Enable logging for debugging
         builder.Logging.ClearProviders();
-        builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
         builder.Services.AddControllers()
             .AddApplicationPart(typeof(a_scenario_web_application).Assembly);
 
         builder.Services.AddRouting();
-        builder.Host.AddCratisArc(_ => { });
+        builder.AddCratisArc(_ => { });
+
+        // Register controller state as singleton for test isolation
+        builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
 
         var app = builder.Build();
 
+        // Add exception handling for better error visibility
+        app.UseDeveloperExceptionPage();
+
+        app.UseWebSockets();
         app.UseRouting();
         app.UseCratisArc();
         app.MapControllers();
 
         // Start the application
         Host = app;
-        app.Start();
+        await app.StartAsync();
 
-        HttpClient = app.GetTestClient();
+        // Get the actual server address
+        var server = app.Services.GetRequiredService<IServer>();
+        var addresses = server.Features.Get<IServerAddressesFeature>();
+        ServerUrl = addresses?.Addresses.FirstOrDefault() ?? "http://localhost:5000";
+
+        // Create HTTP client pointing to the real server
+        HttpClient = new HttpClient { BaseAddress = new Uri(ServerUrl) };
+
         Runtime = new JavaScriptRuntime();
-        Bridge = new JavaScriptHttpBridge(Runtime, HttpClient);
+        Bridge = new JavaScriptHttpBridge(Runtime, HttpClient, ServerUrl);
     }
 
     /// <summary>
@@ -101,8 +131,9 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     /// <typeparam name="TController">The controller type.</typeparam>
     /// <param name="methodName">The name of the controller method.</param>
+    /// <param name="saveToFile">Optional file path to save the generated TypeScript code.</param>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the method is not found.</exception>
-    protected void LoadControllerCommandProxy<TController>(string methodName)
+    protected void LoadControllerCommandProxy<TController>(string methodName, string? saveToFile = null)
     {
         var controllerType = typeof(TController).GetTypeInfo();
         var method = controllerType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)
@@ -113,6 +144,12 @@ public class a_scenario_web_application : Specification, IDisposable
             segmentsToSkip: 0);
 
         var code = InMemoryProxyGenerator.GenerateCommand(descriptor);
+
+        if (!string.IsNullOrEmpty(saveToFile))
+        {
+            File.WriteAllText(saveToFile, code);
+        }
+
         Bridge.LoadTypeScript(code);
     }
 
@@ -146,7 +183,9 @@ public class a_scenario_web_application : Specification, IDisposable
             File.WriteAllText(saveToFile, code);
         }
 
-        Bridge.LoadTypeScript(code);
+        // For Observable queries, don't wrap in module scope
+        var isObservable = descriptor.IsObservable;
+        Bridge.LoadTypeScript(code, wrapInModuleScope: !isObservable);
     }
 
     /// <summary>
@@ -156,9 +195,23 @@ public class a_scenario_web_application : Specification, IDisposable
     /// <param name="saveBasePath">Optional base path for saving generated files.</param>
     protected void LoadTypesAndEnums(IEnumerable<Type> types, string? saveBasePath = null)
     {
-        var typesList = types.Distinct().ToList();
+        // Load types twice to ensure dependencies are available
+        // First pass loads types but some may have missing dependencies
+        // Second pass ensures all dependencies from first pass are now available
+        LoadTypesAndEnumsPass(types, saveBasePath);
+        LoadTypesAndEnumsPass(types, saveBasePath);
+    }
+
+    void LoadTypesAndEnumsPass(IEnumerable<Type> types, string? saveBasePath = null)
+    {
+        var typesList = types.Distinct().Where(t => !_loadedTypes.Contains(t)).ToList();
         var enums = typesList.Where(_ => _.IsEnum).ToList();
         var nonEnums = typesList.Where(_ => !_.IsEnum).ToList();
+
+        if (typesList.Count == 0)
+        {
+            return;
+        }
 
         var baseDir = !string.IsNullOrEmpty(saveBasePath) ? Path.GetDirectoryName(saveBasePath) : null;
 
@@ -175,6 +228,7 @@ public class a_scenario_web_application : Specification, IDisposable
             }
 
             Bridge.LoadTypeScript(enumCode);
+            _loadedTypes.Add(enumType);
         }
 
         // Generate and load type files
@@ -190,6 +244,7 @@ public class a_scenario_web_application : Specification, IDisposable
             }
 
             Bridge.LoadTypeScript(typeCode);
+            _loadedTypes.Add(type);
         }
     }
 
@@ -209,8 +264,12 @@ public class a_scenario_web_application : Specification, IDisposable
             targetPath: string.Empty,
             segmentsToSkip: 0);
 
+        // Load all types and enums that are involved
+        LoadTypesAndEnums(descriptor.TypesInvolved);
+
         var code = InMemoryProxyGenerator.GenerateQuery(descriptor);
         Bridge.LoadTypeScript(code);
+        Bridge.Runtime.Execute($"var __testQuery = new {descriptor.Name}();");
     }
 
     /// <inheritdoc/>

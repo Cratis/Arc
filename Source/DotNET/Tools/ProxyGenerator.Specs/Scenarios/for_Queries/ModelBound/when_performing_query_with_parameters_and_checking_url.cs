@@ -5,6 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_query_with_parameters_and_checking_url : given.a_scenario_web_application
 {
     QueryExecutionResult<IEnumerable<ParameterizedReadModel>>? _executionResult;

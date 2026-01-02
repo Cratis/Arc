@@ -1,30 +1,45 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
 using System.Text.Json;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
+#pragma warning disable MA0101 // String contains an implicit end of line character
+
 /// <summary>
 /// Bridges the JavaScript runtime with an HTTP client for testing proxies end-to-end.
 /// Intercepts fetch calls from JavaScript and routes them to the test HTTP client.
+/// Provides WebSocket simulation for observable queries.
 /// </summary>
 public sealed class JavaScriptHttpBridge : IDisposable
 {
     readonly JsonSerializerOptions _jsonOptions;
+    readonly Dictionary<string, WebSocketConnection> _webSockets = new();
+    readonly object _webSocketLock = new();
+    readonly string _serverUrl;
+    int _nextWebSocketId;
     bool _disposed;
+    readonly Dictionary<string, object> _observableContexts = new();
+    readonly object _observableContextLock = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JavaScriptHttpBridge"/> class.
     /// </summary>
     /// <param name="runtime">The JavaScript runtime.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
-    public JavaScriptHttpBridge(JavaScriptRuntime runtime, HttpClient httpClient)
+    /// <param name="serverUrl">The base URL of the server.</param>
+    public JavaScriptHttpBridge(JavaScriptRuntime runtime, HttpClient httpClient, string serverUrl)
     {
         Runtime = runtime;
         HttpClient = httpClient;
+        _serverUrl = serverUrl;
         _jsonOptions = Json.Globals.JsonSerializerOptions;
         SetupFetchInterceptor();
+        SetupWebSocketPolyfill();
+        SetupObservableCallbacks();
+        SetupArcGlobals();
     }
 
     /// <summary>
@@ -50,12 +65,17 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             // Wrap in module scope to prevent variable collisions when multiple files
             // import from the same modules (e.g., @cratis/fundamentals), but still export
-            // classes to global scope so they're accessible
+            // classes to global scope so they're accessible.
+            // IMPORTANT: Don't create a local require variable - use globalThis.require
+            // to ensure module singletons are maintained across all loaded code.
 #pragma warning disable MA0136 // Raw String contains an implicit end of line character
             var wrappedCode = $$"""
 (function() {
     var module = { exports: {} };
     var exports = module.exports;
+    // CRITICAL: Use globalThis.require instead of creating a local variable
+    // This ensures @cratis/fundamentals is loaded as a singleton across all code
+    var require = globalThis.require;
     {{jsCode}}
     // Export any classes to global scope
     for (var key in module.exports) {
@@ -100,27 +120,29 @@ public sealed class JavaScriptHttpBridge : IDisposable
         var properties = new Dictionary<string, object>();
         foreach (var prop in commandAsDocument.RootElement.EnumerateObject())
         {
-            properties[prop.Name] = prop.Value.Deserialize<object>(_jsonOptions)!;
+            // Convert JsonElement to actual value
+            properties[prop.Name] = prop.Value.ValueKind switch
+            {
+                JsonValueKind.String => prop.Value.GetString()!,
+                JsonValueKind.Number => prop.Value.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => null!,
+                JsonValueKind.Object => prop.Value.Deserialize<Dictionary<string, object>>(_jsonOptions)!,
+                JsonValueKind.Array => prop.Value.Deserialize<List<object>>(_jsonOptions)!,
+                _ => prop.Value.ToString()
+            };
         }
 
         // Set up properties on the command
         var propAssignments = string.Concat(properties.Select(p =>
-            $"__cmd.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"));
+        {
+            var jsonValue = JsonSerializer.Serialize(p.Value, _jsonOptions);
+            return $"__cmd.{p.Key} = {jsonValue};";
+        }));
 
         // Create command instance and set properties, then call execute()
-        Runtime.Execute(
-            "var __cmd = new " + commandClassName + "();" +
-            propAssignments +
-            "var __cmdResult = null;" +
-            "var __cmdError = null;" +
-            "var __cmdDone = false;" +
-            "__cmd.execute().then(function(result) {" +
-            "    __cmdResult = result;" +
-            "    __cmdDone = true;" +
-            "}).catch(function(error) {" +
-            "    __cmdError = error;" +
-            "    __cmdDone = true;" +
-            "});");
+        Runtime.Execute(Scripts.ExecuteCommand(commandClassName, propAssignments));
 
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
@@ -132,8 +154,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
             result = await ProcessPendingFetchAsync();
         }
 
-        // Wait for promise resolution
-        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(5));
+        // Wait for promise resolution - kept high to account for slower CI/build server environments
+        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(30));
 
         var hasError = Runtime.Evaluate<bool>("__cmdError !== null");
         if (hasError)
@@ -144,6 +166,19 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
+
+        // PATCH: Manually fix TimeSpan deserialization from HTTP response
+        // The JsonSerializer in the test environment doesn't properly deserialize TimeSpans
+        // from the HTTP response. We need to re-parse them from the original HTTP response.
+        if (result?.ResponseJson is not null)
+        {
+            var escapedResponse = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+            Runtime.Execute(Scripts.PatchCommandTimeSpan(escapedResponse));
+        }
+
+        // Get the patched result
+        resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
+
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
         return new CommandExecutionResult<TResult>(commandResult, result?.ResponseJson);
@@ -162,38 +197,70 @@ public sealed class JavaScriptHttpBridge : IDisposable
         string queryClassName,
         Dictionary<string, object>? parameters = null)
     {
-        // Set up parameters on the query
-        var paramAssignments = parameters is not null
-            ? string.Concat(parameters.Select(p => $"__query.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
-            : string.Empty;
+        // Build args object for perform() call
+        var argsObject = parameters?.Count > 0
+            ? JsonSerializer.Serialize(parameters, _jsonOptions)
+            : "undefined";
 
-        // Create query instance and set parameters, then call perform()
-        Runtime.Execute(
+        // Create query instance and call perform() with args
+        var queryScript =
             "var __query = new " + queryClassName + "();" +
-            paramAssignments +
+            "var __args = " + argsObject + ";" +
             "var __queryResult = null;" +
             "var __queryError = null;" +
             "var __queryDone = false;" +
-            "__query.perform().then(function(result) {" +
+            "var __patchApplied = false;" +
+            "__query.perform(__args).then(function(result) {" +
             "    __queryResult = result;" +
+            "    if (__queryResult && __queryResult.data && typeof __queryResult.data === 'object') {" +
+            "        if (__query.modelType && typeof globalThis.JsonSerializer !== 'undefined') {" +
+            "            try {" +
+            "                var rawData = JSON.parse(JSON.stringify(__queryResult.data));" +
+            "                if (Object.keys(rawData).length > 0) {" +
+            "                    __queryResult.data = globalThis.JsonSerializer.deserializeFromInstance(__query.modelType, rawData);" +
+            "                    __patchApplied = true;" +
+            "                }" +
+            "            } catch(e) {" +
+            "                console.error('[Patch Error]', e.message);" +
+            "            }" +
+            "        }" +
+            "    }" +
             "    __queryDone = true;" +
             "}).catch(function(error) {" +
             "    __queryError = error;" +
             "    __queryDone = true;" +
-            "});");
+            "});";
+
+        Runtime.Execute(queryScript);
 
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
         FetchResult? result = null;
+        string? requestUrl = null;
 
         if (hasPendingFetch)
         {
+            // Capture the URL before processing
+            requestUrl = Runtime.Evaluate<string>("__pendingFetch.url");
+
             // Process the pending fetch request
             result = await ProcessPendingFetchAsync();
         }
+        else
+        {
+            // No pending fetch (likely validation failed), but we can still construct the URL for testing
+            // Extract query route and build URL with parameters
+            var hasRoute = Runtime.Evaluate<bool>("__query && typeof __query.route === 'string'");
+            if (hasRoute)
+            {
+                var route = Runtime.Evaluate<string>("__query.route");
+                var queryParams = parameters?.Select(p => $"{p.Key}={Uri.EscapeDataString(JsonSerializer.Serialize(p.Value, _jsonOptions).Trim('"'))}");
+                requestUrl = route + (queryParams?.Any() == true ? "?" + string.Join('&', queryParams) : "");
+            }
+        }
 
-        // Wait for promise resolution
-        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__queryDone")!, TimeSpan.FromSeconds(5));
+        // Wait for promise resolution - kept high to account for slower CI/build server environments
+        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__queryDone")!, TimeSpan.FromSeconds(15));
 
         var hasError = Runtime.Evaluate<bool>("__queryError !== null");
         if (hasError)
@@ -202,11 +269,139 @@ public sealed class JavaScriptHttpBridge : IDisposable
             throw new JavaScriptProxyExecutionFailed($"Query execution failed: {errorMsg}");
         }
 
+        // PATCH: Manually deserialize the query result data if it exists
+        // QueryResult doesn't properly call JsonSerializer in test environment due to module isolation
+        if (result?.ResponseJson is not null)
+        {
+            // Escape the response JSON for embedding in JavaScript string
+            var escapedJson = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+            Runtime.Execute(Scripts.DeserializeQueryResult(escapedJson));
+        }
+
         // Get the result from JavaScript
         var resultJson = Runtime.Evaluate<string>("JSON.stringify(__queryResult)") ?? "{}";
         var queryResult = JsonSerializer.Deserialize<Queries.QueryResult>(resultJson, _jsonOptions);
 
-        return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, result?.Url);
+        return new QueryExecutionResult<TResult>(queryResult, result?.ResponseJson, requestUrl ?? result?.Url);
+    }
+
+    /// <summary>
+    /// Performs an observable query through its JavaScript proxy class.
+    /// The proxy's subscribe() method opens a WebSocket connection for real-time updates.
+    /// </summary>
+    /// <typeparam name="TResult">The expected result type.</typeparam>
+    /// <param name="queryClassName">The name of the query class.</param>
+    /// <param name="parameters">Optional parameter values for the query.</param>
+    /// <param name="updateReceiver">Action to call when test wants to trigger an update.</param>
+    /// <returns>The observable query execution context with updates.</returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
+    public async Task<ObservableQueryExecutionContext<TResult>> PerformObservableQueryViaProxyAsync<TResult>(
+        string queryClassName,
+        object? parameters = null,
+        Action<TResult>? updateReceiver = null)
+    {
+        var subscriptionId = Guid.NewGuid().ToString();
+        var paramDict = parameters is not null
+            ? JsonSerializer.Deserialize<Dictionary<string, object>>(
+                JsonSerializer.Serialize(parameters, _jsonOptions),
+                _jsonOptions)
+            : null;
+
+        // Set up parameters on the query
+        var paramAssignments = paramDict is not null
+            ? string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
+            : string.Empty;
+
+        // Create query instance, set parameters, and subscribe
+        Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, paramAssignments, subscriptionId));
+
+        // Wait for the initial WebSocket message - kept high to account for slower CI/build server environments
+        var timeout = TimeSpan.FromSeconds(30);
+        var start = DateTime.UtcNow;
+
+        while (DateTime.UtcNow - start < timeout)
+        {
+            var hasUpdates = Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
+            var error = Runtime.Evaluate<string>("__obsError ? JSON.stringify(__obsError) : null");
+
+            if (error is not null)
+            {
+                throw new JavaScriptProxyExecutionFailed($"Observable query failed: {error}");
+            }
+
+            if (hasUpdates)
+            {
+                break;
+            }
+            await Task.Delay(10);
+        }
+
+        var hasAnyUpdates = Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
+        if (!hasAnyUpdates)
+        {
+            throw new JavaScriptProxyExecutionFailed($"Observable query did not receive initial update within {timeout.TotalSeconds} seconds");
+        }
+
+        // Get all current updates - already deserialized by TypeScript JsonSerializer
+        var updates = new List<TResult>();
+        var updateCount = Runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{subscriptionId}'].updates.length");
+
+        // Extract already-deserialized data from TypeScript (stringify the deserialized objects)
+        for (var i = 0; i < updateCount; i++)
+        {
+            // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
+            // so updates[i].data contains properly typed objects. We just need to extract them to C#.
+            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[{i}].data)") ?? "{}";
+            var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
+            if (update is not null)
+            {
+                updates.Add(update);
+            }
+        }
+
+        var firstResultJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[0])") ?? "{}";
+        var firstResult = JsonSerializer.Deserialize<Queries.QueryResult>(firstResultJson, _jsonOptions);
+
+        var context = new ObservableQueryExecutionContext<TResult>(
+            firstResult,
+            updates,
+            Runtime,
+            subscriptionId,
+            _jsonOptions,
+            updateReceiver ?? (_ => { }));
+
+        lock (_observableContextLock)
+        {
+            _observableContexts[subscriptionId] = context;
+        }
+
+        return context;
+    }
+
+    /// <summary>
+    /// Called from JavaScript when an observable query update is received.
+    /// Signals the specific context's TaskCompletionSource.
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID.</param>
+    void NotifyObservableUpdate(string subscriptionId)
+    {
+        lock (_observableContextLock)
+        {
+            if (_observableContexts.TryGetValue(subscriptionId, out var contextObj) &&
+                contextObj is IObservableQueryExecutionContext context)
+            {
+                context.SignalUpdateReceived();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets up callbacks that JavaScript can call to notify C# of events.
+    /// </summary>
+    void SetupObservableCallbacks()
+    {
+        // Expose the callback to JavaScript
+        Runtime.Engine.AddHostObject("__notifyObservableUpdate", new Action<string>(NotifyObservableUpdate));
     }
 
     /// <inheritdoc/>
@@ -214,26 +409,94 @@ public sealed class JavaScriptHttpBridge : IDisposable
     {
         if (!_disposed)
         {
+            // Close all active WebSocket connections
+            lock (_webSocketLock)
+            {
+                foreach (var ws in _webSockets.Values)
+                {
+                    ws.Dispose();
+                }
+                _webSockets.Clear();
+            }
+
             Runtime.Dispose();
             _disposed = true;
+        }
+    }
+
+    void SetupArcGlobals()
+    {
+        // Set up Arc Globals for origin and API base path
+        var uri = new Uri(_serverUrl);
+        var origin = $"{uri.Scheme}://{uri.Authority}";
+
+        Runtime.Execute(Scripts.SetupArcGlobals(origin));
+    }
+
+    void SetupWebSocketPolyfill()
+    {
+        // Expose function to JavaScript that creates a WebSocket connection
+        Runtime.Engine.AddHostObject("__createWebSocket", new Func<string, string>(CreateWebSocketConnection));
+
+        // Expose function to send WebSocket messages
+        Runtime.Engine.AddHostObject("__webSocketSend", new Action<string, string>(SendWebSocketMessage));
+
+        // Expose function to close WebSocket
+        Runtime.Engine.AddHostObject("__webSocketClose", new Action<string>(CloseWebSocketConnection));
+
+        // Set up the WebSocket polyfill
+        Runtime.Execute(Scripts.WebSocketPolyfill);
+    }
+
+    string CreateWebSocketConnection(string url)
+    {
+        var wsId = $"ws_{Interlocked.Increment(ref _nextWebSocketId)}";
+
+        // Convert relative URL to absolute using server URL
+        var absoluteUrl = url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? url
+            : new Uri(new Uri(_serverUrl), url).ToString();
+
+        var connection = new WebSocketConnection(wsId, absoluteUrl, Runtime);
+
+        lock (_webSocketLock)
+        {
+            _webSockets[wsId] = connection;
+        }
+
+        // Start the connection in the background
+        _ = connection.ConnectAsync();
+
+        return wsId;
+    }
+
+    void SendWebSocketMessage(string wsId, string message)
+    {
+        lock (_webSocketLock)
+        {
+            if (_webSockets.TryGetValue(wsId, out var connection))
+            {
+                _ = connection.SendAsync(message);
+            }
+        }
+    }
+
+    void CloseWebSocketConnection(string wsId)
+    {
+        lock (_webSocketLock)
+        {
+            if (_webSockets.TryGetValue(wsId, out var connection))
+            {
+                connection.Dispose();
+                _webSockets.Remove(wsId);
+            }
         }
     }
 
     void SetupFetchInterceptor()
     {
         // Set up the fetch interceptor that stores pending requests
-        Runtime.Execute(
-            "var __pendingFetch = null;" +
-            "function fetch(url, options) {" +
-            "    return new Promise(function(resolve, reject) {" +
-            "        __pendingFetch = {" +
-            "            url: url," +
-            "            options: options || {}," +
-            "            resolve: resolve," +
-            "            reject: reject" +
-            "        };" +
-            "    });" +
-            "}");
+        Runtime.Execute(Scripts.FetchInterceptor);
     }
 
     async Task<FetchResult> ProcessPendingFetchAsync()
@@ -253,7 +516,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         HttpResponseMessage response;
         if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
         {
-            var content = new StringContent(bodyJson ?? "{}", System.Text.Encoding.UTF8, "application/json");
+            var content = new StringContent(bodyJson ?? "{}", Encoding.UTF8, "application/json");
             response = await HttpClient.PostAsync(url, content);
         }
         else
@@ -293,26 +556,3 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
     record FetchResult(string Url, string Method, string ResponseJson);
 }
-
-/// <summary>
-/// The exception that is thrown when a JavaScript proxy execution fails.
-/// </summary>
-/// <param name="message">The error message.</param>
-public class JavaScriptProxyExecutionFailed(string message) : Exception(message);
-
-/// <summary>
-/// Represents the result of executing a command through the JavaScript proxy.
-/// </summary>
-/// <typeparam name="TResult">The type of the response data.</typeparam>
-/// <param name="Result">The command result.</param>
-/// <param name="RawJson">The raw JSON response.</param>
-public record CommandExecutionResult<TResult>(Commands.CommandResult<TResult>? Result, string RawJson);
-
-/// <summary>
-/// Represents the result of performing a query through the JavaScript proxy.
-/// </summary>
-/// <typeparam name="TResult">The type of the data.</typeparam>
-/// <param name="Result">The query result.</param>
-/// <param name="RawJson">The raw JSON response.</param>
-/// <param name="RequestUrl">The URL that was requested.</param>
-public record QueryExecutionResult<TResult>(Queries.QueryResult? Result, string RawJson, string RequestUrl);

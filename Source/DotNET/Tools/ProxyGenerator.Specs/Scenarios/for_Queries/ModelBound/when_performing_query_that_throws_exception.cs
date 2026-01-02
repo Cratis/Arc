@@ -5,6 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_query_that_throws_exception : given.a_scenario_web_application
 {
     QueryExecutionResult<ExceptionReadModel>? _executionResult;

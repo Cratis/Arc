@@ -299,3 +299,81 @@ public class FluentValidatedCommandValidator : CommandValidator<FluentValidatedC
         RuleFor(c => c.Email).NotEmpty().EmailAddress().WithMessage(EmailRequiredMessage);
     }
 }
+
+/// <summary>
+/// A command with a response type that has complex nested types.
+/// </summary>
+[Command]
+public class CommandWithComplexResponse
+{
+    /// <summary>
+    /// Gets or sets the input value.
+    /// </summary>
+    public string Input { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Handles the command and returns a complex result with nested types.
+    /// </summary>
+    /// <returns>The command result with nested complex types.</returns>
+    public CommandResultWithNestedTypes Handle() => new()
+    {
+        Message = $"Processed: {Input}",
+        Details = new CommandResultDetails
+        {
+            ProcessedAt = DateTime.UtcNow,
+            Metadata = new CommandResultMetadata
+            {
+                Source = "ProxyGenerator.Specs",
+                Version = "1.0.0"
+            }
+        }
+    };
+}
+
+/// <summary>
+/// Result for CommandWithComplexResponse with nested complex types.
+/// </summary>
+public class CommandResultWithNestedTypes
+{
+    /// <summary>
+    /// Gets or sets the message.
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the details which is a complex type.
+    /// </summary>
+    public CommandResultDetails? Details { get; set; }
+}
+
+/// <summary>
+/// Details within the command result - a complex type.
+/// </summary>
+public class CommandResultDetails
+{
+    /// <summary>
+    /// Gets or sets when this was processed.
+    /// </summary>
+    public DateTime ProcessedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets metadata which is another complex type.
+    /// </summary>
+    public CommandResultMetadata? Metadata { get; set; }
+}
+
+/// <summary>
+/// Metadata within command result details - another level of complex type.
+/// </summary>
+public class CommandResultMetadata
+{
+    /// <summary>
+    /// Gets or sets the source.
+    /// </summary>
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the version.
+    /// </summary>
+    public string Version { get; set; } = string.Empty;
+}

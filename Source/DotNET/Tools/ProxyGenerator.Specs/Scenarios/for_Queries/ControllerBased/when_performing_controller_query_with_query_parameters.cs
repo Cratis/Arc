@@ -5,6 +5,8 @@ using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ControllerBased;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_controller_query_with_query_parameters : given.a_scenario_web_application
 {
     QueryResult? _result;

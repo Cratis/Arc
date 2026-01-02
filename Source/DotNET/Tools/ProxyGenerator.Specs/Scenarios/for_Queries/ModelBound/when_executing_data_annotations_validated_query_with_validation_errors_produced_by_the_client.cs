@@ -5,6 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_executing_data_annotations_validated_query_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     QueryExecutionResult<IEnumerable<DataAnnotationsValidatedReadModel>>? _executionResult;

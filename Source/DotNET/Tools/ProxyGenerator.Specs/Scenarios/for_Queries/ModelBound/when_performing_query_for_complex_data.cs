@@ -5,6 +5,8 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_query_for_complex_data : given.a_scenario_web_application
 {
     QueryExecutionResult<ComplexReadModel>? _executionResult;
@@ -20,7 +22,7 @@ public class when_performing_query_for_complex_data : given.a_scenario_web_appli
     {
         var parameters = new Dictionary<string, object>
         {
-            ["id"] = _testId.ToString()
+            ["id"] = _testId
         };
 
         _executionResult = await Bridge.PerformQueryViaProxyAsync<ComplexReadModel>("GetComplex", parameters);
@@ -28,13 +30,15 @@ public class when_performing_query_for_complex_data : given.a_scenario_web_appli
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_data() => _executionResult.Result.Data.ShouldNotBeNull();
-    [Fact] void should_have_nested_data()
+    [Fact]
+    void should_have_nested_data()
     {
         var complexData = System.Text.Json.JsonSerializer.Deserialize<ComplexReadModel>(_executionResult.Result.Data.ToString(), Json.Globals.JsonSerializerOptions);
         complexData.ShouldNotBeNull();
         complexData.NestedData.ShouldNotBeNull();
     }
-    [Fact] void should_have_correct_duration()
+    [Fact]
+    void should_have_correct_duration()
     {
         var complexData = System.Text.Json.JsonSerializer.Deserialize<ComplexReadModel>(_executionResult.Result.Data.ToString(), Json.Globals.JsonSerializerOptions);
         complexData.NestedData.Duration.ShouldEqual(TimeSpan.FromHours(2.5));

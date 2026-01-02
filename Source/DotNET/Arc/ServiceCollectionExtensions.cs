@@ -44,9 +44,8 @@ public static class ServiceCollectionExtensions
                 var bodyModelBinderProvider = options.ModelBinderProviders.First(_ => _ is BodyModelBinderProvider) as BodyModelBinderProvider;
                 var complexObjectModelBinderProvider = options.ModelBinderProviders.First(_ => _ is ComplexObjectModelBinderProvider) as ComplexObjectModelBinderProvider;
                 options.ModelBinderProviders.Insert(0, new FromRequestModelBinderProvider(bodyModelBinderProvider!, complexObjectModelBinderProvider!));
-                options
-                    .AddValidation(discoverableValidators)
-                    .AddCQRS();
+                options.AddValidation(discoverableValidators);
+                options.AddCQRS();
             })
             .AddJsonOptions(options =>
             {

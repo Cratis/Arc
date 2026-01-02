@@ -5,26 +5,28 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_executing_controller_data_annotations_validated_command_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
 
     void Establish()
     {
-        LoadControllerCommandProxy<ControllerCommandsController>(nameof(ControllerCommandsController.ExecuteDataAnnotationsValidated));
+        LoadControllerCommandProxy<ControllerCommandsController>(nameof(ControllerCommandsController.ExecuteDataAnnotationsValidated), "/tmp/data-annotations-command.ts");
         ControllerCommandsController.DataAnnotationsValidatedCallCount = 0;
     }
 
     async Task Because()
     {
         var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerDataAnnotationsValidatedCommand
-            {
-                Name = "ab", // Too short (min 3)
-                Age = 15, // Too young (min 18)
-                Email = "invalid-email", // Invalid email format
-                Phone = "abc", // Invalid phone
-                Website = "not-a-url" // Invalid URL
-            },
+        {
+            Name = "ab", // Too short (min 3)
+            Age = 15, // Too young (min 18)
+            Email = "invalid-email", // Invalid email format
+            Phone = "abc", // Invalid phone
+            Website = "not-a-url" // Invalid URL
+        },
             "ExecuteDataAnnotationsValidated");
         _result = executionResult.Result;
     }

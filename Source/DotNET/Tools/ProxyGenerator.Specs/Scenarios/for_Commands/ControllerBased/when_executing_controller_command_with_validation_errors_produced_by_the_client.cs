@@ -5,6 +5,8 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_executing_controller_command_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
@@ -18,11 +20,11 @@ public class when_executing_controller_command_with_validation_errors_produced_b
     async Task Because()
     {
         var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerFluentValidatedCommand
-            {
-                Title = string.Empty,
-                Quantity = -5,
-                Email = "invalid-email"
-            },
+        {
+            Title = string.Empty,
+            Quantity = -5,
+            Email = "invalid-email"
+        },
             "ExecuteFluentValidated");
         _result = executionResult.Result;
     }

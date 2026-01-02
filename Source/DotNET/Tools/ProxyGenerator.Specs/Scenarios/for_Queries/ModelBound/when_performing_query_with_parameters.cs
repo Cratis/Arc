@@ -5,11 +5,13 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries.ModelBound;
 
+[Collection(ScenarioCollectionDefinition.Name)]
+
 public class when_performing_query_with_parameters : given.a_scenario_web_application
 {
     QueryExecutionResult<IEnumerable<ParameterizedReadModel>>? _executionResult;
 
-    void Establish() => LoadQueryProxy<ParameterizedReadModel>("Search");
+    void Establish() => LoadQueryProxy<ParameterizedReadModel>("Search", "/tmp/Search.ts");
 
     async Task Because()
     {

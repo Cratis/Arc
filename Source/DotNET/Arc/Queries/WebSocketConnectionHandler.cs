@@ -90,7 +90,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
             var envelope = WebSocketMessage.CreateData(queryResult);
             var message = JsonSerializer.SerializeToUtf8Bytes(envelope, jsonSerializerOptions);
             await webSocket.SendAsync(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
-            message = null!;
+            message = null;
             return null;
         }
         catch (Exception ex)

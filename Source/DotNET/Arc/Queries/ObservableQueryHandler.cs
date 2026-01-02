@@ -172,13 +172,17 @@ public class ObservableQueryHandler(
         else
         {
             logger.RequestIsHttp();
+
+            // For HTTP, extract the current snapshot from the BehaviorSubject
+            var snapshot = ExtractSnapshotFromClientObservable(clientObservable);
+
             if (callResult?.Result is ObjectResult objResult)
             {
-                objResult.Value = clientObservable;
+                objResult.Value = snapshot;
             }
             else if (callResult is not null)
             {
-                callResult.Result = new ObjectResult(clientObservable);
+                callResult.Result = new ObjectResult(snapshot);
             }
         }
     }
@@ -241,7 +245,10 @@ public class ObservableQueryHandler(
         else
         {
             logger.RequestIsHttp();
-            await httpContext.Response.WriteAsJsonAsync(clientObservable, _options.JsonSerializerOptions, cancellationToken: httpContext.RequestAborted);
+
+            // For HTTP requests, get the current value from the subject and wrap in QueryResult
+            var queryResult = await GetCurrentValueAsQueryResult(streamingData);
+            await httpContext.Response.WriteAsJsonAsync(queryResult, _options.JsonSerializerOptions, cancellationToken: httpContext.RequestAborted);
         }
     }
 
@@ -277,5 +284,96 @@ public class ObservableQueryHandler(
     async Task HandleWebSocketConnection(HttpContext httpContext, IClientEnumerableObservable clientEnumerableObservable)
     {
         await clientEnumerableObservable.HandleConnection(httpContext);
+    }
+
+    async Task<QueryResult> GetCurrentValueAsQueryResult(object streamingData)
+    {
+        var type = streamingData.GetType();
+        var subjectType = type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>)) ??
+                          type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IObservable<>));
+
+        if (subjectType is null)
+        {
+            return new QueryResult { Data = streamingData };
+        }
+
+        // For Subjects/Observables, get the first emitted value using System.Reactive
+        var dataType = subjectType.GetGenericArguments()[0];
+
+        // Call Observable.FirstAsync<T>(observable).ToTask() using reflection
+        var firstAsyncMethod = typeof(System.Reactive.Linq.Observable).GetMethods()
+            .FirstOrDefault(m => m.Name == "FirstAsync" &&
+                                  m.GetParameters().Length == 1 &&
+                                  m.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(IObservable<>));
+
+        if (firstAsyncMethod is null)
+        {
+            return new QueryResult { Data = null! };
+        }
+
+        var genericFirstAsync = firstAsyncMethod.MakeGenericMethod(dataType);
+        var observableResult = genericFirstAsync.Invoke(null, [streamingData]);
+
+        if (observableResult is null)
+        {
+            return new QueryResult { Data = null! };
+        }
+
+        // Convert to Task using ToTask()
+        var toTaskMethod = typeof(System.Reactive.Threading.Tasks.TaskObservableExtensions).GetMethods()
+            .FirstOrDefault(m => m.Name == "ToTask" &&
+                                 m.GetParameters().Length == 1 &&
+                                 m.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(IObservable<>));
+
+        if (toTaskMethod is null)
+        {
+            return new QueryResult { Data = null! };
+        }
+
+        var genericToTask = toTaskMethod.MakeGenericMethod(dataType);
+        var task = genericToTask.Invoke(null, [observableResult]);
+
+        if (task is null)
+        {
+            return new QueryResult { Data = null! };
+        }
+
+        await (Task)task;
+        var currentValue = ((dynamic)task).Result;
+
+        return new QueryResult
+        {
+            Data = currentValue!,
+            IsAuthorized = true,
+            ValidationResults = [],
+            ExceptionMessages = [],
+            ExceptionStackTrace = string.Empty,
+            Paging = new(queryContextManager.Current.Paging.Page, queryContextManager.Current.Paging.Size, queryContextManager.Current.TotalItems)
+        };
+    }
+
+    QueryResult ExtractSnapshotFromClientObservable(IClientObservable clientObservable)
+    {
+        // ClientObservable wraps a BehaviorSubject - extract its current value
+        var clientObservableType = clientObservable.GetType();
+
+        // Primary constructor parameters in C# are stored with <parameterName>P naming convention
+        var allFields = clientObservableType.GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var subjectField = allFields.FirstOrDefault(f => f.Name.Contains("subject")) ?? throw new InvalidOperationException("ClientObservable does not contain expected subject field");
+        var subject = subjectField.GetValue(clientObservable) ?? throw new InvalidOperationException("ClientObservable subject is null");
+
+        // Get the Value property from BehaviorSubject
+        var valueProperty = subject.GetType().GetProperty("Value") ?? throw new InvalidOperationException("Subject does not have a Value property");
+        var currentValue = valueProperty.GetValue(subject);
+
+        return new QueryResult
+        {
+            Data = currentValue!,
+            IsAuthorized = true,
+            ValidationResults = [],
+            ExceptionMessages = [],
+            ExceptionStackTrace = string.Empty,
+            Paging = new(queryContextManager.Current.Paging.Page, queryContextManager.Current.Paging.Size, queryContextManager.Current.TotalItems)
+        };
     }
 }
