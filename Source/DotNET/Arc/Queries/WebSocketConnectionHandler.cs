@@ -45,7 +45,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
                 }
                 while (!received.CloseStatus.HasValue);
             }
-            catch (TaskCanceledException ex)
+            catch (TaskCanceledException)
             {
                 handlerLogger.CloseConnection(received?.CloseStatusDescription);
                 await webSocket.CloseOutputAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
