@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
@@ -271,12 +270,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // QueryResult doesn't properly call JsonSerializer in test environment due to module isolation
         if (result?.ResponseJson is not null)
         {
-            // Debug: Save raw response for complex queries
-            if (queryClassName.Contains("Complex"))
-            {
-                await File.WriteAllTextAsync("/tmp/complex-raw-response.json", result.ResponseJson);
-            }
-
             // Escape the response JSON for embedding in JavaScript string
             var escapedJson = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
             Runtime.Execute(Scripts.DeserializeQueryResult(escapedJson));
@@ -343,51 +336,16 @@ public sealed class JavaScriptHttpBridge : IDisposable
             throw new JavaScriptProxyExecutionFailed($"Observable query did not receive initial update within {timeout.TotalSeconds} seconds");
         }
 
-        // Get all current updates
+        // Get all current updates - already deserialized by TypeScript JsonSerializer
         var updates = new List<TResult>();
         var updateCount = Runtime.Evaluate<int>("__obsUpdates.length");
 
-        // PATCH: Manually deserialize observable query updates field by field
-        // Observable queries don't properly deserialize in test environment due to module isolation
+        // Extract already-deserialized data from TypeScript (stringify the deserialized objects)
         for (var i = 0; i < updateCount; i++)
         {
-            // Apply the same field-by-field deserialization patch for observable query data
-            Runtime.Execute($@"
-                try {{
-                    var update = __obsUpdates[{i}];
-                    if (update.data && __obsQuery.modelType && globalThis.Fields) {{
-                        var fields = globalThis.Fields.getFieldsForType(__obsQuery.modelType);
-                        var deserialized = Array.isArray(update.data) ? [] : {{}};
-                        
-                        if (Array.isArray(update.data)) {{
-                            for (var idx = 0; idx < update.data.length; idx++) {{
-                                var item = update.data[idx];
-                                var deserializedItem = {{}};
-                                for (var i = 0; i < fields.length; i++) {{
-                                    var field = fields[i];
-                                    if (item.hasOwnProperty(field.name)) {{
-                                        deserializedItem[field.name] = item[field.name];
-                                    }}
-                                }}
-                                deserialized.push(deserializedItem);
-                            }}
-                        }} else {{
-                            for (var i = 0; i < fields.length; i++) {{
-                                var field = fields[i];
-                                if (update.data.hasOwnProperty(field.name)) {{
-                                    deserialized[field.name] = update.data[field.name];
-                                }}
-                            }}
-                        }}
-                        __obsUpdates[{i}].data = deserialized;
-                    }}
-                }} catch(e) {{
-                    // Silently fail - let original deserialization handle it
-                }}
-            ");
-
+            // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
+            // so __obsUpdates[i].data contains properly typed objects. We just need to extract them to C#.
             var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
-
             var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
             if (update is not null)
             {
@@ -423,9 +381,10 @@ public sealed class JavaScriptHttpBridge : IDisposable
             var currentCount = Runtime.Evaluate<int>("__obsUpdates.length");
             if (currentCount > initialCount)
             {
-                // Get the newly added updates
+                // Get the newly added updates - already deserialized by TypeScript JsonSerializer
                 for (var i = initialCount; i < currentCount; i++)
                 {
+                    // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
                     var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
                     var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
                     if (update is not null)
@@ -569,10 +528,6 @@ public sealed class JavaScriptHttpBridge : IDisposable
             throw new InvalidOperationException($"HTTP {method} to '{url}' returned status {(int)response.StatusCode} with empty response body");
         }
 
-        // Debug: Log the raw response content
-        const string responseDebugFile = "/tmp/http-response-content.txt";
-        await File.WriteAllTextAsync(responseDebugFile, $"Response from {url}:\n{responseContent}\n");
-
         // Resolve the JavaScript promise with the response
         var escapedResponse = responseContent
             .Replace("\\", "\\\\")
@@ -596,196 +551,4 @@ public sealed class JavaScriptHttpBridge : IDisposable
     }
 
     record FetchResult(string Url, string Method, string ResponseJson);
-}
-
-/// <summary>
-/// The exception that is thrown when a JavaScript proxy execution fails.
-/// </summary>
-/// <param name="message">The error message.</param>
-public class JavaScriptProxyExecutionFailed(string message) : Exception(message);
-
-/// <summary>
-/// Represents the result of executing a command through the JavaScript proxy.
-/// </summary>
-/// <typeparam name="TResult">The type of the response data.</typeparam>
-/// <param name="Result">The command result.</param>
-/// <param name="RawJson">The raw JSON response.</param>
-public record CommandExecutionResult<TResult>(Commands.CommandResult<TResult>? Result, string RawJson);
-
-/// <summary>
-/// Represents the result of performing a query through the JavaScript proxy.
-/// </summary>
-/// <typeparam name="TResult">The type of the data.</typeparam>
-/// <param name="Result">The query result.</param>
-/// <param name="RawJson">The raw JSON response.</param>
-/// <param name="RequestUrl">The URL that was requested.</param>
-public record QueryExecutionResult<TResult>(Queries.QueryResult? Result, string RawJson, string RequestUrl);
-
-/// <summary>
-/// Represents the result of performing an observable query through the JavaScript proxy.
-/// </summary>
-/// <typeparam name="TResult">The type of the data.</typeparam>
-/// <remarks>
-/// Initializes a new instance of the <see cref="ObservableQueryExecutionResult{TResult}"/> class.
-/// </remarks>
-/// <param name="result">The initial query result.</param>
-/// <param name="updates">All updates received.</param>
-public class ObservableQueryExecutionResult<TResult>(Queries.QueryResult result, List<TResult> updates)
-{
-    /// <summary>
-    /// Gets the initial query result.
-    /// </summary>
-    public Queries.QueryResult Result { get; } = result;
-
-    /// <summary>
-    /// Gets all updates received.
-    /// </summary>
-    public List<TResult> Updates { get; } = updates;
-
-    /// <summary>
-    /// Gets the most recent data from updates.
-    /// </summary>
-    public TResult LatestData => Updates[^1];
-}
-
-/// <summary>
-/// Represents a WebSocket connection bridged between JavaScript and .NET.
-/// </summary>
-/// <param name="id">The WebSocket connection ID.</param>
-/// <param name="url">The WebSocket URL.</param>
-/// <param name="runtime">The JavaScript runtime.</param>
-sealed class WebSocketConnection(string id, string url, JavaScriptRuntime runtime) : IDisposable
-{
-    readonly string _id = id;
-    readonly string _url = url;
-    readonly JavaScriptRuntime _runtime = runtime;
-    readonly CancellationTokenSource _cts = new();
-    ClientWebSocket? _webSocket;
-    bool _disposed;
-
-    public async Task ConnectAsync()
-    {
-        try
-        {
-            _webSocket = new ClientWebSocket();
-
-            // Convert http/https URL to ws/wss
-            var uri = new Uri(_url);
-            var wsUri = new UriBuilder(uri)
-            {
-                Scheme = uri.Scheme == "https" ? "wss" : "ws"
-            }.Uri;
-
-            // Set the Origin header to match the server URL, as browsers do
-            // This is often required by ASP.NET Core WebSocket middleware for security
-            var serverUri = new Uri(_runtime.Evaluate<string>("globalThis.Globals.origin") ?? _url);
-            var origin = $"{serverUri.Scheme}://{serverUri.Authority}";
-            _webSocket.Options.SetRequestHeader("Origin", origin);
-
-            // Connect to the real Kestrel server
-            await _webSocket.ConnectAsync(wsUri, _cts.Token);
-
-            // Notify JavaScript that connection is open
-            _runtime.Execute($@"
-if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
-    var ws = globalThis.__webSockets['{_id}'];
-    ws.readyState = 1; // OPEN
-    if (ws.onopen) ws.onopen({{ type: 'open' }});
-}}");
-
-            // Start receiving messages
-            _ = Task.Run(ReceiveLoop);
-        }
-        catch (Exception ex)
-        {
-            // Notify JavaScript of error
-            var errorMsg = ex.Message.Replace("'", "\\'").Replace("\n", "\\n");
-            _runtime.Execute($@"
-if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
-    var ws = globalThis.__webSockets['{_id}'];
-    ws.readyState = 3; // CLOSED
-    if (ws.onerror) ws.onerror({{ type: 'error', message: '{errorMsg}' }});
-    if (ws.onclose) ws.onclose({{ type: 'close', code: 1006, reason: '{errorMsg}' }});
-}}");
-        }
-    }
-
-    public async Task SendAsync(string message)
-    {
-        if (_webSocket?.State == WebSocketState.Open)
-        {
-            var buffer = Encoding.UTF8.GetBytes(message);
-            await _webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, _cts.Token);
-        }
-    }
-
-    async Task ReceiveLoop()
-    {
-        if (_webSocket is null) return;
-        var buffer = new byte[1024 * 4];
-        try
-        {
-            while (_webSocket.State == WebSocketState.Open && !_cts.Token.IsCancellationRequested)
-            {
-                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
-
-                if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
-
-                    _runtime.Execute($@"
-if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
-    var ws = globalThis.__webSockets['{_id}'];
-    ws.readyState = 3; // CLOSED
-    if (ws.onclose) ws.onclose({{ type: 'close', code: 1000, reason: 'Normal closure' }});
-}}");
-                    break;
-                }
-
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-
-                // Ensure we pass a plain JavaScript string as the event data.
-                // Escape single quotes, backslashes and newlines so the literal is safe when injected.
-                var escaped = message
-                    .Replace("\\", "\\\\")
-                    .Replace("'", "\\'")
-                    .Replace("\r", "\\r")
-                    .Replace("\n", "\\n");
-
-                var injectedSnippet = $@"if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
-    var ws = globalThis.__webSockets['{_id}'];
-    if (ws.onmessage) ws.onmessage({{ type: 'message', data: '{escaped}' }});
-}}";
-
-                _runtime.Execute(injectedSnippet);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal cancellation
-        }
-        catch (Exception ex)
-        {
-            var errorMsg = ex.Message.Replace("'", "\\'").Replace("\n", "\\n");
-            _runtime.Execute($@"
-if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
-    var ws = globalThis.__webSockets['{_id}'];
-    ws.readyState = 3; // CLOSED
-    if (ws.onerror) ws.onerror({{ type: 'error', message: '{errorMsg}' }});
-    if (ws.onclose) ws.onclose({{ type: 'close', code: 1006, reason: '{errorMsg}' }});
-}}");
-        }
-    }
-
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _cts.Cancel();
-            _webSocket?.Dispose();
-            _cts.Dispose();
-            _disposed = true;
-            _runtime.Dispose();
-        }
-    }
 }

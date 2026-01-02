@@ -24,6 +24,9 @@ public class when_observing_single_item_and_data_changes : given.a_scenario_web_
         // Update the data on the backend
         ObservableReadModel.UpdateSingleItem(_updatedData);
 
+        // Give the server a moment to process and send the WebSocket message
+        await Task.Delay(50);
+
         // Sync any new updates from JavaScript
         await Bridge.WaitForWebSocketUpdates(_executionResult);
     }

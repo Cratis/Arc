@@ -183,22 +183,9 @@ public class a_scenario_web_application : Specification, IDisposable
             File.WriteAllText(saveToFile, code);
         }
 
-        // For Observable queries, don't wrap in module scope to avoid prototype chain issues
+        // For Observable queries, don't wrap in module scope
         var isObservable = descriptor.IsObservable;
-
-        File.WriteAllText("/tmp/isobservable.txt", $"IsObservable={isObservable}, wrapInModuleScope={!isObservable}");
-
-        if (Bridge is null)
-        {
-            File.WriteAllText("/tmp/bridge-null.txt", "Bridge is null!");
-            throw new InvalidOperationException("Bridge is null!");
-        }
-
-        File.WriteAllText("/tmp/calling-loadtypescript.txt", $"Calling LoadTypeScript, wrapInModuleScope={!isObservable}");
-
         Bridge.LoadTypeScript(code, wrapInModuleScope: !isObservable);
-
-        File.WriteAllText("/tmp/loadtypescript-returned.txt", "LoadTypeScript returned");
     }
 
     /// <summary>
