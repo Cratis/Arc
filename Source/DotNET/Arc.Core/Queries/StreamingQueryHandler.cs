@@ -160,6 +160,33 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
     async Task SubscribeToSubject<T>(ISubject<T> subject, IWebSocket webSocket, CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource();
+        var sendQueue = System.Threading.Channels.Channel.CreateUnbounded<byte[]>();
+
+        // Background task to process send queue
+        var sendTask = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await foreach (var bytes in sendQueue.Reader.ReadAllAsync(cancellationToken))
+                    {
+                        await webSocket.SendAsync(
+                            new ArraySegment<byte>(bytes),
+                            System.Net.WebSockets.WebSocketMessageType.Text,
+                            true,
+                            cancellationToken);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancelled
+                }
+                catch (Exception ex)
+                {
+                    logger.ErrorSendingWebSocketMessage(ex);
+                }
+            },
+            cancellationToken);
 
         using var subscription = subject.Subscribe(
             value =>
@@ -168,7 +195,7 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
                 {
                     var json = JsonSerializer.Serialize(value, _jsonSerializerOptions);
                     var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-                    webSocket.SendAsync(new ArraySegment<byte>(bytes), System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken).Wait(cancellationToken);
+                    sendQueue.Writer.TryWrite(bytes);
                 }
                 catch (Exception ex)
                 {
@@ -178,17 +205,24 @@ public class StreamingQueryHandler(ILogger<StreamingQueryHandler> logger) : IObs
             error =>
             {
                 logger.ObservableError(error);
+                sendQueue.Writer.Complete();
                 tcs.TrySetResult();
             },
             () =>
             {
                 logger.StreamingObservableCompleted();
+                sendQueue.Writer.Complete();
                 tcs.TrySetResult();
             });
 
-        cancellationToken.Register(() => tcs.TrySetCanceled());
+        cancellationToken.Register(() =>
+        {
+            sendQueue.Writer.Complete();
+            tcs.TrySetCanceled();
+        });
 
         await tcs.Task;
+        await sendTask;
         await webSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "Completed", CancellationToken.None);
     }
 

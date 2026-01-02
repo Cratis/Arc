@@ -83,21 +83,11 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
     {
         if (_webSocket is null) return;
         var buffer = new byte[1024 * 4];
-        var messageBuffer = new List<byte>();
         try
         {
             while (_webSocket.State == WebSocketState.Open && !_cts.Token.IsCancellationRequested)
             {
-                messageBuffer.Clear();
-                WebSocketReceiveResult result;
-
-                // Keep receiving until we have the complete message
-                do
-                {
-                    result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
-                    messageBuffer.AddRange(new ArraySegment<byte>(buffer, 0, result.Count));
-                }
-                while (!result.EndOfMessage);
+                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
@@ -112,7 +102,7 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
                     break;
                 }
 
-                var message = Encoding.UTF8.GetString([.. messageBuffer]);
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
 
                 // Ensure we pass a plain JavaScript string as the event data.
                 // Escape single quotes, backslashes and newlines so the literal is safe when injected.
