@@ -5,10 +5,9 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
 
-[Collection(ObservableQueriesCollection.Name)]
 public class when_observing_complex_data_and_data_changes : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<IEnumerable<ComplexObservableReadModel>>? _executionResult;
+    ObservableQueryExecutionContext<IEnumerable<ComplexObservableReadModel>>? _executionResult;
     ComplexObservableReadModel[]? _updatedData;
 
     void Establish()
@@ -39,16 +38,12 @@ public class when_observing_complex_data_and_data_changes : given.a_scenario_web
 
     async Task Because()
     {
-        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ComplexObservableReadModel>>("ObserveComplex");
+        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ComplexObservableReadModel>>(
+            "ObserveComplex",
+            updateReceiver: data => ComplexObservableReadModel.UpdateComplexItems(data));
 
-        // Update the complex data on the backend
-        ComplexObservableReadModel.UpdateComplexItems(_updatedData);
-
-        // Give the server a moment to process and send the WebSocket message
-        await Task.Delay(50);
-
-        // Sync any new updates from JavaScript
-        await Bridge.WaitForWebSocketUpdates(_executionResult);
+        // Trigger update and wait for notification
+        await _executionResult.UpdateAndWaitAsync(_updatedData);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

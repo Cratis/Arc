@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_single_item : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<ObservableControllerQueryItem>? _executionResult;
+    ObservableQueryExecutionContext<ObservableControllerQueryItem>? _executionResult;
 
     void Establish() => LoadControllerQueryProxy<ObservableControllerQueriesController>("ObserveSingle");
 

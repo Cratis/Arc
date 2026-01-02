@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_by_category : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<IEnumerable<ObservableControllerQueryItem>>? _executionResult;
+    ObservableQueryExecutionContext<IEnumerable<ObservableControllerQueryItem>>? _executionResult;
 
     void Establish() => LoadControllerQueryProxy<ObservableControllerQueriesController>("ObserveByCategory");
 

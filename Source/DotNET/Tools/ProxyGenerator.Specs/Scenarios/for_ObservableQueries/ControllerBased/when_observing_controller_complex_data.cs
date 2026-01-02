@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_complex_data : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<IEnumerable<ComplexObservableControllerItem>>? _executionResult;
+    ObservableQueryExecutionContext<IEnumerable<ComplexObservableControllerItem>>? _executionResult;
 
     void Establish() => LoadControllerQueryProxy<ObservableControllerQueriesController>("ObserveComplex");
 

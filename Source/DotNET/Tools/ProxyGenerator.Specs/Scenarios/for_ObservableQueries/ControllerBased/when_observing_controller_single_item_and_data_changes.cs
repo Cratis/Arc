@@ -6,10 +6,9 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBased;
 
-[Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_single_item_and_data_changes : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<ObservableControllerQueryItem>? _executionResult;
+    ObservableQueryExecutionContext<ObservableControllerQueryItem>? _executionResult;
     ObservableControllerQueryItem? _updatedData;
 
     void Establish()
@@ -20,16 +19,12 @@ public class when_observing_controller_single_item_and_data_changes : given.a_sc
 
     async Task Because()
     {
-        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<ObservableControllerQueryItem>("ObserveSingle");
+        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<ObservableControllerQueryItem>(
+            "ObserveSingle",
+            updateReceiver: data => HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/single", data).Wait());
 
-        // Update the data on the backend via HTTP POST
-        await HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/single", _updatedData);
-
-        // Give the server a moment to process and send the WebSocket message
-        await Task.Delay(50);
-
-        // Sync observable updates to get fresh HTTP snapshot
-        await Bridge.WaitForWebSocketUpdates(_executionResult);
+        // Trigger update and wait for notification
+        await _executionResult.UpdateAndWaitAsync(_updatedData);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

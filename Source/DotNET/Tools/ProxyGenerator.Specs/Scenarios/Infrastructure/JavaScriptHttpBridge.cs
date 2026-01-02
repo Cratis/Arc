@@ -21,6 +21,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
     readonly string _serverUrl;
     int _nextWebSocketId;
     bool _disposed;
+    readonly Dictionary<string, object> _observableContexts = new();
+    readonly object _observableContextLock = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JavaScriptHttpBridge"/> class.
@@ -36,6 +38,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         _jsonOptions = Json.Globals.JsonSerializerOptions;
         SetupFetchInterceptor();
         SetupWebSocketPolyfill();
+        SetupObservableCallbacks();
         SetupArcGlobals();
     }
 
@@ -289,12 +292,15 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="queryClassName">The name of the query class.</param>
     /// <param name="parameters">Optional parameter values for the query.</param>
-    /// <returns>The observable query execution result with updates.</returns>
+    /// <param name="updateReceiver">Action to call when test wants to trigger an update.</param>
+    /// <returns>The observable query execution context with updates.</returns>
     /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
-    public async Task<ObservableQueryExecutionResult<TResult>> PerformObservableQueryViaProxyAsync<TResult>(
+    public async Task<ObservableQueryExecutionContext<TResult>> PerformObservableQueryViaProxyAsync<TResult>(
         string queryClassName,
-        object? parameters = null)
+        object? parameters = null,
+        Action<TResult>? updateReceiver = null)
     {
+        var subscriptionId = Guid.NewGuid().ToString();
         var paramDict = parameters is not null
             ? JsonSerializer.Deserialize<Dictionary<string, object>>(
                 JsonSerializer.Serialize(parameters, _jsonOptions),
@@ -307,7 +313,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             : string.Empty;
 
         // Create query instance, set parameters, and subscribe
-        Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, paramAssignments));
+        Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, paramAssignments, subscriptionId));
 
         // Wait for the initial WebSocket message
         var timeout = TimeSpan.FromSeconds(10);
@@ -315,7 +321,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         while (DateTime.UtcNow - start < timeout)
         {
-            var hasUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
+            var hasUpdates = Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
             var error = Runtime.Evaluate<string>("__obsError ? JSON.stringify(__obsError) : null");
 
             if (error is not null)
@@ -330,7 +336,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             await Task.Delay(10);
         }
 
-        var hasAnyUpdates = Runtime.Evaluate<bool>("__obsUpdates.length > 0");
+        var hasAnyUpdates = Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
         if (!hasAnyUpdates)
         {
             throw new JavaScriptProxyExecutionFailed($"Observable query did not receive initial update within {timeout.TotalSeconds} seconds");
@@ -338,14 +344,14 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         // Get all current updates - already deserialized by TypeScript JsonSerializer
         var updates = new List<TResult>();
-        var updateCount = Runtime.Evaluate<int>("__obsUpdates.length");
+        var updateCount = Runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{subscriptionId}'].updates.length");
 
         // Extract already-deserialized data from TypeScript (stringify the deserialized objects)
         for (var i = 0; i < updateCount; i++)
         {
             // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
-            // so __obsUpdates[i].data contains properly typed objects. We just need to extract them to C#.
-            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
+            // so updates[i].data contains properly typed objects. We just need to extract them to C#.
+            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[{i}].data)") ?? "{}";
             var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
             if (update is not null)
             {
@@ -353,51 +359,49 @@ public sealed class JavaScriptHttpBridge : IDisposable
             }
         }
 
-        var firstResultJson = Runtime.Evaluate<string>("JSON.stringify(__obsUpdates[0])") ?? "{}";
+        var firstResultJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[0])") ?? "{}";
         var firstResult = JsonSerializer.Deserialize<Queries.QueryResult>(firstResultJson, _jsonOptions);
 
-        return new ObservableQueryExecutionResult<TResult>(
+        var context = new ObservableQueryExecutionContext<TResult>(
             firstResult,
-            updates);
+            updates,
+            Runtime,
+            subscriptionId,
+            _jsonOptions,
+            updateReceiver ?? (_ => { }));
+
+        lock (_observableContextLock)
+        {
+            _observableContexts[subscriptionId] = context;
+        }
+
+        return context;
     }
 
     /// <summary>
-    /// Waits for new WebSocket updates to arrive and adds them to the result.
+    /// Called from JavaScript when an observable query update is received.
+    /// Signals the specific context's TaskCompletionSource.
     /// </summary>
-    /// <typeparam name="TResult">The type of data.</typeparam>
-    /// <param name="result">The execution result to add updates to.</param>
-    /// <param name="timeout">Maximum time to wait for updates.</param>
-    /// <returns>An awaitable task.</returns>
-    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when no updates are received within the timeout.</exception>
-    public async Task WaitForWebSocketUpdates<TResult>(ObservableQueryExecutionResult<TResult> result, TimeSpan? timeout = null)
+    /// <param name="subscriptionId">The subscription ID.</param>
+    void NotifyObservableUpdate(string subscriptionId)
     {
-        timeout ??= TimeSpan.FromSeconds(5);
-        var start = DateTime.UtcNow;
-        var initialCount = result.Updates.Count;
-
-        // Wait for new updates to arrive via WebSocket
-        while (DateTime.UtcNow - start < timeout)
+        lock (_observableContextLock)
         {
-            var currentCount = Runtime.Evaluate<int>("__obsUpdates.length");
-            if (currentCount > initialCount)
+            if (_observableContexts.TryGetValue(subscriptionId, out var contextObj) &&
+                contextObj is IObservableQueryExecutionContext context)
             {
-                // Get the newly added updates - already deserialized by TypeScript JsonSerializer
-                for (var i = initialCount; i < currentCount; i++)
-                {
-                    // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
-                    var updateJson = Runtime.Evaluate<string>($"JSON.stringify(__obsUpdates[{i}].data)") ?? "{}";
-                    var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
-                    if (update is not null)
-                    {
-                        result.Updates.Add(update);
-                    }
-                }
-                return;
+                context.SignalUpdateReceived();
             }
-            await Task.Delay(10);
         }
+    }
 
-        throw new JavaScriptProxyExecutionFailed($"No new WebSocket updates received within {timeout.Value.TotalSeconds} seconds");
+    /// <summary>
+    /// Sets up callbacks that JavaScript can call to notify C# of events.
+    /// </summary>
+    void SetupObservableCallbacks()
+    {
+        // Expose the callback to JavaScript
+        Runtime.Engine.AddHostObject("__notifyObservableUpdate", new Action<string>(NotifyObservableUpdate));
     }
 
     /// <inheritdoc/>

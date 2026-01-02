@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_with_multiple_parameters : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<IEnumerable<ParameterizedObservableReadModel>>? _executionResult;
+    ObservableQueryExecutionContext<IEnumerable<ParameterizedObservableReadModel>>? _executionResult;
 
     void Establish() => LoadQueryProxy<ParameterizedObservableReadModel>("ObserveByNameAndCategory");
 

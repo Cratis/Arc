@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_complex_data : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<IEnumerable<ComplexObservableReadModel>>? _executionResult;
+    ObservableQueryExecutionContext<IEnumerable<ComplexObservableReadModel>>? _executionResult;
 
     void Establish() => LoadQueryProxy<ComplexObservableReadModel>("ObserveComplex");
 

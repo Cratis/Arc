@@ -63,11 +63,13 @@ public static class Scripts
     /// </summary>
     /// <param name="queryClassName">The query class name.</param>
     /// <param name="parameterAssignments">The parameter assignments.</param>
+    /// <param name="subscriptionId">The unique subscription ID.</param>
     /// <returns>The formatted script.</returns>
-    public static string SubscribeObservableQuery(string queryClassName, string parameterAssignments) =>
+    public static string SubscribeObservableQuery(string queryClassName, string parameterAssignments, string subscriptionId) =>
         _subscribeObservableQuery
             .Replace("{{QUERY_CLASS}}", queryClassName)
-            .Replace("{{PARAMETER_ASSIGNMENTS}}", parameterAssignments);
+            .Replace("{{PARAMETER_ASSIGNMENTS}}", parameterAssignments)
+            .Replace("{{SUBSCRIPTION_ID}}", subscriptionId);
 
     /// <summary>
     /// Gets the script for deserializing query results.

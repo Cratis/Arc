@@ -5,10 +5,9 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
 
-[Collection(ObservableQueriesCollection.Name)]
 public class when_observing_single_item_and_data_changes : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<ObservableReadModel>? _executionResult;
+    ObservableQueryExecutionContext<ObservableReadModel>? _executionResult;
     ObservableReadModel? _updatedData;
 
     void Establish()
@@ -19,16 +18,12 @@ public class when_observing_single_item_and_data_changes : given.a_scenario_web_
 
     async Task Because()
     {
-        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<ObservableReadModel>("ObserveSingle");
+        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<ObservableReadModel>(
+            "ObserveSingle",
+            updateReceiver: data => ObservableReadModel.UpdateSingleItem(data));
 
-        // Update the data on the backend
-        ObservableReadModel.UpdateSingleItem(_updatedData);
-
-        // Give the server a moment to process and send the WebSocket message
-        await Task.Delay(50);
-
-        // Sync any new updates from JavaScript
-        await Bridge.WaitForWebSocketUpdates(_executionResult);
+        // Trigger update and wait for notification
+        await _executionResult.UpdateAndWaitAsync(_updatedData);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

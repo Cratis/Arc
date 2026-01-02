@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_by_id : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<ObservableControllerQueryItem>? _executionResult;
+    ObservableQueryExecutionContext<ObservableControllerQueryItem>? _executionResult;
     Guid _id;
 
     void Establish()

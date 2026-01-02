@@ -9,7 +9,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBa
 [Collection(ObservableQueriesCollection.Name)]
 public class when_observing_controller_all_items_and_data_changes : given.a_scenario_web_application
 {
-    ObservableQueryExecutionResult<IEnumerable<ObservableControllerQueryItem>>? _executionResult;
+    ObservableQueryExecutionContext<IEnumerable<ObservableControllerQueryItem>>? _executionResult;
     ObservableControllerQueryItem[]? _updatedData;
 
     void Establish()
@@ -25,13 +25,12 @@ public class when_observing_controller_all_items_and_data_changes : given.a_scen
 
     async Task Because()
     {
-        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ObservableControllerQueryItem>>("ObserveAll");
+        _executionResult = await Bridge.PerformObservableQueryViaProxyAsync<IEnumerable<ObservableControllerQueryItem>>(
+            "ObserveAll",
+            updateReceiver: data => HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/items", data).Wait());
 
-        // Update the data on the backend via HTTP POST
-        await HttpClient.PostAsJsonAsync("/api/observable-controller-queries/update/items", _updatedData);
-
-        // Sync observable updates to get fresh HTTP snapshot
-        await Bridge.WaitForWebSocketUpdates(_executionResult);
+        // Trigger update and wait for notification
+        await _executionResult.UpdateAndWaitAsync(_updatedData);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();
