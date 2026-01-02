@@ -73,6 +73,22 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/cache@v3
+        id: yarn-cache
+        with:
+          path: |
+            .yarn/cache
+            **/node_modules
+            **/.eslintcache
+            **/yarn.lock
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
+
       - name: Remove any existing artifacts
         run: rm -rf ${{ env.NUGET_OUTPUT }}
 
