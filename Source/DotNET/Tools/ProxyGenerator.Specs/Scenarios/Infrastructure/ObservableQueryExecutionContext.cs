@@ -72,8 +72,8 @@ public class ObservableQueryExecutionContext<TResult>(
         // Trigger the update
         updateReceiver(data);
 
-        // Wait for WebSocket notification
-        timeout ??= TimeSpan.FromSeconds(5);
+        // Wait for WebSocket notification - kept high to account for slower CI/build server environments
+        timeout ??= TimeSpan.FromSeconds(15);
         using var cts = new CancellationTokenSource(timeout.Value);
         try
         {

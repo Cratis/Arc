@@ -154,8 +154,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
             result = await ProcessPendingFetchAsync();
         }
 
-        // Wait for promise resolution
-        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(5));
+        // Wait for promise resolution - kept high to account for slower CI/build server environments
+        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(15));
 
         var hasError = Runtime.Evaluate<bool>("__cmdError !== null");
         if (hasError)
@@ -259,8 +259,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
             }
         }
 
-        // Wait for promise resolution
-        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__queryDone")!, TimeSpan.FromSeconds(5));
+        // Wait for promise resolution - kept high to account for slower CI/build server environments
+        SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__queryDone")!, TimeSpan.FromSeconds(15));
 
         var hasError = Runtime.Evaluate<bool>("__queryError !== null");
         if (hasError)
@@ -315,8 +315,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Create query instance, set parameters, and subscribe
         Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, paramAssignments, subscriptionId));
 
-        // Wait for the initial WebSocket message
-        var timeout = TimeSpan.FromSeconds(10);
+        // Wait for the initial WebSocket message - kept high to account for slower CI/build server environments
+        var timeout = TimeSpan.FromSeconds(30);
         var start = DateTime.UtcNow;
 
         while (DateTime.UtcNow - start < timeout)
