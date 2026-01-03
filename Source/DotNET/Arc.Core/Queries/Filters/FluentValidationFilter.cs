@@ -38,14 +38,6 @@ public class FluentValidationFilter(IQueryPerformerProviders queryPerformerProvi
         return queryResult;
     }
 
-    static ValidationResultSeverity MapSeverity(Severity severity) => severity switch
-    {
-        Severity.Info => ValidationResultSeverity.Information,
-        Severity.Warning => ValidationResultSeverity.Warning,
-        Severity.Error => ValidationResultSeverity.Error,
-        _ => ValidationResultSeverity.Error
-    };
-
     async Task<QueryResult> ValidateParameter(QueryParameter parameter, object? value)
     {
         var queryResult = QueryResult.Success(Cratis.Execution.CorrelationId.NotSet);
@@ -66,7 +58,7 @@ public class FluentValidationFilter(IQueryPerformerProviders queryPerformerProvi
                 queryResult.MergeWith(new QueryResult
                 {
                     ValidationResults = validationResult.Errors.Select(_ =>
-                        new ValidationResult(MapSeverity(_.Severity), _.ErrorMessage, [_.PropertyName], null!)).ToArray()
+                        new ValidationResult(_.Severity.ToValidationResultSeverity(), _.ErrorMessage, [_.PropertyName], null!)).ToArray()
                 });
             }
 

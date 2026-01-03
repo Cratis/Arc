@@ -41,15 +41,6 @@ public static class RuleBuilderOptionsExtensions
     /// <typeparam name="T">Type of object being validated.</typeparam>
     /// <typeparam name="TProperty">Property type.</typeparam>
     /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
-    public static IRuleBuilderOptions<T, TProperty> WithSeverity<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, ValidationResultSeverity severity)
-    {
-        var fluentValidationSeverity = severity switch
-        {
-            ValidationResultSeverity.Information => Severity.Info,
-            ValidationResultSeverity.Warning => Severity.Warning,
-            ValidationResultSeverity.Error => Severity.Error,
-            _ => Severity.Error
-        };
-        return rule.WithSeverity(fluentValidationSeverity);
-    }
+    public static IRuleBuilderOptions<T, TProperty> WithSeverity<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, ValidationResultSeverity severity) =>
+        rule.WithSeverity(severity.ToFluentValidationSeverity());
 }

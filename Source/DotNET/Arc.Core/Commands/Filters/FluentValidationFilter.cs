@@ -21,14 +21,6 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
         return commandResult;
     }
 
-    static ValidationResultSeverity MapSeverity(Severity severity) => severity switch
-    {
-        Severity.Info => ValidationResultSeverity.Information,
-        Severity.Warning => ValidationResultSeverity.Warning,
-        Severity.Error => ValidationResultSeverity.Error,
-        _ => ValidationResultSeverity.Error
-    };
-
     async Task<CommandResult> Validate(CommandContext context, object instance)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
@@ -44,7 +36,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                 commandResult.MergeWith(new CommandResult
                 {
                     ValidationResults = validationResult.Errors.Select(_ =>
-                        new ValidationResult(MapSeverity(_.Severity), _.ErrorMessage, [_.PropertyName], null!)).ToArray()
+                        new ValidationResult(_.Severity.ToValidationResultSeverity(), _.ErrorMessage, [_.PropertyName], null!)).ToArray()
                 });
             }
         }
