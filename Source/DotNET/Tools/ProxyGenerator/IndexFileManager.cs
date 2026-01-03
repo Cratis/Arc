@@ -125,7 +125,7 @@ public static partial class IndexFileManager
         if (File.Exists(indexPath))
         {
             var existing = File.ReadAllText(indexPath);
-            static string Normalize(string s) => string.Join("\n", s.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
+            static string Normalize(string s) => string.Join('\n', s.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
             if (Normalize(existing) == Normalize(content))
             {
                 // Equivalent content (ignoring blank lines/trim) — don't rewrite
