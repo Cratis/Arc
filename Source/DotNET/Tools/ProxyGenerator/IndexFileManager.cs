@@ -14,18 +14,18 @@ public static partial class IndexFileManager
     /// Updates or creates an index.ts file for a directory, preserving manual edits.
     /// </summary>
     /// <param name="directory">The directory to create/update the index.ts file in.</param>
-    /// <param name="generatedFiles">Collection of generated file paths (full paths) that should be included in the index.</param>
+    /// <param name="generatedFiles">Dictionary of generated file paths (full paths) to their metadata.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path for relative path calculation.</param>
-    public static void UpdateIndexFile(string directory, IEnumerable<string> generatedFiles, Action<string> message, string outputPath)
+    public static void UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
 
         // Filter to only files in this directory and extract their names
-        var fileNames = generatedFiles
+        var fileNames = generatedFiles.Keys
             .Where(f => Path.GetDirectoryName(f) == directory)
             .Select(f => Path.GetFileNameWithoutExtension(f))
-            .ToHashSet();
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // If there are no generated files in this directory, remove the index if it exists
         if (fileNames.Count == 0)
@@ -60,6 +60,13 @@ public static partial class IndexFileManager
             }
         }
 
+        // If no files in this directory were actually written, skip updating the index
+        var anyWrittenInDirectory = generatedFiles.Any(kv => Path.GetDirectoryName(kv.Key) == directory && kv.Value.WasWritten);
+        if (!anyWrittenInDirectory)
+        {
+            return;
+        }
+
         // Build the new export list
         var newExports = new List<string>();
 
@@ -82,6 +89,16 @@ public static partial class IndexFileManager
 
         // Sort exports consistently
         newExports.Sort();
+
+        // Compare existing export file-names with new ones to see if anything changed
+        var existingFileNames = existingExports.Select(e => Path.GetFileNameWithoutExtension(e.TrimStart('.', '/'))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newFileNames = newExports.Select(e => Path.GetFileNameWithoutExtension(e.TrimStart('.', '/'))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (existingFileNames.SetEquals(newFileNames))
+        {
+            // No export additions/removals — nothing to change
+            return;
+        }
 
         // Build the final content
         var contentLines = new List<string>();
@@ -120,13 +137,13 @@ public static partial class IndexFileManager
     /// <param name="generatedFiles">Collection of all generated file paths.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path.</param>
-    public static void UpdateAllIndexFiles(IEnumerable<string> directories, IEnumerable<string> generatedFiles, Action<string> message, string outputPath)
+    public static void UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
     {
         var generatedFilesList = generatedFiles.ToList();
 
         foreach (var directory in directories)
         {
-            UpdateIndexFile(directory, generatedFilesList, message, outputPath);
+            UpdateIndexFile(directory, generatedFiles, message, outputPath);
         }
     }
 

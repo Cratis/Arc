@@ -19,11 +19,16 @@ public class with_new_files : Specification
         _messages = [];
     }
 
-    void Because() => IndexFileManager.UpdateIndexFile(
-        _tempDir,
-        [Path.Combine(_tempDir, "FileA.ts"), Path.Combine(_tempDir, "FileB.ts")],
-        _messages.Add,
-        _tempDir);
+    void Because()
+    {
+        var dict = new Dictionary<string, GeneratedFileMetadata>
+        {
+            [Path.Combine(_tempDir, "FileA.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
+            [Path.Combine(_tempDir, "FileB.ts")] = new GeneratedFileMetadata("SourceB", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
+        };
+
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+    }
 
     [Fact] void should_create_index_file() => File.Exists(Path.Combine(_tempDir, "index.ts")).ShouldBeTrue();
     [Fact] void should_contain_export_for_file_a() => File.ReadAllText(Path.Combine(_tempDir, "index.ts")).ShouldContain("export * from './FileA';");

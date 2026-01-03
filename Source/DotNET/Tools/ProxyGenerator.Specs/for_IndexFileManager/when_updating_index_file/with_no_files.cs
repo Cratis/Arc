@@ -22,7 +22,7 @@ public class with_no_files : Specification
 
     void Because() => IndexFileManager.UpdateIndexFile(
         _tempDir,
-        [],
+        new Dictionary<string, GeneratedFileMetadata>(),
         _messages.Add,
         _tempDir);
 

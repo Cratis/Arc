@@ -22,11 +22,15 @@ public class with_manual_comments_in_index : Specification
         _messages = [];
     }
 
-    void Because() => IndexFileManager.UpdateIndexFile(
-        _tempDir,
-        [Path.Combine(_tempDir, "FileA.ts")],
-        _messages.Add,
-        _tempDir);
+    void Because()
+    {
+        var dict = new Dictionary<string, GeneratedFileMetadata>
+        {
+            [Path.Combine(_tempDir, "FileA.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
+        };
+
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+    }
 
     [Fact] void should_preserve_manual_comment() => File.ReadAllText(_indexPath).ShouldContain("// Manual comment");
     [Fact] void should_keep_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './FileA';");

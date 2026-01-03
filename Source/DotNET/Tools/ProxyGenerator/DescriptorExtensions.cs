@@ -66,7 +66,8 @@ public static class DescriptorExtensions
                 skippedCount++;
                 if (generatedFiles is not null)
                 {
-                    generatedFiles[normalizedFullPath] = metadata;
+                    // Mark as not written
+                    generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, metadata.GeneratedTime, metadata.ContentHash, false);
                 }
                 continue;
             }
@@ -74,10 +75,10 @@ public static class DescriptorExtensions
             var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
             await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
 
-            // Track generated file metadata
+            // Track generated file metadata and mark as written
             if (generatedFiles is not null)
             {
-                generatedFiles[normalizedFullPath] = metadata;
+                generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, metadata.GeneratedTime, metadata.ContentHash, true);
             }
         }
 

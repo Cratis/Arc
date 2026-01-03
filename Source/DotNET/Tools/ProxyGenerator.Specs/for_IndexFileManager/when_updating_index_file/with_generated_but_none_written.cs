@@ -3,11 +3,12 @@
 
 namespace Cratis.Arc.ProxyGenerator.for_IndexFileManager.when_updating_index_file;
 
-public class with_existing_index_and_new_file : Specification
+public class with_generated_but_none_written : Specification
 {
     string _tempDir;
     List<string> _messages;
     string _indexPath;
+    string _originalContent;
 
     void Establish()
     {
@@ -17,9 +18,8 @@ public class with_existing_index_and_new_file : Specification
         File.WriteAllText(Path.Combine(_tempDir, "FileA.ts"), "export class FileA {}");
 
         _indexPath = Path.Combine(_tempDir, "index.ts");
-        File.WriteAllText(_indexPath, "export * from './FileA';\n");
-
-        File.WriteAllText(Path.Combine(_tempDir, "FileB.ts"), "export class FileB {}");
+        _originalContent = "// original content\nexport * from './FileA';\n";
+        File.WriteAllText(_indexPath, _originalContent);
 
         _messages = [];
     }
@@ -29,20 +29,15 @@ public class with_existing_index_and_new_file : Specification
         var dict = new Dictionary<string, GeneratedFileMetadata>
         {
             [Path.Combine(_tempDir, "FileA.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), false),
-            [Path.Combine(_tempDir, "FileB.ts")] = new GeneratedFileMetadata("SourceB", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
         };
 
         IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
     }
 
-    [Fact] void should_keep_existing_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './FileA';");
-    [Fact] void should_add_new_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './FileB';");
+    [Fact] void should_leave_index_unchanged() => File.ReadAllText(_indexPath).ShouldEqual(_originalContent);
 
     void Cleanup()
     {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
+        if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
     }
 }
