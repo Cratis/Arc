@@ -107,10 +107,6 @@ public static partial class IndexFileManager
         if (manualLines.Count > 0)
         {
             contentLines.AddRange(manualLines);
-            if (newExports.Count > 0)
-            {
-                contentLines.Add(string.Empty); // Blank line before exports
-            }
         }
 
         // Add export statements
@@ -123,6 +119,18 @@ public static partial class IndexFileManager
         if (!string.IsNullOrEmpty(content))
         {
             content += Environment.NewLine;
+        }
+
+        // If the file exists, compare a normalized version (trim and ignore empty lines)
+        if (File.Exists(indexPath))
+        {
+            var existing = File.ReadAllText(indexPath);
+            static string Normalize(string s) => string.Join("\n", s.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
+            if (Normalize(existing) == Normalize(content))
+            {
+                // Equivalent content (ignoring blank lines/trim) — don't rewrite
+                return;
+            }
         }
 
         File.WriteAllText(indexPath, content);
