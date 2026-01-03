@@ -32,4 +32,24 @@ public static class RuleBuilderOptionsExtensions
     /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
     public static IRuleBuilderOptions<T, TProperty> WhenQuery<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, ApplyConditionTo applyConditionTo = ApplyConditionTo.AllValidators) =>
         rule.When((x, ctx) => ctx.IsQuery(), applyConditionTo);
+
+    /// <summary>
+    /// Sets the validation severity for the rule.
+    /// </summary>
+    /// <param name="rule">The current rule.</param>
+    /// <param name="severity">The <see cref="ValidationResultSeverity"/> to apply.</param>
+    /// <typeparam name="T">Type of object being validated.</typeparam>
+    /// <typeparam name="TProperty">Property type.</typeparam>
+    /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
+    public static IRuleBuilderOptions<T, TProperty> WithSeverity<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, ValidationResultSeverity severity)
+    {
+        var fluentValidationSeverity = severity switch
+        {
+            ValidationResultSeverity.Information => Severity.Info,
+            ValidationResultSeverity.Warning => Severity.Warning,
+            ValidationResultSeverity.Error => Severity.Error,
+            _ => Severity.Error
+        };
+        return rule.WithSeverity(fluentValidationSeverity);
+    }
 }
