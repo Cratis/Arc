@@ -89,6 +89,9 @@ jobs:
             **/yarn.lock
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
 
+      - name: Yarn install
+        run: yarn
+
       - name: Remove any existing artifacts
         run: rm -rf ${{ env.NUGET_OUTPUT }}
 
