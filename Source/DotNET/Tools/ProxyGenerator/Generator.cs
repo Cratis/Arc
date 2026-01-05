@@ -113,8 +113,9 @@ public static class Generator
         {
             stopwatch.Restart();
             var distinctDirectories = directories.Distinct().ToList();
-            IndexFileManager.UpdateAllIndexFiles(distinctDirectories, generatedFiles, message, outputPath);
-            message($"  {distinctDirectories.Count} index files updated in {stopwatch.Elapsed}");
+            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFiles(distinctDirectories, generatedFiles, message, outputPath);
+            var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
+            message($"  {writtenCount} index files written{skippedInfo} in {stopwatch.Elapsed}");
         }
         else
         {

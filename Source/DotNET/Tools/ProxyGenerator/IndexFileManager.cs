@@ -17,7 +17,8 @@ public static partial class IndexFileManager
     /// <param name="generatedFiles">Dictionary of generated file paths (full paths) to their metadata.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path for relative path calculation.</param>
-    public static void UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    /// <returns>True if the index file was written, false if skipped.</returns>
+    public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
 
@@ -35,7 +36,7 @@ public static partial class IndexFileManager
                 File.Delete(indexPath);
                 message($"    Deleted empty index: {GetRelativePath(outputPath, indexPath)}");
             }
-            return;
+            return false;
         }
 
         var existingExports = new List<string>();
@@ -64,7 +65,7 @@ public static partial class IndexFileManager
         var anyWrittenInDirectory = generatedFiles.Any(kv => Path.GetDirectoryName(kv.Key) == directory && kv.Value.WasWritten);
         if (!anyWrittenInDirectory)
         {
-            return;
+            return false;
         }
 
         // Build the new export list
@@ -105,7 +106,7 @@ public static partial class IndexFileManager
         if (existingManagedExports.SetEquals(newManagedExports))
         {
             // No changes to managed exports — nothing to change
-            return;
+            return false;
         }
 
         // Combine manual exports with managed exports
@@ -144,13 +145,14 @@ public static partial class IndexFileManager
             if (Normalize(existing) == Normalize(content))
             {
                 // Equivalent content (ignoring blank lines/trim) — don't rewrite
-                return;
+                return false;
             }
         }
 
         File.WriteAllText(indexPath, content);
         var relPath = GetRelativePath(outputPath, indexPath);
         message($"    Updated index: {relPath}");
+        return true;
     }
 
     /// <summary>
@@ -160,14 +162,26 @@ public static partial class IndexFileManager
     /// <param name="generatedFiles">Collection of all generated file paths.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path.</param>
-    public static void UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    /// <returns>A tuple containing (WrittenCount, SkippedCount).</returns>
+    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
     {
-        var generatedFilesList = generatedFiles.ToList();
+        var writtenCount = 0;
+        var skippedCount = 0;
 
         foreach (var directory in directories)
         {
-            UpdateIndexFile(directory, generatedFiles, message, outputPath);
+            var wasWritten = UpdateIndexFile(directory, generatedFiles, message, outputPath);
+            if (wasWritten)
+            {
+                writtenCount++;
+            }
+            else
+            {
+                skippedCount++;
+            }
         }
+
+        return (writtenCount, skippedCount);
     }
 
     [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
