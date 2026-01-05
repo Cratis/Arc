@@ -49,7 +49,7 @@ public static partial class IndexFileManager
                 var match = ExportRegex().Match(line);
                 if (match.Success)
                 {
-                    var exportPath = match.Groups[1].Value;
+                    var exportPath = match.Groups["path"].Value;
                     existingExports.Add(exportPath);
                 }
                 else if (!string.IsNullOrWhiteSpace(line))
@@ -170,7 +170,7 @@ public static partial class IndexFileManager
         }
     }
 
-    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](.+)['""]\s*;?\s*$", RegexOptions.None, 1000)]
+    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex ExportRegex();
 
     static string GetRelativePath(string basePath, string fullPath)
