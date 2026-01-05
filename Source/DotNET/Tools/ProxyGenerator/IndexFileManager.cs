@@ -77,10 +77,25 @@ public static partial class IndexFileManager
             return false;
         }
 
-        // Build the final export list by processing existing exports
+        // Build the final export list by inserting new exports at their alphabetically correct positions
         var finalExports = new List<string>();
-        var exportsToAdd = new HashSet<string>(fileNames, StringComparer.OrdinalIgnoreCase);
+        var existingFileNames = existingExports.Select(e => e.TrimStart('.', '/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newExportsToAdd = new List<string>();
 
+        // Collect new exports to add (only those not already in the index)
+        foreach (var fileName in fileNames)
+        {
+            if (!existingFileNames.Contains(fileName))
+            {
+                newExportsToAdd.Add(fileName);
+            }
+        }
+
+        // Create a set to track which new exports have been inserted
+        var insertedNewExports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? previousFileName = null;
+
+        // Process existing exports and insert new ones at their alphabetically correct positions
         foreach (var export in existingExports)
         {
             var fileName = export.TrimStart('.', '/');
@@ -91,16 +106,33 @@ public static partial class IndexFileManager
                 continue; // Skip orphaned exports
             }
 
-            // Keep the export (whether it's managed or manual)
-            finalExports.Add(export);
+            // Before adding this export, insert any NEW exports that fit between previous and current
+            // They should be > previous (or no previous) AND < current
+            var toInsertHere = newExportsToAdd
+                .Where(newFile => !insertedNewExports.Contains(newFile) &&
+                                 (previousFileName == null || string.Compare(newFile, previousFileName, StringComparison.OrdinalIgnoreCase) > 0) &&
+                                 string.Compare(newFile, fileName, StringComparison.OrdinalIgnoreCase) < 0)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            // If it's a managed export, don't add it again later
-            exportsToAdd.Remove(fileName);
+            foreach (var newFile in toInsertHere)
+            {
+                finalExports.Add($"./{newFile}");
+                insertedNewExports.Add(newFile);
+            }
+
+            // Keep the existing export
+            finalExports.Add(export);
+            previousFileName = fileName;
         }
 
-        // Add any new generated files that weren't in the index
-        // Sort new exports alphabetically among themselves before adding
-        foreach (var fileName in exportsToAdd.Order())
+        // Add any remaining new exports at the end (sorted alphabetically)
+        // These are exports that are > all existing exports
+        var remainingNewExports = newExportsToAdd
+            .Where(newFile => !insertedNewExports.Contains(newFile))
+            .Order(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var fileName in remainingNewExports)
         {
             finalExports.Add($"./{fileName}");
         }

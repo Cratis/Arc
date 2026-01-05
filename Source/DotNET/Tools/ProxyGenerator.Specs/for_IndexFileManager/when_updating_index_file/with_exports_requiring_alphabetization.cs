@@ -23,7 +23,7 @@ public class with_exports_requiring_alphabetization : Specification
 
     void Because()
     {
-        // All files exist, add new ones (Banana, Cherry, Ant) - they should be alphabetized among themselves
+        // All files exist, add new ones (Banana should go between Apple and Mango, Cherry after Mango, Ant before Apple/after Zebra)
         var dict = new Dictionary<string, GeneratedFileMetadata>
         {
             [Path.Combine(_tempDir, "Zebra.ts")] = new GeneratedFileMetadata("SourceZ", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), false),
@@ -37,28 +37,20 @@ public class with_exports_requiring_alphabetization : Specification
         IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
-    [Fact] void should_preserve_existing_export_order()
+    [Fact] void should_insert_new_exports_at_correct_alphabetical_positions()
     {
         var content = File.ReadAllText(_indexPath);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var exports = lines.Where(l => l.StartsWith("export")).ToList();
 
-        // Existing exports should retain their original order
-        exports[0].ShouldEqual("export * from './Zebra';");
-        exports[1].ShouldEqual("export * from './Apple';");
-        exports[2].ShouldEqual("export * from './Mango';");
-    }
-
-    [Fact] void should_alphabetize_new_exports_among_themselves()
-    {
-        var content = File.ReadAllText(_indexPath);
-        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var exports = lines.Where(l => l.StartsWith("export")).ToList();
-
-        // New exports should be alphabetized among themselves and appear after existing ones
-        exports[3].ShouldEqual("export * from './Ant';");
-        exports[4].ShouldEqual("export * from './Banana';");
-        exports[5].ShouldEqual("export * from './Cherry';");
+        // New exports are inserted before the first existing export that is alphabetically greater
+        // Ant, Banana, Cherry are all < Zebra (first existing), so they all go before it
+        exports[0].ShouldEqual("export * from './Ant';");
+        exports[1].ShouldEqual("export * from './Banana';");
+        exports[2].ShouldEqual("export * from './Cherry';");
+        exports[3].ShouldEqual("export * from './Zebra';");   // First existing
+        exports[4].ShouldEqual("export * from './Apple';");   // Second existing
+        exports[5].ShouldEqual("export * from './Mango';");   // Third existing
     }
 
     void Cleanup()
