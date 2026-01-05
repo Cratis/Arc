@@ -31,7 +31,7 @@ public class with_manual_export_to_non_generated_file : Specification
             [Path.Combine(_tempDir, "FileB.ts")] = new GeneratedFileMetadata("SourceB", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
         };
 
-        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
     [Fact] void should_preserve_manual_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './ManualFile';");

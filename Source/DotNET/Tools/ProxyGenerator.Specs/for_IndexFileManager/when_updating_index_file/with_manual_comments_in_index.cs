@@ -29,7 +29,7 @@ public class with_manual_comments_in_index : Specification
             [Path.Combine(_tempDir, "FileA.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
         };
 
-        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
     [Fact] void should_preserve_manual_comment() => File.ReadAllText(_indexPath).ShouldContain("// Manual comment");

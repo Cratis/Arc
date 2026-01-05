@@ -27,7 +27,7 @@ public class with_new_files : Specification
             [Path.Combine(_tempDir, "FileB.ts")] = new GeneratedFileMetadata("SourceB", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
         };
 
-        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
     [Fact] void should_create_index_file() => File.Exists(Path.Combine(_tempDir, "index.ts")).ShouldBeTrue();

@@ -15,10 +15,11 @@ public static partial class IndexFileManager
     /// </summary>
     /// <param name="directory">The directory to create/update the index.ts file in.</param>
     /// <param name="generatedFiles">Dictionary of generated file paths (full paths) to their metadata.</param>
+    /// <param name="orphanedFiles">Collection of orphaned file paths that were deleted.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path for relative path calculation.</param>
     /// <returns>True if the index file was written, false if skipped.</returns>
-    public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
 
@@ -68,64 +69,49 @@ public static partial class IndexFileManager
             return false;
         }
 
-        // Build the new export list
-        var newExports = new List<string>();
-        var manualExports = new List<string>();
-        var removedOrphanedExports = new List<string>();
+        // Build set of orphaned file names in this directory
+        var orphanedFileNames = orphanedFiles
+            .Where(f => Path.GetDirectoryName(f) == directory)
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Separate existing exports into managed (generated) and manual (non-generated)
+        // Build the final export list by processing existing exports
+        var finalExports = new List<string>();
+        var exportsToAdd = new HashSet<string>(fileNames, StringComparer.OrdinalIgnoreCase);
+
         foreach (var export in existingExports)
         {
             var fileName = export.TrimStart('.', '/');
-            if (fileNames.Contains(fileName))
+
+            // If this export is for an orphaned file, remove it
+            if (orphanedFileNames.Contains(fileName))
             {
-                // This is a managed export (corresponds to a generated file)
-                newExports.Add(export);
-                fileNames.Remove(fileName);
+                continue; // Skip orphaned exports
             }
-            else
-            {
-                // Check if the file exists on disk - if not, it's orphaned and should be removed
-                var potentialFilePath = Path.Combine(directory, $"{fileName}.ts");
-                if (File.Exists(potentialFilePath))
-                {
-                    // File exists but wasn't in generatedFiles - it's a manual export
-                    manualExports.Add(export);
-                }
-                else
-                {
-                    // File doesn't exist - it's orphaned, track it for removal
-                    removedOrphanedExports.Add(export);
-                }
-            }
+
+            // Keep the export (whether it's managed or manual)
+            finalExports.Add(export);
+
+            // If it's a managed export, don't add it again later
+            exportsToAdd.Remove(fileName);
         }
 
-        // Track what managed exports existed before
-        var existingManagedExports = newExports.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Add new exports for files not in the existing index
-        foreach (var fileName in fileNames.Order())
+        // Add any new generated files that weren't in the index
+        foreach (var fileName in exportsToAdd.Order())
         {
-            newExports.Add($"./{fileName}");
+            finalExports.Add($"./{fileName}");
         }
 
-        // Sort managed exports consistently
-        newExports.Sort();
+        // Sort exports consistently
+        finalExports.Sort();
 
-        // Check if managed exports changed OR if orphaned exports were removed
-        var newManagedExports = newExports.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (existingManagedExports.SetEquals(newManagedExports) && removedOrphanedExports.Count == 0)
+        // Check if anything changed
+        if (existingExports.Count == finalExports.Count &&
+            existingExports.Order().SequenceEqual(finalExports.Order()))
         {
-            // No changes to managed exports and no orphans removed — nothing to change
+            // No changes - don't rewrite
             return false;
         }
-
-        // Combine manual exports with managed exports
-        var allExports = new List<string>();
-        allExports.AddRange(manualExports);
-        allExports.AddRange(newExports);
-        allExports.Sort();
-        newExports = allExports;
 
         // Build the final content
         var contentLines = new List<string>();
@@ -137,7 +123,7 @@ public static partial class IndexFileManager
         }
 
         // Add export statements
-        foreach (var export in newExports)
+        foreach (var export in finalExports)
         {
             contentLines.Add($"export * from '{export}';");
         }
@@ -171,17 +157,18 @@ public static partial class IndexFileManager
     /// </summary>
     /// <param name="directories">Collection of directories with generated content.</param>
     /// <param name="generatedFiles">Collection of all generated file paths.</param>
+    /// <param name="orphanedFiles">Collection of orphaned file paths that were deleted.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path.</param>
     /// <returns>A tuple containing (WrittenCount, SkippedCount).</returns>
-    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
     {
         var writtenCount = 0;
         var skippedCount = 0;
 
         foreach (var directory in directories)
         {
-            var wasWritten = UpdateIndexFile(directory, generatedFiles, message, outputPath);
+            var wasWritten = UpdateIndexFile(directory, generatedFiles, orphanedFiles, message, outputPath);
             if (wasWritten)
             {
                 writtenCount++;

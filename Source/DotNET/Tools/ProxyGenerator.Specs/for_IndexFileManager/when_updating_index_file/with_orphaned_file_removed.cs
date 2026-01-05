@@ -33,7 +33,10 @@ public class with_orphaned_file_removed : Specification
             [Path.Combine(_tempDir, "FileA.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true),
         };
 
-        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+        // Simulate FileB being orphaned
+        var orphanedFiles = new List<string> { Path.Combine(_tempDir, "FileB.ts") };
+
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, orphanedFiles, _messages.Add, _tempDir);
     }
 
     [Fact] void should_keep_file_a_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './FileA';");

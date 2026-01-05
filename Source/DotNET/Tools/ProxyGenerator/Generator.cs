@@ -106,12 +106,6 @@ public static class Generator
         if (removedCount > 0)
         {
             message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
-
-            // Remove orphaned files from the generatedFiles dictionary so they don't appear in index files
-            foreach (var orphanedFile in orphanedFiles)
-            {
-                generatedFiles.Remove(orphanedFile);
-            }
         }
 
         // Update index files intelligently
@@ -119,7 +113,7 @@ public static class Generator
         {
             stopwatch.Restart();
             var distinctDirectories = directories.Distinct().ToList();
-            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFiles(distinctDirectories, generatedFiles, message, outputPath);
+            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFiles(distinctDirectories, generatedFiles, orphanedFiles, message, outputPath);
             var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
             message($"  {writtenCount} index files written{skippedInfo} in {stopwatch.Elapsed}");
         }
