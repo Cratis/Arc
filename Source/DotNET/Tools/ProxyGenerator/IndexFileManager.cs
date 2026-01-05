@@ -62,18 +62,20 @@ public static partial class IndexFileManager
             }
         }
 
-        // If no files in this directory were actually written, skip updating the index
-        var anyWrittenInDirectory = generatedFiles.Any(kv => Path.GetDirectoryName(kv.Key) == directory && kv.Value.WasWritten);
-        if (!anyWrittenInDirectory)
-        {
-            return false;
-        }
-
         // Build set of orphaned file names in this directory
         var orphanedFileNames = orphanedFiles
             .Where(f => Path.GetDirectoryName(f) == directory)
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Check if we need to update: either new files were written OR orphans exist
+        var anyWrittenInDirectory = generatedFiles.Any(kv => Path.GetDirectoryName(kv.Key) == directory && kv.Value.WasWritten);
+        var hasOrphansInDirectory = orphanedFileNames.Count > 0;
+
+        if (!anyWrittenInDirectory && !hasOrphansInDirectory)
+        {
+            return false;
+        }
 
         // Build the final export list by processing existing exports
         var finalExports = new List<string>();
@@ -102,12 +104,12 @@ public static partial class IndexFileManager
             finalExports.Add($"./{fileName}");
         }
 
-        // Sort exports consistently
-        finalExports.Sort();
+        // Sort exports alphabetically
+        finalExports.Sort(StringComparer.OrdinalIgnoreCase);
 
         // Check if anything changed
         if (existingExports.Count == finalExports.Count &&
-            existingExports.Order().SequenceEqual(finalExports.Order()))
+            existingExports.Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(finalExports.Order(StringComparer.OrdinalIgnoreCase)))
         {
             // No changes - don't rewrite
             return false;
