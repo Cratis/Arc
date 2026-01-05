@@ -106,6 +106,12 @@ public static class Generator
         if (removedCount > 0)
         {
             message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
+
+            // Remove orphaned files from the generatedFiles dictionary so they don't appear in index files
+            foreach (var orphanedFile in orphanedFiles)
+            {
+                generatedFiles.Remove(orphanedFile);
+            }
         }
 
         // Update index files intelligently

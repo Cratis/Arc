@@ -71,6 +71,7 @@ public static partial class IndexFileManager
         // Build the new export list
         var newExports = new List<string>();
         var manualExports = new List<string>();
+        var removedOrphanedExports = new List<string>();
 
         // Separate existing exports into managed (generated) and manual (non-generated)
         foreach (var export in existingExports)
@@ -84,8 +85,18 @@ public static partial class IndexFileManager
             }
             else
             {
-                // This is a manual export (doesn't correspond to a generated file)
-                manualExports.Add(export);
+                // Check if the file exists on disk - if not, it's orphaned and should be removed
+                var potentialFilePath = Path.Combine(directory, $"{fileName}.ts");
+                if (File.Exists(potentialFilePath))
+                {
+                    // File exists but wasn't in generatedFiles - it's a manual export
+                    manualExports.Add(export);
+                }
+                else
+                {
+                    // File doesn't exist - it's orphaned, track it for removal
+                    removedOrphanedExports.Add(export);
+                }
             }
         }
 
@@ -101,11 +112,11 @@ public static partial class IndexFileManager
         // Sort managed exports consistently
         newExports.Sort();
 
-        // Check if managed exports changed
+        // Check if managed exports changed OR if orphaned exports were removed
         var newManagedExports = newExports.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (existingManagedExports.SetEquals(newManagedExports))
+        if (existingManagedExports.SetEquals(newManagedExports) && removedOrphanedExports.Count == 0)
         {
-            // No changes to managed exports — nothing to change
+            // No changes to managed exports and no orphans removed — nothing to change
             return false;
         }
 
