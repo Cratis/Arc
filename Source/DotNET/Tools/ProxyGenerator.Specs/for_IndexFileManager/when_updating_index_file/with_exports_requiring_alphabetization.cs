@@ -23,28 +23,42 @@ public class with_exports_requiring_alphabetization : Specification
 
     void Because()
     {
-        // All files exist, add a new one (Banana)
+        // All files exist, add new ones (Banana, Cherry, Ant) - they should be alphabetized among themselves
         var dict = new Dictionary<string, GeneratedFileMetadata>
         {
             [Path.Combine(_tempDir, "Zebra.ts")] = new GeneratedFileMetadata("SourceZ", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), false),
             [Path.Combine(_tempDir, "Apple.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), false),
             [Path.Combine(_tempDir, "Mango.ts")] = new GeneratedFileMetadata("SourceM", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), false),
             [Path.Combine(_tempDir, "Banana.ts")] = new GeneratedFileMetadata("SourceB", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true), // Written
+            [Path.Combine(_tempDir, "Cherry.ts")] = new GeneratedFileMetadata("SourceC", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true), // Written
+            [Path.Combine(_tempDir, "Ant.ts")] = new GeneratedFileMetadata("SourceAnt", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), true), // Written
         };
 
         IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
-    [Fact] void should_alphabetize_exports()
+    [Fact] void should_preserve_existing_export_order()
     {
         var content = File.ReadAllText(_indexPath);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var exports = lines.Where(l => l.StartsWith("export")).ToList();
 
-        exports[0].ShouldEqual("export * from './Apple';");
-        exports[1].ShouldEqual("export * from './Banana';");
+        // Existing exports should retain their original order
+        exports[0].ShouldEqual("export * from './Zebra';");
+        exports[1].ShouldEqual("export * from './Apple';");
         exports[2].ShouldEqual("export * from './Mango';");
-        exports[3].ShouldEqual("export * from './Zebra';");
+    }
+
+    [Fact] void should_alphabetize_new_exports_among_themselves()
+    {
+        var content = File.ReadAllText(_indexPath);
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var exports = lines.Where(l => l.StartsWith("export")).ToList();
+
+        // New exports should be alphabetized among themselves and appear after existing ones
+        exports[3].ShouldEqual("export * from './Ant';");
+        exports[4].ShouldEqual("export * from './Banana';");
+        exports[5].ShouldEqual("export * from './Cherry';");
     }
 
     void Cleanup()

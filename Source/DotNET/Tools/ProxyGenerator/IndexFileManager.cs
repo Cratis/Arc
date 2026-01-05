@@ -99,17 +99,15 @@ public static partial class IndexFileManager
         }
 
         // Add any new generated files that weren't in the index
+        // Sort new exports alphabetically among themselves before adding
         foreach (var fileName in exportsToAdd.Order())
         {
             finalExports.Add($"./{fileName}");
         }
 
-        // Sort exports alphabetically
-        finalExports.Sort(StringComparer.OrdinalIgnoreCase);
-
-        // Check if anything changed
+        // Check if anything changed (compare unsorted since we preserve order)
         if (existingExports.Count == finalExports.Count &&
-            existingExports.Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(finalExports.Order(StringComparer.OrdinalIgnoreCase)))
+            existingExports.SequenceEqual(finalExports))
         {
             // No changes - don't rewrite
             return false;
