@@ -69,17 +69,27 @@ public static partial class IndexFileManager
 
         // Build the new export list
         var newExports = new List<string>();
+        var manualExports = new List<string>();
 
-        // Add existing exports that are still valid
+        // Separate existing exports into managed (generated) and manual (non-generated)
         foreach (var export in existingExports)
         {
             var fileName = export.TrimStart('.', '/');
             if (fileNames.Contains(fileName))
             {
+                // This is a managed export (corresponds to a generated file)
                 newExports.Add(export);
                 fileNames.Remove(fileName);
             }
+            else
+            {
+                // This is a manual export (doesn't correspond to a generated file)
+                manualExports.Add(export);
+            }
         }
+
+        // Track what managed exports existed before
+        var existingManagedExports = newExports.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Add new exports for files not in the existing index
         foreach (var fileName in fileNames.Order())
@@ -87,18 +97,23 @@ public static partial class IndexFileManager
             newExports.Add($"./{fileName}");
         }
 
-        // Sort exports consistently
+        // Sort managed exports consistently
         newExports.Sort();
 
-        // Compare existing export file-names with new ones to see if anything changed
-        var existingFileNames = existingExports.Select(e => Path.GetFileNameWithoutExtension(e.TrimStart('.', '/'))).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var newFileNames = newExports.Select(e => Path.GetFileNameWithoutExtension(e.TrimStart('.', '/'))).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        if (existingFileNames.SetEquals(newFileNames))
+        // Check if managed exports changed
+        var newManagedExports = newExports.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (existingManagedExports.SetEquals(newManagedExports))
         {
-            // No export additions/removals — nothing to change
+            // No changes to managed exports — nothing to change
             return;
         }
+
+        // Combine manual exports with managed exports
+        var allExports = new List<string>();
+        allExports.AddRange(manualExports);
+        allExports.AddRange(newExports);
+        allExports.Sort();
+        newExports = allExports;
 
         // Build the final content
         var contentLines = new List<string>();
@@ -155,7 +170,7 @@ public static partial class IndexFileManager
         }
     }
 
-    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
+    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](.+)['""]\s*;?\s*$", RegexOptions.None, 1000)]
     private static partial Regex ExportRegex();
 
     static string GetRelativePath(string basePath, string fullPath)
