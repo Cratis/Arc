@@ -3,10 +3,11 @@
 
 namespace Cratis.Arc.ProxyGenerator.for_IndexFileManager.when_updating_index_file;
 
-public class with_new_files : Specification
+public class with_manual_export_to_non_generated_file : Specification
 {
     string _tempDir;
     List<string> _messages;
+    string _indexPath;
 
     void Establish()
     {
@@ -14,7 +15,10 @@ public class with_new_files : Specification
         Directory.CreateDirectory(_tempDir);
 
         File.WriteAllText(Path.Combine(_tempDir, "FileA.ts"), "export class FileA {}");
-        File.WriteAllText(Path.Combine(_tempDir, "FileB.ts"), "export class FileB {}");
+        File.WriteAllText(Path.Combine(_tempDir, "ManualFile.ts"), "export class ManualFile {}");
+
+        _indexPath = Path.Combine(_tempDir, "index.ts");
+        File.WriteAllText(_indexPath, "export * from './FileA';\nexport * from './ManualFile';\n");
 
         _messages = [];
     }
@@ -30,9 +34,9 @@ public class with_new_files : Specification
         IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
-    [Fact] void should_create_index_file() => File.Exists(Path.Combine(_tempDir, "index.ts")).ShouldBeTrue();
-    [Fact] void should_contain_export_for_file_a() => File.ReadAllText(Path.Combine(_tempDir, "index.ts")).ShouldContain("export * from './FileA';");
-    [Fact] void should_contain_export_for_file_b() => File.ReadAllText(Path.Combine(_tempDir, "index.ts")).ShouldContain("export * from './FileB';");
+    [Fact] void should_preserve_manual_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './ManualFile';");
+    [Fact] void should_keep_generated_file_a_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './FileA';");
+    [Fact] void should_add_new_generated_file_b_export() => File.ReadAllText(_indexPath).ShouldContain("export * from './FileB';");
 
     void Cleanup()
     {

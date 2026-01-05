@@ -31,7 +31,7 @@ public class with_generated_but_none_written : Specification
             [Path.Combine(_tempDir, "FileA.ts")] = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash(""), false),
         };
 
-        IndexFileManager.UpdateIndexFile(_tempDir, dict, _messages.Add, _tempDir);
+        IndexFileManager.UpdateIndexFile(_tempDir, dict, [], _messages.Add, _tempDir);
     }
 
     [Fact] void should_leave_index_unchanged() => File.ReadAllText(_indexPath).ShouldEqual(_originalContent);

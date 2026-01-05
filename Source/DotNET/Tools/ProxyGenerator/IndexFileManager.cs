@@ -15,9 +15,11 @@ public static partial class IndexFileManager
     /// </summary>
     /// <param name="directory">The directory to create/update the index.ts file in.</param>
     /// <param name="generatedFiles">Dictionary of generated file paths (full paths) to their metadata.</param>
+    /// <param name="orphanedFiles">Collection of orphaned file paths that were deleted.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path for relative path calculation.</param>
-    public static void UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    /// <returns>True if the index file was written, false if skipped.</returns>
+    public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
 
@@ -35,7 +37,7 @@ public static partial class IndexFileManager
                 File.Delete(indexPath);
                 message($"    Deleted empty index: {GetRelativePath(outputPath, indexPath)}");
             }
-            return;
+            return false;
         }
 
         var existingExports = new List<string>();
@@ -49,7 +51,7 @@ public static partial class IndexFileManager
                 var match = ExportRegex().Match(line);
                 if (match.Success)
                 {
-                    var exportPath = match.Groups[1].Value;
+                    var exportPath = match.Groups["path"].Value;
                     existingExports.Add(exportPath);
                 }
                 else if (!string.IsNullOrWhiteSpace(line))
@@ -60,44 +62,75 @@ public static partial class IndexFileManager
             }
         }
 
-        // If no files in this directory were actually written, skip updating the index
+        // Build set of orphaned file names in this directory
+        var orphanedFileNames = orphanedFiles
+            .Where(f => Path.GetDirectoryName(f) == directory)
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Check if we need to update: either new files were written OR orphans exist
         var anyWrittenInDirectory = generatedFiles.Any(kv => Path.GetDirectoryName(kv.Key) == directory && kv.Value.WasWritten);
-        if (!anyWrittenInDirectory)
+        var hasOrphansInDirectory = orphanedFileNames.Count > 0;
+
+        if (!anyWrittenInDirectory && !hasOrphansInDirectory)
         {
-            return;
+            return false;
         }
 
-        // Build the new export list
-        var newExports = new List<string>();
+        // Build the final export list by inserting new exports individually at their best-effort alphabetical positions
+        var existingFileNames = existingExports.Select(e => e.TrimStart('.', '/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newExportsToAdd = new List<string>();
 
-        // Add existing exports that are still valid
-        foreach (var export in existingExports)
+        // Collect new exports to add (only those not already in the index)
+        foreach (var fileName in fileNames)
         {
-            var fileName = export.TrimStart('.', '/');
-            if (fileNames.Contains(fileName))
+            if (!existingFileNames.Contains(fileName))
             {
-                newExports.Add(export);
-                fileNames.Remove(fileName);
+                newExportsToAdd.Add(fileName);
             }
         }
 
-        // Add new exports for files not in the existing index
-        foreach (var fileName in fileNames.Order())
+        // Start with existing exports (without orphans) as the base
+        var finalExports = new List<string>();
+        foreach (var export in existingExports)
         {
-            newExports.Add($"./{fileName}");
+            var fileName = export.TrimStart('.', '/');
+
+            // If this export is for an orphaned file, remove it
+            if (orphanedFileNames.Contains(fileName))
+            {
+                continue; // Skip orphaned exports
+            }
+
+            finalExports.Add(export);
         }
 
-        // Sort exports consistently
-        newExports.Sort();
-
-        // Compare existing export file-names with new ones to see if anything changed
-        var existingFileNames = existingExports.Select(e => Path.GetFileNameWithoutExtension(e.TrimStart('.', '/'))).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var newFileNames = newExports.Select(e => Path.GetFileNameWithoutExtension(e.TrimStart('.', '/'))).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        if (existingFileNames.SetEquals(newFileNames))
+        // Insert each new export individually at its best-effort alphabetical position
+        foreach (var newFileName in newExportsToAdd)
         {
-            // No export additions/removals — nothing to change
-            return;
+            var newExport = $"./{newFileName}";
+            var insertIndex = finalExports.Count; // Default to end
+
+            // Find the best position: before the first export that's alphabetically greater
+            for (var i = 0; i < finalExports.Count; i++)
+            {
+                var existingFileName = finalExports[i].TrimStart('.', '/');
+                if (string.Compare(newFileName, existingFileName, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    insertIndex = i;
+                    break;
+                }
+            }
+
+            finalExports.Insert(insertIndex, newExport);
+        }
+
+        // Check if anything changed (compare unsorted since we preserve order)
+        if (existingExports.Count == finalExports.Count &&
+            existingExports.SequenceEqual(finalExports))
+        {
+            // No changes - don't rewrite
+            return false;
         }
 
         // Build the final content
@@ -110,7 +143,7 @@ public static partial class IndexFileManager
         }
 
         // Add export statements
-        foreach (var export in newExports)
+        foreach (var export in finalExports)
         {
             contentLines.Add($"export * from '{export}';");
         }
@@ -129,13 +162,14 @@ public static partial class IndexFileManager
             if (Normalize(existing) == Normalize(content))
             {
                 // Equivalent content (ignoring blank lines/trim) — don't rewrite
-                return;
+                return false;
             }
         }
 
         File.WriteAllText(indexPath, content);
         var relPath = GetRelativePath(outputPath, indexPath);
         message($"    Updated index: {relPath}");
+        return true;
     }
 
     /// <summary>
@@ -143,19 +177,32 @@ public static partial class IndexFileManager
     /// </summary>
     /// <param name="directories">Collection of directories with generated content.</param>
     /// <param name="generatedFiles">Collection of all generated file paths.</param>
+    /// <param name="orphanedFiles">Collection of orphaned file paths that were deleted.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path.</param>
-    public static void UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    /// <returns>A tuple containing (WrittenCount, SkippedCount).</returns>
+    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
     {
-        var generatedFilesList = generatedFiles.ToList();
+        var writtenCount = 0;
+        var skippedCount = 0;
 
         foreach (var directory in directories)
         {
-            UpdateIndexFile(directory, generatedFiles, message, outputPath);
+            var wasWritten = UpdateIndexFile(directory, generatedFiles, orphanedFiles, message, outputPath);
+            if (wasWritten)
+            {
+                writtenCount++;
+            }
+            else
+            {
+                skippedCount++;
+            }
         }
+
+        return (writtenCount, skippedCount);
     }
 
-    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
+    [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex ExportRegex();
 
     static string GetRelativePath(string basePath, string fullPath)
