@@ -25,7 +25,7 @@ public static class DbContextServiceCollectionExtensions
     public static IServiceCollection AddDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : DbContext
     {
-        services.AddDbContextFactory<TDbContext>((serviceProvider, options) =>
+        services.AddPooledDbContextFactory<TDbContext>((serviceProvider, options) =>
         {
             options
                 .UseDatabaseFromConnectionString(connectionString);

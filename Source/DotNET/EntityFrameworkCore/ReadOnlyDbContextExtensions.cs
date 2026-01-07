@@ -22,7 +22,7 @@ public static class ReadOnlyDbContextExtensions
     public static IServiceCollection AddReadOnlyDbContext<TContext>(this IServiceCollection services, Action<DbContextOptionsBuilder>? optionsAction = default)
         where TContext : DbContext
     {
-        services.AddDbContextFactory<TContext>((serviceProvider, options) =>
+        services.AddPooledDbContextFactory<TContext>((serviceProvider, options) =>
         {
             options
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)

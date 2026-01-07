@@ -22,7 +22,13 @@ services.AddDbContextWithConnectionString<MyDbContext>(".. your connection strin
 
 ## Multiple Database Providers
 
-The Arc Entity Framework integration uses the **factory pattern** (`IDbContextFactory<T>`) internally to support multiple database providers in the same application. This is important because Entity Framework Core does not allow multiple database providers to be registered in the same service provider.
+The Arc Entity Framework integration uses the **pooled factory pattern** (`IDbContextFactory<T>`) internally to support multiple database providers in the same application. This is important because Entity Framework Core does not allow multiple database providers to be registered in the same service provider.
+
+The pooled factory approach provides:
+
+- **Multiple database provider support** - Different contexts can use different databases (SQLite, SQL Server, PostgreSQL)
+- **Improved performance** - DbContext instances are pooled and reused
+- **Reduced memory overhead** - Internal service providers are shared across pooled instances
 
 All registration methods automatically register both:
 
