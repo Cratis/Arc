@@ -12,7 +12,9 @@ namespace Cratis.Arc.EntityFrameworkCore;
 public static class ReadOnlyDbContextExtensions
 {
     /// <summary>
-    /// Adds a read-only DbContext to the service collection.
+    /// Adds a read-only DbContext to the service collection using a pooled factory pattern.
+    /// This allows multiple database providers to be used in the same application with improved performance.
+    /// The pooled factory reuses internal service providers and DbContext instances.
     /// </summary>
     /// <typeparam name="TContext">The type of the DbContext.</typeparam>
     /// <param name="services">The service collection to add the DbContext to.</param>
@@ -21,13 +23,20 @@ public static class ReadOnlyDbContextExtensions
     public static IServiceCollection AddReadOnlyDbContext<TContext>(this IServiceCollection services, Action<DbContextOptionsBuilder>? optionsAction = default)
         where TContext : DbContext
     {
-        services.AddDbContext<TContext>((serviceProvider, options) =>
+        services.AddPooledDbContextFactory<TContext>((serviceProvider, options) =>
         {
             options
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
                 .AddInterceptors(new ReadOnlySaveChangesInterceptor());
             optionsAction?.Invoke(options);
         });
+
+        services.AddScoped(serviceProvider =>
+        {
+            var factory = serviceProvider.GetRequiredService<IDbContextFactory<TContext>>();
+            return factory.CreateDbContext();
+        });
+
         return services;
     }
 
