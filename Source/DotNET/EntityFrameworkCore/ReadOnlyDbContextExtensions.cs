@@ -12,8 +12,9 @@ namespace Cratis.Arc.EntityFrameworkCore;
 public static class ReadOnlyDbContextExtensions
 {
     /// <summary>
-    /// Adds a read-only DbContext to the service collection using a factory pattern.
-    /// This allows multiple database providers to be used in the same application.
+    /// Adds a read-only DbContext to the service collection using a pooled factory pattern.
+    /// This allows multiple database providers to be used in the same application with improved performance.
+    /// The pooled factory reuses internal service providers and DbContext instances.
     /// </summary>
     /// <typeparam name="TContext">The type of the DbContext.</typeparam>
     /// <param name="services">The service collection to add the DbContext to.</param>

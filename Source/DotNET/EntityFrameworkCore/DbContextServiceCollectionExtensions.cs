@@ -14,8 +14,9 @@ namespace Cratis.Arc.EntityFrameworkCore;
 public static class DbContextServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds a DbContext with the specified connection string using a factory pattern.
-    /// This allows multiple database providers to be used in the same application.
+    /// Adds a DbContext with the specified connection string using a pooled factory pattern.
+    /// This allows multiple database providers to be used in the same application with improved performance.
+    /// The pooled factory reuses internal service providers and DbContext instances.
     /// </summary>
     /// <typeparam name="TDbContext">The type of the DbContext.</typeparam>
     /// <param name="services">The service collection to add the DbContext to.</param>
