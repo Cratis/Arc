@@ -20,6 +20,53 @@ There is also a short-hand version of this:
 services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */);
 ```
 
+## Multiple Database Providers
+
+The Arc Entity Framework integration uses the **factory pattern** (`IDbContextFactory<T>`) internally to support multiple database providers in the same application. This is important because Entity Framework Core does not allow multiple database providers to be registered in the same service provider.
+
+All registration methods automatically register both:
+
+- `IDbContextFactory<TDbContext>` - For creating DbContext instances
+- `TDbContext` - Scoped instance created from the factory
+
+### Using DbContext in Your Code
+
+You can inject DbContexts directly as you normally would:
+
+```csharp
+public class MyService
+{
+    private readonly MyDbContext _context;
+    
+    public MyService(MyDbContext context)
+    {
+        _context = context;
+    }
+}
+```
+
+Or you can use `IDbContextFactory<T>` when you need more control over the DbContext lifetime:
+
+```csharp
+public class MyService
+{
+    private readonly IDbContextFactory<MyDbContext> _contextFactory;
+    
+    public MyService(IDbContextFactory<MyDbContext> contextFactory)
+    {
+        _contextFactory = contextFactory;
+    }
+    
+    public async Task ProcessAsync()
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        // Use context
+    }
+}
+```
+
+> **Important**: When using multiple DbContexts with different database providers (e.g., SQLite for testing and SQL Server for production), the factory pattern ensures each DbContext gets its own isolated service provider, preventing conflicts between providers.
+
 ## Read Only DbContexts
 
 For any **read-only** `DbContext` there is also an extension method:

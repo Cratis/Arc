@@ -14,7 +14,8 @@ namespace Cratis.Arc.EntityFrameworkCore;
 public static class DbContextServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds a DbContext with the specified connection string.
+    /// Adds a DbContext with the specified connection string using a factory pattern.
+    /// This allows multiple database providers to be used in the same application.
     /// </summary>
     /// <typeparam name="TDbContext">The type of the DbContext.</typeparam>
     /// <param name="services">The service collection to add the DbContext to.</param>
@@ -24,12 +25,19 @@ public static class DbContextServiceCollectionExtensions
     public static IServiceCollection AddDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : DbContext
     {
-        services.AddDbContext<TDbContext>((serviceProvider, options) =>
+        services.AddDbContextFactory<TDbContext>((serviceProvider, options) =>
         {
             options
                 .UseDatabaseFromConnectionString(connectionString);
             optionsAction?.Invoke(options);
         });
+
+        services.AddScoped(serviceProvider =>
+        {
+            var factory = serviceProvider.GetRequiredService<IDbContextFactory<TDbContext>>();
+            return factory.CreateDbContext();
+        });
+
         return services;
     }
 
