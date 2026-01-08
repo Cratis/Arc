@@ -377,3 +377,38 @@ public class CommandResultMetadata
     /// </summary>
     public string Version { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// A command with a validator that has constructor dependencies.
+/// </summary>
+[Command]
+public class CommandWithValidatorDependencies
+{
+    public string Name { get; set; } = string.Empty;
+    public int Age { get; set; }
+    public string RoleId { get; set; } = string.Empty;
+    public string PersonId { get; set; } = string.Empty;
+
+    public void Handle()
+    {
+    }
+}
+
+public delegate Task<bool> PersonAlreadyAssignedDelegate(string roleId, string personId);
+
+/// <summary>
+/// Validator for CommandWithValidatorDependencies that has constructor dependencies.
+/// </summary>
+public class CommandWithValidatorDependenciesValidator : CommandValidator<CommandWithValidatorDependencies>
+{
+    public CommandWithValidatorDependenciesValidator(PersonAlreadyAssignedDelegate personAlreadyAssigned)
+    {
+        RuleFor(x => x.Name).Length(1, 100).NotEmpty();
+        RuleFor(x => x.Age).NotEmpty();
+        RuleFor(x => x.RoleId).NotNull();
+        RuleFor(x => x.PersonId).NotNull();
+        RuleFor(x => x)
+            .MustAsync(async (command, ct) => !await personAlreadyAssigned(command.RoleId, command.PersonId))
+            .WithMessage("Person is already assigned to this role.");
+    }
+}

@@ -23,12 +23,6 @@ public class ReadOnlyDbContext(DbContextOptions options) : BaseDbContext(options
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => throw new InvalidOperationException("This DbContext is read-only and does not support saving changes.");
 
     /// <inheritdoc/>
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
-    }
-
-    /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
