@@ -25,24 +25,30 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
     /// <inheritdoc/>
     protected override Expression VisitBinary(BinaryExpression node)
     {
+        // Visit children to evaluate any closure variables
         var left = Visit(node.Left);
         var right = Visit(node.Right);
 
-        // Unwrap any Convert expressions wrapping ConceptAs types
-        // This is critical because after parameter evaluation, we have primitives on one side
-        // and possibly Convert(property, ConceptAs) on the other
-        left = UnwrapConvertToConceptAs(left);
-        right = UnwrapConvertToConceptAs(right);
-
-        // If either operand changed, rebuild without the method
-        // This is important because the original method might expect ConceptAs types
+        // If either operand changed, we need to rebuild
+        // For comparison operators, use null for method to avoid type mismatch with op_Equality
         if (left != node.Left || right != node.Right)
         {
-            // Clear the method to let Expression.MakeBinary choose the appropriate operator
-            return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
+            if (node.NodeType == ExpressionType.Equal ||
+                node.NodeType == ExpressionType.NotEqual ||
+                node.NodeType == ExpressionType.GreaterThan ||
+                node.NodeType == ExpressionType.GreaterThanOrEqual ||
+                node.NodeType == ExpressionType.LessThan ||
+                node.NodeType == ExpressionType.LessThanOrEqual)
+            {
+                // Use null for method to let Expression.MakeBinary infer the operator
+                return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
+            }
+
+            // For other operators, preserve the original method
+            return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, node.Method, node.Conversion);
         }
 
-        return base.VisitBinary(node);
+        return node;
     }
 
     /// <inheritdoc/>
@@ -74,19 +80,9 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
 
                         if (conceptValue != null)
                         {
-                            // Extract the primitive value from the ConceptAs instance
-                            var valueProperty = conceptValue.GetType().GetProperty("Value");
-                            if (valueProperty != null)
-                            {
-                                var primitiveValue = valueProperty.GetValue(conceptValue);
-                                if (primitiveValue != null)
-                                {
-                                    var primitiveType = node.Type.GetConceptValueType();
-
-                                    // Return a constant expression with the primitive value
-                                    return Expression.Constant(primitiveValue, primitiveType);
-                                }
-                            }
+                            // Return a constant expression with the ConceptAs value itself
+                            // The ExpressionRewriter will add .Value when needed
+                            return Expression.Constant(conceptValue, node.Type);
                         }
                     }
                     catch
@@ -116,20 +112,9 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
 
                     if (conceptValue != null)
                     {
-                        // Extract the primitive value from the ConceptAs instance
-                        var valueProperty = conceptValue.GetType().GetProperty("Value");
-                        if (valueProperty != null)
-                        {
-                            var primitiveValue = valueProperty.GetValue(conceptValue);
-                            if (primitiveValue != null)
-                            {
-                                var primitiveType = node.Type.GetConceptValueType();
-
-                                // Return a constant expression with the primitive value
-                                // This prevents EF Core from creating a ConceptAs parameter
-                                return Expression.Constant(primitiveValue, primitiveType);
-                            }
-                        }
+                        // Return a constant expression with the ConceptAs value itself
+                        // The ExpressionRewriter will add .Value to both sides of comparisons
+                        return Expression.Constant(conceptValue, node.Type);
                     }
                 }
             }
@@ -141,18 +126,6 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
 
         // Visit the expression part of the member access (e.g., the object being accessed)
         var visitedExpression = Visit(node.Expression);
-
-        // Special case: If user explicitly accessed .Value on a ConceptAs (e.g., recommendationId.Value)
-        // and we've already evaluated the ConceptAs to a constant primitive, the visitedExpression
-        // will now be a ConstantExpression containing the primitive. If the current member is "Value",
-        // we should just return that constant since accessing .Value on a primitive would fail.
-        if (node.Member.Name == nameof(ConceptAs<>.Value) &&
-            visitedExpression is ConstantExpression constant &&
-            !constant.Type.IsConcept())
-        {
-            // The expression is already the primitive value, return it as-is
-            return visitedExpression;
-        }
 
         // If the expression changed, rebuild the member access
         if (visitedExpression != node.Expression)
@@ -185,18 +158,5 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
         }
 
         return base.VisitUnary(node);
-    }
-
-    static Expression UnwrapConvertToConceptAs(Expression expression)
-    {
-        // Check for Convert expressions that convert to ConceptAs types
-        while (expression is UnaryExpression unary &&
-               unary.NodeType == ExpressionType.Convert &&
-               unary.Type.IsConcept())
-        {
-            expression = unary.Operand;
-        }
-
-        return expression;
     }
 }

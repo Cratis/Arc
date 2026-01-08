@@ -19,5 +19,5 @@ public class with_convert_from_concept_to_primitive : given.an_evaluatable_expre
 
     void Because() => _result = _filter.IsEvaluatableExpression(_expression, _model);
 
-    [Fact] void should_be_evaluatable() => _result.ShouldBeTrue();
+    [Fact] void should_not_be_evaluatable() => _result.ShouldBeFalse();
 }

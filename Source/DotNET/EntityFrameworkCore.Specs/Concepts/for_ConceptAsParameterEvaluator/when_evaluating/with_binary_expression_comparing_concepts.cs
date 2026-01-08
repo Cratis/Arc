@@ -31,6 +31,7 @@ public class with_binary_expression_comparing_concepts : Specification
     void Because() => _result = ConceptAsParameterEvaluator.Evaluate(_expression);
 
     [Fact] void should_return_binary_expression() => (_result is BinaryExpression).ShouldBeTrue();
-    [Fact] void should_unwrap_closure_side_to_constant() => ((BinaryExpression)_result).Left.ShouldBeOfExactType<ConstantExpression>();
-    [Fact] void should_have_primitive_value_on_right() => ((ConstantExpression)((BinaryExpression)_result).Left).Value.ShouldEqual(_testId);
+    [Fact] void should_keep_left_as_constant() => ((BinaryExpression)_result).Left.ShouldBeOfExactType<ConstantExpression>();
+    [Fact] void should_keep_concept_type_on_left() => ((BinaryExpression)_result).Left.Type.ShouldEqual(typeof(TestIdConcept));
+    [Fact] void should_have_concept_value_on_left() => ((ConstantExpression)((BinaryExpression)_result).Left).Value.ShouldBeOfExactType<TestIdConcept>();
 }

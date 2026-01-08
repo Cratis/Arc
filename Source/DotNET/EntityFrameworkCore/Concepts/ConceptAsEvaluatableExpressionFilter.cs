@@ -59,10 +59,11 @@ public class ConceptAsEvaluatableExpressionFilter(
                 return false;
             }
 
-            // For other ConceptAs expressions (constants, parameters from closures), evaluate them
+            // For other ConceptAs expressions (constants), DO NOT evaluate them
+            // Let our interceptor handle ConceptAs extraction
             if (expression is ConstantExpression)
             {
-                return true;
+                return false;
             }
 
             // For ParameterExpression, check if it's a lambda parameter (entity) or query parameter (closure)
@@ -81,12 +82,11 @@ public class ConceptAsEvaluatableExpressionFilter(
         // For Convert expressions involving ConceptAs, check the operand
         if (expression is UnaryExpression { NodeType: ExpressionType.Convert } unary)
         {
-            // Convert FROM ConceptAs TO primitive - this should be evaluated
-            // Example: Convert(EventSequenceNumber, ulong) -> should evaluate to the ulong value
+            // Convert FROM ConceptAs TO primitive - DON'T evaluate, let our interceptor handle it
             if (unary.Operand.Type.IsConcept() && !unary.Type.IsConcept())
             {
-                // This is converting from ConceptAs to primitive - evaluate it!
-                return true;
+                // This is converting from ConceptAs to primitive - DON'T evaluate it!
+                return false;
             }
 
             // Convert TO ConceptAs - check if the operand should be evaluated

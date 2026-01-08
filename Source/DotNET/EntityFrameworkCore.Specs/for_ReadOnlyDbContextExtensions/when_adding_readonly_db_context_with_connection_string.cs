@@ -3,12 +3,10 @@
 
 using Cratis.Arc.EntityFrameworkCore.Concepts;
 using Cratis.Arc.EntityFrameworkCore.Mapping;
-using Cratis.Types;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 
 namespace Cratis.Arc.EntityFrameworkCore.for_ReadOnlyDbContextExtensions;
 

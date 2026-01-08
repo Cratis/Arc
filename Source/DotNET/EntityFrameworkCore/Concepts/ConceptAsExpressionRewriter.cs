@@ -33,19 +33,9 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
     /// <inheritdoc/>
     protected override Expression VisitConstant(ConstantExpression node)
     {
-        // If we have a constant of ConceptAs type, unwrap it immediately
-        if (node.Type.IsConcept() && node.Value != null)
-        {
-            var valueProperty = node.Value.GetType().GetProperty("Value");
-            if (valueProperty != null)
-            {
-                var underlyingValue = valueProperty.GetValue(node.Value);
-                var valueType = node.Type.GetConceptValueType();
-                System.Diagnostics.Debug.WriteLine($"Unwrapping ConceptAs constant to: {underlyingValue}");
-                return Expression.Constant(underlyingValue, valueType);
-            }
-        }
-
+        // DO NOT unwrap ConceptAs constants here
+        // Let VisitBinary handle extracting .Value when comparing two ConceptAs expressions
+        // This preserves the type match needed for binary operations
         return base.VisitConstant(node);
     }
 
@@ -65,26 +55,26 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         // This is important because we need to handle the entire concept expression as one unit
         if (node.Type.IsConcept())
         {
-            // First check if this is accessing a closure variable (captured variable in lambda)
-            // Pattern: closure_instance.id where id is ConceptAs<T>
-            if (node.Expression is ConstantExpression)
+            // For ConceptAs members, just visit children without any special processing
+            // The ParameterEvaluator has already handled closures
+            // Entity properties will be handled by value converters
+            var visitedExpression = Visit(node.Expression);
+            
+            if (visitedExpression != node.Expression)
             {
-                // This is accessing a field/property on a closure - evaluate it to a constant
-                return ExtractConceptValue(node);
+                return Expression.MakeMemberAccess(visitedExpression, node.Member);
             }
-
-            // Otherwise, it's an entity property - append .Value to access the underlying value
-            // Pattern: entity.Id where Id is ConceptAs<T> stored in DB as primitive
-            return Expression.Property(node, "Value");
+            
+            return node;
         }
 
         // For non-Concept members, visit the expression that this member belongs to
-        var visitedExpression = Visit(node.Expression);
+        var visited = Visit(node.Expression);
 
         // Rebuild the member access if the expression changed
-        if (visitedExpression != node.Expression)
+        if (visited != node.Expression)
         {
-            return Expression.MakeMemberAccess(visitedExpression, node.Member);
+            return Expression.MakeMemberAccess(visited, node.Member);
         }
 
         return base.VisitMember(node);
@@ -116,14 +106,7 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
     /// <inheritdoc/>
     protected override Expression VisitBinary(BinaryExpression node)
     {
-        // For comparison operators, we need to ensure type compatibility
-        // Strategy:
-        // 1. If we have: Convert(primitive_property, ConceptAs) == conceptas_parameter
-        //    Unwrap to: primitive_property == conceptas_parameter
-        //    EF Core can translate this with help from DbCommandInterceptor
-        // 2. The DbCommandInterceptor will unwrap the parameter value at SQL execution time
-
-        // Check if this is a comparison
+        // Check if this is a comparison operation
         var isComparison = node.NodeType == ExpressionType.Equal ||
                           node.NodeType == ExpressionType.NotEqual ||
                           node.NodeType == ExpressionType.GreaterThan ||
@@ -133,52 +116,59 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
 
         if (isComparison)
         {
-            var left = node.Left;
-            var right = node.Right;
+            // Visit children first
+            var left = Visit(node.Left);
+            var right = Visit(node.Right);
 
-            // Unwrap Convert(primitive, ConceptAs) on either side
-            if (left is UnaryExpression { NodeType: ExpressionType.Convert } leftConv && leftConv.Type.IsConcept())
+            // Check if we need to handle ConceptAs types
+            var leftIsConcept = left.Type.IsConcept();
+            var rightIsConcept = right.Type.IsConcept();
+
+            // Handle ConceptAs in binary comparisons
+            if (leftIsConcept || rightIsConcept)
             {
-                left = leftConv.Operand;
+                // If right is a ConceptAs constant, extract its primitive value
+                if (rightIsConcept && right is ConstantExpression rightConst && rightConst.Value != null)
+                {
+                    var valueProperty = rightConst.Value.GetType().GetProperty("Value");
+                    if (valueProperty != null)
+                    {
+                        var primitiveValue = valueProperty.GetValue(rightConst.Value);
+                        var valueType = rightConst.Type.GetConceptValueType();
+                        right = Expression.Constant(primitiveValue, valueType);
+                        rightIsConcept = false; // It's now a primitive
+                    }
+                }
+
+                // If left is a ConceptAs constant, extract its primitive value
+                if (leftIsConcept && left is ConstantExpression leftConst && leftConst.Value != null)
+                {
+                    var valueProperty = leftConst.Value.GetType().GetProperty("Value");
+                    if (valueProperty != null)
+                    {
+                        var primitiveValue = valueProperty.GetValue(leftConst.Value);
+                        var valueType = leftConst.Type.GetConceptValueType();
+                        left = Expression.Constant(primitiveValue, valueType);
+                        leftIsConcept = false; // It's now a primitive
+                    }
+                }
+
+                // After extracting primitives from constants, if one side is still ConceptAs (it's a property),
+                // add .Value to it so both sides are primitives
+                if (leftIsConcept && left is not ConstantExpression)
+                {
+                    left = Expression.MakeMemberAccess(left, left.Type.GetProperty("Value")!);
+                }
+
+                if (rightIsConcept && right is not ConstantExpression)
+                {
+                    right = Expression.MakeMemberAccess(right, right.Type.GetProperty("Value")!);
+                }
+
+                return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
             }
 
-            if (right is UnaryExpression { NodeType: ExpressionType.Convert } rightConv && rightConv.Type.IsConcept())
-            {
-                right = rightConv.Operand;
-            }
-
-            // Now visit the unwrapped expressions to handle any nested transformations
-            left = Visit(left);
-            right = Visit(right);
-
-            // If either side is a ConceptAs parameter, we need to extract its actual primitive value
-            // We can't just convert it - EF Core doesn't have type mappings for ConceptAs types
-            // Instead, we access the underlying value through reflection at rewrite time
-            if (left is ParameterExpression leftParam && leftParam.Type.IsConcept())
-            {
-                // For parameters, we can't evaluate them at compile time
-                // But we can create a member access to the Value property
-                // Wait - that won't work either because EF Core still doesn't know the type
-                // The REAL solution: access .Value property
-                left = Expression.Property(leftParam, "Value");
-            }
-
-            if (right is ParameterExpression rightParam && rightParam.Type.IsConcept())
-            {
-                right = Expression.Property(rightParam, "Value");
-            }
-
-            // Handle non-parameter ConceptAs expressions
-            if (left.Type.IsConcept() && left is not ParameterExpression)
-            {
-                left = ExtractConceptValue(left);
-            }
-
-            if (right.Type.IsConcept() && right is not ParameterExpression)
-            {
-                right = ExtractConceptValue(right);
-            }
-
+            // If anything changed, rebuild
             if (left != node.Left || right != node.Right)
             {
                 return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
@@ -189,110 +179,5 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
 
         // For non-comparison operations, use default behavior
         return base.VisitBinary(node);
-    }
-
-    /// <summary>
-    /// Tries to extract the actual value from a Concept expression.
-    /// For closure variables/constants, this evaluates and extracts the value.
-    /// For entity properties, this creates a property access to the Value property.
-    /// For already-parameterized expressions (__id_0), creates .Value access on the parameter.
-    /// </summary>
-    /// <param name="expression">The expression to extract the value from.</param>
-    /// <returns>An expression representing the underlying value.</returns>
-    static Expression ExtractConceptValue(Expression expression)
-    {
-        if (!expression.Type.IsConcept())
-        {
-            return expression;
-        }
-
-        var valueType = expression.Type.GetConceptValueType();
-
-        // Special handling for ParameterExpression - these are EF Core's query parameters like __id_0
-        // DO NOT try to access .Value - EF Core can't translate that
-        // Instead, leave the parameter as-is and let the DbCommandInterceptor unwrap the value at execution
-        if (expression is ParameterExpression paramExpr)
-        {
-            // Return unchanged - the DbCommandInterceptor will handle unwrapping
-            return paramExpr;
-        }
-
-        // Special handling for member access on closure variables
-        // This is the most common case: accessing a captured variable in a lambda
-        if (expression is MemberExpression memberExpr &&
-            memberExpr.Expression is ConstantExpression constantExpr)
-        {
-            // This is a field/property access on a constant (closure class)
-            // We can directly get the value without compiling
-            try
-            {
-                var member = memberExpr.Member;
-                var closureInstance = constantExpr.Value;
-
-                if (closureInstance != null)
-                {
-                    // Get the ConceptAs instance from the closure
-                    var conceptValue = member switch
-                    {
-                        System.Reflection.FieldInfo field => field.GetValue(closureInstance),
-                        System.Reflection.PropertyInfo prop => prop.GetValue(closureInstance),
-                        _ => null
-                    };
-
-                    if (conceptValue != null)
-                    {
-                        // Extract the underlying primitive value from the ConceptAs instance
-                        var valueProperty = conceptValue.GetType().GetProperty("Value");
-                        if (valueProperty != null)
-                        {
-                            var underlyingValue = valueProperty.GetValue(conceptValue);
-                            if (underlyingValue != null)
-                            {
-                                return Expression.Constant(underlyingValue, valueType);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to extract from closure: {ex.Message}");
-            }
-        }
-
-        // Try to evaluate the expression first (for other cases)
-        // This will only work if the expression doesn't reference query parameters
-        try
-        {
-            // Compile and evaluate the expression to get the actual Concept instance
-            var lambda = Expression.Lambda(expression);
-            var compiled = lambda.Compile();
-            var conceptValue = compiled.DynamicInvoke();
-
-            if (conceptValue != null)
-            {
-                // Extract the underlying primitive value
-                var valueProperty = conceptValue.GetType().GetProperty("Value");
-                if (valueProperty != null)
-                {
-                    var underlyingValue = valueProperty.GetValue(conceptValue);
-                    if (underlyingValue != null)
-                    {
-                        // Successfully evaluated - return as constant
-                        System.Diagnostics.Debug.WriteLine($"Successfully evaluated ConceptAs to constant: {underlyingValue}");
-                        return Expression.Constant(underlyingValue, valueType);
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            // Evaluation failed - this is expected for entity properties that reference query parameters
-            System.Diagnostics.Debug.WriteLine($"Failed to evaluate ConceptAs (expected for entity properties): {ex.GetType().Name}");
-        }
-
-        // If we couldn't evaluate (entity property), create a property access to the Value property
-        System.Diagnostics.Debug.WriteLine("Creating property access to .Value for entity property");
-        return Expression.Property(expression, "Value");
     }
 }
