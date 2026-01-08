@@ -27,7 +27,7 @@ public static class DbContextServiceCollectionExtensions
     /// <param name="connectionString">The connection string to use for the DbContext.</param>
     /// <param name="optionsAction">An optional action to configure the DbContext options.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<DbContextOptionsBuilder>? optionsAction = default)
+    public static IServiceCollection AddDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : DbContext
     {
         services.AddPooledDbContextFactory<TDbContext>((serviceProvider, options) =>
@@ -43,7 +43,7 @@ public static class DbContextServiceCollectionExtensions
                 options.AddObservation(serviceProvider);
             }
 
-            optionsAction?.Invoke(options);
+            optionsAction?.Invoke(serviceProvider, options);
         });
 
         services.AddScoped(serviceProvider =>
@@ -63,7 +63,7 @@ public static class DbContextServiceCollectionExtensions
     /// <param name="optionsAction">An action to configure the DbContext options.</param>
     /// <param name="assemblies">The assemblies to scan for DbContext types.</param>
     /// <returns>The service collection, for chaining.</returns>
-    public static IServiceCollection AddReadModelDbContextsFromAssemblies(this IServiceCollection services, Action<DbContextOptionsBuilder> optionsAction, params Assembly[] assemblies)
+    public static IServiceCollection AddReadModelDbContextsFromAssemblies(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> optionsAction, params Assembly[] assemblies)
     {
         var addDbContextMethod = typeof(ReadOnlyDbContextExtensions).GetMethod(nameof(ReadOnlyDbContextExtensions.AddReadOnlyDbContext), BindingFlags.Static | BindingFlags.Public)!;
 
@@ -84,7 +84,7 @@ public static class DbContextServiceCollectionExtensions
     /// <param name="assemblies">The assemblies to scan for DbContext types.</param>
     /// <returns>The service collection, for chaining.</returns>
     /// <exception cref="UnsupportedDatabaseType">Thrown if the connection string does not have a supported database type.</exception>
-    public static IServiceCollection AddReadModelDbContextsWithConnectionStringFromAssemblies(this IServiceCollection services, string connectionString, Action<DbContextOptionsBuilder> optionsAction, params Assembly[] assemblies)
+    public static IServiceCollection AddReadModelDbContextsWithConnectionStringFromAssemblies(this IServiceCollection services, string connectionString, Action<IServiceProvider, DbContextOptionsBuilder> optionsAction, params Assembly[] assemblies)
     {
         var addDbContextMethod = typeof(ReadOnlyDbContextExtensions).GetMethod(nameof(ReadOnlyDbContextExtensions.AddReadOnlyDbContextWithConnectionString), BindingFlags.Static | BindingFlags.Public)!;
 
