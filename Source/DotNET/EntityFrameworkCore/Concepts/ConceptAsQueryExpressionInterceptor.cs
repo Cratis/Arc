@@ -13,6 +13,7 @@ public class ConceptAsQueryExpressionInterceptor : IQueryExpressionInterceptor
 {
     /// <inheritdoc/>
     public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData) =>
+
         // Evaluate ConceptAs closure variables to constants (keeping ConceptAs types intact).
         // The value converter handles the conversion from ConceptAs to primitive at SQL translation time.
         ConceptAsParameterEvaluator.Evaluate(queryExpression);
