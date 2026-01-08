@@ -2,11 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Cratis.Arc.EntityFrameworkCore.Mapping;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.EntityFrameworkCore;
 
@@ -27,18 +29,24 @@ public static class ReadOnlyDbContextExtensions
     public static IServiceCollection AddReadOnlyDbContext<TContext>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TContext : DbContext
     {
+        // Register required application services for BaseDbContext
+        services.TryAddSingleton<IEntityTypeRegistrar, EntityTypeRegistrar>();
+
         services.AddPooledDbContextFactory<TContext>((serviceProvider, options) =>
         {
+            options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+
+            // Add interceptors FIRST - order may matter with pooled factories
+            options.AddInterceptors(
+                new ReadOnlySaveChangesInterceptor(),
+                new ConceptAsQueryExpressionInterceptor(),
+                new ConceptAsDbCommandInterceptor());
+
             optionsAction?.Invoke(serviceProvider, options);
 
             options
-                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
                 .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
-                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>()
-                .AddInterceptors(
-                    new ReadOnlySaveChangesInterceptor(),
-                    new ConceptAsQueryExpressionInterceptor(),
-                    new ConceptAsDbCommandInterceptor());
+                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>();
 
             if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
             {
@@ -69,8 +77,8 @@ public static class ReadOnlyDbContextExtensions
     {
         services.AddReadOnlyDbContext<TDbContext>((serviceProvider, builder) =>
         {
-            optionsAction?.Invoke(serviceProvider, builder);
             builder.UseDatabaseFromConnectionString(connectionString);
+            optionsAction?.Invoke(serviceProvider, builder);
         });
 
         return services;

@@ -3,12 +3,14 @@
 
 using System.Reflection;
 using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Cratis.Arc.EntityFrameworkCore.Mapping;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.EntityFrameworkCore;
 
@@ -30,15 +32,21 @@ public static class DbContextServiceCollectionExtensions
     public static IServiceCollection AddDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : DbContext
     {
+        // Register required application services for BaseDbContext
+        services.TryAddSingleton<IEntityTypeRegistrar, EntityTypeRegistrar>();
+
         services.AddPooledDbContextFactory<TDbContext>((serviceProvider, options) =>
         {
+            options.UseDatabaseFromConnectionString(connectionString);
+
+            // Add interceptors FIRST - order may matter with pooled factories
+            options.AddInterceptors(new ConceptAsQueryExpressionInterceptor(), new ConceptAsDbCommandInterceptor());
+
             optionsAction?.Invoke(serviceProvider, options);
 
             options
-                .UseDatabaseFromConnectionString(connectionString)
                 .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
-                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>()
-                .AddInterceptors(new ConceptAsQueryExpressionInterceptor(), new ConceptAsDbCommandInterceptor());
+                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>();
 
             if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
             {
