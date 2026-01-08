@@ -59,12 +59,12 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
             // The ParameterEvaluator has already handled closures
             // Entity properties will be handled by value converters
             var visitedExpression = Visit(node.Expression);
-            
+
             if (visitedExpression != node.Expression)
             {
                 return Expression.MakeMemberAccess(visitedExpression, node.Member);
             }
-            
+
             return node;
         }
 
