@@ -4,6 +4,8 @@ The `BaseDbContext` provides a pre-configured Entity Framework Core context that
 
 ## Converters
 
+The `BaseDbContext` provides automatic converter application when used with the Arc registration methods (`AddDbContextWithConnectionString` or `AddReadOnlyDbContext`). These methods configure all necessary services and interceptors at registration time to support the pooled factory pattern.
+
 The `BaseDbContext` automatically applies converters to all `DbSet<>` types defined on the context and any types that are referenced by those entity types.
 
 ## How Converters Are Applied
@@ -50,3 +52,18 @@ services.AddDbContext<StoreDbContext>(opt => ...);
 ```
 
 Or leveraging the [automatic database hookup](./automatic-database-hookup.md) extensions provided by Cratis Arc.
+
+## Important: DbContext Pooling
+
+The `BaseDbContext` is designed to work with the pooled factory pattern used by the Arc registration methods. When using `AddDbContextWithConnectionString` or `AddReadOnlyDbContext`, all configuration (service replacements, interceptors, observation support) is applied at registration time.
+
+**Do not override `OnConfiguring`** in your derived DbContext classes when using pooled contexts, as EF Core does not allow modifying options in `OnConfiguring` when pooling is enabled. All configuration must be done during registration.
+
+If you need custom configuration, pass it through the optional `optionsAction` parameter:
+
+```csharp
+services.AddDbContextWithConnectionString<StoreDbContext>(
+    connectionString,
+    opt => opt.EnableSensitiveDataLogging() // Custom configuration here
+);
+```

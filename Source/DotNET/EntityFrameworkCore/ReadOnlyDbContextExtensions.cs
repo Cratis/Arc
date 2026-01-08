@@ -1,7 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore;
@@ -27,7 +31,18 @@ public static class ReadOnlyDbContextExtensions
         {
             options
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
-                .AddInterceptors(new ReadOnlySaveChangesInterceptor());
+                .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
+                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>()
+                .AddInterceptors(
+                    new ReadOnlySaveChangesInterceptor(),
+                    new ConceptAsQueryExpressionInterceptor(),
+                    new ConceptAsDbCommandInterceptor());
+
+            if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
+            {
+                options.AddObservation(serviceProvider);
+            }
+
             optionsAction?.Invoke(options);
         });
 

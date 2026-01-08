@@ -2,8 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore;
@@ -29,7 +33,16 @@ public static class DbContextServiceCollectionExtensions
         services.AddPooledDbContextFactory<TDbContext>((serviceProvider, options) =>
         {
             options
-                .UseDatabaseFromConnectionString(connectionString);
+                .UseDatabaseFromConnectionString(connectionString)
+                .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
+                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>()
+                .AddInterceptors(new ConceptAsQueryExpressionInterceptor(), new ConceptAsDbCommandInterceptor());
+
+            if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
+            {
+                options.AddObservation(serviceProvider);
+            }
+
             optionsAction?.Invoke(options);
         });
 

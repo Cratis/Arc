@@ -8,17 +8,26 @@ Out of the box we support the following databases:
 
 There are different extension methods for adding `DbContext` types and also for resolving the correct database provider based on connection string.
 
+You can use the standard EF Core method with the Arc database detection extension:
+
 ```csharp
 services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString(".. your connection string.."));
 ```
 
 > Note: From the connection string it will do the correct `.UseSqlite()`, `.UseNpgsql()` or `.UseSqlServer()` call on the builder.
 
-There is also a short-hand version of this:
+However, **it is recommended** to use the Arc registration methods which use the pooled factory pattern for better performance and to support multiple database providers:
 
 ```csharp
 services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */);
 ```
+
+This method automatically:
+
+- Uses `AddPooledDbContextFactory` for improved performance
+- Applies all `BaseDbContext` configurations (interceptors, service replacements)
+- Registers both the factory and a scoped DbContext instance
+- Supports multiple database providers in the same application
 
 ## Multiple Database Providers
 

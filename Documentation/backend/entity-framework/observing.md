@@ -16,28 +16,27 @@ services.AddEntityFrameworkCoreObservation();
 
 This registers the necessary services for tracking entity changes and database-level notifications.
 
-If your DbContext inherits from `BaseDbContext`, observation support is automatically enabled when the services are registered. No additional configuration is needed.
+If your DbContext inherits from `BaseDbContext` and is registered using the Arc extension methods (`AddDbContextWithConnectionString` or `AddReadOnlyDbContext`), observation support is automatically enabled when the services are registered. No additional configuration is needed.
 
 ### Manual Configuration (Advanced)
 
-If you're not using `BaseDbContext`, you can manually add observation support:
+If you're not using `BaseDbContext` or the Arc registration methods, you can manually add observation support at registration time:
 
 ```csharp
-protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-{
-    optionsBuilder.AddObservation(serviceProvider);
-}
-```
-
-Or when configuring in dependency injection:
-
-```csharp
-services.AddDbContext<MyDbContext>((serviceProvider, options) =>
+services.AddPooledDbContextFactory<MyDbContext>((serviceProvider, options) =>
 {
     options.UseSqlServer(connectionString)
            .AddObservation(serviceProvider);
 });
+
+services.AddScoped(serviceProvider =>
+{
+    var factory = serviceProvider.GetRequiredService<IDbContextFactory<MyDbContext>>();
+    return factory.CreateDbContext();
+});
 ```
+
+> **Important**: When using pooled DbContext factories (`AddPooledDbContextFactory`), all configuration must be done at registration time. You cannot modify options in `OnConfiguring` when pooling is enabled.
 
 ## Usage
 

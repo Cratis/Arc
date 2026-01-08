@@ -4,11 +4,9 @@
 using Cratis.Arc.EntityFrameworkCore.Concepts;
 using Cratis.Arc.EntityFrameworkCore.Json;
 using Cratis.Arc.EntityFrameworkCore.Mapping;
-using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore;
@@ -19,23 +17,6 @@ namespace Cratis.Arc.EntityFrameworkCore;
 /// <param name="options">The options to be used by a <see cref="DbContext"/>.</param>
 public class BaseDbContext(DbContextOptions options) : DbContext(options)
 {
-    /// <inheritdoc/>
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder
-            .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
-            .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>()
-            .AddInterceptors(new ConceptAsQueryExpressionInterceptor(), new ConceptAsDbCommandInterceptor());
-
-        var serviceProvider = optionsBuilder.Options.FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider;
-        if (serviceProvider?.GetService<IEntityChangeTracker>() is not null)
-        {
-            optionsBuilder.AddObservation(serviceProvider);
-        }
-
-        base.OnConfiguring(optionsBuilder);
-    }
-
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
