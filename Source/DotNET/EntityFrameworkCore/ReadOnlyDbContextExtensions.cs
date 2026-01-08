@@ -24,7 +24,7 @@ public static class ReadOnlyDbContextExtensions
     /// <param name="services">The service collection to add the DbContext to.</param>
     /// <param name="optionsAction">An optional action to configure the DbContext options.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddReadOnlyDbContext<TContext>(this IServiceCollection services, Action<DbContextOptionsBuilder>? optionsAction = default)
+    public static IServiceCollection AddReadOnlyDbContext<TContext>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TContext : DbContext
     {
         services.AddPooledDbContextFactory<TContext>((serviceProvider, options) =>
@@ -43,7 +43,7 @@ public static class ReadOnlyDbContextExtensions
                 options.AddObservation(serviceProvider);
             }
 
-            optionsAction?.Invoke(options);
+            optionsAction?.Invoke(serviceProvider, options);
         });
 
         services.AddScoped(serviceProvider =>
@@ -64,13 +64,13 @@ public static class ReadOnlyDbContextExtensions
     /// <param name="connectionString">The connection string to use for the DbContext.</param>
     /// <param name="optionsAction">An optional action to configure the DbContext options.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddReadOnlyDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<DbContextOptionsBuilder>? optionsAction = default)
+    public static IServiceCollection AddReadOnlyDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : BaseDbContext
     {
-        services.AddReadOnlyDbContext<TDbContext>(builder =>
+        services.AddReadOnlyDbContext<TDbContext>((serviceProvider, builder) =>
         {
             builder.UseDatabaseFromConnectionString(connectionString);
-            optionsAction?.Invoke(builder);
+            optionsAction?.Invoke(serviceProvider, builder);
         });
 
         return services;
