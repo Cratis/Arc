@@ -29,6 +29,8 @@ public static class ReadOnlyDbContextExtensions
     {
         services.AddPooledDbContextFactory<TContext>((serviceProvider, options) =>
         {
+            optionsAction?.Invoke(serviceProvider, options);
+
             options
                 .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
                 .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
@@ -42,8 +44,6 @@ public static class ReadOnlyDbContextExtensions
             {
                 options.AddObservation(serviceProvider);
             }
-
-            optionsAction?.Invoke(serviceProvider, options);
         });
 
         services.AddScoped(serviceProvider =>
@@ -69,8 +69,8 @@ public static class ReadOnlyDbContextExtensions
     {
         services.AddReadOnlyDbContext<TDbContext>((serviceProvider, builder) =>
         {
-            builder.UseDatabaseFromConnectionString(connectionString);
             optionsAction?.Invoke(serviceProvider, builder);
+            builder.UseDatabaseFromConnectionString(connectionString);
         });
 
         return services;

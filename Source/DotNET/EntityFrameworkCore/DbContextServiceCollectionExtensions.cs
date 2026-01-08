@@ -32,6 +32,8 @@ public static class DbContextServiceCollectionExtensions
     {
         services.AddPooledDbContextFactory<TDbContext>((serviceProvider, options) =>
         {
+            optionsAction?.Invoke(serviceProvider, options);
+
             options
                 .UseDatabaseFromConnectionString(connectionString)
                 .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
@@ -42,8 +44,6 @@ public static class DbContextServiceCollectionExtensions
             {
                 options.AddObservation(serviceProvider);
             }
-
-            optionsAction?.Invoke(serviceProvider, options);
         });
 
         services.AddScoped(serviceProvider =>
