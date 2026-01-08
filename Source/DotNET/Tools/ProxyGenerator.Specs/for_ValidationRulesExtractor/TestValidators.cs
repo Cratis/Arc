@@ -44,3 +44,24 @@ public class TestCommandWithoutValidator
 {
     public string Name { get; set; } = string.Empty;
 }
+
+public class TestCommandWithDependency
+{
+    public string Name { get; set; } = string.Empty;
+    public int Age { get; set; }
+}
+
+public interface ITestDependency
+{
+    Task<bool> ValidateAsync(string name);
+}
+
+public class TestCommandWithDependencyValidator : BaseValidator<TestCommandWithDependency>
+{
+    public TestCommandWithDependencyValidator(ITestDependency dependency)
+    {
+        RuleFor(x => x.Name).NotEmpty();
+        RuleFor(x => x.Age).GreaterThanOrEqualTo(18);
+        RuleFor(x => x).MustAsync(async (cmd, ct) => await dependency.ValidateAsync(cmd.Name));
+    }
+}

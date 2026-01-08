@@ -257,7 +257,7 @@ public static class ValidationRulesExtractor
 
         try
         {
-            var validator = Activator.CreateInstance(validatorType);
+            var validator = CreateValidatorInstance(validatorType);
             if (validator == null)
             {
                 return [];
@@ -323,6 +323,51 @@ public static class ValidationRulesExtractor
         {
             // Silently fail if we can't extract rules
             return [];
+        }
+    }
+
+    static object? CreateValidatorInstance(Type validatorType)
+    {
+        try
+        {
+            // First, try to create an instance without parameters (parameterless constructor)
+            var parameterlessConstructor = validatorType.GetConstructor(Type.EmptyTypes);
+            if (parameterlessConstructor != null)
+            {
+                return Activator.CreateInstance(validatorType);
+            }
+
+            // If no parameterless constructor, find the first constructor and create default values for its parameters
+            var constructors = validatorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+            if (constructors.Length == 0)
+            {
+                return null;
+            }
+
+            var constructor = constructors[0];
+            var parameters = constructor.GetParameters();
+            var parameterValues = new object?[parameters.Length];
+
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var parameterType = parameters[i].ParameterType;
+
+                // Create default value for parameter type
+                if (parameterType.IsValueType)
+                {
+                    parameterValues[i] = Activator.CreateInstance(parameterType);
+                }
+                else
+                {
+                    parameterValues[i] = null;
+                }
+            }
+
+            return Activator.CreateInstance(validatorType, parameterValues);
+        }
+        catch
+        {
+            return null;
         }
     }
 

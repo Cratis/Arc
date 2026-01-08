@@ -271,6 +271,36 @@ The ProxyGenerator can only extract validation rules that can be executed client
 - **Complex predicates**: Conditions that depend on server-side data
 - **Cross-property validation**: Rules that compare multiple properties (partially supported)
 
+### Validators with Constructor Dependencies
+
+Validators can have constructor dependencies that are used for server-side validation. The ProxyGenerator handles this automatically:
+
+```csharp
+public class AssignPersonnelValidator : CommandValidator<AssignPersonnel>
+{
+    public AssignPersonnelValidator(PersonnelAlreadyAssigned personnelAlreadyAssigned)
+    {
+        RuleFor(x => x.Name).Length(1, 100).NotEmpty();
+        RuleFor(x => x.Age).NotEmpty();
+        RuleFor(x => x.RoleId).NotNull();
+        RuleFor(x => x.PersonId).NotNull();
+        
+        // This rule requires server-side execution and won't be extracted
+        RuleFor(x => x)
+            .MustAsync(async (command, ct) => !await personnelAlreadyAssigned(command.MissionId, command.PersonId))
+            .WithMessage("Personnel is already assigned to this mission.");
+    }
+}
+```
+
+The ProxyGenerator will:
+1. Create the validator instance with `null` values for dependencies
+2. Extract all simple validation rules (`.Length()`, `.NotEmpty()`, `.NotNull()`)
+3. Skip rules that require dependencies (`.MustAsync()` with dependency usage)
+4. Generate TypeScript with only the client-side compatible rules
+
+This allows you to keep all validation logic in one place while only the client-compatible rules are extracted.
+
 ### Recommended Approach
 
 - Use **out-of-the-box FluentValidation rules** for client-side validation
