@@ -25,6 +25,7 @@ public class with_concept_member_access_on_closure : Specification
     void Because() => _result = ConceptAsParameterEvaluator.Evaluate(_expression);
 
     [Fact] void should_evaluate_to_constant() => _result.ShouldBeOfExactType<ConstantExpression>();
-    [Fact] void should_have_primitive_type() => _result.Type.ShouldEqual(typeof(Guid));
-    [Fact] void should_have_unwrapped_value() => ((ConstantExpression)_result).Value.ShouldEqual(_expectedId);
+    [Fact] void should_keep_concept_type() => _result.Type.ShouldEqual(typeof(TestIdConcept));
+    [Fact] void should_have_concept_value() => ((ConstantExpression)_result).Value.ShouldBeOfExactType<TestIdConcept>();
+    [Fact] void should_have_correct_underlying_value() => ((TestIdConcept)((ConstantExpression)_result).Value!).Value.ShouldEqual(_expectedId);
 }

@@ -25,6 +25,7 @@ public class with_concept_member_access_on_constant : Specification
     void Because() => _result = ConceptAsParameterEvaluator.Evaluate(_expression);
 
     [Fact] void should_evaluate_to_constant() => _result.ShouldBeOfExactType<ConstantExpression>();
-    [Fact] void should_have_primitive_type() => _result.Type.ShouldEqual(typeof(string));
-    [Fact] void should_have_unwrapped_value() => ((ConstantExpression)_result).Value.ShouldEqual(_expectedName);
+    [Fact] void should_keep_concept_type() => _result.Type.ShouldEqual(typeof(TestNameConcept));
+    [Fact] void should_have_concept_value() => ((ConstantExpression)_result).Value.ShouldBeOfExactType<TestNameConcept>();
+    [Fact] void should_have_correct_underlying_value() => ((TestNameConcept)((ConstantExpression)_result).Value!).Value.ShouldEqual(_expectedName);
 }

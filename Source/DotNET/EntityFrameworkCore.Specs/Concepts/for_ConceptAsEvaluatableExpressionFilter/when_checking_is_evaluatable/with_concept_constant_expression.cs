@@ -18,5 +18,5 @@ public class with_concept_constant_expression : given.an_evaluatable_expression_
 
     void Because() => _result = _filter.IsEvaluatableExpression(_expression, _model);
 
-    [Fact] void should_be_evaluatable() => _result.ShouldBeTrue();
+    [Fact] void should_not_be_evaluatable() => _result.ShouldBeFalse();
 }

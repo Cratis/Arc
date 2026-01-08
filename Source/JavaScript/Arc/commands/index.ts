@@ -7,3 +7,4 @@ export * from './ICommandResult';
 export * from './CommandResult';
 export * from './CommandResults';
 export * from './CommandValidator';
+import '../validation';
