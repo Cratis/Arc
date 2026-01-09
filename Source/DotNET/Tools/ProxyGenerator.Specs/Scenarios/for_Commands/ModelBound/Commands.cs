@@ -412,3 +412,36 @@ public class CommandWithValidatorDependenciesValidator : CommandValidator<Comman
             .WithMessage("Person is already assigned to this role.");
     }
 }
+
+/// <summary>
+/// A command with nullable properties for testing.
+/// </summary>
+[Command]
+public class CommandWithNullableProperties
+{
+    /// <summary>
+    /// Gets or sets the required name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the optional description.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional value.
+    /// </summary>
+    public int? Value { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional timestamp.
+    /// </summary>
+    public DateTime? Timestamp { get; set; }
+
+    /// <summary>
+    /// Handles the command.
+    /// </summary>
+    /// <returns>A confirmation message.</returns>
+    public string Handle() => $"Handled: {Name}";
+}

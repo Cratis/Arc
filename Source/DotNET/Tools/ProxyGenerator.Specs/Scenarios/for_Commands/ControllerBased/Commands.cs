@@ -114,6 +114,14 @@ public class ControllerCommandsController : ControllerBase
         DataAnnotationsValidatedCallCount++;
         return Ok();
     }
+
+    /// <summary>
+    /// Executes a command with nullable properties.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("with-nullable-properties")]
+    public ActionResult<string> ExecuteWithNullableProperties([FromBody] ControllerCommandWithNullableProperties command) => Ok($"Handled: {command.Name}");
 }
 
 /// <summary>
@@ -332,4 +340,30 @@ public class ControllerDataAnnotationsValidatedCommand
     /// </summary>
     [Url(ErrorMessage = UrlFormatMessage)]
     public string Website { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// A controller-based command with nullable properties.
+/// </summary>
+public class ControllerCommandWithNullableProperties
+{
+    /// <summary>
+    /// Gets or sets the required name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the optional description.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional value.
+    /// </summary>
+    public int? Value { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional timestamp.
+    /// </summary>
+    public DateTime? Timestamp { get; set; }
 }

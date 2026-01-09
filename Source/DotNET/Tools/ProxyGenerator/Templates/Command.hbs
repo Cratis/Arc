@@ -91,7 +91,9 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     get properties(): string[] {
         return [
             {{#Properties}}
+            {{#unless IsNullable}}
             '{{camelcase Name}}',
+            {{/unless}}
             {{/Properties}}
         ];
     }
