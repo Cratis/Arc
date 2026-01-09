@@ -32,7 +32,6 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     /* eslint-enable @typescript-eslint/no-explicit-any */
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
-    abstract get properties(): string[];
 
     private _initialValues: object = {};
     private _hasChanges = false;
@@ -113,7 +112,8 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     private buildPayload(): object {
         const payload = {};
-        this.properties.forEach(property => {
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            const property = propertyDescriptor.name;
             payload[property] = this[property];
         });
         return payload;
@@ -121,15 +121,17 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     private validateRequiredProperties(): ValidationResult[] {
         const validationErrors: ValidationResult[] = [];
-        this.properties.forEach(property => {
-            const value = this[property];
-            if (value === undefined || value === null || value === '') {
-                validationErrors.push(new ValidationResult(
-                    ValidationResultSeverity.Error,
-                    `${property} is required`,
-                    [property],
-                    null
-                ));
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            if (!propertyDescriptor.isOptional) {
+                const value = this[propertyDescriptor.name];
+                if (value === undefined || value === null || value === '') {
+                    validationErrors.push(new ValidationResult(
+                        ValidationResultSeverity.Error,
+                        `${propertyDescriptor.name} is required`,
+                        [propertyDescriptor.name],
+                        null
+                    ));
+                }
             }
         });
         return validationErrors;
@@ -180,7 +182,8 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     clear(): void {
-        this.properties.forEach(property => {
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            const property = propertyDescriptor.name;
             this[property] = undefined;
         });
         this._initialValues = {};
@@ -189,7 +192,8 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     setInitialValues(values: TCommandContent) {
-        this.properties.forEach(property => {
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            const property = propertyDescriptor.name;
             if (Object.prototype.hasOwnProperty.call(values, property)) {
                 this._initialValues[property] = values[property];
                 this[property] = values[property];
@@ -200,7 +204,8 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     setInitialValuesFromCurrentValues() {
-        this.properties.forEach(property => {
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            const property = propertyDescriptor.name;
             if (this[property]) {
                 this._initialValues[property] = this[property];
             }
@@ -210,7 +215,8 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     revertChanges(): void {
-        this.properties.forEach(property => {
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            const property = propertyDescriptor.name;
             this[property] = this._initialValues[property];
         });
     }
@@ -244,6 +250,9 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     }
 
     private updateHasChanges() {
-        this._hasChanges = this.properties.some(property => this[property] !== this._initialValues[property]);
+        this._hasChanges = this.propertyDescriptors.some(propertyDescriptor => {
+            const property = propertyDescriptor.name;
+            return this[property] !== this._initialValues[property];
+        });
     }
 }

@@ -58,7 +58,7 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     readonly validation: CommandValidator = new {{Name}}Validator();
     readonly propertyDescriptors: PropertyDescriptor[] = [
         {{#Properties}}
-        new PropertyDescriptor('{{camelcase Name}}', {{{Constructor}}}),
+        new PropertyDescriptor('{{camelcase Name}}', {{{Constructor}}}, {{lowercase IsNullable}}),
         {{/Properties}}
     ];
 
@@ -85,14 +85,6 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
             {{#Parameters}}
             '{{camelcase Name}}',
             {{/Parameters}}
-        ];
-    }
-
-    get properties(): string[] {
-        return [
-            {{#Properties}}
-            '{{camelcase Name}}',
-            {{/Properties}}
         ];
     }
 

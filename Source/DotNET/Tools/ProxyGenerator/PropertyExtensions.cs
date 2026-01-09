@@ -19,7 +19,8 @@ public static class PropertyExtensions
     public static PropertyDescriptor ToPropertyDescriptor(this PropertyInfo property)
     {
         var documentation = property.GetDocumentation();
-        return ToPropertyDescriptor(property.PropertyType, property.Name, documentation);
+        var isReferenceTypeNullable = property.IsOptional();
+        return ToPropertyDescriptor(property.PropertyType, property.Name, documentation, isReferenceTypeNullable);
     }
 
     /// <summary>
@@ -44,11 +45,11 @@ public static class PropertyExtensions
         return ToPropertyDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, documentation);
     }
 
-    static PropertyDescriptor ToPropertyDescriptor(Type propertyType, string name, string? documentation = null)
+    static PropertyDescriptor ToPropertyDescriptor(Type propertyType, string name, string? documentation = null, bool isReferenceTypeNullable = false)
     {
         var isEnumerable = false;
-        var isNullable = propertyType.IsNullable();
-        if (isNullable)
+        var isNullable = propertyType.IsNullable() || isReferenceTypeNullable;
+        if (propertyType.IsNullable())
         {
             propertyType = propertyType.GetGenericArguments()[0];
         }
