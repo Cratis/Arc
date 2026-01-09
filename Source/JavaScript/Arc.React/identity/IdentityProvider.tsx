@@ -40,14 +40,24 @@ export interface IdentityProviderProps {
 
 export const IdentityProvider = (props: IdentityProviderProps) => {
     const arc = useContext(ArcContext);
-    const [context, setContext] = useState<IdentityContextValue>(defaultContextValue);
+    
+    const fetchIdentity = (): Promise<IIdentity> => {
+        return RootIdentityProvider.getCurrent(props.detailsType).then(identity => {
+            const wrappedIdentity = wrapRefresh(identity);
+            setContext({
+                identity: wrappedIdentity,
+                detailsConstructor: props.detailsType
+            });
+            return wrappedIdentity;
+        });
+    };
 
     const wrapRefresh = (identity: IIdentity): IIdentity => {
         const originalRefresh = identity.refresh.bind(identity);
         return {
             ...identity,
             refresh: () => {
-                return new Promise<IIdentity>(resolve => {
+                return new Promise<IIdentity>((resolve, reject) => {
                     originalRefresh().then(newIdentity => {
                         const wrappedIdentity = wrapRefresh(newIdentity);
                         setContext({
@@ -55,22 +65,31 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
                             detailsConstructor: props.detailsType
                         });
                         resolve(wrappedIdentity);
-                    });
+                    }).catch(reject);
                 });
             }
         };
     };
 
+    const initialIdentity: IIdentity = {
+        id: '',
+        name: '',
+        details: {},
+        isSet: false,
+        refresh: () => fetchIdentity()
+    };
+
+    const [context, setContext] = useState<IdentityContextValue>({
+        identity: wrapRefresh(initialIdentity),
+        detailsConstructor: props.detailsType
+    });
+
     useEffect(() => {
         RootIdentityProvider.setHttpHeadersCallback(props.httpHeadersCallback!);
         RootIdentityProvider.setApiBasePath(arc.apiBasePath ?? '');
         RootIdentityProvider.setOrigin(arc.origin ?? '');
-        RootIdentityProvider.getCurrent(props.detailsType).then(identity => {
-            const wrappedIdentity = wrapRefresh(identity);
-            setContext({
-                identity: wrappedIdentity,
-                detailsConstructor: props.detailsType
-            });
+        fetchIdentity().catch(error => {
+            console.error('Failed to fetch initial identity:', error);
         });
     }, []);
 
