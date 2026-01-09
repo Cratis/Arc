@@ -12,17 +12,16 @@ export interface FakeCommandContent {
 export class FakeCommand extends Command<FakeCommandContent> {
     readonly route = '/api/fake-command';
     readonly validation = {} as CommandValidator;
-    readonly propertyDescriptors: PropertyDescriptor[] = [];
+    readonly propertyDescriptors: PropertyDescriptor[] = [
+        new PropertyDescriptor('someProperty', String, true),
+        new PropertyDescriptor('anotherProperty', Number, true)
+    ];
 
     someProperty?: string;
     anotherProperty?: number;
 
     get requestParameters(): string[] {
         return [];
-    }
-
-    get properties(): string[] {
-        return ['someProperty', 'anotherProperty'];
     }
 
     constructor() {

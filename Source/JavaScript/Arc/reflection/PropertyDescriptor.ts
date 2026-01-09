@@ -11,7 +11,8 @@ export class PropertyDescriptor {
      * Initializes a new instance of the {@link PropertyDescriptor} class.
      * @param name Name of the property.
      * @param type Type of the property.
+     * @param isOptional Whether the property is optional (nullable).
      */
-    constructor(readonly name: string, readonly type: Constructor) {
+    constructor(readonly name: string, readonly type: Constructor, readonly isOptional: boolean = false) {
     }
 }
