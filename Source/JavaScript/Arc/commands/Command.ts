@@ -32,7 +32,6 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     /* eslint-enable @typescript-eslint/no-explicit-any */
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
-    abstract get properties(): string[];
 
     private _initialValues: object = {};
     private _hasChanges = false;
@@ -122,15 +121,17 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     private validateRequiredProperties(): ValidationResult[] {
         const validationErrors: ValidationResult[] = [];
-        this.properties.forEach(property => {
-            const value = this[property];
-            if (value === undefined || value === null || value === '') {
-                validationErrors.push(new ValidationResult(
-                    ValidationResultSeverity.Error,
-                    `${property} is required`,
-                    [property],
-                    null
-                ));
+        this.propertyDescriptors.forEach(propertyDescriptor => {
+            if (!propertyDescriptor.isOptional) {
+                const value = this[propertyDescriptor.name];
+                if (value === undefined || value === null || value === '') {
+                    validationErrors.push(new ValidationResult(
+                        ValidationResultSeverity.Error,
+                        `${propertyDescriptor.name} is required`,
+                        [propertyDescriptor.name],
+                        null
+                    ));
+                }
             }
         });
         return validationErrors;

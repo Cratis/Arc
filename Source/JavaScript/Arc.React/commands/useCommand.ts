@@ -53,16 +53,16 @@ export function useCommand<
 
     const setCommandValues = (values: TCommandContent) => {
         const valuesRecord = values as Record<string, unknown>;
-        command!.current!.properties.forEach((property: string) => {
-            if (valuesRecord[property] !== undefined && valuesRecord[property] != null) {
-                (command.current as Record<string, unknown>)[property] = valuesRecord[property];
+        command!.current!.propertyDescriptors.forEach((propertyDescriptor) => {
+            if (valuesRecord[propertyDescriptor.name] !== undefined && valuesRecord[propertyDescriptor.name] != null) {
+                (command.current as Record<string, unknown>)[propertyDescriptor.name] = valuesRecord[propertyDescriptor.name];
             }
         });
     };
 
     const clearCommandValues = () => {
-        command.current!.properties.forEach((property: string) => {
-            (command.current as Record<string, unknown>)[property] = undefined;
+        command.current!.propertyDescriptors.forEach((propertyDescriptor) => {
+            (command.current as Record<string, unknown>)[propertyDescriptor.name] = undefined;
         });
     };
 
