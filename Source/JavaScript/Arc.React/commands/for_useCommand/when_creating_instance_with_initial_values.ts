@@ -22,7 +22,9 @@ describe('when creating instance with initial values', () => {
     };
 
     const config: ArcConfiguration = {
-        microservice: 'test-microservice'
+        microservice: 'test-microservice',
+        apiBasePath: '/api',
+        origin: 'https://example.com'
     };
 
     render(
