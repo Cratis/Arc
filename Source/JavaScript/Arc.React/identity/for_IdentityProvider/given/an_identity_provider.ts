@@ -10,6 +10,7 @@ import { IIdentity } from '@cratis/arc/identity';
 import { ArcContext } from '../../../ArcContext';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
+import { Constructor } from '@cratis/fundamentals';
 
 export class an_identity_provider {
     capturedIdentity: IIdentity | null = null;
@@ -51,8 +52,9 @@ export class an_identity_provider {
         };
     }
 
-    renderProvider(detailsType?: unknown) {
+    renderProvider(detailsType?: Constructor) {
         const arcContext = {
+            microservice: 'test-microservice',
             apiBasePath: '/api',
             origin: 'http://localhost'
         };
