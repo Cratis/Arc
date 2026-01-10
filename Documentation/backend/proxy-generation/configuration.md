@@ -120,6 +120,32 @@ When set to `true`, the type names are excluded:
 - Command `CreateOrderCommand` → `/api/orders`
 - Query `GetOrdersQuery` → `/api/orders`
 
+### Automatic Conflict Detection
+
+When `CratisProxiesSkipCommandNameInRoute` or `CratisProxiesSkipQueryNameInRoute` is set to `true`, the proxy generator automatically detects route conflicts. If multiple commands or queries exist in the same namespace (after skipping segments), the type/method name is automatically included in the route to prevent collisions.
+
+This conflict detection ensures that:
+
+- Routes remain clean when there's only one command/query in a namespace
+- Route conflicts are automatically resolved by including type names when needed
+- The generated proxy routes match the runtime endpoint mapping behavior exactly
+
+**Examples:**
+
+Single command in namespace `MyApp.Orders.Commands`:
+
+```text
+CreateOrderCommand → /api/orders
+```
+
+Multiple commands in namespace `MyApp.Orders.Commands`:
+
+```text
+CreateOrderCommand → /api/orders/create-order-command
+UpdateOrderCommand → /api/orders/update-order-command
+DeleteOrderCommand → /api/orders/delete-order-command
+```
+
 **Example Configuration:**
 
 ```xml

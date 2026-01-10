@@ -83,6 +83,13 @@ The generated route is affected by the `CratisProxiesSkipQueryNameInRoute` confi
 - When `false` (default): The query type name is included in the route
 - When `true`: The query type name is excluded from the route
 
+**Automatic Conflict Detection**: When `CratisProxiesSkipQueryNameInRoute` is `true`, the proxy generator automatically detects if multiple query methods exist in the same namespace (after skipping segments). If a conflict is detected, the query name is automatically included in the route to prevent route collisions. This behavior is consistent with the runtime endpoint mapping.
+
+For example:
+
+- Single query in namespace: Route is clean without type name (e.g., `/api/products`)
+- Multiple queries in same namespace: Type names are added automatically (e.g., `/api/products/get-all`, `/api/products/get-by-category`)
+
 See [Configuration](configuration.md) for more details on route configuration options.
 
 ## Frontend Usage
