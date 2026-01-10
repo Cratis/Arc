@@ -16,11 +16,11 @@ public class when_generating_proxy_for_command_with_validator_having_constructor
     {
         var commandType = typeof(CommandWithValidatorDependencies).GetTypeInfo();
         _descriptor = commandType.ToCommandDescriptor(
-            allCommandTypes: [commandType],
             targetPath: string.Empty,
             segmentsToSkip: 0,
             skipCommandNameInRoute: false,
-            apiPrefix: "api");
+            apiPrefix: "api",
+            allCommandTypes: [commandType]);
 
         _generatedCode = Infrastructure.InMemoryProxyGenerator.GenerateCommand(_descriptor);
     }
