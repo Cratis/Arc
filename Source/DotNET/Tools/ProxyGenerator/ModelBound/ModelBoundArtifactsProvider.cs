@@ -30,10 +30,10 @@ public class ModelBoundArtifactsProvider : IArtifactsProvider
         message($"  Discover model based commands and queries from {TypeExtensions.Assemblies.Count()} assemblies");
 
         var commands = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsCommand()).ToArray();
-        Commands = commands.Select(_ => _.ToCommandDescriptor(outputPath, segmentsToSkip, skipCommandNameInRoute, apiPrefix)).ToArray();
+        Commands = commands.Select(_ => _.ToCommandDescriptor(outputPath, segmentsToSkip, skipCommandNameInRoute, apiPrefix, commands)).ToArray();
 
         var queries = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsQuery()).ToArray();
-        Queries = queries.SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix)).ToArray();
+        Queries = queries.SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries)).ToArray();
     }
 
     /// <inheritdoc/>

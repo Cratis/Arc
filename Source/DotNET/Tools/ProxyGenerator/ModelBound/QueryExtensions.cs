@@ -19,20 +19,22 @@ public static class QueryExtensions
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="skipQueryNameInRoute">True if the query name should be skipped in the route, false if not.</param>
     /// <param name="apiPrefix">The API prefix to use in the route.</param>
+    /// <param name="allQueryTypes">Collection of all query types to detect conflicts.</param>
     /// <returns>Collection of converted <see cref="QueryDescriptor"/>.</returns>
     public static IEnumerable<QueryDescriptor> ToQueryDescriptors(
         this TypeInfo readModelType,
         string targetPath,
         int segmentsToSkip,
         bool skipQueryNameInRoute,
-        string apiPrefix)
+        string apiPrefix,
+        IEnumerable<TypeInfo> allQueryTypes)
     {
         var queryMethods = readModelType.GetQueryMethods();
         var descriptors = new List<QueryDescriptor>();
 
         foreach (var method in queryMethods)
         {
-            var descriptor = method.ToQueryDescriptor(readModelType, targetPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix);
+            var descriptor = method.ToQueryDescriptor(readModelType, targetPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, allQueryTypes);
             descriptors.Add(descriptor);
         }
 
@@ -48,6 +50,7 @@ public static class QueryExtensions
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="skipQueryNameInRoute">True if the query name should be skipped in the route, false if not.</param>
     /// <param name="apiPrefix">The API prefix to use in the route.</param>
+    /// <param name="allQueryTypes">Collection of all query types to detect conflicts.</param>
     /// <returns>Converted <see cref="QueryDescriptor"/>.</returns>
     public static QueryDescriptor ToQueryDescriptor(
         this MethodInfo method,
@@ -55,7 +58,8 @@ public static class QueryExtensions
         string targetPath,
         int segmentsToSkip,
         bool skipQueryNameInRoute,
-        string apiPrefix)
+        string apiPrefix,
+        IEnumerable<TypeInfo> allQueryTypes)
     {
         var typesInvolved = new List<Type>();
 
@@ -84,7 +88,14 @@ public static class QueryExtensions
         var location = readModelType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}";
-        var route = skipQueryNameInRoute ? baseUrl : $"{baseUrl}/{method.Name.ToKebabCase()}".ToLowerInvariant();
+
+        var namespaceKey = string.Join('.', location.Skip(segmentsToSkip));
+        var queriesInSameNamespace = allQueryTypes.Where(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(segmentsToSkip)) == namespaceKey);
+        var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods().Count());
+        var hasConflict = totalMethodsInNamespace > 1;
+        var includeQueryName = !skipQueryNameInRoute || hasConflict;
+        var route = includeQueryName ? $"{baseUrl}/{method.Name.ToKebabCase()}" : baseUrl;
+        route = route.ToLowerInvariant();
 
         var relativePath = readModelType.ResolveTargetPath(segmentsToSkip);
         var imports = typesInvolved

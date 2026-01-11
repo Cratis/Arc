@@ -26,14 +26,22 @@ public static class CommandEndpointMapper
 
         var prefix = options.RoutePrefix.Trim('/');
 
+        var handlersByNamespace = commandHandlerProviders.Handlers
+            .GroupBy(h => string.Join('.', h.Location.Skip(options.SegmentsToSkipForRoute)))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var handler in commandHandlerProviders.Handlers)
         {
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
             var segments = location.Select(segment => segment.ToKebabCase());
             var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
-            var typeName = options.IncludeCommandNameInRoute ? handler.CommandType.Name : string.Empty;
 
-            var url = options.IncludeCommandNameInRoute ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
+            var namespaceKey = string.Join('.', location);
+            var hasConflict = handlersByNamespace.TryGetValue(namespaceKey, out var handlersInNamespace) && handlersInNamespace.Count > 1;
+            var includeCommandName = options.IncludeCommandNameInRoute || hasConflict;
+            var typeName = includeCommandName ? handler.CommandType.Name : string.Empty;
+
+            var url = includeCommandName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
             url = url.ToLowerInvariant();
 
             MapCommandEndpoint(

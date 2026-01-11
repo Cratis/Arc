@@ -61,6 +61,13 @@ The generated route is affected by the `CratisProxiesSkipCommandNameInRoute` con
 - When `false` (default): The command type name is included in the route
 - When `true`: The command type name is excluded from the route
 
+**Automatic Conflict Detection**: When `CratisProxiesSkipCommandNameInRoute` is `true`, the proxy generator automatically detects if multiple commands exist in the same namespace (after skipping segments). If a conflict is detected, the command name is automatically included in the route to prevent route collisions. This behavior is consistent with the runtime endpoint mapping.
+
+For example:
+
+- Single command in namespace: Route is clean without type name (e.g., `/api/orders`)
+- Multiple commands in same namespace: Type names are added automatically (e.g., `/api/orders/create-order`, `/api/orders/update-order`)
+
 See [Configuration](configuration.md) for more details on route configuration options.
 
 ## Frontend Usage

@@ -111,7 +111,8 @@ public class a_scenario_web_application : Specification, IDisposable
             targetPath: string.Empty,
             segmentsToSkip: 0,
             skipCommandNameInRoute: false,
-            apiPrefix: "api");
+            apiPrefix: "api",
+            [commandType]);
 
         // Load all types and enums that are involved
         LoadTypesAndEnums(descriptor.TypesInvolved, saveToFile);
@@ -171,7 +172,8 @@ public class a_scenario_web_application : Specification, IDisposable
             targetPath: string.Empty,
             segmentsToSkip: 0,
             skipQueryNameInRoute: false,
-            apiPrefix: "api");
+            apiPrefix: "api",
+            [readModelType]);
 
         // Load all types and enums that are involved
         LoadTypesAndEnums(descriptor.TypesInvolved, saveToFile);

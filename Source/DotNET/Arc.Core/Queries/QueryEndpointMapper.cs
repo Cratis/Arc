@@ -32,14 +32,22 @@ public static class QueryEndpointMapper
 
         var prefix = options.RoutePrefix.Trim('/');
 
+        var performersByNamespace = queryPerformerProviders.Performers
+            .GroupBy(p => string.Join('.', p.Location.Skip(options.SegmentsToSkipForRoute)))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var performer in queryPerformerProviders.Performers)
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
             var segments = location.Select(segment => segment.ToKebabCase());
             var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
-            var typeName = options.IncludeQueryNameInRoute ? performer.Name.ToString() : string.Empty;
 
-            var url = options.IncludeQueryNameInRoute ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
+            var namespaceKey = string.Join('.', location);
+            var hasConflict = performersByNamespace.TryGetValue(namespaceKey, out var performersInNamespace) && performersInNamespace.Count > 1;
+            var includeQueryName = options.IncludeQueryNameInRoute || hasConflict;
+            var typeName = includeQueryName ? performer.Name.ToString() : string.Empty;
+
+            var url = includeQueryName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
             url = url.ToLowerInvariant();
 
             var executeEndpointName = $"Execute{performer.Name}";

@@ -19,7 +19,8 @@ public class when_generating_command_with_documentation : Specification
             "/output",
             segmentsToSkip: 3,
             skipCommandNameInRoute: false,
-            apiPrefix: "api");
+            apiPrefix: "api",
+            [commandType.GetTypeInfo()]);
     }
 
     void Because() => _generatedCode = TemplateTypes.Command(_descriptor);
