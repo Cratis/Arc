@@ -38,6 +38,6 @@ public class and_multiple_commands_in_same_namespace : Specification
             _allCommands);
     }
 
-    [Fact] void should_include_create_order_command_name_in_route() => _createOrderResult.Route.ShouldEqual("/api/testtypes/orders/create-order");
-    [Fact] void should_include_update_order_command_name_in_route() => _updateOrderResult.Route.ShouldEqual("/api/testtypes/orders/update-order");
+    [Fact] void should_include_create_order_command_name_in_route() => _createOrderResult.Route.ShouldEqual("/api/test-types/orders/create-order");
+    [Fact] void should_include_update_order_command_name_in_route() => _updateOrderResult.Route.ShouldEqual("/api/test-types/orders/update-order");
 }

@@ -23,5 +23,5 @@ public class and_single_query_in_namespace : Specification
         _allQueries);
 
     [Fact] void should_return_one_descriptor() => _result.Count().ShouldEqual(1);
-    [Fact] void should_not_include_query_name_in_route() => _result.First().Route.ShouldEqual("/api/testtypes/products");
+    [Fact] void should_not_include_query_name_in_route() => _result.First().Route.ShouldEqual("/api/test-types/products");
 }

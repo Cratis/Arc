@@ -30,5 +30,5 @@ public class and_multiple_commands_in_same_namespace : Specification
             _allCommands);
     }
 
-    [Fact] void should_include_command_name_in_route_regardless_of_conflict() => _createOrderResult.Route.ShouldEqual("/api/testtypes/orders/create-order");
+    [Fact] void should_include_command_name_in_route_regardless_of_conflict() => _createOrderResult.Route.ShouldEqual("/api/test-types/orders/create-order");
 }

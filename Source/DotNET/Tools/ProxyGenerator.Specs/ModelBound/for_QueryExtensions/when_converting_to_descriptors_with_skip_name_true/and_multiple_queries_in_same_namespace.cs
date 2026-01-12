@@ -23,6 +23,6 @@ public class and_multiple_queries_in_same_namespace : Specification
         _allQueries);
 
     [Fact] void should_return_two_descriptors() => _result.Count().ShouldEqual(2);
-    [Fact] void should_include_get_by_id_query_name_in_route() => _result.First(_ => _.Name == "GetById").Route.ShouldEqual("/api/testtypes/orders/get-by-id");
-    [Fact] void should_include_get_all_query_name_in_route() => _result.First(_ => _.Name == "GetAll").Route.ShouldEqual("/api/testtypes/orders/get-all");
+    [Fact] void should_include_get_by_id_query_name_in_route() => _result.First(_ => _.Name == "GetById").Route.ShouldEqual("/api/test-types/orders/get-by-id");
+    [Fact] void should_include_get_all_query_name_in_route() => _result.First(_ => _.Name == "GetAll").Route.ShouldEqual("/api/test-types/orders/get-all");
 }

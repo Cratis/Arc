@@ -23,5 +23,5 @@ public class and_single_command_in_namespace : Specification
         apiPrefix: "api",
         _allCommands);
 
-    [Fact] void should_not_include_command_name_in_route() => _result.Route.ShouldEqual("/api/testtypes/products");
+    [Fact] void should_not_include_command_name_in_route() => _result.Route.ShouldEqual("/api/test-types/products");
 }
