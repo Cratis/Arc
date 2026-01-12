@@ -238,6 +238,17 @@ Given a command class `MyApp.Sales.Commands.CreateOrderCommand`:
 
 **Generated route**: `/api/Commands` (for commands) or `/api/Queries` (for queries)
 
+**Note**: When `IncludeCommandNameInRoute` or `IncludeQueryNameInRoute` is set to `false`, the system automatically detects route conflicts. If multiple commands or queries exist in the same namespace (after skipping segments), the type name will be automatically included in the route to prevent conflicts. This ensures that:
+
+- Single command/query in a namespace: Route remains clean without the type name
+- Multiple commands/queries in the same namespace: Type names are automatically added to prevent route collisions
+- Both runtime endpoint mapping and proxy generation apply this logic consistently
+
+For example, with the configuration above:
+
+- If you have only `MyApp.Sales.Commands.CreateOrder`, the route will be `/api/commands`
+- If you have both `MyApp.Sales.Commands.CreateOrder` and `MyApp.Sales.Commands.UpdateOrder`, the routes will be `/api/commands/create-order` and `/api/commands/update-order` respectively (type names added automatically to avoid conflict)
+
 ## Best Practices
 
 1. **Use Configuration Files**: For most scenarios, use `appsettings.json` configuration as it allows easy environment-specific overrides without code changes.

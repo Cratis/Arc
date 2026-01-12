@@ -19,7 +19,8 @@ public class when_generating_proxy_for_fluent_validated_command : Specification
             targetPath: string.Empty,
             segmentsToSkip: 0,
             skipCommandNameInRoute: false,
-            apiPrefix: "api");
+            apiPrefix: "api",
+            allCommandTypes: [commandType]);
 
         _generatedCode = Infrastructure.InMemoryProxyGenerator.GenerateCommand(_descriptor);
     }
