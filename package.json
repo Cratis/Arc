@@ -42,7 +42,7 @@
         "@typescript-eslint/eslint-plugin": "8.52.0",
         "@typescript-eslint/parser": "8.52.0",
         "@vitejs/plugin-react": "^5.1.2",
-        "@vitest/coverage-v8": "4.0.16",
+        "@vitest/coverage-v8": "4.0.17",
         "chai": "6.2.2",
         "chai-as-promised": "8.0.2",
         "edit-json-file": "1.8.1",
