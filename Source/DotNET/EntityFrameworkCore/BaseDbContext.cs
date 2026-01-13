@@ -87,15 +87,6 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
         return propertyTypesInJsonEntities.Except(propertyTypesInNonJsonEntities).ToHashSet();
     }
 
-    static Func<IMutableEntityType, bool> IsRelevantForConverters(Type[] dbSetTypes) => et =>
-        et.IsOwned() ||
-        dbSetTypes.Contains(et.ClrType) ||
-        dbSetTypes.Any(dbSetType =>
-            dbSetType.GetProperties().Any(p =>
-                p.PropertyType == et.ClrType ||
-                (p.PropertyType.IsGenericType &&
-                 p.PropertyType.GetGenericArguments().Contains(et.ClrType))));
-
     static void IgnoreConceptAsTypes(ModelBuilder modelBuilder, Type[] dbSetTypes)
     {
         var conceptTypes = dbSetTypes
@@ -110,4 +101,13 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
             modelBuilder.Ignore(conceptType);
         }
     }
+
+    static Func<IMutableEntityType, bool> IsRelevantForConverters(Type[] dbSetTypes) => et =>
+        et.IsOwned() ||
+        dbSetTypes.Contains(et.ClrType) ||
+        dbSetTypes.Any(dbSetType =>
+            dbSetType.GetProperties().Any(p =>
+                p.PropertyType == et.ClrType ||
+                (p.PropertyType.IsGenericType &&
+                 p.PropertyType.GetGenericArguments().Contains(et.ClrType))));
 }
