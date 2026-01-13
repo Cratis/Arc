@@ -106,69 +106,13 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
     /// <inheritdoc/>
     protected override Expression VisitBinary(BinaryExpression node)
     {
-        // Check if this is a comparison operation
-        var isComparison = node.NodeType == ExpressionType.Equal ||
-                          node.NodeType == ExpressionType.NotEqual ||
-                          node.NodeType == ExpressionType.GreaterThan ||
-                          node.NodeType == ExpressionType.GreaterThanOrEqual ||
-                          node.NodeType == ExpressionType.LessThan ||
-                          node.NodeType == ExpressionType.LessThanOrEqual;
+        // For ConceptAs types, we rely entirely on value converters configured in ConceptAsModelCustomizer.
+        // We do NOT extract .Value here because:
+        // 1. Entity properties (e.g., product.Id) are handled by value converters during SQL translation
+        // 2. The ConceptAsParameterEvaluator already converted closure variables to ConceptAs constants
+        // 3. EF Core will use the value converter to compare ConceptAs entity properties with ConceptAs constants
 
-        if (isComparison)
-        {
-            // Visit children first
-            var left = Visit(node.Left);
-            var right = Visit(node.Right);
-
-            // Check if we need to handle ConceptAs types
-            var leftIsConcept = left.Type.IsConcept();
-            var rightIsConcept = right.Type.IsConcept();
-
-            // Handle ConceptAs in binary comparisons
-            // We only extract .Value from CONSTANTS (closure variables that were evaluated).
-            // Entity property accesses are handled by EF Core's value converters.
-            if (leftIsConcept || rightIsConcept)
-            {
-                // If right is a ConceptAs constant, extract its primitive value
-                if (rightIsConcept && right is ConstantExpression rightConst && rightConst.Value != null)
-                {
-                    var valueProperty = rightConst.Value.GetType().GetProperty("Value");
-                    if (valueProperty != null)
-                    {
-                        var primitiveValue = valueProperty.GetValue(rightConst.Value);
-                        var valueType = rightConst.Type.GetConceptValueType();
-                        right = Expression.Constant(primitiveValue, valueType);
-                    }
-                }
-
-                // If left is a ConceptAs constant, extract its primitive value
-                if (leftIsConcept && left is ConstantExpression leftConst && leftConst.Value != null)
-                {
-                    var valueProperty = leftConst.Value.GetType().GetProperty("Value");
-                    if (valueProperty != null)
-                    {
-                        var primitiveValue = valueProperty.GetValue(leftConst.Value);
-                        var valueType = leftConst.Type.GetConceptValueType();
-                        left = Expression.Constant(primitiveValue, valueType);
-                    }
-                }
-
-                // Note: We do NOT add .Value to non-constant ConceptAs expressions (entity properties).
-                // EF Core's value converters handle the translation of entity properties.
-                // We only need to extract the primitive value from constants so both sides match.
-                return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
-            }
-
-            // If anything changed, rebuild
-            if (left != node.Left || right != node.Right)
-            {
-                return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
-            }
-
-            return node;
-        }
-
-        // For non-comparison operations, use default behavior
+        // Just visit children normally - don't modify the comparison
         return base.VisitBinary(node);
     }
 }
