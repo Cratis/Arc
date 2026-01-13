@@ -3,40 +3,24 @@
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Query;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts.for_querying_with_concepts.given;
 
 public class a_test_database : Specification
 {
-    static readonly IServiceProvider _sharedServiceProvider;
-
     protected ProductDbContext _context = null!;
     SqliteConnection _connection = null!;
-
-    static a_test_database()
-    {
-        var services = new ServiceCollection();
-        services.AddEntityFrameworkSqlite()
-            .AddSingleton<IModelCustomizer, ConceptAsModelCustomizer>()
-            .AddSingleton<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
-            .AddSingleton<IInterceptor>(new ConceptAsQueryExpressionInterceptor())
-            .AddSingleton<IInterceptor>(new ConceptAsDbCommandInterceptor());
-
-        _sharedServiceProvider = services.BuildServiceProvider();
-    }
 
     async Task Establish()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
 
+        // Use AddConceptAsSupport() like the actual extension methods do
+        // This tests the same configuration path that users will use
         var options = new DbContextOptionsBuilder<ProductDbContext>()
             .UseSqlite(_connection)
-            .UseInternalServiceProvider(_sharedServiceProvider)
+            .AddConceptAsSupport()
             .Options;
 
         _context = new ProductDbContext(options);
