@@ -54,9 +54,43 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
     /// <inheritdoc/>
     protected override Expression VisitMember(MemberExpression node)
     {
+        // First, visit the expression to handle nested member accesses
+        var visitedExpression = Visit(node.Expression);
+
+        // Check if this is a ConceptAs member access on a closure (constant expression)
+        // Pattern: closure.conceptField where conceptField is ConceptAs<T>
+        if (node.Type.IsConcept() && visitedExpression is ConstantExpression constantExpr)
+        {
+            try
+            {
+                // Extract the ConceptAs instance from the closure
+                var closureInstance = constantExpr.Value;
+                if (closureInstance != null)
+                {
+                    var conceptValue = node.Member switch
+                    {
+                        System.Reflection.FieldInfo field => field.GetValue(closureInstance),
+                        System.Reflection.PropertyInfo prop => prop.GetValue(closureInstance),
+                        _ => null
+                    };
+
+                    if (conceptValue != null)
+                    {
+                        // Return a constant expression with the ConceptAs value
+                        // The ConceptAsExpressionRewriter will extract the primitive when needed
+                        return Expression.Constant(conceptValue, node.Type);
+                    }
+                }
+            }
+            catch
+            {
+                // Failed to evaluate - fall through to base implementation
+            }
+        }
+
         // Check if this is a ConceptAs member access on a closure parameter
         // Pattern: __p_0.id where __p_0 is the closure parameter and id is ConceptAs<T>
-        if (node.Type.IsConcept() && node.Expression is ParameterExpression closureParam)
+        if (node.Type.IsConcept() && visitedExpression is ParameterExpression closureParam)
         {
             // Try to find the constant expression for this closure from the cache
             var closureKey = closureParam.Type.FullName ?? closureParam.Type.Name;
@@ -80,8 +114,8 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
 
                         if (conceptValue != null)
                         {
-                            // Return a constant expression with the ConceptAs value itself
-                            // The ExpressionRewriter will add .Value when needed
+                            // Return a constant expression with the ConceptAs value
+                            // The ConceptAsExpressionRewriter will extract the primitive when needed
                             return Expression.Constant(conceptValue, node.Type);
                         }
                     }
@@ -92,40 +126,6 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
                 }
             }
         }
-
-        // Check if this is a ConceptAs member access on a closure (constant expression)
-        // Pattern: closure.conceptField where conceptField is ConceptAs<T>
-        if (node.Type.IsConcept() && node.Expression is ConstantExpression constantExpr)
-        {
-            try
-            {
-                // Extract the ConceptAs instance from the closure
-                var closureInstance = constantExpr.Value;
-                if (closureInstance != null)
-                {
-                    var conceptValue = node.Member switch
-                    {
-                        System.Reflection.FieldInfo field => field.GetValue(closureInstance),
-                        System.Reflection.PropertyInfo prop => prop.GetValue(closureInstance),
-                        _ => null
-                    };
-
-                    if (conceptValue != null)
-                    {
-                        // Return a constant expression with the ConceptAs value itself
-                        // The ExpressionRewriter will add .Value to both sides of comparisons
-                        return Expression.Constant(conceptValue, node.Type);
-                    }
-                }
-            }
-            catch
-            {
-                // Failed to evaluate - fall through to base implementation
-            }
-        }
-
-        // Visit the expression part of the member access (e.g., the object being accessed)
-        var visitedExpression = Visit(node.Expression);
 
         // If the expression changed, rebuild the member access
         if (visitedExpression != node.Expression)
