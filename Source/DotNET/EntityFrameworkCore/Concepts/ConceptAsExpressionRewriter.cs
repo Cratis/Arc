@@ -34,8 +34,8 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
     protected override Expression VisitConstant(ConstantExpression node)
     {
         // DO NOT unwrap ConceptAs constants here
-        // Let VisitBinary handle extracting .Value when comparing two ConceptAs expressions
-        // This preserves the type match needed for binary operations
+        // The value converters will handle the translation when EF Core processes the query
+        // Unwrapping here would create type mismatches with entity properties
         return base.VisitConstant(node);
     }
 

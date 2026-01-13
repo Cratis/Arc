@@ -10,13 +10,15 @@ public class when_query_compilation_starts : Specification
     ConceptAsQueryExpressionInterceptor _interceptor;
     Expression _originalExpression;
     Expression _result;
+    Guid _originalValue;
 
     void Establish()
     {
         _interceptor = new ConceptAsQueryExpressionInterceptor();
 
         // Create a simple query expression that has a concept constant
-        var conceptValue = new TestIdConcept(Guid.NewGuid());
+        _originalValue = Guid.NewGuid();
+        var conceptValue = new TestIdConcept(_originalValue);
         _originalExpression = Expression.Constant(conceptValue);
     }
 
