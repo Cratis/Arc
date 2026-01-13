@@ -125,6 +125,8 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
             var rightIsConcept = right.Type.IsConcept();
 
             // Handle ConceptAs in binary comparisons
+            // We only extract .Value from CONSTANTS (closure variables that were evaluated).
+            // Entity property accesses are handled by EF Core's value converters.
             if (leftIsConcept || rightIsConcept)
             {
                 // If right is a ConceptAs constant, extract its primitive value
@@ -136,7 +138,6 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
                         var primitiveValue = valueProperty.GetValue(rightConst.Value);
                         var valueType = rightConst.Type.GetConceptValueType();
                         right = Expression.Constant(primitiveValue, valueType);
-                        rightIsConcept = false; // It's now a primitive
                     }
                 }
 
@@ -149,22 +150,12 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
                         var primitiveValue = valueProperty.GetValue(leftConst.Value);
                         var valueType = leftConst.Type.GetConceptValueType();
                         left = Expression.Constant(primitiveValue, valueType);
-                        leftIsConcept = false; // It's now a primitive
                     }
                 }
 
-                // After extracting primitives from constants, if one side is still ConceptAs (it's a property),
-                // add .Value to it so both sides are primitives
-                if (leftIsConcept && left is not ConstantExpression)
-                {
-                    left = Expression.MakeMemberAccess(left, left.Type.GetProperty("Value")!);
-                }
-
-                if (rightIsConcept && right is not ConstantExpression)
-                {
-                    right = Expression.MakeMemberAccess(right, right.Type.GetProperty("Value")!);
-                }
-
+                // Note: We do NOT add .Value to non-constant ConceptAs expressions (entity properties).
+                // EF Core's value converters handle the translation of entity properties.
+                // We only need to extract the primitive value from constants so both sides match.
                 return Expression.MakeBinary(node.NodeType, left, right, node.IsLiftedToNull, null);
             }
 
