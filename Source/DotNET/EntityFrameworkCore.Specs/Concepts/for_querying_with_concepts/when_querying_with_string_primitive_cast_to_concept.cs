@@ -27,7 +27,7 @@ public class when_querying_with_string_primitive_cast_to_concept : given.a_test_
             Name = new ProductName(_nameValue),
             Price = 19.99m
         };
-        await _context.Products.AddAsync(product)
+        await _context.Products.AddAsync(product);
         await _context.SaveChangesAsync();
     }
 
