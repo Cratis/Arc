@@ -150,20 +150,29 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
                 }
 
                 // Check if either side is an entity property access
-                // If so, don't transform anything - let value converters handle both sides
+                // If so, we need to handle type mismatches carefully
                 var leftIsEntityProperty = IsEntityPropertyAccess(left);
                 var rightIsEntityProperty = IsEntityPropertyAccess(right);
 
                 if (leftIsEntityProperty || rightIsEntityProperty)
                 {
-                    // Keep expression unchanged - rely on value converters
-                    // Both entity property and constant will be converted by EF Core
-                    if (left != node.Left || right != node.Right)
+                    // If both sides are the same concept type, the value converter handles it
+                    if (leftIsConcept && rightIsConcept && left.Type == right.Type)
                     {
-                        return Expression.MakeBinary(node.NodeType, left, right);
+                        if (left != node.Left || right != node.Right)
+                        {
+                            return Expression.MakeBinary(node.NodeType, left, right);
+                        }
+
+                        return node;
                     }
 
-                    return node;
+                    // If there's a type mismatch (one concept, one primitive), transform the concept to .Value
+                    // This ensures the comparison is done at the primitive level
+                    var transformedLeft = leftIsConcept && !leftIsEntityProperty ? GetValueAccess(left) : left;
+                    var transformedRight = rightIsConcept && !rightIsEntityProperty ? GetValueAccess(right) : right;
+
+                    return Expression.MakeBinary(node.NodeType, transformedLeft, transformedRight);
                 }
 
                 // No QueryParameters and no entity properties - transform both to .Value for comparison
@@ -185,13 +194,17 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
             var leftIsConcept = left.Type.IsConcept();
             var rightIsConcept = right.Type.IsConcept();
 
-            // If one side is a concept and the other is a primitive, we need to normalize
-            if (leftIsConcept != rightIsConcept && IsComparisonOperator(node.NodeType))
+            // For comparison operators, ensure types match by extracting .Value from concepts
+            if (IsComparisonOperator(node.NodeType))
             {
-                // Transform the concept side to .Value to match the primitive side
-                var newLeft = leftIsConcept ? GetValueAccess(left) : left;
-                var newRight = rightIsConcept ? GetValueAccess(right) : right;
-                return Expression.MakeBinary(node.NodeType, newLeft, newRight);
+                // If one side is a concept and the other is a primitive, or if types don't match, normalize
+                if (leftIsConcept || rightIsConcept)
+                {
+                    // Transform any concept to .Value to ensure type compatibility
+                    var newLeft = leftIsConcept ? GetValueAccess(left) : left;
+                    var newRight = rightIsConcept ? GetValueAccess(right) : right;
+                    return Expression.MakeBinary(node.NodeType, newLeft, newRight);
+                }
             }
 
             // Rebuild binary expression without the original method - let the system figure it out
