@@ -6,7 +6,6 @@ using Cratis.Arc.EntityFrameworkCore.Mapping;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -36,17 +35,13 @@ public static class ReadOnlyDbContextExtensions
         {
             options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
 
-            // Add interceptors FIRST - order may matter with pooled factories
-            options.AddInterceptors(
-                new ReadOnlySaveChangesInterceptor(),
-                new ConceptAsQueryExpressionInterceptor(),
-                new ConceptAsDbCommandInterceptor());
+            // Add read-only interceptor
+            options.AddInterceptors(new ReadOnlySaveChangesInterceptor());
+
+            // Add ConceptAs support for handling ConceptAs types in LINQ queries
+            options.AddConceptAsSupport();
 
             optionsAction?.Invoke(serviceProvider, options);
-
-            options
-                .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
-                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>();
 
             if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
             {

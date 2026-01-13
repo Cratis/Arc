@@ -48,19 +48,26 @@ public class ConceptAsEvaluatableExpressionFilter(
                     return baseResult;
                 }
 
-                // Store the closure constant so the parameter evaluator can use it
+                // Check if this accesses a lambda parameter (entity) - don't evaluate those
+                if (IsLambdaParameterAccess(memberExpr))
+                {
+                    return baseResult;
+                }
+
+                // Store the closure constant so the parameter evaluator can use it later
                 if (memberExpr.Expression is ConstantExpression closureConstant && closureConstant.Value != null)
                 {
                     ClosureConstantCache.Store(closureConstant);
                 }
 
-                // Return FALSE to prevent EF Core from creating a parameter!
-                // This keeps the closure expression in the tree so our rewriter can evaluate it
-                return false;
+                // This is a closure variable access or other ConceptAs member not on an entity.
+                // Return TRUE to tell EF Core to evaluate this expression client-side to a constant!
+                // This prevents EF Core from creating a QueryParameterExpression with ConceptAs type.
+                return true;
             }
 
-            // For other ConceptAs expressions (constants), DO NOT evaluate them
-            // Let our interceptor handle ConceptAs extraction
+            // For ConceptAs constants - don't let EF parameterize them
+            // Our rewriter will unwrap them to primitives
             if (expression is ConstantExpression)
             {
                 return false;
@@ -97,5 +104,26 @@ public class ConceptAsEvaluatableExpressionFilter(
         }
 
         return baseResult;
+    }
+
+    /// <summary>
+    /// Check if the member expression is accessing a property on a lambda parameter.
+    /// </summary>
+    /// <param name="memberExpr">The member expression to check.</param>
+    /// <returns>True if this is a lambda parameter access (entity property), false otherwise.</returns>
+    static bool IsLambdaParameterAccess(MemberExpression memberExpr)
+    {
+        // Check if the member expression accesses a lambda parameter
+        // Pattern: param.PropertyName where param is ParameterExpression
+        var expression = memberExpr.Expression;
+
+        // Walk through any nested member accesses (e.g., entity.Navigation.Property)
+        while (expression is MemberExpression nested)
+        {
+            expression = nested.Expression;
+        }
+
+        // If we end up at a ParameterExpression, this is a lambda parameter access
+        return expression is ParameterExpression;
     }
 }

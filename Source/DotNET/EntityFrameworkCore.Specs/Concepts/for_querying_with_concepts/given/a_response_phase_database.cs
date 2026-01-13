@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts.for_querying_with_concepts.given;
 
-public class a_test_database : Specification
+public class a_response_phase_database : Specification
 {
-    protected ProductDbContext _context = null!;
+    protected ResponsePhaseDbContext _context = null!;
     SqliteConnection _connection = null!;
 
     async Task Establish()
@@ -18,12 +18,12 @@ public class a_test_database : Specification
 
         // Use AddConceptAsSupport() like the actual extension methods do
         // This tests the same configuration path that users will use
-        var options = new DbContextOptionsBuilder<ProductDbContext>()
+        var options = new DbContextOptionsBuilder<ResponsePhaseDbContext>()
             .UseSqlite(_connection)
             .AddConceptAsSupport()
             .Options;
 
-        _context = new ProductDbContext(options);
+        _context = new ResponsePhaseDbContext(options);
         await _context.Database.EnsureCreatedAsync();
     }
 

@@ -4,6 +4,7 @@
 using Cratis.Arc.EntityFrameworkCore.Concepts;
 using Cratis.Arc.EntityFrameworkCore.Json;
 using Cratis.Arc.EntityFrameworkCore.Mapping;
+using Cratis.Concepts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -28,6 +29,9 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
             .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
             .Select(p => p.PropertyType.GetGenericArguments()[0])
             .ToArray();
+
+        // Ignore ConceptAs types to prevent EF Core from treating them as entity types
+        IgnoreConceptAsTypes(modelBuilder, dbSetTypes);
 
         var entityTypesForConverters = entityTypes
             .Where(IsRelevantForConverters(dbSetTypes))
@@ -83,7 +87,22 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
         return propertyTypesInJsonEntities.Except(propertyTypesInNonJsonEntities).ToHashSet();
     }
 
-    Func<IMutableEntityType, bool> IsRelevantForConverters(Type[] dbSetTypes) => et =>
+    static void IgnoreConceptAsTypes(ModelBuilder modelBuilder, Type[] dbSetTypes)
+    {
+        var conceptTypes = dbSetTypes
+            .SelectMany(t => t.GetProperties())
+            .Select(p => p.PropertyType)
+            .Where(t => t.IsConcept())
+            .Distinct()
+            .ToArray();
+
+        foreach (var conceptType in conceptTypes)
+        {
+            modelBuilder.Ignore(conceptType);
+        }
+    }
+
+    static Func<IMutableEntityType, bool> IsRelevantForConverters(Type[] dbSetTypes) => et =>
         et.IsOwned() ||
         dbSetTypes.Contains(et.ClrType) ||
         dbSetTypes.Any(dbSetType =>

@@ -12,9 +12,13 @@ namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 public class ConceptAsQueryExpressionInterceptor : IQueryExpressionInterceptor
 {
     /// <inheritdoc/>
-    public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData) =>
+    public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData)
+    {
+        // Two-step process:
+        // 1. Evaluate closure variables containing ConceptAs values into ConceptAs constants
+        var evaluated = ConceptAsParameterEvaluator.Evaluate(queryExpression);
 
-        // Evaluate ConceptAs closure variables to constants (keeping ConceptAs types intact).
-        // The value converter handles the conversion from ConceptAs to primitive at SQL translation time.
-        ConceptAsParameterEvaluator.Evaluate(queryExpression);
+        // 2. Rewrite the expression to remove ConceptAs casts that EF Core can't translate
+        return ConceptAsExpressionRewriter.Rewrite(evaluated);
+    }
 }

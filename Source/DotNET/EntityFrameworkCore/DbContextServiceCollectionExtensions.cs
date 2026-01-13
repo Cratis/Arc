@@ -8,7 +8,6 @@ using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -39,14 +38,10 @@ public static class DbContextServiceCollectionExtensions
         {
             options.UseDatabaseFromConnectionString(connectionString);
 
-            // Add interceptors FIRST - order may matter with pooled factories
-            options.AddInterceptors(new ConceptAsQueryExpressionInterceptor(), new ConceptAsDbCommandInterceptor());
+            // Add ConceptAs support for handling ConceptAs types in LINQ queries
+            options.AddConceptAsSupport();
 
             optionsAction?.Invoke(serviceProvider, options);
-
-            options
-                .ReplaceService<IEvaluatableExpressionFilter, ConceptAsEvaluatableExpressionFilter>()
-                .ReplaceService<IModelCustomizer, ConceptAsModelCustomizer>();
 
             if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
             {
