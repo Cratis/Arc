@@ -3,6 +3,7 @@
 
 using System.Linq.Expressions;
 using Cratis.Concepts;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 
@@ -56,7 +57,7 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         if (node.Type.IsConcept())
         {
             // For ConceptAs members, just visit children without any special processing
-            // The ParameterEvaluator has already handled closures
+            // The filter has told EF Core to evaluate closure variables to constants
             // Entity properties will be handled by value converters
             var visitedExpression = Visit(node.Expression);
 
@@ -119,6 +120,59 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         var left = Visit(node.Left);
         var right = Visit(node.Right);
 
+        // Handle comparisons where one or both sides are ConceptAs types
+        if (IsComparisonOperator(node.NodeType))
+        {
+            var leftIsConcept = left.Type.IsConcept();
+            var rightIsConcept = right.Type.IsConcept();
+
+            // If both sides are concepts, transform both to .Value
+            // If one side is concept and other is primitive, transform the concept to .Value
+            if (leftIsConcept || rightIsConcept)
+            {
+                // Check if either side is a QueryParameterExpression
+                // If so, don't transform anything - keep both sides as ConceptAs
+                // The value converter handles entity properties, DbCommandInterceptor handles parameters
+                var leftIsQueryParam = left is QueryParameterExpression;
+                var rightIsQueryParam = right is QueryParameterExpression;
+
+                if (leftIsQueryParam || rightIsQueryParam)
+                {
+                    // Keep expression unchanged - rely on value converters and DbCommandInterceptor
+                    if (left != node.Left || right != node.Right)
+                    {
+                        return Expression.MakeBinary(node.NodeType, left, right);
+                    }
+
+                    return node;
+                }
+
+                // Check if either side is an entity property access
+                // If so, don't transform anything - let value converters handle both sides
+                var leftIsEntityProperty = IsEntityPropertyAccess(left);
+                var rightIsEntityProperty = IsEntityPropertyAccess(right);
+
+                if (leftIsEntityProperty || rightIsEntityProperty)
+                {
+                    // Keep expression unchanged - rely on value converters
+                    // Both entity property and constant will be converted by EF Core
+                    if (left != node.Left || right != node.Right)
+                    {
+                        return Expression.MakeBinary(node.NodeType, left, right);
+                    }
+
+                    return node;
+                }
+
+                // No QueryParameters and no entity properties - transform both to .Value for comparison
+                var newLeft = leftIsConcept ? GetValueAccess(left) : left;
+                var newRight = rightIsConcept ? GetValueAccess(right) : right;
+
+                // After getting .Value, the types should match
+                return Expression.MakeBinary(node.NodeType, newLeft, newRight);
+            }
+        }
+
         // If either child changed (e.g., a ConceptAs cast was stripped), we need to rebuild
         // the binary expression WITHOUT the original method, because the original op_Equality
         // method expects the original types (with casts) but after stripping casts the types changed.
@@ -131,5 +185,70 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         }
 
         return node;
+    }
+
+    static bool IsComparisonOperator(ExpressionType nodeType) =>
+        nodeType is ExpressionType.Equal or ExpressionType.NotEqual or
+            ExpressionType.GreaterThan or ExpressionType.GreaterThanOrEqual or
+            ExpressionType.LessThan or ExpressionType.LessThanOrEqual;
+
+    static Expression GetValueAccess(Expression conceptExpression)
+    {
+        // For constants, extract the primitive value and return a new constant
+        if (conceptExpression is ConstantExpression constant && constant.Value != null)
+        {
+            var valueProperty = constant.Type.GetProperty("Value", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (valueProperty != null)
+            {
+                var primitiveValue = valueProperty.GetValue(constant.Value);
+                return Expression.Constant(primitiveValue, valueProperty.PropertyType);
+            }
+        }
+
+        // For QueryParameterExpression, leave it unchanged
+        // The DbCommandInterceptor will unwrap the ConceptAs value at execution time
+        // EF Core's value converter will handle the comparison with entity properties
+        if (conceptExpression is QueryParameterExpression)
+        {
+            return conceptExpression;
+        }
+
+        // For entity property access (MemberExpression on a ParameterExpression), don't add .Value
+        // The value converter will handle the translation
+        if (IsEntityPropertyAccess(conceptExpression))
+        {
+            return conceptExpression;
+        }
+
+        // For non-constants, access the .Value property
+        var valueProp = conceptExpression.Type.GetProperty("Value", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (valueProp != null)
+        {
+            return Expression.MakeMemberAccess(conceptExpression, valueProp);
+        }
+
+        // Fallback - shouldn't happen if IsConcept() is true
+        return conceptExpression;
+    }
+
+    /// <summary>
+    /// Check if the expression is an entity property access (accesses a lambda parameter).
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if this is an entity property access, false otherwise.</returns>
+    static bool IsEntityPropertyAccess(Expression expression)
+    {
+        // Check if the expression accesses a lambda parameter
+        // Pattern: param.PropertyName or param.Navigation.PropertyName
+        var current = expression;
+
+        // Walk through any nested member accesses (e.g., entity.Navigation.Property)
+        while (current is MemberExpression nested)
+        {
+            current = nested.Expression;
+        }
+
+        // If we end up at a ParameterExpression, this is a lambda parameter access (entity property)
+        return current is ParameterExpression;
     }
 }

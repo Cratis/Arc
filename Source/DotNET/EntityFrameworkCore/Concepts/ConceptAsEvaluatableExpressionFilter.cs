@@ -54,15 +54,16 @@ public class ConceptAsEvaluatableExpressionFilter(
                     return baseResult;
                 }
 
-                // Store the closure constant so the parameter evaluator can use it
+                // Store the closure constant so the parameter evaluator can use it later
                 if (memberExpr.Expression is ConstantExpression closureConstant && closureConstant.Value != null)
                 {
                     ClosureConstantCache.Store(closureConstant);
                 }
 
-                // Return FALSE to prevent EF Core from creating a parameter with the ConceptAs type!
-                // Our interceptor will evaluate this to a primitive constant instead.
-                return false;
+                // This is a closure variable access or other ConceptAs member not on an entity.
+                // Return TRUE to tell EF Core to evaluate this expression client-side to a constant!
+                // This prevents EF Core from creating a QueryParameterExpression with ConceptAs type.
+                return true;
             }
 
             // For ConceptAs constants - don't let EF parameterize them

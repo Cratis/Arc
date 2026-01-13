@@ -26,14 +26,13 @@ public class when_querying_with_expression_filter : given.a_response_phase_datab
 
     Task Because()
     {
-        // Using Where with an expression filter - this is the pattern that was failing
         _result = _context.ResponsePhases
             .SingleOrDefault(rp => rp.Id == _missionId && rp.ResourceId == _resourceId);
         return Task.CompletedTask;
     }
 
     [Fact] void should_find_the_response_phase() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_mission_id() => _result!.Id.Value.ShouldEqual(_missionId.Value);
-    [Fact] void should_have_correct_resource_id() => _result!.ResourceId.Value.ShouldEqual(_resourceId.Value);
-    [Fact] void should_have_correct_name() => _result!.Name.ShouldEqual("Test Phase");
+    [Fact] void should_have_correct_mission_id() => _result.Id.Value.ShouldEqual(_missionId.Value);
+    [Fact] void should_have_correct_resource_id() => _result.ResourceId.Value.ShouldEqual(_resourceId.Value);
+    [Fact] void should_have_correct_name() => _result.Name.ShouldEqual("Test Phase");
 }

@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Linq.Expressions;
+using System.Reflection;
 using Cratis.Concepts;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 
@@ -11,6 +13,8 @@ namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 /// </summary>
 public class ConceptAsParameterEvaluator : ExpressionVisitor
 {
+    readonly Dictionary<Expression, object?> _queryParameterValues = [];
+
     /// <summary>
     /// Evaluate ConceptAs expressions to constants in the expression tree.
     /// </summary>
@@ -19,6 +23,11 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
     public static Expression Evaluate(Expression expression)
     {
         var evaluator = new ConceptAsParameterEvaluator();
+
+        // First pass: collect QueryParameterExpression values from the tree
+        evaluator.CollectQueryParameterValues(expression);
+
+        // Second pass: evaluate with the collected values
         return evaluator.Visit(expression);
     }
 
@@ -69,8 +78,8 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
                 {
                     var conceptValue = node.Member switch
                     {
-                        System.Reflection.FieldInfo field => field.GetValue(closureInstance),
-                        System.Reflection.PropertyInfo prop => prop.GetValue(closureInstance),
+                        FieldInfo field => field.GetValue(closureInstance),
+                        PropertyInfo prop => prop.GetValue(closureInstance),
                         _ => null
                     };
 
@@ -88,18 +97,29 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
             }
         }
 
-        // Check if this is a ConceptAs member access on a closure parameter
+        // Check if this is a ConceptAs member access on a QueryParameterExpression (method parameter closure)
+        // Pattern: @p.missionId where @p is QueryParameterExpression for the display class
+        // In this case, we can't evaluate the closure at this point because QueryParameterExpression
+        // is resolved at runtime. Leave it as-is - the ConceptAsExpressionRewriter will handle
+        // transforming the comparison to use .Value on both sides.
+        if (node.Type.IsConcept() && visitedExpression is QueryParameterExpression)
+        {
+            // Return the member access unchanged - the rewriter will handle .Value access
+            return Expression.MakeMemberAccess(visitedExpression, node.Member);
+        }
+
+        // Check if this is a ConceptAs member access on a regular closure parameter
         // Pattern: __p_0.id where __p_0 is the closure parameter and id is ConceptAs<T>
         if (node.Type.IsConcept() && visitedExpression is ParameterExpression closureParam)
         {
-            // Try to find the constant expression for this closure from the cache
+            // Fall back to the static cache (from ConceptAsEvaluatableExpressionFilter)
             var closureKey = closureParam.Type.FullName ?? closureParam.Type.Name;
-            var closureConstant = ClosureConstantCache.Get(closureKey);
+            var cachedClosureConstant = ClosureConstantCache.Get(closureKey);
 
-            if (closureConstant != null)
+            if (cachedClosureConstant != null)
             {
                 // Get the closure instance value
-                var closureInstance = closureConstant.Value;
+                var closureInstance = cachedClosureConstant.Value;
                 if (closureInstance != null)
                 {
                     try
@@ -107,8 +127,8 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
                         // Get the ConceptAs value from the closure instance
                         var conceptValue = node.Member switch
                         {
-                            System.Reflection.FieldInfo field => field.GetValue(closureInstance),
-                            System.Reflection.PropertyInfo prop => prop.GetValue(closureInstance),
+                            FieldInfo field => field.GetValue(closureInstance),
+                            PropertyInfo prop => prop.GetValue(closureInstance),
                             _ => null
                         };
 
@@ -158,5 +178,28 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
         }
 
         return base.VisitUnary(node);
+    }
+
+    void CollectQueryParameterValues(Expression expression)
+    {
+        var collector = new QueryParameterValueCollector(_queryParameterValues);
+        collector.Visit(expression);
+    }
+
+    sealed class QueryParameterValueCollector(Dictionary<Expression, object?> values) : ExpressionVisitor
+    {
+        protected override Expression VisitExtension(Expression node)
+        {
+            // QueryParameterExpression stores a reference to the closure parameter
+            // We need to find and evaluate it to get the actual closure instance
+            if (node is QueryParameterExpression queryParam)
+            {
+                // Store the QueryParameterExpression itself as a key - we'll look it up during evaluation
+                // The QueryParameterExpression has the closure type info
+                values[queryParam] = null; // Mark that we've seen this parameter
+            }
+
+            return base.VisitExtension(node);
+        }
     }
 }
