@@ -24,12 +24,7 @@ public class when_querying_with_auto_conversion_and_multiple_concept_conditions 
         await _context.SaveChangesAsync();
     }
 
-    Task Because()
-    {
-        _result = _context.ResponsePhases
-            .SingleOrDefault(rp => rp.Id == _missionId && rp.ResourceId == _resourceId);
-        return Task.CompletedTask;
-    }
+    void Because() => _result = _context.ResponsePhases.SingleOrDefault(rp => rp.Id == _missionId && rp.ResourceId == _resourceId);
 
     [Fact] void should_find_the_response_phase() => _result.ShouldNotBeNull();
     [Fact] void should_have_correct_mission_id() => _result!.Id.Value.ShouldEqual(_missionId.Value);

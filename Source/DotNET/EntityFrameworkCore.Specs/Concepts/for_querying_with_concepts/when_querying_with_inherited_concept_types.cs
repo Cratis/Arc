@@ -47,13 +47,7 @@ public class when_querying_with_inherited_concept_types : Specification
         await _context.SaveChangesAsync();
     }
 
-    Task Because()
-    {
-        // This is the exact pattern from the user's code that was failing
-        _result = _context.Entities
-            .SingleOrDefault(e => e.Id == _missionId && e.ResourceId == _resourceId);
-        return Task.CompletedTask;
-    }
+    void Because() => _result = _context.Entities.SingleOrDefault(e => e.Id == _missionId && e.ResourceId == _resourceId);
 
     async Task Destroy()
     {

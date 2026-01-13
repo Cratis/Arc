@@ -180,6 +180,20 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         // method expects the original types (with casts) but after stripping casts the types changed.
         if (left != node.Left || right != node.Right)
         {
+            // Check if we have a type mismatch after visiting children
+            // This can happen when one side got transformed (e.g., cast stripped) and the other didn't
+            var leftIsConcept = left.Type.IsConcept();
+            var rightIsConcept = right.Type.IsConcept();
+
+            // If one side is a concept and the other is a primitive, we need to normalize
+            if (leftIsConcept != rightIsConcept && IsComparisonOperator(node.NodeType))
+            {
+                // Transform the concept side to .Value to match the primitive side
+                var newLeft = leftIsConcept ? GetValueAccess(left) : left;
+                var newRight = rightIsConcept ? GetValueAccess(right) : right;
+                return Expression.MakeBinary(node.NodeType, newLeft, newRight);
+            }
+
             // Rebuild binary expression without the original method - let the system figure it out
             // This is necessary because stripping (MissionId)x changes the operand type from MissionId to Guid,
             // but the original expression had op_Equality(MissionId, MissionId)

@@ -49,20 +49,12 @@ public class when_querying_with_method_parameter_concepts : Specification
         await _context.SaveChangesAsync();
     }
 
-    Task Because()
-    {
-        _result = QueryByMethodParameters(_context, _resourceId, _missionId);
-        return Task.CompletedTask;
-    }
+    void Because() => _result = QueryByMethodParameters(_context, _resourceId, _missionId);
 
     static MethodParamResponsePhase? QueryByMethodParameters(
         TestQueryDbContext dbContext,
         MethodParamResourceId resourceId,
-        MethodParamMissionId missionId)
-    {
-        // The closure captures resourceId and missionId from method parameters
-        return dbContext.Phases.SingleOrDefault(rp => rp.Id == missionId && rp.ResourceId == resourceId);
-    }
+        MethodParamMissionId missionId) => dbContext.Phases.SingleOrDefault(rp => rp.Id == missionId && rp.ResourceId == resourceId);
 
     async Task Destroy()
     {
