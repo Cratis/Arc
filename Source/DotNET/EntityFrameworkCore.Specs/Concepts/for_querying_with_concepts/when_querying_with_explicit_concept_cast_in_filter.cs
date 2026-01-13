@@ -33,7 +33,9 @@ public class when_querying_with_explicit_concept_cast_in_filter : given.a_respon
     /// Filter with an explicit cast: (MissionId)rp.Id == missionId.
     /// This creates an expression with op_Equality that references MissionId types.
     /// </summary>
+#pragma warning disable IDE0004 // Remove Unnecessary Cast - We're testing with explicit casts
     void Because() => _result = _context.ResponsePhases.SingleOrDefault(rp => (MissionId)rp.Id == _missionId);
+#pragma warning restore IDE0004 // Remove Unnecessary Cast
 
     [Fact] void should_find_the_response_phase() => _result.ShouldNotBeNull();
     [Fact] void should_have_correct_mission_id() => _result!.Id.Value.ShouldEqual(_missionId.Value);
