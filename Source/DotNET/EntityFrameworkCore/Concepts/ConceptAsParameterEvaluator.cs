@@ -4,7 +4,9 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using Cratis.Concepts;
+#if NET10_0_OR_GREATER
 using Microsoft.EntityFrameworkCore.Query;
+#endif
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 
@@ -102,7 +104,7 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
         // In this case, we can't evaluate the closure at this point because QueryParameterExpression
         // is resolved at runtime. Leave it as-is - the ConceptAsExpressionRewriter will handle
         // transforming the comparison to use .Value on both sides.
-        if (node.Type.IsConcept() && visitedExpression is QueryParameterExpression)
+        if (node.Type.IsConcept() && IsQueryParameterExpression(visitedExpression))
         {
             // Return the member access unchanged - the rewriter will handle .Value access
             return Expression.MakeMemberAccess(visitedExpression, node.Member);
@@ -180,6 +182,20 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
         return base.VisitUnary(node);
     }
 
+    /// <summary>
+    /// Check if the expression is a QueryParameterExpression (EF Core internal type).
+    /// Uses the actual type on .NET 10+, falls back to reflection-based type name check for earlier versions.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if this is a QueryParameterExpression, false otherwise.</returns>
+#if NET10_0_OR_GREATER
+    static bool IsQueryParameterExpression(Expression? expression) =>
+        expression is QueryParameterExpression;
+#else
+    static bool IsQueryParameterExpression(Expression? expression) =>
+        expression?.GetType().Name == "QueryParameterExpression";
+#endif
+
     void CollectQueryParameterValues(Expression expression)
     {
         var collector = new QueryParameterValueCollector(_queryParameterValues);
@@ -192,11 +208,11 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
         {
             // QueryParameterExpression stores a reference to the closure parameter
             // We need to find and evaluate it to get the actual closure instance
-            if (node is QueryParameterExpression queryParam)
+            if (IsQueryParameterExpression(node))
             {
                 // Store the QueryParameterExpression itself as a key - we'll look it up during evaluation
                 // The QueryParameterExpression has the closure type info
-                values[queryParam] = null; // Mark that we've seen this parameter
+                values[node] = null; // Mark that we've seen this parameter
             }
 
             return base.VisitExtension(node);

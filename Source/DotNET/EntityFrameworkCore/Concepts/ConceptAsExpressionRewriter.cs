@@ -3,7 +3,9 @@
 
 using System.Linq.Expressions;
 using Cratis.Concepts;
+#if NET10_0_OR_GREATER
 using Microsoft.EntityFrameworkCore.Query;
+#endif
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 
@@ -130,11 +132,11 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
             // If one side is concept and other is primitive, transform the concept to .Value
             if (leftIsConcept || rightIsConcept)
             {
-                // Check if either side is a QueryParameterExpression
+                // Check if either side is a QueryParameterExpression (EF Core internal type)
                 // If so, don't transform anything - keep both sides as ConceptAs
                 // The value converter handles entity properties, DbCommandInterceptor handles parameters
-                var leftIsQueryParam = left is QueryParameterExpression;
-                var rightIsQueryParam = right is QueryParameterExpression;
+                var leftIsQueryParam = IsQueryParameterExpression(left);
+                var rightIsQueryParam = IsQueryParameterExpression(right);
 
                 if (leftIsQueryParam || rightIsQueryParam)
                 {
@@ -205,10 +207,10 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
             }
         }
 
-        // For QueryParameterExpression, leave it unchanged
+        // For QueryParameterExpression (EF Core internal type), leave it unchanged
         // The DbCommandInterceptor will unwrap the ConceptAs value at execution time
         // EF Core's value converter will handle the comparison with entity properties
-        if (conceptExpression is QueryParameterExpression)
+        if (IsQueryParameterExpression(conceptExpression))
         {
             return conceptExpression;
         }
@@ -251,4 +253,18 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         // If we end up at a ParameterExpression, this is a lambda parameter access (entity property)
         return current is ParameterExpression;
     }
+
+    /// <summary>
+    /// Check if the expression is a QueryParameterExpression (EF Core internal type).
+    /// Uses the actual type on .NET 10+, falls back to reflection-based type name check for earlier versions.
+    /// </summary>
+    /// <param name="expression">The expression to check.</param>
+    /// <returns>True if this is a QueryParameterExpression, false otherwise.</returns>
+#if NET10_0_OR_GREATER
+    static bool IsQueryParameterExpression(Expression expression) =>
+        expression is QueryParameterExpression;
+#else
+    static bool IsQueryParameterExpression(Expression expression) =>
+        expression.GetType().Name == "QueryParameterExpression";
+#endif
 }
