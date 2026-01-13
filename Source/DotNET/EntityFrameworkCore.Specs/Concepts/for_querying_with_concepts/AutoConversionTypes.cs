@@ -40,10 +40,9 @@ public class ResponsePhaseDbContext(DbContextOptions<ResponsePhaseDbContext> opt
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Ignore ConceptAs types from being treated as entities
-        modelBuilder.Ignore<MissionId>();
-        modelBuilder.Ignore<ResourceId>();
-
-        modelBuilder.Entity<ResponsePhase>(entity =>
+        modelBuilder.Ignore<MissionId>()
+            .Ignore<ResourceId>()
+            .Entity<ResponsePhase>(entity =>
         {
             entity.HasKey(e => e.Id);
 
