@@ -92,6 +92,15 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
             return Visit(node.Operand);
         }
 
+        // Remove casts TO ConceptAs types (e.g., (MissionId)p.MissionId)
+        // These casts prevent EF Core from translating the query because it doesn't know
+        // how to translate the ConceptAs type. The value converter handles the conversion.
+        if (node.NodeType == ExpressionType.Convert && node.Type.IsConcept())
+        {
+            // Strip the cast and just return the operand
+            return Visit(node.Operand);
+        }
+
         // Visit the operand to handle any nested expressions
         var visitedOperand = Visit(node.Operand);
 
