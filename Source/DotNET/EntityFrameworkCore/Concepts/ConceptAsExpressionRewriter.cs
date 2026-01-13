@@ -115,13 +115,21 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
     /// <inheritdoc/>
     protected override Expression VisitBinary(BinaryExpression node)
     {
-        // For ConceptAs types, we rely entirely on value converters configured in ConceptAsModelCustomizer.
-        // We do NOT extract .Value here because:
-        // 1. Entity properties (e.g., product.Id) are handled by value converters during SQL translation
-        // 2. The ConceptAsParameterEvaluator already converted closure variables to ConceptAs constants
-        // 3. EF Core will use the value converter to compare ConceptAs entity properties with ConceptAs constants
+        // Visit left and right children first
+        var left = Visit(node.Left);
+        var right = Visit(node.Right);
 
-        // Just visit children normally - don't modify the comparison
-        return base.VisitBinary(node);
+        // If either child changed (e.g., a ConceptAs cast was stripped), we need to rebuild
+        // the binary expression WITHOUT the original method, because the original op_Equality
+        // method expects the original types (with casts) but after stripping casts the types changed.
+        if (left != node.Left || right != node.Right)
+        {
+            // Rebuild binary expression without the original method - let the system figure it out
+            // This is necessary because stripping (MissionId)x changes the operand type from MissionId to Guid,
+            // but the original expression had op_Equality(MissionId, MissionId)
+            return Expression.MakeBinary(node.NodeType, left, right);
+        }
+
+        return node;
     }
 }
