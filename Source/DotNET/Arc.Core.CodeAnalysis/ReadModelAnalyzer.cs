@@ -15,7 +15,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
-            DiagnosticDescriptors.ARC002_IncorrectQueryMethodSignature
+            DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature
         ];
 
     /// <inheritdoc/>
@@ -58,7 +58,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
                 if (!IsValidQueryMethodSignature(method, namedTypeSymbol))
                 {
                     var diagnostic = Diagnostic.Create(
-                        DiagnosticDescriptors.ARC002_IncorrectQueryMethodSignature,
+                        DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
                         method.Locations[0],
                         method.Name,
                         namedTypeSymbol.Name,

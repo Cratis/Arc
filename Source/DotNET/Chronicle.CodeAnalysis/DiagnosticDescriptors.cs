@@ -13,10 +13,10 @@ static class DiagnosticDescriptors
     const string Category = "Arc.Chronicle";
 
     /// <summary>
-    /// ARC005: Incorrect AggregateRoot event handler signature.
+    /// ARCCHR0001: Incorrect AggregateRoot event handler signature.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARC005_IncorrectAggregateRootEventHandlerSignature = new(
-        id: "ARC005",
+    public static readonly DiagnosticDescriptor ARCCHR0001_IncorrectAggregateRootEventHandlerSignature = new(
+        id: "ARCCHR0001",
         title: "Incorrect AggregateRoot event handler signature",
         messageFormat: "Event handler method '{0}' on AggregateRoot '{1}' must have one of these signatures: void On(TEvent), Task On(TEvent), void On(TEvent, EventContext), or Task On(TEvent, EventContext). Found: {2}",
         category: Category,

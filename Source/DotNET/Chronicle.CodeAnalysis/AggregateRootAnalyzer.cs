@@ -14,7 +14,7 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 public class AggregateRootAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticDescriptors.ARC005_IncorrectAggregateRootEventHandlerSignature];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticDescriptors.ARCCHR0001_IncorrectAggregateRootEventHandlerSignature];
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -45,7 +45,7 @@ public class AggregateRootAnalyzer : DiagnosticAnalyzer
             if (!IsValidEventHandlerSignature(method))
             {
                 var diagnostic = Diagnostic.Create(
-                    DiagnosticDescriptors.ARC005_IncorrectAggregateRootEventHandlerSignature,
+                    DiagnosticDescriptors.ARCCHR0001_IncorrectAggregateRootEventHandlerSignature,
                     method.Locations[0],
                     method.Name,
                     namedTypeSymbol.Name,

@@ -15,7 +15,7 @@ public class CommandAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
-            DiagnosticDescriptors.ARC003_MissingCommandAttribute
+            DiagnosticDescriptors.ARC0002_MissingCommandAttribute
         ];
 
     /// <inheritdoc/>
@@ -51,7 +51,7 @@ public class CommandAnalyzer : DiagnosticAnalyzer
         if (!hasCommandAttribute && handleMethod != null && LooksLikeCommand(namedTypeSymbol, handleMethod))
         {
             var diagnostic = Diagnostic.Create(
-                DiagnosticDescriptors.ARC003_MissingCommandAttribute,
+                DiagnosticDescriptors.ARC0002_MissingCommandAttribute,
                 namedTypeSymbol.Locations[0],
                 namedTypeSymbol.Name);
             context.ReportDiagnostic(diagnostic);
