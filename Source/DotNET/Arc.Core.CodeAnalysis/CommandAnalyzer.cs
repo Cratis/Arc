@@ -15,7 +15,6 @@ public class CommandAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
-            DiagnosticDescriptors.ARC001_IncorrectCommandHandlerSignature,
             DiagnosticDescriptors.ARC003_MissingCommandAttribute
         ];
 
@@ -48,19 +47,8 @@ public class CommandAnalyzer : DiagnosticAnalyzer
         var hasCommandAttribute = HasAttribute(namedTypeSymbol, "Cratis.Arc.Commands.ModelBound.CommandAttribute");
         var handleMethod = FindHandleMethod(namedTypeSymbol);
 
-        if (hasCommandAttribute && handleMethod != null)
-        {
-            if (!IsValidCommandHandlerSignature(handleMethod))
-            {
-                var diagnostic = Diagnostic.Create(
-                    DiagnosticDescriptors.ARC001_IncorrectCommandHandlerSignature,
-                    handleMethod.Locations[0],
-                    namedTypeSymbol.Name,
-                    handleMethod.ReturnType.ToDisplayString());
-                context.ReportDiagnostic(diagnostic);
-            }
-        }
-        else if (!hasCommandAttribute && handleMethod != null && LooksLikeCommand(namedTypeSymbol, handleMethod))
+        // Only warn about missing [Command] attribute if type looks like a command
+        if (!hasCommandAttribute && handleMethod != null && LooksLikeCommand(namedTypeSymbol, handleMethod))
         {
             var diagnostic = Diagnostic.Create(
                 DiagnosticDescriptors.ARC003_MissingCommandAttribute,
@@ -83,23 +71,6 @@ public class CommandAnalyzer : DiagnosticAnalyzer
             .FirstOrDefault(m => m.MethodKind == MethodKind.Ordinary);
     }
 
-    static bool IsValidCommandHandlerSignature(IMethodSymbol method)
-    {
-        var returnType = method.ReturnType;
-
-        if (returnType.SpecialType == SpecialType.System_Void)
-        {
-            return true;
-        }
-
-        if (returnType.Name == "Task" && returnType.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks")
-        {
-            return true;
-        }
-
-        return false;
-    }
-
     static bool LooksLikeCommand(INamedTypeSymbol typeSymbol, IMethodSymbol handleMethod)
     {
         // Skip types that implement specific interfaces that aren't commands
@@ -111,7 +82,7 @@ public class CommandAnalyzer : DiagnosticAnalyzer
         }
 
         // A command should be a class with properties and a Handle method
-        // Skip if it's an instance method (commands use instance handle methods)
+        // Skip if it's a static method (commands use instance handle methods)
         if (handleMethod.IsStatic)
         {
             return false;

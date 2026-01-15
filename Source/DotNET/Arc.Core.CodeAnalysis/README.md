@@ -11,9 +11,6 @@ Provides static code analysis for Arc.Core constructs.
 
 #### Analyzer Rules
 
-- **ARC001** (Error): Incorrect Command handler signature
-  - Command types with `[Command]` attribute must have a `Handle` method that returns `void`, `Task`, or `Task<TResult>`
-  
 - **ARC002** (Error): Incorrect Query method signature on ReadModel
   - Query methods on types with `[ReadModel]` attribute must return the ReadModel type, a collection, `Task`, `IAsyncEnumerable`, or `ISubject` of the ReadModel type
 
@@ -62,18 +59,31 @@ public class CreateUser
 }
 ```
 
-### Incorrect Command Handler (ARC001)
-
 ```csharp
 [Command]
 public class CreateUser
 {
     public string Name { get; set; }
     
-    // ❌ ARC001 Error - must return void, Task, or Task<T>
-    public string Handle()
+    // ✅ Correct - can return a result
+    public UserCreatedResult Handle()
     {
-        return "not allowed";
+        return new UserCreatedResult { UserId = Guid.NewGuid() };
+    }
+}
+```
+
+### Missing Command Attribute (ARC003)
+
+```csharp
+// ⚠️ ARC003 Warning - has Handle method and properties but missing [Command] attribute
+public class CreateUser
+{
+    public string Name { get; set; }
+    
+    public void Handle()
+    {
+        // Should have [Command] attribute
     }
 }
 ```

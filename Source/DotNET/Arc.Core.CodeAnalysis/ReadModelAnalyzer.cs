@@ -15,8 +15,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
-            DiagnosticDescriptors.ARC002_IncorrectQueryMethodSignature,
-            DiagnosticDescriptors.ARC004_MissingReadModelAttribute
+            DiagnosticDescriptors.ARC002_IncorrectQueryMethodSignature
         ];
 
     /// <inheritdoc/>
