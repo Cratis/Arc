@@ -34,13 +34,15 @@
     <PropertyGroup>
         <ArcJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc</ArcJavaScriptPath>
         <ArcReactJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc.React</ArcReactJavaScriptPath>
+        <!-- Default to always rebuild (CI behavior) -->
+        <ArcNeedsRebuild>true</ArcNeedsRebuild>
+        <ArcReactNeedsRebuild>true</ArcReactNeedsRebuild>
     </PropertyGroup>
-    <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild">
-        <!-- Check if Arc package needs rebuild using shell script -->
+    <Target Name="CheckJavaScriptTimestamps" BeforeTargets="BuildJavaScriptPackages" Condition="'$(CI)' == ''">
+        <!-- Local optimization: check timestamps to potentially skip builds -->
         <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" IgnoreExitCode="false">
             <Output TaskParameter="ExitCode" PropertyName="ArcUpToDateCode" />
         </Exec>
-        <!-- Check if Arc.React package needs rebuild using the same shell script -->
         <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcReactJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" IgnoreExitCode="false">
             <Output TaskParameter="ExitCode" PropertyName="ArcReactUpToDateCode" />
         </Exec>
@@ -51,6 +53,9 @@
             <ArcReactNeedsRebuild Condition="'$(ArcReactUpToDateCode)' == '0'">false</ArcReactNeedsRebuild>
             <ArcReactNeedsRebuild Condition="'$(ArcReactUpToDateCode)' != '0'">true</ArcReactNeedsRebuild>
         </PropertyGroup>
+    </Target>
+    <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild">
+        <!-- Build JavaScript packages based on property conditions -->
         <Message Text="Building @cratis/arc JavaScript package..." Importance="high" Condition="$(ArcNeedsRebuild)" />
         <Exec Command="yarn build" WorkingDirectory="$(ArcJavaScriptPath)" Condition="$(ArcNeedsRebuild)" />
         <Message Text="Skipping @cratis/arc build - sources unchanged" Importance="high" Condition="!$(ArcNeedsRebuild)" />
