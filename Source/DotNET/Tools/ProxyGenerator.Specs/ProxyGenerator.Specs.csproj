@@ -37,11 +37,11 @@
     </PropertyGroup>
     <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild">
         <!-- Check if Arc package needs rebuild using shell script -->
-        <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low">
+        <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" IgnoreExitCode="false">
             <Output TaskParameter="ExitCode" PropertyName="ArcUpToDateCode" />
         </Exec>
         <!-- Check if Arc.React package needs rebuild using the same shell script -->
-        <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcReactJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low">
+        <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcReactJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" IgnoreExitCode="false">
             <Output TaskParameter="ExitCode" PropertyName="ArcReactUpToDateCode" />
         </Exec>
         <PropertyGroup>
