@@ -96,6 +96,7 @@ export class IdentityProvider extends IIdentityProvider {
     }
 
     private static getCookie() {
+        if (typeof document === 'undefined') return [];
         const decoded = decodeURIComponent(document.cookie);
         const cookies = decoded.split(';').map(_ => _.trim());
         const cookie = cookies.find(_ => _.indexOf(`${IdentityProvider.CookieName}=`) == 0);
@@ -107,6 +108,7 @@ export class IdentityProvider extends IIdentityProvider {
     }
 
     private static clearCookie() {
+        if (typeof document === 'undefined') return;
         document.cookie = `${IdentityProvider.CookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT`;
     }
 }
