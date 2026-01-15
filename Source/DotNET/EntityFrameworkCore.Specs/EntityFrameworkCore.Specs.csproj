@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+        <PackageReference Include="Microsoft.Extensions.Logging" />
         <ProjectReference Include="../EntityFrameworkCore/EntityFrameworkCore.csproj"/>
     </ItemGroup>
 </Project>
