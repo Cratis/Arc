@@ -23,10 +23,12 @@
             "request": "launch",
             "preLaunchTask": "build",
             "cwd": "${workspaceFolder}/Source/DotNET/Tools/ProxyGenerator",
-            "program": "${workspaceFolder}/Source/DotNET/Tools/ProxyGenerator/bin/Debug/net9.0/Cratis.Arc.ProxyGenerator.dll",
+            "program": "${workspaceFolder}/Source/DotNET/Tools/ProxyGenerator/bin/Debug/net10.0/Cratis.Arc.ProxyGenerator.dll",
             "args": [
-                "/Volumes/Code/Bliksund/ewa-multiplatform/Source/Core/bin/Debug/net9.0/Core.dll",
+                "/Volumes/Code/Bliksund/ewa-multiplatform/Source/Core/bin/Debug/net10.0/Core.dll",
                 "/Volumes/Code/Bliksund/ewa-multiplatform/Source/Core",
+                // "/Volumes/Code/Cratis/Chronicle/Source/Clients/Api/bin/Debug/net10.0/Cratis.Chronicle.Api.dll",
+                // "/Volumes/Code/Cratis/Chronicle/Source/Workbench/Web/Api",
                 "1",
                 "--skip-output-deletion",
                 "--skip-command-name-in-route"
