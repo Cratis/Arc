@@ -30,8 +30,14 @@ public static class PropertyExtensions
     /// <returns>True if it is, false if not.</returns>
     public static bool IsOptional(this PropertyInfo property)
     {
-        return property.CustomAttributes.Any(_ =>
-            _.AttributeType.FullName?.StartsWith("System.Runtime.CompilerServices.NullableAttribute") ?? false);
+        if (property.PropertyType.IsValueType)
+        {
+            return property.PropertyType.IsNullable();
+        }
+
+        var context = new NullabilityInfoContext();
+        var nullabilityInfo = context.Create(property);
+        return nullabilityInfo.WriteState == NullabilityState.Nullable;
     }
 
     /// <summary>
