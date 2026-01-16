@@ -4,11 +4,9 @@
 using Cratis.Arc.EntityFrameworkCore.Concepts;
 using Cratis.Arc.EntityFrameworkCore.Json;
 using Cratis.Arc.EntityFrameworkCore.Mapping;
-using Cratis.Concepts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore;
 
@@ -21,7 +19,9 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        this.GetService<IEntityTypeRegistrar>().RegisterEntityMaps(this, modelBuilder);
+        // IEntityTypeRegistrar is only available when using AddDbContext, not when directly instantiating the DbContext
+        var registrar = ((IInfrastructure<IServiceProvider>)this).Instance.GetService(typeof(IEntityTypeRegistrar)) as IEntityTypeRegistrar;
+        registrar?.RegisterEntityMaps(this, modelBuilder);
 
         var entityTypes = modelBuilder.Model.GetEntityTypes();
         var dbSetTypes = GetType()
@@ -29,9 +29,6 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
             .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
             .Select(p => p.PropertyType.GetGenericArguments()[0])
             .ToArray();
-
-        // Ignore ConceptAs types to prevent EF Core from treating them as entity types
-        IgnoreConceptAsTypes(modelBuilder, dbSetTypes);
 
         var entityTypesForConverters = entityTypes
             .Where(IsRelevantForConverters(dbSetTypes))
@@ -85,21 +82,6 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
         }
 
         return propertyTypesInJsonEntities.Except(propertyTypesInNonJsonEntities).ToHashSet();
-    }
-
-    static void IgnoreConceptAsTypes(ModelBuilder modelBuilder, Type[] dbSetTypes)
-    {
-        var conceptTypes = dbSetTypes
-            .SelectMany(t => t.GetProperties())
-            .Select(p => p.PropertyType)
-            .Where(t => t.IsConcept())
-            .Distinct()
-            .ToArray();
-
-        foreach (var conceptType in conceptTypes)
-        {
-            modelBuilder.Ignore(conceptType);
-        }
     }
 
     static Func<IMutableEntityType, bool> IsRelevantForConverters(Type[] dbSetTypes) => et =>
