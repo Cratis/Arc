@@ -3,6 +3,7 @@
 
 using System.Net.WebSockets;
 using System.Text.Json;
+using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +19,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
     const int BufferSize = 1024 * 4;
 
     /// <inheritdoc/>
-    public async Task HandleIncomingMessages(WebSocket webSocket, CancellationToken token, ILogger? logger = default)
+    public async Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token, ILogger? logger = default)
     {
         try
         {
@@ -33,7 +34,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
                         break;
                     }
 
-                    received = null!;
+                    received = null;
                     received = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                     handlerLogger.ReceivedMessage();
 
@@ -48,14 +49,14 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
             catch (TaskCanceledException)
             {
                 handlerLogger.CloseConnection(received?.CloseStatusDescription);
-                await webSocket.CloseOutputAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
+                await webSocket.CloseAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
             }
             finally
             {
                 if (received is not null)
                 {
                     handlerLogger.CloseConnection(received.CloseStatusDescription);
-                    await webSocket.CloseOutputAsync(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
+                    await webSocket.CloseAsync(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
                 }
             }
         }
@@ -79,7 +80,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
 
     /// <inheritdoc/>
     public async Task<Exception?> SendMessage(
-        WebSocket webSocket,
+        IWebSocket webSocket,
         QueryResult queryResult,
         JsonSerializerOptions jsonSerializerOptions,
         CancellationToken token,
@@ -100,7 +101,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
         }
     }
 
-    async Task HandlePotentialPingMessage(WebSocket webSocket, byte[] buffer, int count, CancellationToken token)
+    async Task HandlePotentialPingMessage(IWebSocket webSocket, byte[] buffer, int count, CancellationToken token)
     {
         try
         {

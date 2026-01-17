@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Http;
+
 namespace Cratis.Arc.Queries;
 
 /// <summary>
@@ -9,9 +11,9 @@ namespace Cratis.Arc.Queries;
 public interface IClientEnumerableObservable
 {
     /// <summary>
-    /// Handle the HTTP context for minimal API endpoints.
+    /// Handle the HTTP request context.
     /// </summary>
-    /// <param name="httpContext"><see cref="HttpContext"/> to handle for.</param>
+    /// <param name="context"><see cref="IHttpRequestContext"/> to handle for.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    Task HandleConnection(HttpContext httpContext);
+    Task HandleConnection(IHttpRequestContext context);
 }

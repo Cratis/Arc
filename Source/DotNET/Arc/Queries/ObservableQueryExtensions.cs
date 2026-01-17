@@ -66,18 +66,18 @@ public static class ObservableQueryExtensions
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="objectResult">The object result.</param>
     /// <param name="queryContextManager">The query context manager.</param>
-    /// <param name="options">The JSON options.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     /// <returns>The client observable.</returns>
     public static IClientObservable CreateClientObservableFrom(
         IServiceProvider serviceProvider,
         ObjectResult objectResult,
         IQueryContextManager queryContextManager,
-        JsonOptions options)
+        System.Text.Json.JsonSerializerOptions jsonSerializerOptions)
     {
         var type = objectResult.Value!.GetType();
         var subjectType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
         var clientObservableType = typeof(ClientObservable<>).MakeGenericType(subjectType.GetGenericArguments()[0]);
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContextManager.Current, objectResult.Value, options) as IClientObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContextManager.Current, objectResult.Value, jsonSerializerOptions) as IClientObservable)!;
     }
 
     /// <summary>
@@ -87,16 +87,16 @@ public static class ObservableQueryExtensions
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="subject">The subject to wrap.</param>
     /// <param name="queryContext">The query context.</param>
-    /// <param name="options">The JSON options.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     /// <returns>The client observable.</returns>
     public static IClientObservable CreateClientObservableFrom<T>(
         IServiceProvider serviceProvider,
         ISubject<T> subject,
         QueryContext queryContext,
-        JsonOptions options)
+        System.Text.Json.JsonSerializerOptions jsonSerializerOptions)
     {
         var clientObservableType = typeof(ClientObservable<>).MakeGenericType(typeof(T));
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContext, subject, options) as IClientObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContext, subject, jsonSerializerOptions) as IClientObservable)!;
     }
 
     /// <summary>
@@ -104,16 +104,16 @@ public static class ObservableQueryExtensions
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="objectResult">The object result.</param>
-    /// <param name="options">The JSON options.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     /// <returns>The client enumerable observable.</returns>
     public static IClientEnumerableObservable CreateClientEnumerableObservableFrom(
         IServiceProvider serviceProvider,
         ObjectResult objectResult,
-        JsonOptions options)
+        System.Text.Json.JsonSerializerOptions jsonSerializerOptions)
     {
         var type = objectResult.Value!.GetType();
         var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(type.GetGenericArguments()[0]);
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, objectResult.Value, options) as IClientEnumerableObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, objectResult.Value, jsonSerializerOptions) as IClientEnumerableObservable)!;
     }
 
     /// <summary>
@@ -122,14 +122,14 @@ public static class ObservableQueryExtensions
     /// <typeparam name="T">The type of data being enumerated.</typeparam>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="enumerable">The async enumerable to wrap.</param>
-    /// <param name="options">The JSON options.</param>
+    /// <param name="jsonSerializerOptions">The JSON serializer options.</param>
     /// <returns>The client enumerable observable.</returns>
     public static IClientEnumerableObservable CreateClientEnumerableObservableFrom<T>(
         IServiceProvider serviceProvider,
         IAsyncEnumerable<T> enumerable,
-        JsonOptions options)
+        System.Text.Json.JsonSerializerOptions jsonSerializerOptions)
     {
         var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(typeof(T));
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, enumerable, options) as IClientEnumerableObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, enumerable, jsonSerializerOptions) as IClientEnumerableObservable)!;
     }
 }

@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
-using Cratis.Arc.Queries;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -72,7 +71,6 @@ public static class HostBuilderExtensions
             .ConfigureServices(services =>
             {
                 services.AddHttpContextAccessor();
-                services.AddTransient<IObservableQueryHandler, ObservableQueryHandler>();
                 services.AddControllersFromProjectReferencedAssembles(Internals.Types, Internals.DerivedTypes);
 
                 if (identityDetailsProvider is not null)

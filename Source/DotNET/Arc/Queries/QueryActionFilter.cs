@@ -18,12 +18,12 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/>.</param>
 /// <param name="queryProviders"><see cref="IQueryRenderers"/>.</param>
-/// <param name="webSocketQueryHandler"><see cref="ObservableQueryHandler"/>.</param>
+/// <param name="controllerAdapter"><see cref="ControllerObservableQueryAdapter"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 public class QueryActionFilter(
     IQueryContextManager queryContextManager,
     IQueryRenderers queryProviders,
-    ObservableQueryHandler webSocketQueryHandler,
+    ControllerObservableQueryAdapter controllerAdapter,
     ILogger<QueryActionFilter> logger) : IAsyncActionFilter
 {
     /// <inheritdoc/>
@@ -40,7 +40,7 @@ public class QueryActionFilter(
             if (callResult.Result?.Result is ObjectResult objectResult && objectResult.IsStreamingResult())
             {
                 // Handle streaming results - both WebSocket and HTTP JSON streaming
-                await webSocketQueryHandler.HandleControllerStreamingResult(context, callResult.Result, objectResult);
+                await controllerAdapter.HandleControllerStreamingResult(context, callResult.Result, objectResult);
                 return; // Early return to avoid processing as regular query result
             }
 
