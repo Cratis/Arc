@@ -1,12 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.RegularExpressions;
+
 namespace Cratis.Arc;
 
 /// <summary>
 /// String extensions.
 /// </summary>
-public static class StringExtensions
+public static partial class StringExtensions
 {
     /// <summary>
     /// Converts a string to kebab-case.
@@ -45,4 +47,37 @@ public static class StringExtensions
 
         return result.ToString();
     }
+
+    /// <summary>
+    /// Sanitizes a URL by removing invalid patterns such as double slashes,
+    /// trailing slashes, and other malformed URL segments.
+    /// </summary>
+    /// <param name="url">The URL to sanitize.</param>
+    /// <returns>The sanitized URL.</returns>
+#pragma warning disable CA1055 // URI-like return values should not be strings - this is a string extension for URL path manipulation
+    public static string SanitizeUrl(this string url)
+#pragma warning restore CA1055
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return url;
+        }
+
+        // Replace multiple consecutive slashes with a single slash (except for protocol://)
+        url = MultipleSlashesRegex().Replace(url, "/");
+
+        // Remove trailing slashes
+        url = url.TrimEnd('/');
+
+        // Ensure the URL starts with a single slash if it's a relative URL
+        if (!url.StartsWith('/') && !url.Contains("://"))
+        {
+            url = "/" + url;
+        }
+
+        return url;
+    }
+
+    [GeneratedRegex(@"(?<!:)/{2,}", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex MultipleSlashesRegex();
 }
