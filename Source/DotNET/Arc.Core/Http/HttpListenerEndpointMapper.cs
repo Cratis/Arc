@@ -178,6 +178,14 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             return fileSystemPath;
         }
 
+        // Use current directory first (typical for development with dotnet run)
+        // Fall back to AppContext.BaseDirectory if not found
+        var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), fileSystemPath);
+        if (Directory.Exists(currentDirPath))
+        {
+            return currentDirPath;
+        }
+
         return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
     }
 
@@ -298,6 +306,8 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
     async Task<bool> TryServeStaticFileAsync(HttpListenerContext context, string requestPath)
     {
+        _logger.AttemptingStaticFile(requestPath, _staticFileConfigurations.Count);
+
         foreach (var config in _staticFileConfigurations)
         {
             var relativePath = GetRelativePath(requestPath, config.RequestPath);
@@ -310,7 +320,8 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             var filePath = Path.Combine(fileSystemPath, relativePath.TrimStart('/'));
 
             // Handle directory requests with default files
-            if (Directory.Exists(filePath) && config.ServeDefaultFiles)
+            var directoryExists = Directory.Exists(filePath);
+            if (directoryExists && config.ServeDefaultFiles)
             {
                 foreach (var defaultFileName in config.DefaultFileNames)
                 {
@@ -331,11 +342,15 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                 continue;
             }
 
-            if (File.Exists(filePath))
+            var fileExists = File.Exists(filePath);
+            if (fileExists)
             {
+                _logger.StaticFileServed(filePath);
                 await ServeFileAsync(context, filePath);
                 return true;
             }
+
+            _logger.StaticFileNotFound(filePath, directoryExists, fileExists);
         }
 
         return false;
@@ -362,6 +377,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
         if (File.Exists(filePath))
         {
+            _logger.FallbackFileServed(filePath);
             await ServeFileAsync(context, filePath);
             return true;
         }
