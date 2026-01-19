@@ -20,7 +20,10 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // IEntityTypeRegistrar is only available when using AddDbContext, not when directly instantiating the DbContext
-        var registrar = ((IInfrastructure<IServiceProvider>)this).Instance.GetService(typeof(IEntityTypeRegistrar)) as IEntityTypeRegistrar;
+        // We need to access the ApplicationServiceProvider from the options because the internal service provider
+        // doesn't contain application services directly
+        var coreOptions = options.FindExtension<CoreOptionsExtension>();
+        var registrar = coreOptions?.ApplicationServiceProvider?.GetService(typeof(IEntityTypeRegistrar)) as IEntityTypeRegistrar;
         registrar?.RegisterEntityMaps(this, modelBuilder);
 
         var entityTypes = modelBuilder.Model.GetEntityTypes();
