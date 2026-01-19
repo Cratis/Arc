@@ -41,9 +41,9 @@ public static class ServiceCollectionExtensions
                 options.ModelBinderProviders.Insert(0, new FromRequestModelBinderProvider(bodyModelBinderProvider!, complexObjectModelBinderProvider!));
                 options.AddValidation(discoverableValidators);
                 options.AddCQRS();
-            })
-            .AddJsonOptions(options => options.JsonSerializerOptions.ConfigureAspNetArcDefaults(Internals.DerivedTypesOrDefault));
+            });
 
+        services.AddSingleton<IPostConfigureOptions<JsonOptions>, ConfigureJsonOptionsFromArcOptions>();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
 
         foreach (var controllerAssembly in ProjectReferencedAssemblies.Instance.Assemblies.Where(_ => _.DefinedTypes.Any(type => type.Implements(typeof(ControllerBase)))))

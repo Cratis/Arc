@@ -40,36 +40,4 @@ public static class JsonSerializerOptionsConfiguration
 
         return options;
     }
-
-    /// <summary>
-    /// Configure the <see cref="JsonSerializerOptions"/> for ASP.NET Core with Arc defaults.
-    /// This copies settings from Arc's configured options to ASP.NET's options.
-    /// </summary>
-    /// <param name="options">The <see cref="JsonSerializerOptions"/> to configure.</param>
-    /// <param name="derivedTypes">Optional <see cref="IDerivedTypes"/> to use for derived type serialization.</param>
-    /// <returns>The configured <see cref="JsonSerializerOptions"/> for continuation.</returns>
-    public static JsonSerializerOptions ConfigureAspNetArcDefaults(this JsonSerializerOptions options, IDerivedTypes? derivedTypes = null)
-    {
-        options.PropertyNamingPolicy = AcronymFriendlyJsonCamelCaseNamingPolicy.Instance;
-
-        // Find and remove the JsonStringEnumConverter if it exists, we want to have integers for enums.
-        // The Json converter in Fundamentals gives us integer in transport.
-        var converterToRemove = options.Converters
-            .OfType<JsonStringEnumConverter>()
-            .FirstOrDefault();
-
-        if (converterToRemove is not null)
-        {
-            options.Converters.Remove(converterToRemove);
-        }
-
-        // Add the Arc default converters
-        var sourceOptions = new JsonSerializerOptions().ConfigureArcDefaults(derivedTypes);
-        foreach (var converter in sourceOptions.Converters)
-        {
-            options.Converters.Add(converter);
-        }
-
-        return options;
-    }
 }

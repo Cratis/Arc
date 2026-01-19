@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Http;
 
@@ -72,7 +73,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         set => context.Response.StatusCode = value;
     }
 
-    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= serviceProvider.GetRequiredService<JsonSerializerOptions>();
+    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
