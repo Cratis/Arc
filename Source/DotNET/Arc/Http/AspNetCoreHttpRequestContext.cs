@@ -128,4 +128,16 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     {
         await httpContext.Response.WriteAsync(text, cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default)
+    {
+        await httpContext.Response.Body.WriteAsync(data, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        await stream.CopyToAsync(httpContext.Response.Body, cancellationToken);
+    }
 }

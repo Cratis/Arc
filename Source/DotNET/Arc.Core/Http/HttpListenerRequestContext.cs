@@ -145,6 +145,20 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public async Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default)
+    {
+        context.Response.ContentLength64 = data.Length;
+        await context.Response.OutputStream.WriteAsync(data, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        context.Response.ContentLength64 = stream.Length;
+        await stream.CopyToAsync(context.Response.OutputStream, cancellationToken);
+    }
+
     static ReadOnlyDictionary<string, string> ParseQueryString(NameValueCollection? queryString)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

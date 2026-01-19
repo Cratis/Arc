@@ -17,6 +17,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     readonly Dictionary<string, RouteHandler> _routes = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string, EndpointMetadata> _endpoints = [];
     readonly ILogger<HttpListenerEndpointMapper> _logger;
+    readonly List<StaticFileOptions> _staticFileConfigurations = [];
     IServiceProvider? _serviceProvider;
     Task? _listenerTask;
     CancellationTokenSource? _cancellationTokenSource;
@@ -132,6 +133,52 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
+    /// <summary>
+    /// Configures static file serving with the specified options.
+    /// </summary>
+    /// <param name="options">The options for static file serving.</param>
+    public void UseStaticFiles(StaticFileOptions options)
+    {
+        MimeTypes.AddMappings(options.ContentTypeMappings);
+        _staticFileConfigurations.Add(options);
+    }
+
+    static string? GetRelativePath(string requestPath, string configuredRequestPath)
+    {
+        if (string.IsNullOrEmpty(configuredRequestPath) || configuredRequestPath == "/")
+        {
+            return requestPath;
+        }
+
+        var normalizedConfigPath = configuredRequestPath.TrimEnd('/');
+        if (requestPath.Equals(normalizedConfigPath, StringComparison.OrdinalIgnoreCase) ||
+            requestPath.StartsWith(normalizedConfigPath + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return requestPath[normalizedConfigPath.Length..];
+        }
+
+        return null;
+    }
+
+    static string GetAbsoluteFileSystemPath(string fileSystemPath)
+    {
+        if (Path.IsPathRooted(fileSystemPath))
+        {
+            return fileSystemPath;
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
+    }
+
+    static async Task ServeFileAsync(HttpListenerContext context, string filePath)
+    {
+        context.Response.ContentType = MimeTypes.GetMimeTypeFromPath(filePath);
+        context.Response.ContentLength64 = new FileInfo(filePath).Length;
+
+        await using var fileStream = File.OpenRead(filePath);
+        await fileStream.CopyToAsync(context.Response.OutputStream);
+    }
+
     void MapRoute(string method, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
         var fullPattern = string.IsNullOrEmpty(_pathBase) ? pattern : $"{_pathBase}{pattern}";
@@ -204,6 +251,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             }
             else
             {
+                // Try to serve static files if configured
+                if (method == "GET" && await TryServeStaticFileAsync(context, path))
+                {
+                    return;
+                }
+
                 _logger.RouteNotFound(routeKey, string.Join(", ", _routes.Keys));
                 context.Response.StatusCode = 404;
                 var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
@@ -224,6 +277,51 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                 context.Response.Close();
             }
         }
+    }
+
+    async Task<bool> TryServeStaticFileAsync(HttpListenerContext context, string requestPath)
+    {
+        foreach (var config in _staticFileConfigurations)
+        {
+            var relativePath = GetRelativePath(requestPath, config.RequestPath);
+            if (relativePath is null)
+            {
+                continue;
+            }
+
+            var fileSystemPath = GetAbsoluteFileSystemPath(config.FileSystemPath);
+            var filePath = Path.Combine(fileSystemPath, relativePath.TrimStart('/'));
+
+            // Handle directory requests with default files
+            if (Directory.Exists(filePath) && config.ServeDefaultFiles)
+            {
+                foreach (var defaultFileName in config.DefaultFileNames)
+                {
+                    var defaultFilePath = Path.Combine(filePath, defaultFileName);
+                    if (File.Exists(defaultFilePath))
+                    {
+                        filePath = defaultFilePath;
+                        break;
+                    }
+                }
+            }
+
+            // Ensure the resolved path is still within the configured file system path (prevent directory traversal)
+            var fullResolvedPath = Path.GetFullPath(filePath);
+            var fullBasePath = Path.GetFullPath(fileSystemPath);
+            if (!fullResolvedPath.StartsWith(fullBasePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (File.Exists(filePath))
+            {
+                await ServeFileAsync(context, filePath);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     record RouteHandler(string Pattern, Func<IHttpRequestContext, Task> Handler, EndpointMetadata? Metadata);
