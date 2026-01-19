@@ -15,8 +15,7 @@ public class when_creating_client_enumerable_observable_from_async_enumerable : 
 
     void Because() => _result = ObservableQueryExtensions.CreateClientEnumerableObservableFrom(
         _serviceProvider,
-        _enumerable,
-        _jsonOptions);
+        _enumerable);
 
     [Fact] void should_return_client_observable() => _result.ShouldNotBeNull();
     [Fact] void should_return_client_enumerable_observable_of_correct_type() => _result.ShouldBeOfExactType<ClientEnumerableObservable<TestData>>();

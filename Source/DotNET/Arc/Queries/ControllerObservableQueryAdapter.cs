@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -15,16 +14,12 @@ namespace Cratis.Arc.Queries;
 /// Represents an ASP.NET Core controller-specific adapter for handling observable query results.
 /// </summary>
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/>.</param>
-/// <param name="options"><see cref="JsonOptions"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 [Singleton]
 public class ControllerObservableQueryAdapter(
     IQueryContextManager queryContextManager,
-    IOptions<JsonOptions> options,
     ILogger<ControllerObservableQueryAdapter> logger)
 {
-    readonly JsonOptions _options = options.Value;
-
     /// <summary>
     /// Determines if the current request should be handled as a WebSocket connection.
     /// </summary>
@@ -80,8 +75,7 @@ public class ControllerObservableQueryAdapter(
         var clientObservable = ObservableQueryExtensions.CreateClientObservableFrom(
             context.HttpContext.RequestServices,
             objectResult,
-            queryContextManager,
-            _options.JsonSerializerOptions);
+            queryContextManager);
 
         if (ShouldHandleAsWebSocket(context))
         {
@@ -120,8 +114,7 @@ public class ControllerObservableQueryAdapter(
         logger.AsyncEnumerableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
         var clientEnumerableObservable = ObservableQueryExtensions.CreateClientEnumerableObservableFrom(
             context.HttpContext.RequestServices,
-            objectResult,
-            _options.JsonSerializerOptions);
+            objectResult);
 
         if (ShouldHandleAsWebSocket(context))
         {

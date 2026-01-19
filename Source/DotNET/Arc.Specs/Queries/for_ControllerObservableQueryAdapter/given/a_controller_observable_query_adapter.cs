@@ -44,7 +44,7 @@ public class a_controller_observable_query_adapter : Specification
             new Dictionary<string, object?>(),
             null!);
 
-        _adapter = new ControllerObservableQueryAdapter(_queryContextManager, _jsonOptions, _logger);
+        _adapter = new ControllerObservableQueryAdapter(_queryContextManager, _logger);
     }
 
     protected record TestData(string Value);

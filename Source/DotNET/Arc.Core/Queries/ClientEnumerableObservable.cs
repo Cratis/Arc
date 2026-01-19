@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Text.Json;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.Logging;
 
@@ -12,12 +11,10 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <typeparam name="T">Type of data being observed.</typeparam>
 /// <param name="enumerable">The <see cref="IAsyncEnumerable{T}"/> to use for streaming.</param>
-/// <param name="jsonSerializerOptions">The <see cref="JsonSerializerOptions"/>.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientEnumerableObservable<T>(
     IAsyncEnumerable<T> enumerable,
-    JsonSerializerOptions jsonSerializerOptions,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
@@ -43,7 +40,7 @@ public class ClientEnumerableObservable<T>(
                     }
 
                     queryResult.Data = item;
-                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, jsonSerializerOptions, cts.Token, logger);
+                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token, logger);
                     if (error is null)
                     {
                         continue;

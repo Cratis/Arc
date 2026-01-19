@@ -21,8 +21,7 @@ public class when_creating_client_observable_from_subject : given.all_dependenci
     void Because() => _result = ObservableQueryExtensions.CreateClientObservableFrom(
         _serviceProvider,
         _subject,
-        _queryContext,
-        _jsonOptions);
+        _queryContext);
 
     [Fact] void should_return_client_observable() => _result.ShouldNotBeNull();
     [Fact] void should_return_client_observable_of_correct_type() => _result.ShouldBeOfExactType<ClientObservable<TestData>>();

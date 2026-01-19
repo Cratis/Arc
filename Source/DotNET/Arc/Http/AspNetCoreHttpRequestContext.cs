@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Http;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.AspNetCore.Http;
 
@@ -68,7 +69,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
         set => httpContext.Response.StatusCode = value;
     }
 
-    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= httpContext.RequestServices.GetRequiredService<JsonSerializerOptions>();
+    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= httpContext.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)

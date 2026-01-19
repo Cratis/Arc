@@ -12,9 +12,10 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents an implementation of <see cref="IWebSocketConnectionHandler"/>.
 /// </summary>
+/// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="handlerLogger">The <see cref="ILogger"/>.</param>
 [Singleton]
-public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> handlerLogger) : IWebSocketConnectionHandler
+public class WebSocketConnectionHandler(ArcOptions arcOptions, ILogger<WebSocketConnectionHandler> handlerLogger) : IWebSocketConnectionHandler
 {
     const int BufferSize = 1024 * 4;
 
@@ -82,14 +83,13 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
     public async Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
-        JsonSerializerOptions jsonSerializerOptions,
         CancellationToken token,
         ILogger? logger = null)
     {
         try
         {
             var envelope = WebSocketMessage.CreateData(queryResult);
-            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, jsonSerializerOptions);
+            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.JsonSerializerOptions);
             await webSocket.SendAsync(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             message = null;
             return null;
@@ -106,13 +106,13 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
         try
         {
             var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, count);
-            var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText);
+            var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText, arcOptions.JsonSerializerOptions);
 
             if (message is not null && message.Type == WebSocketMessageType.Ping)
             {
                 handlerLogger.ReceivedPingMessage();
                 var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage);
+                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage, arcOptions.JsonSerializerOptions);
                 await webSocket.SendAsync(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
                 handlerLogger.SentPongMessage();
             }

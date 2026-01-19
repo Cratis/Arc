@@ -8,7 +8,6 @@ namespace Cratis.Arc.Queries.for_ClientEnumerableObservable.given;
 public class a_client_enumerable_observable : Specification
 {
     protected TestAsyncEnumerable _enumerable;
-    protected System.Text.Json.JsonSerializerOptions _jsonOptions;
     protected IWebSocketConnectionHandler _webSocketConnectionHandler;
     protected ILogger<IClientObservable> _logger;
     protected ClientEnumerableObservable<TestData> _clientEnumerableObservable;
@@ -16,13 +15,11 @@ public class a_client_enumerable_observable : Specification
     void Establish()
     {
         _enumerable = new TestAsyncEnumerable();
-        _jsonOptions = new System.Text.Json.JsonSerializerOptions();
         _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
         _logger = Substitute.For<ILogger<IClientObservable>>();
 
         _clientEnumerableObservable = new ClientEnumerableObservable<TestData>(
             _enumerable,
-            _jsonOptions,
             _webSocketConnectionHandler,
             _logger);
     }

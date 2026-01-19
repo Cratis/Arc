@@ -17,14 +17,12 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContext">The <see cref="QueryContext"/> the observable is for.</param>
 /// <param name="subject">The <see cref="ISubject{T}"/> the observable wraps.</param>
-/// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservable<T>(
     QueryContext queryContext,
     ISubject<T> subject,
-    ArcOptions arcOptions,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     IHostApplicationLifetime hostApplicationLifetime,
     ILogger<ClientObservable<T>> logger) : IClientObservable, IAsyncEnumerable<T>
@@ -77,7 +75,7 @@ public class ClientObservable<T>(
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
                 queryResult.Data = data;
 
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, arcOptions.JsonSerializerOptions, cts.Token, logger);
+                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token, logger);
                 if (error is not null)
                 {
                     subject.OnError(error);

@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Text.Json;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.Logging;
 
@@ -17,14 +16,12 @@ public interface IWebSocketConnectionHandler
     /// </summary>
     /// <param name="webSocket">The <see cref="IWebSocket"/> to send on.</param>
     /// <param name="queryResult">The <see cref="QueryResult"/> message to write.</param>
-    /// <param name="jsonSerializerOptions">The <see cref="JsonSerializerOptions"/>.</param>
     /// <param name="token">The <see cref="CancellationToken"/>.</param>
     /// <param name="logger">The optional <see cref="ILogger"/> to use.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous action.</returns>
     Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
-        JsonSerializerOptions jsonSerializerOptions,
         CancellationToken token,
         ILogger? logger = null);
 

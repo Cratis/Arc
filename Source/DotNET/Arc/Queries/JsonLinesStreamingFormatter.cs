@@ -4,6 +4,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -33,7 +34,10 @@ public class JsonLinesStreamingFormatter : TextOutputFormatter
             return;
         }
 
-        var jsonSerializerOptions = context.HttpContext.RequestServices.GetRequiredService<JsonSerializerOptions>();
+        var jsonSerializerOptions = context.HttpContext.RequestServices
+            .GetRequiredService<IOptions<ArcOptions>>()
+            .Value
+            .JsonSerializerOptions;
 
         // Mime type application/jsonl is not ratified as a standard yet: https://jsonlines.org - https://github.com/wardi/jsonlines/issues/19
         response.ContentType = "application/jsonl";
