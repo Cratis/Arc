@@ -4,6 +4,8 @@
   href: getting-started.md
 - name: Endpoint Mapping
   href: endpoint-mapping.md
+- name: Static Files
+  href: static-files.md
 - name: Authentication
   href: authentication.md
 - name: Authorization
