@@ -11,5 +11,5 @@ public class HostingOptions
     /// <summary>
     /// Gets or sets the application URL.
     /// </summary>
-    public string ApplicationUrl { get; set; } = "http://*:5000";
+    public string ApplicationUrl { get; set; } = "http://+:5001/";
 }

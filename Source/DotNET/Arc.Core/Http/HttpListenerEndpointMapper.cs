@@ -27,11 +27,11 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     /// Initializes a new instance of the <see cref="HttpListenerEndpointMapper"/> class.
     /// </summary>
     /// <param name="logger">The logger for the endpoint mapper.</param>
-    /// <param name="prefixes">Optional HTTP prefixes to listen on. Defaults to http://localhost:5000/.</param>
+    /// <param name="prefixes">Optional HTTP prefixes to listen on. Defaults to http://localhost:5001/.</param>
     public HttpListenerEndpointMapper(ILogger<HttpListenerEndpointMapper> logger, params string[] prefixes)
     {
         _logger = logger;
-        var prefixList = prefixes.Length > 0 ? prefixes : ["http://localhost:5000/"];
+        var prefixList = prefixes.Length > 0 ? prefixes : ["http://localhost:5001/"];
 
         _logger.AddingHttpListenerPrefixes(prefixList.Length);
         foreach (var prefix in prefixList)
