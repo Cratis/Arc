@@ -22,6 +22,11 @@ public static class ArcApplicationExtensions
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
     public static ArcApplication UseCratisArc(this ArcApplication app)
     {
+        if (app.IsCratisArcConfigured)
+        {
+            return app;
+        }
+
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
         app.EndpointMapper.MapCommandEndpoints(app.Services);
         app.EndpointMapper.MapQueryEndpoints(app.Services);
@@ -44,6 +49,8 @@ public static class ArcApplicationExtensions
                 httpListenerEndpointMapper.Dispose();
             }
         });
+
+        app.MarkCratisArcAsConfigured();
 
         return app;
     }

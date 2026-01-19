@@ -21,6 +21,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     Task? _listenerTask;
     CancellationTokenSource? _cancellationTokenSource;
     string _pathBase = string.Empty;
+    bool _isStarted;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpListenerEndpointMapper"/> class.
@@ -64,10 +65,16 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     /// <param name="serviceProvider">The service provider for request scoping.</param>
     public void Start(IServiceProvider serviceProvider)
     {
+        if (_isStarted)
+        {
+            return;
+        }
+
         _serviceProvider = serviceProvider;
         _cancellationTokenSource = new CancellationTokenSource();
         _listener.Start();
         _listenerTask = ListenAsync(_cancellationTokenSource.Token);
+        _isStarted = true;
 
         _logger.HttpListenerStarted(string.Join(", ", _listener.Prefixes));
     }
@@ -78,12 +85,19 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     /// <returns>A task representing the stop operation.</returns>
     public async Task StopAsync()
     {
+        if (!_isStarted)
+        {
+            return;
+        }
+
         await _cancellationTokenSource?.CancelAsync();
         _listener.Stop();
         if (_listenerTask is not null)
         {
             await _listenerTask;
         }
+
+        _isStarted = false;
     }
 
     /// <inheritdoc/>
