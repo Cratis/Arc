@@ -7,7 +7,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using Cratis.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Http;
 
@@ -21,8 +21,8 @@ namespace Cratis.Arc.Http;
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
 public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext
 {
-    static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
     readonly Dictionary<object, object?> _items = [];
+    JsonSerializerOptions? _jsonOptions;
     IWebSocketContext? _webSockets;
 
     /// <inheritdoc/>
@@ -72,6 +72,8 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         set => context.Response.StatusCode = value;
     }
 
+    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= serviceProvider.GetRequiredService<JsonSerializerOptions>();
+
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
     {
@@ -81,7 +83,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         {
             return null;
         }
-        return JsonSerializer.Deserialize(json, type, _jsonOptions);
+        return JsonSerializer.Deserialize(json, type, JsonSerializerOptions);
     }
 
     /// <inheritdoc/>
@@ -100,7 +102,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
     {
         context.Response.ContentType = "application/json";
-        var json = JsonSerializer.Serialize(value, type, _jsonOptions);
+        var json = JsonSerializer.Serialize(value, type, JsonSerializerOptions);
         var buffer = Encoding.UTF8.GetBytes(json);
         await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
     }

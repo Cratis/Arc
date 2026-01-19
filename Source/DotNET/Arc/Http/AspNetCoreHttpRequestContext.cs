@@ -4,7 +4,6 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Http;
-using Cratis.Json;
 
 namespace Cratis.Arc.AspNetCore.Http;
 
@@ -14,7 +13,7 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
 public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext
 {
-    static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
+    JsonSerializerOptions? _jsonOptions;
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query => httpContext.Request.Query.ToDictionary(
@@ -69,10 +68,12 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
         set => httpContext.Response.StatusCode = value;
     }
 
+    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= httpContext.RequestServices.GetRequiredService<JsonSerializerOptions>();
+
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
     {
-        return await httpContext.Request.ReadFromJsonAsync(type, _jsonOptions, cancellationToken);
+        return await httpContext.Request.ReadFromJsonAsync(type, JsonSerializerOptions, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -90,7 +91,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     /// <inheritdoc/>
     public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
     {
-        await httpContext.Response.WriteAsJsonAsync(value, type, _jsonOptions, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(value, type, JsonSerializerOptions, cancellationToken);
     }
 
     /// <inheritdoc/>

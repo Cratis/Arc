@@ -71,7 +71,7 @@ public static class HostBuilderExtensions
             .ConfigureServices(services =>
             {
                 services.AddHttpContextAccessor();
-                services.AddControllersFromProjectReferencedAssembles(Internals.Types, Internals.DerivedTypes);
+                services.AddControllersFromProjectReferencedAssembles(Internals.Types);
 
                 if (identityDetailsProvider is not null)
                 {
