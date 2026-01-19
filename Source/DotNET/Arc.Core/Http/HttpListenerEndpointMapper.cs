@@ -22,6 +22,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     Task? _listenerTask;
     CancellationTokenSource? _cancellationTokenSource;
     string _pathBase = string.Empty;
+    string? _fallbackFilePath;
     bool _isStarted;
 
     /// <summary>
@@ -143,6 +144,16 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         _staticFileConfigurations.Add(options);
     }
 
+    /// <summary>
+    /// Sets a fallback file to serve when no route or static file matches the request.
+    /// This is typically used for Single Page Applications (SPAs) to serve index.html for client-side routing.
+    /// </summary>
+    /// <param name="filePath">The path to the fallback file, relative to the first static file configuration's FileSystemPath.</param>
+    public void MapFallbackToFile(string filePath)
+    {
+        _fallbackFilePath = filePath;
+    }
+
     static string? GetRelativePath(string requestPath, string configuredRequestPath)
     {
         if (string.IsNullOrEmpty(configuredRequestPath) || configuredRequestPath == "/")
@@ -257,6 +268,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                     return;
                 }
 
+                // Try to serve fallback file if configured (for SPA routing)
+                if (method == "GET" && await TryServeFallbackFileAsync(context))
+                {
+                    return;
+                }
+
                 _logger.RouteNotFound(routeKey, string.Join(", ", _routes.Keys));
                 context.Response.StatusCode = 404;
                 var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
@@ -319,6 +336,34 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                 await ServeFileAsync(context, filePath);
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    async Task<bool> TryServeFallbackFileAsync(HttpListenerContext context)
+    {
+        if (_fallbackFilePath is null || _staticFileConfigurations.Count == 0)
+        {
+            return false;
+        }
+
+        var config = _staticFileConfigurations[0];
+        var fileSystemPath = GetAbsoluteFileSystemPath(config.FileSystemPath);
+        var filePath = Path.Combine(fileSystemPath, _fallbackFilePath.TrimStart('/'));
+
+        // Ensure the resolved path is still within the configured file system path (prevent directory traversal)
+        var fullResolvedPath = Path.GetFullPath(filePath);
+        var fullBasePath = Path.GetFullPath(fileSystemPath);
+        if (!fullResolvedPath.StartsWith(fullBasePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (File.Exists(filePath))
+        {
+            await ServeFileAsync(context, filePath);
+            return true;
         }
 
         return false;

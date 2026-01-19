@@ -48,4 +48,21 @@ public static class StaticFileExtensions
         configure(options);
         return app.UseStaticFiles(options);
     }
+
+    /// <summary>
+    /// Configures a fallback file to serve when no route or static file matches the request.
+    /// This is typically used for Single Page Applications (SPAs) to serve index.html for client-side routing.
+    /// </summary>
+    /// <param name="app">The <see cref="ArcApplication"/>.</param>
+    /// <param name="filePath">The path to the fallback file, relative to the static files directory (default: "index.html").</param>
+    /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
+    public static ArcApplication MapFallbackToFile(this ArcApplication app, string filePath = "index.html")
+    {
+        if (app.EndpointMapper is HttpListenerEndpointMapper httpListenerEndpointMapper)
+        {
+            httpListenerEndpointMapper.MapFallbackToFile(filePath);
+        }
+
+        return app;
+    }
 }
