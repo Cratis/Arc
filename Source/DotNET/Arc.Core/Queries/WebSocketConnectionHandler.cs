@@ -88,6 +88,12 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
     {
         try
         {
+            if (webSocket.State != WebSocketState.Open)
+            {
+                handlerLogger.WebSocketNotOpen(webSocket.State);
+                return null;
+            }
+
             var envelope = WebSocketMessage.CreateData(queryResult);
             var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions);
             await webSocket.SendAsync(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
