@@ -11,6 +11,11 @@ namespace Cratis.Arc.Authentication;
 public interface IAuthentication
 {
     /// <summary>
+    /// Gets a value indicating whether there are any authentication handlers configured.
+    /// </summary>
+    bool HasHandlers { get; }
+
+    /// <summary>
     /// Handles authentication for the given HTTP request context.
     /// </summary>
     /// <param name="context">The HTTP request context.</param>
