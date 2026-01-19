@@ -40,7 +40,7 @@ public class ClientEnumerableObservable<T>(
                     }
 
                     queryResult.Data = item;
-                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token, logger);
+                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
                     if (error is null)
                     {
                         continue;
@@ -65,7 +65,7 @@ public class ClientEnumerableObservable<T>(
             }
         });
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token, logger);
+        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
         await cts.CancelAsync();
         await tsc.Task;
     }

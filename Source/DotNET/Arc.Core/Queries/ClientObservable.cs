@@ -56,7 +56,7 @@ public class ClientObservable<T>(
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping);
         linkedTokenSource.Token.Register(Complete);
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token, logger);
+        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
         subject.OnCompleted();
 
         await tcs.Task;
@@ -75,7 +75,7 @@ public class ClientObservable<T>(
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
                 queryResult.Data = data;
 
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token, logger);
+                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
                 if (error is not null)
                 {
                     subject.OnError(error);

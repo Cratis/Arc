@@ -21,7 +21,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
     const int BufferSize = 1024 * 4;
 
     /// <inheritdoc/>
-    public async Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token, ILogger? logger = default)
+    public async Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token)
     {
         try
         {
@@ -84,8 +84,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
     public async Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
-        CancellationToken token,
-        ILogger? logger = null)
+        CancellationToken token)
     {
         try
         {

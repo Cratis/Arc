@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
 
@@ -17,20 +16,17 @@ public interface IWebSocketConnectionHandler
     /// <param name="webSocket">The <see cref="IWebSocket"/> to send on.</param>
     /// <param name="queryResult">The <see cref="QueryResult"/> message to write.</param>
     /// <param name="token">The <see cref="CancellationToken"/>.</param>
-    /// <param name="logger">The optional <see cref="ILogger"/> to use.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous action.</returns>
     Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
-        CancellationToken token,
-        ILogger? logger = null);
+        CancellationToken token);
 
     /// <summary>
     /// Handles all incoming web messages on the given <see cref="IWebSocket"/>.
     /// </summary>
     /// <param name="webSocket">The <see cref="IWebSocket"/> to listen to.</param>
     /// <param name="token">The <see cref="CancellationToken"/>.</param>
-    /// <param name="logger">The optional <see cref="ILogger"/> to use.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous action.</returns>
-    Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token, ILogger? logger = default);
+    Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token);
 }
