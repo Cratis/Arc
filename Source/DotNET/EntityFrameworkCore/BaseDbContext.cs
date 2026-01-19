@@ -16,13 +16,15 @@ namespace Cratis.Arc.EntityFrameworkCore;
 /// <param name="options">The options to be used by a <see cref="DbContext"/>.</param>
 public class BaseDbContext(DbContextOptions options) : DbContext(options)
 {
+    readonly DbContextOptions _options = options;
+
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // IEntityTypeRegistrar is only available when using AddDbContext, not when directly instantiating the DbContext
         // We need to access the ApplicationServiceProvider from the options because the internal service provider
         // doesn't contain application services directly
-        var coreOptions = options.FindExtension<CoreOptionsExtension>();
+        var coreOptions = _options.FindExtension<CoreOptionsExtension>();
         var registrar = coreOptions?.ApplicationServiceProvider?.GetService(typeof(IEntityTypeRegistrar)) as IEntityTypeRegistrar;
         registrar?.RegisterEntityMaps(this, modelBuilder);
 
