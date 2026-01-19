@@ -38,6 +38,9 @@ public static class DbContextServiceCollectionExtensions
         {
             options.UseDatabaseFromConnectionString(connectionString);
 
+            // Pass the application service provider so BaseDbContext can resolve IEntityTypeRegistrar
+            options.UseApplicationServiceProvider(serviceProvider);
+
             // Add ConceptAs support for handling ConceptAs types in LINQ queries
             options.AddConceptAsSupport();
 

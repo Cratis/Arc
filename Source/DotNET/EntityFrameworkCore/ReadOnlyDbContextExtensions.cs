@@ -37,6 +37,9 @@ public static class ReadOnlyDbContextExtensions
         {
             options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
 
+            // Pass the application service provider so BaseDbContext can resolve IEntityTypeRegistrar
+            options.UseApplicationServiceProvider(serviceProvider);
+
             // Add read-only interceptor
             options.AddInterceptors(_readOnlySaveChangesInterceptor);
 
