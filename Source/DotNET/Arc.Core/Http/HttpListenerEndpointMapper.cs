@@ -157,6 +157,10 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             {
                 break;
             }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.ErrorInListenerLoop(ex);
@@ -166,6 +170,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
     async Task HandleRequestAsync(HttpListenerContext context)
     {
+        var isWebSocketRequest = false;
         try
         {
             var method = context.Request.HttpMethod;
@@ -174,6 +179,9 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
             if (_routes.TryGetValue(routeKey, out var route))
             {
+                // Check if this is a WebSocket request before processing
+                isWebSocketRequest = context.Request.IsWebSocketRequest;
+
                 await using var scope = _serviceProvider!.CreateAsyncScope();
                 var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
                 var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
@@ -203,7 +211,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
         finally
         {
-            context.Response.Close();
+            // Don't close the response for WebSocket requests - the WebSocket connection
+            // has already taken over the underlying connection and will handle its own lifecycle
+            if (!isWebSocketRequest)
+            {
+                context.Response.Close();
+            }
         }
     }
 
