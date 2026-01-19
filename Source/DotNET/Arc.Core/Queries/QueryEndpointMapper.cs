@@ -48,7 +48,7 @@ public static class QueryEndpointMapper
             var typeName = includeQueryName ? performer.Name.ToString() : string.Empty;
 
             var url = includeQueryName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
-            url = url.ToLowerInvariant();
+            url = url.ToLowerInvariant().SanitizeUrl();
 
             var executeEndpointName = $"Execute{performer.Name}";
             if (!mapper.EndpointExists(executeEndpointName))
