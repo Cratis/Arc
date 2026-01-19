@@ -137,6 +137,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         var fullPattern = string.IsNullOrEmpty(_pathBase) ? pattern : $"{_pathBase}{pattern}";
         var routeKey = $"{method}:{fullPattern}";
         _routes[routeKey] = new RouteHandler(fullPattern, handler, metadata);
+        _logger.RegisteringRoute(method, fullPattern);
 
         if (metadata is not null)
         {
@@ -177,8 +178,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             var path = context.Request.Url?.AbsolutePath ?? "/";
             var routeKey = $"{method}:{path}";
 
+            _logger.IncomingRequest(method, path, context.Request.IsWebSocketRequest);
+
             if (_routes.TryGetValue(routeKey, out var route))
             {
+                _logger.RouteMatched(routeKey);
+
                 // Check if this is a WebSocket request before processing
                 isWebSocketRequest = context.Request.IsWebSocketRequest;
 
@@ -199,6 +204,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             }
             else
             {
+                _logger.RouteNotFound(routeKey, string.Join(", ", _routes.Keys));
                 context.Response.StatusCode = 404;
                 var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
                 await context.Response.OutputStream.WriteAsync(buffer);

@@ -24,4 +24,16 @@ internal static partial class HttpListenerEndpointMapperLogMessages
 
     [LoggerMessage(LogLevel.Error, "Error handling request")]
     internal static partial void ErrorHandlingRequest(this ILogger<HttpListenerEndpointMapper> logger, Exception exception);
+
+    [LoggerMessage(LogLevel.Debug, "Registering route: {Method} {Pattern}")]
+    internal static partial void RegisteringRoute(this ILogger<HttpListenerEndpointMapper> logger, string method, string pattern);
+
+    [LoggerMessage(LogLevel.Debug, "Incoming request: {Method} {Path} (WebSocket: {IsWebSocket})")]
+    internal static partial void IncomingRequest(this ILogger<HttpListenerEndpointMapper> logger, string method, string path, bool isWebSocket);
+
+    [LoggerMessage(LogLevel.Debug, "Route matched: {RouteKey}")]
+    internal static partial void RouteMatched(this ILogger<HttpListenerEndpointMapper> logger, string routeKey);
+
+    [LoggerMessage(LogLevel.Debug, "Route not found: {RouteKey}. Available routes: {AvailableRoutes}")]
+    internal static partial void RouteNotFound(this ILogger<HttpListenerEndpointMapper> logger, string routeKey, string availableRoutes);
 }
