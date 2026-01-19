@@ -65,7 +65,7 @@ public static class QueryEndpointMapper
                     {
                         var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                         var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
-                        var streamingQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
+                        var observableQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
                         var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
 
                         context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
@@ -77,9 +77,9 @@ public static class QueryEndpointMapper
                         var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, arguments, paging, sorting);
 
                         // Check if the result data is a streaming result (Subject or AsyncEnumerable)
-                        if (queryResult.IsSuccess && streamingQueryHandler.IsStreamingResult(queryResult.Data))
+                        if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))
                         {
-                            await streamingQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
+                            await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
                             return;
                         }
 
