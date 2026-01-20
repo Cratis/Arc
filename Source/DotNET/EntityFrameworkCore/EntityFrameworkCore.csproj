@@ -5,9 +5,6 @@
         <NoWarn>$(NoWarn);NU5104</NoWarn>
     </PropertyGroup>
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    </ItemGroup>
-    <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
