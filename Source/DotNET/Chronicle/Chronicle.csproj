@@ -4,13 +4,8 @@
         <AssemblyName>Cratis.Arc.Chronicle</AssemblyName>
         <RootNamespace>Cratis.Arc.Chronicle</RootNamespace>
     </PropertyGroup>
-
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
