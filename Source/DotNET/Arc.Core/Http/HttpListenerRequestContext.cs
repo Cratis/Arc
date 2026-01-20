@@ -7,35 +7,39 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using Cratis.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Http;
 
 /// <summary>
 /// Implementation of <see cref="IHttpRequestContext"/> for <see cref="HttpListenerContext"/>.
 /// </summary>
+/// <remarks>
+/// Initializes a new instance of the <see cref="HttpListenerRequestContext"/> class.
+/// </remarks>
 /// <param name="context">The <see cref="HttpListenerContext"/>.</param>
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
 public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext
 {
-    static readonly JsonSerializerOptions _jsonOptions = Globals.JsonSerializerOptions;
-    readonly HttpListenerContext _context = context;
     readonly Dictionary<object, object?> _items = [];
+    JsonSerializerOptions? _jsonOptions;
+    IWebSocketContext? _webSockets;
 
     /// <inheritdoc/>
-    public IReadOnlyDictionary<string, string> Query => ParseQueryString(_context.Request.QueryString);
+    public IReadOnlyDictionary<string, string> Query { get; } = ParseQueryString(context.Request.QueryString);
 
     /// <inheritdoc/>
-    public IReadOnlyDictionary<string, string> Headers => ParseHeaders(_context.Request.Headers);
+    public IReadOnlyDictionary<string, string> Headers { get; } = ParseHeaders(context.Request.Headers);
 
     /// <inheritdoc/>
-    public IReadOnlyDictionary<string, string> Cookies => ParseCookies(_context.Request.Cookies);
+    public IReadOnlyDictionary<string, string> Cookies { get; } = ParseCookies(context.Request.Cookies);
 
     /// <inheritdoc/>
-    public string Path => _context.Request.Url?.AbsolutePath ?? string.Empty;
+    public string Path => context.Request.Url?.AbsolutePath ?? string.Empty;
 
     /// <inheritdoc/>
-    public string Method => _context.Request.HttpMethod;
+    public string Method => context.Request.HttpMethod;
 
     /// <inheritdoc/>
     public IServiceProvider RequestServices { get; } = serviceProvider;
@@ -44,59 +48,64 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public CancellationToken RequestAborted => CancellationToken.None; // HttpListener doesn't provide cancellation token
 
     /// <inheritdoc/>
-    public IWebSocketContext WebSockets { get; } = new HttpListenerWebSocketContext(context);
+    public IWebSocketContext WebSockets => _webSockets ??= new HttpListenerWebSocketContext(context);
 
     /// <inheritdoc/>
-    public ClaimsPrincipal User => (_context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
+    public ClaimsPrincipal User => (context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
 
     /// <inheritdoc/>
     public IDictionary<object, object?> Items => _items;
 
     /// <inheritdoc/>
-    public bool IsHttps => _context.Request.Url?.Scheme == "https";
+    public bool IsHttps => context.Request.IsSecureConnection;
 
     /// <inheritdoc/>
     public string? ContentType
     {
-        get => _context.Response.ContentType;
-        set => _context.Response.ContentType = value;
+        get => context.Response.ContentType;
+        set => context.Response.ContentType = value;
     }
 
     /// <inheritdoc/>
     public int StatusCode
     {
-        get => _context.Response.StatusCode;
-        set => _context.Response.StatusCode = value;
+        get => context.Response.StatusCode;
+        set => context.Response.StatusCode = value;
     }
+
+    JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
     {
-        using var reader = new StreamReader(_context.Request.InputStream, _context.Request.ContentEncoding);
+        using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
         var json = await reader.ReadToEndAsync(cancellationToken);
-        return JsonSerializer.Deserialize(json, type, _jsonOptions);
+        if (string.IsNullOrEmpty(json))
+        {
+            return null;
+        }
+        return JsonSerializer.Deserialize(json, type, JsonSerializerOptions);
     }
 
     /// <inheritdoc/>
     public void SetStatusCode(int statusCode)
     {
-        _context.Response.StatusCode = statusCode;
+        context.Response.StatusCode = statusCode;
     }
 
     /// <inheritdoc/>
     public void SetResponseHeader(string name, string value)
     {
-        _context.Response.Headers[name] = value;
+        context.Response.Headers[name] = value;
     }
 
     /// <inheritdoc/>
     public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
     {
-        _context.Response.ContentType = "application/json";
-        var json = JsonSerializer.Serialize(value, type, _jsonOptions);
+        context.Response.ContentType = "application/json";
+        var json = JsonSerializer.Serialize(value, type, JsonSerializerOptions);
         var buffer = Encoding.UTF8.GetBytes(json);
-        _context.Response.ContentLength64 = buffer.Length;
-        await _context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
+        await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -115,7 +124,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
             cookie.Expires = options.Expires.Value.DateTime;
         }
 
-        _context.Response.Cookies.Add(cookie);
+        context.Response.Cookies.Add(cookie);
     }
 
     /// <inheritdoc/>
@@ -125,14 +134,29 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         {
             Expires = DateTime.Now.AddDays(-1)
         };
-        _context.Response.Cookies.Add(cookie);
+        context.Response.Cookies.Add(cookie);
     }
 
     /// <inheritdoc/>
     public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
     {
         var buffer = Encoding.UTF8.GetBytes(text);
-        await _context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
+        context.Response.ContentLength64 = buffer.Length;
+        await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default)
+    {
+        context.Response.ContentLength64 = data.Length;
+        await context.Response.OutputStream.WriteAsync(data, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        context.Response.ContentLength64 = stream.Length;
+        await stream.CopyToAsync(context.Response.OutputStream, cancellationToken);
     }
 
     static ReadOnlyDictionary<string, string> ParseQueryString(NameValueCollection? queryString)

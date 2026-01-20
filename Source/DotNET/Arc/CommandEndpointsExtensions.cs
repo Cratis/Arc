@@ -4,7 +4,6 @@
 using Cratis.Arc;
 using Cratis.Arc.Commands;
 using Cratis.Execution;
-using Cratis.Json;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Options;
 
@@ -31,14 +30,13 @@ public static class CommandEndpointsExtensions
             var actionDescriptorProvider = app.ApplicationServices.GetRequiredService<IActionDescriptorCollectionProvider>();
             var commandPipeline = app.ApplicationServices.GetRequiredService<ICommandPipeline>();
             var correlationIdAccessor = app.ApplicationServices.GetRequiredService<ICorrelationIdAccessor>();
-            var jsonSerializerOptions = Globals.JsonSerializerOptions;
             var arcOptions = app.ApplicationServices.GetRequiredService<IOptions<ArcOptions>>().Value;
 
             var controllerCommandMapper = new ControllerCommandEndpointMapper(
                 actionDescriptorProvider,
                 commandPipeline,
                 correlationIdAccessor,
-                jsonSerializerOptions,
+                arcOptions.JsonSerializerOptions,
                 mapper);
             controllerCommandMapper.MapValidationEndpoints(endpoints, arcOptions);
         }

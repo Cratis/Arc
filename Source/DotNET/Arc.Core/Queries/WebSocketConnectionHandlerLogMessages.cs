@@ -42,4 +42,7 @@ internal static partial class WebSocketConnectionHandlerLogMessages
 
     [LoggerMessage(LogLevel.Warning, "Error sending message")]
     internal static partial void ErrorSendingMessage(this ILogger<WebSocketConnectionHandler> logger, Exception exception);
+
+    [LoggerMessage(LogLevel.Debug, "WebSocket is not open (state: {State}), skipping send")]
+    internal static partial void WebSocketNotOpen(this ILogger<WebSocketConnectionHandler> logger, System.Net.WebSockets.WebSocketState state);
 }

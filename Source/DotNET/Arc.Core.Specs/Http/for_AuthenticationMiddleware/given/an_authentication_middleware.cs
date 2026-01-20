@@ -15,6 +15,7 @@ public class an_authentication_middleware : Specification
     void Establish()
     {
         _authentication = Substitute.For<IAuthentication>();
+        _authentication.HasHandlers.Returns(true);
         _middleware = new AuthenticationMiddleware(_authentication);
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
     }

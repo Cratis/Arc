@@ -3,8 +3,8 @@
 
 using System.Text;
 using System.Text.Json;
-using Cratis.Json;
 using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -34,11 +34,16 @@ public class JsonLinesStreamingFormatter : TextOutputFormatter
             return;
         }
 
+        var jsonSerializerOptions = context.HttpContext.RequestServices
+            .GetRequiredService<IOptions<ArcOptions>>()
+            .Value
+            .JsonSerializerOptions;
+
         // Mime type application/jsonl is not ratified as a standard yet: https://jsonlines.org - https://github.com/wardi/jsonlines/issues/19
         response.ContentType = "application/jsonl";
         await foreach (var item in asyncEnumerable.WithCancellation(context.HttpContext.RequestAborted))
         {
-            var json = JsonSerializer.Serialize(item, Globals.JsonSerializerOptions);
+            var json = JsonSerializer.Serialize(item, jsonSerializerOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
             await response.Body.WriteAsync(bytes);
             await response.Body.WriteAsync("\n"u8.ToArray());

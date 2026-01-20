@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Arc.Execution;
 using Cratis.Arc.Tenancy;
 
@@ -11,6 +12,19 @@ namespace Cratis.Arc;
 /// </summary>
 public class ArcOptions
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ArcOptions"/> class.
+    /// </summary>
+    public ArcOptions()
+    {
+        JsonSerializerOptions = new JsonSerializerOptions().ConfigureArcDefaults(Internals.DerivedTypesOrDefault);
+    }
+
+    /// <summary>
+    /// Gets the <see cref="JsonSerializerOptions"/> configured for Arc.
+    /// </summary>
+    public JsonSerializerOptions JsonSerializerOptions { get; }
+
     /// <summary>
     /// Gets or sets the options for the correlation ID.
     /// </summary>

@@ -48,4 +48,9 @@ internal static class Internals
         get => _derivedTypes ?? throw new DerivedTypesSystemNotConfigured();
         set => _derivedTypes = value;
     }
+
+    /// <summary>
+    /// Gets the derived types or default if not configured.
+    /// </summary>
+    internal static IDerivedTypes? DerivedTypesOrDefault => _derivedTypes;
 }

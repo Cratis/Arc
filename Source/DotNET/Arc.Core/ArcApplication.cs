@@ -15,6 +15,7 @@ public class ArcApplication : IHost, IAsyncDisposable
 {
     readonly IHost _host;
     readonly List<Func<IServiceProvider, Task>> _startupActions = [];
+    bool _cratisArcConfigured;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ArcApplication"/> class.
@@ -48,6 +49,11 @@ public class ArcApplication : IHost, IAsyncDisposable
     /// Gets the endpoint mapper for this application.
     /// </summary>
     internal IEndpointMapper EndpointMapper { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether Cratis Arc has been configured.
+    /// </summary>
+    internal bool IsCratisArcConfigured => _cratisArcConfigured;
 
     /// <summary>
     /// Creates a new instance of the <see cref="ArcApplicationBuilder"/>.
@@ -99,6 +105,14 @@ public class ArcApplication : IHost, IAsyncDisposable
     internal void AddStartupAction(Func<IServiceProvider, Task> action)
     {
         _startupActions.Add(action);
+    }
+
+    /// <summary>
+    /// Marks Cratis Arc as configured.
+    /// </summary>
+    internal void MarkCratisArcAsConfigured()
+    {
+        _cratisArcConfigured = true;
     }
 
     string[] GetHttpPrefixes() => Options.Hosting.ApplicationUrl

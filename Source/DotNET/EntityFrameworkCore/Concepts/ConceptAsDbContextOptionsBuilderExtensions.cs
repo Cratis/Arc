@@ -13,6 +13,9 @@ namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 /// </summary>
 public static class ConceptAsDbContextOptionsBuilderExtensions
 {
+    static readonly ConceptAsQueryExpressionInterceptor _conceptAsQueryExpressionInterceptor = new();
+    static readonly ConceptAsDbCommandInterceptor _conceptAsDbCommandInterceptor = new();
+
     /// <summary>
     /// Adds support for ConceptAs types in LINQ queries. Call this method when configuring your DbContext
     /// to enable automatic handling of ConceptAs types in Where, Select, and other LINQ operations.
@@ -34,8 +37,8 @@ public static class ConceptAsDbContextOptionsBuilderExtensions
     {
         // Add interceptors for query expression rewriting and parameter unwrapping
         optionsBuilder.AddInterceptors(
-            new ConceptAsQueryExpressionInterceptor(),
-            new ConceptAsDbCommandInterceptor());
+            _conceptAsQueryExpressionInterceptor,
+            _conceptAsDbCommandInterceptor);
 
         // Replace services to handle ConceptAs types in query evaluation and model customization
         // The service replacement can cause multiple service providers to be created in test scenarios

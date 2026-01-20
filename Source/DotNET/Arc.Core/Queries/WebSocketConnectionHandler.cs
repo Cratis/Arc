@@ -3,22 +3,25 @@
 
 using System.Net.WebSockets;
 using System.Text.Json;
+using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
 /// <summary>
 /// Represents an implementation of <see cref="IWebSocketConnectionHandler"/>.
 /// </summary>
+/// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="handlerLogger">The <see cref="ILogger"/>.</param>
 [Singleton]
-public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> handlerLogger) : IWebSocketConnectionHandler
+public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger<WebSocketConnectionHandler> handlerLogger) : IWebSocketConnectionHandler
 {
     const int BufferSize = 1024 * 4;
 
     /// <inheritdoc/>
-    public async Task HandleIncomingMessages(WebSocket webSocket, CancellationToken token, ILogger? logger = default)
+    public async Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token)
     {
         try
         {
@@ -33,7 +36,7 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
                         break;
                     }
 
-                    received = null!;
+                    received = null;
                     received = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                     handlerLogger.ReceivedMessage();
 
@@ -48,14 +51,14 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
             catch (TaskCanceledException)
             {
                 handlerLogger.CloseConnection(received?.CloseStatusDescription);
-                await webSocket.CloseOutputAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
+                await webSocket.CloseAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
             }
             finally
             {
                 if (received is not null)
                 {
                     handlerLogger.CloseConnection(received.CloseStatusDescription);
-                    await webSocket.CloseOutputAsync(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
+                    await webSocket.CloseAsync(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
                 }
             }
         }
@@ -79,16 +82,20 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
 
     /// <inheritdoc/>
     public async Task<Exception?> SendMessage(
-        WebSocket webSocket,
+        IWebSocket webSocket,
         QueryResult queryResult,
-        JsonSerializerOptions jsonSerializerOptions,
-        CancellationToken token,
-        ILogger? logger = null)
+        CancellationToken token)
     {
         try
         {
+            if (webSocket.State != WebSocketState.Open)
+            {
+                handlerLogger.WebSocketNotOpen(webSocket.State);
+                return null;
+            }
+
             var envelope = WebSocketMessage.CreateData(queryResult);
-            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, jsonSerializerOptions);
+            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions);
             await webSocket.SendAsync(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             message = null;
             return null;
@@ -100,18 +107,18 @@ public class WebSocketConnectionHandler(ILogger<WebSocketConnectionHandler> hand
         }
     }
 
-    async Task HandlePotentialPingMessage(WebSocket webSocket, byte[] buffer, int count, CancellationToken token)
+    async Task HandlePotentialPingMessage(IWebSocket webSocket, byte[] buffer, int count, CancellationToken token)
     {
         try
         {
             var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, count);
-            var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText);
+            var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText, arcOptions.Value.JsonSerializerOptions);
 
             if (message is not null && message.Type == WebSocketMessageType.Ping)
             {
                 handlerLogger.ReceivedPingMessage();
                 var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage);
+                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage, arcOptions.Value.JsonSerializerOptions);
                 await webSocket.SendAsync(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
                 handlerLogger.SentPongMessage();
             }

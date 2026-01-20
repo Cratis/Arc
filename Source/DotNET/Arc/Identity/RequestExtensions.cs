@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
-using Cratis.Json;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity;
 
@@ -34,6 +34,10 @@ public static class RequestExtensions
             return default;
         }
         var token = Convert.FromBase64String(tokenAsString);
-        return JsonSerializer.Deserialize<ClientPrincipal>(token, Globals.JsonSerializerOptions)!;
+        var jsonSerializerOptions = request.HttpContext.RequestServices
+            .GetRequiredService<IOptions<ArcOptions>>()
+            .Value
+            .JsonSerializerOptions;
+        return JsonSerializer.Deserialize<ClientPrincipal>(token, jsonSerializerOptions)!;
     }
 }

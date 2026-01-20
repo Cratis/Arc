@@ -13,6 +13,9 @@ namespace Cratis.Arc.Authentication;
 public class Authentication(IInstancesOf<IAuthenticationHandler> handlers) : IAuthentication
 {
     /// <inheritdoc/>
+    public bool HasHandlers => handlers.Any();
+
+    /// <inheritdoc/>
     public async Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
         foreach (var handler in handlers)

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.AspNetCore.Mvc;
+using Cratis.Arc.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
@@ -11,20 +11,18 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <typeparam name="T">Type of data being observed.</typeparam>
 /// <param name="enumerable">The <see cref="IAsyncEnumerable{T}"/> to use for streaming.</param>
-/// <param name="jsonOptions">The <see cref="JsonOptions"/>.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientEnumerableObservable<T>(
     IAsyncEnumerable<T> enumerable,
-    JsonOptions jsonOptions,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
 {
     /// <inheritdoc/>
-    public async Task HandleConnection(HttpContext httpContext)
+    public async Task HandleConnection(IHttpRequestContext context)
     {
-        using var webSocket = await httpContext.WebSockets.AcceptWebSocketAsync();
+        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         using var cts = new CancellationTokenSource();
         var tsc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
@@ -42,7 +40,7 @@ public class ClientEnumerableObservable<T>(
                     }
 
                     queryResult.Data = item;
-                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, jsonOptions.JsonSerializerOptions, cts.Token, logger);
+                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
                     if (error is null)
                     {
                         continue;
@@ -67,7 +65,7 @@ public class ClientEnumerableObservable<T>(
             }
         });
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token, logger);
+        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
         await cts.CancelAsync();
         await tsc.Task;
     }

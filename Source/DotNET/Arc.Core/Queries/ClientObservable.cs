@@ -2,8 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
+using Cratis.Arc.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -18,14 +17,12 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContext">The <see cref="QueryContext"/> the observable is for.</param>
 /// <param name="subject">The <see cref="ISubject{T}"/> the observable wraps.</param>
-/// <param name="jsonOptions">The <see cref="JsonOptions"/>.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservable<T>(
     QueryContext queryContext,
     ISubject<T> subject,
-    JsonOptions jsonOptions,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     IHostApplicationLifetime hostApplicationLifetime,
     ILogger<ClientObservable<T>> logger) : IClientObservable, IAsyncEnumerable<T>
@@ -43,16 +40,12 @@ public class ClientObservable<T>(
     public object GetAsynchronousEnumerator(CancellationToken cancellationToken = default) => GetAsyncEnumerator(cancellationToken);
 
     /// <inheritdoc/>
-    public async Task HandleConnection(ActionExecutingContext context) =>
-        await HandleConnectionCore(context.HttpContext);
+    public async Task HandleConnection(IHttpRequestContext context) =>
+        await HandleConnectionCore(context);
 
-    /// <inheritdoc/>
-    public async Task HandleConnection(HttpContext httpContext) =>
-        await HandleConnectionCore(httpContext);
-
-    async Task HandleConnectionCore(HttpContext httpContext)
+    async Task HandleConnectionCore(IHttpRequestContext context)
     {
-        using var webSocket = await httpContext.WebSockets.AcceptWebSocketAsync();
+        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         using var cts = new CancellationTokenSource();
@@ -63,7 +56,7 @@ public class ClientObservable<T>(
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping);
         linkedTokenSource.Token.Register(Complete);
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token, logger);
+        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
         subject.OnCompleted();
 
         await tcs.Task;
@@ -80,9 +73,9 @@ public class ClientObservable<T>(
                 }
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = data!;
+                queryResult.Data = data;
 
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, jsonOptions.JsonSerializerOptions, cts.Token, logger);
+                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
                 if (error is not null)
                 {
                     subject.OnError(error);

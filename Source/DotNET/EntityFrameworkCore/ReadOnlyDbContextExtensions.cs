@@ -16,6 +16,8 @@ namespace Cratis.Arc.EntityFrameworkCore;
 /// </summary>
 public static class ReadOnlyDbContextExtensions
 {
+    static readonly ReadOnlySaveChangesInterceptor _readOnlySaveChangesInterceptor = new();
+
     /// <summary>
     /// Adds a read-only DbContext to the service collection using a pooled factory pattern.
     /// This allows multiple database providers to be used in the same application with improved performance.
@@ -35,8 +37,11 @@ public static class ReadOnlyDbContextExtensions
         {
             options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
 
+            // Pass the application service provider so BaseDbContext can resolve IEntityTypeRegistrar
+            options.UseApplicationServiceProvider(serviceProvider);
+
             // Add read-only interceptor
-            options.AddInterceptors(new ReadOnlySaveChangesInterceptor());
+            options.AddInterceptors(_readOnlySaveChangesInterceptor);
 
             // Add ConceptAs support for handling ConceptAs types in LINQ queries
             options.AddConceptAsSupport();

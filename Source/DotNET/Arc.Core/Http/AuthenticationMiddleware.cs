@@ -19,7 +19,7 @@ public class AuthenticationMiddleware(IAuthentication authentication)
     /// <returns>True if the request is authenticated or allows anonymous access, false otherwise.</returns>
     public async Task<bool> AuthenticateAsync(IHttpRequestContext context, EndpointMetadata? metadata)
     {
-        if (metadata?.AllowAnonymous == true)
+        if (metadata?.AllowAnonymous == true || !authentication.HasHandlers)
         {
             return true;
         }

@@ -106,7 +106,7 @@ app.UseCratisArc("http://localhost:5000/");
 // Multiple prefixes
 app.UseCratisArc(
     "http://localhost:5000/",
-    "http://*:5001/"
+    "http://+:5001/"
 );
 
 // Default (http://localhost:5000/)
@@ -412,7 +412,7 @@ If you get HTTP listener errors, ensure:
 
 1. The port is not already in use
 2. You have permissions to bind to the port (on Windows, non-admin users can't bind to port 80)
-3. Use `http://*:5001/` instead of `http://localhost:5001/` to listen on all interfaces
+3. Use `http://+:5001/` instead of `http://localhost:5001/` to listen on all interfaces
 
 ### Configuration Not Loading
 

@@ -126,4 +126,20 @@ public interface IHttpRequestContext
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
     Task WriteAsync(string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes bytes to the response.
+    /// </summary>
+    /// <param name="data">The byte data to write.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the async operation.</returns>
+    Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes a stream to the response.
+    /// </summary>
+    /// <param name="stream">The stream to write.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the async operation.</returns>
+    Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default);
 }
