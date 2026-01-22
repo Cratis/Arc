@@ -5,6 +5,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity;
 
@@ -13,17 +14,19 @@ namespace Cratis.Arc.Identity;
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/>.</param>
 /// <param name="identityProvider">The <see cref="IProvideIdentityDetails"/>.</param>
+/// <param name="options">The <see cref="IOptions{ArcOptions}"/>.</param>
 [Singleton]
 public class IdentityProviderResultHandler(
     IHttpRequestContextAccessor httpRequestContextAccessor,
-    IProvideIdentityDetails identityProvider) : IIdentityProviderResultHandler
+    IProvideIdentityDetails identityProvider,
+    IOptions<ArcOptions> options) : IIdentityProviderResultHandler
 {
     /// <summary>
     /// The name of the identity cookie.
     /// </summary>
     public const string IdentityCookieName = ".cratis-identity";
 
-    readonly JsonSerializerOptions _serializerOptions = new()
+    readonly JsonSerializerOptions _serializerOptions = new(options.Value.JsonSerializerOptions)
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
