@@ -49,9 +49,21 @@ public static class ConceptMap
         {
             if (conceptType == TypeExtensions._conceptType || conceptType.BaseType == null) break;
 
-            if (conceptType!.BaseType!.IsGenericType && conceptType!.BaseType!.GetGenericTypeDefinition() == TypeExtensions._conceptType)
+            if (conceptType!.BaseType!.IsGenericType)
             {
-                return conceptType.BaseType.GetGenericArguments()[0];
+                var genericTypeDef = conceptType.BaseType.GetGenericTypeDefinition();
+
+                // Check by type reference (MetadataLoadContext types)
+                if (genericTypeDef == TypeExtensions._conceptType)
+                {
+                    return conceptType.BaseType.GetGenericArguments()[0];
+                }
+
+                // Fallback: Check by type name for runtime types
+                if (genericTypeDef.FullName == "Cratis.Concepts.ConceptAs`1")
+                {
+                    return conceptType.BaseType.GetGenericArguments()[0];
+                }
             }
 
             if (conceptType == typeof(object)) break;

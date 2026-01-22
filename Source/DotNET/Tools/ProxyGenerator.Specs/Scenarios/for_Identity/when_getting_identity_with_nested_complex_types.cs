@@ -41,13 +41,15 @@ public class when_generating_types_for_identity_details_with_nested_complex_type
     [Fact] void should_generate_address_street_property() => _addressTypeScript.ShouldContain("street!: string;");
     [Fact] void should_generate_address_city_property() => _addressTypeScript.ShouldContain("city!: string;");
     [Fact] void should_generate_address_country_property() => _addressTypeScript.ShouldContain("country!: string;");
+    [Fact] void should_generate_address_postal_code_as_string_from_concept() => _addressTypeScript.ShouldContain("postalCode!: string;");
     [Fact] void should_generate_user_preference_class() => _userPreferenceTypeScript.ShouldContain("export class UserPreference");
     [Fact] void should_generate_user_preference_key_field() => _userPreferenceTypeScript.ShouldContain("key!: string;");
     [Fact] void should_generate_user_preference_value_field() => _userPreferenceTypeScript.ShouldContain("value!: string;");
     [Fact] void should_generate_user_role_class() => _userRoleTypeScript.ShouldContain("export class UserRole");
-    [Fact] void should_generate_user_role_name_field() => _userRoleTypeScript.ShouldContain("name!: string;");
+    [Fact] void should_generate_user_role_name_as_string_from_concept() => _userRoleTypeScript.ShouldContain("name!: string;");
     [Fact] void should_generate_user_role_permissions_array() => _userRoleTypeScript.ShouldContain("permissions!: string[];");
     [Fact] void should_generate_organization_class() => _organizationTypeScript.ShouldContain("export class Organization");
+    [Fact] void should_generate_organization_id_as_guid_from_concept() => _organizationTypeScript.ShouldContain("id!: Guid;");
     [Fact] void should_generate_organization_address_import() => _organizationTypeScript.ShouldContain("import { Address } from './Address';");
     [Fact] void should_generate_organization_address_field_decorator() => _organizationTypeScript.ShouldContain("@field(Address)");
     [Fact] void should_generate_organization_address_property() => _organizationTypeScript.ShouldContain("address?: Address;");

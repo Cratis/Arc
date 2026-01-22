@@ -652,7 +652,30 @@ public static class TypeExtensions
     /// <returns>True if type is a concept, false if not.</returns>
     public static bool IsConcept(this Type objectType)
     {
-        return objectType.IsDerivedFromOpenGeneric(_conceptType);
+        // First try direct type comparison (works when using MetadataLoadContext)
+        if (objectType.IsDerivedFromOpenGeneric(_conceptType))
+        {
+            return true;
+        }
+
+        // Fallback: Check by type name for runtime types when MetadataLoadContext isn't initialized
+        // This handles cases where tests use runtime types directly without Initialize()
+        var typeToCheck = objectType;
+        while (typeToCheck != null && typeToCheck != typeof(object))
+        {
+            if (typeToCheck.IsGenericType)
+            {
+                var genericTypeDef = typeToCheck.GetGenericTypeDefinition();
+                if (genericTypeDef.FullName == "Cratis.Concepts.ConceptAs`1")
+                {
+                    return true;
+                }
+            }
+
+            typeToCheck = typeToCheck.BaseType;
+        }
+
+        return false;
     }
 
     /// <summary>

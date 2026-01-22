@@ -2,8 +2,69 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Identity;
+using Cratis.Concepts;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Identity;
+
+/// <summary>
+/// Represents a postal code concept.
+/// </summary>
+/// <param name="Value">The postal code value.</param>
+public record PostalCode(string Value) : ConceptAs<string>(Value)
+{
+    /// <summary>
+    /// Represents an empty postal code.
+    /// </summary>
+    public static readonly PostalCode Empty = new(string.Empty);
+
+    /// <summary>
+    /// Implicitly converts a string to a postal code.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    public static implicit operator PostalCode(string value) => new(value);
+}
+
+/// <summary>
+/// Represents an organization identifier concept.
+/// </summary>
+/// <param name="Value">The organization identifier value.</param>
+public record OrganizationId(Guid Value) : ConceptAs<Guid>(Value)
+{
+    /// <summary>
+    /// Represents an unset organization identifier.
+    /// </summary>
+    public static readonly OrganizationId NotSet = new(Guid.Empty);
+
+    /// <summary>
+    /// Implicitly converts a Guid to an organization identifier.
+    /// </summary>
+    /// <param name="value">The Guid value.</param>
+    public static implicit operator OrganizationId(Guid value) => new(value);
+
+    /// <summary>
+    /// Creates a new unique organization identifier.
+    /// </summary>
+    /// <returns>A new <see cref="OrganizationId"/>.</returns>
+    public static OrganizationId New() => new(Guid.NewGuid());
+}
+
+/// <summary>
+/// Represents a role name concept.
+/// </summary>
+/// <param name="Value">The role name value.</param>
+public record RoleName(string Value) : ConceptAs<string>(Value)
+{
+    /// <summary>
+    /// Represents an empty role name.
+    /// </summary>
+    public static readonly RoleName Empty = new(string.Empty);
+
+    /// <summary>
+    /// Implicitly converts a string to a role name.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    public static implicit operator RoleName(string value) => new(value);
+}
 
 /// <summary>
 /// Represents a nested address type.
@@ -28,7 +89,7 @@ public class Address
     /// <summary>
     /// Gets or sets the postal code.
     /// </summary>
-    public string PostalCode { get; set; } = string.Empty;
+    public PostalCode PostalCode { get; set; } = PostalCode.Empty;
 }
 
 /// <summary>
@@ -60,7 +121,7 @@ public class UserRole
     /// <summary>
     /// Gets or sets the role name.
     /// </summary>
-    public string Name { get; set; } = string.Empty;
+    public RoleName Name { get; set; } = RoleName.Empty;
 
     /// <summary>
     /// Gets or sets the permissions.
@@ -76,7 +137,7 @@ public class Organization
     /// <summary>
     /// Gets or sets the organization ID.
     /// </summary>
-    public Guid Id { get; set; }
+    public OrganizationId Id { get; set; } = OrganizationId.NotSet;
 
     /// <summary>
     /// Gets or sets the organization name.
@@ -168,7 +229,7 @@ public class UserIdentityDetailsProvider : IProvideIdentityDetails<UserIdentityD
         ],
         Organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = OrganizationId.New(),
             Name = "Cratis",
             Address = new Address
             {
