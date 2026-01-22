@@ -48,4 +48,7 @@ internal static partial class HttpListenerEndpointMapperLogMessages
 
     [LoggerMessage(LogLevel.Debug, "Fallback file served: {FilePath}")]
     internal static partial void FallbackFileServed(this ILogger<HttpListenerEndpointMapper> logger, string filePath);
+
+    [LoggerMessage(LogLevel.Debug, "Client disconnected during response for path: {RequestPath}")]
+    internal static partial void ClientDisconnected(this ILogger<HttpListenerEndpointMapper> logger, string requestPath);
 }

@@ -102,6 +102,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     /// <inheritdoc/>
     public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         context.Response.ContentType = "application/json";
         var json = JsonSerializer.Serialize(value, type, JsonSerializerOptions);
         var buffer = Encoding.UTF8.GetBytes(json);
