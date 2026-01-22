@@ -29,7 +29,6 @@ public class IdentityProviderResultHandler(
     readonly JsonSerializerOptions _serializerOptions = new(options.Value.JsonSerializerOptions)
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
     /// <inheritdoc/>
