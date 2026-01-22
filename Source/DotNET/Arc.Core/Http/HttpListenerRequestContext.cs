@@ -51,7 +51,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public IWebSocketContext WebSockets => _webSockets ??= new HttpListenerWebSocketContext(context);
 
     /// <inheritdoc/>
-    public ClaimsPrincipal User => (context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
+    public ClaimsPrincipal User { get; set; } = (context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
 
     /// <inheritdoc/>
     public IDictionary<object, object?> Items => _items;
