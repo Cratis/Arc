@@ -502,6 +502,22 @@ public static class TypeExtensions
     }
 
     /// <summary>
+    /// Collect types involved for a type, recursively.
+    /// </summary>
+    /// <param name="type">Type to collect for.</param>
+    /// <param name="typesInvolved">Collected types involved.</param>
+    /// <remarks>It skips any types already added to the collection passed to it.</remarks>
+    public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
+    {
+        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType()) return;
+        typesInvolved.Add(type);
+        foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        {
+            CollectTypesInvolved(subProperty, typesInvolved);
+        }
+    }
+
+    /// <summary>
     /// Check if a type is enumerable. Note that string is an IEnumerable, but in this case the string is excluded, as well as ExpandoObject.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
