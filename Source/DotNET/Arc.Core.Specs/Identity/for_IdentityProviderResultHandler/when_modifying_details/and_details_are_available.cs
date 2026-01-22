@@ -43,10 +43,7 @@ public class and_details_are_available : given.an_identity_provider_result_handl
 
         var decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(cookieValue!));
 
-        var serializerOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
+        var serializerOptions = new JsonSerializerOptions().ConfigureArcDefaults();
 
         var result = JsonSerializer.Deserialize<IdentityProviderResult>(decodedJson, serializerOptions);
         result.ShouldNotBeNull();
