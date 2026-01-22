@@ -51,9 +51,9 @@ public interface IHttpRequestContext
     IWebSocketContext WebSockets { get; }
 
     /// <summary>
-    /// Gets the user associated with the request.
+    /// Gets or sets the user associated with the request.
     /// </summary>
-    ClaimsPrincipal User { get; }
+    ClaimsPrincipal User { get; set; }
 
     /// <summary>
     /// Gets a dictionary for storing arbitrary data during the request lifecycle.

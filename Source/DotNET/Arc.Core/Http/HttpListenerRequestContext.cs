@@ -51,7 +51,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public IWebSocketContext WebSockets => _webSockets ??= new HttpListenerWebSocketContext(context);
 
     /// <inheritdoc/>
-    public ClaimsPrincipal User => (context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
+    public ClaimsPrincipal User { get; set; } = (context.User as ClaimsPrincipal) ?? new ClaimsPrincipal();
 
     /// <inheritdoc/>
     public IDictionary<object, object?> Items => _items;
@@ -102,6 +102,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     /// <inheritdoc/>
     public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         context.Response.ContentType = "application/json";
         var json = JsonSerializer.Serialize(value, type, JsonSerializerOptions);
         var buffer = Encoding.UTF8.GetBytes(json);

@@ -47,7 +47,11 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public IWebSocketContext WebSockets { get; } = new AspNetCoreWebSocketContext(httpContext);
 
     /// <inheritdoc/>
-    public ClaimsPrincipal User => httpContext.User;
+    public ClaimsPrincipal User
+    {
+        get => httpContext.User;
+        set => httpContext.User = value;
+    }
 
     /// <inheritdoc/>
     public IDictionary<object, object?> Items => httpContext.Items;

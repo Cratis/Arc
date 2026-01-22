@@ -288,6 +288,11 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                 await context.Response.OutputStream.WriteAsync(buffer);
             }
         }
+        catch (HttpListenerException ex) when (ex.ErrorCode == 32 || ex.Message.Contains("Broken pipe"))
+        {
+            // Client disconnected - this is expected behavior, log at debug level
+            _logger.ClientDisconnected(context.Request.Url?.AbsolutePath ?? "/");
+        }
         catch (Exception ex)
         {
             _logger.ErrorHandlingRequest(ex);

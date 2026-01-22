@@ -33,6 +33,7 @@ public class AuthenticationMiddleware(IAuthentication authentication)
             return false;
         }
 
+        context.User = result.Principal!;
         return true;
     }
 }
