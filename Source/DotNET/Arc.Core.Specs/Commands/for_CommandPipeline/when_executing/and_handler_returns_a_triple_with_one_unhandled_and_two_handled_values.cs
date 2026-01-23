@@ -24,7 +24,7 @@ public class and_handler_returns_a_triple_with_one_unhandled_and_two_handled_val
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), _tuple.Item3).Returns(CommandResult.Success(CorrelationId.New()));
     }
 
-    async Task Because() => _result = (await _commandPipeline.Execute(_command)) as CommandResult<string>;
+    async Task Because() => _result = (await _commandPipeline.Execute(_command, _serviceProvider)) as CommandResult<string>;
 
     [Fact]
     void should_call_value_handlers_for_handled_values()

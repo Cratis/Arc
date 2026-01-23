@@ -14,7 +14,7 @@ public class and_command_filters_are_reporting_not_successful : given.a_command_
         _commandFilters.OnExecution(Arg.Any<CommandContext>()).Returns(CommandResult.Error(CorrelationId.New(), "Not successful"));
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_return_not_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_call_command_handler() => _commandHandler.DidNotReceive().Handle(Arg.Any<CommandContext>());

@@ -20,7 +20,7 @@ public class and_handler_returns_a_one_of_with_simple_value_as_response : given.
         _commandResponseValueHandlers.CanHandle(Arg.Any<CommandContext>(), _value).Returns(false);
     }
 
-    async Task Because() => _result = (await _commandPipeline.Execute(_command)) as CommandResult<string>;
+    async Task Because() => _result = (await _commandPipeline.Execute(_command, _serviceProvider)) as CommandResult<string>;
 
     [Fact] void should_return_response_in_command_result() => _result.Response.ShouldEqual(_value);
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);

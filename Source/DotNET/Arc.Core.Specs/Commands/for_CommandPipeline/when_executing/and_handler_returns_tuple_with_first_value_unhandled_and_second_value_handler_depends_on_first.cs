@@ -36,7 +36,7 @@ public class and_handler_returns_tuple_with_first_value_unhandled_and_second_val
             });
     }
 
-    async Task Because() => _result = (await _commandPipeline.Execute(_command)) as CommandResult<Guid>;
+    async Task Because() => _result = (await _commandPipeline.Execute(_command, _serviceProvider)) as CommandResult<Guid>;
 
     [Fact] void should_set_first_unhandled_value_as_response() => _result.Response.ShouldEqual(_tuple.Item1);
     [Fact] void should_call_handler_for_second_value() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), _tuple.Item2);

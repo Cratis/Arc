@@ -25,7 +25,7 @@ public class and_handler_returns_a_one_of_with_tuple_containing_response_and_han
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), 3.14).Returns(CommandResult.Error(CorrelationId.New(), _errorMessage));
     }
 
-    async Task Because() => _result = (await _commandPipeline.Execute(_command)) as CommandResult<string>;
+    async Task Because() => _result = (await _commandPipeline.Execute(_command, _serviceProvider)) as CommandResult<string>;
 
     [Fact] void should_call_value_handlers_for_handled_value() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), 3.14);
     [Fact] void should_set_response_on_command_context() => _commandResponseValueHandlers.Received(1).Handle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_responseValue)), 3.14);

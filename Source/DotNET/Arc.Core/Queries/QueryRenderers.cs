@@ -12,17 +12,15 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/> for managing query contexts.</param>
 /// <param name="correlationIdAccessor"><see cref="ICorrelationIdAccessor"/> for getting the current correlation ID.</param>
 /// <param name="types"><see cref="ITypes"/> for type discovery.</param>
-/// <param name="serviceProvider"><see cref="IServiceProvider"/> for getting instances of query providers.</param>
 public class QueryRenderers(
     IQueryContextManager queryContextManager,
     ICorrelationIdAccessor correlationIdAccessor,
-    ITypes types,
-    IServiceProvider serviceProvider) : IQueryRenderers
+    ITypes types) : IQueryRenderers
 {
     readonly IEnumerable<Type> _queryProviders = types.FindMultiple(typeof(IQueryRendererFor<>));
 
     /// <inheritdoc/>
-    public QueryRendererResult Render(FullyQualifiedQueryName queryName, object query)
+    public QueryRendererResult Render(FullyQualifiedQueryName queryName, object query, IServiceProvider serviceProvider)
     {
         var queryType = query.GetType();
         var queryProviderType = _queryProviders.FirstOrDefault(_ => queryType.IsAssignableTo(_.GetInterface(typeof(IQueryRendererFor<>).Name)!.GetGenericArguments()[0]));

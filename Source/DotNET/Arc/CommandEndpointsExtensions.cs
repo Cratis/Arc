@@ -28,13 +28,11 @@ public static class CommandEndpointsExtensions
 
             // Map controller-based command validation endpoints
             var actionDescriptorProvider = app.ApplicationServices.GetRequiredService<IActionDescriptorCollectionProvider>();
-            var commandPipeline = app.ApplicationServices.GetRequiredService<ICommandPipeline>();
             var correlationIdAccessor = app.ApplicationServices.GetRequiredService<ICorrelationIdAccessor>();
             var arcOptions = app.ApplicationServices.GetRequiredService<IOptions<ArcOptions>>().Value;
 
             var controllerCommandMapper = new ControllerCommandEndpointMapper(
                 actionDescriptorProvider,
-                commandPipeline,
                 correlationIdAccessor,
                 arcOptions.JsonSerializerOptions,
                 mapper);

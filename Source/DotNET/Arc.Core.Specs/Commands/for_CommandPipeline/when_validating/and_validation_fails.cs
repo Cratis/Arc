@@ -20,7 +20,7 @@ public class and_validation_fails : given.a_command_pipeline_and_a_handler_for_c
         }));
     }
 
-    async Task Because() => _result = await _commandPipeline.Validate(_command);
+    async Task Because() => _result = await _commandPipeline.Validate(_command, _serviceProvider);
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);

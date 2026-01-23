@@ -39,10 +39,10 @@ public class with_not_set_correlation_id : given.a_query_pipeline
 
         query_filters.OnPerform(Arg.Do<QueryContext>(ctx => _capturedContext = ctx)).Returns(_filterResult);
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(Task.FromResult<object?>(_queryData));
-        _queryRenderers.Render(_queryName, _queryData).Returns(_rendererResult);
+        _queryRenderers.Render(_queryName, _queryData, _serviceProvider).Returns(_rendererResult);
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_generate_new_correlation_id_for_context() => _capturedContext.CorrelationId.ShouldNotEqual(CorrelationId.NotSet);
     [Fact] void should_use_generated_correlation_id_consistently() => _capturedContext.CorrelationId.Value.ShouldNotEqual(Guid.Empty);

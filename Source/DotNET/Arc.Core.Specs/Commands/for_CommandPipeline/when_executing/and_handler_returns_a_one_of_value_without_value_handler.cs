@@ -19,7 +19,7 @@ public class and_handler_returns_a_one_of_value_without_value_handler : given.a_
         _commandResponseValueHandlers.CanHandle(Arg.Any<CommandContext>(), _value).Returns(false);
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_check_if_value_handlers_can_handle() => _commandResponseValueHandlers.Received(1).CanHandle(Arg.Any<CommandContext>(), _value);
     [Fact] void should_not_call_value_handlers() => _commandResponseValueHandlers.DidNotReceive().Handle(Arg.Any<CommandContext>(), _value);

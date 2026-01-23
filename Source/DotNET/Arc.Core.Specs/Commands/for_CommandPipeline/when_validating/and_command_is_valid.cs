@@ -12,7 +12,7 @@ public class and_command_is_valid : given.a_command_pipeline_and_a_handler_for_c
         _commandFilters.OnExecution(Arg.Any<CommandContext>()).Returns(Task.FromResult(CommandResult.Success(_correlationId)));
     }
 
-    async Task Because() => _result = await _commandPipeline.Validate(_command);
+    async Task Because() => _result = await _commandPipeline.Validate(_command, _serviceProvider);
 
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
