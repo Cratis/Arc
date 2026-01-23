@@ -22,14 +22,25 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
     /// <inheritdoc/>
     public async Task ProcessAsync(HttpListenerContext context)
     {
-        var handled = await BuildPipeline(0)(context);
-
-        if (!handled)
+        try
         {
-            logger.LogDebug("Request {Path} was not handled by any middleware, returning 404", context.Request.Url?.AbsolutePath ?? "/");
-            context.Response.StatusCode = 404;
-            var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
-            await context.Response.OutputStream.WriteAsync(buffer);
+            var handled = await BuildPipeline(0)(context);
+
+            if (!handled)
+            {
+                logger.LogDebug("Request {Path} was not handled by any middleware, returning 404", context.Request.Url?.AbsolutePath ?? "/");
+                context.Response.StatusCode = 404;
+                var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
+                await context.Response.OutputStream.WriteAsync(buffer);
+            }
+        }
+        finally
+        {
+            // Ensure response is closed unless it's a WebSocket request
+            if (!context.Request.IsWebSocketRequest)
+            {
+                context.Response.Close();
+            }
         }
     }
 

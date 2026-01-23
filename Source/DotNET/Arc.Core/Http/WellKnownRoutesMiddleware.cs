@@ -49,9 +49,6 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
         {
             logger.LogDebug("Route matched: {RouteKey}", routeKey);
 
-            // Check if this is a WebSocket request before processing
-            var isWebSocketRequest = context.Request.IsWebSocketRequest;
-
             try
             {
                 await using var scope = serviceProvider.CreateAsyncScope();
@@ -70,14 +67,10 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
                 await route.Handler(requestContext);
                 return true;
             }
-            finally
+            catch
             {
-                // Don't close the response for WebSocket requests - the WebSocket connection
-                // has already taken over the underlying connection and will handle its own lifecycle
-                if (!isWebSocketRequest)
-                {
-                    context.Response.Close();
-                }
+                // Let the exception propagate
+                throw;
             }
         }
 

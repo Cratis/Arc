@@ -43,7 +43,6 @@ public class FallbackMiddleware(ILogger<FallbackMiddleware> logger) : IHttpReque
 
         if (await TryServeFallbackFileAsync(context))
         {
-            context.Response.Close();
             return true;
         }
 

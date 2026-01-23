@@ -44,7 +44,6 @@ public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHtt
 
         if (await TryServeStaticFileAsync(context, requestPath))
         {
-            context.Response.Close();
             return true;
         }
 
