@@ -5,6 +5,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity;
@@ -13,12 +14,10 @@ namespace Cratis.Arc.Identity;
 /// Represents an implementation of <see cref="IIdentityProviderResultHandler"/>.
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/>.</param>
-/// <param name="identityProvider">The <see cref="IProvideIdentityDetails"/>.</param>
 /// <param name="options">The <see cref="IOptions{ArcOptions}"/>.</param>
 [Singleton]
 public class IdentityProviderResultHandler(
     IHttpRequestContextAccessor httpRequestContextAccessor,
-    IProvideIdentityDetails identityProvider,
     IOptions<ArcOptions> options) : IIdentityProviderResultHandler
 {
     /// <summary>
@@ -53,6 +52,7 @@ public class IdentityProviderResultHandler(
             var claims = claimsPrincipal.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value));
 
             var providerContext = new IdentityProviderContext(identityId, identityName, claims);
+            var identityProvider = context.RequestServices.GetRequiredService<IProvideIdentityDetails>();
             var result = await identityProvider.Provide(providerContext);
 
             if (result.IsUserAuthorized)
