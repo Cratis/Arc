@@ -12,6 +12,7 @@ public class an_identity_provider_result_handler : Specification
     protected IHttpRequestContextAccessor _httpRequestContextAccessor;
     protected IHttpRequestContext _httpRequestContext;
     protected IProvideIdentityDetails _identityProvider;
+    protected IServiceProvider _requestServices;
     protected IdentityProviderResultHandler _handler;
     protected ArcOptions _options = new();
 
@@ -22,10 +23,14 @@ public class an_identity_provider_result_handler : Specification
         _httpRequestContextAccessor.Current.Returns(_httpRequestContext);
 
         _identityProvider = Substitute.For<IProvideIdentityDetails>();
+        _requestServices = Substitute.For<IServiceProvider>();
+        _requestServices.GetService(typeof(IProvideIdentityDetails)).Returns(_identityProvider);
+        _httpRequestContext.RequestServices.Returns(_requestServices);
+
         var optionsWrapper = Substitute.For<IOptions<ArcOptions>>();
         optionsWrapper.Value.Returns(_options);
 
-        _handler = new(_httpRequestContextAccessor, _identityProvider, optionsWrapper);
+        _handler = new(_httpRequestContextAccessor, optionsWrapper);
     }
 
     protected ClaimsPrincipal CreateAuthenticatedUser()
