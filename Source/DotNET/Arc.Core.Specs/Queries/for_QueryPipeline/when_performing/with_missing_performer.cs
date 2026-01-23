@@ -25,11 +25,11 @@ public class with_missing_performer : given.a_query_pipeline
         });
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_unsuccessful_result() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_exception_message_about_missing_performer() => _result.ExceptionMessages.ShouldContain($"No performer found for query {_queryName}");
     [Fact] void should_not_call_query_filters() => query_filters.DidNotReceiveWithAnyArgs().OnPerform(Arg.Any<QueryContext>());
     [Fact] void should_not_call_query_performer() => _queryPerformer.DidNotReceiveWithAnyArgs().Perform(Arg.Any<QueryContext>());
-    [Fact] void should_not_call_query_renderers() => _queryRenderers.DidNotReceiveWithAnyArgs().Render(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<object>());
+    [Fact] void should_not_call_query_renderers() => _queryRenderers.DidNotReceiveWithAnyArgs().Render(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<object>(), Arg.Any<IServiceProvider>());
 }

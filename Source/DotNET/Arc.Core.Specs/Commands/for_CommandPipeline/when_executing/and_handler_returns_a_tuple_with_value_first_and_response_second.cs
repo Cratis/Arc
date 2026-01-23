@@ -23,7 +23,7 @@ public class and_handler_returns_a_tuple_with_value_first_and_response_second : 
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), _tuple.Item1).Returns(CommandResult.Error(CorrelationId.New(), _errorMessage));
     }
 
-    async Task Because() => _result = (await _commandPipeline.Execute(_command)) as CommandResult<string>;
+    async Task Because() => _result = (await _commandPipeline.Execute(_command, _serviceProvider)) as CommandResult<string>;
 
     [Fact] void should_call_value_handlers() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), _tuple.Item1);
     [Fact] void should_set_response_on_command_context() => _commandResponseValueHandlers.Received(1).Handle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_tuple.Item2)), _tuple.Item1);

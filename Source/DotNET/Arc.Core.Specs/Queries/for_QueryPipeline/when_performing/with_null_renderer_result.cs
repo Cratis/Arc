@@ -32,10 +32,10 @@ public class with_null_renderer_result : given.a_query_pipeline
 
         query_filters.OnPerform(Arg.Any<QueryContext>()).Returns(_filterResult);
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(Task.FromResult<object?>(_queryData));
-        _queryRenderers.Render(_queryName, _queryData).Returns((QueryRendererResult?)null);
+        _queryRenderers.Render(_queryName, _queryData, _serviceProvider).Returns((QueryRendererResult?)null);
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_unsuccessful_result() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_error_message_about_no_renderer_result() => _result.ExceptionMessages.ShouldContain("No renderer result");

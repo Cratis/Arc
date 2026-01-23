@@ -23,7 +23,7 @@ public class and_handler_returns_a_one_of_value : given.a_command_pipeline_and_a
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), _value).Returns(CommandResult.Error(CorrelationId.New(), _errorMessage));
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_call_value_handlers() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), _oneOf.Value);
     [Fact] void should_return_error_from_value_handlers() => _result.ExceptionMessages.First().ShouldEqual(_errorMessage);

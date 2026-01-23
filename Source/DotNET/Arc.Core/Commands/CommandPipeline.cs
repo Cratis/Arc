@@ -18,7 +18,6 @@ namespace Cratis.Arc.Commands;
 /// <param name="valueHandlers">The <see cref="ICommandResponseValueHandlers"/> to use for handling response values.</param>
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
-/// <param name="serviceProvider">The <see cref="IServiceProvider"/> to use for resolving dependencies.</param>
 [Singleton]
 public class CommandPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
@@ -26,11 +25,10 @@ public class CommandPipeline(
     ICommandHandlerProviders handlerProviders,
     ICommandResponseValueHandlers valueHandlers,
     ICommandContextModifier contextModifier,
-    ICommandContextValuesBuilder contextValuesBuilder,
-    IServiceProvider serviceProvider) : ICommandPipeline
+    ICommandContextValuesBuilder contextValuesBuilder) : ICommandPipeline
 {
     /// <inheritdoc/>
-    public async Task<CommandResult> Execute(object command)
+    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -73,7 +71,7 @@ public class CommandPipeline(
     }
 
     /// <inheritdoc/>
-    public async Task<CommandResult> Validate(object command)
+    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);

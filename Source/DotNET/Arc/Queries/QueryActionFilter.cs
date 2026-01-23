@@ -53,7 +53,8 @@ public class QueryActionFilter(
                 callResult.ExceptionMessages,
                 callResult.ExceptionStackTrace ?? string.Empty,
                 validationResults,
-                queryProviders);
+                queryProviders,
+                context.HttpContext.RequestServices);
 
             context.HttpContext.Response.SetResponseStatusCode(queryResult);
 
@@ -92,9 +93,10 @@ public class QueryActionFilter(
         IEnumerable<string> exceptionMessages,
         string exceptionStackTrace,
         IEnumerable<ValidationResult> validationResults,
-        IQueryRenderers queryProviders)
+        IQueryRenderers queryProviders,
+        IServiceProvider serviceProvider)
     {
-        var rendererResult = response is not null ? queryProviders.Render(queryName, response) : new QueryRendererResult(0, default!);
+        var rendererResult = response is not null ? queryProviders.Render(queryName, response, serviceProvider) : new QueryRendererResult(0, default!);
 
         var queryResult = new QueryResult
         {

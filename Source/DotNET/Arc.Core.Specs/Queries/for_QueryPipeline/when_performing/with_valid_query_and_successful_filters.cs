@@ -35,10 +35,10 @@ public class with_valid_query_and_successful_filters : given.a_query_pipeline
 
         query_filters.OnPerform(Arg.Do<QueryContext>(ctx => _capturedContext = ctx)).Returns(_filterResult);
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromResult<object?>(_queryData));
-        _queryRenderers.Render(_queryName, _queryData).Returns(_rendererResult);
+        _queryRenderers.Render(_queryName, _queryData, _serviceProvider).Returns(_rendererResult);
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_set_correlation_id_on_result() => _result.CorrelationId.ShouldEqual(_correlationId);

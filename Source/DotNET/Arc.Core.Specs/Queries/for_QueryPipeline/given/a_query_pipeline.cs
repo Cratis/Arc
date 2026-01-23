@@ -36,7 +36,6 @@ public class a_query_pipeline : Specification
             _queryContextManager,
             query_filters,
             _queryPerformerProviders,
-            _queryRenderers,
-            _serviceProvider);
+            _queryRenderers);
     }
 }

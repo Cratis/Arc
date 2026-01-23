@@ -12,7 +12,7 @@ public class and_authorization_fails : given.a_command_pipeline_and_a_handler_fo
         _commandFilters.OnExecution(Arg.Any<CommandContext>()).Returns(Task.FromResult(CommandResult.Unauthorized(_correlationId)));
     }
 
-    async Task Because() => _result = await _commandPipeline.Validate(_command);
+    async Task Because() => _result = await _commandPipeline.Validate(_command, _serviceProvider);
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);

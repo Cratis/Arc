@@ -106,8 +106,8 @@ public static class CommandEndpointMapper
                 else
                 {
                     commandResult = validateOnly
-                        ? await commandPipeline.Validate(command)
-                        : await commandPipeline.Execute(command);
+                        ? await commandPipeline.Validate(command, context.RequestServices)
+                        : await commandPipeline.Execute(command, context.RequestServices);
                 }
 
                 context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);

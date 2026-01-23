@@ -19,7 +19,7 @@ public class and_handler_returns_tuple_with_event_first_and_response_second : gi
         _commandHandler.Handle(Arg.Any<CommandContext>()).Returns(_tuple);
     }
 
-    async Task Because() => _result = (await _commandPipeline.Execute(_command)) as CommandResult<string>;
+    async Task Because() => _result = (await _commandPipeline.Execute(_command, _serviceProvider)) as CommandResult<string>;
 
     [Fact] void should_append_event_to_event_log() => _eventLog.Received(1).Append(
         _command.EventSourceId,

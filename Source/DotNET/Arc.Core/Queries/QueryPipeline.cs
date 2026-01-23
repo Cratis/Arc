@@ -14,17 +14,15 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryFilters">The query filters.</param>
 /// <param name="queryPerformerProviders">The query performer providers.</param>
 /// <param name="queryRenderers">The query renderers.</param>
-/// <param name="serviceProvider">Service provider for resolving dependencies.</param>
 public class QueryPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
     IQueryContextManager queryContextManager,
     IQueryFilters queryFilters,
     IQueryPerformerProviders queryPerformerProviders,
-    IQueryRenderers queryRenderers,
-    IServiceProvider serviceProvider) : IQueryPipeline
+    IQueryRenderers queryRenderers) : IQueryPipeline
 {
     /// <inheritdoc/>
-    public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting)
+    public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider)
     {
         var correlationId = GetCorrelationId();
         var result = QueryResult.Success(correlationId);
@@ -49,7 +47,7 @@ public class QueryPipeline(
             {
                 return result;
             }
-            var rendererResult = queryRenderers.Render(queryName, data);
+            var rendererResult = queryRenderers.Render(queryName, data, serviceProvider);
             if (rendererResult is null)
             {
                 return QueryResult.Error(correlationId, "No renderer result");

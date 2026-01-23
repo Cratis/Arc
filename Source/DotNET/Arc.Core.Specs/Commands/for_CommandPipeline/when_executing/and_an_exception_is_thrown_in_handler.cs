@@ -16,7 +16,7 @@ public class and_an_exception_is_thrown_in_handler : given.a_command_pipeline_an
         _commandHandler.Handle(Arg.Any<CommandContext>()).Throws(_exception);
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_not_call_value_handlers() => _commandResponseValueHandlers.DidNotReceive().Handle(Arg.Any<CommandContext>(), Arg.Any<object>());
     [Fact] void should_be_unsuccessful() => _result.IsSuccess.ShouldBeFalse();

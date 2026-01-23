@@ -34,10 +34,10 @@ public class with_paged_query : given.a_query_pipeline
 
         query_filters.OnPerform(Arg.Any<QueryContext>()).Returns(_filterResult);
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromResult<object?>(_queryData));
-        _queryRenderers.Render(_queryName, _queryData).Returns(_rendererResult);
+        _queryRenderers.Render(_queryName, _queryData, _serviceProvider).Returns(_rendererResult);
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_set_rendered_data_on_result() => _result.Data.ShouldEqual(_rendererResult.Data);

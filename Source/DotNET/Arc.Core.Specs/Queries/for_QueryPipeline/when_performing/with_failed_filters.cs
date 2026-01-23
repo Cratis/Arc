@@ -35,11 +35,11 @@ public class with_failed_filters : given.a_query_pipeline
         query_filters.OnPerform(Arg.Any<QueryContext>()).Returns(_filterResult);
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_filter_result() => _result.ShouldEqual(_filterResult);
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_authorized() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_not_call_query_performer() => _queryPerformer.DidNotReceiveWithAnyArgs().Perform(Arg.Any<QueryContext>());
-    [Fact] void should_not_call_query_renderers() => _queryRenderers.DidNotReceiveWithAnyArgs().Render(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<object>());
+    [Fact] void should_not_call_query_renderers() => _queryRenderers.DidNotReceiveWithAnyArgs().Render(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<object>(), Arg.Any<IServiceProvider>());
 }

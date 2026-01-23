@@ -26,7 +26,7 @@ public class and_handler_returns_a_one_of_with_tuple_containing_all_handled_valu
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), 3.14).Returns(CommandResult.Error(CorrelationId.New(), _secondErrorMessage));
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_call_value_handlers_for_first_value() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), 42);
     [Fact] void should_call_value_handlers_for_second_value() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), 3.14);

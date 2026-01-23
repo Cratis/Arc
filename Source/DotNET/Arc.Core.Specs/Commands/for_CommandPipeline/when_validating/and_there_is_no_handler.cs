@@ -7,7 +7,7 @@ public class and_there_is_no_handler : given.a_command_pipeline
 {
     CommandResult _result;
 
-    async Task Because() => _result = await _commandPipeline.Validate("something");
+    async Task Because() => _result = await _commandPipeline.Validate("something", _serviceProvider);
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_exceptions() => _result.HasExceptions.ShouldBeTrue();

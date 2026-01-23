@@ -13,6 +13,7 @@ public interface IQueryRenderers
     /// </summary>
     /// <param name="queryName">Name of the query.</param>
     /// <param name="query">Query to render.</param>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> scoped to the current request, used to resolve query renderer dependencies.</param>
     /// <returns>Result.</returns>
-    QueryRendererResult Render(FullyQualifiedQueryName queryName, object query);
+    QueryRendererResult Render(FullyQualifiedQueryName queryName, object query, IServiceProvider serviceProvider);
 }

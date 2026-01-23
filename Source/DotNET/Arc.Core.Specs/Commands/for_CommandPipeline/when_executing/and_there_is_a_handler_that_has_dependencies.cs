@@ -33,7 +33,7 @@ public class and_there_is_a_handler_that_has_dependencies : given.a_command_pipe
         });
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_call_command_handler() => _commandHandler.Received(1).Handle(Arg.Any<CommandContext>());
     [Fact] void should_pass_dependencies_to_handler() => _dependencies.ShouldContainOnly(_expectedDependencies);

@@ -12,17 +12,19 @@ public interface ICommandPipeline
     /// Executes the given command.
     /// </summary>
     /// <param name="command">The command to execute.</param>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> scoped to the current request, used to resolve handler dependencies.</param>
     /// <returns>A <see cref="CommandResult"/> representing the result of executing the command.</returns>
-    Task<CommandResult> Execute(object command);
+    Task<CommandResult> Execute(object command, IServiceProvider serviceProvider);
 
     /// <summary>
     /// Validates the given command without executing it.
     /// </summary>
     /// <param name="command">The command to validate.</param>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> scoped to the current request, used to resolve handler dependencies.</param>
     /// <returns>A <see cref="CommandResult"/> representing the validation result.</returns>
     /// <remarks>
     /// This method runs authorization and validation filters but does not invoke the command handler.
     /// Use this for pre-flight validation before executing a command.
     /// </remarks>
-    Task<CommandResult> Validate(object command);
+    Task<CommandResult> Validate(object command, IServiceProvider serviceProvider);
 }

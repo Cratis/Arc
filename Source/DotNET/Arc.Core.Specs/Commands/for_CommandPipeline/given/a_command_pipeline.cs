@@ -37,7 +37,6 @@ public class a_command_pipeline : Specification
             _commandHandlerProviders,
             _commandResponseValueHandlers,
             _commandContextModifier,
-            _commandContextValuesBuilder,
-            _serviceProvider);
+            _commandContextValuesBuilder);
     }
 }

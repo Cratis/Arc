@@ -15,13 +15,11 @@ namespace Cratis.Arc.Commands;
 /// Maps validation endpoints for controller-based commands.
 /// </summary>
 /// <param name="actionDescriptorCollectionProvider">Provider for discovering controller actions.</param>
-/// <param name="commandPipeline">The command pipeline for executing validation.</param>
 /// <param name="correlationIdAccessor">Accessor for correlation IDs.</param>
 /// <param name="jsonSerializerOptions">JSON serialization options.</param>
 /// <param name="endpointMapper">The endpoint mapper for checking existing endpoints.</param>
 public class ControllerCommandEndpointMapper(
     IActionDescriptorCollectionProvider actionDescriptorCollectionProvider,
-    ICommandPipeline commandPipeline,
     ICorrelationIdAccessor correlationIdAccessor,
     JsonSerializerOptions jsonSerializerOptions,
     IEndpointMapper endpointMapper)
@@ -52,6 +50,7 @@ public class ControllerCommandEndpointMapper(
             {
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
+                var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var command = await context.Request.ReadFromJsonAsync(commandType, jsonSerializerOptions, cancellationToken: context.RequestAborted);
                 CommandResult commandResult;
 
@@ -61,7 +60,7 @@ public class ControllerCommandEndpointMapper(
                 }
                 else
                 {
-                    commandResult = await commandPipeline.Validate(command);
+                    commandResult = await commandPipeline.Validate(command, context.RequestServices);
                 }
 
                 context.Response.SetResponseStatusCode(commandResult);
