@@ -68,11 +68,12 @@ internal static class ColumnTypeMappings
     /// </summary>
     /// <param name="databaseType">The database type.</param>
     /// <returns>The SQL type string.</returns>
+    /// <remarks>For SQL Server, requires SQL Server 2022 or later.</remarks>
     internal static string GetJsonType(DatabaseType databaseType) =>
         databaseType switch
         {
             DatabaseType.PostgreSql => "jsonb",
-            DatabaseType.SqlServer => "nvarchar(max)",
+            DatabaseType.SqlServer => "json",
             _ => "text"
         };
 
