@@ -33,7 +33,7 @@ public class with_different_database_types : Specification
     }
 
     [Fact] void should_set_sqlite_type_to_text() => _sqliteResult.ColumnType.ShouldEqual("text");
-    [Fact] void should_set_sql_server_type_to_nvarchar_max() => _sqlServerResult.ColumnType.ShouldEqual("nvarchar(max)");
+    [Fact] void should_set_sql_server_type_to_json() => _sqlServerResult.ColumnType.ShouldEqual("json");
     [Fact] void should_set_postgresql_type_to_jsonb() => _postgreSqlResult.ColumnType.ShouldEqual("jsonb");
     [Fact] void should_mark_sqlite_result_as_json() => _sqliteResult.IsJson().ShouldBeTrue();
     [Fact] void should_mark_sql_server_result_as_json() => _sqlServerResult.IsJson().ShouldBeTrue();
