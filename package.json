@@ -42,7 +42,7 @@
         "@typescript-eslint/eslint-plugin": "8.53.1",
         "@typescript-eslint/parser": "8.53.1",
         "@vitejs/plugin-react": "^5.1.2",
-        "@vitest/coverage-v8": "4.0.17",
+        "@vitest/coverage-v8": "4.0.18",
         "chai": "6.2.2",
         "chai-as-promised": "8.0.2",
         "edit-json-file": "1.8.1",
@@ -75,7 +75,7 @@
         "vite": "7.3.1",
         "vite-plugin-commonjs": "0.10.4",
         "vite-tsconfig-paths": "6.0.4",
-        "vitest": "4.0.17"
+        "vitest": "4.0.18"
     },
     "license": "MIT",
     "version": "0.0.0",
