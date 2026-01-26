@@ -20,7 +20,7 @@ internal static class ColumnTypeMappings
         databaseType switch
         {
             DatabaseType.PostgreSql => maxLength.HasValue ? $"VARCHAR({maxLength})" : "TEXT",
-            DatabaseType.SqlServer => maxLength.HasValue ? $"NVARCHAR({maxLength})" : "NVARCHAR(MAX)",
+            DatabaseType.SqlServer or DatabaseType.SqlServer2025 => maxLength.HasValue ? $"NVARCHAR({maxLength})" : "NVARCHAR(MAX)",
             _ => "TEXT"
         };
 
@@ -33,7 +33,7 @@ internal static class ColumnTypeMappings
         databaseType switch
         {
             DatabaseType.PostgreSql => "BOOLEAN",
-            DatabaseType.SqlServer => "BIT",
+            DatabaseType.SqlServer or DatabaseType.SqlServer2025 => "BIT",
             _ => "INTEGER"
         };
 
@@ -46,7 +46,7 @@ internal static class ColumnTypeMappings
         databaseType switch
         {
             DatabaseType.PostgreSql => "UUID",
-            DatabaseType.SqlServer => "UNIQUEIDENTIFIER",
+            DatabaseType.SqlServer or DatabaseType.SqlServer2025 => "UNIQUEIDENTIFIER",
             _ => "BLOB"
         };
 
@@ -59,7 +59,7 @@ internal static class ColumnTypeMappings
         databaseType switch
         {
             DatabaseType.PostgreSql => "TIMESTAMPTZ",
-            DatabaseType.SqlServer => "DATETIMEOFFSET",
+            DatabaseType.SqlServer or DatabaseType.SqlServer2025 => "DATETIMEOFFSET",
             _ => "TEXT"
         };
 
@@ -68,12 +68,12 @@ internal static class ColumnTypeMappings
     /// </summary>
     /// <param name="databaseType">The database type.</param>
     /// <returns>The SQL type string.</returns>
-    /// <remarks>For SQL Server, requires SQL Server 2022 or later.</remarks>
     internal static string GetJsonType(DatabaseType databaseType) =>
         databaseType switch
         {
             DatabaseType.PostgreSql => "jsonb",
-            DatabaseType.SqlServer => "json",
+            DatabaseType.SqlServer => "nvarchar(max)",
+            DatabaseType.SqlServer2025 => "json",
             _ => "text"
         };
 
@@ -86,7 +86,7 @@ internal static class ColumnTypeMappings
         databaseType switch
         {
             DatabaseType.PostgreSql => ("INTEGER", "Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-            DatabaseType.SqlServer => ("BIGINT", "SqlServer:ValueGenerationStrategy", Microsoft.EntityFrameworkCore.Metadata.SqlServerValueGenerationStrategy.IdentityColumn),
+            DatabaseType.SqlServer or DatabaseType.SqlServer2025 => ("BIGINT", "SqlServer:ValueGenerationStrategy", Microsoft.EntityFrameworkCore.Metadata.SqlServerValueGenerationStrategy.IdentityColumn),
             _ => ("INTEGER", "Sqlite:Autoincrement", true)
         };
 
@@ -119,7 +119,7 @@ internal static class ColumnTypeMappings
                 nameof(Decimal) => "DECIMAL",
                 _ => "INTEGER"
             },
-            DatabaseType.SqlServer => type.Name switch
+            DatabaseType.SqlServer or DatabaseType.SqlServer2025 => type.Name switch
             {
                 nameof(Char) => "SMALLINT",
                 nameof(Byte) => "TINYINT",

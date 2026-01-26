@@ -39,7 +39,7 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
             .Where(IsRelevantForConverters(dbSetTypes))
             .ToArray();
 
-        var databaseType = Database.GetDatabaseType();
+        var databaseType = this.GetConfiguredDatabaseType();
         var typesOnlyInJsonProperties = modelBuilder.ApplyJsonConversion(entityTypesForConverters, databaseType);
 
         var entityTypesForOtherConverters = entityTypesForConverters
