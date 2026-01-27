@@ -17,7 +17,6 @@ public class with_different_database_types : Specification
 
     void Establish()
     {
-        SqlServerVersionDetector.Reset();
         _sqliteMb = new MigrationBuilder("Microsoft.EntityFrameworkCore.Sqlite");
         _sqlServerMb = new MigrationBuilder("Microsoft.EntityFrameworkCore.SqlServer");
         _postgreSqlMb = new MigrationBuilder("Npgsql.EntityFrameworkCore.PostgreSQL");

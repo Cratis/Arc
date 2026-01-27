@@ -19,17 +19,12 @@ public enum DatabaseType
     Sqlite = 1,
 
     /// <summary>
-    /// SQL Server storage type (2022 and earlier).
+    /// SQL Server storage type.
     /// </summary>
     SqlServer = 2,
 
     /// <summary>
     /// PostgreSQL storage type.
     /// </summary>
-    PostgreSql = 3,
-
-    /// <summary>
-    /// SQL Server 2025 storage type with native JSON support.
-    /// </summary>
-    SqlServer2025 = 4
+    PostgreSql = 3
 }
