@@ -15,11 +15,11 @@ public interface IDatabaseChangeNotifier : IAsyncDisposable
     /// <param name="onChanged">The callback to invoke when changes are detected.</param>
     /// <param name="cancellationToken">A cancellation token to stop listening.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task StartListeningAsync(string tableName, Action onChanged, CancellationToken cancellationToken = default);
+    Task StartListening(string tableName, Action onChanged, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Stops listening for changes.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task StopListeningAsync();
+    Task StopListening();
 }

@@ -30,36 +30,10 @@ public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory) : IData
                 loggerFactory.CreateLogger<SqlServerChangeNotifier>()),
 
             DatabaseType.Sqlite => new SqliteChangeNotifier(
-                ExtractSqlitePath(connectionString),
+                connectionString,
                 loggerFactory.CreateLogger<SqliteChangeNotifier>()),
 
             _ => throw new UnsupportedDatabaseType(databaseType.ToString())
         };
-    }
-
-    static string ExtractSqlitePath(string connectionString)
-    {
-        const string dataSourceKey = "Data Source=";
-        const string filenameKey = "Filename=";
-
-        var startIndex = connectionString.IndexOf(dataSourceKey, StringComparison.OrdinalIgnoreCase);
-        if (startIndex == -1)
-        {
-            startIndex = connectionString.IndexOf(filenameKey, StringComparison.OrdinalIgnoreCase);
-            if (startIndex == -1)
-            {
-                return connectionString;
-            }
-            startIndex += filenameKey.Length;
-        }
-        else
-        {
-            startIndex += dataSourceKey.Length;
-        }
-
-        var endIndex = connectionString.IndexOf(';', startIndex);
-        return endIndex == -1
-            ? connectionString[startIndex..]
-            : connectionString[startIndex..endIndex];
     }
 }

@@ -81,7 +81,7 @@ public interface IHttpRequestContext
     /// <param name="type">The type to deserialize to.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The deserialized object.</returns>
-    Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default);
+    Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sets the HTTP response status code.
@@ -95,15 +95,6 @@ public interface IHttpRequestContext
     /// <param name="name">Header name.</param>
     /// <param name="value">Header value.</param>
     void SetResponseHeader(string name, string value);
-
-    /// <summary>
-    /// Writes JSON to the response.
-    /// </summary>
-    /// <param name="value">The value to serialize.</param>
-    /// <param name="type">The type of the value.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the async operation.</returns>
-    Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Appends a cookie to the response.
@@ -125,7 +116,7 @@ public interface IHttpRequestContext
     /// <param name="text">The text to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
-    Task WriteAsync(string text, CancellationToken cancellationToken = default);
+    Task Write(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Writes bytes to the response.
@@ -133,7 +124,7 @@ public interface IHttpRequestContext
     /// <param name="data">The byte data to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
-    Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default);
+    Task WriteBytes(byte[] data, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Writes a stream to the response.
@@ -141,5 +132,14 @@ public interface IHttpRequestContext
     /// <param name="stream">The stream to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
-    Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default);
+    Task WriteStream(Stream stream, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes JSON to the response.
+    /// </summary>
+    /// <param name="value">The value to serialize.</param>
+    /// <param name="type">The type of the value.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the async operation.</returns>
+    Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default);
 }

@@ -1,71 +1,80 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe;
 
 /// <summary>
-/// SQLite implementation of <see cref="IDatabaseChangeNotifier"/> using file system watcher.
-/// Since SQLite doesn't have built-in notification support, we watch the database file for changes.
+/// SQLite implementation of <see cref="IDatabaseChangeNotifier"/> using the native update_hook.
+/// This provides per-table change notifications for all operations (including raw SQL).
 /// </summary>
-/// <param name="databasePath">The path to the SQLite database file.</param>
+/// <param name="connectionString">The connection string to the SQLite database.</param>
 /// <param name="logger">The logger.</param>
-public sealed class SqliteChangeNotifier(string databasePath, ILogger<SqliteChangeNotifier> logger) : IDatabaseChangeNotifier
+public sealed class SqliteChangeNotifier(string connectionString, ILogger<SqliteChangeNotifier> logger) : IDatabaseChangeNotifier
 {
     /// <summary>
-    /// Debounce interval to prevent multiple notifications for a single change.
+    /// Debounce interval to prevent multiple notifications for rapid successive changes.
     /// </summary>
-    static readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(100);
+    static readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(50);
 
     readonly object _lock = new();
-    FileSystemWatcher? _watcher;
+    SqliteConnection? _connection;
+    SqliteUpdateHook.UpdateHookCallback? _callback;
+    string? _tableName;
     Action? _onChanged;
     DateTime _lastNotification = DateTime.MinValue;
     bool _disposed;
 
     /// <inheritdoc/>
-    public Task StartListeningAsync(string tableName, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, Action onChanged, CancellationToken cancellationToken = default)
     {
+        _tableName = tableName;
         _onChanged = onChanged;
 
-        var directory = Path.GetDirectoryName(databasePath);
-        var fileName = Path.GetFileName(databasePath);
+        // Open a dedicated connection for the update hook
+        // The hook is per-connection, so we need to keep this connection open
+        _connection = new SqliteConnection(connectionString);
+        await _connection.OpenAsync(cancellationToken);
 
-        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+        // Keep a reference to the callback delegate to prevent garbage collection
+        _callback = OnUpdateHook;
+
+        // Get the underlying SQLite handle
+        var handle = GetSqliteHandle(_connection);
+        if (handle == IntPtr.Zero)
         {
-            logger.SqliteDirectoryNotFound(directory ?? "null");
-            return Task.CompletedTask;
+            logger.SqliteHandleNotFound();
+            return;
         }
 
-        _watcher = new FileSystemWatcher(directory, fileName)
-        {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
-            EnableRaisingEvents = true
-        };
+        // Register the update hook
+        SqliteUpdateHook.RegisterUpdateHook(handle, _callback, IntPtr.Zero);
 
-        _watcher.Changed += OnFileChanged;
-        _watcher.Error += OnWatcherError;
-
-        logger.StartedListeningSqlite(databasePath);
-
-        return Task.CompletedTask;
+        logger.StartedListeningSqlite(tableName);
     }
 
     /// <inheritdoc/>
-    public Task StopListeningAsync()
+    public async Task StopListening()
     {
-        if (_watcher is not null)
+        if (_connection is not null)
         {
-            _watcher.EnableRaisingEvents = false;
-            _watcher.Changed -= OnFileChanged;
-            _watcher.Error -= OnWatcherError;
-            _watcher.Dispose();
-            _watcher = null;
+            // Unregister the hook by passing null
+            var handle = GetSqliteHandle(_connection);
+            if (handle != IntPtr.Zero)
+            {
+                SqliteUpdateHook.RegisterUpdateHook(handle, null, IntPtr.Zero);
+            }
+
+            await _connection.CloseAsync();
+            await _connection.DisposeAsync();
+            _connection = null;
         }
 
-        logger.StoppedListeningSqlite(databasePath);
-        return Task.CompletedTask;
+        _callback = null;
+        logger.StoppedListeningSqlite(_tableName ?? "unknown");
     }
 
     /// <inheritdoc/>
@@ -77,12 +86,48 @@ public sealed class SqliteChangeNotifier(string databasePath, ILogger<SqliteChan
         }
 
         _disposed = true;
-        await StopListeningAsync();
+        await StopListening();
     }
 
-    void OnFileChanged(object sender, FileSystemEventArgs e)
+    static IntPtr GetSqliteHandle(SqliteConnection connection)
     {
-        // Debounce to prevent multiple notifications for a single change
+        // Access the internal Handle property via reflection
+        // Microsoft.Data.Sqlite exposes the handle through the DbConnection
+        var handleProperty = typeof(SqliteConnection)
+            .GetProperty("Handle", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+        if (handleProperty is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        var handleObject = handleProperty.GetValue(connection);
+        if (handleObject is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        // The Handle is a SafeHandle, we need to get the DangerousGetHandle value
+        var dangerousMethod = handleObject.GetType()
+            .GetMethod("DangerousGetHandle", BindingFlags.Instance | BindingFlags.Public);
+
+        if (dangerousMethod is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        return (IntPtr)(dangerousMethod.Invoke(handleObject, null) ?? IntPtr.Zero);
+    }
+
+    void OnUpdateHook(IntPtr userData, int action, string databaseName, string tableName, long rowId)
+    {
+        // Only notify for the specific table we're watching
+        if (!string.Equals(tableName, _tableName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Debounce to prevent multiple notifications for rapid changes
         lock (_lock)
         {
             var now = DateTime.UtcNow;
@@ -93,12 +138,10 @@ public sealed class SqliteChangeNotifier(string databasePath, ILogger<SqliteChan
             _lastNotification = now;
         }
 
-        logger.SqliteFileChanged(e.FullPath, e.ChangeType.ToString());
-        _onChanged?.Invoke();
-    }
+        var actionType = (SqliteUpdateHook.SqliteAction)action;
+        logger.SqliteUpdateHookTriggered(tableName, actionType.ToString(), rowId);
 
-    void OnWatcherError(object sender, ErrorEventArgs e)
-    {
-        logger.SqliteWatcherError(e.GetException());
+        // Invoke on a separate thread to avoid blocking the SQLite callback
+        ThreadPool.QueueUserWorkItem(_ => _onChanged?.Invoke());
     }
 }

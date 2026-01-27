@@ -45,7 +45,7 @@ public static class OpenApiExtensions
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
 
                 context.ContentType = "application/json";
-                await context.WriteAsync(json);
+                await context.Write(json);
             },
             new EndpointMetadata(
                 Name: "OpenAPI",

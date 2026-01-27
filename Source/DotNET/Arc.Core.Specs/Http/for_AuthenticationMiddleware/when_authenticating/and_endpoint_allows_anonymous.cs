@@ -12,7 +12,7 @@ public class and_endpoint_allows_anonymous : given.an_authentication_middleware
         _metadata = new EndpointMetadata("TestEndpoint", "Test Endpoint", [], AllowAnonymous: true);
     }
 
-    async Task Because() => _result = await _middleware.AuthenticateAsync(_httpRequestContext, _metadata);
+    async Task Because() => _result = await _middleware.Authenticate(_httpRequestContext, _metadata);
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
     [Fact] void should_not_call_authentication() => _authentication.DidNotReceive().HandleAuthentication(Arg.Any<IHttpRequestContext>());

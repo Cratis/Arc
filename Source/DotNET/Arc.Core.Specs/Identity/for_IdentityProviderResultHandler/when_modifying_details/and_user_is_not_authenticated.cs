@@ -20,6 +20,6 @@ public class and_user_is_not_authenticated : given.an_identity_provider_result_h
 
     async Task Because() => await _handler.ModifyDetails<object>(details => new { Modified = true });
 
-    [Fact] void should_not_call_write() => _httpRequestContext.DidNotReceive().WriteAsync(Arg.Any<string>());
+    [Fact] void should_not_call_write() => _httpRequestContext.DidNotReceive().Write(Arg.Any<string>());
     [Fact] void should_not_append_cookie() => _httpRequestContext.DidNotReceive().AppendCookie(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Http.CookieOptions>());
 }

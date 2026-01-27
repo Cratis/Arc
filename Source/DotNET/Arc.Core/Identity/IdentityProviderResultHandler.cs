@@ -85,7 +85,7 @@ public class IdentityProviderResultHandler(
             Path = "/"
         });
 
-        await context.WriteAsync(json);
+        await context.Write(json);
     }
 
     /// <inheritdoc/>

@@ -45,7 +45,7 @@ public static class ArcApplicationExtensions
         {
             if (app.EndpointMapper is HttpListenerEndpointMapper httpListenerEndpointMapper)
             {
-                httpListenerEndpointMapper.StopAsync().GetAwaiter().GetResult();
+                httpListenerEndpointMapper.Stop().GetAwaiter().GetResult();
                 httpListenerEndpointMapper.Dispose();
             }
         });

@@ -25,6 +25,15 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Error, "PostgreSQL listener encountered an error")]
     internal static partial void PostgreSqlListenerError(this ILogger<PostgreSqlChangeNotifier> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Warning, "Insufficient privileges to create trigger on table {TableName} - ensure trigger exists manually")]
+    internal static partial void PostgreSqlTriggerPermissionDenied(this ILogger<PostgreSqlChangeNotifier> logger, string tableName);
+
+    [LoggerMessage(LogLevel.Warning, "Failed to create trigger on table {TableName} - ensure trigger exists manually")]
+    internal static partial void PostgreSqlTriggerCreationFailed(this ILogger<PostgreSqlChangeNotifier> logger, string tableName, Exception ex);
+
+    [LoggerMessage(LogLevel.Information, "Attempting to reconnect PostgreSQL listener for channel {ChannelName}")]
+    internal static partial void PostgreSqlReconnecting(this ILogger<PostgreSqlChangeNotifier> logger, string channelName);
+
     // SQL Server
     [LoggerMessage(LogLevel.Information, "Started listening for SQL Server notifications on table {TableName}")]
     internal static partial void StartedListeningSqlServer(this ILogger<SqlServerChangeNotifier> logger, string tableName);
@@ -39,18 +48,15 @@ internal static partial class DatabaseChangeNotifierLogMessages
     internal static partial void SqlServerResubscribeError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
 
     // SQLite
-    [LoggerMessage(LogLevel.Information, "Started listening for SQLite file changes on {DatabasePath}")]
-    internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string databasePath);
+    [LoggerMessage(LogLevel.Information, "Started listening for SQLite changes on table {TableName}")]
+    internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);
 
-    [LoggerMessage(LogLevel.Information, "Stopped listening for SQLite file changes on {DatabasePath}")]
-    internal static partial void StoppedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string databasePath);
+    [LoggerMessage(LogLevel.Information, "Stopped listening for SQLite changes on table {TableName}")]
+    internal static partial void StoppedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);
 
-    [LoggerMessage(LogLevel.Debug, "SQLite file changed: {FilePath}, ChangeType={ChangeType}")]
-    internal static partial void SqliteFileChanged(this ILogger<SqliteChangeNotifier> logger, string filePath, string changeType);
+    [LoggerMessage(LogLevel.Debug, "SQLite update hook triggered: Table={TableName}, Action={Action}, RowId={RowId}")]
+    internal static partial void SqliteUpdateHookTriggered(this ILogger<SqliteChangeNotifier> logger, string tableName, string action, long rowId);
 
-    [LoggerMessage(LogLevel.Warning, "SQLite directory not found: {Directory}")]
-    internal static partial void SqliteDirectoryNotFound(this ILogger<SqliteChangeNotifier> logger, string directory);
-
-    [LoggerMessage(LogLevel.Error, "SQLite file watcher encountered an error")]
-    internal static partial void SqliteWatcherError(this ILogger<SqliteChangeNotifier> logger, Exception ex);
+    [LoggerMessage(LogLevel.Warning, "Could not obtain SQLite connection handle for update hook registration")]
+    internal static partial void SqliteHandleNotFound(this ILogger<SqliteChangeNotifier> logger);
 }
