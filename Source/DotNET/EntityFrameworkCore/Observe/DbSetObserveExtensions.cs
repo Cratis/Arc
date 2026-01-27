@@ -30,12 +30,12 @@ public static class DbSetObserveExtensions
     public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
-        Func<IQueryable<TEntity>, IQueryable<TEntity>>? configure = null)
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
         return dbSet.Observe(
-            () => ApplyConfigure(dbSet.Where(filter), configure),
+            () => ApplyConfigure(dbSet, configure).Where(filter),
             entities => new BehaviorSubject<IEnumerable<TEntity>>(entities),
             (entities, observable) => observable.OnNext([.. entities]));
     }
@@ -51,11 +51,11 @@ public static class DbSetObserveExtensions
     public static ISubject<TEntity> ObserveSingle<TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
-        Func<IQueryable<TEntity>, IQueryable<TEntity>>? configure = null)
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet.Where(filter), configure));
+        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet, configure).Where(filter));
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public static class DbSetObserveExtensions
     public static ISubject<TEntity> ObserveById<TEntity, TId>(
         this DbSet<TEntity> dbSet,
         TId id,
-        Func<IQueryable<TEntity>, IQueryable<TEntity>>? configure = null)
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         var parameter = Expression.Parameter(typeof(TEntity), "e");
@@ -83,7 +83,7 @@ public static class DbSetObserveExtensions
         var equals = Expression.Equal(property, constant);
         var lambda = Expression.Lambda<Func<TEntity, bool>>(equals, parameter);
 
-        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet.Where(lambda), configure));
+        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet, configure).Where(lambda));
     }
 
     static ISubject<TEntity> ObserveSingleCore<TEntity>(
@@ -339,9 +339,9 @@ public static class DbSetObserveExtensions
         return serviceProvider.GetRequiredService<ICurrentDbContext>().Context;
     }
 
-    static IQueryable<TEntity> ApplyConfigure<TEntity>(IQueryable<TEntity> query, Func<IQueryable<TEntity>, IQueryable<TEntity>>? configure)
+    static IQueryable<TEntity> ApplyConfigure<TEntity>(DbSet<TEntity> dbSet, Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
         where TEntity : class =>
-        configure is not null ? configure(query) : query;
+        configure is not null ? configure(dbSet) : dbSet;
 
     /// <summary>
     /// Internal class used as an identifying type for logging purpose.
