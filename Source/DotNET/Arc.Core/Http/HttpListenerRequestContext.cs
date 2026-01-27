@@ -135,6 +135,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         if (existingCookie is not null)
         {
             context.Response.Cookies.Remove(existingCookie);
+            existingCookie.Value = string.Empty;
             existingCookie.Expired = true;
             existingCookie.Expires = DateTime.Now.AddDays(-1);
             context.Response.Cookies.Add(existingCookie);
