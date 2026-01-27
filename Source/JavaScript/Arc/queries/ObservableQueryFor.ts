@@ -182,12 +182,6 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
         return ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, combinedArgs as object);
     }
 
-    private buildRoute(args?: TParameters): string {
-        const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
-        const actualRoute = joinPaths(this._apiBasePath, route);
-        return actualRoute;
-    }
-
     private buildQueryArguments(): any {
         const queryArguments: any = {};
 
@@ -202,28 +196,6 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
         }
 
         return queryArguments;
-    }
-
-    private addPagingAndSortingToRoute(route: string): string {
-        const additionalParams: Record<string, string | number> = {};
-        
-        if (this.paging.hasPaging) {
-            additionalParams.page = this.paging.page;
-            additionalParams.pageSize = this.paging.pageSize;
-        }
-
-        if (this.sorting.hasSorting) {
-            additionalParams.sortBy = this.sorting.field;
-            additionalParams.sortDirection = (this.sorting.direction === SortDirection.descending) ? 'desc' : 'asc';
-        }
-
-        const queryParams = UrlHelpers.buildQueryParams({}, additionalParams);
-        const queryString = queryParams.toString();
-        if (queryString) {
-            route += '?' + queryString;
-        }
-        
-        return route;
     }
 
     private deserializeResult(result: any): void {

@@ -24,16 +24,18 @@ public static class DbSetObserveExtensions
     /// </summary>
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="filter">Optional filter expression.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a collection of the type for the DbSet.</returns>
     public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
         this DbSet<TEntity> dbSet,
-        Expression<Func<TEntity, bool>>? filter = null)
+        Expression<Func<TEntity, bool>>? filter = null,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
         return dbSet.Observe(
-            () => dbSet.Where(filter),
+            () => ApplyConfigure(dbSet, configure).Where(filter),
             entities => new BehaviorSubject<IEnumerable<TEntity>>(entities),
             (entities, observable) => observable.OnNext([.. entities]));
     }
@@ -43,15 +45,17 @@ public static class DbSetObserveExtensions
     /// </summary>
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="filter">Optional filter expression.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
     public static ISubject<TEntity> ObserveSingle<TEntity>(
         this DbSet<TEntity> dbSet,
-        Expression<Func<TEntity, bool>>? filter = null)
+        Expression<Func<TEntity, bool>>? filter = null,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.ObserveSingleCore(() => dbSet.Where(filter));
+        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet, configure).Where(filter));
     }
 
     /// <summary>
@@ -59,11 +63,15 @@ public static class DbSetObserveExtensions
     /// </summary>
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="id">The identifier of the entity to observe.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with an instance of the type.</returns>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the entity type does not have an Id property.</exception>
-    public static ISubject<TEntity> ObserveById<TEntity, TId>(this DbSet<TEntity> dbSet, TId id)
+    public static ISubject<TEntity> ObserveById<TEntity, TId>(
+        this DbSet<TEntity> dbSet,
+        TId id,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         var parameter = Expression.Parameter(typeof(TEntity), "e");
@@ -75,7 +83,7 @@ public static class DbSetObserveExtensions
         var equals = Expression.Equal(property, constant);
         var lambda = Expression.Lambda<Func<TEntity, bool>>(equals, parameter);
 
-        return dbSet.ObserveSingleCore(() => dbSet.Where(lambda));
+        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet, configure).Where(lambda));
     }
 
     static ISubject<TEntity> ObserveSingleCore<TEntity>(
@@ -330,6 +338,10 @@ public static class DbSetObserveExtensions
 
         return serviceProvider.GetRequiredService<ICurrentDbContext>().Context;
     }
+
+    static IQueryable<TEntity> ApplyConfigure<TEntity>(DbSet<TEntity> dbSet, Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
+        where TEntity : class =>
+        configure is not null ? configure(dbSet) : dbSet;
 
     /// <summary>
     /// Internal class used as an identifying type for logging purpose.
