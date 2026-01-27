@@ -10,7 +10,7 @@ public class and_cookie_exists_in_response_with_path : given.an_http_listener_re
     const string CookieName = "test-cookie";
     const string CookiePath = "/api/v1";
     HttpListenerContext _listenerContext;
-    Cookie _cookieAfterRemove;
+    string[] _setCookieHeaders;
 
     async Task Establish()
     {
@@ -23,11 +23,11 @@ public class and_cookie_exists_in_response_with_path : given.an_http_listener_re
     void Because()
     {
         _requestContext.RemoveCookie(CookieName);
-        _cookieAfterRemove = _listenerContext.Response.Cookies[CookieName]!;
+        _setCookieHeaders = _listenerContext.Response.Headers.GetValues("Set-Cookie") ?? [];
     }
 
-    [Fact] void should_have_only_one_cookie_in_response() => _listenerContext.Response.Cookies.Count.ShouldEqual(1);
-    [Fact] void should_have_empty_value() => _cookieAfterRemove.Value.ShouldEqual(string.Empty);
-    [Fact] void should_have_expired_date() => _cookieAfterRemove.Expires.ShouldBeLessThan(DateTime.Now);
-    [Fact] void should_preserve_the_path() => _cookieAfterRemove.Path.ShouldEqual(CookiePath);
+    [Fact] void should_have_two_set_cookie_headers() => _setCookieHeaders.Length.ShouldEqual(2);
+    [Fact] void should_have_removal_header_with_empty_value() => _setCookieHeaders[1].ShouldContain($"{CookieName}=;");
+    [Fact] void should_have_removal_header_with_expires_in_past() => _setCookieHeaders[1].ShouldContain("Expires=");
+    [Fact] void should_have_removal_header_with_root_path() => _setCookieHeaders[1].ShouldContain("Path=/");
 }

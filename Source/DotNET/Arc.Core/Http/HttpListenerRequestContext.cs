@@ -112,42 +112,20 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     /// <inheritdoc/>
     public void AppendCookie(string key, string value, CookieOptions options)
     {
-        var cookie = new Cookie(key, value)
-        {
-            HttpOnly = options.HttpOnly,
-            Secure = options.Secure,
-            Path = options.Path,
-            Domain = options.Domain
-        };
-
-        if (options.Expires.HasValue)
-        {
-            cookie.Expires = options.Expires.Value.DateTime;
-        }
-
-        context.Response.Cookies.Add(cookie);
+        var cookieHeader = BuildSetCookieHeader(key, value, options);
+        context.Response.AppendHeader("Set-Cookie", cookieHeader);
     }
 
     /// <inheritdoc/>
     public void RemoveCookie(string key)
     {
-        var existingCookie = context.Response.Cookies[key];
-        if (existingCookie is not null)
+        var expiredOptions = new CookieOptions
         {
-            context.Response.Cookies.Remove(existingCookie);
-            existingCookie.Value = string.Empty;
-            existingCookie.Expired = true;
-            existingCookie.Expires = DateTime.Now.AddDays(-1);
-            context.Response.Cookies.Add(existingCookie);
-        }
-        else
-        {
-            var cookie = new Cookie(key, string.Empty)
-            {
-                Expires = DateTime.Now.AddDays(-1)
-            };
-            context.Response.Cookies.Add(cookie);
-        }
+            Expires = DateTimeOffset.Now.AddDays(-1),
+            Path = "/"
+        };
+        var cookieHeader = BuildSetCookieHeader(key, string.Empty, expiredOptions);
+        context.Response.AppendHeader("Set-Cookie", cookieHeader);
     }
 
     /// <inheritdoc/>
@@ -209,5 +187,43 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
             result[cookie.Name] = cookie.Value;
         }
         return result.AsReadOnly();
+    }
+
+    static string BuildSetCookieHeader(string key, string value, CookieOptions options)
+    {
+        var builder = new StringBuilder();
+        builder.Append($"{key}={value}");
+
+        if (!string.IsNullOrEmpty(options.Path))
+        {
+            builder.Append($"; Path={options.Path}");
+        }
+
+        if (!string.IsNullOrEmpty(options.Domain))
+        {
+            builder.Append($"; Domain={options.Domain}");
+        }
+
+        if (options.Expires.HasValue)
+        {
+            builder.Append($"; Expires={options.Expires.Value.UtcDateTime:R}");
+        }
+
+        if (options.HttpOnly)
+        {
+            builder.Append("; HttpOnly");
+        }
+
+        if (options.Secure)
+        {
+            builder.Append("; Secure");
+        }
+
+        if (options.SameSite != SameSiteMode.Unspecified)
+        {
+            builder.Append($"; SameSite={options.SameSite}");
+        }
+
+        return builder.ToString();
     }
 }
