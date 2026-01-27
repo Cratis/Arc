@@ -63,7 +63,7 @@ public class ObservableQueryExecutionContext<TResult>(
     /// <param name="timeout">Maximum time to wait for the update.</param>
     /// <returns>An awaitable task.</returns>
     /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when no update is received within the timeout.</exception>
-    public async Task UpdateAndWaitAsync(TResult data, TimeSpan? timeout = null)
+    public async Task UpdateAndWait(TResult data, TimeSpan? timeout = null)
     {
         // Reset for new update
         _updateReceived = new TaskCompletionSource<bool>();

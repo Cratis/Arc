@@ -47,7 +47,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 
         // Start a background task to keep the connection alive and receive notifications
         _listenerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _listenerTask = Task.Run(async () => await ListenLoopAsync(_listenerCts.Token), _listenerCts.Token);
+        _listenerTask = Task.Run(async () => await ListenLoop(_listenerCts.Token), _listenerCts.Token);
     }
 #pragma warning restore CA2100
 
@@ -75,7 +75,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
             _listenerTask = null;
         }
 
-        await CleanupConnectionAsync();
+        await CleanupConnection();
 
         logger.StoppedListeningPostgreSql(_channelName ?? "unknown");
     }
@@ -104,7 +104,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
         {
             try
             {
-                await EnsureTriggerExistsAsync(_tableName!, cancellationToken);
+                await EnsureTriggerExists(_tableName!, cancellationToken);
                 _triggerCreated = true;
             }
             catch (PostgresException ex) when (ex.SqlState == "42501")
@@ -128,7 +128,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
         logger.StartedListeningPostgreSql(_channelName!);
     }
 
-    async Task CleanupConnectionAsync()
+    async Task CleanupConnection()
     {
         if (_connection is not null)
         {
@@ -153,7 +153,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 #pragma warning restore CA2100
 
 #pragma warning disable CA2100, MA0101, MA0136 // Review SQL queries for security vulnerabilities, Use raw string literal
-    async Task EnsureTriggerExistsAsync(string tableName, CancellationToken cancellationToken)
+    async Task EnsureTriggerExists(string tableName, CancellationToken cancellationToken)
     {
         var functionName = $"notify_{tableName.ToLowerInvariant()}_changes";
         var triggerName = $"trigger_{tableName.ToLowerInvariant()}_notify";
@@ -193,7 +193,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
     }
 #pragma warning restore CA2100, MA0101, MA0136
 
-    async Task ListenLoopAsync(CancellationToken cancellationToken)
+    async Task ListenLoop(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested && !_disposed)
         {
@@ -203,7 +203,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
                 {
                     // Attempt to reconnect
                     logger.PostgreSqlReconnecting(_channelName ?? "unknown");
-                    await CleanupConnectionAsync();
+                    await CleanupConnection();
                     await Task.Delay(_reconnectDelay, cancellationToken);
                     await ConnectAndSubscribe(cancellationToken);
                 }

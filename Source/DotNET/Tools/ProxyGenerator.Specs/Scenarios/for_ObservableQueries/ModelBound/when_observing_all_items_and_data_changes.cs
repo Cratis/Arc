@@ -31,7 +31,7 @@ public class when_observing_all_items_and_data_changes : given.a_scenario_web_ap
             updateReceiver: ObservableReadModel.UpdateAllItems);
 
         // Trigger update and wait for notification
-        await _executionResult.UpdateAndWaitAsync(_updatedData);
+        await _executionResult.UpdateAndWait(_updatedData);
     }
 
     [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();

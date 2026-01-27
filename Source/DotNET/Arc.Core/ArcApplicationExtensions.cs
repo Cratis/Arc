@@ -80,12 +80,12 @@ public static class ArcApplicationExtensions
         await app.StartAsync();
 
         var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
-        await WaitForShutdownAsync(lifetime);
+        await WaitForShutdown(lifetime);
 
         await app.StopAsync();
     }
 
-    static Task WaitForShutdownAsync(IHostApplicationLifetime lifetime)
+    static Task WaitForShutdown(IHostApplicationLifetime lifetime)
     {
         var tcs = new TaskCompletionSource();
         lifetime.ApplicationStopping.Register(() => tcs.TrySetResult());

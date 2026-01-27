@@ -45,7 +45,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
         // Start SqlDependency
         SqlDependency.Start(connectionString);
 
-        await SetupDependencyAsync();
+        await SetupDependency();
 
         logger.StartedListeningSqlServer(tableName);
     }
@@ -86,7 +86,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
     }
 
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - table name comes from EF Core metadata
-    async Task SetupDependencyAsync()
+    async Task SetupDependency()
     {
         if (_cancellationToken.IsCancellationRequested || _disposed)
         {
@@ -170,7 +170,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
                     {
                         // Add delay before re-subscribing to prevent spin
                         await Task.Delay(_resubscribeDelay, _cancellationToken);
-                        await SetupDependencyAsync();
+                        await SetupDependency();
                     }
                     catch (OperationCanceledException)
                     {

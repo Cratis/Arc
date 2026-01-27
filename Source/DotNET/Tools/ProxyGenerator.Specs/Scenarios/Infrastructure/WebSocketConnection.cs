@@ -23,7 +23,7 @@ sealed class WebSocketConnection(string id, string url, JavaScriptRuntime runtim
     ClientWebSocket? _webSocket;
     bool _disposed;
 
-    public async Task ConnectAsync()
+    public async Task Connect()
     {
         try
         {
@@ -70,7 +70,7 @@ if (globalThis.__webSockets && globalThis.__webSockets['{_id}']) {{
         }
     }
 
-    public async Task SendAsync(string message)
+    public async Task Send(string message)
     {
         if (_webSocket?.State == WebSocketState.Open)
         {
