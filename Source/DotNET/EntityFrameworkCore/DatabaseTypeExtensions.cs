@@ -20,14 +20,17 @@ public static class DatabaseTypeExtensions
     /// <exception cref="UnsupportedDatabaseType">Thrown if the connection string does not have a supported database type.</exception>
     public static DatabaseType GetDatabaseType(this string connectionString) => connectionString switch
     {
+        // SQL Server: Check for SQL Server-specific keywords first since "Data Source=" is ambiguous
+        _ when IsSqlServerConnectionString(connectionString) => DatabaseType.SqlServer,
+
+        // PostgreSQL: Uses Host= and Database=
+        _ when connectionString.Contains("host=", StringComparison.InvariantCultureIgnoreCase) &&
+               connectionString.Contains("database=", StringComparison.InvariantCultureIgnoreCase) => DatabaseType.PostgreSql,
+
+        // SQLite: Uses Data Source= or Filename= but without SQL Server-specific keywords
         _ when connectionString.Contains("data source=", StringComparison.InvariantCultureIgnoreCase) ||
                connectionString.Contains("filename=", StringComparison.InvariantCultureIgnoreCase) => DatabaseType.Sqlite,
 
-        _ when connectionString.Contains("server=", StringComparison.InvariantCultureIgnoreCase) &&
-               connectionString.Contains("database=", StringComparison.InvariantCultureIgnoreCase) => DatabaseType.SqlServer,
-
-        _ when connectionString.Contains("host=", StringComparison.InvariantCultureIgnoreCase) &&
-               connectionString.Contains("database=", StringComparison.InvariantCultureIgnoreCase) => DatabaseType.PostgreSql,
         _ => throw new UnsupportedDatabaseType(connectionString)
     };
 
@@ -133,5 +136,28 @@ public static class DatabaseTypeExtensions
         }
 
         return builder;
+    }
+
+    static bool IsSqlServerConnectionString(string connectionString)
+    {
+        // SQL Server connection strings typically use "Server=" or "Data Source=" with additional SQL Server-specific keywords
+        var hasServerKeyword = connectionString.Contains("server=", StringComparison.InvariantCultureIgnoreCase);
+        var hasDataSource = connectionString.Contains("data source=", StringComparison.InvariantCultureIgnoreCase);
+
+        if (!hasServerKeyword && !hasDataSource)
+        {
+            return false;
+        }
+
+        // Check for SQL Server-specific keywords that distinguish it from SQLite
+        return connectionString.Contains("initial catalog=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("database=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("user id=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("integrated security=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("trust server certificate=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("trustservercertificate=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("encrypt=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("multipleactiveresultsets=", StringComparison.InvariantCultureIgnoreCase) ||
+               connectionString.Contains("application name=", StringComparison.InvariantCultureIgnoreCase);
     }
 }
