@@ -9,8 +9,7 @@ public class and_cookie_was_previously_appended : given.an_http_listener_request
 {
     const string CookieName = "test-cookie";
     HttpListenerContext _listenerContext;
-    int _cookieCountAfterRemove;
-    string _cookieValueAfterRemove;
+    string[] _setCookieHeaders;
 
     async Task Establish()
     {
@@ -24,11 +23,10 @@ public class and_cookie_was_previously_appended : given.an_http_listener_request
     void Because()
     {
         _requestContext.RemoveCookie(CookieName);
-        _cookieCountAfterRemove = _listenerContext.Response.Cookies.Count;
-        _cookieValueAfterRemove = _listenerContext.Response.Cookies[CookieName]!.Value;
+        _setCookieHeaders = _listenerContext.Response.Headers.GetValues("Set-Cookie") ?? [];
     }
 
-    [Fact] void should_have_only_one_cookie_in_response() => _cookieCountAfterRemove.ShouldEqual(1);
-    [Fact] void should_have_empty_value() => _cookieValueAfterRemove.ShouldEqual(string.Empty);
-    [Fact] void should_have_expired_cookie() => _listenerContext.Response.Cookies[CookieName]!.Expires.ShouldBeLessThan(DateTime.Now);
+    [Fact] void should_have_two_set_cookie_headers() => _setCookieHeaders.Length.ShouldEqual(2);
+    [Fact] void should_have_removal_header_with_empty_value() => _setCookieHeaders[1].ShouldContain($"{CookieName}=;");
+    [Fact] void should_have_removal_header_with_expires_in_past() => _setCookieHeaders[1].ShouldContain("Expires=");
 }

@@ -21,7 +21,7 @@ public class CookieOptions
     /// <summary>
     /// Gets or sets the SameSite mode for the cookie.
     /// </summary>
-    public SameSiteMode SameSite { get; set; }
+    public SameSiteMode SameSite { get; set; } = SameSiteMode.Unspecified;
 
     /// <summary>
     /// Gets or sets the path for the cookie.

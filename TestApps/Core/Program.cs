@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Http;
 
 var builder = ArcApplication.CreateBuilder(args);
 builder.AddCratisArc(configureOptions: options =>
@@ -13,5 +14,23 @@ builder.AddCratisArc(configureOptions: options =>
 
 var app = builder.Build();
 app.UseCratisArc();
+
+app.MapGet("/", async (req) => await req.WriteAsync("Hello, World!"));
+
+app.MapGet("/add-cookies", (req) =>
+{
+    req.AppendCookie("cookie1", "example-value", new CookieOptions { Path = "/" });
+    req.AppendCookie("cookie2", "example-value", new CookieOptions { Path = "/" });
+    req.AppendCookie("cookie3", "example-value", new CookieOptions { Path = "/" });
+    return Task.CompletedTask;
+});
+
+app.MapGet("/remove-cookies", (req) =>
+{
+    req.RemoveCookie("cookie1");
+    req.RemoveCookie("cookie2");
+    req.RemoveCookie("cookie3");
+    return Task.CompletedTask;
+});
 
 await app.RunAsync();

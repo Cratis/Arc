@@ -9,7 +9,7 @@ public class without_existing_cookie : given.an_http_listener_request_context
 {
     const string CookieName = "test-cookie";
     HttpListenerContext _listenerContext;
-    Cookie _cookieAfterRemove;
+    string[] _setCookieHeaders;
 
     async Task Establish()
     {
@@ -20,10 +20,10 @@ public class without_existing_cookie : given.an_http_listener_request_context
     void Because()
     {
         _requestContext.RemoveCookie(CookieName);
-        _cookieAfterRemove = _listenerContext.Response.Cookies[CookieName];
+        _setCookieHeaders = _listenerContext.Response.Headers.GetValues("Set-Cookie") ?? [];
     }
 
-    [Fact] void should_add_expired_cookie() => _cookieAfterRemove.ShouldNotBeNull();
-    [Fact] void should_have_empty_value() => _cookieAfterRemove.Value.ShouldEqual(string.Empty);
-    [Fact] void should_have_expired_date() => _cookieAfterRemove.Expires.ShouldBeLessThan(DateTime.Now);
+    [Fact] void should_add_set_cookie_header() => _setCookieHeaders.Length.ShouldEqual(1);
+    [Fact] void should_have_empty_value() => _setCookieHeaders[0].ShouldContain($"{CookieName}=;");
+    [Fact] void should_have_expired_date() => _setCookieHeaders[0].ShouldContain("Expires=");
 }
