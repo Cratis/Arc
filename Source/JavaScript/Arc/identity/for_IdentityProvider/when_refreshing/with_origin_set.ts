@@ -2,12 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { IdentityProvider } from '../../IdentityProvider';
-import { Globals } from '../../../Globals';
 import { an_identity_provider } from '../given/an_identity_provider';
 import { given } from '../../../given';
 
-describe('when refreshing with globals api base path', given(an_identity_provider, context => {
-    let originalGlobalsApiBasePath: string;
+describe('when refreshing with origin set', given(an_identity_provider, context => {
     let actualUrl: URL;
 
     beforeEach(async () => {
@@ -20,20 +18,28 @@ describe('when refreshing with globals api base path', given(an_identity_provide
             })
         } as Response);
 
-        originalGlobalsApiBasePath = Globals.apiBasePath;
-        Globals.apiBasePath = '/global/api';
-        IdentityProvider.setApiBasePath('');
+        IdentityProvider.setOrigin('https://example.com');
+        IdentityProvider.setApiBasePath('/api/v1');
+        
         await IdentityProvider.refresh();
         
         actualUrl = context.fetchStub.firstCall.args[0];
     });
 
     afterEach(() => {
-        Globals.apiBasePath = originalGlobalsApiBasePath;
+        IdentityProvider.setOrigin('');
         IdentityProvider.setApiBasePath('');
     });
 
-    it('should_call_fetch_with_globals_api_base_path_prefixed', () => {
-        actualUrl.pathname.should.equal('/global/api/.cratis/me');
+    it('should_call_fetch_with_full_url_including_origin', () => {
+        actualUrl.href.should.equal('https://example.com/api/v1/.cratis/me');
+    });
+
+    it('should_have_correct_origin', () => {
+        actualUrl.origin.should.equal('https://example.com');
+    });
+
+    it('should_have_correct_pathname', () => {
+        actualUrl.pathname.should.equal('/api/v1/.cratis/me');
     });
 }));
