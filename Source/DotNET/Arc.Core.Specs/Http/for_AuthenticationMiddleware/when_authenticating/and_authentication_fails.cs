@@ -15,10 +15,10 @@ public class and_authentication_fails : given.an_authentication_middleware
         _authentication.HandleAuthentication(_httpRequestContext).Returns(Task.FromResult(AuthenticationResult.Failed(new AuthenticationFailureReason("InvalidToken"))));
     }
 
-    async Task Because() => _result = await _middleware.AuthenticateAsync(_httpRequestContext, _metadata);
+    async Task Because() => _result = await _middleware.Authenticate(_httpRequestContext, _metadata);
 
     [Fact] void should_return_false() => _result.ShouldBeFalse();
     [Fact] void should_call_authentication() => _authentication.Received(1).HandleAuthentication(_httpRequestContext);
     [Fact] void should_set_status_code_to_unauthorized() => _httpRequestContext.Received().SetStatusCode(401);
-    [Fact] void should_write_unauthorized_message() => _httpRequestContext.Received().WriteAsync("Unauthorized", Arg.Any<CancellationToken>());
+    [Fact] void should_write_unauthorized_message() => _httpRequestContext.Received().Write("Unauthorized", Arg.Any<CancellationToken>());
 }

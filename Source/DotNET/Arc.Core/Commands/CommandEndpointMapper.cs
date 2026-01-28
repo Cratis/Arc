@@ -96,7 +96,7 @@ public static class CommandEndpointMapper
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
-                var command = await context.ReadBodyAsJsonAsync(commandType, context.RequestAborted);
+                var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
                 CommandResult commandResult;
 
                 if (command is null)
@@ -111,7 +111,7 @@ public static class CommandEndpointMapper
                 }
 
                 context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);
-                await context.WriteResponseAsJsonAsync(commandResult, commandResult.GetType(), context.RequestAborted);
+                await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
             metadata);
     }

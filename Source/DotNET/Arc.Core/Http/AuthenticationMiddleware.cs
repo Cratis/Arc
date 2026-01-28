@@ -17,7 +17,7 @@ public class AuthenticationMiddleware(IAuthentication authentication)
     /// <param name="context">The HTTP request context.</param>
     /// <param name="metadata">The endpoint metadata.</param>
     /// <returns>True if the request is authenticated or allows anonymous access, false otherwise.</returns>
-    public async Task<bool> AuthenticateAsync(IHttpRequestContext context, EndpointMetadata? metadata)
+    public async Task<bool> Authenticate(IHttpRequestContext context, EndpointMetadata? metadata)
     {
         if (metadata?.AllowAnonymous == true || !authentication.HasHandlers)
         {
@@ -29,7 +29,7 @@ public class AuthenticationMiddleware(IAuthentication authentication)
         if (!result.IsAuthenticated)
         {
             context.SetStatusCode(401);
-            await context.WriteAsync("Unauthorized", context.RequestAborted);
+            await context.Write("Unauthorized", context.RequestAborted);
             return false;
         }
 

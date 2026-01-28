@@ -15,7 +15,7 @@ public class HttpListenerWebSocketContext(HttpListenerContext listenerContext) :
     public bool IsWebSocketRequest => listenerContext.Request.IsWebSocketRequest;
 
     /// <inheritdoc/>
-    public async Task<IWebSocket> AcceptWebSocketAsync(CancellationToken cancellationToken = default)
+    public async Task<IWebSocket> AcceptWebSocket(CancellationToken cancellationToken = default)
     {
         var webSocketContext = await listenerContext.AcceptWebSocketAsync(null);
         return new HttpListenerWebSocket(webSocketContext.WebSocket);

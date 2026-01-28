@@ -186,7 +186,7 @@ public static class DbSetObserveExtensions
                 try
                 {
                     databaseNotifier = notifierFactory.Create(dbContext);
-                    await databaseNotifier.StartListeningAsync(tableName, OnChangeDetected, cancellationToken);
+                    await databaseNotifier.StartListening(tableName, OnChangeDetected, cancellationToken);
                     logger.DatabaseNotifierStarted(typeof(TEntity).Name);
                 }
                 catch (Exception ex)

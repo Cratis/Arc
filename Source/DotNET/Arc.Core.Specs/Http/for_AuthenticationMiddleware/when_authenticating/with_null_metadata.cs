@@ -14,7 +14,7 @@ public class with_null_metadata : given.an_authentication_middleware
         _authentication.HandleAuthentication(_httpRequestContext).Returns(Task.FromResult(AuthenticationResult.Anonymous));
     }
 
-    async Task Because() => _result = await _middleware.AuthenticateAsync(_httpRequestContext, null);
+    async Task Because() => _result = await _middleware.Authenticate(_httpRequestContext, null);
 
     [Fact] void should_return_false() => _result.ShouldBeFalse();
     [Fact] void should_call_authentication() => _authentication.Received(1).HandleAuthentication(_httpRequestContext);

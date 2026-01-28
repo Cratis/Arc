@@ -18,5 +18,5 @@ public interface IWebSocketContext
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A <see cref="IWebSocket"/> for communication.</returns>
-    Task<IWebSocket> AcceptWebSocketAsync(CancellationToken cancellationToken = default);
+    Task<IWebSocket> AcceptWebSocket(CancellationToken cancellationToken = default);
 }

@@ -24,5 +24,5 @@ public class with_authenticated_result : given.an_authenticated_user
             o.Secure &&
             o.SameSite == Http.SameSiteMode.Lax &&
             o.Path == "/"));
-    [Fact] void should_write_json_response() => _httpRequestContext.Received(1).WriteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    [Fact] void should_write_json_response() => _httpRequestContext.Received(1).Write(Arg.Any<string>(), Arg.Any<CancellationToken>());
 }

@@ -15,7 +15,7 @@ public class AspNetCoreWebSocketContext(HttpContext httpContext) : IWebSocketCon
     public bool IsWebSocketRequest => httpContext.WebSockets.IsWebSocketRequest;
 
     /// <inheritdoc/>
-    public async Task<IWebSocket> AcceptWebSocketAsync(CancellationToken cancellationToken = default)
+    public async Task<IWebSocket> AcceptWebSocket(CancellationToken cancellationToken = default)
     {
         var webSocket = await httpContext.WebSockets.AcceptWebSocketAsync();
         return new AspNetCoreWebSocket(webSocket);

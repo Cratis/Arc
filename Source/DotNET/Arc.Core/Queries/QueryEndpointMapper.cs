@@ -84,7 +84,7 @@ public static class QueryEndpointMapper
                         }
 
                         context.SetStatusCode(queryResult.IsSuccess ? 200 : !queryResult.IsValid ? 400 : 500);
-                        await context.WriteResponseAsJsonAsync(queryResult, typeof(QueryResult), context.RequestAborted);
+                        await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
                     },
                     metadata);
             }

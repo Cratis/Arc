@@ -53,7 +53,7 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
 
     void Destroy()
     {
-        _endpointMapper.StopAsync().GetAwaiter().GetResult();
+        _endpointMapper.Stop().GetAwaiter().GetResult();
         _endpointMapper.Dispose();
         _httpClient.Dispose();
 
@@ -65,7 +65,7 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _endpointMapper.StopAsync();
+        await _endpointMapper.Stop();
         _endpointMapper.Dispose();
         _httpClient.Dispose();
 

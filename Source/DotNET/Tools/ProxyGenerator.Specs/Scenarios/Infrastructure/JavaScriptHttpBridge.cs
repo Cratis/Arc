@@ -151,7 +151,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasPendingFetch)
         {
             // Process the pending fetch request
-            result = await ProcessPendingFetchAsync();
+            result = await ProcessPendingFetch();
         }
 
         // Wait for promise resolution - kept high to account for slower CI/build server environments
@@ -244,7 +244,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             requestUrl = Runtime.Evaluate<string>("__pendingFetch.url");
 
             // Process the pending fetch request
-            result = await ProcessPendingFetchAsync();
+            result = await ProcessPendingFetch();
         }
         else
         {
@@ -465,7 +465,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         }
 
         // Start the connection in the background
-        _ = connection.ConnectAsync();
+        _ = connection.Connect();
 
         return wsId;
     }
@@ -476,7 +476,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             if (_webSockets.TryGetValue(wsId, out var connection))
             {
-                _ = connection.SendAsync(message);
+                _ = connection.Send(message);
             }
         }
     }
@@ -499,7 +499,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         Runtime.Execute(Scripts.FetchInterceptor);
     }
 
-    async Task<FetchResult> ProcessPendingFetchAsync()
+    async Task<FetchResult> ProcessPendingFetch()
     {
         // Get the pending fetch request details
         var hasPending = Runtime.Evaluate<bool>("__pendingFetch !== null");

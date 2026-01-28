@@ -18,7 +18,7 @@ public class and_user_is_authenticated : given.an_authentication_middleware
         _authentication.HandleAuthentication(_httpRequestContext).Returns(Task.FromResult(AuthenticationResult.Succeeded(_principal)));
     }
 
-    async Task Because() => _result = await _middleware.AuthenticateAsync(_httpRequestContext, _metadata);
+    async Task Because() => _result = await _middleware.Authenticate(_httpRequestContext, _metadata);
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
     [Fact] void should_call_authentication() => _authentication.Received(1).HandleAuthentication(_httpRequestContext);

@@ -76,7 +76,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= httpContext.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
-    public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
+    public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)
     {
         return await httpContext.Request.ReadFromJsonAsync(type, JsonSerializerOptions, cancellationToken);
     }
@@ -94,7 +94,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     }
 
     /// <inheritdoc/>
-    public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
+    public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
         await httpContext.Response.WriteAsJsonAsync(value, type, JsonSerializerOptions, cancellationToken);
     }
@@ -128,19 +128,19 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     }
 
     /// <inheritdoc/>
-    public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
+    public async Task Write(string text, CancellationToken cancellationToken = default)
     {
         await httpContext.Response.WriteAsync(text, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public async Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default)
+    public async Task WriteBytes(byte[] data, CancellationToken cancellationToken = default)
     {
         await httpContext.Response.Body.WriteAsync(data, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public async Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task WriteStream(Stream stream, CancellationToken cancellationToken = default)
     {
         await stream.CopyToAsync(httpContext.Response.Body, cancellationToken);
     }

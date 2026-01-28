@@ -22,7 +22,7 @@ public class ClientEnumerableObservable<T>(
     /// <inheritdoc/>
     public async Task HandleConnection(IHttpRequestContext context)
     {
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var webSocket = await context.WebSockets.AcceptWebSocket();
         using var cts = new CancellationTokenSource();
         var tsc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();

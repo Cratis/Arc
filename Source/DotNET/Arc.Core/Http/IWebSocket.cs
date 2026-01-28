@@ -23,7 +23,7 @@ public interface IWebSocket : IDisposable
     /// <param name="endOfMessage">Whether this is the end of the message.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
-    Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
+    Task Send(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
 
     /// <summary>
     /// Receives data from the WebSocket connection.
@@ -31,7 +31,7 @@ public interface IWebSocket : IDisposable
     /// <param name="buffer">The buffer to receive data into.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The result of the receive operation.</returns>
-    Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken);
+    Task<WebSocketReceiveResult> Receive(ArraySegment<byte> buffer, CancellationToken cancellationToken);
 
     /// <summary>
     /// Closes the WebSocket connection.
@@ -40,5 +40,5 @@ public interface IWebSocket : IDisposable
     /// <param name="statusDescription">The status description.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the async operation.</returns>
-    Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken);
+    Task Close(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken);
 }
