@@ -7,6 +7,7 @@ import { IIdentity } from './IIdentity';
 import { IdentityProviderResult } from './IdentityProviderResult';
 import { GetHttpHeaders } from 'GetHttpHeaders';
 import { Globals } from '../Globals';
+import { UrlHelpers } from '../UrlHelpers';
 import { joinPaths } from '../joinPaths';
 
 /**
@@ -75,8 +76,10 @@ export class IdentityProvider extends IIdentityProvider {
 
     static async refresh<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
         IdentityProvider.clearCookie();
+        const origin = IdentityProvider.origin || Globals.origin || '';
         const apiBasePath = IdentityProvider.apiBasePath || Globals.apiBasePath || '';
-        const url = joinPaths(apiBasePath, '/.cratis/me');
+        const route = joinPaths(apiBasePath, '/.cratis/me');
+        const url = UrlHelpers.createUrlFrom(origin, apiBasePath, route);
         const response = await fetch(
             url, {
             method: 'GET',
