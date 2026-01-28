@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Chronicle.CodeAnalysis.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Chronicle.CodeAnalysis</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Remove="../GlobalUsings.Specs.cs" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj" />
+    </ItemGroup>
+</Project>

@@ -21,4 +21,10 @@
         <PackageReference Include="Microsoft.Extensions.Logging" />
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
     </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false" />
+    </ItemGroup>
 </Project>

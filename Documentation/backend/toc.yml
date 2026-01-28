@@ -20,6 +20,8 @@
   href: proxy-generation/toc.yml
 - name: Chronicle
   href: chronicle/toc.yml
+- name: Code Analysis
+  href: code-analysis/toc.yml
 - name: Swagger
   href: swagger.md
 - name: Validation

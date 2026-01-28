@@ -1,2 +1,4 @@
 - name: Aggregates
   href: aggregates/toc.yml
+- name: Code Analysis
+  href: code-analysis/toc.yml
