@@ -24,6 +24,7 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
         var services = new ServiceCollection();
         services.AddSingleton<IHttpRequestContextAccessor, HttpRequestContextAccessor>();
         services.AddSingleton<IAuthentication, NoAuthentication>();
+        services.AddLogging();
         _serviceProvider = services.BuildServiceProvider();
 
         _httpClient = new HttpClient
