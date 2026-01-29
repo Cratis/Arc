@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
 using Cratis.Arc;
+using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
@@ -135,8 +136,11 @@ public static class DbSetObserveExtensions
         var entityType = dbSet.EntityType;
         var tableName = entityType.GetTableName() ?? typeof(TEntity).Name;
 
-        // Get DbContext for database notifier
+        // Get database information from DbContext - do this ONCE and early
         var dbContext = dbSet.GetDbContext();
+        var databaseType = dbContext.Database.GetDatabaseType();
+        var connectionString = dbContext.Database.GetConnectionString()
+            ?? throw new InvalidOperationException("Connection string is not available from the DbContext.");
 
         logger.StartingObservation(typeof(TEntity).Name);
 
@@ -185,7 +189,7 @@ public static class DbSetObserveExtensions
                 // Subscribe to database-level changes (cross-process notifications)
                 try
                 {
-                    databaseNotifier = notifierFactory.Create(dbContext);
+                    databaseNotifier = notifierFactory.Create(databaseType, connectionString);
                     await databaseNotifier.StartListening(tableName, OnChangeDetected, cancellationToken);
                     logger.DatabaseNotifierStarted(typeof(TEntity).Name);
                 }

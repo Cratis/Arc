@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe;
@@ -13,12 +12,8 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory) : IDatabaseChangeNotifierFactory
 {
     /// <inheritdoc/>
-    public IDatabaseChangeNotifier Create(DbContext dbContext)
+    public IDatabaseChangeNotifier Create(DatabaseType databaseType, string connectionString)
     {
-        var databaseType = dbContext.Database.GetDatabaseType();
-        var connectionString = dbContext.Database.GetConnectionString()
-            ?? throw new InvalidOperationException("Connection string is not available from the DbContext.");
-
         return databaseType switch
         {
             DatabaseType.PostgreSql => new PostgreSqlChangeNotifier(

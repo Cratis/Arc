@@ -47,6 +47,15 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Error, "Error re-subscribing to SQL Server notifications")]
     internal static partial void SqlServerResubscribeError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Debug, "Successfully set up SQL Server dependency for table {TableName}")]
+    internal static partial void SqlServerDependencySetupSuccess(this ILogger<SqlServerChangeNotifier> logger, string tableName);
+
+    [LoggerMessage(LogLevel.Warning, "Failed to set up SQL Server dependency for table {TableName} (attempt {ConsecutiveFailures})")]
+    internal static partial void SqlServerDependencySetupFailed(this ILogger<SqlServerChangeNotifier> logger, string tableName, Exception ex, int consecutiveFailures);
+
+    [LoggerMessage(LogLevel.Error, "Error in OnChanged callback")]
+    internal static partial void OnChangedCallbackError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
+
     // SQLite
     [LoggerMessage(LogLevel.Information, "Started listening for SQLite changes on table {TableName}")]
     internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);
