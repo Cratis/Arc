@@ -29,7 +29,7 @@ public sealed class SqliteChangeNotifier(string connectionString, ILogger<Sqlite
     bool _disposed;
 
     /// <inheritdoc/>
-    public async Task StartListening(string tableName, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
         _tableName = tableName;
         _onChanged = onChanged;

@@ -30,6 +30,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
     SqlConnection? _connection;
     SqlDependency? _dependency;
     string? _tableName;
+    string? _columnList;
     Action? _onChanged;
     CancellationToken _cancellationToken;
     CancellationTokenSource? _internalCancellationTokenSource;
@@ -39,9 +40,10 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
     int _consecutiveFailures;
 
     /// <inheritdoc/>
-    public async Task StartListening(string tableName, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
         _tableName = tableName;
+        _columnList = string.Join(", ", columnNames.Select(c => $"[{c}]"));
         _onChanged = onChanged;
         _cancellationToken = cancellationToken;
         _internalCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -155,9 +157,25 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
             }
 
             // SqlDependency requires a specific query format
-            // Using a minimal SELECT to reduce overhead
             // Must use two-part name (schema.table) and specific columns (no *)
-            var sql = $"SELECT Id FROM dbo.[{_tableName}]";
+            // We select all columns to ensure notifications are received for any column change
+            var sql = $"SELECT {_columnList} FROM dbo.[{_tableName}]";
+
+            // Set the required SET options for SqlDependency
+            // These are REQUIRED by SQL Server Query Notifications
+            const string setOptions = "SET ARITHABORT ON; " +
+                                      "SET CONCAT_NULL_YIELDS_NULL ON; " +
+                                      "SET QUOTED_IDENTIFIER ON; " +
+                                      "SET ANSI_NULLS ON; " +
+                                      "SET ANSI_PADDING ON; " +
+                                      "SET ANSI_WARNINGS ON; " +
+                                      "SET NUMERIC_ROUNDABORT OFF;";
+
+            await using (var setOptionsCommand = new SqlCommand(setOptions, _connection))
+            {
+                await setOptionsCommand.ExecuteNonQueryAsync(effectiveCancellationToken);
+            }
+
             await using var command = new SqlCommand(sql, _connection);
             command.CommandTimeout = 30;
 
@@ -165,6 +183,8 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
 
             _dependency = new SqlDependency(command);
             _dependency.OnChange += OnDependencyChange;
+
+            logger.SqlServerDependencyCreated(_dependency.Id, _dependency.HasChanges);
 
             // Execute the query to register the dependency
             // Do NOT use 'await using' - it will dispose the connection!

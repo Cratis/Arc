@@ -53,6 +53,9 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Debug, "Successfully set up SQL Server dependency for table {TableName}")]
     internal static partial void SqlServerDependencySetupSuccess(this ILogger<SqlServerChangeNotifier> logger, string tableName);
 
+    [LoggerMessage(LogLevel.Debug, "Created SQL Server dependency: Id={Id}, HasChanges={HasChanges}")]
+    internal static partial void SqlServerDependencyCreated(this ILogger<SqlServerChangeNotifier> logger, string id, bool hasChanges);
+
     [LoggerMessage(LogLevel.Warning, "Failed to set up SQL Server dependency for table {TableName} (attempt {ConsecutiveFailures})")]
     internal static partial void SqlServerDependencySetupFailed(this ILogger<SqlServerChangeNotifier> logger, string tableName, Exception ex, int consecutiveFailures);
 

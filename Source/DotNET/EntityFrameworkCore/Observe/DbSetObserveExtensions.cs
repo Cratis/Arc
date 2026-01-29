@@ -141,6 +141,14 @@ public static class DbSetObserveExtensions
         var entityType = dbSet.EntityType;
         var tableName = entityType.GetTableName() ?? typeof(TEntity).Name;
 
+        // Get column names for SQL Server SqlDependency
+        // SqlDependency monitors only the columns specified in the SELECT query
+        var columnNames = entityType.GetProperties()
+            .Where(p => !p.IsShadowProperty())
+            .Select(p => p.GetColumnName())
+            .Where(name => name is not null)
+            .ToList();
+
         // Get database information from DbContext - do this ONCE and early
         var dbContext = dbSet.GetDbContext();
         var dbContextType = dbContext.GetType();
@@ -220,7 +228,7 @@ public static class DbSetObserveExtensions
                 try
                 {
                     databaseNotifier = notifierFactory.Create(databaseType, connectionString);
-                    await databaseNotifier.StartListening(tableName, OnChangeDetected, cancellationToken);
+                    await databaseNotifier.StartListening(tableName, columnNames, OnChangeDetected, cancellationToken);
                     logger.DatabaseNotifierStarted(typeof(TEntity).Name);
                 }
                 catch (Exception ex)

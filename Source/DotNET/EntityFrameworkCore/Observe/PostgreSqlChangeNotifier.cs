@@ -37,7 +37,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 
     /// <inheritdoc/>
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - channel name is derived from table name from EF Core metadata
-    public async Task StartListening(string tableName, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
         _tableName = tableName;
         _channelName = $"table_change_{tableName.ToLowerInvariant()}";
