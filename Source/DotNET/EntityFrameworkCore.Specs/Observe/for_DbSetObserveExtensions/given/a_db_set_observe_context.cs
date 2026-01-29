@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Queries;
 using Cratis.Execution;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,11 +35,18 @@ public class a_db_set_observe_context : Specification
     protected IServiceProvider _serviceProvider;
     protected IEntityChangeTracker _entityChangeTracker;
     protected QueryContext _queryContext;
+    SqliteConnection _connection;
 
     void Establish()
     {
         // Default query context - tests can override in their own Establish
         _queryContext = new QueryContext("[Test]", CorrelationId.New(), Paging.NotPaged, Sorting.None);
+
+        // Create a shared SQLite in-memory connection
+        // This connection must stay open for the lifetime of the test
+        // Otherwise the in-memory database will be destroyed
+        _connection = new SqliteConnection("Data Source=:memory:");
+        _connection.Open();
 
         // Set up service collection
         var services = new ServiceCollection();
@@ -50,6 +58,14 @@ public class a_db_set_observe_context : Specification
         _queryContextManager.Current.Returns(_ => _queryContext);
         services.AddSingleton(_queryContextManager);
 
+        // Register DbContext with the shared connection so all scoped instances use the same database
+        services.AddDbContext<TestDbContext>((serviceProvider, options) =>
+        {
+            var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
+            options.UseSqlite(_connection)
+                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker));
+        });
+
         _serviceProvider = services.BuildServiceProvider();
 
         // Set the Internals.ServiceProvider so that DbSetObserveExtensions can access it
@@ -57,23 +73,28 @@ public class a_db_set_observe_context : Specification
 
         _entityChangeTracker = _serviceProvider.GetRequiredService<IEntityChangeTracker>();
 
-        // Create in-memory SQLite database
+        // Get the DbContext from DI to ensure it's set up correctly
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+        dbContext.Database.EnsureCreated();
+
+        // Create the test DbContext for direct use in tests
         var options = new DbContextOptionsBuilder<TestDbContext>()
-            .UseSqlite("Data Source=:memory:")
+            .UseSqlite(_connection)
             .AddInterceptors(new ObserveInterceptor(_entityChangeTracker))
             .Options;
 
         _dbContext = new TestDbContext(options);
-        _dbContext.Database.OpenConnection();
-        _dbContext.Database.EnsureCreated();
     }
 
     void Cleanup()
     {
-        if (_dbContext is not null)
+        _dbContext?.Dispose();
+
+        if (_connection is not null)
         {
-            _dbContext.Database.CloseConnection();
-            _dbContext.Dispose();
+            _connection.Close();
+            _connection.Dispose();
         }
     }
 
