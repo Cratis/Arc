@@ -152,6 +152,7 @@ public static class DbSetObserveExtensions
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
+        var queryExecutionSemaphore = new SemaphoreSlim(1, 1);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         var cancellationToken = cancellationTokenSource.Token;
 
@@ -173,8 +174,20 @@ public static class DbSetObserveExtensions
                         return;
                     }
 
+                    // Prevent queries from running during cleanup
+                    if (!queryExecutionSemaphore.Wait(0))
+                    {
+                        logger.SkippingQueryDuringCleanup(typeof(TEntity).Name);
+                        return;
+                    }
+
                     try
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
                         logger.ChangeDetectedRequerying(typeof(TEntity).Name);
 
                         // Create a new scope to get a fresh DbContext
@@ -193,6 +206,10 @@ public static class DbSetObserveExtensions
                     catch (Exception ex)
                     {
                         logger.UnexpectedError(ex);
+                    }
+                    finally
+                    {
+                        queryExecutionSemaphore.Release();
                     }
                 }
 
@@ -215,8 +232,10 @@ public static class DbSetObserveExtensions
                 _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
                 // Initial query - create a scope for it
-                using (var scope = serviceScopeFactory.CreateScope())
+                await queryExecutionSemaphore.WaitAsync(cancellationToken);
+                try
                 {
+                    using var scope = serviceScopeFactory.CreateScope();
                     var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
                     var freshDbSet = freshDbContext.Set<TEntity>();
                     var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
@@ -225,6 +244,10 @@ public static class DbSetObserveExtensions
                     var initialEntities = await query.ToListAsync(cancellationToken);
                     entities.InitializeWithEntities(initialEntities);
                     onNext(entities, subject);
+                }
+                finally
+                {
+                    queryExecutionSemaphore.Release();
                 }
 
                 // Keep the task alive until cancelled
@@ -255,28 +278,40 @@ public static class DbSetObserveExtensions
                 return;
             }
             logger.CleaningUp();
-            changeSubscription?.Dispose();
 
-            if (databaseNotifier is not null)
+            // Acquire the semaphore to ensure no queries are running
+            // This will block until any in-flight query completes
+            queryExecutionSemaphore.Wait();
+            try
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await databaseNotifier.DisposeAsync();
-                    }
-                    catch
-                    {
-                        // Ignore cleanup errors
-                    }
-                });
-            }
+                changeSubscription?.Dispose();
 
-            cancellationTokenSource?.Cancel();
-            cancellationTokenSource?.Dispose();
-            subject?.OnCompleted();
-            logger.ObservationCompleted(typeof(TEntity).Name);
-            completedCleanup = true;
+                if (databaseNotifier is not null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await databaseNotifier.DisposeAsync();
+                        }
+                        catch
+                        {
+                            // Ignore cleanup errors
+                        }
+                    });
+                }
+
+                cancellationTokenSource?.Cancel();
+                cancellationTokenSource?.Dispose();
+                subject?.OnCompleted();
+                logger.ObservationCompleted(typeof(TEntity).Name);
+                completedCleanup = true;
+            }
+            finally
+            {
+                queryExecutionSemaphore.Release();
+                queryExecutionSemaphore.Dispose();
+            }
         }
     }
 

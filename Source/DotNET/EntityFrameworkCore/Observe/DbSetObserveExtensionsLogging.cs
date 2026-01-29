@@ -35,4 +35,7 @@ internal static partial class DbSetObserveExtensionsLogMessages
 
     [LoggerMessage(LogLevel.Warning, "Failed to start database notifier for entity type {EntityType}, falling back to in-process only")]
     internal static partial void DatabaseNotifierFailed(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType, Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "Skipping query for entity type {EntityType} - cleanup in progress")]
+    internal static partial void SkippingQueryDuringCleanup(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
 }
