@@ -205,7 +205,7 @@ public static class DbSetObserveExtensions
                     }
                     catch (Exception ex)
                     {
-                        logger.UnexpectedError(ex);
+                        logger.UnexpectedError(typeof(TEntity).Name, ex);
                     }
                     finally
                     {
