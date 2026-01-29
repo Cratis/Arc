@@ -56,6 +56,9 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Error, "Error in OnChanged callback")]
     internal static partial void OnChangedCallbackError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Warning, "SQL Server notification error: Type={Type}, Info={Info}, Source={Source}")]
+    internal static partial void SqlServerNotificationError(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
+
     // SQLite
     [LoggerMessage(LogLevel.Information, "Started listening for SQLite changes on table {TableName}")]
     internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);

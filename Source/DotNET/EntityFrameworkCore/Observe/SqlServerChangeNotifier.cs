@@ -130,25 +130,29 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
                 _dependency = null;
             }
 
-            // Clean up previous connection
-            if (_connection is not null)
+            // Create new connection if needed (don't reuse/dispose existing one during re-subscription)
+            if (_connection is null || _connection.State != System.Data.ConnectionState.Open)
             {
-                try
+                // Only dispose if we're creating a new one
+                if (_connection is not null)
                 {
-                    await _connection.CloseAsync();
-                    await _connection.DisposeAsync();
+                    try
+                    {
+                        await _connection.DisposeAsync();
+                    }
+                    catch
+                    {
+                        // Ignore cleanup errors
+                    }
                 }
-                catch
-                {
-                    // Ignore cleanup errors
-                }
-            }
 
-            _connection = new SqlConnection(connectionString);
-            await _connection.OpenAsync(effectiveCancellationToken);
+                _connection = new SqlConnection(connectionString);
+                await _connection.OpenAsync(effectiveCancellationToken);
+            }
 
             // SqlDependency requires a specific query format
             // Using a minimal SELECT to reduce overhead
+            // Must use two-part name (schema.table) and specific columns (no *)
             var sql = $"SELECT Id FROM dbo.[{_tableName}]";
             await using var command = new SqlCommand(sql, _connection);
             command.CommandTimeout = 30;
@@ -157,13 +161,25 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
             _dependency.OnChange += OnDependencyChange;
 
             // Execute the query to register the dependency
-            await using var reader = await command.ExecuteReaderAsync(effectiveCancellationToken);
-
-            // Read all data to complete the registration
-            while (await reader.ReadAsync(effectiveCancellationToken))
+            // Do NOT use 'await using' - it will dispose the connection!
+            // SqlDependency requires the connection to stay open to receive notifications
+#pragma warning disable RCS1261 // Resource can be disposed asynchronously
+#pragma warning disable MA0042 // Prefer using 'await using'
+            var reader = await command.ExecuteReaderAsync(effectiveCancellationToken);
+            try
             {
-                // Just reading to register the dependency
+                // Read all data to complete the registration
+                while (await reader.ReadAsync(effectiveCancellationToken))
+                {
+                    // Just reading to register the dependency
+                }
             }
+            finally
+            {
+                // Manually dispose reader but NOT the connection
+                await reader.DisposeAsync();
+            }
+#pragma warning restore MA0042, RCS1261
 
             // Reset failure counter on success
             _consecutiveFailures = 0;
@@ -209,8 +225,14 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
 
         var effectiveCancellationToken = _internalCancellationTokenSource?.Token ?? _cancellationToken;
 
+        // Check for errors in the notification
+        if (e.Info == SqlNotificationInfo.Error || e.Source == SqlNotificationSource.Statement)
+        {
+            logger.SqlServerNotificationError(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
+        }
+
         // Only notify on actual data changes, not on subscription events
-        if (e.Type == SqlNotificationType.Change)
+        if (e.Type == SqlNotificationType.Change && e.Info != SqlNotificationInfo.Error)
         {
             // Debounce to prevent rapid-fire notifications
             bool shouldNotify;
