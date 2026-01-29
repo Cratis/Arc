@@ -31,9 +31,11 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
     string? _tableName;
     Action? _onChanged;
     CancellationToken _cancellationToken;
+    CancellationTokenSource? _internalCancellationTokenSource;
     DateTime _lastNotification = DateTime.MinValue;
     bool _isSubscribing;
     bool _disposed;
+    int _consecutiveFailures;
 
     /// <inheritdoc/>
     public async Task StartListening(string tableName, Action onChanged, CancellationToken cancellationToken = default)
@@ -41,6 +43,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
         _tableName = tableName;
         _onChanged = onChanged;
         _cancellationToken = cancellationToken;
+        _internalCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         // Start SqlDependency
         SqlDependency.Start(connectionString);
@@ -53,6 +56,11 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
     /// <inheritdoc/>
     public async Task StopListening()
     {
+        if (_internalCancellationTokenSource is not null)
+        {
+            await _internalCancellationTokenSource.CancelAsync();
+        }
+
         try
         {
             SqlDependency.Stop(connectionString);
@@ -64,9 +72,19 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
 
         if (_connection is not null)
         {
-            await _connection.CloseAsync();
-            await _connection.DisposeAsync();
-            _connection = null;
+            try
+            {
+                await _connection.CloseAsync();
+                await _connection.DisposeAsync();
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+            finally
+            {
+                _connection = null;
+            }
         }
 
         logger.StoppedListeningSqlServer(_tableName ?? "unknown");
@@ -82,19 +100,21 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
 
         _disposed = true;
         await StopListening();
+        _internalCancellationTokenSource?.Dispose();
         _subscriptionSemaphore.Dispose();
     }
 
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - table name comes from EF Core metadata
     async Task SetupDependency()
     {
-        if (_cancellationToken.IsCancellationRequested || _disposed)
+        var effectiveCancellationToken = _internalCancellationTokenSource?.Token ?? _cancellationToken;
+        if (effectiveCancellationToken.IsCancellationRequested || _disposed)
         {
             return;
         }
 
         // Prevent concurrent subscription attempts
-        if (!await _subscriptionSemaphore.WaitAsync(0, _cancellationToken))
+        if (!await _subscriptionSemaphore.WaitAsync(0, effectiveCancellationToken))
         {
             return;
         }
@@ -103,29 +123,77 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
         {
             _isSubscribing = true;
 
+            // Clean up previous dependency
+            if (_dependency is not null)
+            {
+                _dependency.OnChange -= OnDependencyChange;
+                _dependency = null;
+            }
+
+            // Clean up previous connection
             if (_connection is not null)
             {
-                await _connection.DisposeAsync();
+                try
+                {
+                    await _connection.CloseAsync();
+                    await _connection.DisposeAsync();
+                }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
             }
+
             _connection = new SqlConnection(connectionString);
-            await _connection.OpenAsync(_cancellationToken);
+            await _connection.OpenAsync(effectiveCancellationToken);
 
             // SqlDependency requires a specific query format
             // Using a minimal SELECT to reduce overhead
             var sql = $"SELECT Id FROM dbo.[{_tableName}]";
             await using var command = new SqlCommand(sql, _connection);
+            command.CommandTimeout = 30;
 
             _dependency = new SqlDependency(command);
             _dependency.OnChange += OnDependencyChange;
 
             // Execute the query to register the dependency
-            await using var reader = await command.ExecuteReaderAsync(_cancellationToken);
+            await using var reader = await command.ExecuteReaderAsync(effectiveCancellationToken);
 
             // Read all data to complete the registration
-            while (await reader.ReadAsync(_cancellationToken))
+            while (await reader.ReadAsync(effectiveCancellationToken))
             {
                 // Just reading to register the dependency
             }
+
+            // Reset failure counter on success
+            _consecutiveFailures = 0;
+            logger.SqlServerDependencySetupSuccess(_tableName ?? "unknown");
+        }
+        catch (Exception ex)
+        {
+            _consecutiveFailures++;
+            logger.SqlServerDependencySetupFailed(_tableName ?? "unknown", ex, _consecutiveFailures);
+
+            // If we're having repeated failures, increase the retry delay
+            if (!effectiveCancellationToken.IsCancellationRequested && !_disposed)
+            {
+                var retryDelay = TimeSpan.FromMilliseconds(Math.Min(5000, 500 * _consecutiveFailures));
+                _ = Task.Run(
+                    async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(retryDelay, effectiveCancellationToken);
+                            await SetupDependency();
+                        }
+                        catch
+                        {
+                            // Ignore retry errors
+                        }
+                    },
+                    effectiveCancellationToken);
+            }
+            throw;
         }
         finally
         {
@@ -138,6 +206,8 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
     void OnDependencyChange(object sender, SqlNotificationEventArgs e)
     {
         logger.ReceivedSqlServerNotification(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
+
+        var effectiveCancellationToken = _internalCancellationTokenSource?.Token ?? _cancellationToken;
 
         // Only notify on actual data changes, not on subscription events
         if (e.Type == SqlNotificationType.Change)
@@ -156,12 +226,19 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
 
             if (shouldNotify)
             {
-                _onChanged?.Invoke();
+                try
+                {
+                    _onChanged?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    logger.OnChangedCallbackError(ex);
+                }
             }
         }
 
         // Re-subscribe after receiving a notification (SqlDependency is one-shot)
-        if (!_cancellationToken.IsCancellationRequested && !_disposed && !_isSubscribing)
+        if (!effectiveCancellationToken.IsCancellationRequested && !_disposed && !_isSubscribing)
         {
             _ = Task.Run(
                 async () =>
@@ -169,7 +246,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
                     try
                     {
                         // Add delay before re-subscribing to prevent spin
-                        await Task.Delay(_resubscribeDelay, _cancellationToken);
+                        await Task.Delay(_resubscribeDelay, effectiveCancellationToken);
                         await SetupDependency();
                     }
                     catch (OperationCanceledException)
@@ -181,7 +258,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
                         logger.SqlServerResubscribeError(ex);
                     }
                 },
-                _cancellationToken);
+                effectiveCancellationToken);
         }
     }
 }
