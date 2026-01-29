@@ -20,6 +20,7 @@ public static class ObserveServiceCollectionExtensions
     public static IServiceCollection AddEntityFrameworkCoreObservation(this IServiceCollection services)
     {
         services.TryAddSingleton<IEntityChangeTracker, EntityChangeTracker>();
+        services.TryAddSingleton<IServiceBrokerManager, ServiceBrokerManager>();
         services.TryAddSingleton<IDatabaseChangeNotifierFactory, DatabaseChangeNotifierFactory>();
         return services;
     }

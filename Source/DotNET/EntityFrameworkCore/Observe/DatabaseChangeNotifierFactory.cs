@@ -9,7 +9,8 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// Factory for creating <see cref="IDatabaseChangeNotifier"/> instances based on database type.
 /// </summary>
 /// <param name="loggerFactory">The logger factory.</param>
-public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory) : IDatabaseChangeNotifierFactory
+/// <param name="serviceBrokerManager">The Service Broker manager for SQL Server.</param>
+public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory, IServiceBrokerManager serviceBrokerManager) : IDatabaseChangeNotifierFactory
 {
     /// <inheritdoc/>
     public IDatabaseChangeNotifier Create(DatabaseType databaseType, string connectionString)
@@ -22,6 +23,7 @@ public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory) : IData
 
             DatabaseType.SqlServer => new SqlServerChangeNotifier(
                 connectionString,
+                serviceBrokerManager,
                 loggerFactory.CreateLogger<SqlServerChangeNotifier>()),
 
             DatabaseType.Sqlite => new SqliteChangeNotifier(

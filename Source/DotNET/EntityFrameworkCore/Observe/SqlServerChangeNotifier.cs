@@ -10,8 +10,9 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// SQL Server implementation of <see cref="IDatabaseChangeNotifier"/> using SqlDependency.
 /// </summary>
 /// <param name="connectionString">The connection string to use.</param>
+/// <param name="serviceBrokerManager">The Service Broker manager.</param>
 /// <param name="logger">The logger.</param>
-public sealed class SqlServerChangeNotifier(string connectionString, ILogger<SqlServerChangeNotifier> logger) : IDatabaseChangeNotifier
+public sealed class SqlServerChangeNotifier(string connectionString, IServiceBrokerManager serviceBrokerManager, ILogger<SqlServerChangeNotifier> logger) : IDatabaseChangeNotifier
 {
     /// <summary>
     /// Delay before re-subscribing after receiving a notification to prevent spin.
@@ -44,6 +45,9 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
         _onChanged = onChanged;
         _cancellationToken = cancellationToken;
         _internalCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        // Ensure Service Broker is enabled
+        await serviceBrokerManager.EnsureEnabled(connectionString, cancellationToken);
 
         // Start SqlDependency
         SqlDependency.Start(connectionString);
@@ -221,18 +225,34 @@ public sealed class SqlServerChangeNotifier(string connectionString, ILogger<Sql
 
     void OnDependencyChange(object sender, SqlNotificationEventArgs e)
     {
+        // ALWAYS log all notifications for debugging
         logger.ReceivedSqlServerNotification(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
 
         var effectiveCancellationToken = _internalCancellationTokenSource?.Token ?? _cancellationToken;
 
         // Check for errors in the notification
-        if (e.Info == SqlNotificationInfo.Error || e.Source == SqlNotificationSource.Statement)
+        if (e.Info == SqlNotificationInfo.Error)
         {
             logger.SqlServerNotificationError(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
         }
 
-        // Only notify on actual data changes, not on subscription events
-        if (e.Type == SqlNotificationType.Change && e.Info != SqlNotificationInfo.Error)
+        // Also check for invalid notifications that indicate SqlDependency couldn't subscribe properly
+        else if (e.Info == SqlNotificationInfo.Invalid)
+        {
+            logger.SqlServerNotificationInvalid(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
+        }
+
+        // Notify on actual data changes
+        // Note: SqlDependency fires with Type=Change for ANY change, including subscribes/unsubscribes
+        // We need to check Info to determine if it's an actual data change
+        var isDataChange = e.Type == SqlNotificationType.Change &&
+                          e.Info != SqlNotificationInfo.Error &&
+                          e.Info != SqlNotificationInfo.Invalid &&
+                          (e.Info == SqlNotificationInfo.Insert ||
+                           e.Info == SqlNotificationInfo.Update ||
+                           e.Info == SqlNotificationInfo.Delete);
+
+        if (isDataChange)
         {
             // Debounce to prevent rapid-fire notifications
             bool shouldNotify;

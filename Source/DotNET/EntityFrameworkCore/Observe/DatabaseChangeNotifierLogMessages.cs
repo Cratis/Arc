@@ -59,6 +59,9 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Warning, "SQL Server notification error: Type={Type}, Info={Info}, Source={Source}")]
     internal static partial void SqlServerNotificationError(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
 
+    [LoggerMessage(LogLevel.Warning, "SQL Server notification invalid (SqlDependency couldn't subscribe): Type={Type}, Info={Info}, Source={Source}")]
+    internal static partial void SqlServerNotificationInvalid(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
+
     // SQLite
     [LoggerMessage(LogLevel.Information, "Started listening for SQLite changes on table {TableName}")]
     internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);
