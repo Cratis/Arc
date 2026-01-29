@@ -41,11 +41,14 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Information, "Stopped listening for SQL Server notifications on table {TableName}")]
     internal static partial void StoppedListeningSqlServer(this ILogger<SqlServerChangeNotifier> logger, string tableName);
 
-    [LoggerMessage(LogLevel.Debug, "Received SQL Server notification: Type={Type}, Info={Info}, Source={Source}")]
+    [LoggerMessage(LogLevel.Information, "Received SQL Server notification: Type={Type}, Info={Info}, Source={Source}")]
     internal static partial void ReceivedSqlServerNotification(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
 
     [LoggerMessage(LogLevel.Error, "Error re-subscribing to SQL Server notifications")]
     internal static partial void SqlServerResubscribeError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
+
+    [LoggerMessage(LogLevel.Information, "Setting up SQL Server dependency for table {TableName} with query: {Query}")]
+    internal static partial void SqlServerSettingUpDependency(this ILogger<SqlServerChangeNotifier> logger, string tableName, string query);
 
     [LoggerMessage(LogLevel.Debug, "Successfully set up SQL Server dependency for table {TableName}")]
     internal static partial void SqlServerDependencySetupSuccess(this ILogger<SqlServerChangeNotifier> logger, string tableName);

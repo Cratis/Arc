@@ -250,6 +250,8 @@ public static class DbSetObserveExtensions
                     queryExecutionSemaphore.Release();
                 }
 
+                logger.ObservationWatchingForChanges(typeof(TEntity).Name);
+
                 // Keep the task alive until cancelled
                 await Task.Delay(Timeout.Infinite, cancellationToken);
             }
@@ -267,6 +269,7 @@ public static class DbSetObserveExtensions
             }
             finally
             {
+                logger.WatchTaskEnding(typeof(TEntity).Name);
                 Cleanup();
             }
         }

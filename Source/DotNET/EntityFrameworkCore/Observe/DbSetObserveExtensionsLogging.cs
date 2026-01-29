@@ -38,4 +38,10 @@ internal static partial class DbSetObserveExtensionsLogMessages
 
     [LoggerMessage(LogLevel.Debug, "Skipping query for entity type {EntityType} - cleanup in progress")]
     internal static partial void SkippingQueryDuringCleanup(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
+
+    [LoggerMessage(LogLevel.Information, "Observation for entity type {EntityType} is now watching for changes")]
+    internal static partial void ObservationWatchingForChanges(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
+
+    [LoggerMessage(LogLevel.Information, "Watch task ending for entity type {EntityType}")]
+    internal static partial void WatchTaskEnding(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
 }

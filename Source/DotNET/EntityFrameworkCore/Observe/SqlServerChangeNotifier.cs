@@ -161,6 +161,8 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
             await using var command = new SqlCommand(sql, _connection);
             command.CommandTimeout = 30;
 
+            logger.SqlServerSettingUpDependency(_tableName ?? "unknown", sql);
+
             _dependency = new SqlDependency(command);
             _dependency.OnChange += OnDependencyChange;
 
