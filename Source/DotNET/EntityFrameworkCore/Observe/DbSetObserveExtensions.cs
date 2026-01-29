@@ -35,8 +35,9 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.Observe(
-            () => ApplyConfigure(dbSet, configure).Where(filter),
+        return dbSet.ObserveCore(
+            filter,
+            configure,
             entities => new BehaviorSubject<IEnumerable<TEntity>>(entities),
             (entities, observable) => observable.OnNext([.. entities]));
     }
@@ -56,7 +57,7 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet, configure).Where(filter));
+        return dbSet.ObserveSingleCore(filter, configure);
     }
 
     /// <summary>
@@ -84,16 +85,18 @@ public static class DbSetObserveExtensions
         var equals = Expression.Equal(property, constant);
         var lambda = Expression.Lambda<Func<TEntity, bool>>(equals, parameter);
 
-        return dbSet.ObserveSingleCore(() => ApplyConfigure(dbSet, configure).Where(lambda));
+        return dbSet.ObserveSingleCore(lambda, configure);
     }
 
     static ISubject<TEntity> ObserveSingleCore<TEntity>(
         this DbSet<TEntity> dbSet,
-        Func<IQueryable<TEntity>> queryBuilder)
+        Expression<Func<TEntity, bool>> filter,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
         where TEntity : class
     {
-        return dbSet.Observe<TEntity, TEntity>(
-            queryBuilder,
+        return dbSet.ObserveCore<TEntity, TEntity>(
+            filter,
+            configure,
             entities =>
             {
                 var result = entities.FirstOrDefault();
@@ -114,9 +117,10 @@ public static class DbSetObserveExtensions
             });
     }
 
-    static ISubject<TResult> Observe<TEntity, TResult>(
+    static ISubject<TResult> ObserveCore<TEntity, TResult>(
         this DbSet<TEntity> dbSet,
-        Func<IQueryable<TEntity>> queryBuilder,
+        Expression<Func<TEntity, bool>> filter,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
         Func<IEnumerable<TEntity>, ISubject<TResult>> createSubject,
         Action<IEnumerable<TEntity>, ISubject<TResult>> onNext)
         where TEntity : class
@@ -127,6 +131,7 @@ public static class DbSetObserveExtensions
         var changeTracker = Internals.ServiceProvider.GetRequiredService<IEntityChangeTracker>();
         var notifierFactory = Internals.ServiceProvider.GetRequiredService<IDatabaseChangeNotifierFactory>();
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
+        var serviceScopeFactory = Internals.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
         var queryContext = queryContextManager.Current;
 
         var idProperty = GetIdProperty(dbSet);
@@ -138,6 +143,7 @@ public static class DbSetObserveExtensions
 
         // Get database information from DbContext - do this ONCE and early
         var dbContext = dbSet.GetDbContext();
+        var dbContextType = dbContext.GetType();
         var databaseType = dbContext.Database.GetDatabaseType();
         var connectionString = dbContext.Database.GetConnectionString()
             ?? throw new InvalidOperationException("Connection string is not available from the DbContext.");
@@ -170,7 +176,14 @@ public static class DbSetObserveExtensions
                     try
                     {
                         logger.ChangeDetectedRequerying(typeof(TEntity).Name);
-                        var baseQuery = queryBuilder();
+
+                        // Create a new scope to get a fresh DbContext
+                        using var scope = serviceScopeFactory.CreateScope();
+                        var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+                        var freshDbSet = freshDbContext.Set<TEntity>();
+
+                        // Build the query using the fresh DbSet
+                        var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
                         queryContext.TotalItems = baseQuery.Count();
                         var newQuery = BuildQuery(baseQuery, queryContext);
                         var newEntities = newQuery.ToList();
@@ -201,13 +214,18 @@ public static class DbSetObserveExtensions
 
                 _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
-                // Initial query
-                var initialBaseQuery = queryBuilder();
-                queryContext.TotalItems = initialBaseQuery.Count();
-                var query = BuildQuery(initialBaseQuery, queryContext);
-                var initialEntities = await query.ToListAsync(cancellationToken);
-                entities.InitializeWithEntities(initialEntities);
-                onNext(entities, subject);
+                // Initial query - create a scope for it
+                using (var scope = serviceScopeFactory.CreateScope())
+                {
+                    var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+                    var freshDbSet = freshDbContext.Set<TEntity>();
+                    var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
+                    queryContext.TotalItems = initialBaseQuery.Count();
+                    var query = BuildQuery(initialBaseQuery, queryContext);
+                    var initialEntities = await query.ToListAsync(cancellationToken);
+                    entities.InitializeWithEntities(initialEntities);
+                    onNext(entities, subject);
+                }
 
                 // Keep the task alive until cancelled
                 await Task.Delay(Timeout.Infinite, cancellationToken);
