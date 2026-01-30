@@ -12,7 +12,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// <param name="changeTracker">The <see cref="IEntityChangeTracker"/> to notify.</param>
 public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : SaveChangesInterceptor
 {
-    readonly HashSet<string> _changedTables = [];
+    HashSet<string> _changedTables = [];
 
     /// <inheritdoc/>
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
