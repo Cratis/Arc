@@ -167,6 +167,11 @@ public static class DbSetObserveExtensions
         IDisposable? changeSubscription = null;
         IDatabaseChangeNotifier? databaseNotifier = null;
 
+        // Subscribe to subject completion BEFORE starting Watch task and returning subject.
+        // This ensures we're subscribed before ClientObservable can complete the subject,
+        // preventing a race condition where the Watch task subscribes to an already-completed subject.
+        _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
+
         _ = Task.Run(Watch);
         return subject;
 
@@ -236,8 +241,6 @@ public static class DbSetObserveExtensions
                     // Log but don't fail - fall back to in-process only
                     logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
                 }
-
-                _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
                 // Initial query - create a scope for it
                 await queryExecutionSemaphore.WaitAsync(cancellationToken);
