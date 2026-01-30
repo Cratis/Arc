@@ -5,19 +5,28 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using Cratis.Arc.Queries;
+using Cratis.Json;
 using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
 namespace Cratis.Arc.EntityFrameworkCore.Integration;
 
 #pragma warning disable CA1849 // Call async methods when in an async method
 #pragma warning disable MA0042 // Use async methods
-#pragma warning disable CA1869 // Cache and reuse JsonSerializerOptions
 
 /// <summary>
 /// Test WebSocket client for receiving query results from observable queries.
 /// </summary>
 public class TestWebSocketClient : IDisposable
 {
+    static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters =
+        {
+            new ConceptAsJsonConverterFactory()
+        }
+    };
+
     readonly ClientWebSocket _webSocket;
     readonly CancellationTokenSource _cancellationTokenSource;
     readonly List<QueryResult> _receivedResults = [];
@@ -213,30 +222,17 @@ public class TestWebSocketClient : IDisposable
 
                     try
                     {
-                        var message = JsonSerializer.Deserialize<WebSocketDataMessage>(json, new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        });
+                        var message = JsonSerializer.Deserialize<WebSocketDataMessage>(json, _jsonOptions);
 
                         // Type 0 = Data (the enum is serialized as integer by Cratis.Json EnumConverterFactory)
                         if (message?.Type == 0 && message.Data is not null)
                         {
                             // Parse the nested data structure using JsonElement
                             var dataElement = message.Data.Value;
-                            var simpleResult = dataElement.Deserialize<SimpleQueryResult>(new JsonSerializerOptions
-                            {
-                                PropertyNameCaseInsensitive = true
-                            });
+                            var queryResult = dataElement.Deserialize<QueryResult>(_jsonOptions);
 
-                            if (simpleResult is not null)
+                            if (queryResult is not null)
                             {
-                                // Convert to QueryResult with the data
-                                var queryResult = new QueryResult
-                                {
-                                    IsAuthorized = simpleResult.IsAuthorized,
-                                    Data = simpleResult.Data ?? default!
-                                };
-
                                 await _receiveLock.WaitAsync(cancellationToken);
                                 try
                                 {
@@ -272,17 +268,6 @@ public class TestWebSocketClient : IDisposable
     class WebSocketDataMessage
     {
         public int? Type { get; set; }
-        public JsonElement? Data { get; set; }
-    }
-
-    /// <summary>
-    /// Simplified query result for testing without concept converters.
-    /// </summary>
-    class SimpleQueryResult
-    {
-        public bool IsSuccess { get; set; }
-        public bool IsAuthorized { get; set; }
-        public bool HasExceptions { get; set; }
         public JsonElement? Data { get; set; }
     }
 }
