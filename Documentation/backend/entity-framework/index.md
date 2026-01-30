@@ -6,10 +6,12 @@ The Arc provides enhanced support for Entity Framework Core, offering simplified
 
 | Topic | Description |
 | ------- | ----------- |
+| [Getting Started](./getting-started.md) | How to configure Entity Framework Core with Arc, including auto-discovery and observation support. |
 | [Base DbContext](./base-db-context.md) | How to use the base DbContext class provided by the Arc. |
 | [Entity Mapping](./entity-mapping.md) | How to configure entities using IEntityMapFor&lt;T&gt; for clean, organized entity configuration. |
 | [Read Only DbContexts](./read-only.md) | How to implement read-only database contexts for query scenarios. |
 | [Automatic Database hookup](./automatic-database-hookup.md) | How the Arc automatically configures and sets up your databases. |
+| [Observing DbSet](./observing.md) | How to monitor entity changes in real-time using reactive extensions. |
 | [Common Column Types](./common-column-types.md) | Common column type configurations and conventions. |
 | [Property Extensions](./property-extensions.md) | Property configuration extensions for cross-database compatibility. |
 | [Json](./json.md) | Working with JSON columns and serialization in Entity Framework Core. |
