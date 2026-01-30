@@ -69,15 +69,6 @@ internal static partial class DatabaseChangeNotifierLogMessages
     internal static partial void SqlServerNotificationInvalid(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
 
     // SQLite
-    [LoggerMessage(LogLevel.Information, "Started listening for SQLite changes on table {TableName}")]
-    internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);
-
-    [LoggerMessage(LogLevel.Information, "Stopped listening for SQLite changes on table {TableName}")]
-    internal static partial void StoppedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string tableName);
-
-    [LoggerMessage(LogLevel.Debug, "SQLite update hook triggered: Table={TableName}, Action={Action}, RowId={RowId}")]
-    internal static partial void SqliteUpdateHookTriggered(this ILogger<SqliteChangeNotifier> logger, string tableName, string action, long rowId);
-
-    [LoggerMessage(LogLevel.Warning, "Could not obtain SQLite connection handle for update hook registration")]
-    internal static partial void SqliteHandleNotFound(this ILogger<SqliteChangeNotifier> logger);
+    [LoggerMessage(LogLevel.Debug, "SQLite using in-process change detection only for table {TableName}")]
+    internal static partial void SqliteUsingInProcessOnly(this ILogger<SqliteChangeNotifier> logger, string tableName);
 }

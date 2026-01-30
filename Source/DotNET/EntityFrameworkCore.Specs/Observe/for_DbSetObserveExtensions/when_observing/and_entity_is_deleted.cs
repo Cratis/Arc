@@ -4,18 +4,19 @@
 using System.Reactive.Subjects;
 using Cratis.Arc.EntityFrameworkCore.Observe.for_DbSetObserveExtensions.given;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe.for_DbSetObserveExtensions.when_observing;
 
 /// <summary>
-/// Specs for the Observe extension method detecting external DELETE operations via SQLite update_hook.
+/// Specs for the Observe extension method detecting in-process DELETE operations via SaveChanges.
 /// </summary>
-public class and_external_delete_occurs : a_db_set_observe_context
+public class and_entity_is_deleted : a_db_set_observe_context
 {
     ISubject<IEnumerable<TestEntity>> _subject;
     List<IEnumerable<TestEntity>> _receivedUpdates;
     ManualResetEventSlim _initialReceived;
-    ManualResetEventSlim _updateReceived;
+    ManualResetEventSlim _deleteReceived;
     TestEntity _entityToDelete;
     TestEntity _entityToKeep;
 
@@ -27,7 +28,7 @@ public class and_external_delete_occurs : a_db_set_observe_context
 
         _receivedUpdates = [];
         _initialReceived = new ManualResetEventSlim(false);
-        _updateReceived = new ManualResetEventSlim(false);
+        _deleteReceived = new ManualResetEventSlim(false);
     }
 
     void Because()
@@ -38,26 +39,22 @@ public class and_external_delete_occurs : a_db_set_observe_context
             var list = entities.ToList();
             _receivedUpdates.Add(list);
 
-            // Wait for initial data with 2 entities (skip empty initial emission from BehaviorSubject)
             if (!_initialReceived.IsSet && list.Count == 2)
             {
                 _initialReceived.Set();
             }
             else if (_initialReceived.IsSet && list.Count == 1)
             {
-                _updateReceived.Set();
+                _deleteReceived.Set();
             }
         });
 
-        // Wait for initial data
-        _initialReceived.Wait(TimeSpan.FromSeconds(10));
+        _initialReceived.Wait(TimeSpan.FromMilliseconds(500));
 
-        // Simulate external process deleting data directly from SQLite
-        LogInfo("Deleting entity directly from database...");
+        // Delete via helper method that uses a separate scoped DbContext
         DeleteDirectlyFromDatabase(_entityToDelete.Id);
 
-        // Wait for notification from SQLite update_hook
-        _updateReceived.Wait(TimeSpan.FromSeconds(30));
+        _deleteReceived.Wait(TimeSpan.FromMilliseconds(500));
     }
 
     [Fact] void should_receive_initial_data_with_two_entities() => _receivedUpdates.First(u => u.Count() == 2).Count().ShouldEqual(2);

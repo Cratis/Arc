@@ -32,7 +32,7 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
 
 /// <summary>
 /// Base context for SQLite observe extension specs.
-/// Uses SQLite in-memory database for testing change notifications via update_hook.
+/// Uses SQLite in-memory database for testing in-process change notifications via ObserveInterceptor.
 /// </summary>
 public class a_db_set_observe_context : Specification
 {
@@ -67,11 +67,15 @@ public class a_db_set_observe_context : Specification
         _queryContextManager.Current.Returns(_ => _queryContext);
         services.AddSingleton(_queryContextManager);
 
+        // Register the connection as a singleton so all DbContext instances share it
+        services.AddSingleton(_connection);
+
         // Register DbContext with the shared connection so all scoped instances use the same database
         services.AddDbContext<TestDbContext>((serviceProvider, options) =>
         {
+            var connection = serviceProvider.GetRequiredService<SqliteConnection>();
             var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
-            options.UseSqlite(_connection)
+            options.UseSqlite(connection)
                    .AddInterceptors(new ObserveInterceptor(entityChangeTracker));
         });
 
@@ -128,48 +132,51 @@ public class a_db_set_observe_context : Specification
     }
 
     /// <summary>
-    /// Inserts entities directly into the database using raw SQL (simulates external process).
-    /// This bypasses Entity Framework's change tracking and triggers SQLite update_hook notifications.
+    /// Inserts entities using a separate DbContext instance (simulates separate process within same application).
+    /// This triggers change notifications via the ObserveInterceptor.
     /// </summary>
     /// <param name="entities">Entities to insert.</param>
     protected void InsertDirectlyIntoDatabase(params TestEntity[] entities)
     {
-        foreach (var entity in entities)
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+        dbContext.TestEntities.AddRange(entities);
+        dbContext.SaveChanges();
+    }
+
+    /// <summary>
+    /// Updates an entity using a separate DbContext instance (simulates separate process within same application).
+    /// This triggers change notifications via the ObserveInterceptor.
+    /// </summary>
+    /// <param name="id">Entity ID to update.</param>
+    /// <param name="newName">New name value.</param>
+    protected void UpdateDirectlyIntoDatabase(int id, string newName)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+        var entity = dbContext.TestEntities.Find(id);
+        if (entity is not null)
         {
-            using var command = _connection.CreateCommand();
-            command.CommandText = "INSERT INTO TestEntities (Name, IsActive, SortOrder) VALUES (@Name, @IsActive, @SortOrder)";
-            command.Parameters.AddWithValue("@Name", entity.Name);
-            command.Parameters.AddWithValue("@IsActive", entity.IsActive ? 1 : 0);
-            command.Parameters.AddWithValue("@SortOrder", entity.SortOrder);
-            command.ExecuteNonQuery();
+            entity.Name = newName;
+            dbContext.SaveChanges();
         }
     }
 
     /// <summary>
-    /// Updates an entity directly in the database using raw SQL (simulates external process).
-    /// This bypasses Entity Framework's change tracking and triggers SQLite update_hook notifications.
-    /// </summary>
-    /// <param name="id">Entity ID to update.</param>
-    /// <param name="newName">New name value.</param>
-    protected void UpdateDirectlyInDatabase(int id, string newName)
-    {
-        using var command = _connection.CreateCommand();
-        command.CommandText = "UPDATE TestEntities SET Name = @Name WHERE Id = @Id";
-        command.Parameters.AddWithValue("@Id", id);
-        command.Parameters.AddWithValue("@Name", newName);
-        command.ExecuteNonQuery();
-    }
-
-    /// <summary>
-    /// Deletes an entity directly from the database using raw SQL (simulates external process).
+    /// Deletes an entity using a separate DbContext instance (simulates separate process within same application).
+    /// This triggers change notifications via the ObserveInterceptor.
     /// </summary>
     /// <param name="id">Entity ID to delete.</param>
     protected void DeleteDirectlyFromDatabase(int id)
     {
-        using var command = _connection.CreateCommand();
-        command.CommandText = "DELETE FROM TestEntities WHERE Id = @Id";
-        command.Parameters.AddWithValue("@Id", id);
-        command.ExecuteNonQuery();
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+        var entity = dbContext.TestEntities.Find(id);
+        if (entity is not null)
+        {
+            dbContext.TestEntities.Remove(entity);
+            dbContext.SaveChanges();
+        }
     }
 
     /// <summary>

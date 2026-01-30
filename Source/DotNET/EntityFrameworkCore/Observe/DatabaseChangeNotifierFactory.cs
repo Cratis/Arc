@@ -27,7 +27,6 @@ public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory, IServic
                 loggerFactory.CreateLogger<SqlServerChangeNotifier>()),
 
             DatabaseType.Sqlite => new SqliteChangeNotifier(
-                connectionString,
                 loggerFactory.CreateLogger<SqliteChangeNotifier>()),
 
             _ => throw new UnsupportedDatabaseType(databaseType.ToString())

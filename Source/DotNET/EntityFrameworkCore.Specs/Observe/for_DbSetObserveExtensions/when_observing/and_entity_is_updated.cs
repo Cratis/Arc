@@ -4,23 +4,25 @@
 using System.Reactive.Subjects;
 using Cratis.Arc.EntityFrameworkCore.Observe.for_DbSetObserveExtensions.given;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe.for_DbSetObserveExtensions.when_observing;
 
 /// <summary>
-/// Specs for the Observe extension method detecting external INSERT operations via SQLite update_hook.
+/// Specs for the Observe extension method detecting in-process UPDATE operations via SaveChanges.
 /// </summary>
-public class and_external_insert_occurs : a_db_set_observe_context
+public class and_entity_is_updated : a_db_set_observe_context
 {
     ISubject<IEnumerable<TestEntity>> _subject;
     List<IEnumerable<TestEntity>> _receivedUpdates;
     ManualResetEventSlim _initialReceived;
     ManualResetEventSlim _updateReceived;
+    TestEntity _seededEntity;
 
     void Establish()
     {
-        SeedTestData(
-            new TestEntity { Name = "InitialEntity", IsActive = true });
+        _seededEntity = new TestEntity { Name = "OriginalName", IsActive = true };
+        SeedTestData(_seededEntity);
 
         _receivedUpdates = [];
         _initialReceived = new ManualResetEventSlim(false);
@@ -41,26 +43,28 @@ public class and_external_insert_occurs : a_db_set_observe_context
                 {
                     _initialReceived.Set();
                 }
-                else if (list.Count > 1)
+                else if (list.Exists(e => e.Name == "UpdatedName"))
                 {
-                    // We received an update with more than the initial entity
                     _updateReceived.Set();
                 }
             }
         });
 
-        // Wait for initial data
-        _initialReceived.Wait(TimeSpan.FromSeconds(10));
+        _initialReceived.Wait(TimeSpan.FromMilliseconds(500));
 
-        // Simulate external process inserting data directly into SQLite
-        LogInfo("Inserting entity directly into database...");
-        InsertDirectlyIntoDatabase(new TestEntity { Name = "ExternalEntity", IsActive = true });
+        // Update via a separate scoped DbContext to trigger ObserveInterceptor
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+        var entity = dbContext.TestEntities.Find(_seededEntity.Id);
+        if (entity is not null)
+        {
+            entity.Name = "UpdatedName";
+            dbContext.SaveChanges();
+        }
 
-        // Wait for notification from SQLite update_hook
-        _updateReceived.Wait(TimeSpan.FromSeconds(30));
+        _updateReceived.Wait(TimeSpan.FromMilliseconds(500));
     }
 
     [Fact] void should_receive_initial_data() => _receivedUpdates.Count.ShouldBeGreaterThanOrEqual(1);
-    [Fact] void should_detect_inserted_entity() => _receivedUpdates[^1].ShouldContain(e => e.Name == "ExternalEntity");
-    [Fact] void should_still_have_initial_entity() => _receivedUpdates[^1].ShouldContain(e => e.Name == "InitialEntity");
+    [Fact] void should_detect_updated_entity() => _receivedUpdates[^1].ShouldContain(e => e.Name == "UpdatedName");
 }

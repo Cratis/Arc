@@ -13,36 +13,57 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : SaveChangesInterceptor
 {
     /// <inheritdoc/>
+    public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        CaptureChangedEntityTypes(eventData.Context);
+        return base.SavingChanges(eventData, result);
+    }
+
+    /// <inheritdoc/>
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        CaptureChangedEntityTypes(eventData.Context);
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
     {
-        NotifyChanges(eventData.Context);
+        NotifyChanges();
         return base.SavedChanges(eventData, result);
     }
 
     /// <inheritdoc/>
     public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
     {
-        NotifyChanges(eventData.Context);
+        NotifyChanges();
         return base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
-    void NotifyChanges(DbContext? context)
+    HashSet<Type> _changedEntityTypes = [];
+
+    void CaptureChangedEntityTypes(DbContext? context)
     {
         if (context is null)
         {
             return;
         }
 
-        // Get all entity types that have been tracked for changes
-        // After SaveChanges, entries are marked as Unchanged, so we need to get all unique types
-        var changedEntityTypes = context.ChangeTracker.Entries()
+        // Capture entity types before SaveChanges completes
+        // This is important because deleted entities are detached after SaveChanges
+        _changedEntityTypes = context.ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
             .Select(e => e.Entity.GetType())
-            .Distinct()
-            .ToList();
+            .ToHashSet();
+    }
 
-        foreach (var entityType in changedEntityTypes)
+    void NotifyChanges()
+    {
+        foreach (var entityType in _changedEntityTypes)
         {
             changeTracker.NotifyChange(entityType);
         }
+
+        _changedEntityTypes.Clear();
     }
 }
