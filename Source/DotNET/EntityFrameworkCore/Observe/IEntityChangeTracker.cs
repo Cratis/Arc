@@ -9,17 +9,16 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 public interface IEntityChangeTracker
 {
     /// <summary>
-    /// Registers a callback to be invoked when an entity of the specified type changes.
+    /// Registers a callback to be invoked when entities in the specified table change.
     /// </summary>
-    /// <typeparam name="TEntity">The entity type to track.</typeparam>
+    /// <param name="tableName">The database table name to track.</param>
     /// <param name="callback">The callback to invoke when changes occur.</param>
     /// <returns>An <see cref="IDisposable"/> that can be used to unregister the callback.</returns>
-    IDisposable RegisterCallback<TEntity>(Action callback)
-        where TEntity : class;
+    IDisposable RegisterCallback(string tableName, Action callback);
 
     /// <summary>
-    /// Notifies all registered callbacks for the specified entity type that a change has occurred.
+    /// Notifies all registered callbacks for the specified table that a change has occurred.
     /// </summary>
-    /// <param name="entityType">The type of entity that has changed.</param>
-    void NotifyChange(Type entityType);
+    /// <param name="tableName">The name of the table that has changed.</param>
+    void NotifyChange(string tableName);
 }

@@ -227,7 +227,8 @@ public static class DbSetObserveExtensions
                 }
 
                 // Subscribe to in-process changes (via SaveChanges interceptor)
-                changeSubscription = changeTracker.RegisterCallback<TEntity>(OnChangeDetected);
+                // Use table name instead of CLR type to avoid issues with EF Core proxy classes
+                changeSubscription = changeTracker.RegisterCallback(tableName, OnChangeDetected);
 
                 // Subscribe to database-level changes (cross-process notifications)
                 try

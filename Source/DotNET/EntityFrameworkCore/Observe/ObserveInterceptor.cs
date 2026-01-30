@@ -12,17 +12,19 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// <param name="changeTracker">The <see cref="IEntityChangeTracker"/> to notify.</param>
 public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : SaveChangesInterceptor
 {
+    readonly HashSet<string> _changedTables = [];
+
     /// <inheritdoc/>
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
     {
-        CaptureChangedEntityTypes(eventData.Context);
+        CaptureChangedTables(eventData.Context);
         return base.SavingChanges(eventData, result);
     }
 
     /// <inheritdoc/>
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
     {
-        CaptureChangedEntityTypes(eventData.Context);
+        CaptureChangedTables(eventData.Context);
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
@@ -40,30 +42,32 @@ public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : Sav
         return base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
-    HashSet<Type> _changedEntityTypes = [];
-
-    void CaptureChangedEntityTypes(DbContext? context)
+    void CaptureChangedTables(DbContext? context)
     {
         if (context is null)
         {
             return;
         }
 
-        // Capture entity types before SaveChanges completes
-        // This is important because deleted entities are detached after SaveChanges
-        _changedEntityTypes = context.ChangeTracker.Entries()
+        // Capture table names before SaveChanges completes.
+        // Using table names instead of CLR types avoids issues with EF Core proxy classes
+        // and ensures notifications match the registered observers.
+        // This is important because deleted entities are detached after SaveChanges.
+        _changedTables = context.ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
-            .Select(e => e.Entity.GetType())
+            .Select(e => e.Metadata.GetTableName())
+            .Where(tableName => tableName is not null)
+            .Cast<string>()
             .ToHashSet();
     }
 
     void NotifyChanges()
     {
-        foreach (var entityType in _changedEntityTypes)
+        foreach (var tableName in _changedTables)
         {
-            changeTracker.NotifyChange(entityType);
+            changeTracker.NotifyChange(tableName);
         }
 
-        _changedEntityTypes.Clear();
+        _changedTables.Clear();
     }
 }

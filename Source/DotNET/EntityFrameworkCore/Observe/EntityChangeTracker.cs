@@ -8,26 +8,29 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// <summary>
 /// Represents an implementation of <see cref="IEntityChangeTracker"/>.
 /// </summary>
+/// <remarks>
+/// Uses table names instead of CLR types to avoid issues with EF Core proxy classes
+/// and derived types. Table names are stable identifiers that work regardless of
+/// the runtime type of entities.
+/// </remarks>
 public class EntityChangeTracker : IEntityChangeTracker
 {
-    readonly ConcurrentDictionary<Type, ConcurrentDictionary<Guid, Action>> _callbacks = new();
+    readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action>> _callbacks = new();
 
     /// <inheritdoc/>
-    public IDisposable RegisterCallback<TEntity>(Action callback)
-        where TEntity : class
+    public IDisposable RegisterCallback(string tableName, Action callback)
     {
-        var entityType = typeof(TEntity);
         var subscriptionId = Guid.NewGuid();
-        var callbacks = _callbacks.GetOrAdd(entityType, _ => new ConcurrentDictionary<Guid, Action>());
+        var callbacks = _callbacks.GetOrAdd(tableName, _ => new ConcurrentDictionary<Guid, Action>());
         callbacks[subscriptionId] = callback;
 
-        return new CallbackDisposer(entityType, subscriptionId, _callbacks);
+        return new CallbackDisposer(tableName, subscriptionId, _callbacks);
     }
 
     /// <inheritdoc/>
-    public void NotifyChange(Type entityType)
+    public void NotifyChange(string tableName)
     {
-        if (!_callbacks.TryGetValue(entityType, out var callbacks))
+        if (!_callbacks.TryGetValue(tableName, out var callbacks))
         {
             return;
         }
@@ -38,7 +41,7 @@ public class EntityChangeTracker : IEntityChangeTracker
         }
     }
 
-    sealed class CallbackDisposer(Type entityType, Guid subscriptionId, ConcurrentDictionary<Type, ConcurrentDictionary<Guid, Action>> callbacks) : IDisposable
+    sealed class CallbackDisposer(string tableName, Guid subscriptionId, ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action>> callbacks) : IDisposable
     {
         bool _disposed;
 
@@ -51,9 +54,9 @@ public class EntityChangeTracker : IEntityChangeTracker
 
             _disposed = true;
 
-            if (callbacks.TryGetValue(entityType, out var typeCallbacks))
+            if (callbacks.TryGetValue(tableName, out var tableCallbacks))
             {
-                typeCallbacks.TryRemove(subscriptionId, out _);
+                tableCallbacks.TryRemove(subscriptionId, out _);
             }
         }
     }
