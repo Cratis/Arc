@@ -47,7 +47,7 @@ public class a_postgresql_observe_context(PostgreSqlFixture fixture) : Specifica
         // Set up service collection
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
-            .SetMinimumLevel(LogLevel.Trace)
+            .SetMinimumLevel(LogLevel.Warning)
             .AddConsole());
         services.AddEntityFrameworkCoreObservation();
 

@@ -46,7 +46,7 @@ public class a_sql_server_observe_context(SqlServerFixture fixture) : Specificat
         // Set up service collection
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
-            .SetMinimumLevel(LogLevel.Trace)
+            .SetMinimumLevel(LogLevel.Warning)
             .AddConsole());
         services.AddEntityFrameworkCoreObservation();
 
