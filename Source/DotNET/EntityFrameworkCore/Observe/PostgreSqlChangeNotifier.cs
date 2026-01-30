@@ -216,13 +216,35 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
             }
             catch (NpgsqlException ex)
             {
+                // If we're disposing, cancelled, or the connection is already broken,
+                // this is expected shutdown behavior - don't log as error
+                if (_disposed || cancellationToken.IsCancellationRequested ||
+                    _connection is null || _connection.State != System.Data.ConnectionState.Open)
+                {
+                    break;
+                }
+
                 logger.PostgreSqlListenerError(ex);
 
                 // Will attempt to reconnect on next iteration
-                await Task.Delay(_reconnectDelay, cancellationToken);
+                try
+                {
+                    await Task.Delay(_reconnectDelay, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
             catch (Exception ex)
             {
+                // If we're disposing, cancelled, or connection is broken, don't log as error
+                if (_disposed || cancellationToken.IsCancellationRequested ||
+                    _connection is null || _connection.State != System.Data.ConnectionState.Open)
+                {
+                    break;
+                }
+
                 logger.PostgreSqlListenerError(ex);
                 break;
             }
