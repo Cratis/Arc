@@ -59,8 +59,9 @@ public class a_sql_server_observe_context(SqlServerFixture fixture) : Specificat
         services.AddDbContext<TestDbContext>((serviceProvider, options) =>
         {
             var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
+            var interceptorLogger = serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
             options.UseSqlServer(GetConnectionString())
-                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker));
+                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger));
         });
 
         _serviceProvider = services.BuildServiceProvider();
@@ -77,9 +78,10 @@ public class a_sql_server_observe_context(SqlServerFixture fixture) : Specificat
         dbContext.Database.EnsureCreated();
 
         // Create the test DbContext for direct use in tests
+        var interceptorLogger = _serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseSqlServer(GetConnectionString())
-            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker))
+            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger))
             .Options;
 
         _dbContext = new TestDbContext(options);

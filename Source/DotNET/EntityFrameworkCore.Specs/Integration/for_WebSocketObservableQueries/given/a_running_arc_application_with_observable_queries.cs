@@ -107,9 +107,10 @@ public class a_running_arc_application_with_observable_queries : Specification
         }
 
         // Create the test DbContext for direct use
+        var interceptorLogger = _services.GetRequiredService<ILogger<ObserveInterceptor>>();
         var options = new DbContextOptionsBuilder<IntegrationTestDbContext>()
             .UseSqlite(_connection)
-            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker))
+            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger))
             .Options;
         _dbContext = new IntegrationTestDbContext(options);
 

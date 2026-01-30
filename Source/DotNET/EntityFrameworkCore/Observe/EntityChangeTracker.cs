@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe;
 
@@ -13,7 +14,8 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// and derived types. Table names are stable identifiers that work regardless of
 /// the runtime type of entities.
 /// </remarks>
-public class EntityChangeTracker : IEntityChangeTracker
+/// <param name="logger">The <see cref="ILogger"/> for diagnostics.</param>
+public class EntityChangeTracker(ILogger<EntityChangeTracker> logger) : IEntityChangeTracker
 {
     readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action>> _callbacks = new();
 
@@ -24,24 +26,36 @@ public class EntityChangeTracker : IEntityChangeTracker
         var callbacks = _callbacks.GetOrAdd(tableName, _ => new ConcurrentDictionary<Guid, Action>());
         callbacks[subscriptionId] = callback;
 
-        return new CallbackDisposer(tableName, subscriptionId, _callbacks);
+        logger.RegisteredCallback(tableName, subscriptionId, callbacks.Count);
+
+        return new CallbackDisposer(tableName, subscriptionId, _callbacks, logger);
     }
 
     /// <inheritdoc/>
     public void NotifyChange(string tableName)
     {
+        logger.NotifyChangeCalled(tableName);
+
         if (!_callbacks.TryGetValue(tableName, out var callbacks))
         {
+            logger.NoCallbacksRegistered(tableName);
             return;
         }
 
+        logger.FoundCallbacks(callbacks.Count, tableName);
+
         foreach (var callback in callbacks.Values)
         {
+            logger.InvokingCallback(tableName);
             callback();
         }
     }
 
-    sealed class CallbackDisposer(string tableName, Guid subscriptionId, ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action>> callbacks) : IDisposable
+    sealed class CallbackDisposer(
+        string tableName,
+        Guid subscriptionId,
+        ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action>> callbacks,
+        ILogger<EntityChangeTracker> logger) : IDisposable
     {
         bool _disposed;
 
@@ -57,6 +71,7 @@ public class EntityChangeTracker : IEntityChangeTracker
             if (callbacks.TryGetValue(tableName, out var tableCallbacks))
             {
                 tableCallbacks.TryRemove(subscriptionId, out _);
+                logger.DisposedCallback(tableName, subscriptionId, tableCallbacks.Count);
             }
         }
     }

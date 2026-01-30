@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe;
 
@@ -10,7 +11,8 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// Interceptor that detects changes after SaveChanges and notifies subscribers.
 /// </summary>
 /// <param name="changeTracker">The <see cref="IEntityChangeTracker"/> to notify.</param>
-public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : SaveChangesInterceptor
+/// <param name="logger">The <see cref="ILogger"/> for diagnostics.</param>
+public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker, ILogger<ObserveInterceptor> logger) : SaveChangesInterceptor
 {
     HashSet<string> _changedTables = [];
 
@@ -46,6 +48,7 @@ public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : Sav
     {
         if (context is null)
         {
+            logger.CaptureChangedTablesNullContext();
             return;
         }
 
@@ -59,12 +62,17 @@ public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : Sav
             .Where(tableName => tableName is not null)
             .Cast<string>()
             .ToHashSet();
+
+        logger.CapturedChangedTables(_changedTables.Count, string.Join(", ", _changedTables));
     }
 
     void NotifyChanges()
     {
+        logger.NotifyingChanges(_changedTables.Count, string.Join(", ", _changedTables));
+
         foreach (var tableName in _changedTables)
         {
+            logger.NotifyingChangeForTable(tableName);
             changeTracker.NotifyChange(tableName);
         }
 

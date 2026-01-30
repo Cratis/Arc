@@ -75,8 +75,9 @@ public class a_db_set_observe_context : Specification
         {
             var connection = serviceProvider.GetRequiredService<SqliteConnection>();
             var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
+            var interceptorLogger = serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
             options.UseSqlite(connection)
-                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker));
+                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger));
         });
 
         _serviceProvider = services.BuildServiceProvider();
@@ -93,9 +94,10 @@ public class a_db_set_observe_context : Specification
         dbContext.Database.EnsureCreated();
 
         // Create the test DbContext for direct use in tests
+        var interceptorLogger = _serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseSqlite(_connection)
-            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker))
+            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger))
             .Options;
 
         _dbContext = new TestDbContext(options);

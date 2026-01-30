@@ -60,8 +60,9 @@ public class a_postgresql_observe_context(PostgreSqlFixture fixture) : Specifica
         services.AddDbContext<TestDbContext>((serviceProvider, options) =>
         {
             var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
+            var interceptorLogger = serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
             options.UseNpgsql(GetConnectionString())
-                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker));
+                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger));
         });
 
         _serviceProvider = services.BuildServiceProvider();
@@ -81,9 +82,10 @@ public class a_postgresql_observe_context(PostgreSqlFixture fixture) : Specifica
         CreateNotifyTrigger();
 
         // Create the test DbContext for direct use in tests
+        var interceptorLogger = _serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseNpgsql(GetConnectionString())
-            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker))
+            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger))
             .Options;
 
         _dbContext = new TestDbContext(options);
