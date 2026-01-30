@@ -4,7 +4,6 @@
 using System.Reactive.Subjects;
 using Cratis.Arc.EntityFrameworkCore.Observe.for_DbSetObserveExtensions.given;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe.for_DbSetObserveExtensions.when_observing;
 

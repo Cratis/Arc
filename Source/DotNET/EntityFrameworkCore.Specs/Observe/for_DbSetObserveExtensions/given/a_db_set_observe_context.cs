@@ -58,7 +58,7 @@ public class a_db_set_observe_context : Specification
         // Set up service collection
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
-            .SetMinimumLevel(LogLevel.Trace)
+            .SetMinimumLevel(LogLevel.Warning)
             .AddConsole());
         services.AddEntityFrameworkCoreObservation();
 
