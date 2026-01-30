@@ -20,7 +20,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Integration.for_WebSocketObservableQuer
 /// </summary>
 public class a_running_arc_application_with_observable_queries : Specification
 {
-    static int _portCounter = 15200;
+    static int _portCounter = 25000;
 
     protected int _port;
     protected Uri _baseUri;
@@ -41,16 +41,33 @@ public class a_running_arc_application_with_observable_queries : Specification
         _baseUri = new Uri($"http://localhost:{_port}/");
         _webSocketBaseUri = new Uri($"ws://localhost:{_port}/");
 
-        // Create a shared SQLite in-memory connection
+        // Create a shared SQLite in-memory connection that must stay open for the duration of the test.
+        // SQLite in-memory databases are destroyed when the last connection closes.
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
 
         // Build the Arc application
         var builder = ArcApplication.CreateBuilder();
 
+        // Register the shared SQLite connection as singleton so all DbContexts use the same connection
+        builder.Services.AddSingleton(_connection);
+
         // Add Entity Framework Core observation services FIRST (before AddCratisArc)
         // This ensures our singleton registration takes precedence over convention-based registration
         builder.Services.AddEntityFrameworkCoreObservation();
+
+        // Register the DbContext with the shared connection for in-memory SQLite testing.
+        builder.Services.AddPooledDbContextFactory<IntegrationTestDbContext>((sp, options) =>
+        {
+            var conn = sp.GetRequiredService<SqliteConnection>();
+            options.UseSqlite(conn)
+                   .AddObservation(sp);
+        });
+        builder.Services.AddScoped(sp =>
+        {
+            var factory = sp.GetRequiredService<IDbContextFactory<IntegrationTestDbContext>>();
+            return factory.CreateDbContext();
+        });
 
         // Configure Arc options with custom port and route prefix
         builder.AddCratisArc(configureOptions: options =>
@@ -66,18 +83,6 @@ public class a_running_arc_application_with_observable_queries : Specification
         {
             logging.SetMinimumLevel(LogLevel.Warning);
             logging.AddConsole();
-        });
-
-        // Register the SQLite connection as singleton
-        builder.Services.AddSingleton(_connection);
-
-        // Register the DbContext with observation interceptor
-        builder.Services.AddDbContext<IntegrationTestDbContext>((sp, options) =>
-        {
-            var conn = sp.GetRequiredService<SqliteConnection>();
-            var changeTracker = sp.GetRequiredService<IEntityChangeTracker>();
-            options.UseSqlite(conn)
-                   .AddInterceptors(new ObserveInterceptor(changeTracker));
         });
 
         // Build and configure the app
