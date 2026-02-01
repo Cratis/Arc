@@ -126,7 +126,6 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         var completedCleanup = false;
-        var subject = createSubject([]);
         var logger = Internals.ServiceProvider.GetRequiredService<ILogger<DbSetObserver>>();
         var changeTracker = Internals.ServiceProvider.GetRequiredService<IEntityChangeTracker>();
         var notifierFactory = Internals.ServiceProvider.GetRequiredService<IDatabaseChangeNotifierFactory>();
@@ -157,6 +156,23 @@ public static class DbSetObserveExtensions
             ?? throw new InvalidOperationException("Connection string is not available from the DbContext.");
 
         logger.StartingObservation(typeof(TEntity).Name);
+
+        // Perform initial query synchronously to determine if we have data
+        // This ensures we create the correct type of subject (Behavior vs regular)
+        List<TEntity> initialEntities;
+        using (var scope = serviceScopeFactory.CreateScope())
+        {
+            var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+            var freshDbSet = freshDbContext.Set<TEntity>();
+            var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
+            queryContext.TotalItems = initialBaseQuery.Count();
+            var query = BuildQuery(initialBaseQuery, queryContext);
+            initialEntities = query.ToList();
+        }
+
+        entities.InitializeWithEntities(initialEntities);
+        var subject = createSubject(entities);
+        onNext(entities, subject);
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
@@ -241,25 +257,6 @@ public static class DbSetObserveExtensions
                 {
                     // Log but don't fail - fall back to in-process only
                     logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
-                }
-
-                // Initial query - create a scope for it
-                await queryExecutionSemaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    using var scope = serviceScopeFactory.CreateScope();
-                    var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-                    var freshDbSet = freshDbContext.Set<TEntity>();
-                    var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-                    queryContext.TotalItems = initialBaseQuery.Count();
-                    var query = BuildQuery(initialBaseQuery, queryContext);
-                    var initialEntities = await query.ToListAsync(cancellationToken);
-                    entities.InitializeWithEntities(initialEntities);
-                    onNext(entities, subject);
-                }
-                finally
-                {
-                    queryExecutionSemaphore.Release();
                 }
 
                 logger.ObservationWatchingForChanges(typeof(TEntity).Name);
