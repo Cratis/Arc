@@ -28,17 +28,31 @@ public static class ImportStatementExtensions
                 return 0;
             }
 
+            int moduleComparison;
             if (!IsPathImport(moduleLeft) && !IsPathImport(moduleRight))
             {
-                return string.Compare(moduleLeft, moduleLeft, StringComparison.OrdinalIgnoreCase);
+                moduleComparison = string.Compare(moduleLeft, moduleRight, StringComparison.OrdinalIgnoreCase);
             }
-            if (!IsPathImport(moduleLeft))
+            else if (!IsPathImport(moduleLeft))
             {
-                return -1;
+                moduleComparison = -1;
             }
-            return !IsPathImport(moduleRight)
-                ? 1
-                : string.Compare(GetPathImportFilename(moduleLeft), GetPathImportFilename(moduleRight), StringComparison.OrdinalIgnoreCase);
+            else if (!IsPathImport(moduleRight))
+            {
+                moduleComparison = 1;
+            }
+            else
+            {
+                moduleComparison = string.Compare(GetPathImportFilename(moduleLeft), GetPathImportFilename(moduleRight), StringComparison.OrdinalIgnoreCase);
+            }
+
+            // If modules are the same, compare by type name for deterministic ordering
+            if (moduleComparison == 0)
+            {
+                return string.Compare(x?.Type, y?.Type, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return moduleComparison;
         }
 
         static bool IsPathImport(string module) => module.StartsWith("./") || module.StartsWith("../");
