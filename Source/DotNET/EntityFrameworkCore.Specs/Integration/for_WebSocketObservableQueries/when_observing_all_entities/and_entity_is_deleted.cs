@@ -8,6 +8,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Integration.for_WebSocketObservableQuer
 /// <summary>
 /// Specs for WebSocket notification when an entity is deleted.
 /// </summary>
+[Collection(nameof(WebSocketObservableQueriesCollection))]
 public class and_entity_is_deleted : a_running_arc_application_with_observable_queries
 {
     int _initialMessageCount;
