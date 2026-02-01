@@ -66,8 +66,8 @@ public static class DescriptorExtensions
                 skippedCount++;
                 if (generatedFiles is not null)
                 {
-                    // Mark as not written
-                    generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, metadata.GeneratedTime, metadata.ContentHash, false);
+                    // Mark as not written - preserve the existing timestamp
+                    generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, existingMetadata.GeneratedTime, metadata.ContentHash, false);
                 }
                 continue;
             }
