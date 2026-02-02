@@ -177,6 +177,7 @@ public static class DbSetObserveExtensions
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
         var queryExecutionSemaphore = new SemaphoreSlim(1, 1);
+        var databaseNotifierReady = new ManualResetEventSlim(false);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         var cancellationToken = cancellationTokenSource.Token;
 
@@ -189,6 +190,11 @@ public static class DbSetObserveExtensions
         _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
         _ = Task.Run(Watch);
+
+        // Wait for database notifier to be ready before returning
+        // This ensures SqlDependency is set up before any external changes can be made
+        databaseNotifierReady.Wait(TimeSpan.FromSeconds(10));
+
         return subject;
 
         async Task Watch()
@@ -258,6 +264,11 @@ public static class DbSetObserveExtensions
                     // Log but don't fail - fall back to in-process only
                     logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
                 }
+                finally
+                {
+                    // Signal that database notifier setup is complete (success or failure)
+                    databaseNotifierReady.Set();
+                }
 
                 logger.ObservationWatchingForChanges(typeof(TEntity).Name);
 
@@ -323,6 +334,7 @@ public static class DbSetObserveExtensions
             {
                 queryExecutionSemaphore.Release();
                 queryExecutionSemaphore.Dispose();
+                databaseNotifierReady.Dispose();
             }
         }
     }

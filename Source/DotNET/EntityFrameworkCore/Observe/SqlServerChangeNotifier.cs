@@ -203,10 +203,8 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
                                           "SET ANSI_WARNINGS ON; " +
                                           "SET NUMERIC_ROUNDABORT OFF;";
 
-                await using (var setCommand = new SqlCommand(setOptions, _connection))
-                {
-                    await setCommand.ExecuteNonQueryAsync(effectiveCancellationToken);
-                }
+                await using var setCommand = new SqlCommand(setOptions, _connection);
+                await setCommand.ExecuteNonQueryAsync(effectiveCancellationToken);
             }
 
             // SqlDependency requires a specific query format
@@ -217,8 +215,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
 
             // IMPORTANT: Do NOT use 'await using' - the command must stay alive for SqlDependency!
             // SqlDependency holds a weak reference and needs the command to exist
-            _command = new SqlCommand(sql, _connection);
-            _command.CommandTimeout = 30;
+            _command = new SqlCommand(sql, _connection) { CommandTimeout = 30 };
 
             logger.SqlServerSettingUpDependency(_tableName ?? "unknown", sql);
 
@@ -288,16 +285,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
 
     void OnDependencyChange(object sender, SqlNotificationEventArgs e)
     {
-        try
-        {
-            // ALWAYS log all notifications for debugging
-            logger.ReceivedSqlServerNotification(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
-            logger.LogInformation($">>> NOTIFICATION RECEIVED: Type={e.Type}, Info={e.Info}, Source={e.Source} <<<");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error logging notification");
-        }
+        logger.ReceivedSqlServerNotification(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
 
         var effectiveCancellationToken = _internalCancellationTokenSource?.Token ?? _cancellationToken;
 
