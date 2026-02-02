@@ -4,13 +4,15 @@
 using System.Text.Json;
 using Cratis.Arc.EntityFrameworkCore.Integration.for_WebSocketObservableQueries.given;
 
+#pragma warning disable RCS1141 // Add 'param' element to documentation comment
+
 namespace Cratis.Arc.EntityFrameworkCore.Integration.for_WebSocketObservableQueries.when_observing_all_entities;
 
 /// <summary>
 /// Specs for WebSocket notification when an entity is updated.
 /// </summary>
 [Collection(nameof(WebSocketObservableQueriesCollection))]
-public class and_entity_is_updated : a_running_arc_application_with_observable_queries
+public class and_entity_is_updated(ApplicationFixture fixture) : a_running_arc_application_with_observable_queries(fixture)
 {
     int _initialMessageCount;
     bool _receivedUpdateNotification;
