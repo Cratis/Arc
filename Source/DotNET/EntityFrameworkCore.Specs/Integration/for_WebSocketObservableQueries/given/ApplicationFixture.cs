@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
+using System.Net.Sockets;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -18,8 +20,6 @@ namespace Cratis.Arc.EntityFrameworkCore.Integration.for_WebSocketObservableQuer
 /// </summary>
 public class ApplicationFixture : IAsyncLifetime
 {
-    const int Port = 25001;
-
     public Uri BaseUri { get; private set; }
     public Uri WebSocketBaseUri { get; private set; }
     public IServiceProvider Services { get; private set; }
@@ -28,10 +28,20 @@ public class ApplicationFixture : IAsyncLifetime
 
     ArcApplication _app;
 
+    static int GetAvailablePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
     public async Task InitializeAsync()
     {
-        BaseUri = new Uri($"http://localhost:{Port}/");
-        WebSocketBaseUri = new Uri($"ws://localhost:{Port}/");
+        var port = GetAvailablePort();
+        BaseUri = new Uri($"http://localhost:{port}/");
+        WebSocketBaseUri = new Uri($"ws://localhost:{port}/");
 
         Connection = new SqliteConnection("Data Source=:memory:");
         await Connection.OpenAsync();
@@ -56,7 +66,7 @@ public class ApplicationFixture : IAsyncLifetime
 
         builder.AddCratisArc(configureOptions: options =>
         {
-            options.Hosting.ApplicationUrl = $"http://localhost:{Port}/";
+            options.Hosting.ApplicationUrl = BaseUri.ToString();
             options.GeneratedApis.RoutePrefix = "api";
             options.GeneratedApis.IncludeQueryNameInRoute = true;
             options.GeneratedApis.SegmentsToSkipForRoute = 3;
