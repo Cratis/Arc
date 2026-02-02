@@ -177,23 +177,83 @@ public static class DbSetObserveExtensions
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
         var queryExecutionSemaphore = new SemaphoreSlim(1, 1);
-        var databaseNotifierReady = new ManualResetEventSlim(false);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         var cancellationToken = cancellationTokenSource.Token;
 
         IDisposable? changeSubscription = null;
         IDatabaseChangeNotifier? databaseNotifier = null;
 
-        // Subscribe to subject completion BEFORE starting Watch task and returning subject.
-        // This ensures we're subscribed before ClientObservable can complete the subject,
-        // preventing a race condition where the Watch task subscribes to an already-completed subject.
+        // Common callback for both in-process and database-level changes
+        void OnChangeDetected()
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // Prevent queries from running during cleanup
+            if (!queryExecutionSemaphore.Wait(0))
+            {
+                logger.SkippingQueryDuringCleanup(typeof(TEntity).Name);
+                return;
+            }
+
+            try
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                logger.ChangeDetectedRequerying(typeof(TEntity).Name);
+
+                // Create a new scope to get a fresh DbContext
+                using var scope = serviceScopeFactory.CreateScope();
+                var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+                var freshDbSet = freshDbContext.Set<TEntity>();
+
+                // Build the query using the fresh DbSet
+                var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
+                queryContext.TotalItems = baseQuery.Count();
+                var newQuery = BuildQuery(baseQuery, queryContext);
+                var newEntities = newQuery.ToList();
+                entities.ReinitializeWithEntities(newEntities);
+                onNext(entities, subject);
+            }
+            catch (Exception ex)
+            {
+                logger.UnexpectedError(typeof(TEntity).Name, ex);
+            }
+            finally
+            {
+                queryExecutionSemaphore.Release();
+            }
+        }
+
+        // Subscribe to in-process changes (via SaveChanges interceptor)
+        changeSubscription = changeTracker.RegisterCallback(tableName, OnChangeDetected);
+
+        // Subscribe to database-level changes (cross-process notifications)
+        // This is done SYNCHRONOUSLY to ensure SqlDependency is ready before returning
+        try
+        {
+            databaseNotifier = notifierFactory.Create(databaseType, connectionString);
+            databaseNotifier.StartListening(tableName, columnNames, OnChangeDetected, cancellationToken).GetAwaiter().GetResult();
+            logger.DatabaseNotifierStarted(typeof(TEntity).Name);
+        }
+        catch (Exception ex)
+        {
+            // Log but don't fail - fall back to in-process only
+            logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
+        }
+
+        // Subscribe to subject completion for cleanup
         _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
+        // Start background task to keep the observation alive
         _ = Task.Run(Watch);
 
-        // Wait for database notifier to be ready before returning
-        // This ensures SqlDependency is set up before any external changes can be made
-        databaseNotifierReady.Wait(TimeSpan.FromSeconds(10));
+        logger.ObservationWatchingForChanges(typeof(TEntity).Name);
 
         return subject;
 
@@ -201,77 +261,6 @@ public static class DbSetObserveExtensions
         {
             try
             {
-                // Common callback for both in-process and database-level changes
-                void OnChangeDetected()
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    // Prevent queries from running during cleanup
-                    if (!queryExecutionSemaphore.Wait(0))
-                    {
-                        logger.SkippingQueryDuringCleanup(typeof(TEntity).Name);
-                        return;
-                    }
-
-                    try
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                        {
-                            return;
-                        }
-
-                        logger.ChangeDetectedRequerying(typeof(TEntity).Name);
-
-                        // Create a new scope to get a fresh DbContext
-                        using var scope = serviceScopeFactory.CreateScope();
-                        var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-                        var freshDbSet = freshDbContext.Set<TEntity>();
-
-                        // Build the query using the fresh DbSet
-                        var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-                        queryContext.TotalItems = baseQuery.Count();
-                        var newQuery = BuildQuery(baseQuery, queryContext);
-                        var newEntities = newQuery.ToList();
-                        entities.ReinitializeWithEntities(newEntities);
-                        onNext(entities, subject);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.UnexpectedError(typeof(TEntity).Name, ex);
-                    }
-                    finally
-                    {
-                        queryExecutionSemaphore.Release();
-                    }
-                }
-
-                // Subscribe to in-process changes (via SaveChanges interceptor)
-                // Use table name instead of CLR type to avoid issues with EF Core proxy classes
-                changeSubscription = changeTracker.RegisterCallback(tableName, OnChangeDetected);
-
-                // Subscribe to database-level changes (cross-process notifications)
-                try
-                {
-                    databaseNotifier = notifierFactory.Create(databaseType, connectionString);
-                    await databaseNotifier.StartListening(tableName, columnNames, OnChangeDetected, cancellationToken);
-                    logger.DatabaseNotifierStarted(typeof(TEntity).Name);
-                }
-                catch (Exception ex)
-                {
-                    // Log but don't fail - fall back to in-process only
-                    logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
-                }
-                finally
-                {
-                    // Signal that database notifier setup is complete (success or failure)
-                    databaseNotifierReady.Set();
-                }
-
-                logger.ObservationWatchingForChanges(typeof(TEntity).Name);
-
                 // Keep the task alive until cancelled
                 await Task.Delay(Timeout.Infinite, cancellationToken);
             }
@@ -334,7 +323,6 @@ public static class DbSetObserveExtensions
             {
                 queryExecutionSemaphore.Release();
                 queryExecutionSemaphore.Dispose();
-                databaseNotifierReady.Dispose();
             }
         }
     }
