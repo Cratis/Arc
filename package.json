@@ -54,7 +54,7 @@
         "eslint-plugin-prettier": "5.5.5",
         "eslint-plugin-react": "7.37.5",
         "glob": "13.0.0",
-        "globals": "17.2.0",
+        "globals": "17.3.0",
         "jsdom": "^27.4.0",
         "mocha": "11.7.5",
         "module-alias": "2.2.3",
