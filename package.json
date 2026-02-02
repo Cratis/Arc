@@ -55,7 +55,7 @@
         "eslint-plugin-react": "7.37.5",
         "glob": "13.0.0",
         "globals": "17.2.0",
-        "jsdom": "^27.4.0",
+        "jsdom": "^28.0.0",
         "mocha": "11.7.5",
         "module-alias": "2.2.3",
         "npm-check-updates": "19.3.2",
