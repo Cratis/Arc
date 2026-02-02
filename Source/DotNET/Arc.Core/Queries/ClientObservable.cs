@@ -45,7 +45,7 @@ public class ClientObservable<T>(
 
     async Task HandleConnectionCore(IHttpRequestContext context)
     {
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var webSocket = await context.WebSockets.AcceptWebSocket();
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         using var cts = new CancellationTokenSource();

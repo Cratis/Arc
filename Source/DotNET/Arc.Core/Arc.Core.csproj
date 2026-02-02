@@ -9,6 +9,8 @@
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.SqlServer.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.PostgreSql.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.OpenApi" />
     </ItemGroup>
 

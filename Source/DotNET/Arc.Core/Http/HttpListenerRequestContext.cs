@@ -76,7 +76,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
-    public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
+    public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
         var json = await reader.ReadToEndAsync(cancellationToken);
@@ -100,7 +100,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
-    public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
+    public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         context.Response.ContentType = "application/json";
@@ -129,7 +129,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
-    public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
+    public async Task Write(string text, CancellationToken cancellationToken = default)
     {
         var buffer = Encoding.UTF8.GetBytes(text);
         context.Response.ContentLength64 = buffer.Length;
@@ -137,14 +137,14 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
-    public async Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default)
+    public async Task WriteBytes(byte[] data, CancellationToken cancellationToken = default)
     {
         context.Response.ContentLength64 = data.Length;
         await context.Response.OutputStream.WriteAsync(data, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public async Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task WriteStream(Stream stream, CancellationToken cancellationToken = default)
     {
         context.Response.ContentLength64 = stream.Length;
         await stream.CopyToAsync(context.Response.OutputStream, cancellationToken);

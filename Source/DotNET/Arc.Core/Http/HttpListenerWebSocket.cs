@@ -16,19 +16,19 @@ public class HttpListenerWebSocket(WebSocket webSocket) : IWebSocket
     public WebSocketState State => webSocket.State;
 
     /// <inheritdoc/>
-    public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+    public Task Send(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
     {
         return webSocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+    public Task<WebSocketReceiveResult> Receive(ArraySegment<byte> buffer, CancellationToken cancellationToken)
     {
         return webSocket.ReceiveAsync(buffer, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+    public Task Close(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
     {
         return webSocket.CloseAsync(closeStatus, statusDescription, cancellationToken);
     }

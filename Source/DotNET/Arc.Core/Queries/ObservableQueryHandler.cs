@@ -119,7 +119,7 @@ public class ObservableQueryHandler(
         // This allows HTTP clients to get a snapshot of the observable's current value
         var queryResult = await GetCurrentValueAsQueryResult(streamingData);
         context.SetStatusCode(200);
-        await context.WriteResponseAsJsonAsync(queryResult, typeof(QueryResult), context.RequestAborted);
+        await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }
 
     async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
@@ -147,7 +147,7 @@ public class ObservableQueryHandler(
 #pragma warning restore IDE0060
     {
         // For HTTP, we need to serialize the enumerable
-        await context.WriteResponseAsJsonAsync(new { message = "AsyncEnumerable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
+        await context.WriteResponseAsJson(new { message = "AsyncEnumerable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
         context.SetStatusCode(400);
     }
 

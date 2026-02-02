@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.EntityFrameworkCore.SqlServer.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.EntityFrameworkCore.SqlServer</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+        <PackageReference Include="Testcontainers.MsSql" />
+        <ProjectReference Include="../EntityFrameworkCore/EntityFrameworkCore.csproj"/>
+    </ItemGroup>
+</Project>

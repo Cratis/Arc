@@ -15,7 +15,7 @@ builder.AddCratisArc(configureOptions: options =>
 var app = builder.Build();
 app.UseCratisArc();
 
-app.MapGet("/", async (req) => await req.WriteAsync("Hello, World!"));
+app.MapGet("/", async (req) => await req.Write("Hello, World!"));
 
 app.MapGet("/add-cookies", (req) =>
 {

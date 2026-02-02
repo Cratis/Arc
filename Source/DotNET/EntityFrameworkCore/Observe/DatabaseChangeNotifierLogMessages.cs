@@ -25,6 +25,15 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Error, "PostgreSQL listener encountered an error")]
     internal static partial void PostgreSqlListenerError(this ILogger<PostgreSqlChangeNotifier> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Warning, "Insufficient privileges to create trigger on table {TableName} - ensure trigger exists manually")]
+    internal static partial void PostgreSqlTriggerPermissionDenied(this ILogger<PostgreSqlChangeNotifier> logger, string tableName);
+
+    [LoggerMessage(LogLevel.Warning, "Failed to create trigger on table {TableName} - ensure trigger exists manually")]
+    internal static partial void PostgreSqlTriggerCreationFailed(this ILogger<PostgreSqlChangeNotifier> logger, string tableName, Exception ex);
+
+    [LoggerMessage(LogLevel.Information, "Attempting to reconnect PostgreSQL listener for channel {ChannelName}")]
+    internal static partial void PostgreSqlReconnecting(this ILogger<PostgreSqlChangeNotifier> logger, string channelName);
+
     // SQL Server
     [LoggerMessage(LogLevel.Information, "Started listening for SQL Server notifications on table {TableName}")]
     internal static partial void StartedListeningSqlServer(this ILogger<SqlServerChangeNotifier> logger, string tableName);
@@ -32,25 +41,34 @@ internal static partial class DatabaseChangeNotifierLogMessages
     [LoggerMessage(LogLevel.Information, "Stopped listening for SQL Server notifications on table {TableName}")]
     internal static partial void StoppedListeningSqlServer(this ILogger<SqlServerChangeNotifier> logger, string tableName);
 
-    [LoggerMessage(LogLevel.Debug, "Received SQL Server notification: Type={Type}, Info={Info}, Source={Source}")]
+    [LoggerMessage(LogLevel.Information, "Received SQL Server notification: Type={Type}, Info={Info}, Source={Source}")]
     internal static partial void ReceivedSqlServerNotification(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
 
     [LoggerMessage(LogLevel.Error, "Error re-subscribing to SQL Server notifications")]
     internal static partial void SqlServerResubscribeError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Information, "Setting up SQL Server dependency for table {TableName} with query: {Query}")]
+    internal static partial void SqlServerSettingUpDependency(this ILogger<SqlServerChangeNotifier> logger, string tableName, string query);
+
+    [LoggerMessage(LogLevel.Debug, "Successfully set up SQL Server dependency for table {TableName}")]
+    internal static partial void SqlServerDependencySetupSuccess(this ILogger<SqlServerChangeNotifier> logger, string tableName);
+
+    [LoggerMessage(LogLevel.Debug, "Created SQL Server dependency: Id={Id}, HasChanges={HasChanges}")]
+    internal static partial void SqlServerDependencyCreated(this ILogger<SqlServerChangeNotifier> logger, string id, bool hasChanges);
+
+    [LoggerMessage(LogLevel.Warning, "Failed to set up SQL Server dependency for table {TableName} (attempt {ConsecutiveFailures})")]
+    internal static partial void SqlServerDependencySetupFailed(this ILogger<SqlServerChangeNotifier> logger, string tableName, Exception ex, int consecutiveFailures);
+
+    [LoggerMessage(LogLevel.Error, "Error in OnChanged callback")]
+    internal static partial void OnChangedCallbackError(this ILogger<SqlServerChangeNotifier> logger, Exception ex);
+
+    [LoggerMessage(LogLevel.Warning, "SQL Server notification error: Type={Type}, Info={Info}, Source={Source}")]
+    internal static partial void SqlServerNotificationError(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
+
+    [LoggerMessage(LogLevel.Warning, "SQL Server notification invalid (SqlDependency couldn't subscribe): Type={Type}, Info={Info}, Source={Source}")]
+    internal static partial void SqlServerNotificationInvalid(this ILogger<SqlServerChangeNotifier> logger, string type, string info, string source);
+
     // SQLite
-    [LoggerMessage(LogLevel.Information, "Started listening for SQLite file changes on {DatabasePath}")]
-    internal static partial void StartedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string databasePath);
-
-    [LoggerMessage(LogLevel.Information, "Stopped listening for SQLite file changes on {DatabasePath}")]
-    internal static partial void StoppedListeningSqlite(this ILogger<SqliteChangeNotifier> logger, string databasePath);
-
-    [LoggerMessage(LogLevel.Debug, "SQLite file changed: {FilePath}, ChangeType={ChangeType}")]
-    internal static partial void SqliteFileChanged(this ILogger<SqliteChangeNotifier> logger, string filePath, string changeType);
-
-    [LoggerMessage(LogLevel.Warning, "SQLite directory not found: {Directory}")]
-    internal static partial void SqliteDirectoryNotFound(this ILogger<SqliteChangeNotifier> logger, string directory);
-
-    [LoggerMessage(LogLevel.Error, "SQLite file watcher encountered an error")]
-    internal static partial void SqliteWatcherError(this ILogger<SqliteChangeNotifier> logger, Exception ex);
+    [LoggerMessage(LogLevel.Debug, "SQLite using in-process change detection only for table {TableName}")]
+    internal static partial void SqliteUsingInProcessOnly(this ILogger<SqliteChangeNotifier> logger, string tableName);
 }

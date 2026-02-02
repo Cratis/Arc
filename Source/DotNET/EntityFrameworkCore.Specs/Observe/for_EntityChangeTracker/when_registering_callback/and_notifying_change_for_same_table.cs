@@ -5,18 +5,19 @@ using Cratis.Arc.EntityFrameworkCore.Observe.for_EntityChangeTracker.given;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe.for_EntityChangeTracker.when_registering_callback;
 
-public class and_notifying_change_for_same_entity_type : an_entity_change_tracker
+public class and_notifying_change_for_same_table : an_entity_change_tracker
 {
+    const string TableName = "TestEntities";
     int _callbackCount;
     IDisposable _subscription;
 
     void Establish()
     {
         _callbackCount = 0;
-        _subscription = _changeTracker.RegisterCallback<TestEntity>(() => _callbackCount++);
+        _subscription = _changeTracker.RegisterCallback(TableName, () => _callbackCount++);
     }
 
-    void Because() => _changeTracker.NotifyChange(typeof(TestEntity));
+    void Because() => _changeTracker.NotifyChange(TableName);
 
     [Fact] void should_invoke_the_callback() => _callbackCount.ShouldEqual(1);
 

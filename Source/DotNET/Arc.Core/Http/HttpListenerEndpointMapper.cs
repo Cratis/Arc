@@ -75,7 +75,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         _serviceProvider = serviceProvider;
         _cancellationTokenSource = new CancellationTokenSource();
         _listener.Start();
-        _listenerTask = ListenAsync(_cancellationTokenSource.Token);
+        _listenerTask = Listen(_cancellationTokenSource.Token);
         _isStarted = true;
 
         _logger.HttpListenerStarted(string.Join(", ", _listener.Prefixes));
@@ -85,7 +85,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     /// Stops the HTTP listener.
     /// </summary>
     /// <returns>A task representing the stop operation.</returns>
-    public async Task StopAsync()
+    public async Task Stop()
     {
         if (!_isStarted)
         {
@@ -189,7 +189,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
     }
 
-    static async Task ServeFileAsync(HttpListenerContext context, string filePath)
+    static async Task ServeFile(HttpListenerContext context, string filePath)
     {
         context.Response.ContentType = MimeTypes.GetMimeTypeFromPath(filePath);
         context.Response.ContentLength64 = new FileInfo(filePath).Length;
@@ -211,14 +211,14 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
-    async Task ListenAsync(CancellationToken cancellationToken)
+    async Task Listen(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 var context = await _listener.GetContextAsync();
-                _ = Task.Run(async () => await HandleRequestAsync(context), cancellationToken);
+                _ = Task.Run(async () => await HandleRequest(context), cancellationToken);
             }
             catch (HttpListenerException) when (cancellationToken.IsCancellationRequested)
             {
@@ -235,7 +235,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
-    async Task HandleRequestAsync(HttpListenerContext context)
+    async Task HandleRequest(HttpListenerContext context)
     {
         var isWebSocketRequest = false;
         try
@@ -261,7 +261,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
                 var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
                 var authenticationMiddleware = new AuthenticationMiddleware(authentication);
 
-                if (!await authenticationMiddleware.AuthenticateAsync(requestContext, route.Metadata))
+                if (!await authenticationMiddleware.Authenticate(requestContext, route.Metadata))
                 {
                     return;
                 }
@@ -271,13 +271,13 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             else
             {
                 // Try to serve static files if configured
-                if (method == "GET" && await TryServeStaticFileAsync(context, path))
+                if (method == "GET" && await TryServeStaticFile(context, path))
                 {
                     return;
                 }
 
                 // Try to serve fallback file if configured (for SPA routing)
-                if (method == "GET" && await TryServeFallbackFileAsync(context))
+                if (method == "GET" && await TryServeFallbackFile(context))
                 {
                     return;
                 }
@@ -309,7 +309,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
-    async Task<bool> TryServeStaticFileAsync(HttpListenerContext context, string requestPath)
+    async Task<bool> TryServeStaticFile(HttpListenerContext context, string requestPath)
     {
         _logger.AttemptingStaticFile(requestPath, _staticFileConfigurations.Count);
 
@@ -351,7 +351,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
             if (fileExists)
             {
                 _logger.StaticFileServed(filePath);
-                await ServeFileAsync(context, filePath);
+                await ServeFile(context, filePath);
                 return true;
             }
 
@@ -361,7 +361,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         return false;
     }
 
-    async Task<bool> TryServeFallbackFileAsync(HttpListenerContext context)
+    async Task<bool> TryServeFallbackFile(HttpListenerContext context)
     {
         if (_fallbackFilePath is null || _staticFileConfigurations.Count == 0)
         {
@@ -383,7 +383,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         if (File.Exists(filePath))
         {
             _logger.FallbackFileServed(filePath);
-            await ServeFileAsync(context, filePath);
+            await ServeFile(context, filePath);
             return true;
         }
 
