@@ -33,7 +33,7 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageVersion Include="handlebars.net" Version="2.1.6" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.1" />
     <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.2.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.5.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.5.0" />
