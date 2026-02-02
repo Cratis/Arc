@@ -27,7 +27,9 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
     readonly object _lock = new();
     readonly SemaphoreSlim _subscriptionSemaphore = new(1, 1);
 
+    string? _normalizedConnectionString;
     SqlConnection? _connection;
+    SqlCommand? _command;
     SqlDependency? _dependency;
     string? _tableName;
     string? _columnList;
@@ -51,8 +53,15 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
         // Ensure Service Broker is enabled
         await serviceBrokerManager.EnsureEnabled(connectionString, cancellationToken);
 
+        // Store the EXACT connection string as-is
+        // SqlDependency.Start() and new SqlConnection() MUST use the identical string
+        _normalizedConnectionString = connectionString;
+
         // Start SqlDependency
-        SqlDependency.Start(connectionString);
+        SqlDependency.Start(_normalizedConnectionString);
+
+        // Give SqlDependency time to initialize Service Broker infrastructure
+        await Task.Delay(100, cancellationToken);
 
         await SetupDependency();
 
@@ -69,11 +78,27 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
 
         try
         {
-            SqlDependency.Stop(connectionString);
+            SqlDependency.Stop(_normalizedConnectionString ?? connectionString);
         }
         catch
         {
             // Ignore errors during cleanup
+        }
+
+        if (_command is not null)
+        {
+            try
+            {
+                await _command.DisposeAsync();
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+            finally
+            {
+                _command = null;
+            }
         }
 
         if (_connection is not null)
@@ -129,11 +154,24 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
         {
             _isSubscribing = true;
 
-            // Clean up previous dependency
+            // Clean up previous dependency and command
             if (_dependency is not null)
             {
                 _dependency.OnChange -= OnDependencyChange;
                 _dependency = null;
+            }
+
+            if (_command is not null)
+            {
+                try
+                {
+                    await _command.DisposeAsync();
+                }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
+                _command = null;
             }
 
             // Create new connection if needed (don't reuse/dispose existing one during re-subscription)
@@ -152,36 +190,39 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
                     }
                 }
 
-                _connection = new SqlConnection(connectionString);
+                _connection = new SqlConnection(_normalizedConnectionString ?? connectionString);
                 await _connection.OpenAsync(effectiveCancellationToken);
+
+                // Set the required SET options for SqlDependency on the CONNECTION
+                // These are REQUIRED by SQL Server Query Notifications and must be set BEFORE creating the SqlCommand
+                const string setOptions = "SET ARITHABORT ON; " +
+                                          "SET CONCAT_NULL_YIELDS_NULL ON; " +
+                                          "SET QUOTED_IDENTIFIER ON; " +
+                                          "SET ANSI_NULLS ON; " +
+                                          "SET ANSI_PADDING ON; " +
+                                          "SET ANSI_WARNINGS ON; " +
+                                          "SET NUMERIC_ROUNDABORT OFF;";
+
+                await using (var setCommand = new SqlCommand(setOptions, _connection))
+                {
+                    await setCommand.ExecuteNonQueryAsync(effectiveCancellationToken);
+                }
             }
 
             // SqlDependency requires a specific query format
             // Must use two-part name (schema.table) and specific columns (no *)
             // We select all columns to ensure notifications are received for any column change
-            var sql = $"SELECT {_columnList} FROM dbo.[{_tableName}]";
+            // Adding WHERE 1=1 helps ensure SqlDependency can track changes properly
+            var sql = $"SELECT {_columnList} FROM dbo.[{_tableName}] WHERE 1=1";
 
-            // Set the required SET options for SqlDependency
-            // These are REQUIRED by SQL Server Query Notifications
-            const string setOptions = "SET ARITHABORT ON; " +
-                                      "SET CONCAT_NULL_YIELDS_NULL ON; " +
-                                      "SET QUOTED_IDENTIFIER ON; " +
-                                      "SET ANSI_NULLS ON; " +
-                                      "SET ANSI_PADDING ON; " +
-                                      "SET ANSI_WARNINGS ON; " +
-                                      "SET NUMERIC_ROUNDABORT OFF;";
-
-            await using (var setOptionsCommand = new SqlCommand(setOptions, _connection))
-            {
-                await setOptionsCommand.ExecuteNonQueryAsync(effectiveCancellationToken);
-            }
-
-            await using var command = new SqlCommand(sql, _connection);
-            command.CommandTimeout = 30;
+            // IMPORTANT: Do NOT use 'await using' - the command must stay alive for SqlDependency!
+            // SqlDependency holds a weak reference and needs the command to exist
+            _command = new SqlCommand(sql, _connection);
+            _command.CommandTimeout = 30;
 
             logger.SqlServerSettingUpDependency(_tableName ?? "unknown", sql);
 
-            _dependency = new SqlDependency(command);
+            _dependency = new SqlDependency(_command);
             _dependency.OnChange += OnDependencyChange;
 
             logger.SqlServerDependencyCreated(_dependency.Id, _dependency.HasChanges);
@@ -191,7 +232,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
             // SqlDependency requires the connection to stay open to receive notifications
 #pragma warning disable RCS1261 // Resource can be disposed asynchronously
 #pragma warning disable MA0042 // Prefer using 'await using'
-            var reader = await command.ExecuteReaderAsync(effectiveCancellationToken);
+            var reader = await _command.ExecuteReaderAsync(effectiveCancellationToken);
             try
             {
                 // Read all data to complete the registration
@@ -247,8 +288,16 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
 
     void OnDependencyChange(object sender, SqlNotificationEventArgs e)
     {
-        // ALWAYS log all notifications for debugging
-        logger.ReceivedSqlServerNotification(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
+        try
+        {
+            // ALWAYS log all notifications for debugging
+            logger.ReceivedSqlServerNotification(e.Type.ToString(), e.Info.ToString(), e.Source.ToString());
+            logger.LogInformation($">>> NOTIFICATION RECEIVED: Type={e.Type}, Info={e.Info}, Source={e.Source} <<<");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error logging notification");
+        }
 
         var effectiveCancellationToken = _internalCancellationTokenSource?.Token ?? _cancellationToken;
 
@@ -265,14 +314,18 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
         }
 
         // Notify on actual data changes
-        // Note: SqlDependency fires with Type=Change for ANY change, including subscribes/unsubscribes
-        // We need to check Info to determine if it's an actual data change
+        // SqlDependency returns Unknown/Truncate most often for data changes, not specific Insert/Update/Delete
+        // So we use permissive filtering: exclude only error/config notifications, accept everything else
         var isDataChange = e.Type == SqlNotificationType.Change &&
                           e.Info != SqlNotificationInfo.Error &&
                           e.Info != SqlNotificationInfo.Invalid &&
-                          (e.Info == SqlNotificationInfo.Insert ||
-                           e.Info == SqlNotificationInfo.Update ||
-                           e.Info == SqlNotificationInfo.Delete);
+                          e.Info != SqlNotificationInfo.Options &&
+                          e.Info != SqlNotificationInfo.Isolation &&
+                          e.Info != SqlNotificationInfo.Query &&
+                          e.Info != SqlNotificationInfo.Resource &&
+                          e.Info != SqlNotificationInfo.Restart &&
+                          e.Info != SqlNotificationInfo.TemplateLimit &&
+                          e.Info != SqlNotificationInfo.Merge;
 
         if (isDataChange)
         {
