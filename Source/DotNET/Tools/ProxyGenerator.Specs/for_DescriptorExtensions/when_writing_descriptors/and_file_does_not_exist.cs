@@ -47,6 +47,7 @@ public class and_file_does_not_exist : Specification, IDisposable
             0,
             "types",
             _messages.Add,
+            _ => { },
             _generatedFiles);
     }
 

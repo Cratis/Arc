@@ -39,6 +39,9 @@ public class EventTypesForSpecifications : IEventTypes
     public IImmutableList<Type> AllClrTypes { get; }
 
     /// <inheritdoc/>
+    public IImmutableList<EventType> All => _eventTypes.Values.ToImmutableList();
+
+    /// <inheritdoc/>
     public Task Discover() => Task.CompletedTask;
 
     /// <inheritdoc/>

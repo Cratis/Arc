@@ -39,7 +39,8 @@ public class with_concurrency_on_event_stream_id : given.an_events_command_respo
         Arg.Any<EventStreamId?>(),
         Arg.Any<EventSourceType?>(),
         Arg.Any<CorrelationId?>(),
-        Arg.Is<ConcurrencyScope?>(cs => cs != null && cs.EventStreamId == _eventStreamId));
+        Arg.Any<IEnumerable<string>?>(),
+        Arg.Is<ConcurrencyScope>(cs => cs != null && cs.EventStreamId == _eventStreamId));
 
     [EventStreamId("Monthly", concurrency: true)]
     class TestCommand

@@ -71,6 +71,7 @@ public class and_file_exists_with_same_hash_preserves_timestamp : Specification,
             0,
             "types",
             _messages.Add,
+            _ => { },
             _generatedFiles);
     }
 

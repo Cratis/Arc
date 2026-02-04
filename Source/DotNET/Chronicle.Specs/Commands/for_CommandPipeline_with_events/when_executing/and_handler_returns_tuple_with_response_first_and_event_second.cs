@@ -28,7 +28,8 @@ public class and_handler_returns_tuple_with_response_first_and_event_second : gi
         Arg.Any<EventStreamId?>(),
         Arg.Any<EventSourceType?>(),
         Arg.Any<CorrelationId?>(),
-        Arg.Any<ConcurrencyScope?>());
+        Arg.Any<IEnumerable<string>?>(),
+        Arg.Any<ConcurrencyScope>());
     [Fact] void should_return_response_value() => _result.Response.ShouldEqual(_tuple.Item1);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
