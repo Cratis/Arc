@@ -40,11 +40,33 @@ public static class DescriptorExtensions
         var generationTime = DateTime.UtcNow;
         var skippedCount = 0;
 
+        // Group descriptors by output filename and keep only the first occurrence
+        // This prevents name collisions when types from different namespaces/assemblies target the same file
+        var descriptorsByOutputPath = new Dictionary<string, IDescriptor>();
+
         foreach (var descriptor in descriptors)
         {
             var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
             var fullPath = Path.Join(targetPath, path, $"{descriptor.Name}.ts");
             var normalizedFullPath = Path.GetFullPath(fullPath);
+
+            // Only keep the first descriptor for each output path (first processed wins)
+            if (!descriptorsByOutputPath.ContainsKey(normalizedFullPath))
+            {
+                descriptorsByOutputPath[normalizedFullPath] = descriptor;
+            }
+            else if (generatedFiles is not null && File.Exists(normalizedFullPath))
+            {
+                // For duplicate descriptors, still track the existing file to prevent orphan cleanup
+                if (GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) && existingMetadata is not null)
+                {
+                    generatedFiles[normalizedFullPath] = existingMetadata;
+                }
+            }
+        }
+
+        foreach (var (normalizedFullPath, descriptor) in descriptorsByOutputPath)
+        {
             var directory = Path.GetDirectoryName(normalizedFullPath)!;
             if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
@@ -93,7 +115,7 @@ public static class DescriptorExtensions
         var count = descriptors.Count();
         if (count > 0)
         {
-            var writtenCount = count - skippedCount;
+            var writtenCount = descriptorsByOutputPath.Count - skippedCount;
             var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
             message($"  {writtenCount} {typeNameToEcho} written{skippedInfo} in {stopwatch.Elapsed}");
         }
