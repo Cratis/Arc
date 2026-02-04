@@ -11,7 +11,7 @@ Commands automatically include any HTTP headers provided by the `httpHeadersCall
 
 ## Proxy Generation
 
-With the [proxy generator](./proxy-generation/index.md) you'll get the commands generated directly to use in the frontend.
+With the [proxy generator](../../backend/proxy-generation/index.md) you'll get the commands generated directly to use in the frontend.
 This means you don't have to look at the Swagger API to know what you have available - the code sits there directly
 in the form of a generated proxy object. The generator will look at all HTTP Post actions during compile time and
 look for actions marked with `[HttpPost]` that have a parameter marked with `[FromBody]`, and assume that this is your command

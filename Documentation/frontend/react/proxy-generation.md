@@ -110,5 +110,5 @@ Observable queries are generated the same way as regular queries, but they don't
 
 The proxy generator maintains your backend folder structure while generating TypeScript files based on the namespaces of your source files. Each namespace segment typically becomes a subfolder in the generated output.
 
-For detailed information about configuring the output structure, including how to skip namespace segments and customize the generated folder hierarchy, see the [Backend Proxy Generation Configuration](../../backend/proxy-generation/#configuration) section.
+For detailed information about configuring the output structure, including how to skip namespace segments and customize the generated folder hierarchy, see the [Backend Proxy Generation Configuration](../../backend/proxy-generation/configuration.md) section.
 
