@@ -61,7 +61,7 @@ export class YourViewModel {
 ```
 
 In order for the dialogs to show, you need to configure the component that represent it.
-You can read more about that [here](../react/dialogs.md)
+You can read more about [configuring dialogs](../react/dialogs.md).
 
 ## Busy indicator dialogs
 
@@ -98,7 +98,7 @@ export class YourViewModel {
 The `showBusyIndicator()` returns an object that has a method called `close()`. This method is then something you use to close the dialog.
 
 In order for the dialogs to show, you need to configure the component that represent it.
-You can read more about that [here](../react/dialogs.md)
+You can read more about that [configuring dialogs](../react/dialogs.md)
 
 ## Custom dialogs
 

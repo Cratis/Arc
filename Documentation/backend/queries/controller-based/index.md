@@ -19,8 +19,7 @@ public class Accounts : Controller
 
 > Note: This particular model represents its values as concepts - a value type encapsulation that
 > makes us not use primitives - thus creating clearer APIs and models.
-
-> **Note**: If you're using the Cratis Arc [proxy generator](../../proxy-generation/index.md), the method name
+> If you're using the Cratis Arc [proxy generator](../../proxy-generation/index.md), the method name
 > will become the query name for the generated TypeScript file and class.
 
 ## Key Features

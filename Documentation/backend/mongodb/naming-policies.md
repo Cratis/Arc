@@ -228,7 +228,7 @@ var users = await collection
 
 If no naming policy is configured, the framework will throw a descriptive error:
 
-```
+```shell
 NamingPolicyNotConfigured: No naming policy has been configured. 
 Use WithNamingPolicy<T>() or WithNamingPolicy(instance) to configure one.
 ```

@@ -340,6 +340,5 @@ public record PublicStatistics(string Category, int Count)
 9. **Keep authorization simple** - Complex authorization logic should be in services, not query methods
 
 > **Note**: Authorization is evaluated before the query method is called. If authorization fails, the query will not be executed and the result will indicate the authorization failure.
-
-> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types that respect your authorization constraints,
+> The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types that respect your authorization constraints,
 > helping prevent unauthorized client-side calls.
