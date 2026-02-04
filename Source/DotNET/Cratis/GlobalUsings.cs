@@ -23,7 +23,6 @@ global using Cratis.Chronicle.Projections.ModelBound;
 global using Cratis.Chronicle.Reactors;
 global using Cratis.Chronicle.ReadModels;
 global using Cratis.Chronicle.Reducers;
-global using Cratis.Chronicle.Rules;
 global using Cratis.Chronicle.Transactions;
 global using Cratis.Concepts;
 global using FluentValidation;
