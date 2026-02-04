@@ -76,17 +76,18 @@ public static class Generator
         var typesInvolved = new List<Type>();
         var directories = new List<string>();
         var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
+        var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
 
-        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, generatedFiles);
+        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins);
 
         var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
-        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, generatedFiles);
+        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins);
 
         var enumerableQueries = queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList();
-        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, generatedFiles);
+        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins);
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
-        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, generatedFiles);
+        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins);
 
         foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
         {
@@ -97,10 +98,10 @@ public static class Generator
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
         var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_)).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
-        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, generatedFiles);
+        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins);
 
         var enumDescriptors = enums.ConvertAll(_ => _.ToEnumDescriptor());
-        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, generatedFiles);
+        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins);
 
         // Find and remove orphaned files
         var stopwatch = Stopwatch.StartNew();
