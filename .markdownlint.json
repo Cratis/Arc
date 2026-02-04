@@ -5,8 +5,12 @@
     "allowed_elements": ["antml:function_calls", "antml:invoke", "antml:parameter", "a"]
   },
   "MD041": false,
-  "MD012": false,
-  "MD024": false,
+  "MD012": {
+    "maximum": 3
+  },
+  "MD024": {
+    "siblings_only": true
+  },
   "MD032": false,
   "MD060": false
 }
