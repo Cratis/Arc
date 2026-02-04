@@ -118,7 +118,7 @@ public IEnumerable<DebitAccount> GetByOwnerAndCategory(CustomerId ownerId, strin
     }
     
     // Filter by category if provided
-    return _collection.Find(a => a.Owner == ownerId /* && category filter */).ToList();
+    return _collection.Find(a => a.Owner == ownerId /* && category filter */index.md).ToList();
 }
 ```
 

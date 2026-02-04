@@ -15,7 +15,7 @@ Queries are used for retrieving data and are a key component of CQRS (Command Qu
 
 > **💡 Query Filters**: The query pipeline supports filters for cross-cutting concerns like validation and authorization. See the [Query Pipeline](./query-pipeline.md#query-filters) section for details on built-in filters and creating custom ones.
 
-> **💡 Frontend Integration**: Automatically generate TypeScript proxies for your queries with the [Proxy Generation](../proxy-generation/) feature.
+> **💡 Frontend Integration**: Automatically generate TypeScript proxies for your queries with the [Proxy Generation](../proxy-generation/index.md) feature.
 
 ## Overview
 

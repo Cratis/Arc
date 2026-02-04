@@ -101,7 +101,7 @@ The most powerful feature of this system is the automatic generation of TypeScri
 - **Automatic updates**: Proxies regenerate when backend changes
 - **Zero maintenance**: No manual synchronization between frontend and backend
 
-For comprehensive information about setting up and configuring proxy generation, see [Proxy Generation](../../backend/proxy-generation/).
+For comprehensive information about setting up and configuring proxy generation, see [Proxy Generation](../../backend/proxy-generation/index.md).
 
 ## Configuration
 
@@ -158,4 +158,4 @@ The system provides comprehensive error handling for commands:
 - Explore [React integration](../react/commands.md) for React-specific command usage
 - Learn about [Queries](./queries.md) for data retrieval
 - Understand [MVVM patterns](../react.mvvm/index.md) for more sophisticated frontend architectures
-- Set up [Proxy Generation](../../backend/proxy-generation/) to automatically generate your command proxies
+- Set up [Proxy Generation](../../backend/proxy-generation/index.md) to automatically generate your command proxies

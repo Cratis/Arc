@@ -2,7 +2,7 @@
 
 Cratis Arc automatically generates TypeScript proxies for your backend commands and queries, providing seamless integration between your React frontend and backend APIs.
 
-> **Setup and Configuration**: For detailed information about setting up proxy generation, configuration options, and build integration, see the [Backend Proxy Generation](../../backend/proxy-generation/) documentation.
+> **Setup and Configuration**: For detailed information about setting up proxy generation, configuration options, and build integration, see the [Backend Proxy Generation](../../backend/proxy-generation/index.md) documentation.
 
 ## Type Safety and IntelliSense
 
