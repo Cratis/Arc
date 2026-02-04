@@ -27,8 +27,7 @@ public class PostgreSqlFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        _container = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
+        _container = new PostgreSqlBuilder("postgres:16-alpine")
             .WithPassword(Password)
             .WithPortBinding(5432, true)
             .WithWaitStrategy(Wait.ForUnixContainer())
