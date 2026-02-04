@@ -33,7 +33,7 @@ public class SqlServerFixture : IAsyncLifetime
             .WithEnvironment("ACCEPT_EULA", "Y")
             .WithEnvironment("MSSQL_SA_PASSWORD", Password)
             .WithPortBinding(1433, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(1433))
+            .WithWaitStrategy(Wait.ForUnixContainer())
             .Build();
 
         await _container.StartAsync();

@@ -31,7 +31,7 @@ public class PostgreSqlFixture : IAsyncLifetime
             .WithImage("postgres:16-alpine")
             .WithPassword(Password)
             .WithPortBinding(5432, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(5432))
+            .WithWaitStrategy(Wait.ForUnixContainer())
             .Build();
 
         await _container.StartAsync();
