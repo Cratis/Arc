@@ -171,20 +171,18 @@ public class CommandPipeline(
         CorrelationId correlationId,
         CommandResult result)
     {
-        var values = ExtractValuesFromTupleInOrder(tuple);
+        var values = ExtractValuesFromTupleInOrder(tuple).ToList();
 
         // First pass: identify and set the response value
-        // We need to do this before handling other values because handlers may depend on the response being set
+        // Handlers may check commandContext.Response, so we need to set it before checking possibility to handle
         var valuesToProcess = new List<object>();
         object? responseValue = null;
 
         foreach (var value in values)
         {
-            if (CanHandleValue(value, commandContext))
-            {
-                valuesToProcess.Add(value);
-            }
-            else
+            // Check if this value should be the response (non-handled value)
+            // We need to check this WITHOUT the response being set yet
+            if (!CanHandleValue(value, commandContext))
             {
                 var unwrappedValue = UnwrapValue(value);
                 if (responseValue is null)
@@ -201,20 +199,20 @@ public class CommandPipeline(
             }
         }
 
-        // Second pass: now handle all handleable values with response set in context
-        // Some handlers may need to re-check if they can handle based on the response now being set
-        foreach (var value in valuesToProcess)
+        // Second pass: now that response is set, check which values can be handled
+        // Some handlers may depend on commandContext.Response being set
+        foreach (var value in values)
         {
             if (CanHandleValue(value, commandContext))
             {
-                result.MergeWith(await HandleValue(value, commandContext));
+                valuesToProcess.Add(value);
             }
-            else
-            {
-                // This value was handleable in the first pass but is no longer handleable
-                // This should not happen in practice, but handle it defensively
-                throw new MultipleUnhandledTupleValues([responseValue ?? UnwrapValue(value), UnwrapValue(value)]);
-            }
+        }
+
+        // Third pass: handle all values that can be handled
+        foreach (var value in valuesToProcess)
+        {
+            result.MergeWith(await HandleValue(value, commandContext));
         }
 
         return (commandContext, result);
