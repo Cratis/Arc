@@ -39,7 +39,8 @@ public class without_concurrency_flag : given.an_events_command_response_value_h
         Arg.Any<EventStreamId?>(),
         Arg.Any<EventSourceType?>(),
         Arg.Any<CorrelationId?>(),
-        Arg.Is<ConcurrencyScope?>(cs => cs == null));
+        Arg.Any<IEnumerable<string>?>(),
+        Arg.Is<ConcurrencyScope>(cs => cs == null));
 
     [EventStreamId("Monthly")]
     class TestCommand

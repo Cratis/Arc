@@ -70,6 +70,7 @@ public class and_file_already_exists_with_same_hash : Specification, IDisposable
             0,
             "types",
             _messages.Add,
+            _ => { },
             _generatedFiles);
     }
 

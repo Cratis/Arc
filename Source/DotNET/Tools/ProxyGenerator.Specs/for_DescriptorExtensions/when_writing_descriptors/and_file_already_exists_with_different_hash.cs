@@ -57,6 +57,7 @@ public class and_file_already_exists_with_different_hash : Specification, IDispo
             0,
             "types",
             _messages.Add,
+            _ => { },
             _generatedFiles);
 
         _newContent = await File.ReadAllTextAsync(_filePath);

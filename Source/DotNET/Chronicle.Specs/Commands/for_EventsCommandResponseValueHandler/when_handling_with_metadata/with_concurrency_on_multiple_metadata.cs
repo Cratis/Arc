@@ -45,7 +45,8 @@ public class with_concurrency_on_multiple_metadata : given.an_events_command_res
         Arg.Any<EventStreamId?>(),
         Arg.Any<EventSourceType?>(),
         Arg.Any<CorrelationId?>(),
-        Arg.Is<ConcurrencyScope?>(cs =>
+        Arg.Any<IEnumerable<string>?>(),
+        Arg.Is<ConcurrencyScope>(cs =>
             cs != null &&
             cs.EventStreamId == _eventStreamId &&
             cs.EventStreamType == _eventStreamType &&

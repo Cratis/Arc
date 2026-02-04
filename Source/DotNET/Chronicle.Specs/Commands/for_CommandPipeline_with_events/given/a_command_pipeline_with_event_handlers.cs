@@ -52,7 +52,8 @@ public class a_command_pipeline_with_event_handlers : Specification
             Arg.Any<EventStreamId?>(),
             Arg.Any<EventSourceType?>(),
             Arg.Any<CorrelationId?>(),
-            Arg.Any<ConcurrencyScope?>()).Returns(successfulAppendResult);
+            Arg.Any<IEnumerable<string>?>(),
+            Arg.Any<ConcurrencyScope>()).Returns(successfulAppendResult);
 
         var successfulAppendManyResult = AppendManyResult.Success(_correlationId, []);
         _eventLog.AppendMany(
@@ -62,7 +63,8 @@ public class a_command_pipeline_with_event_handlers : Specification
             Arg.Any<EventStreamId?>(),
             Arg.Any<EventSourceType?>(),
             Arg.Any<CorrelationId?>(),
-            Arg.Any<ConcurrencyScope?>()).Returns(successfulAppendManyResult);
+            Arg.Any<IEnumerable<string>?>(),
+            Arg.Any<ConcurrencyScope>()).Returns(successfulAppendManyResult);
 
         // Create a command response value handlers that includes event handlers
         _commandResponseValueHandlers = Substitute.For<ICommandResponseValueHandlers>();
