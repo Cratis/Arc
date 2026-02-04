@@ -19,7 +19,7 @@ services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString(".
 However, **it is recommended** to use the Arc registration methods which use the pooled factory pattern for better performance and to support multiple database providers:
 
 ```csharp
-services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */);
+services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */index.md);
 ```
 
 This method automatically:
@@ -87,7 +87,7 @@ public class MyService
 For any **read-only** `DbContext` there is also an extension method:
 
 ```csharp
-services.AddReadOnlyDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */);
+services.AddReadOnlyDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */index.md);
 ```
 
 ## Automatic Registration from Assemblies

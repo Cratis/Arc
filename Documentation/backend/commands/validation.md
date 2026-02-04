@@ -1,6 +1,6 @@
 # Validation
 
-Commands can be validated by either using [FluentValidation](https://docs.fluentvalidation.net/en/latest/) or
+Commands can be validated by either using [FluentValidation](https://docs.fluentvalidation.net/en/latest/index.md) or
 the attribute based validators found in the `System.ComponentModel.DataAnnotations` namespace.
 
 The validators are performed before the commands handler method is invoked. If any validators cause a
@@ -34,7 +34,7 @@ The code adds the `[Required]` attribute to the `sku` property.
 
 ## Fluent Validation
 
-When using [FluentValidation](https://docs.fluentvalidation.net/en/latest/) you get more control
+When using [FluentValidation](https://docs.fluentvalidation.net/en/latest/index.md) you get more control
 of an flexibility the flow of validation. For instance, the validator can take dependencies and
 with it you can call other systems that has the required knowledge for the validation rules you
 want for your commands.
