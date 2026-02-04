@@ -13,7 +13,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **Note**: If you're using the Cratis Arc [proxy generator](../proxy-generation/index.md), the method name
+> **Note**: If you're using the Cratis Arc [proxy generator](../../proxy-generation/index.md), the method name
 > will become the query name for the generated TypeScript file and class.
 
 ## Key Features
