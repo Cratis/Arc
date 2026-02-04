@@ -1,0 +1,12 @@
+{
+  "default": true,
+  "MD013": false,
+  "MD033": {
+    "allowed_elements": ["antml:function_calls", "antml:invoke", "antml:parameter", "a"]
+  },
+  "MD041": false,
+  "MD012": false,
+  "MD024": false,
+  "MD032": false,
+  "MD060": false
+}
