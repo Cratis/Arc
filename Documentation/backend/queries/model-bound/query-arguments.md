@@ -411,5 +411,5 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **Note**: The [proxy generator](../../proxy-generation.md) automatically creates TypeScript types for your query arguments,
+> **Note**: The [proxy generator](../../proxy-generation/) automatically creates TypeScript types for your query arguments,
 > making them strongly typed on the frontend as well.

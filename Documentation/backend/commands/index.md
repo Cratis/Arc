@@ -17,7 +17,7 @@ The Arc provides comprehensive support for implementing commands in your backend
 | [Validation](./validation.md) | How to implement validation for commands. |
 | [Command Validation](./command-validation.md) | How to validate commands without executing them for pre-flight validation. |
 
-> **💡 Frontend Integration**: Automatically generate TypeScript proxies for your commands with the [Proxy Generation](../proxy-generation.md) feature.
+> **💡 Frontend Integration**: Automatically generate TypeScript proxies for your commands with the [Proxy Generation](../proxy-generation/) feature.
 
 ## Overview
 

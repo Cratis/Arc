@@ -13,7 +13,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **Note**: If you're using the Cratis Arc [proxy generator](../proxy-generation.md), the method name
+> **Note**: If you're using the Cratis Arc [proxy generator](../proxy-generation/), the method name
 > will become the query name for the generated TypeScript file and class.
 
 ## Key Features
@@ -94,5 +94,5 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **Note**: The [proxy generator](../../proxy-generation.md) automatically creates TypeScript types for your query methods,
+> **Note**: The [proxy generator](../../proxy-generation/) automatically creates TypeScript types for your query methods,
 > making them strongly typed on the frontend as well.

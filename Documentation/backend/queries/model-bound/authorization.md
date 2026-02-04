@@ -341,5 +341,5 @@ public record PublicStatistics(string Category, int Count)
 
 > **Note**: Authorization is evaluated before the query method is called. If authorization fails, the query will not be executed and the result will indicate the authorization failure.
 
-> **Note**: The [proxy generator](../../proxy-generation.md) automatically creates TypeScript types that respect your authorization constraints,
+> **Note**: The [proxy generator](../../proxy-generation/) automatically creates TypeScript types that respect your authorization constraints,
 > helping prevent unauthorized client-side calls.
