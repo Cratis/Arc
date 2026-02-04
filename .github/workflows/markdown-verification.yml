@@ -13,6 +13,9 @@ on:
     paths:
       - "Documentation/**"
 
+permissions:
+  contents: read
+
 jobs:
   markdown-lint:
     runs-on: ubuntu-latest
