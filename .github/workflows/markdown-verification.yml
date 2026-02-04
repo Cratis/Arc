@@ -40,5 +40,4 @@ jobs:
           paths: 'Documentation/**/*.md'
           markdown: true
           recurse: true
-          verbosity: ERROR
-          args: '--status-code "403:ok"'
+          statusCodes: '403:ok'
