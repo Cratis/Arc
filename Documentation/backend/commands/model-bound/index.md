@@ -25,7 +25,7 @@ You can then return anything you know there is a handler for.
 
 ## Discriminated Union
 
-Your return type can leverage a discriminated union with [`OneOf<>`](https://github.com/mcintyre321/OneOf/index.md) to
+Your return type can leverage a discriminated union with [`OneOf<>`](https://github.com/mcintyre321/OneOf) to
 return different types of values depending on the situation, like for instance an explicit validation error.
 
 As long as there are [response handlers](../response-value-handlers.md) for any of the types of the discriminated union, your value

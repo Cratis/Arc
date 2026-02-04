@@ -23,6 +23,6 @@ Common scenarios for standalone applications include:
 
 ## See Also
 
-- [Getting Started](./getting-started/) - General Arc setup
-- [Commands](./commands/) - Command patterns
-- [Queries](./queries/) - Query patterns
+- [Getting Started](./getting-started/index.md) - General Arc setup
+- [Commands](./commands/index.md) - Command patterns
+- [Queries](./queries/index.md) - Query patterns
