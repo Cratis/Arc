@@ -217,12 +217,6 @@ public class a_sql_server_observe_context(SqlServerFixture fixture) : Specificat
         {
             // Permission might already exist or not needed for sa
         }
-
-        // Verify Service Broker is enabled
-        using var verifyCommand = dbConnection.CreateCommand();
-        verifyCommand.CommandText = "SELECT is_broker_enabled FROM sys.databases WHERE database_id = DB_ID()";
-        var result = verifyCommand.ExecuteScalar();
-        Console.WriteLine($"Service Broker enabled after create: {result}");
     }
 
     void DropTestDatabase()
