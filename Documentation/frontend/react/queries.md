@@ -12,7 +12,7 @@ Queries automatically include any HTTP headers provided by the `httpHeadersCallb
 
 ## Proxy Generation
 
-Starting with the latter; the [proxy generator](./proxy-generation.md) you'll get the queries generated directly to use
+Starting with the latter; the [proxy generator](./proxy-generation/) you'll get the queries generated directly to use
 in the frontend. The proxies generated can be imported directly into your code.
 
 ## Query

@@ -540,7 +540,7 @@ public class IdentityDetailsProvider : IProvideIdentityDetails
 
 ## Frontend Integration
 
-Authorization attributes work seamlessly with the [proxy generator](./proxy-generation.md), which automatically creates TypeScript proxies for your commands and queries. The generated proxies provide:
+Authorization attributes work seamlessly with the [proxy generator](./proxy-generation/), which automatically creates TypeScript proxies for your commands and queries. The generated proxies provide:
 
 - Authorization status handling in command and query results
 - Consistent error handling for unauthorized access

@@ -406,5 +406,5 @@ The `ISubject<T>` return type automatically establishes and manages WebSocket co
 
 > **Important**: When using `ClientObservable<T>` directly, the `ClientDisconnected` callback is essential for cleaning up resources to prevent memory leaks.
 
-> **Note**: The [proxy generator](../../proxy-generation.md) automatically creates TypeScript types for your observable queries,
+> **Note**: The [proxy generator](../../proxy-generation/) automatically creates TypeScript types for your observable queries,
 > making them strongly typed on the frontend as well.
