@@ -19,8 +19,8 @@ describe("when validating with client validation failure", given(a_command_with_
         context.fetchStub.restore();
     });
 
-    it("should_not_call_server", () => context.fetchStub.called.should.be.false);
-    it("should_return_invalid_result", () => result.isValid.should.be.false);
-    it("should_have_validation_error", () => result.validationResults.length.should.equal(1));
-    it("should_have_error_for_email_property", () => result.validationResults[0].members[0].should.equal('email'));
+    it("should not call server", () => context.fetchStub.called.should.be.false);
+    it("should return invalid result", () => result.isValid.should.be.false);
+    it("should have validation error", () => result.validationResults.length.should.equal(1));
+    it("should have error for email property", () => result.validationResults[0].members[0].should.equal('email'));
 }));

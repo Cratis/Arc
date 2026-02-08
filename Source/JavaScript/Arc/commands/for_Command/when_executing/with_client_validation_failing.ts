@@ -47,23 +47,23 @@ describe("when executing with client validation failing", () => {
         result = await command.execute();
     });
 
-    it("should_not_be_success", () => {
+    it("should not be success", () => {
         result.isSuccess.should.be.false;
     });
 
-    it("should_not_be_valid", () => {
+    it("should not be valid", () => {
         result.isValid.should.be.false;
     });
 
-    it("should_have_validation_results", () => {
+    it("should have validation results", () => {
         result.validationResults.should.not.be.empty;
     });
 
-    it("should_have_error_for_name", () => {
+    it("should have error for name", () => {
         result.validationResults.some(r => r.members.includes('name')).should.be.true;
     });
 
-    it("should_have_error_for_age", () => {
+    it("should have error for age", () => {
         result.validationResults.some(r => r.members.includes('age')).should.be.true;
     });
 });

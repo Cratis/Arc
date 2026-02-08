@@ -19,11 +19,11 @@ describe("when validating with value less than threshold", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 
-    it("should_include_threshold_in_message", () => {
+    it("should include threshold in message", () => {
         results[0].message.should.include('18');
     });
 });

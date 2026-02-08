@@ -24,7 +24,7 @@ describe("when using custom error message", () => {
         results = validator.validate(instance);
     });
 
-    it("should_use_custom_error_message", () => {
+    it("should use custom error message", () => {
         results[0].message.should.equal(customMessage);
     });
 });

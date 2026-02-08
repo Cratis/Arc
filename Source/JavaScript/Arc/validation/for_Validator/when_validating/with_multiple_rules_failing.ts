@@ -24,15 +24,15 @@ describe("when validating with multiple rules failing", () => {
         results = validator.validate(instance);
     });
 
-    it("should_return_two_validation_errors", () => {
+    it("should return two validation errors", () => {
         results.should.have.lengthOf(2);
     });
 
-    it("should_have_error_for_name_property", () => {
+    it("should have error for name property", () => {
         results.some(r => r.members.includes('name')).should.be.true;
     });
 
-    it("should_have_error_for_age_property", () => {
+    it("should have error for age property", () => {
         results.some(r => r.members.includes('age')).should.be.true;
     });
 });

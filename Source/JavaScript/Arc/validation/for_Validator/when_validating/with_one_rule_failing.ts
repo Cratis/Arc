@@ -24,15 +24,15 @@ describe("when validating with one rule failing", () => {
         results = validator.validate(instance);
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 
-    it("should_indicate_instance_is_not_valid", () => {
+    it("should indicate instance is not valid", () => {
         validator.isValidFor(instance).should.be.false;
     });
 
-    it("should_have_error_for_name_property", () => {
+    it("should have error for name property", () => {
         results[0].members.should.include('name');
     });
 });

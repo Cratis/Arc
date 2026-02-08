@@ -21,7 +21,7 @@ describe("when setting custom message", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_use_custom_message", () => {
+    it("should use custom message", () => {
         results[0].message.should.equal(customMessage);
     });
 });

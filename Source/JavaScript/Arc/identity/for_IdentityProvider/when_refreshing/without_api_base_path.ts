@@ -32,7 +32,7 @@ describe('when refreshing without api base path', given(an_identity_provider, co
         Globals.apiBasePath = originalGlobalsApiBasePath;
     });
 
-    it('should_call_fetch_with_default_path', () => {
+    it('should call fetch with default path', () => {
         actualUrl.pathname.should.equal('/.cratis/me');
     });
 }));

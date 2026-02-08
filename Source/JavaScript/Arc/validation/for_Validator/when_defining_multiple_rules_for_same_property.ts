@@ -22,11 +22,11 @@ describe("when defining multiple rules for same property", () => {
         results = validator.validate(instance);
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 
-    it("should_have_error_for_min_length", () => {
+    it("should have error for min length", () => {
         results[0].message.should.include('3');
     });
 });

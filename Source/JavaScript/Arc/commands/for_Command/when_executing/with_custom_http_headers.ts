@@ -50,13 +50,13 @@ describe("when executing with custom http headers", given(class {
         context.fetchStub.restore();
     });
 
-    it("should_include_custom_headers", () => {
+    it("should include custom headers", () => {
         const call = context.fetchStub.getCall(0);
         call.args[1].headers['X-Custom-Header'].should.equal('custom-value');
         call.args[1].headers['Authorization'].should.equal('Bearer token123');
     });
 
-    it("should_include_default_headers", () => {
+    it("should include default headers", () => {
         const call = context.fetchStub.getCall(0);
         call.args[1].headers['Content-Type'].should.equal('application/json');
         call.args[1].headers['Accept'].should.equal('application/json');

@@ -18,15 +18,15 @@ describe("with_valid_parameters", () => {
         result = UrlHelpers.createUrlFrom(origin, apiBasePath, route);
     });
 
-    it("should_create_correct_url", () => {
+    it("should create correct url", () => {
         result.href.should.equal('https://example.com/users/123');
     });
 
-    it("should_have_correct_origin", () => {
+    it("should have correct origin", () => {
         result.origin.should.equal('https://example.com');
     });
 
-    it("should_have_correct_pathname", () => {
+    it("should have correct pathname", () => {
         result.pathname.should.equal('/users/123');
     });
 });
