@@ -111,6 +111,8 @@ public class ControllerCommandEndpointMapper(
         var routeTemplate = action.AttributeRouteInfo?.Template ?? string.Empty;
 
         // Append /validate to the route
+        // This creates a route like "/api/controller-commands/validated/{id}/validate"
+        // which matches what the client sends after replacing parameters
         return $"{routeTemplate}/validate";
     }
 }
