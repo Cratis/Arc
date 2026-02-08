@@ -20,11 +20,11 @@ describe("when validating with undefined value", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 
-    it("should_have_error_severity", () => {
+    it("should have error severity", () => {
         results[0].severity.should.equal(ValidationResultSeverity.Error);
     });
 });

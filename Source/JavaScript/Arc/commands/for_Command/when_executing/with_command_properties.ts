@@ -32,7 +32,7 @@ describe("when executing with command properties", given(a_command, context => {
         context.fetchStub.restore();
     });
 
-    it("should_include_command_properties_in_body", () => {
+    it("should include command properties in body", () => {
         const call = context.fetchStub.getCall(0);
         const body = JSON.parse(call.args[1].body);
         body.someProperty.should.equal('test value');

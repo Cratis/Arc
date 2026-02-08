@@ -31,15 +31,15 @@ describe('when refreshing with origin set', given(an_identity_provider, context 
         IdentityProvider.setApiBasePath('');
     });
 
-    it('should_call_fetch_with_full_url_including_origin', () => {
+    it('should call fetch with full url including origin', () => {
         actualUrl.href.should.equal('https://example.com/api/v1/.cratis/me');
     });
 
-    it('should_have_correct_origin', () => {
+    it('should have correct origin', () => {
         actualUrl.origin.should.equal('https://example.com');
     });
 
-    it('should_have_correct_pathname', () => {
+    it('should have correct pathname', () => {
         actualUrl.pathname.should.equal('/api/v1/.cratis/me');
     });
 }));

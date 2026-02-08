@@ -46,13 +46,13 @@ describe("when executing with route parameters", given(class {
         context.fetchHelper.restore();
     });
 
-    it("should_replace_route_parameters_in_url", () => {
+    it("should replace route parameters in url", () => {
         const call = context.fetchStub.getCall(0);
         const url = call.args[0];
         url.toString().should.contain('/api/items/123');
     });
 
-    it("should_include_all_properties_in_body", () => {
+    it("should include all properties in body", () => {
         const call = context.fetchStub.getCall(0);
         const body = JSON.parse(call.args[1].body);
         body.id.should.equal('123');

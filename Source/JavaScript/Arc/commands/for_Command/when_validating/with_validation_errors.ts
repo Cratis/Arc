@@ -39,7 +39,7 @@ describe("when validating with validation errors", given(a_command, context => {
         context.fetchStub.restore();
     });
 
-    it("should_return_invalid_result", () => result.isValid.should.be.false);
-    it("should_not_be_successful", () => result.isSuccess.should.be.false);
-    it("should_not_update_initial_values", () => context.command.hasChanges.should.be.false);
+    it("should return invalid result", () => result.isValid.should.be.false);
+    it("should not be successful", () => result.isSuccess.should.be.false);
+    it("should not update initial values", () => context.command.hasChanges.should.be.false);
 }));

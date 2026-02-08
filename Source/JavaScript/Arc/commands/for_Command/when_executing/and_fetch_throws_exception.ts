@@ -18,7 +18,7 @@ describe("when executing and fetch throws exception", given(a_command, context =
         context.fetchStub.restore();
     });
 
-    it("should_return_failed_result", () => result.isSuccess.should.be.false);
-    it("should_include_error_message", () => result.exceptionMessages[0].should.contain('Error during server call'));
-    it("should_have_exception_messages", () => (result.exceptionMessages.length > 0).should.be.true);
+    it("should return failed result", () => result.isSuccess.should.be.false);
+    it("should include error message", () => result.exceptionMessages[0].should.contain('Error during server call'));
+    it("should have exception messages", () => (result.exceptionMessages.length > 0).should.be.true);
 }));

@@ -19,7 +19,7 @@ describe("when validating with value less than threshold", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_return_no_validation_errors", () => {
+    it("should return no validation errors", () => {
         results.should.be.empty;
     });
 });

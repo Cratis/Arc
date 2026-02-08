@@ -2,25 +2,21 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { SomeCommand } from '../SomeCommand';
 import { createFetchHelper } from '../../../helpers/fetchHelper';
+import { CommandWithRouteParams } from '../CommandWithRouteParams';
 import { given } from '../../../given';
 
-describe("when executing with custom http headers", given(class {
-    command: SomeCommand;
+describe("when validating with route parameters", given(class {
+    command: CommandWithRouteParams;
     fetchStub: sinon.SinonStub;
     fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
     constructor() {
-        this.command = new SomeCommand();
-        this.command.route = '/test-route';
+        this.command = new CommandWithRouteParams();
         this.command.setOrigin('http://localhost');
         this.command.setApiBasePath('/api');
-        this.command.someProperty = 'test-value';
-        this.command.setHttpHeadersCallback(() => ({
-            'X-Custom-Header': 'custom-value',
-            'Authorization': 'Bearer token123'
-        }));
+        this.command.id = '123';
+        this.command.name = 'Test Item';
         this.fetchHelper = createFetchHelper();
         this.fetchStub = this.fetchHelper.stubFetch();
     }
@@ -43,22 +39,23 @@ describe("when executing with custom http headers", given(class {
             json: async () => responseData
         });
 
-        await context.command.execute();
+        await context.command.validate();
     });
 
     afterEach(() => {
-        context.fetchStub.restore();
+        context.fetchHelper.restore();
     });
 
-    it("should include custom headers", () => {
+    it("should replace route parameters in url and append validate", () => {
         const call = context.fetchStub.getCall(0);
-        call.args[1].headers['X-Custom-Header'].should.equal('custom-value');
-        call.args[1].headers['Authorization'].should.equal('Bearer token123');
+        const url = call.args[0];
+        url.toString().should.contain('/api/items/123/validate');
     });
 
-    it("should include default headers", () => {
+    it("should include all properties in body", () => {
         const call = context.fetchStub.getCall(0);
-        call.args[1].headers['Content-Type'].should.equal('application/json');
-        call.args[1].headers['Accept'].should.equal('application/json');
+        const body = JSON.parse(call.args[1].body);
+        body.id.should.equal('123');
+        body.name.should.equal('Test Item');
     });
 }));

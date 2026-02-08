@@ -33,7 +33,7 @@ describe('when refreshing with globals api base path', given(an_identity_provide
         IdentityProvider.setApiBasePath('');
     });
 
-    it('should_call_fetch_with_globals_api_base_path_prefixed', () => {
+    it('should call fetch with globals api base path prefixed', () => {
         actualUrl.pathname.should.equal('/global/api/.cratis/me');
     });
 }));

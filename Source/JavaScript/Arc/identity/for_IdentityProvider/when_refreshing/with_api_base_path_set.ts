@@ -28,7 +28,7 @@ describe('when refreshing with api base path set', given(an_identity_provider, c
         IdentityProvider.setApiBasePath('');
     });
 
-    it('should_call_fetch_with_api_base_path_prefixed', () => {
+    it('should call fetch with api base path prefixed', () => {
         actualUrl.pathname.should.equal('/custom/api/.cratis/me');
     });
 }));

@@ -28,7 +28,7 @@ describe("without_document_object", () => {
         }
     });
 
-    it("should_throw_invalid_url_error", () => {
+    it("should throw invalid url error", () => {
         (() => UrlHelpers.createUrlFrom(origin, apiBasePath, route)).should.throw('Invalid URL');
     });
 });
