@@ -18,7 +18,7 @@ public class data_annotations_validated_with_validation_errors_produced_by_the_c
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ValidatedCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new ValidatedCommand
         {
             Name = string.Empty, // Required violation
             Value = 150, // Range violation (max 100)

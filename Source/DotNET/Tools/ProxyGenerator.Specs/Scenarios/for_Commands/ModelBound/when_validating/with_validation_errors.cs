@@ -15,7 +15,7 @@ public class with_validation_errors : given.a_scenario_web_application
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ValidatedCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new ValidatedCommand
         {
             Name = string.Empty,
             Value = 150,

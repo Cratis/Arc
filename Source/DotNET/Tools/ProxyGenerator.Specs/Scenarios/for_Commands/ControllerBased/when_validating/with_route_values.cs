@@ -19,7 +19,7 @@ public class with_route_values : given.a_scenario_web_application
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerValidatedWithRouteCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new ControllerValidatedWithRouteCommand
         {
             Name = string.Empty,
             Value = -5

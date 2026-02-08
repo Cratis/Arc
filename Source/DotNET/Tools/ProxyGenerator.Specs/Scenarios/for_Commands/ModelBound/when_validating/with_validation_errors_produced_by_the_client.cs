@@ -22,7 +22,7 @@ public class with_validation_errors_produced_by_the_client : given.a_scenario_we
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new FluentValidatedCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new FluentValidatedCommand
         {
             Name = string.Empty,
             Age = 15,

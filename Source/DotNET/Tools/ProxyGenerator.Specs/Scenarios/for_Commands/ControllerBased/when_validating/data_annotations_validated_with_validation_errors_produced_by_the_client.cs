@@ -19,7 +19,7 @@ public class data_annotations_validated_with_validation_errors_produced_by_the_c
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerDataAnnotationsValidatedCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new ControllerDataAnnotationsValidatedCommand
         {
             Name = "ab", // Too short (min 3)
             Age = 15, // Too young (min 18)
