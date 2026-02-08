@@ -3,11 +3,11 @@
 
 using Cratis.Arc.Commands;
 
-namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
+namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound.when_validating;
 
 [Collection(ScenarioCollectionDefinition.Name)]
 
-public class when_executing_command_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
+public class with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
     int _serverCallCount;
@@ -22,7 +22,7 @@ public class when_executing_command_with_validation_errors_produced_by_the_clien
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new FluentValidatedCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new FluentValidatedCommand
         {
             Name = string.Empty,
             Age = 15,

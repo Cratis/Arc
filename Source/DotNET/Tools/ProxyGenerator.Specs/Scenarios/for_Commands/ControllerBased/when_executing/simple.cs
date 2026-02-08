@@ -4,11 +4,11 @@
 using System.Net.Http.Json;
 using Cratis.Arc.Commands;
 
-namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased;
+namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased.when_executing;
 
 [Collection(ScenarioCollectionDefinition.Name)]
 
-public class when_executing_controller_simple_command : given.a_scenario_web_application
+public class simple : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
 

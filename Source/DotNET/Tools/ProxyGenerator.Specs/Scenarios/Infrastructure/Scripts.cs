@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 /// </summary>
 public static class Scripts
 {
-    static readonly string _executeCommand;
+    static readonly string _invokeCommand;
     static readonly string _patchCommandTimeSpan;
     static readonly string _subscribeObservableQuery;
     static readonly string _deserializeQueryResult;
@@ -30,7 +30,7 @@ public static class Scripts
             throw new DirectoryNotFoundException($"Scripts directory not found at: {scriptsPath}");
         }
 
-        _executeCommand = File.ReadAllText(Path.Combine(scriptsPath, "execute-command.js"));
+        _invokeCommand = File.ReadAllText(Path.Combine(scriptsPath, "invoke-command.js"));
         _patchCommandTimeSpan = File.ReadAllText(Path.Combine(scriptsPath, "patch-command-timespan.js"));
         _subscribeObservableQuery = File.ReadAllText(Path.Combine(scriptsPath, "subscribe-observable-query.js"));
         _deserializeQueryResult = File.ReadAllText(Path.Combine(scriptsPath, "deserialize-query-result.js"));
@@ -40,15 +40,17 @@ public static class Scripts
     }
 
     /// <summary>
-    /// Gets the script for executing a command.
+    /// Gets the script for invoking a command method (execute or validate).
     /// </summary>
     /// <param name="commandClassName">The command class name.</param>
     /// <param name="propertyAssignments">The property assignments.</param>
+    /// <param name="methodName">The method to invoke (execute or validate).</param>
     /// <returns>The formatted script.</returns>
-    public static string ExecuteCommand(string commandClassName, string propertyAssignments) =>
-        _executeCommand
+    public static string InvokeCommand(string commandClassName, string propertyAssignments, string methodName) =>
+        _invokeCommand
             .Replace("{{COMMAND_CLASS}}", commandClassName)
-            .Replace("{{PROPERTY_ASSIGNMENTS}}", propertyAssignments);
+            .Replace("{{PROPERTY_ASSIGNMENTS}}", propertyAssignments)
+            .Replace("{{METHOD_NAME}}", methodName);
 
     /// <summary>
     /// Gets the script for patching TimeSpan values in command results.

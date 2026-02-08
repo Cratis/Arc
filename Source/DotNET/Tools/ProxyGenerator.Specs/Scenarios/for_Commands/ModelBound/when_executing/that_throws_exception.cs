@@ -3,11 +3,11 @@
 
 using Cratis.Arc.Commands;
 
-namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
+namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound.when_executing;
 
 [Collection(ScenarioCollectionDefinition.Name)]
 
-public class when_executing_command_that_throws_exception : given.a_scenario_web_application
+public class that_throws_exception : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
 

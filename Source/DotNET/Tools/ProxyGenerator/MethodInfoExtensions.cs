@@ -42,6 +42,16 @@ public static class MethodInfoExtensions
     public static Type? GetCommandType(this MethodInfo method)
     {
         var parameters = method.GetParameters();
+
+        // For controller-based commands, look for complex types (body parameters)
+        // Skip primitives and concepts which are typically route or query parameters
+        var bodyParameter = parameters.FirstOrDefault(_ => !_.ParameterType.IsAPrimitiveType() && !_.ParameterType.IsConcept());
+        if (bodyParameter != null)
+        {
+            return bodyParameter.ParameterType;
+        }
+
+        // Fall back to first parameter for model-bound commands
         return parameters.FirstOrDefault()?.ParameterType;
     }
 

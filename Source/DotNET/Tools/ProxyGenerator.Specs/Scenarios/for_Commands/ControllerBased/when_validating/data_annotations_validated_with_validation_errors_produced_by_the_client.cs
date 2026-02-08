@@ -3,11 +3,11 @@
 
 using Cratis.Arc.Commands;
 
-namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased;
+namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ControllerBased.when_validating;
 
 [Collection(ScenarioCollectionDefinition.Name)]
 
-public class when_executing_controller_data_annotations_validated_command_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
+public class data_annotations_validated_with_validation_errors_produced_by_the_client : given.a_scenario_web_application
 {
     CommandResult<object>? _result;
 
@@ -19,7 +19,7 @@ public class when_executing_controller_data_annotations_validated_command_with_v
 
     async Task Because()
     {
-        var executionResult = await Bridge.ExecuteCommandViaProxyAsync<object>(new ControllerDataAnnotationsValidatedCommand
+        var executionResult = await Bridge.ValidateCommandViaProxyAsync<object>(new ControllerDataAnnotationsValidatedCommand
         {
             Name = "ab", // Too short (min 3)
             Age = 15, // Too young (min 18)
