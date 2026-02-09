@@ -1,0 +1,13 @@
+POST http://localhost:5000/api/commands/do-stuff
+Content-Type: application/json
+
+{
+    "StuffToDo": "This is some stuff to do"
+}
+
+###
+POST http://localhost:5000/api/commands/do-stuff/validate
+Content-Type: application/json
+
+{
+}

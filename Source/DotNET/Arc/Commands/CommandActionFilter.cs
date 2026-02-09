@@ -24,12 +24,13 @@ public class CommandActionFilter : IAsyncActionFilter
             object? response = null;
 
             var ignoreValidation = context.ShouldIgnoreValidation();
+            var isValidationRequest = IsValidationRequest(context);
 
             var validationResult = ignoreValidation ?
                                         [] :
                                         context.ModelState.SelectMany(_ => _.Value!.Errors.Select(e => e.ToValidationResult(_.Key))).ToList();
 
-            if (context.ModelState.IsValid || ignoreValidation)
+            if ((context.ModelState.IsValid || ignoreValidation) && !isValidationRequest)
             {
                 var errorsBefore = context.ModelState.SelectMany(_ => _.Value!.Errors).ToArray();
 
@@ -87,6 +88,9 @@ public class CommandActionFilter : IAsyncActionFilter
             await next();
         }
     }
+
+    static bool IsValidationRequest(ActionExecutingContext context)
+        => context.HttpContext.Request.Path.Value?.EndsWith("/validate", StringComparison.OrdinalIgnoreCase) == true;
 
     void AddAdditionalValidationResultsAfterActionExecute(ActionExecutingContext context, List<ValidationResult> validationResult, IEnumerable<ModelError> errorsBefore)
     {
