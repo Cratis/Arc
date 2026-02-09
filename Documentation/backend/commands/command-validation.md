@@ -121,14 +121,18 @@ public class Carts : ControllerBase
 
 **How It Works:**
 
-During application startup, the `ControllerCommandEndpointMapper` service:
+During application startup, the `CommandValidationRouteConvention` automatically:
 
-1. Discovers all controller actions using `IActionDescriptorCollectionProvider`
-2. Identifies command actions (POST methods with `[FromBody]` parameter)
-3. Creates corresponding `/validate` endpoints using Minimal APIs
-4. Routes validation requests through the command pipeline's `Validate` method
+1. Identifies command actions (POST methods that implement command patterns)
+2. Creates corresponding `/validate` routes for each command action using ASP.NET Core's application model conventions
+3. Routes all requests through the standard ASP.NET Core pipeline, including:
+   - Authorization filters
+   - Model binding
+   - Command validation filters
+4. The `CommandActionFilter` detects validation requests (paths ending with `/validate`) and skips action execution
+5. Returns validation results without invoking the actual command handler
 
-This approach provides the same validation functionality as model-bound commands without requiring developers to manually create validation actions.
+This approach ensures validation requests go through the exact same pipeline as execution requests, maintaining consistency in authorization, model binding, and validation behavior.
 
 ## Validation Filters
 
