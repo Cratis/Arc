@@ -2,6 +2,8 @@
     "private": true,
     "workspaces": [
         "Source/**/*",
+        "!**/dist",
+        "!**/dist/**",
         "Samples/**/*"
     ],
     "engines": {
