@@ -36,13 +36,13 @@ public class CommandValidationRouteConvention : IApplicationModelProvider
 
     bool IsCommandAction(ActionModel action)
     {
-        if (!action.ActionMethod.IsCommand())
+        if (action.ActionMethod?.IsCommand() != true)
         {
             return false;
         }
 
         var hasPostAttribute = action.Attributes.Any(a => a.GetType().Name == nameof(HttpPostAttribute));
-        var actionNameIsPost = action.ActionName.Equals(HttpMethod.Post.Method, StringComparison.OrdinalIgnoreCase);
+        var actionNameIsPost = action.ActionName?.Equals(HttpMethod.Post.Method, StringComparison.OrdinalIgnoreCase) == true;
 
         return hasPostAttribute || actionNameIsPost;
     }
@@ -54,7 +54,7 @@ public class CommandValidationRouteConvention : IApplicationModelProvider
             if (selector.AttributeRouteModel is null) continue;
 
             var validationSelector = new SelectorModel(selector);
-            var template = selector.AttributeRouteModel.Template ?? string.Empty;
+            var template = (selector.AttributeRouteModel.Template ?? string.Empty).TrimEnd('/');
             validationSelector.AttributeRouteModel = new AttributeRouteModel
             {
                 Template = $"{template}/validate",

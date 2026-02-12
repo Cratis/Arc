@@ -1,0 +1,28 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.ReadModelAnalyzer>;
+
+namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer.when_validating_incorrect_query_method_signature;
+
+public class and_query_returns_wrong_type : Specification
+{
+    Exception result;
+
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
+using Cratis.Arc.Queries.ModelBound;
+
+namespace TestNamespace
+{
+    [ReadModel]
+    public record TestReadModel(int Id, string Name)
+    {
+        public static {|#0:string GetName(int id)|} => ""name"";
+    }
+}",
+                VerifyCS.Diagnostic("ARC0001")
+                    .WithLocation(0)
+                    .WithArguments("GetName", "TestReadModel", "string")));
+
+    [Fact] void should_report_diagnostic() => result.ShouldBeNull();
+}
