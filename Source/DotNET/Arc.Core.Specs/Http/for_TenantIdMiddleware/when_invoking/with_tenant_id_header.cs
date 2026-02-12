@@ -36,6 +36,7 @@ public class with_tenant_id_header : given.a_tenant_id_middleware
         _result = await _middleware.InvokeAsync(context, ctx =>
         {
             _nextCalled = true;
+
             // Capture tenant ID in the execution context where it was set
             _capturedTenantId = new TenantIdAccessor().Current;
             ctx.Response.StatusCode = 200;
