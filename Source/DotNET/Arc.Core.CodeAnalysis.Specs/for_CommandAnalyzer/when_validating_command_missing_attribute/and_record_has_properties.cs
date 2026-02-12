@@ -1,14 +1,19 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.CodeAnalysis.Testing;
 using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
 namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_missing_attribute;
 
 public class and_record_has_properties : Specification
 {
-    async Task Because() => await VerifyCS.VerifyAnalyzerAsync(@"
+    Exception result;
+
+    async Task Because()
+    {
+        try
+        {
+            await VerifyCS.VerifyAnalyzerAsync(@"
 namespace TestNamespace
 {
     public record {|#0:TestCommand|}
@@ -20,9 +25,15 @@ namespace TestNamespace
         }
     }
 }",
-        VerifyCS.Diagnostic("ARC0002")
-            .WithLocation(0)
-            .WithArguments("TestCommand"));
+                VerifyCS.Diagnostic("ARC0002")
+                    .WithLocation(0)
+                    .WithArguments("TestCommand"));
+        }
+        catch (Exception ex)
+        {
+            result = ex;
+        }
+    }
 
-    [Fact] void should_report_diagnostic() { }
+    [Fact] void should_report_diagnostic() => result.ShouldBeNull();
 }

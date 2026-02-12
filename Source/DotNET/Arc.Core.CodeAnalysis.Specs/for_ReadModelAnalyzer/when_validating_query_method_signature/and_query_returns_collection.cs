@@ -7,7 +7,13 @@ namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer.when_validating_query_me
 
 public class and_query_returns_collection : Specification
 {
-    async Task Because() => await VerifyCS.VerifyAnalyzerAsync(@"
+    Exception result;
+
+    async Task Because()
+    {
+        try
+        {
+            await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Queries.ModelBound;
 using System.Collections.Generic;
 
@@ -19,6 +25,12 @@ namespace TestNamespace
         public static IEnumerable<TestReadModel> GetAll() => [];
     }
 }");
+        }
+        catch (Exception ex)
+        {
+            result = ex;
+        }
+    }
 
-    [Fact] void should_not_report_diagnostic() { }
+    [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
 }

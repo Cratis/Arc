@@ -7,7 +7,13 @@ namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_at
 
 public class and_type_is_record_struct : Specification
 {
-    async Task Because() => await VerifyCS.VerifyAnalyzerAsync(@"
+    Exception result;
+
+    async Task Because()
+    {
+        try
+        {
+            await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Commands.ModelBound;
 
 namespace TestNamespace
@@ -20,6 +26,12 @@ namespace TestNamespace
         }
     }
 }");
+        }
+        catch (Exception ex)
+        {
+            result = ex;
+        }
+    }
 
-    [Fact] void should_not_report_diagnostic() { }
+    [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
 }

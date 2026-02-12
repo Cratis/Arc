@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
+using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.Chronicle.CodeAnalysis.AggregateRootAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_attribute;
+namespace Cratis.Arc.Chronicle.CodeAnalysis.for_AggregateRootAnalyzer.when_validating_event_handler_signature;
 
-public class and_record_has_primary_constructor : Specification
+public class and_returns_void_with_event : Specification
 {
     Exception result;
 
@@ -14,14 +14,16 @@ public class and_record_has_primary_constructor : Specification
         try
         {
             await VerifyCS.VerifyAnalyzerAsync(@"
-using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Chronicle.Aggregates;
+using System.Threading.Tasks;
 
 namespace TestNamespace
 {
-    [Command]
-    public record TestCommand(string Name, int Age)
+    public class TestEvent { }
+    
+    public class TestAggregate : AggregateRoot
     {
-        public void Handle()
+        public void OnTestEvent(TestEvent e)
         {
         }
     }
