@@ -8,8 +8,9 @@ namespace Cratis.Arc.Tenancy;
 /// <summary>
 /// Represents an implementation of <see cref="ITenantIdAccessor"/>.
 /// </summary>
+/// <param name="tenantIdResolver">The <see cref="ITenantIdResolver"/> to use for resolving tenant IDs.</param>
 [Singleton]
-public class TenantIdAccessor : ITenantIdAccessor
+public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAccessor
 {
     static readonly AsyncLocal<TenantId> _current = new();
 
@@ -18,15 +19,15 @@ public class TenantIdAccessor : ITenantIdAccessor
     {
         get
         {
-            var current = _current.Value;
-            CurrentTenantIdIsNotSet.ThrowIfNotSet(current);
-            return current!;
+            if (_current.Value is not null)
+            {
+                return _current.Value;
+            }
+
+            var tenantId = tenantIdResolver.Resolve();
+            var result = string.IsNullOrEmpty(tenantId) ? TenantId.NotSet : new TenantId(tenantId);
+            _current.Value = result;
+            return result;
         }
     }
-
-    /// <summary>
-    /// Internal: Set the current tenant ID.
-    /// </summary>
-    /// <param name="tenantId"><see cref="TenantId"/> to set.</param>
-    internal static void SetCurrent(TenantId tenantId) => _current.Value = tenantId;
 }

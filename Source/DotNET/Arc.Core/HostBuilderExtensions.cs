@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.Metrics;
+using Cratis.Arc.Tenancy;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
 
@@ -72,6 +74,23 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor>(sp => new CorrelationIdAccessor());
+        services.AddTransient<ITenantIdResolver>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<ArcOptions>>();
+            return options.Value.Tenancy.ResolverType switch
+            {
+                TenantResolverType.Header => sp.GetRequiredService<HeaderTenantIdResolver>(),
+                TenantResolverType.Query => sp.GetRequiredService<QueryTenantIdResolver>(),
+                TenantResolverType.Claim => sp.GetRequiredService<ClaimTenantIdResolver>(),
+                TenantResolverType.Development => sp.GetRequiredService<DevelopmentTenantIdResolver>(),
+                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}")
+            };
+        });
+        services.AddTransient<HeaderTenantIdResolver>();
+        services.AddTransient<QueryTenantIdResolver>();
+        services.AddTransient<ClaimTenantIdResolver>();
+        services.AddTransient<DevelopmentTenantIdResolver>();
+
         services
             .AddCratisArcMeter()
             .AddTypeDiscovery()
