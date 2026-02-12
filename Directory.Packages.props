@@ -12,19 +12,19 @@
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.2.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.0.2" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.102" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.103" />
     <!-- System -->
-    <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.2" />
+    <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.3" />
     <PackageVersion Include="System.Text.Json" Version="10.0.2" />
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
     <!-- Third Party -->
@@ -40,17 +40,19 @@
     <!-- Roslyn-->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
     <!-- Analysis -->
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="2.0.298" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="2.0.299" />
     <!-- Specifications -->
     <PackageVersion Include="Cratis.Specifications.XUnit" Version="3.0.4" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.0.1" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.3" />
     <PackageVersion Include="Microsoft.ClearScript.V8" Version="7.5.0" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.osx-arm64" Version="7.5.0" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.osx-x64" Version="7.5.0" />
