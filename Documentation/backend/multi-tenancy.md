@@ -117,6 +117,7 @@ You can also configure tenancy through your application's configuration:
 **Configuration properties by resolver type:**
 
 #### Header Resolver
+
 ```json
 {
   "Tenancy": {
@@ -127,6 +128,7 @@ You can also configure tenancy through your application's configuration:
 ```
 
 #### Query Resolver
+
 ```json
 {
   "Tenancy": {
@@ -137,6 +139,7 @@ You can also configure tenancy through your application's configuration:
 ```
 
 #### Claim Resolver
+
 ```json
 {
   "Tenancy": {
@@ -147,6 +150,7 @@ You can also configure tenancy through your application's configuration:
 ```
 
 #### Development Resolver
+
 ```json
 {
   "Tenancy": {
@@ -233,7 +237,7 @@ This allows you to handle non-tenanted scenarios gracefully.
 
 When using MongoDB with Arc, the database name automatically includes the tenant ID:
 
-```
+```text
 MyDatabase             // when TenantId.NotSet
 MyDatabase+AcmeCorp    // when tenant ID is "AcmeCorp"
 ```
