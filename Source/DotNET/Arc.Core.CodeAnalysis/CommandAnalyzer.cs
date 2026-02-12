@@ -50,11 +50,10 @@ public class CommandAnalyzer : DiagnosticAnalyzer
         // Only warn about missing [Command] attribute if type looks like a command
         if (!hasCommandAttribute && handleMethod != null && LooksLikeCommand(namedTypeSymbol, handleMethod))
         {
-            var diagnostic = Diagnostic.Create(
+            context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARC0002_MissingCommandAttribute,
                 namedTypeSymbol.Locations[0],
-                namedTypeSymbol.Name);
-            context.ReportDiagnostic(diagnostic);
+                namedTypeSymbol.Name));
         }
     }
 
@@ -89,10 +88,8 @@ public class CommandAnalyzer : DiagnosticAnalyzer
         }
 
         // Check if the type has properties (typical of commands)
-        var hasProperties = typeSymbol.GetMembers()
+        return typeSymbol.GetMembers()
             .OfType<IPropertySymbol>()
             .Any(p => p.DeclaredAccessibility == Accessibility.Public);
-
-        return hasProperties;
     }
 }
