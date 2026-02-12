@@ -54,7 +54,7 @@ public class CommandValidationRouteConvention : IApplicationModelProvider
             if (selector.AttributeRouteModel is null) continue;
 
             var validationSelector = new SelectorModel(selector);
-            var template = selector.AttributeRouteModel.Template ?? string.Empty;
+            var template = (selector.AttributeRouteModel.Template ?? string.Empty).TrimEnd('/');
             validationSelector.AttributeRouteModel = new AttributeRouteModel
             {
                 Template = $"{template}/validate",
