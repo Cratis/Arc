@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Execution;
-using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Hosting;
 
 namespace Cratis.Arc;
@@ -18,7 +17,6 @@ public class ArcStartupFilter : IStartupFilter
         return app =>
         {
             // Add Arc middlewares at the beginning of the pipeline
-            app.UseMiddleware<TenantIdMiddleware>();
             app.UseMiddleware<CorrelationIdMiddleware>();
 
             // Continue with the rest of the pipeline

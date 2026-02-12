@@ -32,7 +32,6 @@ public static class ServiceCollectionExtensions
         var discoverableValidators = new DiscoverableValidators(types);
         services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
-        services.AddTenancy();
         services.AddCorrelationId();
 
         // Register the command validation route convention
