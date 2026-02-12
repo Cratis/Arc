@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
+using System.Net.Sockets;
 using Cratis.Arc.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,7 +19,7 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
 
     void Establish()
     {
-        _port = Random.Shared.Next(50000, 60000);
+        _port = GetAvailablePort();
         var logger = NullLogger<HttpListenerEndpointMapper>.Instance;
         _endpointMapper = new HttpListenerEndpointMapper(logger, $"http://localhost:{_port}/");
 
@@ -54,7 +56,7 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
 
     void Destroy()
     {
-        _endpointMapper.StopAsync().GetAwaiter().GetResult();
+        _endpointMapper.Stop().GetAwaiter().GetResult();
         _endpointMapper.Dispose();
         _httpClient.Dispose();
 
@@ -66,7 +68,7 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _endpointMapper.StopAsync();
+        await _endpointMapper.Stop();
         _endpointMapper.Dispose();
         _httpClient.Dispose();
 
@@ -74,6 +76,15 @@ public class a_running_endpoint_mapper : Specification, IAsyncDisposable
         {
             Directory.Delete(_testDirectory, recursive: true);
         }
+    }
+
+    static int GetAvailablePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 
     class NoAuthentication : IAuthentication

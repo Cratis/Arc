@@ -37,7 +37,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
                     }
 
                     received = null;
-                    received = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+                    received = await webSocket.Receive(new ArraySegment<byte>(buffer), token);
                     handlerLogger.ReceivedMessage();
 
                     // Handle ping messages
@@ -51,14 +51,14 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
             catch (TaskCanceledException)
             {
                 handlerLogger.CloseConnection(received?.CloseStatusDescription);
-                await webSocket.CloseAsync(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
+                await webSocket.Close(received?.CloseStatus ?? WebSocketCloseStatus.Empty, received?.CloseStatusDescription, token);
             }
             finally
             {
                 if (received is not null)
                 {
                     handlerLogger.CloseConnection(received.CloseStatusDescription);
-                    await webSocket.CloseAsync(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
+                    await webSocket.Close(received.CloseStatus ?? WebSocketCloseStatus.Empty, received.CloseStatusDescription, token);
                 }
             }
         }
@@ -96,7 +96,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
 
             var envelope = WebSocketMessage.CreateData(queryResult);
             var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions);
-            await webSocket.SendAsync(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
+            await webSocket.Send(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             message = null;
             return null;
         }
@@ -119,7 +119,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
                 handlerLogger.ReceivedPingMessage();
                 var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage, arcOptions.Value.JsonSerializerOptions);
-                await webSocket.SendAsync(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
+                await webSocket.Send(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
                 handlerLogger.SentPongMessage();
             }
         }

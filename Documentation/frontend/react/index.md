@@ -9,4 +9,4 @@
 | [Command Validation](./command-validation.md) | Pre-flight validation of commands in React with hooks and patterns. |
 | [Command Scopes](./command-scope.md) | The concept of a scope that captures command changes, validation and errors. |
 | [Queries](./queries.md) | What queries are and how to work with them in React. |
-| [Proxy Generation](./proxy-generation.md) | The .NET proxy generator and what it does. |
+| [Proxy Generation](../../backend/proxy-generation/index.md) | The .NET proxy generator and what it does. |

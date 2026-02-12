@@ -9,7 +9,7 @@ itself. This makes it possible to work without having to simulate the entire pro
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
-> a browser extension. Read more [here](../../general/generating-principal.md).
+> a browser extension. Read more [about generating principals](../../general/generating-principal.md).
 
 This information found in the cookie is a base64 encoded string containing the JSON structure that is expected.
 

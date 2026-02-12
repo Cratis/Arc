@@ -109,7 +109,7 @@ app.UseCratisArc(
     "http://+:5001/"
 );
 
-// Default (http://localhost:5000/)
+// Default (http://localhost:5000/index.md)
 app.UseCratisArc();
 ```
 
@@ -432,8 +432,8 @@ Now that you have a basic Arc.Core application running, explore these topics:
 
 - [Authentication](authentication.md) - Implement custom authentication handlers
 - [Authorization](authorization.md) - Protect your endpoints with authorization attributes
-- [Commands](../commands/) - Learn about advanced command patterns
-- [Queries](../queries/) - Discover query features like filtering and pagination
+- [Commands](../commands/index.md) - Learn about advanced command patterns
+- [Queries](../queries/index.md) - Discover query features like filtering and pagination
 - [Identity](../identity.md) - Integrate the identity system
 - [Multi-Tenancy](../multi-tenancy.md) - Configure multi-tenant applications
 - [Validation](../validation.md) - Add validation to commands and queries

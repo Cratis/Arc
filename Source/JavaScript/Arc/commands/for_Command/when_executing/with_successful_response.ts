@@ -32,20 +32,20 @@ describe("when executing with successful response", given(a_command, context => 
         context.fetchStub.restore();
     });
 
-    it("should_call_fetch_with_correct_url", () => context.fetchStub.calledOnce.should.be.true);
+    it("should call fetch with correct url", () => context.fetchStub.calledOnce.should.be.true);
 
-    it("should_call_fetch_with_post_method", () => {
+    it("should call fetch with post method", () => {
         const call = context.fetchStub.getCall(0);
         call.args[1].method.should.equal('POST');
     });
 
-    it("should_call_fetch_with_json_headers", () => {
+    it("should call fetch with json headers", () => {
         const call = context.fetchStub.getCall(0);
         call.args[1].headers['Content-Type'].should.equal('application/json');
         call.args[1].headers['Accept'].should.equal('application/json');
     });
 
-    it("should_return_command_result", () => (result !== null && result !== undefined).should.be.true);
+    it("should return command result", () => (result !== null && result !== undefined).should.be.true);
 
-    it("should_set_initial_values_from_current_values", () => context.command.hasChanges.should.be.false);
+    it("should set initial values from current values", () => context.command.hasChanges.should.be.false);
 }));

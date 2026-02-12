@@ -3,6 +3,7 @@
 
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.EntityFrameworkCore;
 
@@ -22,7 +23,8 @@ public static class ObserveDbContextOptionsBuilderExtensions
         IServiceProvider serviceProvider)
     {
         var changeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
-        optionsBuilder.AddInterceptors(new ObserveInterceptor(changeTracker));
+        var logger = serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
+        optionsBuilder.AddInterceptors(new ObserveInterceptor(changeTracker, logger));
         return optionsBuilder;
     }
 }

@@ -43,7 +43,7 @@ public class and_there_are_tracked_entities : an_observe_interceptor
         _dbContext.SaveChanges();
     }
 
-    [Fact] void should_notify_change_for_tracked_entity_type() => _changeTracker.Received(1).NotifyChange(typeof(TestEntity));
+    [Fact] void should_notify_change_for_tracked_entity_table() => _changeTracker.Received(1).NotifyChange("TestEntities");
 
     void Cleanup()
     {

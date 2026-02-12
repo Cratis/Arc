@@ -31,22 +31,22 @@ describe("with_null_or_undefined_origin", () => {
         }
     });
 
-    it("should_use_document_location_origin_when_null", () => {
+    it("should use document location origin when null", () => {
         result = UrlHelpers.createUrlFrom(null as unknown as string, apiBasePath, route);
         result.origin.should.equal('https://fallback-origin.com');
     });
 
-    it("should_use_document_location_origin_when_undefined", () => {
+    it("should use document location origin when undefined", () => {
         result = UrlHelpers.createUrlFrom(undefined as unknown as string, apiBasePath, route);
         result.origin.should.equal('https://fallback-origin.com');
     });
 
-    it("should_create_correct_url_with_document_origin_when_null", () => {
+    it("should create correct url with document origin when null", () => {
         result = UrlHelpers.createUrlFrom(null as unknown as string, apiBasePath, route);
         result.href.should.equal('https://fallback-origin.com/users/123');
     });
 
-    it("should_create_correct_url_with_document_origin_when_undefined", () => {
+    it("should create correct url with document origin when undefined", () => {
         result = UrlHelpers.createUrlFrom(undefined as unknown as string, apiBasePath, route);
         result.href.should.equal('https://fallback-origin.com/users/123');
     });

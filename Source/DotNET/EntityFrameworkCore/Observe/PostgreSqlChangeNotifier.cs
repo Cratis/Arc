@@ -13,43 +13,47 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// <param name="logger">The logger.</param>
 public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<PostgreSqlChangeNotifier> logger) : IDatabaseChangeNotifier
 {
+    /// <summary>
+    /// Debounce interval to prevent multiple notifications for rapid successive changes.
+    /// </summary>
+    static readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
+    /// Delay before attempting to reconnect after a connection failure.
+    /// </summary>
+    static readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
+
+    readonly object _lock = new();
+
     NpgsqlConnection? _connection;
     CancellationTokenSource? _listenerCts;
     Task? _listenerTask;
     string? _channelName;
+    string? _tableName;
     Action? _onChanged;
+    DateTime _lastNotification = DateTime.MinValue;
+    bool _triggerCreated;
     bool _disposed;
 
     /// <inheritdoc/>
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - channel name is derived from table name from EF Core metadata
-    public async Task StartListeningAsync(string tableName, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
+        _tableName = tableName;
         _channelName = $"table_change_{tableName.ToLowerInvariant()}";
         _onChanged = onChanged;
 
-        _connection = new NpgsqlConnection(connectionString);
-        await _connection.OpenAsync(cancellationToken);
-
-        // Create trigger and notification function if they don't exist
-        await EnsureTriggerExistsAsync(tableName, cancellationToken);
-
-        // Subscribe to notifications
-        _connection.Notification += OnNotification;
-
-        await using var cmd = new NpgsqlCommand($"LISTEN {_channelName}", _connection);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
-
-        logger.StartedListeningPostgreSql(_channelName);
+        await ConnectAndSubscribe(cancellationToken);
 
         // Start a background task to keep the connection alive and receive notifications
         _listenerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _listenerTask = Task.Run(async () => await ListenLoopAsync(_listenerCts.Token), _listenerCts.Token);
+        _listenerTask = Task.Run(async () => await ListenLoop(_listenerCts.Token), _listenerCts.Token);
     }
 #pragma warning restore CA2100
 
     /// <inheritdoc/>
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - channel name is derived from table name from EF Core metadata
-    public async Task StopListeningAsync()
+    public async Task StopListening()
     {
         if (_listenerCts is not null)
         {
@@ -71,10 +75,65 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
             _listenerTask = null;
         }
 
+        await CleanupConnection();
+
+        logger.StoppedListeningPostgreSql(_channelName ?? "unknown");
+    }
+#pragma warning restore CA2100
+
+    /// <inheritdoc/>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        await StopListening();
+    }
+
+#pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - channel name is derived from table name from EF Core metadata
+    async Task ConnectAndSubscribe(CancellationToken cancellationToken)
+    {
+        _connection = new NpgsqlConnection(connectionString);
+        await _connection.OpenAsync(cancellationToken);
+
+        // Try to create trigger and notification function (may fail due to permissions)
+        if (!_triggerCreated)
+        {
+            try
+            {
+                await EnsureTriggerExists(_tableName!, cancellationToken);
+                _triggerCreated = true;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42501")
+            {
+                // Insufficient privilege
+                logger.PostgreSqlTriggerPermissionDenied(_tableName!);
+            }
+            catch (Exception ex)
+            {
+                // Continue without trigger - user may have set it up manually
+                logger.PostgreSqlTriggerCreationFailed(_tableName!, ex);
+            }
+        }
+
+        // Subscribe to notifications
+        _connection.Notification += OnNotification;
+
+        await using var cmd = new NpgsqlCommand($"LISTEN {_channelName}", _connection);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+        logger.StartedListeningPostgreSql(_channelName!);
+    }
+
+    async Task CleanupConnection()
+    {
         if (_connection is not null)
         {
             _connection.Notification -= OnNotification;
-            if (_channelName is not null)
+            if (_channelName is not null && _connection.State == System.Data.ConnectionState.Open)
             {
                 try
                 {
@@ -90,25 +149,11 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
             await _connection.DisposeAsync();
             _connection = null;
         }
-
-        logger.StoppedListeningPostgreSql(_channelName ?? "unknown");
     }
 #pragma warning restore CA2100
 
-    /// <inheritdoc/>
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        await StopListeningAsync();
-    }
-
 #pragma warning disable CA2100, MA0101, MA0136 // Review SQL queries for security vulnerabilities, Use raw string literal
-    async Task EnsureTriggerExistsAsync(string tableName, CancellationToken cancellationToken)
+    async Task EnsureTriggerExists(string tableName, CancellationToken cancellationToken)
     {
         var functionName = $"notify_{tableName.ToLowerInvariant()}_changes";
         var triggerName = $"trigger_{tableName.ToLowerInvariant()}_notify";
@@ -119,7 +164,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
             RETURNS TRIGGER AS $$
             BEGIN
                 PERFORM pg_notify('{_channelName}', TG_OP);
-                RETURN NEW;
+                RETURN COALESCE(NEW, OLD);
             END;
             $$ LANGUAGE plpgsql;
             """;
@@ -148,20 +193,58 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
     }
 #pragma warning restore CA2100, MA0101, MA0136
 
-    async Task ListenLoopAsync(CancellationToken cancellationToken)
+    async Task ListenLoop(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested && _connection is not null)
+        while (!cancellationToken.IsCancellationRequested && !_disposed)
         {
             try
             {
-                await _connection.WaitAsync(cancellationToken);
+                if (_connection is null || _connection.State != System.Data.ConnectionState.Open)
+                {
+                    // Attempt to reconnect
+                    logger.PostgreSqlReconnecting(_channelName ?? "unknown");
+                    await CleanupConnection();
+                    await Task.Delay(_reconnectDelay, cancellationToken);
+                    await ConnectAndSubscribe(cancellationToken);
+                }
+
+                await _connection!.WaitAsync(cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
+            catch (NpgsqlException ex)
+            {
+                // If we're disposing, cancelled, or the connection is already broken,
+                // this is expected shutdown behavior - don't log as error
+                if (_disposed || cancellationToken.IsCancellationRequested ||
+                    _connection is null || _connection.State != System.Data.ConnectionState.Open)
+                {
+                    break;
+                }
+
+                logger.PostgreSqlListenerError(ex);
+
+                // Will attempt to reconnect on next iteration
+                try
+                {
+                    await Task.Delay(_reconnectDelay, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
             catch (Exception ex)
             {
+                // If we're disposing, cancelled, or connection is broken, don't log as error
+                if (_disposed || cancellationToken.IsCancellationRequested ||
+                    _connection is null || _connection.State != System.Data.ConnectionState.Open)
+                {
+                    break;
+                }
+
                 logger.PostgreSqlListenerError(ex);
                 break;
             }
@@ -170,10 +253,23 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 
     void OnNotification(object sender, NpgsqlNotificationEventArgs e)
     {
-        if (e.Channel == _channelName)
+        if (e.Channel != _channelName)
         {
-            logger.ReceivedPostgreSqlNotification(e.Channel, e.Payload);
-            _onChanged?.Invoke();
+            return;
         }
+
+        // Debounce to prevent rapid-fire notifications
+        lock (_lock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastNotification < _debounceInterval)
+            {
+                return;
+            }
+            _lastNotification = now;
+        }
+
+        logger.ReceivedPostgreSqlNotification(e.Channel, e.Payload);
+        _onChanged?.Invoke();
     }
 }

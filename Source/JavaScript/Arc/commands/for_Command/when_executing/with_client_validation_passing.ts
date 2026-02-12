@@ -56,7 +56,7 @@ describe("when executing with client validation passing", () => {
         fetchHelper.restore();
     });
 
-    it("should_call_server", async () => {
+    it("should call server", async () => {
         await command.execute();
         fetchStub.should.have.been.called;
     });

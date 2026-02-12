@@ -28,7 +28,7 @@ public class and_details_are_available : given.an_identity_provider_result_handl
     async Task Because() => await _handler.ModifyDetails<TestDetails>(details => _modifiedDetails);
 
     [Fact] void should_call_write_with_modified_details() =>
-        _httpRequestContext.Received(1).WriteAsync(Arg.Is<string>(json => json.Contains("Marketing") && json.Contains("Manager")));
+        _httpRequestContext.Received(1).Write(Arg.Is<string>(json => json.Contains("Marketing") && json.Contains("Manager")));
 
     [Fact] void should_append_cookie_with_correct_content()
     {

@@ -24,11 +24,11 @@ describe("when validating with all rules passing", () => {
         results = validator.validate(instance);
     });
 
-    it("should_return_no_validation_errors", () => {
+    it("should return no validation errors", () => {
         results.should.be.empty;
     });
 
-    it("should_indicate_instance_is_valid", () => {
+    it("should indicate instance is valid", () => {
         validator.isValidFor(instance).should.be.true;
     });
 });

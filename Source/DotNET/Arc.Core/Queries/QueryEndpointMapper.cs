@@ -74,7 +74,7 @@ public static class QueryEndpointMapper
                         var sorting = GetSortingInfo(context);
                         var arguments = GetQueryArguments(context, performer);
 
-                        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, arguments, paging, sorting);
+                        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, arguments, paging, sorting, context.RequestServices);
 
                         // Check if the result data is a streaming result (Subject or AsyncEnumerable)
                         if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))
@@ -84,7 +84,7 @@ public static class QueryEndpointMapper
                         }
 
                         context.SetStatusCode(queryResult.IsSuccess ? 200 : !queryResult.IsValid ? 400 : 500);
-                        await context.WriteResponseAsJsonAsync(queryResult, typeof(QueryResult), context.RequestAborted);
+                        await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
                     },
                     metadata);
             }

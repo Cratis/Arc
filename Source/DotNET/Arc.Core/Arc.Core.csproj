@@ -9,6 +9,8 @@
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.SqlServer.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.PostgreSql.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.OpenApi" />
     </ItemGroup>
 
@@ -20,5 +22,11 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="Microsoft.Extensions.Logging" />
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false" />
     </ItemGroup>
 </Project>

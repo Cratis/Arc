@@ -41,7 +41,7 @@ describe("when executing with microservice header", given(class extends a_comman
         Globals.microserviceHttpHeader = context.originalMicroserviceHeader;
     });
 
-    it("should_include_microservice_header", () => {
+    it("should include microservice header", () => {
         const call = context.fetchStub.getCall(0);
         call.args[1].headers['X-Microservice-Id'].should.equal('my-microservice');
     });

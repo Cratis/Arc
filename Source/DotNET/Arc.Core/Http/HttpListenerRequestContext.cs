@@ -76,7 +76,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
-    public async Task<object?> ReadBodyAsJsonAsync(Type type, CancellationToken cancellationToken = default)
+    public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
         var json = await reader.ReadToEndAsync(cancellationToken);
@@ -100,7 +100,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
-    public async Task WriteResponseAsJsonAsync(object? value, Type type, CancellationToken cancellationToken = default)
+    public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         context.Response.ContentType = "application/json";
@@ -112,34 +112,24 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     /// <inheritdoc/>
     public void AppendCookie(string key, string value, CookieOptions options)
     {
-        var cookie = new Cookie(key, value)
-        {
-            HttpOnly = options.HttpOnly,
-            Secure = options.Secure,
-            Path = options.Path,
-            Domain = options.Domain
-        };
-
-        if (options.Expires.HasValue)
-        {
-            cookie.Expires = options.Expires.Value.DateTime;
-        }
-
-        context.Response.Cookies.Add(cookie);
+        var cookieHeader = BuildSetCookieHeader(key, value, options);
+        context.Response.AppendHeader("Set-Cookie", cookieHeader);
     }
 
     /// <inheritdoc/>
     public void RemoveCookie(string key)
     {
-        var cookie = new Cookie(key, string.Empty)
+        var expiredOptions = new CookieOptions
         {
-            Expires = DateTime.Now.AddDays(-1)
+            Expires = DateTimeOffset.Now.AddDays(-1),
+            Path = "/"
         };
-        context.Response.Cookies.Add(cookie);
+        var cookieHeader = BuildSetCookieHeader(key, string.Empty, expiredOptions);
+        context.Response.AppendHeader("Set-Cookie", cookieHeader);
     }
 
     /// <inheritdoc/>
-    public async Task WriteAsync(string text, CancellationToken cancellationToken = default)
+    public async Task Write(string text, CancellationToken cancellationToken = default)
     {
         var buffer = Encoding.UTF8.GetBytes(text);
         context.Response.ContentLength64 = buffer.Length;
@@ -147,14 +137,14 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
-    public async Task WriteBytesAsync(byte[] data, CancellationToken cancellationToken = default)
+    public async Task WriteBytes(byte[] data, CancellationToken cancellationToken = default)
     {
         context.Response.ContentLength64 = data.Length;
         await context.Response.OutputStream.WriteAsync(data, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public async Task WriteStreamAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task WriteStream(Stream stream, CancellationToken cancellationToken = default)
     {
         context.Response.ContentLength64 = stream.Length;
         await stream.CopyToAsync(context.Response.OutputStream, cancellationToken);
@@ -197,5 +187,43 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
             result[cookie.Name] = cookie.Value;
         }
         return result.AsReadOnly();
+    }
+
+    static string BuildSetCookieHeader(string key, string value, CookieOptions options)
+    {
+        var builder = new StringBuilder();
+        builder.Append($"{key}={value}");
+
+        if (!string.IsNullOrEmpty(options.Path))
+        {
+            builder.Append($"; Path={options.Path}");
+        }
+
+        if (!string.IsNullOrEmpty(options.Domain))
+        {
+            builder.Append($"; Domain={options.Domain}");
+        }
+
+        if (options.Expires.HasValue)
+        {
+            builder.Append($"; Expires={options.Expires.Value.UtcDateTime:R}");
+        }
+
+        if (options.HttpOnly)
+        {
+            builder.Append("; HttpOnly");
+        }
+
+        if (options.Secure)
+        {
+            builder.Append("; Secure");
+        }
+
+        if (options.SameSite != SameSiteMode.Unspecified)
+        {
+            builder.Append($"; SameSite={options.SameSite}");
+        }
+
+        return builder.ToString();
     }
 }

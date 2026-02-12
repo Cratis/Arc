@@ -35,5 +35,5 @@ describe("when validating does not update initial values", given(a_command, cont
         context.fetchStub.restore();
     });
 
-    it("should_still_have_changes_after_validation", () => context.command.hasChanges.should.be.true);
+    it("should still have changes after validation", () => context.command.hasChanges.should.be.true);
 }));

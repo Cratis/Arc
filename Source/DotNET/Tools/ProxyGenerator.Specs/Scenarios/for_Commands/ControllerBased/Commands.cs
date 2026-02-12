@@ -122,6 +122,21 @@ public class ControllerCommandsController : ControllerBase
     /// <returns>The result.</returns>
     [HttpPost("with-nullable-properties")]
     public ActionResult<string> ExecuteWithNullableProperties([FromBody] ControllerCommandWithNullableProperties command) => Ok($"Handled: {command.Name}");
+
+    internal static int ValidatedWithRouteCallCount;
+
+    /// <summary>
+    /// Executes a validated command with route parameters.
+    /// </summary>
+    /// <param name="id">The route parameter.</param>
+    /// <param name="command">The command.</param>
+    /// <returns>The result.</returns>
+    [HttpPost("validated/{id}")]
+    public IActionResult ExecuteValidatedWithRoute([FromRoute] Guid id, [FromBody] ControllerValidatedWithRouteCommand command)
+    {
+        ValidatedWithRouteCallCount++;
+        return Ok();
+    }
 }
 
 /// <summary>
@@ -366,4 +381,35 @@ public class ControllerCommandWithNullableProperties
     /// Gets or sets the optional timestamp.
     /// </summary>
     public DateTime? Timestamp { get; set; }
+}
+
+/// <summary>
+/// A controller-based validated command with route parameters.
+/// </summary>
+public class ControllerValidatedWithRouteCommand
+{
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the value.
+    /// </summary>
+    public int Value { get; set; }
+}
+
+/// <summary>
+/// Validator for ControllerValidatedWithRouteCommand.
+/// </summary>
+public class ControllerValidatedWithRouteCommandValidator : CommandValidator<ControllerValidatedWithRouteCommand>
+{
+    public const string NameRequiredMessage = "Name is required for route command";
+    public const string ValueMinimumMessage = "Value must be at least 1";
+
+    public ControllerValidatedWithRouteCommandValidator()
+    {
+        RuleFor(c => c.Name).NotEmpty().WithMessage(NameRequiredMessage);
+        RuleFor(c => c.Value).GreaterThan(0).WithMessage(ValueMinimumMessage);
+    }
 }

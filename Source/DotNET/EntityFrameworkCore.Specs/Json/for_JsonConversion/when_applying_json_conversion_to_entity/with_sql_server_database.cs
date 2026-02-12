@@ -28,8 +28,8 @@ public class with_sql_server_database : given.a_json_conversion_context
         _addressProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Address))!;
     }
 
-    [Fact] void should_set_name_column_type_to_json() => _nameProperty.GetColumnType().ShouldEqual("json");
-    [Fact] void should_set_address_column_type_to_json() => _addressProperty.GetColumnType().ShouldEqual("json");
+    [Fact] void should_set_name_column_type_to_nvarchar_max() => _nameProperty.GetColumnType().ShouldEqual("nvarchar(max)");
+    [Fact] void should_set_address_column_type_to_nvarchar_max() => _addressProperty.GetColumnType().ShouldEqual("nvarchar(max)");
     [Fact] void should_have_value_converter_on_name_property() => _nameProperty.GetValueConverter().ShouldNotBeNull();
     [Fact] void should_have_value_converter_on_address_property() => _addressProperty.GetValueConverter().ShouldNotBeNull();
 }

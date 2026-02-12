@@ -35,11 +35,11 @@ describe("with_empty_origin", () => {
         }
     });
 
-    it("should_use_document_location_origin", () => {
+    it("should use document location origin", () => {
         result.origin.should.equal('https://mocked-origin.com');
     });
 
-    it("should_create_correct_url_with_document_origin", () => {
+    it("should create correct url with document origin", () => {
         result.href.should.equal('https://mocked-origin.com/users/123');
     });
 });

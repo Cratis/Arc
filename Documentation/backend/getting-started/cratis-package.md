@@ -146,16 +146,16 @@ Once added, you can define and configure your `DbContext` classes as you normall
 - Integration with Arc's dependency injection
 - Streamlined configuration patterns
 
-See the [Entity Framework Core](../entity-framework/) documentation for detailed configuration options and best practices.
+See the [Entity Framework Core](../entity-framework/index.md) documentation for detailed configuration options and best practices.
 
 ## Next Steps
 
 Now that you have Cratis set up, you can:
 
-- Define [Commands](../commands/) to handle user actions
-- Create [Queries](../queries/) to retrieve data
-- Build [Aggregates](../chronicle/aggregates/) to model your domain
-- Configure [MongoDB](../mongodb/) for read models and projections
+- Define [Commands](../commands/index.md) to handle user actions
+- Create [Queries](../queries/index.md) to retrieve data
+- Build [Aggregates](../chronicle/aggregates/index.md) to model your domain
+- Configure [MongoDB](../mongodb/index.md) for read models and projections
 - Set up [Multi-tenancy](../multi-tenancy.md) for your application
 
 For more advanced scenarios, explore the individual Arc and Chronicle components in the documentation.

@@ -2,7 +2,7 @@
 
 Controller-based queries can accept arguments to filter, customize, or parameterize the data they return. Arguments can come from route parameters, query strings, or request bodies.
 
-> **💡 Proxy Generation**: The [proxy generator](../../proxy-generation.md) automatically analyzes your query arguments and creates strongly-typed TypeScript interfaces, ensuring type safety between your backend and frontend.
+> **💡 Proxy Generation**: The [proxy generator](../../proxy-generation/index.md) automatically analyzes your query arguments and creates strongly-typed TypeScript interfaces, ensuring type safety between your backend and frontend.
 
 ## Route Parameters
 
@@ -383,5 +383,5 @@ public IEnumerable<DebitAccount> ValidatedSearch(
 7. **Use concepts over primitives** - Leverage value objects for stronger typing
 8. **Keep URLs readable** - Don't overload URLs with too many parameters
 
-> **Note**: The [proxy generator](../../proxy-generation.md) automatically creates TypeScript types for your query arguments,
+> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your query arguments,
 > making them strongly typed on the frontend as well.

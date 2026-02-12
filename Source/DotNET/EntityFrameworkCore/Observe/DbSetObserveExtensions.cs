@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
 using Cratis.Arc;
+using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
@@ -24,16 +25,19 @@ public static class DbSetObserveExtensions
     /// </summary>
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="filter">Optional filter expression.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a collection of the type for the DbSet.</returns>
     public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
         this DbSet<TEntity> dbSet,
-        Expression<Func<TEntity, bool>>? filter = null)
+        Expression<Func<TEntity, bool>>? filter = null,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.Observe(
-            () => dbSet.Where(filter),
+        return dbSet.ObserveCore(
+            filter,
+            configure,
             entities => new BehaviorSubject<IEnumerable<TEntity>>(entities),
             (entities, observable) => observable.OnNext([.. entities]));
     }
@@ -43,15 +47,17 @@ public static class DbSetObserveExtensions
     /// </summary>
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="filter">Optional filter expression.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
     public static ISubject<TEntity> ObserveSingle<TEntity>(
         this DbSet<TEntity> dbSet,
-        Expression<Func<TEntity, bool>>? filter = null)
+        Expression<Func<TEntity, bool>>? filter = null,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.ObserveSingleCore(() => dbSet.Where(filter));
+        return dbSet.ObserveSingleCore(filter, configure);
     }
 
     /// <summary>
@@ -59,11 +65,15 @@ public static class DbSetObserveExtensions
     /// </summary>
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="id">The identifier of the entity to observe.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with an instance of the type.</returns>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the entity type does not have an Id property.</exception>
-    public static ISubject<TEntity> ObserveById<TEntity, TId>(this DbSet<TEntity> dbSet, TId id)
+    public static ISubject<TEntity> ObserveById<TEntity, TId>(
+        this DbSet<TEntity> dbSet,
+        TId id,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         var parameter = Expression.Parameter(typeof(TEntity), "e");
@@ -75,16 +85,18 @@ public static class DbSetObserveExtensions
         var equals = Expression.Equal(property, constant);
         var lambda = Expression.Lambda<Func<TEntity, bool>>(equals, parameter);
 
-        return dbSet.ObserveSingleCore(() => dbSet.Where(lambda));
+        return dbSet.ObserveSingleCore(lambda, configure);
     }
 
     static ISubject<TEntity> ObserveSingleCore<TEntity>(
         this DbSet<TEntity> dbSet,
-        Func<IQueryable<TEntity>> queryBuilder)
+        Expression<Func<TEntity, bool>> filter,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
         where TEntity : class
     {
-        return dbSet.Observe<TEntity, TEntity>(
-            queryBuilder,
+        return dbSet.ObserveCore<TEntity, TEntity>(
+            filter,
+            configure,
             entities =>
             {
                 var result = entities.FirstOrDefault();
@@ -105,19 +117,20 @@ public static class DbSetObserveExtensions
             });
     }
 
-    static ISubject<TResult> Observe<TEntity, TResult>(
+    static ISubject<TResult> ObserveCore<TEntity, TResult>(
         this DbSet<TEntity> dbSet,
-        Func<IQueryable<TEntity>> queryBuilder,
+        Expression<Func<TEntity, bool>> filter,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
         Func<IEnumerable<TEntity>, ISubject<TResult>> createSubject,
         Action<IEnumerable<TEntity>, ISubject<TResult>> onNext)
         where TEntity : class
     {
         var completedCleanup = false;
-        var subject = createSubject([]);
         var logger = Internals.ServiceProvider.GetRequiredService<ILogger<DbSetObserver>>();
         var changeTracker = Internals.ServiceProvider.GetRequiredService<IEntityChangeTracker>();
         var notifierFactory = Internals.ServiceProvider.GetRequiredService<IDatabaseChangeNotifierFactory>();
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
+        var serviceScopeFactory = Internals.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
         var queryContext = queryContextManager.Current;
 
         var idProperty = GetIdProperty(dbSet);
@@ -127,76 +140,127 @@ public static class DbSetObserveExtensions
         var entityType = dbSet.EntityType;
         var tableName = entityType.GetTableName() ?? typeof(TEntity).Name;
 
-        // Get DbContext for database notifier
+        // Get column names for SQL Server SqlDependency
+        // SqlDependency monitors only the columns specified in the SELECT query
+        var columnNames = entityType.GetProperties()
+            .Where(p => !p.IsShadowProperty())
+            .Select(p => p.GetColumnName())
+            .Where(name => name is not null)
+            .ToList();
+
+        // Get database information from DbContext - do this ONCE and early
         var dbContext = dbSet.GetDbContext();
+        var dbContextType = dbContext.GetType();
+        var databaseType = dbContext.Database.GetDatabaseType();
+        var connectionString = dbContext.Database.GetConnectionString()
+            ?? throw new InvalidOperationException("Connection string is not available from the DbContext.");
 
         logger.StartingObservation(typeof(TEntity).Name);
 
+        // Perform initial query synchronously to determine if we have data
+        // This ensures we create the correct type of subject (Behavior vs regular)
+        List<TEntity> initialEntities;
+        using (var scope = serviceScopeFactory.CreateScope())
+        {
+            var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+            var freshDbSet = freshDbContext.Set<TEntity>();
+            var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
+            queryContext.TotalItems = initialBaseQuery.Count();
+            var query = BuildQuery(initialBaseQuery, queryContext);
+            initialEntities = query.ToList();
+        }
+
+        entities.InitializeWithEntities(initialEntities);
+        var subject = createSubject(entities);
+        onNext(entities, subject);
+
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
+        var queryExecutionSemaphore = new SemaphoreSlim(1, 1);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         var cancellationToken = cancellationTokenSource.Token;
 
         IDisposable? changeSubscription = null;
         IDatabaseChangeNotifier? databaseNotifier = null;
 
+        // Common callback for both in-process and database-level changes
+        void OnChangeDetected()
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // Prevent queries from running during cleanup
+            if (!queryExecutionSemaphore.Wait(0))
+            {
+                logger.SkippingQueryDuringCleanup(typeof(TEntity).Name);
+                return;
+            }
+
+            try
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                logger.ChangeDetectedRequerying(typeof(TEntity).Name);
+
+                // Create a new scope to get a fresh DbContext
+                using var scope = serviceScopeFactory.CreateScope();
+                var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+                var freshDbSet = freshDbContext.Set<TEntity>();
+
+                // Build the query using the fresh DbSet
+                var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
+                queryContext.TotalItems = baseQuery.Count();
+                var newQuery = BuildQuery(baseQuery, queryContext);
+                var newEntities = newQuery.ToList();
+                entities.ReinitializeWithEntities(newEntities);
+                onNext(entities, subject);
+            }
+            catch (Exception ex)
+            {
+                logger.UnexpectedError(typeof(TEntity).Name, ex);
+            }
+            finally
+            {
+                queryExecutionSemaphore.Release();
+            }
+        }
+
+        // Subscribe to in-process changes (via SaveChanges interceptor)
+        changeSubscription = changeTracker.RegisterCallback(tableName, OnChangeDetected);
+
+        // Subscribe to database-level changes (cross-process notifications)
+        // This is done SYNCHRONOUSLY to ensure SqlDependency is ready before returning
+        try
+        {
+            databaseNotifier = notifierFactory.Create(databaseType, connectionString);
+            databaseNotifier.StartListening(tableName, columnNames, OnChangeDetected, cancellationToken).GetAwaiter().GetResult();
+            logger.DatabaseNotifierStarted(typeof(TEntity).Name);
+        }
+        catch (Exception ex)
+        {
+            // Log but don't fail - fall back to in-process only
+            logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
+        }
+
+        // Subscribe to subject completion for cleanup
+        _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
+
+        // Start background task to keep the observation alive
         _ = Task.Run(Watch);
+
+        logger.ObservationWatchingForChanges(typeof(TEntity).Name);
+
         return subject;
 
         async Task Watch()
         {
             try
             {
-                // Common callback for both in-process and database-level changes
-                void OnChangeDetected()
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    try
-                    {
-                        logger.ChangeDetectedRequerying(typeof(TEntity).Name);
-                        var baseQuery = queryBuilder();
-                        queryContext.TotalItems = baseQuery.Count();
-                        var newQuery = BuildQuery(baseQuery, queryContext);
-                        var newEntities = newQuery.ToList();
-                        entities.ReinitializeWithEntities(newEntities);
-                        onNext(entities, subject);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.UnexpectedError(ex);
-                    }
-                }
-
-                // Subscribe to in-process changes (via SaveChanges interceptor)
-                changeSubscription = changeTracker.RegisterCallback<TEntity>(OnChangeDetected);
-
-                // Subscribe to database-level changes (cross-process notifications)
-                try
-                {
-                    databaseNotifier = notifierFactory.Create(dbContext);
-                    await databaseNotifier.StartListeningAsync(tableName, OnChangeDetected, cancellationToken);
-                    logger.DatabaseNotifierStarted(typeof(TEntity).Name);
-                }
-                catch (Exception ex)
-                {
-                    // Log but don't fail - fall back to in-process only
-                    logger.DatabaseNotifierFailed(typeof(TEntity).Name, ex);
-                }
-
-                _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
-
-                // Initial query
-                var initialBaseQuery = queryBuilder();
-                queryContext.TotalItems = initialBaseQuery.Count();
-                var query = BuildQuery(initialBaseQuery, queryContext);
-                var initialEntities = await query.ToListAsync(cancellationToken);
-                entities.InitializeWithEntities(initialEntities);
-                onNext(entities, subject);
-
                 // Keep the task alive until cancelled
                 await Task.Delay(Timeout.Infinite, cancellationToken);
             }
@@ -210,10 +274,11 @@ public static class DbSetObserveExtensions
             }
             catch (Exception ex)
             {
-                logger.UnexpectedError(ex);
+                logger.UnexpectedError(typeof(TEntity).Name, ex);
             }
             finally
             {
+                logger.WatchTaskEnding(typeof(TEntity).Name);
                 Cleanup();
             }
         }
@@ -225,28 +290,40 @@ public static class DbSetObserveExtensions
                 return;
             }
             logger.CleaningUp();
-            changeSubscription?.Dispose();
 
-            if (databaseNotifier is not null)
+            // Acquire the semaphore to ensure no queries are running
+            // This will block until any in-flight query completes
+            queryExecutionSemaphore.Wait();
+            try
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await databaseNotifier.DisposeAsync();
-                    }
-                    catch
-                    {
-                        // Ignore cleanup errors
-                    }
-                });
-            }
+                changeSubscription?.Dispose();
 
-            cancellationTokenSource?.Cancel();
-            cancellationTokenSource?.Dispose();
-            subject?.OnCompleted();
-            logger.ObservationCompleted(typeof(TEntity).Name);
-            completedCleanup = true;
+                if (databaseNotifier is not null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await databaseNotifier.DisposeAsync();
+                        }
+                        catch
+                        {
+                            // Ignore cleanup errors
+                        }
+                    });
+                }
+
+                cancellationTokenSource?.Cancel();
+                cancellationTokenSource?.Dispose();
+                subject?.OnCompleted();
+                logger.ObservationCompleted(typeof(TEntity).Name);
+                completedCleanup = true;
+            }
+            finally
+            {
+                queryExecutionSemaphore.Release();
+                queryExecutionSemaphore.Dispose();
+            }
         }
     }
 
@@ -330,6 +407,10 @@ public static class DbSetObserveExtensions
 
         return serviceProvider.GetRequiredService<ICurrentDbContext>().Context;
     }
+
+    static IQueryable<TEntity> ApplyConfigure<TEntity>(DbSet<TEntity> dbSet, Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
+        where TEntity : class =>
+        configure is not null ? configure(dbSet) : dbSet;
 
     /// <summary>
     /// Internal class used as an identifying type for logging purpose.

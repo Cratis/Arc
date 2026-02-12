@@ -46,7 +46,7 @@ describe("when executing with origin and api base path", given(class {
         context.fetchHelper.restore();
     });
 
-    it("should_construct_url_with_origin_and_base_path", () => {
+    it("should construct url with origin and base path", () => {
         const call = context.fetchStub.getCall(0);
         const url = call.args[0];
         url.toString().should.contain('https://api.example.com');

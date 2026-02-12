@@ -18,7 +18,7 @@ public class and_api_route_is_registered : given.a_running_endpoint_mapper
         _endpointMapper.MapGet("/api/greeting", async context =>
         {
             context.ContentType = "application/json";
-            await context.WriteAsync(ApiResponse);
+            await context.Write(ApiResponse);
         });
         StartEndpointMapper();
     }

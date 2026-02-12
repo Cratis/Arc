@@ -14,13 +14,19 @@ public static class ObserveServiceCollectionExtensions
 {
     /// <summary>
     /// Adds Entity Framework Core observation services to the service collection.
+    /// Uses Replace to ensure singleton lifetime even if convention-based registration
+    /// has already registered these types with a different lifetime.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> to add services to.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddEntityFrameworkCoreObservation(this IServiceCollection services)
     {
-        services.TryAddSingleton<IEntityChangeTracker, EntityChangeTracker>();
-        services.TryAddSingleton<IDatabaseChangeNotifierFactory, DatabaseChangeNotifierFactory>();
+        // Use Replace to ensure singleton lifetime.
+        // AddBindingsByConvention() may have already registered these with non-singleton lifetime.
+        // Replace removes any existing registration and adds the new one.
+        services.Replace(ServiceDescriptor.Singleton<IEntityChangeTracker, EntityChangeTracker>());
+        services.Replace(ServiceDescriptor.Singleton<IServiceBrokerManager, ServiceBrokerManager>());
+        services.Replace(ServiceDescriptor.Singleton<IDatabaseChangeNotifierFactory, DatabaseChangeNotifierFactory>());
         return services;
     }
 }

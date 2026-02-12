@@ -106,6 +106,17 @@ public sealed class JavaScriptHttpBridge : IDisposable
         => await ExecuteCommandViaProxyAsync<TResult>(command, command.GetType().Name);
 
     /// <summary>
+    /// Validates a command through its JavaScript proxy class.
+    /// The proxy's validate() method will call fetch(), which is intercepted and routed to HTTP.
+    /// </summary>
+    /// <typeparam name="TResult">The expected result type.</typeparam>
+    /// <param name="command">The command object.</param>
+    /// <returns>The command validation result.</returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
+    public async Task<CommandExecutionResult<TResult>> ValidateCommandViaProxyAsync<TResult>(object command)
+        => await ValidateCommandViaProxyAsync<TResult>(command, command.GetType().Name);
+
+    /// <summary>
     /// Executes a command through its JavaScript proxy class with an explicit class name.
     /// The proxy's execute() method will call fetch(), which is intercepted and routed to HTTP.
     /// </summary>
@@ -115,6 +126,21 @@ public sealed class JavaScriptHttpBridge : IDisposable
     /// <returns>The command execution result.</returns>
     /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy execution fails.</exception>
     public async Task<CommandExecutionResult<TResult>> ExecuteCommandViaProxyAsync<TResult>(object command, string commandClassName)
+        => await InvokeCommandMethodViaProxyAsync<TResult>(command, commandClassName, "execute");
+
+    /// <summary>
+    /// Validates a command through its JavaScript proxy class with an explicit class name.
+    /// The proxy's validate() method will call fetch(), which is intercepted and routed to HTTP.
+    /// </summary>
+    /// <typeparam name="TResult">The expected result type.</typeparam>
+    /// <param name="command">The command object.</param>
+    /// <param name="commandClassName">The JavaScript class name to use.</param>
+    /// <returns>The command validation result.</returns>
+    /// <exception cref="JavaScriptProxyExecutionFailed">The exception that is thrown when the proxy validation fails.</exception>
+    public async Task<CommandExecutionResult<TResult>> ValidateCommandViaProxyAsync<TResult>(object command, string commandClassName)
+        => await InvokeCommandMethodViaProxyAsync<TResult>(command, commandClassName, "validate");
+
+    async Task<CommandExecutionResult<TResult>> InvokeCommandMethodViaProxyAsync<TResult>(object command, string commandClassName, string methodName)
     {
         var commandAsDocument = JsonSerializer.SerializeToDocument(command, _jsonOptions);
         var properties = new Dictionary<string, object>();
@@ -141,8 +167,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
             return $"__cmd.{p.Key} = {jsonValue};";
         }));
 
-        // Create command instance and set properties, then call execute()
-        Runtime.Execute(Scripts.ExecuteCommand(commandClassName, propAssignments));
+        // Create command instance and set properties, then invoke the specified method
+        Runtime.Execute(Scripts.InvokeCommand(commandClassName, propAssignments, methodName));
 
         // Check if there's a pending fetch (client-side validation might prevent roundtrip)
         var hasPendingFetch = Runtime.Evaluate<bool>("__pendingFetch !== null");
@@ -151,7 +177,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasPendingFetch)
         {
             // Process the pending fetch request
-            result = await ProcessPendingFetchAsync();
+            result = await ProcessPendingFetch();
         }
 
         // Wait for promise resolution - kept high to account for slower CI/build server environments
@@ -161,7 +187,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (hasError)
         {
             var errorMsg = Runtime.Evaluate<string>("__cmdError?.message || String(__cmdError)");
-            throw new JavaScriptProxyExecutionFailed($"Command execution failed: {errorMsg}");
+            throw new JavaScriptProxyExecutionFailed($"Command {methodName} failed: {errorMsg}");
         }
 
         // Get the result from JavaScript
@@ -244,7 +270,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
             requestUrl = Runtime.Evaluate<string>("__pendingFetch.url");
 
             // Process the pending fetch request
-            result = await ProcessPendingFetchAsync();
+            result = await ProcessPendingFetch();
         }
         else
         {
@@ -465,7 +491,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         }
 
         // Start the connection in the background
-        _ = connection.ConnectAsync();
+        _ = connection.Connect();
 
         return wsId;
     }
@@ -476,7 +502,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         {
             if (_webSockets.TryGetValue(wsId, out var connection))
             {
-                _ = connection.SendAsync(message);
+                _ = connection.Send(message);
             }
         }
     }
@@ -499,7 +525,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         Runtime.Execute(Scripts.FetchInterceptor);
     }
 
-    async Task<FetchResult> ProcessPendingFetchAsync()
+    async Task<FetchResult> ProcessPendingFetch()
     {
         // Get the pending fetch request details
         var hasPending = Runtime.Evaluate<bool>("__pendingFetch !== null");

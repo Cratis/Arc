@@ -68,10 +68,10 @@ describe("when validating with client validation passing", () => {
         fetchHelper.restore();
     });
 
-    it("should_call_server", () => fetchStub.calledOnce.should.be.true);
-    it("should_call_validation_endpoint", () => {
+    it("should call server", () => fetchStub.calledOnce.should.be.true);
+    it("should call validation endpoint", () => {
         const url = fetchStub.getCall(0).args[0];
         url.toString().should.contain('/api/test/validate');
     });
-    it("should_return_valid_result", () => result.isValid.should.be.true);
+    it("should return valid result", () => result.isValid.should.be.true);
 });

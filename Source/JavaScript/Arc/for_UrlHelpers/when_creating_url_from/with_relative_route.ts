@@ -18,15 +18,15 @@ describe("with_relative_route", () => {
         result = UrlHelpers.createUrlFrom(origin, apiBasePath, route);
     });
 
-    it("should_create_correct_url_with_relative_route", () => {
+    it("should create correct url with relative route", () => {
         result.href.should.equal('https://example.com/api/users/123');
     });
 
-    it("should_have_correct_origin", () => {
+    it("should have correct origin", () => {
         result.origin.should.equal('https://example.com');
     });
 
-    it("should_have_correct_pathname", () => {
+    it("should have correct pathname", () => {
         result.pathname.should.equal('/api/users/123');
     });
 });

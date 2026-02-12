@@ -15,7 +15,7 @@ public record AddItemToCart(string Sku, int Quantity)
 }
 ```
 
-> **Note**: If you're using the Cratis ApplicationModel [proxy generator](../../proxy-generation.md), the name of the type
+> **Note**: If you're using the Cratis ApplicationModel [proxy generator](../../proxy-generation/index.md), the name of the type
 > will become the name of the command for the generated TypeScript file and class.
 
 If your handler has side-effects expressed in the return value, the
@@ -25,7 +25,7 @@ You can then return anything you know there is a handler for.
 
 ## Discriminated Union
 
-Your return type can leverage a discriminated union with [`OneOf<>`](https://github.com/mcintyre321/OneOf/) to
+Your return type can leverage a discriminated union with [`OneOf<>`](https://github.com/mcintyre321/OneOf) to
 return different types of values depending on the situation, like for instance an explicit validation error.
 
 As long as there are [response handlers](../response-value-handlers.md) for any of the types of the discriminated union, your value
@@ -224,7 +224,7 @@ public record AddItemToCart(string Sku, int Quantity)
 
 ## Frontend Integration
 
-Model-bound commands work seamlessly with the [proxy generator](../../proxy-generation.md), which automatically creates TypeScript proxies for your commands. The generated proxies provide:
+Model-bound commands work seamlessly with the [proxy generator](../../proxy-generation/index.md), which automatically creates TypeScript proxies for your commands. The generated proxies provide:
 
 - Strong typing for command properties
 - Automatic validation integration

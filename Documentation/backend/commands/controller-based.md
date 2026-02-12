@@ -16,7 +16,7 @@ public class Carts : ControllerBase
 }
 ```
 
-> **Note**: If you're using Cratis Arc [proxy generator](../proxy-generation.md), the method name
+> **Note**: If you're using Cratis Arc [proxy generator](../proxy-generation/index.md), the method name
 > will become the command name for the generated TypeScript file and class.
 
 ## Bypassing Command Result Wrappers

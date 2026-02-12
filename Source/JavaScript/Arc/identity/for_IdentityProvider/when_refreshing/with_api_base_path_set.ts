@@ -6,6 +6,8 @@ import { an_identity_provider } from '../given/an_identity_provider';
 import { given } from '../../../given';
 
 describe('when refreshing with api base path set', given(an_identity_provider, context => {
+    let actualUrl: URL;
+
     beforeEach(async () => {
         context.fetchStub.resolves({
             ok: true,
@@ -18,6 +20,8 @@ describe('when refreshing with api base path set', given(an_identity_provider, c
 
         IdentityProvider.setApiBasePath('/custom/api');
         await IdentityProvider.refresh();
+        
+        actualUrl = context.fetchStub.firstCall.args[0];
     });
 
     afterEach(() => {
@@ -25,6 +29,6 @@ describe('when refreshing with api base path set', given(an_identity_provider, c
     });
 
     it('should call fetch with api base path prefixed', () => {
-        context.fetchStub.should.have.been.calledWith('/custom/api/.cratis/me');
+        actualUrl.pathname.should.equal('/custom/api/.cratis/me');
     });
 }));

@@ -374,5 +374,5 @@ public class ApiKeyAuthenticationHandlerTests
 
 - [Authorization](authorization.md) - Learn how to protect endpoints with authorization attributes
 - [Identity](../identity.md) - Integrate with Arc's identity system
-- [Commands](../commands/) - Protect commands with authentication and authorization
-- [Queries](../queries/) - Protect queries with authentication and authorization
+- [Commands](../commands/index.md) - Protect commands with authentication and authorization
+- [Queries](../queries/index.md) - Protect queries with authentication and authorization

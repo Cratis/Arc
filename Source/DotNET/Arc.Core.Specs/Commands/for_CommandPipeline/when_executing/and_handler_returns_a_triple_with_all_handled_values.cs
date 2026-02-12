@@ -25,7 +25,7 @@ public class and_handler_returns_a_triple_with_all_handled_values : given.a_comm
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), _tuple.Item3).Returns(CommandResult.Success(CorrelationId.New()));
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact]
     void should_call_value_handlers_for_all_values()

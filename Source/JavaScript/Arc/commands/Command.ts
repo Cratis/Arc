@@ -106,7 +106,15 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
         }
 
-        const actualRoute = `${this.route}/validate`;
+        let actualRoute = this.route;
+
+        if (this.requestParameters && this.requestParameters.length > 0) {
+            const payload = this.buildPayload();
+            const { route } = UrlHelpers.replaceRouteParameters(this.route, payload);
+            actualRoute = route;
+        }
+
+        actualRoute = `${actualRoute}/validate`;
         return this.performRequest(actualRoute, 'Command validation endpoint not found at route', 'Error during validation call');
     }
 
@@ -122,7 +130,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     private validateRequiredProperties(): ValidationResult[] {
         const validationErrors: ValidationResult[] = [];
         this.propertyDescriptors.forEach(propertyDescriptor => {
-            if (!propertyDescriptor.isOptional) {
+            if (!propertyDescriptor.isOptional && !this.requestParameters.includes(propertyDescriptor.name)) {
                 const value = this[propertyDescriptor.name];
                 if (value === undefined || value === null || value === '') {
                     validationErrors.push(new ValidationResult(

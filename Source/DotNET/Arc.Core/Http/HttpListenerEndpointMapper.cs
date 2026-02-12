@@ -122,7 +122,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
         _cancellationTokenSource = new CancellationTokenSource();
         _listener.Start();
-        _listenerTask = ListenAsync(_cancellationTokenSource.Token);
+        _listenerTask = Listen(_cancellationTokenSource.Token);
         _isStarted = true;
 
         _logger.HttpListenerStarted(string.Join(", ", _listener.Prefixes));
@@ -132,7 +132,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     /// Stops the HTTP listener.
     /// </summary>
     /// <returns>A task representing the stop operation.</returns>
-    public async Task StopAsync()
+    public async Task Stop()
     {
         if (!_isStarted)
         {
@@ -225,14 +225,14 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
-    async Task ListenAsync(CancellationToken cancellationToken)
+    async Task Listen(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 var context = await _listener.GetContextAsync();
-                _ = Task.Run(async () => await HandleRequestAsync(context), cancellationToken);
+                _ = Task.Run(async () => await HandleRequest(context), cancellationToken);
             }
             catch (HttpListenerException) when (cancellationToken.IsCancellationRequested)
             {
@@ -249,7 +249,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
-    async Task HandleRequestAsync(HttpListenerContext context)
+    async Task HandleRequest(HttpListenerContext context)
     {
         try
         {

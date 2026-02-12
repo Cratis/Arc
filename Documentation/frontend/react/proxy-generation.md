@@ -2,7 +2,7 @@
 
 Cratis Arc automatically generates TypeScript proxies for your backend commands and queries, providing seamless integration between your React frontend and backend APIs.
 
-> **Setup and Configuration**: For detailed information about setting up proxy generation, configuration options, and build integration, see the [Backend Proxy Generation](../../backend/proxy-generation.md) documentation.
+> **Setup and Configuration**: For detailed information about setting up proxy generation, configuration options, and build integration, see the [Backend Proxy Generation](../../backend/proxy-generation/index.md) documentation.
 
 ## Type Safety and IntelliSense
 
@@ -110,5 +110,5 @@ Observable queries are generated the same way as regular queries, but they don't
 
 The proxy generator maintains your backend folder structure while generating TypeScript files based on the namespaces of your source files. Each namespace segment typically becomes a subfolder in the generated output.
 
-For detailed information about configuring the output structure, including how to skip namespace segments and customize the generated folder hierarchy, see the [Backend Proxy Generation Configuration](../../backend/proxy-generation.md#configuration) section.
+For detailed information about configuring the output structure, including how to skip namespace segments and customize the generated folder hierarchy, see the [Backend Proxy Generation Configuration](../../backend/proxy-generation/configuration.md) section.
 

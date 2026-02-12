@@ -17,7 +17,12 @@ export class an_identity_provider {
         
         // Mock document for tests that need it
         if (typeof document === 'undefined') {
-            (global as { document?: { cookie: string } }).document = { cookie: '' };
+            (global as { document?: { cookie: string; location: { origin: string } } }).document = {
+                cookie: '',
+                location: {
+                    origin: 'http://localhost'
+                }
+            };
         }
         
         this.fetchHelper = createFetchHelper();

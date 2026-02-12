@@ -399,12 +399,12 @@ accountsObservable.subscribe(accounts => {
 
 The `ISubject<T>` return type automatically establishes and manages WebSocket connections, providing:
 
+> **Important**: When using `ClientObservable<T>` directly, the `ClientDisconnected` callback is essential for cleaning up resources to prevent memory leaks.
+
 - **Automatic connection management** - WebSocket connections are established and maintained automatically
 - **Strongly-typed data flow** - Full TypeScript support through the proxy generator
 - **Reactive integration** - Seamless integration with React hooks like `useObservableQuery()`
 - **Reconnection handling** - Automatic reconnection and state recovery on connection loss
 
-> **Important**: When using `ClientObservable<T>` directly, the `ClientDisconnected` callback is essential for cleaning up resources to prevent memory leaks.
-
-> **Note**: The [proxy generator](../../proxy-generation.md) automatically creates TypeScript types for your observable queries,
+> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your observable queries,
 > making them strongly typed on the frontend as well.

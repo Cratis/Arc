@@ -40,7 +40,8 @@ public class an_events_command_response_value_handler : Specification
             Arg.Any<EventStreamId?>(),
             Arg.Any<EventSourceType?>(),
             Arg.Any<CorrelationId?>(),
-            Arg.Any<ConcurrencyScope?>()).Returns(successfulResult);
+            Arg.Any<IEnumerable<string>?>(),
+            Arg.Any<ConcurrencyScope>()).Returns(successfulResult);
     }
 
     protected class TestCommand

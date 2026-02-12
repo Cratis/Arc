@@ -32,16 +32,16 @@ describe("when validating with successful response", given(a_command, context =>
         context.fetchStub.restore();
     });
 
-    it("should_call_fetch_with_validate_route", () => {
+    it("should call fetch with validate route", () => {
         const call = context.fetchStub.getCall(0);
         const url = call.args[0];
         url.toString().should.contain('/validate');
     });
 
-    it("should_call_fetch_with_post_method", () => {
+    it("should call fetch with post method", () => {
         const call = context.fetchStub.getCall(0);
         call.args[1].method.should.equal('POST');
     });
 
-    it("should_return_command_result", () => (result !== null && result !== undefined).should.be.true);
+    it("should return command result", () => (result !== null && result !== undefined).should.be.true);
 }));

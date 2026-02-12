@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe;
 
@@ -10,39 +11,71 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// Interceptor that detects changes after SaveChanges and notifies subscribers.
 /// </summary>
 /// <param name="changeTracker">The <see cref="IEntityChangeTracker"/> to notify.</param>
-public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker) : SaveChangesInterceptor
+/// <param name="logger">The <see cref="ILogger"/> for diagnostics.</param>
+public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker, ILogger<ObserveInterceptor> logger) : SaveChangesInterceptor
 {
+    HashSet<string> _changedTables = [];
+
+    /// <inheritdoc/>
+    public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        CaptureChangedTables(eventData.Context);
+        return base.SavingChanges(eventData, result);
+    }
+
+    /// <inheritdoc/>
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        CaptureChangedTables(eventData.Context);
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
     /// <inheritdoc/>
     public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
     {
-        NotifyChanges(eventData.Context);
+        NotifyChanges();
         return base.SavedChanges(eventData, result);
     }
 
     /// <inheritdoc/>
     public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
     {
-        NotifyChanges(eventData.Context);
+        NotifyChanges();
         return base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
-    void NotifyChanges(DbContext? context)
+    void CaptureChangedTables(DbContext? context)
     {
         if (context is null)
         {
+            logger.CaptureChangedTablesNullContext();
             return;
         }
 
-        // Get all entity types that have been tracked for changes
-        // After SaveChanges, entries are marked as Unchanged, so we need to get all unique types
-        var changedEntityTypes = context.ChangeTracker.Entries()
-            .Select(e => e.Entity.GetType())
-            .Distinct()
-            .ToList();
+        // Capture table names before SaveChanges completes.
+        // Using table names instead of CLR types avoids issues with EF Core proxy classes
+        // and ensures notifications match the registered observers.
+        // This is important because deleted entities are detached after SaveChanges.
+        _changedTables = context.ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+            .Select(e => e.Metadata.GetTableName())
+            .Where(tableName => tableName is not null)
+            .Cast<string>()
+            .ToHashSet();
 
-        foreach (var entityType in changedEntityTypes)
+        logger.CapturedChangedTables(_changedTables.Count, string.Join(", ", _changedTables));
+    }
+
+    void NotifyChanges()
+    {
+        logger.NotifyingChanges(_changedTables.Count, string.Join(", ", _changedTables));
+
+        foreach (var tableName in _changedTables)
         {
-            changeTracker.NotifyChange(entityType);
+            logger.NotifyingChangeForTable(tableName);
+            changeTracker.NotifyChange(tableName);
         }
+
+        _changedTables.Clear();
     }
 }

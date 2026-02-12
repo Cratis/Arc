@@ -34,11 +34,11 @@ public class with_exception_during_performance : given.a_query_pipeline
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromException<object?>(_exception));
     }
 
-    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting);
+    async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_unsuccessful_result() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_exception_message() => _result.ExceptionMessages.ShouldContain(_exception.Message);
     [Fact] void should_have_exception_stack_trace() => _result.ExceptionStackTrace.ShouldEqual(_exception.StackTrace ?? string.Empty);
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
-    [Fact] void should_not_call_query_renderers() => _queryRenderers.DidNotReceiveWithAnyArgs().Render(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<object>());
+    [Fact] void should_not_call_query_renderers() => _queryRenderers.DidNotReceiveWithAnyArgs().Render(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<object>(), Arg.Any<IServiceProvider>());
 }

@@ -19,7 +19,7 @@ describe("when validating with empty array", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 });

@@ -22,11 +22,11 @@ describe("when executing with missing required property", given(class extends a_
         context.fetchStub.restore();
     });
 
-    it("should_not_call_fetch", () => context.fetchStub.called.should.be.false);
-    it("should_return_failed_result", () => result.isSuccess.should.be.false);
-    it("should_return_invalid_result", () => result.isValid.should.be.false);
-    it("should_return_authorized_result", () => result.isAuthorized.should.be.true);
-    it("should_have_validation_results", () => result.validationResults.length.should.equal(1));
-    it("should_have_validation_message_for_property", () => result.validationResults[0].message.should.equal('someProperty is required'));
-    it("should_have_validation_member_for_property", () => result.validationResults[0].members[0].should.equal('someProperty'));
+    it("should not call fetch", () => context.fetchStub.called.should.be.false);
+    it("should return failed result", () => result.isSuccess.should.be.false);
+    it("should return invalid result", () => result.isValid.should.be.false);
+    it("should return authorized result", () => result.isAuthorized.should.be.true);
+    it("should have validation results", () => result.validationResults.length.should.equal(1));
+    it("should have validation message for property", () => result.validationResults[0].message.should.equal('someProperty is required'));
+    it("should have validation member for property", () => result.validationResults[0].members[0].should.equal('someProperty'));
 }));

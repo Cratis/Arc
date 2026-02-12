@@ -144,7 +144,7 @@ public static class JsonConversion
                     propertyBuilder.HasColumnType("TEXT");
                     break;
                 case DatabaseType.SqlServer:
-                    propertyBuilder.HasColumnType("json");
+                    propertyBuilder.HasColumnType("nvarchar(max)");
                     break;
                 case DatabaseType.PostgreSql:
                     propertyBuilder.HasColumnType("jsonb");

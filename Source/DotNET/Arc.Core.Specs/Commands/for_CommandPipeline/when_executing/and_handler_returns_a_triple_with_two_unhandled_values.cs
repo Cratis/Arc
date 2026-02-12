@@ -17,7 +17,7 @@ public class and_handler_returns_a_triple_with_two_unhandled_values : given.a_co
         _commandResponseValueHandlers.CanHandle(Arg.Any<CommandContext>(), Arg.Any<object>()).Returns(false);
     }
 
-    async Task Because() => _result = await _commandPipeline.Execute(_command);
+    async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_be_unsuccessful() => _result.IsSuccess.ShouldBeFalse();
 }

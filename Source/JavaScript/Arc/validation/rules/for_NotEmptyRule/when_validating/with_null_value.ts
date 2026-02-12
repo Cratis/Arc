@@ -20,19 +20,19 @@ describe("when validating with null value", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 
-    it("should_have_error_severity", () => {
+    it("should have error severity", () => {
         results[0].severity.should.equal(ValidationResultSeverity.Error);
     });
 
-    it("should_have_property_name_in_message", () => {
+    it("should have property name in message", () => {
         results[0].message.should.include('value');
     });
 
-    it("should_include_property_in_members", () => {
+    it("should include property in members", () => {
         results[0].members.should.include('value');
     });
 });

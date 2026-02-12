@@ -8,6 +8,7 @@ import { given } from '../../../given';
 
 describe('when refreshing without api base path', given(an_identity_provider, context => {
     let originalGlobalsApiBasePath: string;
+    let actualUrl: URL;
 
     beforeEach(async () => {
         context.fetchStub.resolves({
@@ -23,6 +24,8 @@ describe('when refreshing without api base path', given(an_identity_provider, co
         Globals.apiBasePath = '';
         IdentityProvider.setApiBasePath('');
         await IdentityProvider.refresh();
+        
+        actualUrl = context.fetchStub.firstCall.args[0];
     });
 
     afterEach(() => {
@@ -30,6 +33,6 @@ describe('when refreshing without api base path', given(an_identity_provider, co
     });
 
     it('should call fetch with default path', () => {
-        context.fetchStub.should.have.been.calledWith('/.cratis/me');
+        actualUrl.pathname.should.equal('/.cratis/me');
     });
 }));

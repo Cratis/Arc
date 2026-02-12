@@ -39,7 +39,8 @@ public class with_concurrency_on_event_stream_type : given.a_single_event_comman
         Arg.Any<EventStreamId?>(),
         Arg.Any<EventSourceType?>(),
         Arg.Any<CorrelationId?>(),
-        Arg.Is<ConcurrencyScope?>(cs => cs != null && cs.EventStreamType == _eventStreamType));
+        Arg.Any<IEnumerable<string>?>(),
+        Arg.Is<ConcurrencyScope>(cs => cs != null && cs.EventStreamType == _eventStreamType));
 
     [EventStreamType("Onboarding", concurrency: true)]
     class TestCommand

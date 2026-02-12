@@ -19,11 +19,11 @@ describe("when validating with string longer than maximum", () => {
         results = rule.validate(instance, 'value');
     });
 
-    it("should_return_one_validation_error", () => {
+    it("should return one validation error", () => {
         results.should.have.lengthOf(1);
     });
 
-    it("should_include_maximum_length_in_message", () => {
+    it("should include maximum length in message", () => {
         results[0].message.should.include('5');
     });
 });

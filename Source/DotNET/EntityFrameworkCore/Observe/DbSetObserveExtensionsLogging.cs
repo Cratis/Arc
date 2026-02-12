@@ -27,12 +27,21 @@ internal static partial class DbSetObserveExtensionsLogMessages
     [LoggerMessage(LogLevel.Trace, "Cleaning up observation")]
     internal static partial void CleaningUp(this ILogger<DbSetObserveExtensions.DbSetObserver> logger);
 
-    [LoggerMessage(LogLevel.Warning, "Unexpected error occurred during observation")]
-    internal static partial void UnexpectedError(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, Exception ex);
+    [LoggerMessage(LogLevel.Warning, "Unexpected error occurred during observation for entity type {EntityType}")]
+    internal static partial void UnexpectedError(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType, Exception ex);
 
     [LoggerMessage(LogLevel.Debug, "Database notifier started for entity type {EntityType}")]
     internal static partial void DatabaseNotifierStarted(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
 
     [LoggerMessage(LogLevel.Warning, "Failed to start database notifier for entity type {EntityType}, falling back to in-process only")]
     internal static partial void DatabaseNotifierFailed(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType, Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "Skipping query for entity type {EntityType} - cleanup in progress")]
+    internal static partial void SkippingQueryDuringCleanup(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
+
+    [LoggerMessage(LogLevel.Information, "Observation for entity type {EntityType} is now watching for changes")]
+    internal static partial void ObservationWatchingForChanges(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
+
+    [LoggerMessage(LogLevel.Information, "Watch task ending for entity type {EntityType}")]
+    internal static partial void WatchTaskEnding(this ILogger<DbSetObserveExtensions.DbSetObserver> logger, string entityType);
 }
