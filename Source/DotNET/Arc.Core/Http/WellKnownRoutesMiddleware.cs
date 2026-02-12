@@ -57,7 +57,7 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
                 var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
                 var authenticationMiddleware = new AuthenticationMiddleware(authentication);
 
-                if (!await authenticationMiddleware.AuthenticateAsync(requestContext, route.Metadata))
+                if (!await authenticationMiddleware.Authenticate(requestContext, route.Metadata))
                 {
                     return true;
                 }

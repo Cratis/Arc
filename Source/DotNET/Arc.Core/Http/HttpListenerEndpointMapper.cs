@@ -4,6 +4,7 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Http;
 
@@ -76,6 +77,10 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
 
         // Initialize middlewares
+        var tenantIdMiddleware = new TenantIdMiddleware(
+            serviceProvider.GetRequiredService<IOptions<ArcOptions>>(),
+            serviceProvider.GetRequiredService<ILogger<TenantIdMiddleware>>());
+
         _wellKnownRoutesMiddleware = new WellKnownRoutesMiddleware(
             serviceProvider,
             serviceProvider.GetRequiredService<ILogger<WellKnownRoutesMiddleware>>());
@@ -111,6 +116,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         // Build the pipeline
         var middlewares = new List<IHttpRequestMiddleware>
         {
+            tenantIdMiddleware,
             _wellKnownRoutesMiddleware,
             _staticFilesMiddleware,
             _fallbackMiddleware
