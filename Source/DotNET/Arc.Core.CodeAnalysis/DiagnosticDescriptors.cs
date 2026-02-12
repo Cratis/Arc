@@ -10,15 +10,13 @@ namespace Cratis.Arc.CodeAnalysis;
 /// </summary>
 static class DiagnosticDescriptors
 {
-    const string Category = "Arc";
-
     /// <summary>
     /// ARC0001: Incorrect Query method signature on ReadModel.
     /// </summary>
     public static readonly DiagnosticDescriptor ARC0001_IncorrectQueryMethodSignature = new(
         id: "ARC0001",
         title: "Incorrect Query method signature on ReadModel",
-        messageFormat: "Query method '{0}' on ReadModel '{1}' must return the ReadModel type, a collection of it, Task<ReadModel>, Task<IEnumerable<ReadModel>>, IAsyncEnumerable<ReadModel>, or ISubject<ReadModel>. Found: {2}",
+        messageFormat: "Query method '{0}' on ReadModel '{1}' must return the ReadModel type, a collection of it, Task<ReadModel>, Task<IEnumerable<ReadModel>>, IAsyncEnumerable<ReadModel>, or ISubject<ReadModel>. Found: {2}.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -35,4 +33,6 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Types with Handle methods should have the [Command] attribute to be recognized as commands.");
+
+    const string Category = "Arc";
 }

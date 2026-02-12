@@ -38,19 +38,16 @@ public class AggregateRootAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var eventHandlerMethods = FindEventHandlerMethods(namedTypeSymbol);
-
-        foreach (var method in eventHandlerMethods)
+        foreach (var method in FindEventHandlerMethods(namedTypeSymbol))
         {
             if (!IsValidEventHandlerSignature(method))
             {
-                var diagnostic = Diagnostic.Create(
+                context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.ARCCHR0001_IncorrectAggregateRootEventHandlerSignature,
                     method.Locations[0],
                     method.Name,
                     namedTypeSymbol.Name,
-                    GetMethodSignature(method));
-                context.ReportDiagnostic(diagnostic);
+                    GetMethodSignature(method)));
             }
         }
     }
