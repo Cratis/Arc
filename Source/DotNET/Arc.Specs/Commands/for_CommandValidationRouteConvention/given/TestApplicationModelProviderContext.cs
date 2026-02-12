@@ -15,9 +15,6 @@ public class TestApplicationModelProviderContext : ApplicationModelProviderConte
             .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
             .FirstOrDefault(f => f.Name.Contains("result", StringComparison.OrdinalIgnoreCase) || f.Name.Contains("Result"));
 
-        if (backingField != null)
-        {
-            backingField.SetValue(this, result);
-        }
+        backingField?.SetValue(this, result);
     }
 }

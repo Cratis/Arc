@@ -26,7 +26,5 @@ public class with_empty_controllers : given.a_command_validation_route_conventio
 
     [Fact] void should_not_throw() => true.ShouldBeTrue();
 
-    class TestController : ControllerBase
-    {
-    }
+    class TestController : ControllerBase;
 }
