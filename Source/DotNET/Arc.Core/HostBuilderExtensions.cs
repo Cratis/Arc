@@ -89,7 +89,7 @@ public static class HostBuilderExtensions
                 TenantResolverType.Query => sp.GetRequiredService<QueryTenantIdResolver>(),
                 TenantResolverType.Claim => sp.GetRequiredService<ClaimTenantIdResolver>(),
                 TenantResolverType.Development => sp.GetRequiredService<DevelopmentTenantIdResolver>(),
-                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}")
+                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development")
             };
         });
 
