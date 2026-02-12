@@ -36,13 +36,13 @@ public class CommandValidationRouteConvention : IApplicationModelProvider
 
     bool IsCommandAction(ActionModel action)
     {
-        if (!action.ActionMethod.IsCommand())
+        if (action.ActionMethod?.IsCommand() != true)
         {
             return false;
         }
 
         var hasPostAttribute = action.Attributes.Any(a => a.GetType().Name == nameof(HttpPostAttribute));
-        var actionNameIsPost = action.ActionName.Equals(HttpMethod.Post.Method, StringComparison.OrdinalIgnoreCase);
+        var actionNameIsPost = action.ActionName?.Equals(HttpMethod.Post.Method, StringComparison.OrdinalIgnoreCase) == true;
 
         return hasPostAttribute || actionNameIsPost;
     }
