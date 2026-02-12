@@ -9,11 +9,7 @@ public class and_query_returns_task : Specification
 {
     Exception result;
 
-    async Task Because()
-    {
-        try
-        {
-            await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Queries.ModelBound;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -25,13 +21,7 @@ namespace TestNamespace
     {
         public static Task<TestReadModel> GetByIdAsync(int id) => Task.FromResult(new TestReadModel(id, ""test""));
     }
-}");
-        }
-        catch (Exception ex)
-        {
-            result = ex;
-        }
-    }
+}"));
 
     [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
 }

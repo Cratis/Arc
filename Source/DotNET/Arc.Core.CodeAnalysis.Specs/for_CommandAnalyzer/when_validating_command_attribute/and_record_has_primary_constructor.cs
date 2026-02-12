@@ -9,11 +9,7 @@ public class and_record_has_primary_constructor : Specification
 {
     Exception result;
 
-    async Task Because()
-    {
-        try
-        {
-            await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Commands.ModelBound;
 
 namespace TestNamespace
@@ -25,13 +21,7 @@ namespace TestNamespace
         {
         }
     }
-}");
-        }
-        catch (Exception ex)
-        {
-            result = ex;
-        }
-    }
+}"));
 
     [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
 }

@@ -9,11 +9,7 @@ public class and_returns_wrong_type : Specification
 {
     Exception result;
 
-    async Task Because()
-    {
-        try
-        {
-            await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Chronicle.Aggregates;
 
 namespace TestNamespace
@@ -30,13 +26,7 @@ namespace TestNamespace
 }",
                 VerifyCS.Diagnostic("ARCCHR0001")
                     .WithLocation(0)
-                    .WithArguments("OnTestEvent", "TestAggregate", "string OnTestEvent(TestNamespace.TestEvent e)"));
-        }
-        catch (Exception ex)
-        {
-            result = ex;
-        }
-    }
+                    .WithArguments("OnTestEvent", "TestAggregate", "string OnTestEvent(TestNamespace.TestEvent e)")));
 
     [Fact] void should_report_diagnostic() => result.ShouldBeNull();
 }

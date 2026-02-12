@@ -9,11 +9,7 @@ public class and_query_returns_wrong_type : Specification
 {
     Exception result;
 
-    async Task Because()
-    {
-        try
-        {
-            await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Queries.ModelBound;
 
 namespace TestNamespace
@@ -26,13 +22,7 @@ namespace TestNamespace
 }",
                 VerifyCS.Diagnostic("ARC0001")
                     .WithLocation(0)
-                    .WithArguments("GetName", "TestReadModel", "string"));
-        }
-        catch (Exception ex)
-        {
-            result = ex;
-        }
-    }
+                    .WithArguments("GetName", "TestReadModel", "string")));
 
     [Fact] void should_report_diagnostic() => result.ShouldBeNull();
 }

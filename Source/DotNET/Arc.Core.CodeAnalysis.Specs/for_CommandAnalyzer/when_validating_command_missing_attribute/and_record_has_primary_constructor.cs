@@ -9,11 +9,7 @@ public class and_record_has_primary_constructor : Specification
 {
     Exception result;
 
-    async Task Because()
-    {
-        try
-        {
-            await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 namespace TestNamespace
 {
     public record {|#0:TestCommand|}(string Name, int Age)
@@ -25,13 +21,7 @@ namespace TestNamespace
 }",
                 VerifyCS.Diagnostic("ARC0002")
                     .WithLocation(0)
-                    .WithArguments("TestCommand"));
-        }
-        catch (Exception ex)
-        {
-            result = ex;
-        }
-    }
+                    .WithArguments("TestCommand")));
 
     [Fact] void should_report_diagnostic() => result.ShouldBeNull();
 }

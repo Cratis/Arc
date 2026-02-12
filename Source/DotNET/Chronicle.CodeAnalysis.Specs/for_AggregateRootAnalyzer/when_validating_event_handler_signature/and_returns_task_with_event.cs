@@ -9,11 +9,7 @@ public class and_returns_task_with_event : Specification
 {
     Exception result;
 
-    async Task Because()
-    {
-        try
-        {
-            await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Chronicle.Aggregates;
 using System.Threading.Tasks;
 
@@ -28,13 +24,7 @@ namespace TestNamespace
             return Task.CompletedTask;
         }
     }
-}");
-        }
-        catch (Exception ex)
-        {
-            result = ex;
-        }
-    }
+}"));
 
     [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
 }
