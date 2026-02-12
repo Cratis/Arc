@@ -19,8 +19,6 @@ namespace Cratis.Arc.Http;
 public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger<WellKnownRoutesMiddleware> logger) : IHttpRequestMiddleware
 {
     readonly Dictionary<string, RouteHandler> _routes = new(StringComparer.OrdinalIgnoreCase);
-    readonly IServiceProvider _serviceProvider = serviceProvider;
-    readonly ILogger<WellKnownRoutesMiddleware> _logger = logger;
 
     /// <summary>
     /// Registers a route with the middleware.
@@ -33,7 +31,7 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
     {
         var routeKey = $"{method}:{pattern}";
         _routes[routeKey] = new RouteHandler(pattern, handler, metadata);
-        logger.LogDebug("Registering route {Method} {Pattern}", method, pattern);
+        logger.RegisteringRoute(method, pattern);
     }
 
     /// <inheritdoc/>
@@ -43,11 +41,11 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
         var path = context.Request.Url?.AbsolutePath ?? "/";
         var routeKey = $"{method}:{path}";
 
-        logger.LogDebug("Checking for route match: {RouteKey}", routeKey);
+        logger.CheckingRouteMatch(routeKey);
 
         if (_routes.TryGetValue(routeKey, out var route))
         {
-            logger.LogDebug("Route matched: {RouteKey}", routeKey);
+            logger.RouteMatched(routeKey);
 
             try
             {

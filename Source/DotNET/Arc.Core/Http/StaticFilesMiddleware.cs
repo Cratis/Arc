@@ -16,7 +16,6 @@ namespace Cratis.Arc.Http;
 public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHttpRequestMiddleware
 {
     readonly List<StaticFileOptions> _staticFileConfigurations = [];
-    readonly ILogger<StaticFilesMiddleware> _logger = logger;
 
     /// <summary>
     /// Adds a static file configuration to the middleware.
@@ -40,7 +39,7 @@ public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHtt
             return await next(context);
         }
 
-        logger.LogDebug("Attempting to serve static file for {RequestPath}", requestPath);
+        logger.AttemptingStaticFile(requestPath);
 
         if (await TryServeStaticFileAsync(context, requestPath))
         {
@@ -52,7 +51,7 @@ public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHtt
 
     async Task<bool> TryServeStaticFileAsync(HttpListenerContext context, string requestPath)
     {
-        logger.LogDebug("Checking {ConfigCount} static file configurations", _staticFileConfigurations.Count);
+        logger.CheckingConfigurations(_staticFileConfigurations.Count);
 
         foreach (var config in _staticFileConfigurations)
         {
@@ -91,16 +90,12 @@ public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHtt
             var fileExists = File.Exists(filePath);
             if (fileExists)
             {
-                logger.LogDebug("Serving static file: {FilePath}", filePath);
+                logger.ServingStaticFile(filePath);
                 await ServeFileAsync(context, filePath);
                 return true;
             }
 
-            logger.LogDebug(
-                "Static file not found: {FilePath} (directory exists: {DirectoryExists}, file exists: {FileExists})",
-                filePath,
-                directoryExists,
-                fileExists);
+            logger.StaticFileNotFound(filePath, directoryExists, fileExists);
         }
 
         return false;

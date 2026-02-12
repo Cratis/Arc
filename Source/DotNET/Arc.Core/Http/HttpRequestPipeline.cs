@@ -17,7 +17,6 @@ namespace Cratis.Arc.Http;
 public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares, ILogger<HttpRequestPipeline> logger) : IHttpRequestPipeline
 {
     readonly IList<IHttpRequestMiddleware> _middlewares = middlewares.ToList();
-    readonly ILogger<HttpRequestPipeline> _logger = logger;
 
     /// <inheritdoc/>
     public async Task ProcessAsync(HttpListenerContext context)
@@ -28,7 +27,7 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
 
             if (!handled)
             {
-                logger.LogDebug("Request {Path} was not handled by any middleware, returning 404", context.Request.Url?.AbsolutePath ?? "/");
+                logger.RequestNotHandled(context.Request.Url?.AbsolutePath ?? "/");
                 context.Response.StatusCode = 404;
                 var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
                 await context.Response.OutputStream.WriteAsync(buffer);

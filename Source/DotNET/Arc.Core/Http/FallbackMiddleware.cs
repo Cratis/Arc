@@ -15,7 +15,6 @@ namespace Cratis.Arc.Http;
 /// <param name="logger">The logger for the middleware.</param>
 public class FallbackMiddleware(ILogger<FallbackMiddleware> logger) : IHttpRequestMiddleware
 {
-    readonly ILogger<FallbackMiddleware> _logger = logger;
     string? _fallbackFilePath;
     string? _fileSystemBasePath;
 
@@ -69,7 +68,7 @@ public class FallbackMiddleware(ILogger<FallbackMiddleware> logger) : IHttpReque
 
         if (File.Exists(filePath))
         {
-            logger.LogDebug("Serving fallback file: {FilePath}", filePath);
+            logger.ServingFallbackFile(filePath);
             await ServeFileAsync(context, filePath);
             return true;
         }
