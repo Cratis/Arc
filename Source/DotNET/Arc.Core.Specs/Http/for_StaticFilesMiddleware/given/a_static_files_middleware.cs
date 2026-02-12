@@ -17,7 +17,7 @@ public class a_static_files_middleware : Specification
     void Establish()
     {
         _port = Random.Shared.Next(50000, 60000);
-        
+
         _logger = Substitute.For<ILogger<StaticFilesMiddleware>>();
         _middleware = new StaticFilesMiddleware(_logger);
 

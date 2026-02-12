@@ -9,7 +9,7 @@ public class with_no_middleware_handling : given.an_http_request_pipeline
     TestMiddleware _middleware;
     Task<System.Net.HttpListenerContext>? _contextTask;
     HttpClient? _client;
-    System.Net.Http.HttpResponseMessage? _response;
+    HttpResponseMessage? _response;
 
     void Establish()
     {
@@ -23,12 +23,12 @@ public class with_no_middleware_handling : given.an_http_request_pipeline
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/test");
-        
+
         var context = await _contextTask;
         await _pipeline.ProcessAsync(context);
-        
+
         _response = await responseTask;
     }
 

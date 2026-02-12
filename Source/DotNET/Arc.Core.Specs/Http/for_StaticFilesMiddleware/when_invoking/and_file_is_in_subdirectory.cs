@@ -8,7 +8,7 @@ public class and_file_is_in_subdirectory : given.a_static_files_middleware
     bool _result;
     Task<System.Net.HttpListenerContext>? _contextTask;
     HttpClient? _client;
-    System.Net.Http.HttpResponseMessage? _response;
+    HttpResponseMessage? _response;
     string? _content;
     const string ExpectedContent = "Subdirectory content";
 
@@ -17,7 +17,7 @@ public class and_file_is_in_subdirectory : given.a_static_files_middleware
         var subDir = Path.Combine(_testDirectory, "sub");
         Directory.CreateDirectory(subDir);
         File.WriteAllText(Path.Combine(subDir, "page.html"), ExpectedContent);
-        
+
         _middleware.AddConfiguration(new StaticFileOptions
         {
             FileSystemPath = _testDirectory
@@ -30,11 +30,11 @@ public class and_file_is_in_subdirectory : given.a_static_files_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/sub/page.html");
-        
+
         var context = await _contextTask;
-        
+
         _result = await _middleware.InvokeAsync(context, ctx =>
         {
             ctx.Response.StatusCode = 404;

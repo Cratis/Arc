@@ -8,7 +8,7 @@ public class and_file_exists : given.a_static_files_middleware
     bool _result;
     Task<System.Net.HttpListenerContext>? _contextTask;
     HttpClient? _client;
-    System.Net.Http.HttpResponseMessage? _response;
+    HttpResponseMessage? _response;
     string? _content;
     const string ExpectedContent = "<html><body>Hello World</body></html>";
 
@@ -16,7 +16,7 @@ public class and_file_exists : given.a_static_files_middleware
     {
         var testFile = Path.Combine(_testDirectory, "test.html");
         File.WriteAllText(testFile, ExpectedContent);
-        
+
         _middleware.AddConfiguration(new StaticFileOptions
         {
             FileSystemPath = _testDirectory
@@ -29,11 +29,11 @@ public class and_file_exists : given.a_static_files_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/test.html");
-        
+
         var context = await _contextTask;
-        
+
         _result = await _middleware.InvokeAsync(context, ctx =>
         {
             ctx.Response.StatusCode = 404;

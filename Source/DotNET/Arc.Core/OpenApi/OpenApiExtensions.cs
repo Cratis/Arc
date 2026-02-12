@@ -58,7 +58,7 @@ public static class OpenApiExtensions
 
     static Dictionary<string, object> GenerateOpenApiDocument(HttpListenerEndpointMapper mapper, string title, string version)
     {
-        var routes = mapper.GetRoutes().ToList();
+        var routes = mapper.Routes.ToList();
         var paths = new Dictionary<string, object>();
 
         foreach (var pathGroup in routes.GroupBy(r => r.Pattern))

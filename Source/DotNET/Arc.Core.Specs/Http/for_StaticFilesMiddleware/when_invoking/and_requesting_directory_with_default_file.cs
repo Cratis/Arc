@@ -8,14 +8,14 @@ public class and_requesting_directory_with_default_file : given.a_static_files_m
     bool _result;
     Task<System.Net.HttpListenerContext>? _contextTask;
     HttpClient? _client;
-    System.Net.Http.HttpResponseMessage? _response;
+    HttpResponseMessage? _response;
     string? _content;
     const string ExpectedContent = "Default index content";
 
     void Establish()
     {
         File.WriteAllText(Path.Combine(_testDirectory, "index.html"), ExpectedContent);
-        
+
         _middleware.AddConfiguration(new StaticFileOptions
         {
             FileSystemPath = _testDirectory,
@@ -30,11 +30,11 @@ public class and_requesting_directory_with_default_file : given.a_static_files_m
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/");
-        
+
         var context = await _contextTask;
-        
+
         _result = await _middleware.InvokeAsync(context, ctx =>
         {
             ctx.Response.StatusCode = 404;

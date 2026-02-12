@@ -49,6 +49,50 @@ public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHtt
         return await next(context);
     }
 
+    static string? GetRelativePath(string requestPath, string configuredRequestPath)
+    {
+        if (string.IsNullOrEmpty(configuredRequestPath) || configuredRequestPath == "/")
+        {
+            return requestPath;
+        }
+
+        var normalizedConfigPath = configuredRequestPath.TrimEnd('/');
+        if (requestPath.Equals(normalizedConfigPath, StringComparison.OrdinalIgnoreCase) ||
+            requestPath.StartsWith(normalizedConfigPath + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return requestPath[normalizedConfigPath.Length..];
+        }
+
+        return null;
+    }
+
+    static string GetAbsoluteFileSystemPath(string fileSystemPath)
+    {
+        if (Path.IsPathRooted(fileSystemPath))
+        {
+            return fileSystemPath;
+        }
+
+        // Use current directory first (typical for development with dotnet run)
+        // Fall back to AppContext.BaseDirectory if not found
+        var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), fileSystemPath);
+        if (Directory.Exists(currentDirPath))
+        {
+            return currentDirPath;
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
+    }
+
+    static async Task ServeFileAsync(HttpListenerContext context, string filePath)
+    {
+        context.Response.ContentType = MimeTypes.GetMimeTypeFromPath(filePath);
+        context.Response.ContentLength64 = new FileInfo(filePath).Length;
+
+        await using var fileStream = File.OpenRead(filePath);
+        await fileStream.CopyToAsync(context.Response.OutputStream);
+    }
+
     async Task<bool> TryServeStaticFileAsync(HttpListenerContext context, string requestPath)
     {
         logger.CheckingConfigurations(_staticFileConfigurations.Count);
@@ -99,49 +143,5 @@ public class StaticFilesMiddleware(ILogger<StaticFilesMiddleware> logger) : IHtt
         }
 
         return false;
-    }
-
-    static string? GetRelativePath(string requestPath, string configuredRequestPath)
-    {
-        if (string.IsNullOrEmpty(configuredRequestPath) || configuredRequestPath == "/")
-        {
-            return requestPath;
-        }
-
-        var normalizedConfigPath = configuredRequestPath.TrimEnd('/');
-        if (requestPath.Equals(normalizedConfigPath, StringComparison.OrdinalIgnoreCase) ||
-            requestPath.StartsWith(normalizedConfigPath + "/", StringComparison.OrdinalIgnoreCase))
-        {
-            return requestPath[normalizedConfigPath.Length..];
-        }
-
-        return null;
-    }
-
-    static string GetAbsoluteFileSystemPath(string fileSystemPath)
-    {
-        if (Path.IsPathRooted(fileSystemPath))
-        {
-            return fileSystemPath;
-        }
-
-        // Use current directory first (typical for development with dotnet run)
-        // Fall back to AppContext.BaseDirectory if not found
-        var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), fileSystemPath);
-        if (Directory.Exists(currentDirPath))
-        {
-            return currentDirPath;
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
-    }
-
-    static async Task ServeFileAsync(HttpListenerContext context, string filePath)
-    {
-        context.Response.ContentType = MimeTypes.GetMimeTypeFromPath(filePath);
-        context.Response.ContentLength64 = new FileInfo(filePath).Length;
-
-        await using var fileStream = File.OpenRead(filePath);
-        await fileStream.CopyToAsync(context.Response.OutputStream);
     }
 }

@@ -16,7 +16,7 @@ namespace Cratis.Arc.Http;
 /// <param name="logger">The logger for the pipeline.</param>
 public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares, ILogger<HttpRequestPipeline> logger) : IHttpRequestPipeline
 {
-    readonly IList<IHttpRequestMiddleware> _middlewares = middlewares.ToList();
+    readonly List<IHttpRequestMiddleware> _middlewares = middlewares.ToList();
 
     /// <inheritdoc/>
     public async Task ProcessAsync(HttpListenerContext context)

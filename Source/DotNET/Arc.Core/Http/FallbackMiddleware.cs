@@ -48,6 +48,33 @@ public class FallbackMiddleware(ILogger<FallbackMiddleware> logger) : IHttpReque
         return await next(context);
     }
 
+    static string GetAbsoluteFileSystemPath(string fileSystemPath)
+    {
+        if (Path.IsPathRooted(fileSystemPath))
+        {
+            return fileSystemPath;
+        }
+
+        // Use current directory first (typical for development with dotnet run)
+        // Fall back to AppContext.BaseDirectory if not found
+        var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), fileSystemPath);
+        if (Directory.Exists(currentDirPath))
+        {
+            return currentDirPath;
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
+    }
+
+    static async Task ServeFileAsync(HttpListenerContext context, string filePath)
+    {
+        context.Response.ContentType = MimeTypes.GetMimeTypeFromPath(filePath);
+        context.Response.ContentLength64 = new FileInfo(filePath).Length;
+
+        await using var fileStream = File.OpenRead(filePath);
+        await fileStream.CopyToAsync(context.Response.OutputStream);
+    }
+
     async Task<bool> TryServeFallbackFileAsync(HttpListenerContext context)
     {
         if (_fallbackFilePath is null || _fileSystemBasePath is null)
@@ -74,32 +101,5 @@ public class FallbackMiddleware(ILogger<FallbackMiddleware> logger) : IHttpReque
         }
 
         return false;
-    }
-
-    static string GetAbsoluteFileSystemPath(string fileSystemPath)
-    {
-        if (Path.IsPathRooted(fileSystemPath))
-        {
-            return fileSystemPath;
-        }
-
-        // Use current directory first (typical for development with dotnet run)
-        // Fall back to AppContext.BaseDirectory if not found
-        var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), fileSystemPath);
-        if (Directory.Exists(currentDirPath))
-        {
-            return currentDirPath;
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, fileSystemPath);
-    }
-
-    static async Task ServeFileAsync(HttpListenerContext context, string filePath)
-    {
-        context.Response.ContentType = MimeTypes.GetMimeTypeFromPath(filePath);
-        context.Response.ContentLength64 = new FileInfo(filePath).Length;
-
-        await using var fileStream = File.OpenRead(filePath);
-        await fileStream.CopyToAsync(context.Response.OutputStream);
     }
 }

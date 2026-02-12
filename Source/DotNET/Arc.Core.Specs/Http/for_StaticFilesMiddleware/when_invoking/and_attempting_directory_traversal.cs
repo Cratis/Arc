@@ -13,7 +13,7 @@ public class and_attempting_directory_traversal : given.a_static_files_middlewar
     void Establish()
     {
         File.WriteAllText(Path.Combine(_testDirectory, "safe.html"), "Safe content");
-        
+
         _middleware.AddConfiguration(new StaticFileOptions
         {
             FileSystemPath = _testDirectory
@@ -26,11 +26,11 @@ public class and_attempting_directory_traversal : given.a_static_files_middlewar
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/../../../etc/passwd");
-        
+
         var context = await _contextTask;
-        
+
         _nextCalled = false;
         _result = await _middleware.InvokeAsync(context, ctx =>
         {

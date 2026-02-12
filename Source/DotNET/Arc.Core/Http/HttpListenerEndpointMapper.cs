@@ -47,6 +47,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets all registered routes with their metadata.
+    /// </summary>
+    /// <returns>A collection of route information.</returns>
+    public IEnumerable<RouteInfo> Routes => _registeredRoutes;
+
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
     {
@@ -169,15 +175,6 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     public void SetPathBase(string pathBase)
     {
         _pathBase = pathBase.TrimEnd('/');
-    }
-
-    /// <summary>
-    /// Gets all registered routes with their metadata.
-    /// </summary>
-    /// <returns>A collection of route information.</returns>
-    public IEnumerable<RouteInfo> GetRoutes()
-    {
-        return _registeredRoutes;
     }
 
     /// <summary>

@@ -27,11 +27,11 @@ public class with_registered_route : given.a_well_known_routes_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/api/test");
-        
+
         var context = await _contextTask;
-        
+
         _nextCalled = false;
         _result = await _middleware.InvokeAsync(context, ctx =>
         {

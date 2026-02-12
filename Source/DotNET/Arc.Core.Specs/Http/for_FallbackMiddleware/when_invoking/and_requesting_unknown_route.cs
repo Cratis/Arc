@@ -8,7 +8,7 @@ public class and_requesting_unknown_route : given.a_fallback_middleware
     bool _result;
     Task<System.Net.HttpListenerContext>? _contextTask;
     HttpClient? _client;
-    System.Net.Http.HttpResponseMessage? _response;
+    HttpResponseMessage? _response;
     string? _content;
     string _testDirectory;
     const string FallbackContent = "<html><body>Fallback SPA</body></html>";
@@ -18,7 +18,7 @@ public class and_requesting_unknown_route : given.a_fallback_middleware
         _testDirectory = Path.Combine(Path.GetTempPath(), $"arc_specs_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDirectory);
         File.WriteAllText(Path.Combine(_testDirectory, "index.html"), FallbackContent);
-        
+
         _middleware.ConfigureFallback("index.html", _testDirectory);
 
         _listener.Start();
@@ -28,11 +28,11 @@ public class and_requesting_unknown_route : given.a_fallback_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/app/unknown/route");
-        
+
         var context = await _contextTask;
-        
+
         _result = await _middleware.InvokeAsync(context, ctx =>
         {
             ctx.Response.StatusCode = 404;

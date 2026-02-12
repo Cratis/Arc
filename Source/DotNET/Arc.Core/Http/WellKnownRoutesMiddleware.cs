@@ -47,29 +47,21 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
         {
             logger.RouteMatched(routeKey);
 
-            try
+            await using var scope = serviceProvider.CreateAsyncScope();
+            var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
+            var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
+            httpRequestContextAccessor.Current = requestContext;
+
+            var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
+            var authenticationMiddleware = new AuthenticationMiddleware(authentication);
+
+            if (!await authenticationMiddleware.Authenticate(requestContext, route.Metadata))
             {
-                await using var scope = serviceProvider.CreateAsyncScope();
-                var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
-                var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
-                httpRequestContextAccessor.Current = requestContext;
-
-                var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
-                var authenticationMiddleware = new AuthenticationMiddleware(authentication);
-
-                if (!await authenticationMiddleware.Authenticate(requestContext, route.Metadata))
-                {
-                    return true;
-                }
-
-                await route.Handler(requestContext);
                 return true;
             }
-            catch
-            {
-                // Let the exception propagate
-                throw;
-            }
+
+            await route.Handler(requestContext);
+            return true;
         }
 
         return await next(context);

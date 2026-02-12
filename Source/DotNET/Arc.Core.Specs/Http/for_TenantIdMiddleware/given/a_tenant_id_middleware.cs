@@ -20,7 +20,7 @@ public class a_tenant_id_middleware : Specification
     void Establish()
     {
         _port = Random.Shared.Next(50000, 60000);
-        
+
         _arcOptions = new ArcOptions
         {
             Tenancy = new TenancyOptions

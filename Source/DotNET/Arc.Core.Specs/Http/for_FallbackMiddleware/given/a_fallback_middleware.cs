@@ -16,7 +16,7 @@ public class a_fallback_middleware : Specification
     void Establish()
     {
         _port = Random.Shared.Next(50000, 60000);
-        
+
         _logger = Substitute.For<ILogger<FallbackMiddleware>>();
         _middleware = new FallbackMiddleware(_logger);
 

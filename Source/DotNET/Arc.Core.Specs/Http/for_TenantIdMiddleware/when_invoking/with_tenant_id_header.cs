@@ -24,14 +24,14 @@ public class with_tenant_id_header : given.a_tenant_id_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var request = new HttpRequestMessage(HttpMethod.Get, $"http://localhost:{_port}/test");
         request.Headers.Add("x-tenant-id", TenantIdValue);
-        
+
         var responseTask = _client.SendAsync(request);
-        
+
         var context = await _contextTask;
-        
+
         _nextCalled = false;
         _result = await _middleware.InvokeAsync(context, ctx =>
         {

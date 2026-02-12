@@ -22,12 +22,12 @@ public class with_middleware_that_handles : given.an_http_request_pipeline
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/test");
-        
+
         var context = await _contextTask;
         await _pipeline.ProcessAsync(context);
-        
+
         await responseTask;
     }
 

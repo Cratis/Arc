@@ -13,7 +13,7 @@ public class with_post_request : given.a_static_files_middleware
     void Establish()
     {
         File.WriteAllText(Path.Combine(_testDirectory, "test.html"), "<html>Test</html>");
-        
+
         _middleware.AddConfiguration(new StaticFileOptions
         {
             FileSystemPath = _testDirectory
@@ -26,12 +26,12 @@ public class with_post_request : given.a_static_files_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var content = new StringContent("");
         var responseTask = _client.PostAsync($"http://localhost:{_port}/test.html", content);
-        
+
         var context = await _contextTask;
-        
+
         _nextCalled = false;
         _result = await _middleware.InvokeAsync(context, ctx =>
         {

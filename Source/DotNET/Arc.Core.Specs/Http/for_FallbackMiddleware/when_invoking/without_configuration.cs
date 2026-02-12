@@ -20,11 +20,11 @@ public class without_configuration : given.a_fallback_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/app/route");
-        
+
         var context = await _contextTask;
-        
+
         _nextCalled = false;
         _result = await _middleware.InvokeAsync(context, ctx =>
         {

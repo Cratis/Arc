@@ -15,7 +15,7 @@ public class and_fallback_file_does_not_exist : given.a_fallback_middleware
     {
         _testDirectory = Path.Combine(Path.GetTempPath(), $"arc_specs_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDirectory);
-        
+
         _middleware.ConfigureFallback("nonexistent.html", _testDirectory);
 
         _listener.Start();
@@ -25,11 +25,11 @@ public class and_fallback_file_does_not_exist : given.a_fallback_middleware
     async Task Because()
     {
         _contextTask = _listener.GetContextAsync();
-        
+
         var responseTask = _client.GetAsync($"http://localhost:{_port}/app/route");
-        
+
         var context = await _contextTask;
-        
+
         _nextCalled = false;
         _result = await _middleware.InvokeAsync(context, ctx =>
         {

@@ -6,13 +6,6 @@ using System.Net;
 namespace Cratis.Arc.Http;
 
 /// <summary>
-/// Defines a delegate for HTTP request middleware.
-/// </summary>
-/// <param name="context">The HTTP listener context.</param>
-/// <returns>A task that represents the asynchronous operation, returning true if the request was handled, false otherwise.</returns>
-public delegate Task<bool> HttpRequestDelegate(HttpListenerContext context);
-
-/// <summary>
 /// Defines a middleware component in the HTTP request pipeline.
 /// </summary>
 public interface IHttpRequestMiddleware
