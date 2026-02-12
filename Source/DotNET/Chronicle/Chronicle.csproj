@@ -13,4 +13,10 @@
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle" />
     </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false" />
+    </ItemGroup>
 </Project>
