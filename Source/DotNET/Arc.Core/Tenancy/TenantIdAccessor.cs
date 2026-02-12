@@ -30,10 +30,4 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
             return result;
         }
     }
-
-    /// <summary>
-    /// Internal: Set the current tenant ID.
-    /// </summary>
-    /// <param name="tenantId"><see cref="TenantId"/> to set.</param>
-    internal static void SetCurrent(TenantId tenantId) => _current.Value = tenantId;
 }

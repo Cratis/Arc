@@ -5,13 +5,13 @@ namespace Cratis.Arc.Tenancy.for_TenantIdAccessor.when_getting_current;
 
 public class and_called_multiple_times : given.a_tenant_id_accessor
 {
-    const string expected_tenant_id = "test-tenant";
+    const string ExpectedTenantId = "test-tenant";
     TenantId _firstResult;
     TenantId _secondResult;
 
     void Establish()
     {
-        _tenantIdResolver.Resolve().Returns(expected_tenant_id);
+        _tenantIdResolver.Resolve().Returns(ExpectedTenantId);
     }
 
     void Because()

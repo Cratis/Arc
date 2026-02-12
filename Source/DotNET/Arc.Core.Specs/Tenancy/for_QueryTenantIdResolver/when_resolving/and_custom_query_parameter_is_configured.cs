@@ -5,17 +5,17 @@ namespace Cratis.Arc.Tenancy.for_QueryTenantIdResolver.when_resolving;
 
 public class and_custom_query_parameter_is_configured : given.a_query_tenant_id_resolver
 {
-    const string custom_parameter_name = "tenant";
-    const string expected_tenant_id = "custom-tenant";
+    const string CustomParameterName = "tenant";
+    const string ExpectedTenantId = "custom-tenant";
     string _result;
 
     void Establish()
     {
-        _options.Value.Tenancy.QueryParameter = custom_parameter_name;
-        _query[custom_parameter_name] = expected_tenant_id;
+        _options.Value.Tenancy.QueryParameter = CustomParameterName;
+        _query[CustomParameterName] = ExpectedTenantId;
     }
 
     void Because() => _result = _resolver.Resolve();
 
-    [Fact] void should_return_tenant_id_from_custom_query_parameter() => _result.ShouldEqual(expected_tenant_id);
+    [Fact] void should_return_tenant_id_from_custom_query_parameter() => _result.ShouldEqual(ExpectedTenantId);
 }

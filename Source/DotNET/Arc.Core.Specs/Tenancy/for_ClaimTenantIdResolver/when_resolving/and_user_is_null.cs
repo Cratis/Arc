@@ -7,10 +7,7 @@ public class and_user_is_null : given.a_claim_tenant_id_resolver
 {
     string _result;
 
-    void Establish()
-    {
-        _context.User.Returns(_ => null);
-    }
+    void Establish() => _context.User.Returns(_ => null!);
 
     void Because() => _result = _resolver.Resolve();
 
