@@ -74,6 +74,12 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor>(sp => new CorrelationIdAccessor());
+
+        services.AddTransient<HeaderTenantIdResolver>();
+        services.AddTransient<QueryTenantIdResolver>();
+        services.AddTransient<ClaimTenantIdResolver>();
+        services.AddTransient<DevelopmentTenantIdResolver>();
+
         services.AddTransient<ITenantIdResolver>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ArcOptions>>();
@@ -86,10 +92,6 @@ public static class HostBuilderExtensions
                 _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}")
             };
         });
-        services.AddTransient<HeaderTenantIdResolver>();
-        services.AddTransient<QueryTenantIdResolver>();
-        services.AddTransient<ClaimTenantIdResolver>();
-        services.AddTransient<DevelopmentTenantIdResolver>();
 
         services
             .AddCratisArcMeter()

@@ -16,6 +16,7 @@ public class TenantIdMiddleware(ITenantIdResolver tenantIdResolver) : IMiddlewar
         if (!string.IsNullOrEmpty(tenantId))
         {
             context.Items[Constants.TenantIdItemKey] = tenantId;
+            TenantIdAccessor.SetCurrent(tenantId);
         }
 
         await next(context);
