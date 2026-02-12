@@ -4,17 +4,17 @@
 using Microsoft.CodeAnalysis.Testing;
 using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_record_command_missing_attribute;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_missing_attribute;
 
-public class with_primary_constructor : Specification
+public class and_record_has_properties : Specification
 {
-    Task _result;
-
-    void Because() => _result = VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => await VerifyCS.VerifyAnalyzerAsync(@"
 namespace TestNamespace
 {
-    public record {|#0:TestCommand|}(string Name, int Age)
+    public record {|#0:TestCommand|}
     {
+        public string Name { get; set; }
+        
         public void Handle()
         {
         }
@@ -24,5 +24,5 @@ namespace TestNamespace
             .WithLocation(0)
             .WithArguments("TestCommand"));
 
-    [Fact] void should_report_diagnostic() => _result.Wait();
+    [Fact] void should_report_diagnostic() { }
 }

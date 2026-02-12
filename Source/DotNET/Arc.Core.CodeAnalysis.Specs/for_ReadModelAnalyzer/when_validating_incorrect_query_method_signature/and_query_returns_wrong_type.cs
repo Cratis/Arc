@@ -4,13 +4,11 @@
 using Microsoft.CodeAnalysis.Testing;
 using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.ReadModelAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer.when_record_readmodel_has_incorrect_query_signature;
+namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer.when_validating_incorrect_query_method_signature;
 
-public class returning_wrong_type : Specification
+public class and_query_returns_wrong_type : Specification
 {
-    Task _result;
-
-    void Because() => _result = VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Queries.ModelBound;
 
 namespace TestNamespace
@@ -25,5 +23,5 @@ namespace TestNamespace
             .WithLocation(0)
             .WithArguments("GetName", "TestReadModel", "string"));
 
-    [Fact] void should_report_diagnostic() => _result.Wait();
+    [Fact] void should_report_diagnostic() { }
 }
