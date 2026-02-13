@@ -138,4 +138,4 @@ public DebitAccount? GetAccount(AccountId id)
 
 ## Response Wrappers
 
-By default, controller-based queries wrap results in a `QueryResult` structure. To bypass this wrapper and return raw results, use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../../without-wrappers.md).
+By default, controller-based queries wrap results in a `QueryResult` structure. To bypass this wrapper and return raw results, use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../../asp-net-core/without-wrappers.md).

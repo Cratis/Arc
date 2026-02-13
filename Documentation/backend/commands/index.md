@@ -11,7 +11,7 @@ The Arc provides comprehensive support for implementing commands in your backend
 | [Command Pipeline](./command-pipeline.md) | How to execute commands programmatically using `ICommandPipeline`. |
 | [Command Context](./command-context.md) | Understanding CommandContext and how to extend it with custom values for the non-controller-based pipeline. |
 | [Command Filters](./command-filters.md) | How to implement command filters for cross-cutting concerns in the non-controller-based pipeline. |
-| [Authorization](../authorization.md) | How to use authorization attributes for role-based and policy-based authorization. |
+| [Authorization](../core/authorization.md) | How to use authorization attributes for role-based and policy-based authorization. |
 | [Response Value Handlers](./response-value-handlers.md) | How to customize command response handling with value handlers. |
 | [Response Examples](./response-examples.md) | Comprehensive examples of different command response patterns. |
 | [Validation](./validation.md) | How to implement validation for commands. |

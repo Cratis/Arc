@@ -33,6 +33,36 @@ Arc.Core is designed for developers who want the power of Arc's developer experi
 - [Authorization](authorization.md) - Protect your endpoints with authorization attributes
 - [OpenAPI Specifications](openapi.md) - Generate OpenAPI documentation for your API
 
+## Shared Features
+
+Many Arc features work across both Arc.Core and ASP.NET Core:
+
+- [Multi-Tenancy](../multi-tenancy.md) - Tenant isolation and context management
+- [Identity](../identity.md) - Core identity system and user details
+- [Commands](../commands/index.md) - Command handling patterns
+- [Queries](../queries/index.md) - Query patterns and conventions
+- [Chronicle](../chronicle/index.md) - Event sourcing and CQRS
+- [MongoDB](../mongodb.md) - MongoDB integration
+- [Entity Framework](../entity-framework/index.md) - Entity Framework Core integration
+
+## When to Use Arc.Core vs ASP.NET Core
+
+**Use Arc.Core when you need:**
+- Minimal dependencies and smaller binary size
+- Faster startup times
+- Lower memory footprint
+- Native AOT compilation support
+- Console applications or background services
+- Scenarios where full web framework is unnecessary
+
+**Use [ASP.NET Core Integration](../asp-net-core/index.md) when you need:**
+- Full web framework capabilities (Kestrel, middleware pipeline, static files)
+- Razor views or MVC features
+- Swagger UI for API documentation
+- Advanced middleware scenarios
+- Maximum HTTP throughput with Kestrel
+- Traditional web application patterns
+
 ## Next Steps
 
 Ready to get started? Head over to the [Getting Started](getting-started.md) guide to build your first Arc.Core application.

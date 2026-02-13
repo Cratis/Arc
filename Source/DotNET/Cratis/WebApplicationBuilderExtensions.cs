@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle.AspNetCore;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -35,7 +36,11 @@ public static class WebApplicationBuilderExtensions
                 arcBuilder.WithChronicle();
             });
         builder.AddCratisChronicle(
-            configureOptions: configureArcChronicleOptions,
+            configureOptions: options =>
+            {
+                options.EventStoreNamespaceResolverType = typeof(TenantNamespaceResolver);
+                configureArcChronicleOptions?.Invoke(options);
+            },
             configure: configureChronicleBuilder);
 
         return builder;

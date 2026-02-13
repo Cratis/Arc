@@ -519,7 +519,7 @@ This filter is automatically registered and executes before command handlers and
 
 ## Integration with Identity
 
-Authorization works seamlessly with the [Identity](./identity.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
+Authorization works seamlessly with the [Identity](../identity.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
 
 ```csharp
 public class IdentityDetailsProvider : IProvideIdentityDetails
@@ -540,7 +540,7 @@ public class IdentityDetailsProvider : IProvideIdentityDetails
 
 ## Frontend Integration
 
-Authorization attributes work seamlessly with the [proxy generator](./proxy-generation/index.md), which automatically creates TypeScript proxies for your commands and queries. The generated proxies provide:
+Authorization attributes work seamlessly with the [proxy generator](../proxy-generation/index.md), which automatically creates TypeScript proxies for your commands and queries. The generated proxies provide:
 
 - Authorization status handling in command and query results
 - Consistent error handling for unauthorized access
@@ -549,9 +549,9 @@ Authorization attributes work seamlessly with the [proxy generator](./proxy-gene
 
 ## See Also
 
-- [Commands](commands/index.md) - Command documentation including authorization
-- [Model-Bound Commands](commands/model-bound/index.md) - Model-bound command authorization
-- [Queries](queries/index.md) - Query documentation
-- [Command Filters](commands/command-filters.md) - Including the AuthorizationFilter
-- [Identity](identity.md) - Identity and authentication setup
+- [Commands](../commands/index.md) - Command documentation including authorization
+- [Model-Bound Commands](../commands/model-bound/index.md) - Model-bound command authorization
+- [Queries](../queries/index.md) - Query documentation
+- [Command Filters](../commands/command-filters.md) - Including the AuthorizationFilter
+- [Identity](../identity.md) - Identity and authentication setup
 - [Microsoft Identity](microsoft-identity.md) - Microsoft Identity integration

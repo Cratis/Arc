@@ -21,7 +21,7 @@ public class Carts : ControllerBase
 
 ## Bypassing Command Result Wrappers
 
-By default, controller-based commands return results wrapped in a `CommandResult` structure. If you need to return the raw result from your controller action without this wrapper, you can use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../without-wrappers.md).
+By default, controller-based commands return results wrapped in a `CommandResult` structure. If you need to return the raw result from your controller action without this wrapper, you can use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../asp-net-core/without-wrappers.md).
 
 ## Automatic Validation Endpoints
 

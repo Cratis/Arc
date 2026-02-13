@@ -1,6 +1,6 @@
 # Without wrappers (Controller-based Commands and Queries)
 
-When using controller-based [Commands](./commands/controller-based.md) or [Queries](./queries/controller-based/index.md), the result is wrapped in a more descriptive
+When using controller-based [Commands](../commands/controller-based.md) or [Queries](../queries/controller-based/index.md), the result is wrapped in a more descriptive
 structure that will include the result returned by your controller action. This behavior is not an
 opt-in on a per controller or action level, making it a cross cutting always on behavior.
 

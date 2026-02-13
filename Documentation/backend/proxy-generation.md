@@ -23,5 +23,5 @@ Usage examples and best practices will be provided in this section.
 
 ## See Also
 
-- [Commands](./commands/) - Learn about command patterns
-- [Queries](./queries/) - Learn about query patterns
+- [Commands](./commands/index.md) - Learn about command patterns
+- [Queries](./queries/index.md) - Learn about query patterns

@@ -10,6 +10,11 @@ namespace Cratis.Arc.Tenancy;
 public record TenantId(string Value) : ConceptAs<string>(Value)
 {
     /// <summary>
+    /// Represents a tenant ID that is not set.
+    /// </summary>
+    public static readonly TenantId NotSet = new("[NotSet]");
+
+    /// <summary>
     /// Implicitly convert from a <see cref="string"/> to a <see cref="TenantId"/>.
     /// </summary>
     /// <param name="value">Value to convert from.</param>
