@@ -7,7 +7,6 @@ Cratis Arc provides comprehensive multi-tenancy support with pluggable tenant ID
 Multi-tenancy in Arc is built around these core components:
 
 - **`ITenantIdResolver`** - Pluggable interface for resolving tenant IDs from different sources
-- **`TenantIdMiddleware`** - Automatically resolves and sets the tenant ID for each request
 - **`ITenantIdAccessor`** - Provides access to the current tenant ID throughout your application
 - **`TenancyOptions`** - Configures the resolver type and its specific settings
 - **`TenantId.NotSet`** - Sentinel value representing an unresolved tenant context
@@ -160,15 +159,15 @@ You can also configure tenancy through your application's configuration:
 }
 ```
 
-## Automatic Tenant Detection
+## How Tenant Resolution Works
 
-The `TenantIdMiddleware` is automatically registered and configured to run early in the ASP.NET Core pipeline. It performs the following operations:
+Arc automatically resolves the tenant ID for each request using the configured `ITenantIdResolver` implementation. The resolution process:
 
-1. **Tenant Resolution**: Uses the configured `ITenantIdResolver` to resolve the tenant ID
-2. **Context Storage**: Stores the tenant ID in the HTTP context items
-3. **Async Local Setting**: Sets the tenant ID in an `AsyncLocal<TenantId>` for thread-safe access
+1. **Tenant Resolution**: The configured resolver (header, query, claim, or development) extracts the tenant ID from the request context
+2. **Async Local Storage**: The tenant ID is stored in an `AsyncLocal<TenantId>` for thread-safe access throughout the request lifecycle
+3. **Accessor Access**: Use `ITenantIdAccessor.Current` anywhere in your application to retrieve the resolved tenant ID
 
-The middleware is automatically added to your application pipeline when you configure Arc, so no manual registration is required.
+The tenant resolution is automatically configured when you set up Arc, requiring no manual registration.
 
 ## Accessing the Current Tenant
 
@@ -231,16 +230,36 @@ The `TenantId.NotSet` value is returned when:
 
 This allows you to handle non-tenanted scenarios gracefully.
 
-## Integration with Other Components
+## Database Resolvers
 
-### MongoDB
+Arc provides automatic tenant-aware database naming for both MongoDB and Entity Framework Core through pluggable database name resolvers.
 
-When using MongoDB with Arc, the database name automatically includes the tenant ID:
+### MongoDB Database Resolver
 
+The `DefaultMongoDatabaseNameResolver` automatically includes the tenant ID in the database name using a `+` separator:
+
+**Naming Convention:**
+```text
+{BaseDatabaseName}             // when TenantId.NotSet
+{BaseDatabaseName}+{TenantId}  // when tenant ID is set
+```
+
+**Examples:**
 ```text
 MyDatabase             // when TenantId.NotSet
-MyDatabase+AcmeCorp    // when tenant ID is "AcmeCorp"
+MyDatabase+acme-corp   // when tenant ID is "acme-corp"
+MyDatabase+tenant-123  // when tenant ID is "tenant-123"
 ```
+
+This pattern provides:
+- **Clear Separation**: The `+` separator makes it immediately clear where the base name ends and tenant ID begins
+- **Simple Discovery**: Easy to list all databases for a specific base name
+- **URL-Safe**: Works well in connection strings and MongoDB URIs
+- **Human-Readable**: Administrators can easily identify tenant databases
+
+### Entity Framework Core Database Resolver
+
+Arc provides similar functionality for Entity Framework Core through database name resolvers that follow the same naming convention pattern.
 
 ### Chronicle Event Store
 
@@ -251,10 +270,84 @@ When using Chronicle with Arc, the event store namespace is automatically set to
 
 This provides automatic tenant isolation for event streams.
 
+## Creating Custom Database Resolvers
+
+You can create your own database naming strategy by implementing the `IMongoDatabaseNameResolver` interface:
+
+```csharp
+using Cratis.Arc.MongoDB;
+using Cratis.Arc.Tenancy;
+
+public class MyCustomDatabaseNameResolver : IMongoDatabaseNameResolver
+{
+    private readonly ITenantIdAccessor _tenantIdAccessor;
+    private readonly IOptions<MongoDBOptions> _options;
+
+    public MyCustomDatabaseNameResolver(
+        ITenantIdAccessor tenantIdAccessor,
+        IOptions<MongoDBOptions> options)
+    {
+        _tenantIdAccessor = tenantIdAccessor;
+        _options = options;
+    }
+
+    public string Resolve()
+    {
+        var baseName = _options.Value.Database;
+        var tenantId = _tenantIdAccessor.Current;
+
+        if (tenantId == TenantId.NotSet)
+        {
+            return baseName;
+        }
+
+        // Custom naming strategy - for example, using underscore separator
+        return $"{baseName}_{tenantId.Value}";
+        
+        // Or use tenant ID as prefix
+        // return $"{tenantId.Value}_{baseName}";
+        
+        // Or completely custom logic
+        // return CalculateCustomDatabaseName(baseName, tenantId);
+    }
+}
+```
+
+### Registering a Custom Resolver
+
+Register your custom resolver when configuring MongoDB:
+
+```csharp
+builder.AddCratisArcMongoDB(mongodb =>
+{
+    mongodb.WithDatabaseNameResolver<MyCustomDatabaseNameResolver>();
+});
+```
+
+### Use Cases for Custom Resolvers
+
+Custom database resolvers are useful when you need to:
+
+1. **Match Existing Naming Conventions**: Integrate with pre-existing multi-tenant database structures
+2. **Regional Databases**: Include region information in database names (`MyApp-EU-tenant123`)
+3. **Environment-Specific Naming**: Add environment prefixes (`prod-MyApp+tenant`, `dev-MyApp+tenant`)
+4. **Legacy System Integration**: Match naming schemes from legacy systems being migrated
+5. **Specialized Isolation Requirements**: Implement complex tenant grouping or sharding strategies
+
+### Best Practices for Custom Resolvers
+
+When implementing custom database name resolvers:
+
+- **Consistency**: Use the same separator and pattern across all databases
+- **URL Safety**: Ensure database names work in connection strings (avoid special characters)
+- **Reversibility**: Make it easy to extract the tenant ID from the database name if needed
+- **Documentation**: Clearly document your naming convention for operations teams
+- **Validation**: Consider validating generated names against MongoDB naming constraints
+
 ## Best Practices
 
 1. **Consistent Resolver Choice**: Choose the resolver type that best fits your application architecture
-2. **Validation**: Consider adding middleware to validate that tenant IDs are valid and that the requesting user has access to the specified tenant
+2. **Validation**: Consider validating that tenant IDs are valid and that the requesting user has access to the specified tenant
 3. **Database Isolation**: The Arc MongoDB integration automatically handles tenant-specific database naming
 4. **Logging**: Include the tenant ID in your logging context for better observability
 5. **Caching**: When using caching, include the tenant ID as part of cache keys to prevent data leakage
@@ -263,7 +356,7 @@ This provides automatic tenant isolation for event streams.
 ## Security Considerations
 
 - Always validate that the requesting user has permission to access the specified tenant
-- Consider implementing tenant validation middleware that runs after tenant detection
+- Consider implementing tenant validation logic in your services or as part of your authorization strategy
 - Ensure that tenant IDs cannot be easily guessed or enumerated
 - Log tenant switches and access patterns for security monitoring
 - When using header or query parameter resolvers, ensure requests are properly authenticated
