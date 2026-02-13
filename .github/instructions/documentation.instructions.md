@@ -38,8 +38,13 @@ applyTo: "Documentation/**/*.md"
 - Ensure all links are valid and up-to-date.
 - Use images and diagrams to enhance understanding.
 - Emphasize why something is done, not just how.
-- Always end the generated markdown with a single empty line inside the file content itself. Never try to add it by running commands like echo or printf — it must be part of the markdown text you output.
-- Never use shell commands or external tools to modify files after writing them. Everything, including the trailing newline, must be produced as part of the file’s content.
+- Always end the generated markdown with a single empty line as the last line of the file content. This newline must be included directly in the markdown text when creating or editing files, not added through separate commands.
+- Never use shell commands or external tools to modify files after writing them. All content, including any trailing newlines, must be part of the file content when using file creation or editing tools.
 - Every folder should have its own `toc.yml` file to define the structure of the documentation within that folder.
 - When linking to a folder in a `toc.yml` file, link to the `toc.yml` file in that folder, not to an `index.md` file.
 - Ensure that documentation is accurate according to the public APIs and features of the project.
+- When writing documentation that involves specifying an event type with the `[EventType]` attribute, never add an explicit name - just keep it as `[EventType]`.
+- Never include code from the repository to explain public APIs - these might change and become outdated.
+- Always write documentation from the perspective of an end user of the public APIs and features of the project.
+- We prefer `record` types for data structures such as events, commands, and read models in code examples within the documentation.
+- Run verify-markdown.sh script in the Documentation folder after writing documentation to ensure that all links are valid and that the markdown is well-formed.
