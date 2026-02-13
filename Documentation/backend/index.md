@@ -8,13 +8,12 @@
 | [Getting Started](./getting-started/index.md) | Quick-start guides for building applications with Arc. |
 | [Arc.Core](./core/index.md) | Lightweight application framework for building .NET applications without ASP.NET Core. |
 | [ASP.NET Core](./asp-net-core/index.md) | Enhanced ASP.NET Core integration with advanced web capabilities. |
-| [Standalone Applications](./standalone-applications.md) | Build lightweight applications using Arc.Core without ASP.NET Core. |
 
 ## Core Features
 
 | Topic | Description |
 | ------- | ----------- |
-| [Multi-Tenancy](./multi-tenancy.md) | Comprehensive multi-tenancy support with pluggable tenant ID resolution strategies. |
+| [Tenancy](./tenancy/index.md) | Tenant isolation, resolution strategies, and data segregation guidance. |
 | [Identity](./identity.md) | How the core identity system works and integrates with your application. |
 | [Commands](./commands/index.md) | How to work with commands and what the Application Model is offering. |
 | [Queries](./queries/index.md) | How to work with queries and what the Application Model is offering. |
