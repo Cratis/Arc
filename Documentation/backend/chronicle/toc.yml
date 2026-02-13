@@ -1,5 +1,7 @@
 - name: Aggregates
   href: aggregates/toc.yml
+- name: Commands
+  href: commands.md
 - name: Event Source Values Provider
   href: event-source-values-provider.md
 - name: Tenancy
