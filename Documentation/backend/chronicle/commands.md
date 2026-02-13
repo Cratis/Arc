@@ -1,3 +1,6 @@
+---
+uid: Arc.Chronicle.Commands
+---
 # Commands and Events
 
 Chronicle extends the Arc command pipeline with event sourcing behavior. It works the same way in [Arc.Core](../core/index.md) and in the broader [Commands](../commands/index.md) system, so you can use the same command patterns in both environments.
