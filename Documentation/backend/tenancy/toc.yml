@@ -1,3 +1,5 @@
+- name: Tenancy
+  href: index.md
 - name: Overview
   href: overview.md
 - name: Resolving Tenant IDs
