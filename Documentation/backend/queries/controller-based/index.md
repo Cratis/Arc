@@ -46,7 +46,7 @@ Controller-based queries are ideal when you:
 
 ## Bypassing Query Result Wrappers
 
-By default, controller-based queries return results wrapped in a `QueryResult` structure. If you need to return the raw result from your controller action without this wrapper, you can use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../../without-wrappers.md).
+By default, controller-based queries return results wrapped in a `QueryResult` structure. If you need to return the raw result from your controller action without this wrapper, you can use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../../asp-net-core/without-wrappers.md).
 
 ## Related Topics
 

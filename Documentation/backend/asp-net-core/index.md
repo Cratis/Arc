@@ -25,7 +25,7 @@ Use the ASP.NET Core integration when you need:
 
 ## When to Use Arc.Core Instead
 
-Consider using [Arc.Core](../overview.md) (without ASP.NET Core) when you need:
+Consider using [Arc.Core](../core/overview.md) (without ASP.NET Core) when you need:
 
 - Minimal dependencies and smaller binary size
 - Faster startup times
@@ -36,7 +36,7 @@ Consider using [Arc.Core](../overview.md) (without ASP.NET Core) when you need:
 
 ## See Also
 
-- [Arc.Core Overview](../overview.md) - Lightweight alternative without ASP.NET Core
+- [Arc.Core Overview](../core/overview.md) - Lightweight alternative without ASP.NET Core
 - [Commands](../commands/index.md) - Command handling patterns
 - [Queries](../queries/index.md) - Query patterns and conventions
 - [Multi-Tenancy](../multi-tenancy.md) - Tenant isolation and management

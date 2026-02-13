@@ -289,4 +289,4 @@ This is especially useful for debugging and support scenarios.
 
 - [Commands](./commands.md) - Core command concepts and usage
 - [React Commands](../react/commands.md) - Using commands in React components
-- [Validation](../../backend/validation.md) - Understanding validation rules
+- [Validation](../../backend/commands/validation.md) - Understanding validation rules

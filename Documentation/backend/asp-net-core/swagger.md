@@ -107,8 +107,8 @@ All error responses use the same result schema as success responses but with err
 The Swagger extension seamlessly integrates with other Arc features:
 
 - **[FromRequest](./from-request.md)**: Properly documents complex model binding
-- **[Commands](./commands/index.md)**: Accurate documentation of command endpoints and responses
-- **[Queries](./queries/index.md)**: Complete documentation including pagination for collection results
+- **[Commands](../commands/index.md)**: Accurate documentation of command endpoints and responses
+- **[Queries](../queries/index.md)**: Complete documentation including pagination for collection results
 - **[Validation](./validation.md)**: Error responses include validation failure information
 - **[Without Wrappers](./without-wrappers.md)**: Works correctly with unwrapped responses
 

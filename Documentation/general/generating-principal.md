@@ -1,8 +1,8 @@
 # Generating Microsoft Identity Principal for Local Development
 
-When working with [Microsoft Identity Platform integration](../backend/microsoft-identity.md) in your application, you'll often need to test different user identities and claims during local development. Since local development environments typically don't have Microsoft Azure's identity provider configured, you need to simulate the Microsoft Client Principal tokens that would normally be provided by Azure services like Container Apps or Web Apps.
+When working with [Microsoft Identity Platform integration](../backend/asp-net-core/microsoft-identity.md) in your application, you'll often need to test different user identities and claims during local development. Since local development environments typically don't have Microsoft Azure's identity provider configured, you need to simulate the Microsoft Client Principal tokens that would normally be provided by Azure services like Container Apps or Web Apps.
 
-The [Microsoft Identity backend integration](../backend/microsoft-identity.md) relies on specific HTTP headers that are automatically set by Azure services in production, but need to be manually configured during local development:
+The [Microsoft Identity backend integration](../backend/asp-net-core/microsoft-identity.md) relies on specific HTTP headers that are automatically set by Azure services in production, but need to be manually configured during local development:
 
 | Header | Description |
 | ------ | ----------- |
@@ -10,7 +10,7 @@ The [Microsoft Identity backend integration](../backend/microsoft-identity.md) r
 | x-ms-client-principal-id | The unique identifier from the Microsoft identity provider (Azure AD/Entra ID) for the user |
 | x-ms-client-principal-name | The display name of the user, typically resolved from claims within the Microsoft identity token |
 
-Once these Microsoft Identity headers are properly set and the `x-ms-client-principal` token is in the expected format, the [Microsoft Identity authentication handler](../backend/microsoft-identity.md) will process them and pass the identity information to your **identity details provider**.
+Once these Microsoft Identity headers are properly set and the `x-ms-client-principal` token is in the expected format, the [Microsoft Identity authentication handler](../backend/asp-net-core/microsoft-identity.md) will process them and pass the identity information to your **identity details provider**.
 
 The expected format needs to be according to the [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
 To simulate Microsoft Identity users during local development, generate the correct token values and use a browser extension to set the HTTP request headers.
@@ -66,7 +66,7 @@ eyJpZGVudGl0eVByb3ZpZGVyIjoiYWFkIiwidXNlcklkIjoiZTdmNjY0Y2EtNGVjYy00NWJlLTg0Y2Yt
 
 ## ModHeader for Microsoft Identity Testing
 
-Once you have the Microsoft Client Principal token as **base64**, you can inject it as headers for testing your [Microsoft Identity integration](../backend/microsoft-identity.md) locally.
+Once you have the Microsoft Client Principal token as **base64**, you can inject it as headers for testing your [Microsoft Identity integration](../backend/asp-net-core/microsoft-identity.md) locally.
 
 In your browser you can use an extension such as [ModHeader](https://modheader.com). It allows you to setup headers
 that simulate the Azure-provided Microsoft Identity headers for local development. Use this to add the expected Microsoft Identity headers:
@@ -83,7 +83,7 @@ that simulate the Azure-provided Microsoft Identity headers for local developmen
 
 ## Integration with Microsoft Identity Backend
 
-Once you have these headers configured, your application's [Microsoft Identity authentication handler](../backend/microsoft-identity.md) will automatically process the Microsoft Client Principal token and populate the ASP.NET Core authentication context. This allows you to:
+Once you have these headers configured, your application's [Microsoft Identity authentication handler](../backend/asp-net-core/microsoft-identity.md) will automatically process the Microsoft Client Principal token and populate the ASP.NET Core authentication context. This allows you to:
 
 - Test authorization policies that depend on Azure AD claims
 - Verify that your [identity details provider](../backend/identity.md) receives the correct user information

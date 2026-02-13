@@ -80,7 +80,7 @@ public class OpenDebitAccountValidator : CommandValidator<OpenDebitAccount>
 
 ### Concept Validator
 
-When one is using [domain concepts](../general/index.md), you have the opportunity to create a validator for
+When one is using [domain concepts](../../general/index.md), you have the opportunity to create a validator for
 the concept that will automatically be used as part of the ASP.NET Core validation pipeline.
 
 The benefit of this approach is that you can reuse validation rules and they will automatically implicitly be hooked
