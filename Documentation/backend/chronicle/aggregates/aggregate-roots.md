@@ -3,7 +3,7 @@ uid: Arc.Chronicle.AggregateRoots
 ---
 # Aggregate Roots
 
-Aggregate Roots in Arc provide automatic dependency injection and seamless integration with Chronicle's event sourcing capabilities. The client automatically resolves aggregate roots based on the event source ID from the command context.
+Aggregate Roots in Arc provide automatic dependency injection and seamless integration with Chronicle's event sourcing capabilities. The client automatically resolves aggregate roots based on the event source ID from the [Command Context](../../commands/command-context.md) values provided by the [Event Source Values Provider](../event-source-values-provider.md).
 
 ## Overview
 
@@ -35,7 +35,7 @@ public record AddItemToOrderCommand([Key] Guid OrderId, Guid ProductId, int Quan
 
 ## Event Source ID Resolution
 
-The aggregate root resolution depends entirely on the event source ID being available in the command context. The resolution process works as follows:
+The aggregate root resolution depends entirely on the event source ID being available in the command context. The [Event Source Values Provider](../event-source-values-provider.md) supplies this value through the [Command Context Values](../../commands/command-context.md#command-context-values) pipeline. The resolution process works as follows:
 
 1. **Command Context Lookup**: The system retrieves the event source ID from the current `CommandContext`
 2. **Validation**: If no event source ID is found, an `UnableToResolveAggregateRootFromCommandContext` exception is thrown

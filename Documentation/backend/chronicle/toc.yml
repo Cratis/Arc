@@ -1,5 +1,7 @@
 - name: Aggregates
   href: aggregates/toc.yml
+- name: Event Source Values Provider
+  href: event-source-values-provider.md
 - name: Validation
   href: validation.md
 - name: Code Analysis

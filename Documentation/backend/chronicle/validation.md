@@ -13,6 +13,8 @@ Model-bound commands can take dependencies directly on read models. When the com
 
 Chronicle resolves the identity for the read model by convention. If a command has a property of type `EventSourceId` (or a type that inherits from it), that value is used as the identity for resolving the read model.
 
+This convention is implemented by the [Event Source Values Provider](event-source-values-provider.md), which contributes the event source ID to the [Command Context Values](../commands/command-context.md#command-context-values).
+
 This enables a direct validation flow:
 
 1. The command is bound and validated.

@@ -5,4 +5,5 @@ Chronicle is Arc's event sourcing infrastructure. It provides the foundation for
 ## Topics
 
 - [Aggregates](aggregates/index.md) - Working with aggregate roots and event sourcing
+- [Event Source Values Provider](event-source-values-provider.md) - Command context values for event source resolution
 - [Validation](validation.md) - Validation with read models and identity resolution conventions
