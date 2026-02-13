@@ -1,2 +1,6 @@
-- name: Code Analysis
+- name: Code Analysis Rules
   href: index.md
+- name: ARC0001 - Incorrect query method signature on ReadModel
+  href: ARC0001.md
+- name: ARC0002 - Missing [Command] attribute on command-like type
+  href: ARC0002.md
