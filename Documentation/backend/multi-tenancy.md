@@ -239,12 +239,14 @@ Arc provides automatic tenant-aware database naming for both MongoDB and Entity 
 The `DefaultMongoDatabaseNameResolver` automatically includes the tenant ID in the database name using a `+` separator:
 
 **Naming Convention:**
+
 ```text
 {BaseDatabaseName}             // when TenantId.NotSet
 {BaseDatabaseName}+{TenantId}  // when tenant ID is set
 ```
 
 **Examples:**
+
 ```text
 MyDatabase             // when TenantId.NotSet
 MyDatabase+acme-corp   // when tenant ID is "acme-corp"
