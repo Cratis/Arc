@@ -39,4 +39,4 @@ Consider using [Arc.Core](../core/overview.md) (without ASP.NET Core) when you n
 - [Arc.Core Overview](../core/overview.md) - Lightweight alternative without ASP.NET Core
 - [Commands](../commands/index.md) - Command handling patterns
 - [Queries](../queries/index.md) - Query patterns and conventions
-- [Tenancy](../tenancy/index.md) - Tenant isolation and management
+- [Tenancy](../tenancy/overview.md) - Tenant isolation and management

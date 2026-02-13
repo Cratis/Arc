@@ -1,4 +1,10 @@
-# Custom Database Resolvers
+# Tenancy
+
+For tenancy concepts and tenant resolution, see the [tenancy overview](../tenancy/overview.md).
+
+This page focuses on MongoDB-specific tenant database naming through a custom database name resolver.
+
+## Custom Database Resolvers
 
 You can create a custom database naming strategy by implementing a database name resolver and registering it with the MongoDB integration.
 

@@ -435,5 +435,5 @@ Now that you have a basic Arc.Core application running, explore these topics:
 - [Commands](../commands/index.md) - Learn about advanced command patterns
 - [Queries](../queries/index.md) - Discover query features like filtering and pagination
 - [Identity](../identity.md) - Integrate the identity system
-- [Tenancy](../tenancy/index.md) - Configure multi-tenant applications
+- [Tenancy](../tenancy/overview.md) - Configure multi-tenant applications
 - [Validation](../commands/validation.md) - Add validation to commands and queries

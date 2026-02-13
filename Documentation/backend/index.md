@@ -13,7 +13,7 @@
 
 | Topic | Description |
 | ------- | ----------- |
-| [Tenancy](./tenancy/index.md) | Tenant isolation, resolution strategies, and data segregation guidance. |
+| [Tenancy](./tenancy/overview.md) | Tenant isolation, resolution strategies, and data segregation guidance. |
 | [Identity](./identity.md) | How the core identity system works and integrates with your application. |
 | [Commands](./commands/index.md) | How to work with commands and what the Application Model is offering. |
 | [Queries](./queries/index.md) | How to work with queries and what the Application Model is offering. |

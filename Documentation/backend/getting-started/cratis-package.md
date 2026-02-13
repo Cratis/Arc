@@ -156,6 +156,6 @@ Now that you have Cratis set up, you can:
 - Create [Queries](../queries/index.md) to retrieve data
 - Build [Aggregates](../chronicle/aggregates/index.md) to model your domain
 - Configure [MongoDB](../mongodb/index.md) for read models and projections
-- Set up [tenancy](../tenancy/index.md) for your application
+- Set up [tenancy](../tenancy/overview.md) for your application
 
 For more advanced scenarios, explore the individual Arc and Chronicle components in the documentation.

@@ -23,5 +23,5 @@ When you add the Chronicle extension for Arc, the tenant namespace resolver is a
 
 Chronicle relies on the core tenancy resolution from Arc. For resolver choices and configuration options, see the main tenancy documentation:
 
-- [Tenancy](../tenancy/index.md)
+- [Tenancy](../tenancy/overview.md)
 

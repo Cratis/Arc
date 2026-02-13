@@ -17,6 +17,23 @@ Tenancy keeps data and behavior isolated between customers or organizational uni
 
 Arc helps you establish a clear tenant boundary by resolving a tenant ID for each request, keeping that context available across the application, and wiring tenant-aware integrations to data stores and event streams.
 
+## Best Practices
+
+- Choose a resolver that aligns with your authentication and request flow.
+- Validate that the requester is authorized to access the resolved tenant.
+- Include the tenant ID in cache keys, logs, and telemetry.
+- Keep tenant IDs stable and opaque to avoid enumeration.
+- Prefer tenant-aware data stores and avoid cross-tenant queries.
+- Use the development resolver only in local or test environments.
+
+## Security Considerations
+
+- Ensure tenant ID resolution happens only after authentication.
+- Enforce tenant membership checks in application services and policies.
+- Log tenant access for audits and incident investigation.
+- Prevent tenant ID spoofing by validating headers, claims, and parameters.
+- Treat tenant ID as sensitive metadata and avoid exposing it unnecessarily.
+
 ## Topics
 
 - [Tenancy overview](./overview.md)
@@ -24,6 +41,4 @@ Arc helps you establish a clear tenant boundary by resolving a tenant ID for eac
 - [Configuration](./configuration.md)
 - [Tenant context access](./tenant-context.md)
 - [Database isolation](./database-resolvers.md)
-- [Custom database resolvers](./custom-database-resolvers.md)
-- [Best practices](./best-practices.md)
-- [Security considerations](./security.md)
+

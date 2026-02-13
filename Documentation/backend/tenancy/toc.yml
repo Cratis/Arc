@@ -1,5 +1,3 @@
-- name: Tenancy
-  href: index.md
 - name: Overview
   href: overview.md
 - name: Resolving Tenant IDs
@@ -10,9 +8,3 @@
   href: tenant-context.md
 - name: Database Isolation
   href: database-resolvers.md
-- name: Custom Database Resolvers
-  href: custom-database-resolvers.md
-- name: Best Practices
-  href: best-practices.md
-- name: Security Considerations
-  href: security.md
