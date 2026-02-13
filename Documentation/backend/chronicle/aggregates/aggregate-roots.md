@@ -1,3 +1,6 @@
+---
+uid: Arc.Chronicle.AggregateRoots
+---
 # Aggregate Roots
 
 Aggregate Roots in Arc provide automatic dependency injection and seamless integration with Chronicle's event sourcing capabilities. The client automatically resolves aggregate roots based on the event source ID from the command context.
