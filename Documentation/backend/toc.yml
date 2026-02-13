@@ -6,8 +6,6 @@
   href: core/toc.yml
 - name: ASP.NET Core
   href: asp-net-core/toc.yml
-- name: Standalone Applications
-  href: standalone-applications.md
 - name: Multi-Tenancy
   href: multi-tenancy.md
 - name: Identity
