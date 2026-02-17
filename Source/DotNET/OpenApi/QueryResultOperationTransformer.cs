@@ -38,7 +38,7 @@ public class QueryResultOperationTransformer : IOpenApiOperationTransformer
         }
 
         var schema = await context.GetOrCreateSchemaAsync(queryResultType, null, cancellationToken);
-        var response = operation.Responses?.First((kvp) => kvp.Key == ((int)HttpStatusCode.OK).ToString()).Value;
+        var response = operation.Responses?.FirstOrDefault((kvp) => kvp.Key == ((int)HttpStatusCode.OK).ToString()).Value;
         if (response?.Content?.TryGetValue("application/json", out var value) == true)
         {
             value.Schema = schema;

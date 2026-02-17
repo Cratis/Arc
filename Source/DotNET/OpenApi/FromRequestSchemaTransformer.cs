@@ -42,8 +42,6 @@ public class FromRequestSchemaTransformer : IOpenApiSchemaTransformer
             }
         }
 
-        properties.ForEach(_ => schema.Properties?.Remove(_.Name));
-
         return Task.CompletedTask;
     }
 }

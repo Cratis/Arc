@@ -41,7 +41,7 @@ public class CommandResultOperationTransformer : IOpenApiOperationTransformer
         commandResultType ??= typeof(CommandResult<>).MakeGenericType(returnType);
 
         var schema = await context.GetOrCreateSchemaAsync(commandResultType, null, cancellationToken);
-        var response = operation.Responses?.First().Value;
+        var response = operation.Responses?.FirstOrDefault().Value;
         if (response?.Content?.TryGetValue("application/json", out var value) == true)
         {
             value.Schema = schema;
