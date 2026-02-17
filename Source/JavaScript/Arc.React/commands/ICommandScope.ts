@@ -25,11 +25,6 @@ export abstract class ICommandScope {
     abstract get isPerforming(): boolean;
 
     /**
-     * Gets whether or not there are any invalid commands or queries in this scope or any child scopes.
-     */
-    abstract get isInvalid(): boolean;
-
-    /**
      * Add a command for tracking in the scope.
      * @param {ICommand} command Command to add.
      */

@@ -12,7 +12,6 @@ const defaultCommandScopeContext: ICommandScope = new class extends ICommandScop
     get parent() { return undefined; }
     get hasChanges() { return false; }
     get isPerforming() { return false; }
-    get isInvalid() { return false; }
     addCommand() { }
     addQuery() { }
     async execute() { return new CommandResults(new Map()); }
@@ -31,14 +30,12 @@ export interface ICommandScopeProps {
     children?: JSX.Element | JSX.Element[];
     setHasChanges?: CommandScopeChanged;
     setIsPerforming?: (isPerforming: boolean) => void;
-    setIsInvalid?: (isInvalid: boolean) => void;
 }
 
 export const CommandScope = (props: ICommandScopeProps) => {
     const parentScope = useCommandScope();
     const [hasChanges, setHasChanges] = useState(false);
     const [isPerforming, setIsPerforming] = useState(false);
-    const [isInvalid, setIsInvalid] = useState(false);
     const [commandScope, setCommandScope] = useState<ICommandScope>(defaultCommandScopeContext);
 
     useEffect(() => {
@@ -50,10 +47,6 @@ export const CommandScope = (props: ICommandScopeProps) => {
             (value) => {
                 setIsPerforming(value);
                 props.setIsPerforming?.(value);
-            },
-            (value) => {
-                setIsInvalid(value);
-                props.setIsInvalid?.(value);
             },
             parentScope !== defaultCommandScopeContext ? parentScope : undefined
         );

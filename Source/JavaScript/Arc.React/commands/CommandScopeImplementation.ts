@@ -15,13 +15,11 @@ export class CommandScopeImplementation extends ICommandScope {
     private _queries: IQueryFor<any, any>[] = [];
     private _hasChanges = false;
     private _isPerforming = false;
-    private _isInvalid = false;
     private _parent?: ICommandScope;
 
     constructor(
         private readonly _setHasChanges: (value: boolean) => void,
         private readonly _setIsPerforming?: (value: boolean) => void,
-        private readonly _setIsInvalid?: (value: boolean) => void,
         parent?: ICommandScope
     ) {
         super();
@@ -44,11 +42,6 @@ export class CommandScopeImplementation extends ICommandScope {
     }
 
     /** @inheritdoc */
-    get isInvalid(): boolean {
-        return this._isInvalid;
-    }
-
-    /** @inheritdoc */
     addCommand(command: ICommand): void {
         if (this._commands.some(_ => _ == command)) {
             return;
@@ -66,7 +59,6 @@ export class CommandScopeImplementation extends ICommandScope {
         }
 
         this._queries.push(query);
-        this.evaluateState();
     }
 
     /** @inheritdoc */
@@ -100,7 +92,6 @@ export class CommandScopeImplementation extends ICommandScope {
 
     private evaluateState() {
         this.evaluateHasChanges();
-        this.evaluateIsInvalid();
     }
 
     private evaluateHasChanges() {
@@ -113,25 +104,5 @@ export class CommandScopeImplementation extends ICommandScope {
 
         this._hasChanges = hasCommandChanges;
         this._setHasChanges(hasCommandChanges);
-    }
-
-    private async evaluateIsInvalid() {
-        let isInvalid = false;
-        
-        // Check commands for validation errors
-        for (const command of this._commands) {
-            try {
-                const validationResult = await command.validate();
-                if (!validationResult.isValid) {
-                    isInvalid = true;
-                    break;
-                }
-            } catch {
-                // If validation fails, we don't want to break the flow
-            }
-        }
-
-        this._isInvalid = isInvalid;
-        this._setIsInvalid?.(isInvalid);
     }
 }

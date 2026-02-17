@@ -16,14 +16,12 @@ import { CommandScope } from '@cratis/arc/commands';
 export const MyComposition = () => {
     const [hasChanges, setHasChanges] = useState(false);
     const [isPerforming, setIsPerforming] = useState(false);
-    const [isInvalid, setIsInvalid] = useState(false);
 
     return (
         <CommandScope 
             setHasChanges={setHasChanges}
-            setIsPerforming={setIsPerforming}
-            setIsInvalid={setIsInvalid}>
-            <Toolbar hasChanges={hasChanges} isPerforming={isPerforming} isInvalid={isInvalid}/>
+            setIsPerforming={setIsPerforming}>
+            <Toolbar hasChanges={hasChanges} isPerforming={isPerforming}/>
             <FirstComponent/>
             <SecondComponent/>
         </CommandScope>
@@ -62,7 +60,6 @@ The command scope provides the following properties and methods:
 | ---- | ---- | ----------- |
 | hasChanges | Boolean | Whether or not there are changes in any commands within the scope |
 | isPerforming | Boolean | Whether or not any commands or queries are currently being performed |
-| isInvalid | Boolean | Whether or not there are any invalid commands or queries in the scope |
 | parent | ICommandScope \| undefined | The parent scope, if this scope is nested |
 | execute() | Promise<CommandResults> | Execute all commands with changes within the scope |
 | revertChanges() | void | Revert any changes to commands within the scope |
@@ -76,13 +73,13 @@ To consume the command scope context you can use the hook that is provided.
 ```typescript
 import { useCommandScope } from '@cratis/arc/commands';
 
-export const Toolbar = ({ hasChanges, isPerforming, isInvalid }) => {
+export const Toolbar = ({ hasChanges, isPerforming }) => {
     const commandScope = useCommandScope();
 
     return (
         <div>
             <button 
-                disabled={!hasChanges || isPerforming || isInvalid}
+                disabled={!hasChanges || isPerforming}
                 onClick={() => commandScope.execute()}>
                 Save
             </button>
@@ -140,12 +137,8 @@ export class MyViewModel {
         return this._commandScope.isPerforming;
     }
 
-    get isInvalid(): boolean {
-        return this._commandScope.isInvalid;
-    }
-
     async save() {
-        if (!this.hasChanges || this.isPerforming || this.isInvalid) {
+        if (!this.hasChanges || this.isPerforming) {
             return;
         }
         
@@ -190,5 +183,5 @@ export const SecondComponent = () => {
 }
 ```
 
-Any changes to properties within commands or validation errors in commands and queries will bubble up to the 
-context and affect the state flags (`hasChanges`, `isInvalid`, `isPerforming`).
+Any changes to properties within commands will bubble up to the context and affect the state flags 
+(`hasChanges`, `isPerforming`).
