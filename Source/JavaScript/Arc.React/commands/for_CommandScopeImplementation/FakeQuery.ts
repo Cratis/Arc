@@ -5,7 +5,7 @@ import sinon from 'sinon';
 import { IQueryFor, QueryResult, Paging, Sorting } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 
-/* eslint-disable */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export class FakeQuery implements IQueryFor<any, any> {
     route = '';

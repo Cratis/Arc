@@ -48,8 +48,8 @@ export class CommandScopeImplementation extends ICommandScope {
         }
 
         this._commands.push(command);
-        this.evaluateState();
-        command.onPropertyChanged(this.evaluateState, this);
+        this.evaluateHasChanges();
+        command.onPropertyChanged(this.evaluateHasChanges, this);
     }
 
     /** @inheritdoc */
@@ -73,7 +73,7 @@ export class CommandScopeImplementation extends ICommandScope {
             }
         } finally {
             this.setIsPerforming(false);
-            this.evaluateState();
+            this.evaluateHasChanges();
         }
         
         return new CommandResults(commandsToCommandResult);
@@ -82,16 +82,12 @@ export class CommandScopeImplementation extends ICommandScope {
     /** @inheritdoc */
     revertChanges() {
         this._commands.forEach(command => command.revertChanges());
-        this.evaluateState();
+        this.evaluateHasChanges();
     }
 
     private setIsPerforming(value: boolean) {
         this._isPerforming = value;
         this._setIsPerforming?.(value);
-    }
-
-    private evaluateState() {
-        this.evaluateHasChanges();
     }
 
     private evaluateHasChanges() {
