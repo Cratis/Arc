@@ -7,5 +7,5 @@ describe('when getting parent with parent set', () => {
     const parentScope = new CommandScopeImplementation(() => {});
     const childScope = new CommandScopeImplementation(() => {}, undefined, undefined, parentScope);
 
-    it('should return the parent', () => childScope.parent.should.equal(parentScope));
+    it('should return the parent', () => childScope.parent!.should.equal(parentScope));
 });
