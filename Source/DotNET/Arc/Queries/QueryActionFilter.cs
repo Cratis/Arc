@@ -78,6 +78,30 @@ public class QueryActionFilter(
         }
     }
 
+    static bool GetIgnoreWarningsFromRequest(ActionExecutingContext context)
+    {
+        if (context.HttpContext.Request.Headers.TryGetValue("X-Ignore-Warnings", out var value))
+        {
+            return bool.TryParse(value, out var ignoreWarnings) && ignoreWarnings;
+        }
+        return false;
+    }
+
+    static ValidationResult[] FilterValidationResults(List<ValidationResult> validationResults, bool treatWarningsAsErrors, bool ignoreWarnings)
+    {
+        if (ignoreWarnings)
+        {
+            return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+        }
+
+        if (treatWarningsAsErrors)
+        {
+            return validationResults.Where(v => v.Severity >= ValidationResultSeverity.Warning).ToArray();
+        }
+
+        return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+    }
+
     QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, IQueryContextManager queryContextManager)
     {
         var sorting = httpContext.GetSortingInfo();
@@ -160,29 +184,5 @@ public class QueryActionFilter(
         }
 
         return (result, exceptionMessages, exceptionStackTrace, response);
-    }
-
-    static bool GetIgnoreWarningsFromRequest(ActionExecutingContext context)
-    {
-        if (context.HttpContext.Request.Headers.TryGetValue("X-Ignore-Warnings", out var value))
-        {
-            return bool.TryParse(value, out var ignoreWarnings) && ignoreWarnings;
-        }
-        return false;
-    }
-
-    static ValidationResult[] FilterValidationResults(List<ValidationResult> validationResults, bool treatWarningsAsErrors, bool ignoreWarnings)
-    {
-        if (ignoreWarnings)
-        {
-            return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
-        }
-
-        if (treatWarningsAsErrors)
-        {
-            return validationResults.Where(v => v.Severity >= ValidationResultSeverity.Warning).ToArray();
-        }
-
-        return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
     }
 }

@@ -85,8 +85,8 @@ public static class CommandExtensions
         }
 
         // Check for TreatWarningsAsErrors attribute
-        var treatWarningsAsErrors = method.GetCustomAttribute<Cratis.Arc.Validation.TreatWarningsAsErrorsAttribute>() is not null ||
-                                     method.DeclaringType?.GetCustomAttribute<Cratis.Arc.Validation.TreatWarningsAsErrorsAttribute>() is not null;
+        var treatWarningsAsErrors = method.GetCustomAttribute<Cratis.Arc.TreatWarningsAsErrorsAttribute>() is not null ||
+                                     method.DeclaringType?.GetCustomAttribute<Cratis.Arc.TreatWarningsAsErrorsAttribute>() is not null;
 
         return new(
             method.DeclaringType!,

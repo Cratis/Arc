@@ -176,8 +176,8 @@ public static class QueryExtensions
         }
 
         // Check for TreatWarningsAsErrors attribute
-        var treatWarningsAsErrors = method.GetCustomAttribute<Cratis.Arc.Validation.TreatWarningsAsErrorsAttribute>() is not null ||
-                                     readModelType.GetCustomAttribute<Cratis.Arc.Validation.TreatWarningsAsErrorsAttribute>() is not null;
+        var treatWarningsAsErrors = method.GetCustomAttribute<Cratis.Arc.TreatWarningsAsErrorsAttribute>() is not null ||
+                                     readModelType.GetCustomAttribute<Cratis.Arc.TreatWarningsAsErrorsAttribute>() is not null;
 
         return new(
             readModelType,
