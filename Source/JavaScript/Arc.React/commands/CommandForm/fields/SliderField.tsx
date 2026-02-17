@@ -36,6 +36,13 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
     },
     {
         defaultValue: 0,
-        extractValue: (e: React.ChangeEvent<HTMLInputElement>) => parseFloat(e.target.value)
+        extractValue: (e: unknown) => {
+            if (e && typeof e === 'object' && 'target' in e) {
+                return parseFloat((e.target as HTMLInputElement).value);
+            }
+            if (typeof e === 'number') return e;
+            if (typeof e === 'string') return parseFloat(e);
+            return 0;
+        }
     }
 );

@@ -27,6 +27,12 @@ export const NumberField = asCommandFormField<NumberFieldComponentProps>(
     ),
     {
         defaultValue: 0,
-        extractValue: (e: React.ChangeEvent<HTMLInputElement>) => parseFloat(e.target.value) || 0
+        extractValue: (e: unknown) => {
+            if (e && typeof e === 'object' && 'target' in e) {
+                const event = e as React.ChangeEvent<HTMLInputElement>;
+                return parseFloat(event.target.value) || 0;
+            }
+            return typeof e === 'number' ? e : 0;
+        }
     }
 );

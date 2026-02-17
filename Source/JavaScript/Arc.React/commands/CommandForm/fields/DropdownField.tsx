@@ -31,6 +31,11 @@ export const SelectField = asCommandFormField<SelectComponentProps>(
     SelectComponent,
     {
         defaultValue: '',
-        extractValue: (e: React.ChangeEvent<HTMLSelectElement>) => e.target.value
+        extractValue: (e: unknown) => {
+            if (e && typeof e === 'object' && 'target' in e) {
+                return (e.target as HTMLSelectElement).value;
+            }
+            return String(e);
+        }
     }
 );

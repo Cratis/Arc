@@ -22,6 +22,12 @@ export const InputTextField = asCommandFormField<InputTextComponentProps>(
     ),
     {
         defaultValue: '',
-        extractValue: (e: React.ChangeEvent<HTMLInputElement>) => e.target.value
+        extractValue: (e: unknown) => {
+            if (e && typeof e === 'object' && 'target' in e) {
+                const event = e as React.ChangeEvent<HTMLInputElement>;
+                return event.target.value;
+            }
+            return String(e || '');
+        }
     }
 );

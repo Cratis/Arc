@@ -24,6 +24,12 @@ export const TextAreaField = asCommandFormField<TextAreaFieldComponentProps>(
     ),
     {
         defaultValue: '',
-        extractValue: (e: React.ChangeEvent<HTMLTextAreaElement>) => e.target.value
+        extractValue: (e: unknown) => {
+            if (e && typeof e === 'object' && 'target' in e) {
+                const event = e as React.ChangeEvent<HTMLTextAreaElement>;
+                return event.target.value;
+            }
+            return String(e || '');
+        }
     }
 );
