@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Command, CommandValidator } from '@cratis/arc/commands';
-import { useCommand, SetCommandValues, ClearCommandValues } from '@cratis/arc.react/commands';
+import { useCommand, SetCommandValues, ClearCommandValues } from '../';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import '@cratis/arc/validation';
 
@@ -182,7 +182,7 @@ export class UserRegistrationCommand extends Command<IUserRegistrationCommand, o
         this.propertyChanged('role');
     }
 
-    static use(initialValues?: IUserRegistrationCommand): [UserRegistrationCommand, SetCommandValues<IUserRegistrationCommand>, ClearCommandValues] {
+    static use(initialValues?: IUserRegistrationCommand): [UserRegistrationCommand, SetCommandValues<IUserRegistrationCommand>, ClearCommandValues, number] {
         return useCommand<UserRegistrationCommand, IUserRegistrationCommand>(UserRegistrationCommand, initialValues);
     }
 }
