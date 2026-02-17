@@ -27,6 +27,6 @@ public class when_using_invariant_culture : Specification
 
     void Destroy()
     {
-        _app?.DisposeAsync().AsTask().Wait();
+        _app?.DisposeAsync().GetAwaiter().GetResult();
     }
 }
