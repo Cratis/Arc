@@ -60,14 +60,14 @@ public class DiscoverableModelValidator(IValidator validator) : IModelValidator
         }
 
         var validatorType = validator.GetType();
-        while (validatorType != null && validatorType != typeof(object))
+        while (validatorType != typeof(object))
         {
             if (validatorType.IsGenericType &&
                 validatorType.GetGenericTypeDefinition() == typeof(ConceptValidator<>))
             {
                 return true;
             }
-            validatorType = validatorType.BaseType;
+            validatorType = validatorType.BaseType!;
         }
 
         return false;
