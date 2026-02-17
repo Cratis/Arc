@@ -84,6 +84,10 @@ public static class CommandExtensions
                 : [];
         }
 
+        // Check for TreatWarningsAsErrors attribute
+        var treatWarningsAsErrors = method.GetCustomAttribute<Cratis.Arc.TreatWarningsAsErrorsAttribute>() is not null ||
+                                     method.DeclaringType?.GetCustomAttribute<Cratis.Arc.TreatWarningsAsErrorsAttribute>() is not null;
+
         return new(
             method.DeclaringType!,
             method,
@@ -96,6 +100,7 @@ public static class CommandExtensions
             responseModel,
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            rules.OrderBy(_ => _.PropertyName));
+            rules.OrderBy(_ => _.PropertyName),
+            treatWarningsAsErrors);
     }
 }

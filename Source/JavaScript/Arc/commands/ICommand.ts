@@ -28,9 +28,10 @@ export interface ICommand<TCommandContent = object, TCommandResponse = object> e
     /**
      * Execute the {@link ICommand}.
      * @param [allowedSeverity] Optional maximum severity level to allow. Validation results with severity higher than this will cause the command to fail.
+     * @param [ignoreWarnings] Optional flag to ignore warnings. When true, only errors will cause the command to fail.
      * @returns {CommandResult} for the execution.
      */
-    execute(allowedSeverity?: ValidationResultSeverity): Promise<CommandResult<TCommandResponse>>;
+    execute(allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): Promise<CommandResult<TCommandResponse>>;
 
     /**
      * Validate the {@link ICommand} without executing it.

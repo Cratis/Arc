@@ -25,4 +25,12 @@ public static class AspNetResultExtensions
     /// <returns>True if it has, false if not.</returns>
     public static bool ShouldIgnoreValidation(this ActionExecutingContext context)
         => context.Filters.Any(_ => _ is IgnoreValidationAttribute);
+
+    /// <summary>
+    /// Check if an action has the <see cref="TreatWarningsAsErrorsAttribute"/> as filter and should treat warnings as errors.
+    /// </summary>
+    /// <param name="context"><see cref="ActionExecutingContext"/> to check.</param>
+    /// <returns>True if it has, false if not.</returns>
+    public static bool ShouldTreatWarningsAsErrors(this ActionExecutingContext context)
+        => context.Filters.Any(_ => _ is TreatWarningsAsErrorsAttribute);
 }
