@@ -38,7 +38,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
         commandScope.addQuery(instance);
         
         return instance;
-    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
+    }, [query, currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, commandScope]);
 
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current!.defaultValue));
     const argumentsDependency = queryInstance.current!.requiredRequestParameters.map(_ => args?.[_]);

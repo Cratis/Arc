@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Command, CommandResult, CommandResults } from '@cratis/arc/commands';
 import { CommandScopeImplementation } from './CommandScopeImplementation';
 import { ICommandScope } from './ICommandScope';
@@ -37,21 +37,30 @@ export const CommandScope = (props: ICommandScopeProps) => {
     const [hasChanges, setHasChanges] = useState(false);
     const [isPerforming, setIsPerforming] = useState(false);
     const [commandScope, setCommandScope] = useState<ICommandScope>(defaultCommandScopeContext);
+    
+    // Use refs to capture latest prop values without triggering re-creation
+    const setHasChangesRef = useRef(props.setHasChanges);
+    const setIsPerformingRef = useRef(props.setIsPerforming);
+    
+    useEffect(() => {
+        setHasChangesRef.current = props.setHasChanges;
+        setIsPerformingRef.current = props.setIsPerforming;
+    }, [props.setHasChanges, props.setIsPerforming]);
 
     useEffect(() => {
         const commandScopeImplementation = new CommandScopeImplementation(
             (value) => {
                 setHasChanges(value);
-                props.setHasChanges?.(value);
+                setHasChangesRef.current?.(value);
             },
             (value) => {
                 setIsPerforming(value);
-                props.setIsPerforming?.(value);
+                setIsPerformingRef.current?.(value);
             },
             parentScope !== defaultCommandScopeContext ? parentScope : undefined
         );
         setCommandScope(commandScopeImplementation);
-    }, []);
+    }, [parentScope]);
 
     return (
         <CommandScopeContext.Provider value={commandScope}>

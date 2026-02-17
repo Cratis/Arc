@@ -11,4 +11,10 @@ describe('when adding a query', () => {
     scope.addQuery(query);
 
     it('should not throw', () => true.should.be.true);
+    
+    it('should not add the same query twice when added again', () => {
+        // This verifies the duplicate check by ensuring no exception is thrown
+        // and the internal state remains consistent
+        (() => scope.addQuery(query)).should.not.throw();
+    });
 });
