@@ -3,7 +3,7 @@
 
 import { PropertyAccessor } from '@cratis/fundamentals';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import React, { useState, useEffect, ComponentType } from 'react';
+import React, { ComponentType } from 'react';
 import { useCommandFormContext } from './CommandForm';
 
 /**
@@ -104,7 +104,6 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             ...componentProps 
         } = props;
 
-        const [localValue, setLocalValue] = useState(currentValue ?? defaultValue);
         const { getFieldError, customFieldErrors } = useCommandFormContext();
 
         const serverError = fieldName ? getFieldError(fieldName) : undefined;
@@ -116,19 +115,16 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
 
         const isInvalid = errors.length > 0;
 
-        useEffect(() => {
-            setLocalValue(currentValue ?? defaultValue);
-        }, [currentValue]);
-
         const handleChange = (valueOrEvent: unknown) => {
             const newValue = extractValue ? extractValue(valueOrEvent) : valueOrEvent;
-            setLocalValue(newValue);
             onValueChange?.(newValue);
         };
 
+        const displayValue = currentValue !== undefined ? currentValue : defaultValue;
+
         const wrappedProps = {
             ...componentProps,
-            value: localValue,
+            value: displayValue,
             onChange: handleChange,
             invalid: isInvalid,
             required,
