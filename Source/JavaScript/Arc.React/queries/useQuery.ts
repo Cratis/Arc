@@ -8,6 +8,7 @@ import { SetSorting } from './SetSorting';
 import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
+import { useCommandScope } from '../commands/useCommandScope';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -21,6 +22,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
+    const commandScope = useCommandScope();
     const queryInstance = useRef<TQuery | null>(null);
 
     queryInstance.current = useMemo(() => {
@@ -31,6 +33,10 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
         instance.setApiBasePath(arc.apiBasePath ?? '');
         instance.setOrigin(arc.origin ?? '');
         instance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+        
+        // Register query with command scope
+        commandScope.addQuery(instance);
+        
         return instance;
     }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
 
