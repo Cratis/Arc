@@ -3,7 +3,7 @@
 
 import { CommandFormFields, ColumnInfo } from './CommandFormFields';
 import { Constructor } from '@cratis/fundamentals';
-import { useCommand, SetCommandValues } from '@cratis/arc.react/commands';
+import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
 import React, { createContext, useContext, useMemo, useState, useCallback } from 'react';
@@ -26,6 +26,7 @@ export interface CommandFormProps<TCommand extends object> {
 interface CommandFormContextValue<TCommand> {
     command: Constructor<TCommand>;
     commandInstance: TCommand;
+    commandVersion: number;
     setCommandValues: SetCommandValues<TCommand>;
     commandResult?: ICommandResult<unknown>;
     setCommandResult: (result: ICommandResult<unknown>) => void;
@@ -177,21 +178,25 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         ...props.initialValues
     }), [valuesFromCurrentValues, initialValuesFromFields, props.initialValues]);
 
-    // useCommand returns [instance, setter] for the typed command. Provide generics so commandInstance is TCommand.
+    // useCommand returns [instance, setter, clearer, version] for the typed command. Provide generics so commandInstance is TCommand.
     // Using type assertion through unknown to work around generic constraint mismatch
     const useCommandResult = useCommand(props.command as unknown as Constructor<Command<Partial<TCommand>, object>>, mergedInitialValues);
     const commandInstance = useCommandResult[0] as unknown as TCommand;
     const setCommandValues = useCommandResult[1] as SetCommandValues<TCommand>;
+    const commandVersion = useCommandResult[3];
     const [commandResult, setCommandResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [fieldValidities, setFieldValidities] = useState<Record<string, boolean>>({});
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
+    const initializedRef = React.useRef(false);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
+    // Only run on mount or when initial values actually change, not on every render
     React.useEffect(() => {
-        if (mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+        if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
             setCommandValues(mergedInitialValues as TCommand);
+            initializedRef.current = true;
         }
-    }, [mergedInitialValues, setCommandValues]);
+    }, [mergedInitialValues]); // removed setCommandValues from deps as it's stable
 
     const isValid = Object.values(fieldValidities).every(valid => valid);
 
@@ -232,8 +237,25 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     const exceptionMessages = commandResult?.exceptionMessages || [];
     const hasColumns = fieldsOrColumns.length > 0 && 'fields' in fieldsOrColumns[0];
 
+    const contextValue: CommandFormContextValue<TCommand> = {
+        command: props.command,
+        commandInstance,
+        commandVersion,
+        setCommandValues,
+        commandResult,
+        setCommandResult,
+        getFieldError,
+        isValid,
+        setFieldValidity,
+        onFieldValidate: props.onFieldValidate,
+        onFieldChange: props.onFieldChange,
+        onBeforeExecute: props.onBeforeExecute,
+        customFieldErrors,
+        setCustomFieldError
+    };
+
     return (
-        <CommandFormContext.Provider value={{ command: props.command, commandInstance, setCommandValues, commandResult, setCommandResult, getFieldError, isValid, setFieldValidity, onFieldValidate: props.onFieldValidate, onFieldChange: props.onFieldChange, onBeforeExecute: props.onBeforeExecute, customFieldErrors, setCustomFieldError }}>
+        <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
             <CommandFormFields fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps<unknown>>[])} columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined} />
             {exceptionMessages.length > 0 && (
                 <div className="card flex flex-row gap-3 mt-3">

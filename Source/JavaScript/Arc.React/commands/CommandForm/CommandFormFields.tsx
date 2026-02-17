@@ -26,7 +26,10 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
     const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : '';
 
     // Get the current value from the command instance
-    const currentValue = propertyName ? (context.commandInstance as Record<string, unknown>)?.[propertyName] : undefined;
+    // commandVersion ensures this component re-renders when values change
+    const currentValue = React.useMemo(() => {
+        return propertyName ? (context.commandInstance as Record<string, unknown>)?.[propertyName] : undefined;
+    }, [context.commandInstance, propertyName, context.commandVersion]);
 
     // Get the error message for this field, if any
     const errorMessage = propertyName ? context.getFieldError(propertyName) : undefined;
