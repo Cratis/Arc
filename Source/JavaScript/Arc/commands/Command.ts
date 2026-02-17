@@ -70,15 +70,15 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     }
 
     /** @inheritdoc */
-    async execute(allowedSeverity?: ValidationResultSeverity): Promise<CommandResult<TCommandResponse>> {
+    async execute(allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): Promise<CommandResult<TCommandResponse>> {
         const clientValidationErrors = this.validation?.validate(this) || [];
-        const filteredClientErrors = this.filterValidationResultsBySeverity(clientValidationErrors, allowedSeverity);
+        const filteredClientErrors = this.filterValidationResultsBySeverity(clientValidationErrors, allowedSeverity, ignoreWarnings);
         if (filteredClientErrors.length > 0) {
             return CommandResult.validationFailed(filteredClientErrors) as CommandResult<TCommandResponse>;
         }
 
         const validationErrors = this.validateRequiredProperties();
-        const filteredRequiredErrors = this.filterValidationResultsBySeverity(validationErrors, allowedSeverity);
+        const filteredRequiredErrors = this.filterValidationResultsBySeverity(validationErrors, allowedSeverity, ignoreWarnings);
         if (filteredRequiredErrors.length > 0) {
             return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
@@ -91,7 +91,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             actualRoute = route;
         }
 
-        const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call', allowedSeverity);
+        const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call', allowedSeverity, ignoreWarnings);
         this.setInitialValuesFromCurrentValues();
         return result;
     }
@@ -147,14 +147,17 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         return validationErrors;
     }
 
-    private filterValidationResultsBySeverity(validationResults: ValidationResult[], allowedSeverity?: ValidationResultSeverity): ValidationResult[] {
+    private filterValidationResultsBySeverity(validationResults: ValidationResult[], allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): ValidationResult[] {
+        if (ignoreWarnings === true) {
+            return validationResults.filter(result => result.severity === ValidationResultSeverity.Error);
+        }
         if (allowedSeverity === undefined) {
             return validationResults.filter(result => result.severity === ValidationResultSeverity.Error);
         }
         return validationResults.filter(result => result.severity > allowedSeverity);
     }
 
-    private buildHeaders(allowedSeverity?: ValidationResultSeverity): HeadersInit {
+    private buildHeaders(allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): HeadersInit {
         const customHeaders = this._httpHeadersCallback?.() ?? {};
         const headers = {
             ...customHeaders,
@@ -170,6 +173,10 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             headers['X-Allowed-Severity'] = allowedSeverity.toString();
         }
 
+        if (ignoreWarnings === true) {
+            headers['X-Ignore-Warnings'] = 'true';
+        }
+
         return headers;
     }
 
@@ -177,10 +184,11 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         route: string,
         notFoundMessage: string,
         errorMessage: string,
-        allowedSeverity?: ValidationResultSeverity
+        allowedSeverity?: ValidationResultSeverity,
+        ignoreWarnings?: boolean
     ): Promise<CommandResult<TCommandResponse>> {
         const payload = this.buildPayload();
-        const headers = this.buildHeaders(allowedSeverity);
+        const headers = this.buildHeaders(allowedSeverity, ignoreWarnings);
         const actualRoute = joinPaths(this._apiBasePath, route);
         const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
 

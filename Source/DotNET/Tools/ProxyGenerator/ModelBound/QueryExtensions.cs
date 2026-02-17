@@ -175,6 +175,10 @@ public static class QueryExtensions
             }
         }
 
+        // Check for TreatWarningsAsErrors attribute
+        var treatWarningsAsErrors = method.GetCustomAttribute<Cratis.Arc.Validation.TreatWarningsAsErrorsAttribute>() is not null ||
+                                     readModelType.GetCustomAttribute<Cratis.Arc.Validation.TreatWarningsAsErrorsAttribute>() is not null;
+
         return new(
             readModelType,
             method,
@@ -190,7 +194,8 @@ public static class QueryExtensions
             properties.OrderBy(_ => _.Name),
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            validationRules.OrderBy(_ => _.PropertyName));
+            validationRules.OrderBy(_ => _.PropertyName),
+            treatWarningsAsErrors);
     }
 
     /// <summary>
