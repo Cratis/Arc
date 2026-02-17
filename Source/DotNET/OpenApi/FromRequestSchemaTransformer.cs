@@ -35,7 +35,7 @@ public class FromRequestSchemaTransformer : IOpenApiSchemaTransformer
             foreach (var property in properties)
             {
                 var propertyToRemove = schema.Properties?.SingleOrDefault(_ => _.Key.Equals(property.Name, StringComparison.InvariantCultureIgnoreCase));
-                if (propertyToRemove?.Value is not null)
+                if (propertyToRemove.HasValue)
                 {
                     schema.Properties?.Remove(propertyToRemove.Value.Key);
                 }

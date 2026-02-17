@@ -41,14 +41,17 @@ public class CommandResultOperationTransformer : IOpenApiOperationTransformer
         commandResultType ??= typeof(CommandResult<>).MakeGenericType(returnType);
 
         var schema = await context.GetOrCreateSchemaAsync(commandResultType, null, cancellationToken);
-        var response = operation.Responses?.FirstOrDefault().Value;
-        if (response?.Content?.TryGetValue("application/json", out var value) == true)
+
+        if (operation.Responses?.TryGetValue(((int)HttpStatusCode.OK).ToString(), out var okResponse) == true)
         {
-            value.Schema = schema;
-        }
-        else
-        {
-            response?.Content?.Add(new("application/json", new() { Schema = schema }));
+            if (okResponse?.Content?.TryGetValue("application/json", out var value) == true)
+            {
+                value.Schema = schema;
+            }
+            else
+            {
+                okResponse?.Content?.Add(new("application/json", new() { Schema = schema }));
+            }
         }
 
         operation.Responses?.Add(((int)HttpStatusCode.Forbidden).ToString(), new OpenApiResponse()

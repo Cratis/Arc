@@ -3,7 +3,6 @@
 
 using System.Net;
 using Cratis.Arc.Queries;
-using Cratis.Concepts;
 using Cratis.Reflection;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -24,12 +23,6 @@ public class QueryResultOperationTransformer : IOpenApiOperationTransformer
             return;
         }
 
-        var returnType = methodInfo.GetActualReturnType();
-        if (returnType.IsConcept())
-        {
-            returnType = returnType.GetConceptValueType();
-        }
-
         var queryResultType = typeof(QueryResult);
 
         if (methodInfo.ReturnType.IsEnumerable())
@@ -38,14 +31,17 @@ public class QueryResultOperationTransformer : IOpenApiOperationTransformer
         }
 
         var schema = await context.GetOrCreateSchemaAsync(queryResultType, null, cancellationToken);
-        var response = operation.Responses?.FirstOrDefault((kvp) => kvp.Key == ((int)HttpStatusCode.OK).ToString()).Value;
-        if (response?.Content?.TryGetValue("application/json", out var value) == true)
+
+        if (operation.Responses?.TryGetValue(((int)HttpStatusCode.OK).ToString(), out var okResponse) == true)
         {
-            value.Schema = schema;
-        }
-        else
-        {
-            response?.Content?.Add(new("application/json", new() { Schema = schema }));
+            if (okResponse?.Content?.TryGetValue("application/json", out var value) == true)
+            {
+                value.Schema = schema;
+            }
+            else
+            {
+                okResponse?.Content?.Add(new("application/json", new() { Schema = schema }));
+            }
         }
 
         operation.Responses?.Add(((int)HttpStatusCode.Forbidden).ToString(), new OpenApiResponse()
