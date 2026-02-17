@@ -1,22 +1,29 @@
 # Command Scope
 
-If you want to track commands and create an aggregation of the status of commands at a compositional
+If you want to track commands and queries and create an aggregation of their status at a compositional
 level, the command scope provides a React context for this.
 This is typically useful when having something like a top level toolbar with a **Save** button that
 you want to enable or disable depending on whether or not there are changes within any components
-used within it.
+used within it, or a loading indicator when commands or queries are being performed.
 
 Using the toolbar scenario as an example; at the top level we can wrap everything in the `<CommandScope>`
 component. This will establish a React context for this part of the hierarchy and track any commands
-used within any descendants.
+and queries used within any descendants.
 
 ```typescript
 import { CommandScope } from '@cratis/arc/commands';
 
 export const MyComposition = () => {
+    const [hasChanges, setHasChanges] = useState(false);
+    const [isPerforming, setIsPerforming] = useState(false);
+    const [isInvalid, setIsInvalid] = useState(false);
+
     return (
-        <CommandScope>
-            <Toolbar/>
+        <CommandScope 
+            setHasChanges={setHasChanges}
+            setIsPerforming={setIsPerforming}
+            setIsInvalid={setIsInvalid}>
+            <Toolbar hasChanges={hasChanges} isPerforming={isPerforming} isInvalid={isInvalid}/>
             <FirstComponent/>
             <SecondComponent/>
         </CommandScope>
@@ -24,26 +31,67 @@ export const MyComposition = () => {
 };
 ```
 
-The command scope will provide a React context that can be consumed.
-Within this context there are the following that can be used:
+## Hierarchical Scopes
 
-| Name | Description |
-| ---- | ----------- |
-| hasChanges | Boolean property that tells whether or not there are changes in any commands within the context |
-| execute | Method for executing all commands within the context |
-| revertChanges | Method for reverting any changes to commands within the context |
+Command scopes can be nested to create a hierarchy. Child scopes automatically recognize their parent scope,
+allowing you to track state at different levels of your component tree.
+
+```typescript
+export const MyPage = () => {
+    return (
+        <CommandScope>
+            <PageToolbar/>
+            <Section1>
+                <CommandScope>
+                    <SectionToolbar/>
+                    <SectionContent/>
+                </CommandScope>
+            </Section1>
+        </CommandScope>
+    );
+};
+```
+
+In this example, the inner `CommandScope` has access to its parent scope through the `parent` property.
+
+## Command Scope API
+
+The command scope provides the following properties and methods:
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hasChanges | Boolean | Whether or not there are changes in any commands within the scope |
+| isPerforming | Boolean | Whether or not any commands or queries are currently being performed |
+| isInvalid | Boolean | Whether or not there are any invalid commands or queries in the scope |
+| parent | ICommandScope \| undefined | The parent scope, if this scope is nested |
+| execute() | Promise<CommandResults> | Execute all commands with changes within the scope |
+| revertChanges() | void | Revert any changes to commands within the scope |
+| addCommand(command) | void | Manually add a command for tracking (usually done automatically) |
+| addQuery(query) | void | Manually add a query for tracking (usually done automatically) |
+
+## Using Command Scope in React
 
 To consume the command scope context you can use the hook that is provided.
 
 ```typescript
 import { useCommandScope } from '@cratis/arc/commands';
 
-export const Toolbar = () => {
+export const Toolbar = ({ hasChanges, isPerforming, isInvalid }) => {
     const commandScope = useCommandScope();
 
     return (
         <div>
-            <button disabled={!commandScope.hasChanges}>Save</button>
+            <button 
+                disabled={!hasChanges || isPerforming || isInvalid}
+                onClick={() => commandScope.execute()}>
+                Save
+            </button>
+            <button 
+                disabled={!hasChanges || isPerforming}
+                onClick={() => commandScope.revertChanges()}>
+                Cancel
+            </button>
+            {isPerforming && <Spinner />}
         </div>
     );
 };
@@ -70,6 +118,48 @@ export const Toolbar = () => {
 };
 ```
 
+## Using Command Scope in ViewModels
+
+The command scope can also be injected into ViewModels through dependency injection. The ViewModel will
+automatically receive the closest command scope in the component hierarchy.
+
+```typescript
+import { ICommandScope } from '@cratis/arc.react/commands';
+import { injectable } from 'tsyringe';
+
+@injectable()
+export class MyViewModel {
+    constructor(private readonly _commandScope: ICommandScope) {
+    }
+
+    get hasChanges(): boolean {
+        return this._commandScope.hasChanges;
+    }
+
+    get isPerforming(): boolean {
+        return this._commandScope.isPerforming;
+    }
+
+    get isInvalid(): boolean {
+        return this._commandScope.isInvalid;
+    }
+
+    async save() {
+        if (!this.hasChanges || this.isPerforming || this.isInvalid) {
+            return;
+        }
+        
+        await this._commandScope.execute();
+    }
+
+    cancel() {
+        this._commandScope.revertChanges();
+    }
+}
+```
+
+## Automatic Command and Query Tracking
+
 For the `<FirstComponent>` we could then have something like below:
 
 ```typescript
@@ -84,19 +174,21 @@ export const FirstComponent = () => {
 }
 ```
 
-For simplicity `<SecondComponent>` exactly the same, just a different command:
+Commands created with the `use()` hook are automatically added to the nearest command scope.
+
+Queries are also automatically tracked:
 
 ```typescript
 export const SecondComponent = () => {
-    const myCommand = MyOtherCommand.use();
+    const [result] = useQuery(MyQuery, { id: '123' });
 
     return (
         <div>
-            <input type="text" value={command.someValue} onChange={(e,v) => myCommand.someValue = v; }/>
+            {result.data && <DisplayData data={result.data} />}
         </div>
     )
 }
 ```
 
-Any changes to properties within these commands will bubble up to the context and the state `hasChanges` will be affected
-by it.
+Any changes to properties within commands or validation errors in commands and queries will bubble up to the 
+context and affect the state flags (`hasChanges`, `isInvalid`, `isPerforming`).
