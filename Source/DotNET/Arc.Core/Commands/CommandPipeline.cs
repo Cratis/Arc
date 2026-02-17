@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,7 @@ public class CommandPipeline(
     ICommandContextValuesBuilder contextValuesBuilder) : ICommandPipeline
 {
     /// <inheritdoc/>
-    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider)
+    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -46,9 +47,11 @@ public class CommandPipeline(
                 command.GetType(),
                 command,
                 dependencies,
-                contextValuesBuilder.Build(command));
+                contextValuesBuilder.Build(command),
+                allowedSeverity);
             contextModifier.SetCurrent(commandContext);
             result = await commandFilters.OnExecution(commandContext);
+            result = FilterValidationResults(result, allowedSeverity);
             if (!result.IsSuccess)
             {
                 return result;
@@ -71,7 +74,7 @@ public class CommandPipeline(
     }
 
     /// <inheritdoc/>
-    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider)
+    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -89,11 +92,13 @@ public class CommandPipeline(
                 command.GetType(),
                 command,
                 dependencies,
-                contextValuesBuilder.Build(command));
+                contextValuesBuilder.Build(command),
+                allowedSeverity);
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution
             result = await commandFilters.OnExecution(commandContext);
+            result = FilterValidationResults(result, allowedSeverity);
         }
         catch (Exception ex)
         {
@@ -295,6 +300,22 @@ public class CommandPipeline(
         }
 
         return correlationId;
+    }
+
+    CommandResult FilterValidationResults(CommandResult result, ValidationResultSeverity? allowedSeverity)
+    {
+        if (allowedSeverity is null)
+        {
+            // Default behavior: only allow errors through (block warnings and information)
+            result.ValidationResults = result.ValidationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+        }
+        else
+        {
+            // Filter out validation results with severity <= allowedSeverity
+            result.ValidationResults = result.ValidationResults.Where(v => v.Severity > allowedSeverity).ToArray();
+        }
+
+        return result;
     }
 
     CommandResult CreateCommandResultWithResponse(CorrelationId correlationId, object response)

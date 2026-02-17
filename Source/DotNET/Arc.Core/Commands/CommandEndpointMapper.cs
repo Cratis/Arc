@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -96,6 +97,13 @@ public static class CommandEndpointMapper
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
+                ValidationResultSeverity? allowedSeverity = default;
+                if (context.Headers.TryGetValue("X-Allowed-Severity", out var severityHeader) &&
+                    int.TryParse(severityHeader, out var severityValue))
+                {
+                    allowedSeverity = (ValidationResultSeverity)severityValue;
+                }
+
                 var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
                 CommandResult commandResult;
 
@@ -106,8 +114,8 @@ public static class CommandEndpointMapper
                 else
                 {
                     commandResult = validateOnly
-                        ? await commandPipeline.Validate(command, context.RequestServices)
-                        : await commandPipeline.Execute(command, context.RequestServices);
+                        ? await commandPipeline.Validate(command, context.RequestServices, allowedSeverity)
+                        : await commandPipeline.Execute(command, context.RequestServices, allowedSeverity);
                 }
 
                 context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);
