@@ -27,14 +27,6 @@ export default meta;
 type Story = StoryObj<typeof CommandForm>;
 
 // Simple command for the default story with validation
-class SimpleCommandValidator extends CommandValidator {
-    constructor() {
-        super();
-        this.ruleFor((c: SimpleCommand) => c.name).notEmpty().minLength(3);
-        this.ruleFor((c: SimpleCommand) => c.email).notEmpty().emailAddress();
-    }
-}
-
 class SimpleCommand extends Command {
     readonly route: string = '/api/simple';
     readonly validation: CommandValidator = new SimpleCommandValidator();
@@ -56,6 +48,14 @@ class SimpleCommand extends Command {
 
     get properties(): string[] {
         return ['name', 'email'];
+    }
+}
+
+class SimpleCommandValidator extends CommandValidator<SimpleCommand> {
+    constructor() {
+        super();
+        this.ruleFor(c => c.name).notEmpty().minLength(3);
+        this.ruleFor(c => c.email).notEmpty().emailAddress();
     }
 }
 
