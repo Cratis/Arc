@@ -59,8 +59,10 @@ export class IdentityProvider extends IIdentityProvider {
             return {
                 id: result.id,
                 name: result.name,
+                roles: result.roles || [],
                 details: details as TDetails,
                 isSet: true,
+                isInRole: (role: string) => (result.roles || []).includes(role),
                 refresh: () => IdentityProvider.refresh(type)
             } as IIdentity<TDetails>;
         } else {
@@ -92,8 +94,10 @@ export class IdentityProvider extends IIdentityProvider {
         return {
             id: result.id,
             name: result.name,
+            roles: result.roles || [],
             details: details as TDetails,
             isSet: true,
+            isInRole: (role: string) => (result.roles || []).includes(role),
             refresh: () => IdentityProvider.refresh(type)
         };
     }
