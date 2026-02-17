@@ -16,6 +16,7 @@ public class and_user_is_not_authenticated : given.an_identity_endpoint_handler
             IdentityName.Empty,
             IsAuthenticated: false,
             IsAuthorized: false,
+            Roles: [],
             string.Empty);
 
         _identityProviderResultHandler.GenerateFromCurrentContext().Returns(Task.FromResult(_result));
