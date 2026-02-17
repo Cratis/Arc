@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.OpenApi</AssemblyName>
+        <RootNamespace>Cratis.Arc.OpenApi</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Cratis.Fundamentals"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Arc/Arc.csproj" />
+    </ItemGroup>
+</Project>
