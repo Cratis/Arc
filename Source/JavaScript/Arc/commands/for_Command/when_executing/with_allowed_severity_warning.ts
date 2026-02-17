@@ -10,33 +10,26 @@ describe("when executing with allowed severity warning", given(class extends a_c
     constructor() {
         super();
         
-        // Setup fetch to respond with a warning validation result
+        // Setup fetch to respond normally - we're just testing that the header gets sent
         this.fetchStub.resolves({
-            ok: true,
+            status: 200,
             json: async () => ({
                 correlationId: '00000000-0000-0000-0000-000000000000',
-                isSuccess: false,
+                isSuccess: true,
                 isAuthorized: true,
-                isValid: false,
+                isValid: true,
                 hasExceptions: false,
-                validationResults: [{
-                    severity: ValidationResultSeverity.Warning,
-                    message: 'This is a warning from server',
-                    members: ['someProperty'],
-                    state: null
-                }],
+                validationResults: [],
                 exceptionMessages: [],
                 exceptionStackTrace: '',
                 authorizationFailureReason: '',
                 response: null
             })
-        } as Response);
+        });
     }
 }, context => {
-    let result: CommandResult<object>;
-
     beforeEach(async () => {
-        result = await context.command.execute(ValidationResultSeverity.Warning);
+        await context.command.execute(ValidationResultSeverity.Warning);
     });
 
     afterEach(() => {
@@ -44,7 +37,7 @@ describe("when executing with allowed severity warning", given(class extends a_c
     });
 
     it("should call fetch", () => context.fetchStub.called.should.be.true);
-    it("should have sent X-Allowed-Severity header", () => {
+    it("should have sent X-Allowed-Severity header with value 2", () => {
         const headers = context.fetchStub.firstCall.args[1].headers;
         headers['X-Allowed-Severity'].should.equal('2'); // Warning = 2
     });

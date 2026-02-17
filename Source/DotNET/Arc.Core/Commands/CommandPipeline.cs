@@ -302,11 +302,21 @@ public class CommandPipeline(
         return correlationId;
     }
 
+    /// <summary>
+    /// Filters validation results based on the allowed severity level.
+    /// </summary>
+    /// <param name="result">The command result to filter. This method modifies the ValidationResults property.</param>
+    /// <param name="allowedSeverity">The maximum allowed severity level. Results with higher severity will be kept.</param>
+    /// <returns>The modified command result.</returns>
+    /// <remarks>
+    /// When allowedSeverity is null, only errors block execution (warnings and information are filtered out).
+    /// When allowedSeverity is specified, only validation results with severity > allowedSeverity block execution.
+    /// </remarks>
     CommandResult FilterValidationResults(CommandResult result, ValidationResultSeverity? allowedSeverity)
     {
         if (allowedSeverity is null)
         {
-            // Default behavior: only allow errors through (block warnings and information)
+            // Default behavior: only errors block execution (warnings and information are filtered out)
             result.ValidationResults = result.ValidationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
         }
         else
