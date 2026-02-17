@@ -21,6 +21,11 @@ public class DiscoverableModelValidator(IValidator validator) : IModelValidator
         var failures = new List<ModelValidationResult>();
         if (context.Model is not null)
         {
+            if (ShouldSkipConceptValidation(context))
+            {
+                return failures;
+            }
+
             var validationContextType = typeof(ValidationContext<>).MakeGenericType(context.ModelMetadata.ModelType);
             var validationContext = (Activator.CreateInstance(validationContextType, [context.Model!]) as IValidationContext)!;
 
@@ -42,5 +47,29 @@ public class DiscoverableModelValidator(IValidator validator) : IModelValidator
         {
             validationContext.SetQuery();
         }
+    }
+
+    bool ShouldSkipConceptValidation(ModelValidationContext context)
+    {
+        var hasAspNetResult = context.ActionContext.ActionDescriptor.FilterDescriptors
+            .Any(_ => _.Filter is AspNetResultAttribute);
+
+        if (!hasAspNetResult)
+        {
+            return false;
+        }
+
+        var validatorType = validator.GetType();
+        while (validatorType != null && validatorType != typeof(object))
+        {
+            if (validatorType.IsGenericType &&
+                validatorType.GetGenericTypeDefinition() == typeof(ConceptValidator<>))
+            {
+                return true;
+            }
+            validatorType = validatorType.BaseType;
+        }
+
+        return false;
     }
 }
