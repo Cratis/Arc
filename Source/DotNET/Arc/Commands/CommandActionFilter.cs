@@ -25,6 +25,8 @@ public class CommandActionFilter : IAsyncActionFilter
 
             var ignoreValidation = context.ShouldIgnoreValidation();
             var isValidationRequest = IsValidationRequest(context);
+            var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
+            var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
 
             var validationResult = ignoreValidation ?
                                         [] :
@@ -64,7 +66,7 @@ public class CommandActionFilter : IAsyncActionFilter
             var commandResult = new CommandResult<object>
             {
                 CorrelationId = context.HttpContext.GetCorrelationId(),
-                ValidationResults = validationResult,
+                ValidationResults = FilterValidationResults(validationResult, treatWarningsAsErrors, ignoreWarnings),
                 ExceptionMessages = [.. exceptionMessages],
                 ExceptionStackTrace = exceptionStackTrace ?? string.Empty,
                 Response = response
@@ -91,6 +93,30 @@ public class CommandActionFilter : IAsyncActionFilter
 
     static bool IsValidationRequest(ActionExecutingContext context)
         => context.HttpContext.Request.Path.Value?.EndsWith("/validate", StringComparison.OrdinalIgnoreCase) == true;
+
+    static bool GetIgnoreWarningsFromRequest(ActionExecutingContext context)
+    {
+        if (context.HttpContext.Request.Headers.TryGetValue("X-Ignore-Warnings", out var value))
+        {
+            return bool.TryParse(value, out var ignoreWarnings) && ignoreWarnings;
+        }
+        return false;
+    }
+
+    static ValidationResult[] FilterValidationResults(List<ValidationResult> validationResults, bool treatWarningsAsErrors, bool ignoreWarnings)
+    {
+        if (ignoreWarnings)
+        {
+            return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+        }
+
+        if (treatWarningsAsErrors)
+        {
+            return validationResults.Where(v => v.Severity >= ValidationResultSeverity.Warning).ToArray();
+        }
+
+        return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+    }
 
     void AddAdditionalValidationResultsAfterActionExecute(ActionExecutingContext context, List<ValidationResult> validationResult, IEnumerable<ModelError> errorsBefore)
     {
