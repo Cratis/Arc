@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCommandFormContext } from './CommandForm';
+import { useCommandFormContext } from './CommandFormContext';
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
@@ -17,7 +17,7 @@ export interface CommandFormFieldsProps {
 }
 
 // Separate component for each field to prevent re-rendering all fields
-const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<CommandFormFieldProps<unknown>>; index: number }) => {
+const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandFormFieldProps<unknown>> }) => {
     const context = useCommandFormContext<unknown>();
     const fieldProps = field.props as CommandFormFieldProps<unknown>;
     const propertyAccessor = fieldProps.value;
@@ -80,10 +80,10 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
     return (
         <div className="w-full" style={{ marginBottom: '1rem' }}>
             {fieldProps.title && (
-                <label 
-                    style={{ 
-                        display: 'block', 
-                        marginBottom: '0.5rem', 
+                <label
+                    style={{
+                        display: 'block',
+                        marginBottom: '0.5rem',
                         fontWeight: 500,
                         color: 'var(--color-text)'
                     }}
@@ -93,9 +93,9 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
             )}
             <div style={{ display: 'flex', width: '100%' }}>
                 {fieldProps.icon && (
-                    <span 
+                    <span
                         title={fieldProps.description}
-                        style={{ 
+                        style={{
                             cursor: fieldProps.description ? 'help' : 'default',
                             display: 'flex',
                             alignItems: 'center',
@@ -118,6 +118,8 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
     );
 };
 
+CommandFormFieldWrapper.displayName = 'CommandFormFieldWrapper';
+
 export const CommandFormFields = (props: CommandFormFieldsProps) => {
     const { fields, columns, orderedChildren } = props;
 
@@ -127,19 +129,18 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
             <div className="card flex flex-column md:flex-row gap-3">
                 {columns.map((column, columnIndex) => (
                     <div key={`column-${columnIndex}`} className="flex flex-column gap-3 flex-1">
-                            {column.fields.map((field, index) => {
-                                const fieldProps = field.props as CommandFormFieldProps<unknown>;
-                                const propertyAccessor = fieldProps.value;
-                                const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${columnIndex}-${index}`;
+                        {column.fields.map((field, index) => {
+                            const fieldProps = field.props as CommandFormFieldProps<unknown>;
+                            const propertyAccessor = fieldProps.value;
+                            const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${columnIndex}-${index}`;
 
-                                return (
-                                    <CommandFormFieldWrapper
-                                        key={propertyName}
-                                        field={field}
-                                        index={index}
-                                    />
-                                );
-                            })}
+                            return (
+                                <CommandFormFieldWrapper
+                                    key={propertyName}
+                                    field={field}
+                                />
+                            );
+                        })}
                     </div>
                 ))}
             </div>
@@ -150,18 +151,17 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
     if (orderedChildren && orderedChildren.length > 0) {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-                {orderedChildren.map((item, idx) => {
+                {orderedChildren.map((item) => {
                     if (item.type === 'field') {
                         const field = item.content as React.ReactElement<CommandFormFieldProps<unknown>>;
                         const fieldProps = field.props as CommandFormFieldProps<unknown>;
                         const propertyAccessor = fieldProps.value;
                         const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${item.index}`;
-                        
+
                         return (
                             <CommandFormFieldWrapper
                                 key={propertyName}
                                 field={field}
-                                index={item.index}
                             />
                         );
                     } else {
@@ -188,7 +188,6 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
                     <CommandFormFieldWrapper
                         key={propertyName}
                         field={field}
-                        index={index}
                     />
                 );
             })}
@@ -202,3 +201,5 @@ function getPropertyName<T>(accessor: (obj: T) => unknown): string {
     const match = fnStr.match(/\.([a-zA-Z_$][a-zA-Z0-9_$]*)/);
     return match ? match[1] : '';
 }
+
+CommandFormFields.displayName = 'CommandFormFields';

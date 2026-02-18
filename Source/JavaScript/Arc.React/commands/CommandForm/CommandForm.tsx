@@ -2,15 +2,17 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { CommandFormFields, ColumnInfo } from './CommandFormFields';
+import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue } from './CommandFormContext';
 import { Constructor } from '@cratis/fundamentals';
 import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
-import React, { createContext, useContext, useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
 
-export type BeforeExecuteCallback<TCommand> = (values: TCommand) => TCommand;
+// Re-export for backwards compatibility
+export { useCommandFormContext } from './CommandFormContext';
 
 export interface CommandFormProps<TCommand extends object> {
     command: Constructor<TCommand>;
@@ -21,33 +23,6 @@ export interface CommandFormProps<TCommand extends object> {
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     children?: React.ReactNode;
 }
-
-interface CommandFormContextValue<TCommand> {
-    command: Constructor<TCommand>;
-    commandInstance: TCommand;
-    commandVersion: number;
-    setCommandValues: SetCommandValues<TCommand>;
-    commandResult?: ICommandResult<unknown>;
-    setCommandResult: (result: ICommandResult<unknown>) => void;
-    getFieldError: (propertyName: string) => string | undefined;
-    isValid: boolean;
-    setFieldValidity: (fieldName: string, isValid: boolean) => void;
-    onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
-    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => void;
-    onBeforeExecute?: BeforeExecuteCallback<TCommand>;
-    customFieldErrors: Record<string, string>;
-    setCustomFieldError: (fieldName: string, error: string | undefined) => void;
-}
-
-const CommandFormContext = createContext<CommandFormContextValue<unknown> | undefined>(undefined);
-
-export const useCommandFormContext = <TCommand,>() => {
-    const context = useContext(CommandFormContext);
-    if (!context) {
-        throw new Error('useCommandFormContext must be used within a CommandForm');
-    }
-    return context as CommandFormContextValue<TCommand>;
-};
 
 // Hook to get just the command instance for easier access
 export const useCommandInstance = <TCommand = unknown>() => {
