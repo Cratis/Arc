@@ -7,19 +7,19 @@ import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
 
 export interface ColumnInfo {
-    fields: React.ReactElement<CommandFormFieldProps<unknown>>[];
+    fields: React.ReactElement<CommandFormFieldProps>[];
 }
 
 export interface CommandFormFieldsProps {
-    fields?: React.ReactElement<CommandFormFieldProps<unknown>>[];
+    fields?: React.ReactElement<CommandFormFieldProps>[];
     columns?: ColumnInfo[];
     orderedChildren?: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }>;
 }
 
 // Separate component for each field to prevent re-rendering all fields
-const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandFormFieldProps<unknown>> }) => {
+const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandFormFieldProps> }) => {
     const context = useCommandFormContext<unknown>();
-    const fieldProps = field.props as CommandFormFieldProps<unknown>;
+    const fieldProps = field.props as CommandFormFieldProps;
     const propertyAccessor = fieldProps.value;
 
     // Get the property name from the accessor function
@@ -149,7 +149,7 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
                 {columns.map((column, columnIndex) => (
                     <div key={`column-${columnIndex}`} className="flex flex-column gap-3 flex-1">
                         {column.fields.map((field, index) => {
-                            const fieldProps = field.props as CommandFormFieldProps<unknown>;
+                            const fieldProps = field.props as CommandFormFieldProps;
                             const propertyAccessor = fieldProps.value;
                             const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${columnIndex}-${index}`;
 
@@ -172,8 +172,8 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
             <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                 {orderedChildren.map((item) => {
                     if (item.type === 'field') {
-                        const field = item.content as React.ReactElement<CommandFormFieldProps<unknown>>;
-                        const fieldProps = field.props as CommandFormFieldProps<unknown>;
+                        const field = item.content as React.ReactElement<CommandFormFieldProps>;
+                        const fieldProps = field.props as CommandFormFieldProps;
                         const propertyAccessor = fieldProps.value;
                         const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${item.index}`;
 
@@ -199,7 +199,7 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
             {(fields || []).map((field, index) => {
-                const fieldProps = field.props as CommandFormFieldProps<unknown>;
+                const fieldProps = field.props as CommandFormFieldProps;
                 const propertyAccessor = fieldProps.value;
                 const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${index}`;
 

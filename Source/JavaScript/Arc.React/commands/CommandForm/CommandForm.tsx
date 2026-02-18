@@ -58,7 +58,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
     if (!props.children) {
         return { fieldsOrColumns: [], otherChildren: [], initialValuesFromFields: {}, orderedChildren: [] };
     }
-    let fields: React.ReactElement<CommandFormFieldProps<unknown>>[] = [];
+    let fields: React.ReactElement<CommandFormFieldProps>[] = [];
     const columns: ColumnInfo[] = [];
     let hasColumns = false;
     const otherChildren: React.ReactNode[] = [];
@@ -101,12 +101,12 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
                 }
                 return false;
             }) as React.ReactElement[];
-            columns.push({ fields: columnFields as React.ReactElement<CommandFormFieldProps<unknown>>[] });
+            columns.push({ fields: columnFields as React.ReactElement<CommandFormFieldProps>[] });
         }
         // Check if child is a CommandFormField (direct child)
         else if (component.displayName === 'CommandFormField') {
             extractInitialValue(child as React.ReactElement);
-            fields.push(child as React.ReactElement<CommandFormFieldProps<unknown>>);
+            fields.push(child as React.ReactElement<CommandFormFieldProps>);
             orderedChildren.push({ type: 'field', content: child, index: fieldIndex++ });
         }
         // Check if child is Fields wrapper (backwards compatibility)
@@ -122,7 +122,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
                 }
                 return false;
             }) as React.ReactElement[];
-            fields = [...fields, ...(relevantChildren as React.ReactElement<CommandFormFieldProps<unknown>>[])];
+            fields = [...fields, ...(relevantChildren as React.ReactElement<CommandFormFieldProps>[])];
         }
         // Everything else is not a field, keep it as other children
         else {
@@ -243,7 +243,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     return (
         <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
             <CommandFormFields 
-                fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps<unknown>>[])} 
+                fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps>[])} 
                 columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}
                 orderedChildren={orderedChildren}
             />
