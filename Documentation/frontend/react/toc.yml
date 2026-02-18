@@ -5,30 +5,10 @@
 - name: Dialogs
   href: dialogs.md
 - name: Commands
-  href: commands/index.md
-  items:
-    - name: React Usage
-      href: commands/react-usage.md
-    - name: Data Binding
-      href: commands/data-binding.md
-    - name: Validation
-      href: commands/validation.md
-    - name: Scope
-      href: commands/scope.md
-    - name: Imperative Usage
-      href: commands/imperative-usage.md
-- name: CommandForm
-  href: command-form/index.md
-  items:
-    - name: Field Types
-      href: command-form/field-types.md
-    - name: Validation
-      href: command-form/validation.md
-    - name: Customization
-      href: command-form/customization.md
-    - name: Advanced Usage
-      href: command-form/advanced.md
+  href: commands/
 - name: Queries
   href: queries.md
 - name: Proxy Generation
   href: proxy-generation.md
+- name: Storybook
+  href: storybook.md

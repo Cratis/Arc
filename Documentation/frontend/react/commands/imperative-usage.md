@@ -317,7 +317,7 @@ Avoid imperative usage when:
 - You're in a React component (use hooks instead)
 - You need automatic re-rendering
 - You want React lifecycle integration
-- Building forms (use [CommandForm](../command-form/index.md))
+- Building forms (use [CommandForm](./command-form/index.md))
 
 ## See Also
 
@@ -325,5 +325,5 @@ Avoid imperative usage when:
 - [React Hook Usage](./react-usage.md) - Recommended approach for React
 - [Data Binding](./data-binding.md)
 - [Validation](./validation.md)
-- [CommandForm](../command-form/index.md)
+- [CommandForm](./command-form/index.md)
 - [Core Commands](../../core/commands.md) - Lower-level command concepts

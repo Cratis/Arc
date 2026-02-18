@@ -10,3 +10,4 @@
 | [Command Scopes](./commands/scope.md) | The concept of a scope that captures command changes, validation and errors. |
 | [Queries](./queries.md) | What queries are and how to work with them in React. |
 | [Proxy Generation](../../backend/proxy-generation/index.md) | The .NET proxy generator and what it does. |
+| [Storybook](./storybook.md) | The Storybook for the components we expose. |

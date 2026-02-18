@@ -295,9 +295,9 @@ if (!result.isAuthorized) {
 
 For comprehensive details on the command validation system:
 
-- **TypeScript/React**: See [Core Command Validation](../../core/command-validation.md)
-- **Backend**: See [Backend Command Validation](../../../backend/commands/command-validation.md)
-- **Command Usage**: See [Commands Overview](../commands/index.md)
+- **TypeScript/React**: See [Core Command Validation](../../../core/command-validation.md)
+- **Backend**: See [Backend Command Validation](../../../../backend/commands/command-validation.md)
+- **Command Usage**: See [Commands Overview](../index.md)
 
 ## See Also
 

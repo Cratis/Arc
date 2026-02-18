@@ -222,7 +222,7 @@ This provides a seamless integration between the command pattern and React's dec
 
 4. **Handle All Result States**: Always check `isSuccess`, `isValid`, and `isAuthorized`
 
-5. **Use CommandForm**: For complex forms, consider using [CommandForm](../command-form/index.md) which handles much of this automatically
+5. **Use CommandForm**: For complex forms, consider using [CommandForm](./command-form/index.md) which handles much of this automatically
 
 ## See Also
 
@@ -230,5 +230,5 @@ This provides a seamless integration between the command pattern and React's dec
 - [Data Binding](./data-binding.md)
 - [Validation](./validation.md)
 - [Command Scope](./scope.md)
-- [CommandForm](../command-form/index.md) - Declarative form component for commands
+- [CommandForm](./command-form/index.md) - Declarative form component for commands
 - [Imperative Usage](./imperative-usage.md) - Advanced non-React usage

@@ -495,4 +495,4 @@ function EditUserModal({ userId, onClose }: { userId: string, onClose: () => voi
 - [Built-in Field Types](./field-types.md)
 - [Customization](./customization.md)
 - [Validation](./validation.md)
-- [Commands Overview](../commands/index.md)
+- [Commands Overview](../index.md)
