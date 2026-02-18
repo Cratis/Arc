@@ -163,22 +163,7 @@ export const UserRegistration: Story = {
                 <p>
                     This form validates progressively as you type. The submit button is enabled only when all validation passes.
                 </p>
-                
-                {validationSummary.length > 0 && (
-                    <div className="story-card" style={{ 
-                        backgroundColor: 'rgba(245, 158, 11, 0.1)', 
-                        borderColor: 'var(--color-warning)',
-                        marginBottom: 'var(--space-lg)'
-                    }}>
-                        <strong style={{ color: 'var(--color-warning)' }}>Validation Issues:</strong>
-                        <ul style={{ marginTop: 'var(--space-sm)', marginBottom: 0 }}>
-                            {validationSummary.map((error, index) => (
-                                <li key={index} style={{ color: 'var(--color-warning)' }}>{error}</li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                
+                               
                 <CommandForm<UserRegistrationCommand>
                     command={UserRegistrationCommand}
                     initialValues={{
@@ -292,6 +277,21 @@ export const UserRegistration: Story = {
                         label="I agree to the terms and conditions" 
                     />
                 </CommandForm>
+
+                {validationSummary.length > 0 && (
+                    <div className="story-card" style={{ 
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                        borderColor: 'var(--color-warning)',
+                        marginBottom: 'var(--space-lg)'
+                    }}>
+                        <strong style={{ color: 'var(--color-warning)' }}>Validation Issues:</strong>
+                        <ul style={{ marginTop: 'var(--space-sm)', marginBottom: 0 }}>
+                            {validationSummary.map((error, index) => (
+                                <li key={index} style={{ color: 'var(--color-warning)' }}>{error}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-xl)', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button 
