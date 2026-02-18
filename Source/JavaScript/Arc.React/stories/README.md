@@ -23,6 +23,7 @@ A container component for wrapping stories with consistent spacing and styling.
 - `className`: string - Additional CSS classes
 
 **Example:**
+
 ```tsx
 import { StoryContainer } from '../stories';
 
@@ -41,6 +42,7 @@ export const MyStory: Story = {
 A section component for grouping related content with consistent vertical spacing.
 
 **Example:**
+
 ```tsx
 <StoryContainer>
   <StorySection>
@@ -60,6 +62,7 @@ A section component for grouping related content with consistent vertical spacin
 A responsive grid container for displaying multiple items.
 
 **Example:**
+
 ```tsx
 <StoryGrid>
   <div className="story-card">Card 1</div>
@@ -73,6 +76,7 @@ A responsive grid container for displaying multiple items.
 A visual divider between sections.
 
 **Example:**
+
 ```tsx
 <StoryContainer>
   <p>First section</p>
@@ -91,6 +95,7 @@ A status badge component for displaying colored labels.
 - `className`: string - Additional CSS classes
 
 **Example:**
+
 ```tsx
 <p>
   Build Status: <StoryBadge variant="success">Passing</StoryBadge>
@@ -102,6 +107,7 @@ A status badge component for displaying colored labels.
 The story styles use CSS variables that automatically update based on the current theme:
 
 ### Colors
+
 - `--color-text`: Primary text color
 - `--color-text-secondary`: Secondary text color
 - `--color-text-muted`: Muted text color
@@ -118,6 +124,7 @@ The story styles use CSS variables that automatically update based on the curren
 - `--color-info`: Info state color
 
 ### Spacing
+
 - `--space-xs`: 0.25rem
 - `--space-sm`: 0.5rem
 - `--space-md`: 1rem
@@ -126,6 +133,7 @@ The story styles use CSS variables that automatically update based on the curren
 - `--space-2xl`: 3rem
 
 ### Other
+
 - `--radius-sm`, `--radius-md`, `--radius-lg`: Border radius values
 - `--shadow-sm`, `--shadow-md`, `--shadow-lg`: Box shadow values
 - `--font-sans`, `--font-mono`: Font families
