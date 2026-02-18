@@ -11,11 +11,11 @@ CommandForm renders children in the order they are defined. You can create custo
 ```tsx
 <CommandForm<UpdateProfile> command={UpdateProfile}>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <InputTextField<UpdateProfile> value={c => c.firstName} title="First Name" required />
-        <InputTextField<UpdateProfile> value={c => c.lastName} title="Last Name" required />
+        <InputTextField<UpdateProfile> value={c => c.firstName} title="First Name" />
+        <InputTextField<UpdateProfile> value={c => c.lastName} title="Last Name" />
     </div>
     
-    <InputTextField<UpdateProfile> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<UpdateProfile> value={c => c.email} type="email" title="Email" />
     <TextAreaField<UpdateProfile> value={c => c.bio} title="Biography" rows={5} />
 </CommandForm>
 ```
@@ -26,9 +26,9 @@ CommandForm renders children in the order they are defined. You can create custo
 <CommandForm<RegisterUser> command={RegisterUser}>
     <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
         <legend style={{ fontWeight: 'bold', padding: '0 0.5rem' }}>Account Information</legend>
-        <InputTextField<RegisterUser> value={c => c.username} title="Username" required />
-        <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
-        <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
+        <InputTextField<RegisterUser> value={c => c.username} title="Username" />
+        <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" />
+        <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" />
     </fieldset>
     
     <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem' }}>
@@ -50,7 +50,7 @@ function RegistrationForm() {
     
     return (
         <CommandForm<RegisterUser> command={RegisterUser}>
-            <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
+            <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" />
             
             <SelectField<RegisterUser>
                 value={c => c.accountType}
@@ -61,12 +61,11 @@ function RegistrationForm() {
                 ]}
                 optionIdField="id"
                 optionLabelField="name"
-                required
             />
             
             {command.accountType === 'business' && (
                 <>
-                    <InputTextField<RegisterUser> value={c => c.companyName} title="Company Name" required />
+                    <InputTextField<RegisterUser> value={c => c.companyName} title="Company Name" />
                     <InputTextField<RegisterUser> value={c => c.taxId} title="Tax ID" />
                 </>
             )}
