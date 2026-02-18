@@ -26,12 +26,12 @@ class UserCommand extends Command {
 function MyForm() {
     return (
         <CommandForm<UserCommand> command={UserCommand}>
-            <InputTextField 
+            <InputTextField<UserCommand>
                 value={c => c.name} 
                 title="Name"
                 placeholder="Enter your name" 
             />
-            <InputTextField 
+            <InputTextField<UserCommand>
                 value={c => c.email} 
                 title="Email"
                 type="email" 
@@ -42,6 +42,8 @@ function MyForm() {
     );
 }
 ```
+
+> **Note**: Field components require an explicit generic type parameter (e.g., `<InputTextField<UserCommand>>`) to ensure the `value` accessor function is properly typed. This provides full IntelliSense and type safety when writing `c => c.propertyName`.
 
 ## Props Reference
 
@@ -72,9 +74,9 @@ Set initial values for the form:
         role: 'user'
     }}
 >
-    <InputTextField value={c => c.name} title="Name" />
-    <InputTextField value={c => c.email} title="Email" />
-    <SelectField value={c => c.role} title="Role" options={roles} />
+    <InputTextField<UserCommand> value={c => c.name} title="Name" />
+    <InputTextField<UserCommand> value={c => c.email} title="Email" />
+    <SelectField<UserCommand> value={c => c.role} title="Role" options={roles} />
 </CommandForm>
 ```
 

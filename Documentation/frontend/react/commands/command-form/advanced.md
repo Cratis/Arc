@@ -9,33 +9,33 @@ CommandForm renders children in the order they are defined. You can create custo
 ### Multi-Column Layout
 
 ```tsx
-<CommandForm command={UpdateProfile}>
+<CommandForm<UpdateProfile> command={UpdateProfile}>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <InputTextField property="firstName" title="First Name" required />
-        <InputTextField property="lastName" title="Last Name" required />
+        <InputTextField<UpdateProfile> value={c => c.firstName} title="First Name" required />
+        <InputTextField<UpdateProfile> value={c => c.lastName} title="Last Name" required />
     </div>
     
-    <InputTextField property="email" type="email" title="Email" required />
-    <TextAreaField property="bio" title="Biography" rows={5} />
+    <InputTextField<UpdateProfile> value={c => c.email} type="email" title="Email" required />
+    <TextAreaField<UpdateProfile> value={c => c.bio} title="Biography" rows={5} />
 </CommandForm>
 ```
 
 ### Grouped Fields
 
 ```tsx
-<CommandForm command={RegisterUser}>
+<CommandForm<RegisterUser> command={RegisterUser}>
     <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
         <legend style={{ fontWeight: 'bold', padding: '0 0.5rem' }}>Account Information</legend>
-        <InputTextField property="username" title="Username" required />
-        <InputTextField property="email" type="email" title="Email" required />
-        <InputTextField property="password" type="password" title="Password" required />
+        <InputTextField<RegisterUser> value={c => c.username} title="Username" required />
+        <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
+        <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
     </fieldset>
     
     <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem' }}>
         <legend style={{ fontWeight: 'bold', padding: '0 0.5rem' }}>Personal Information</legend>
-        <InputTextField property="firstName" title="First Name" />
-        <InputTextField property="lastName" title="Last Name" />
-        <TextAreaField property="bio" title="Bio" rows={4} />
+        <InputTextField<RegisterUser> value={c => c.firstName} title="First Name" />
+        <InputTextField<RegisterUser> value={c => c.lastName} title="Last Name" />
+        <TextAreaField<RegisterUser> value={c => c.bio} title="Bio" rows={4} />
     </fieldset>
 </CommandForm>
 ```
@@ -49,11 +49,11 @@ function RegistrationForm() {
     const command = useCommandInstance(RegisterUser);
     
     return (
-        <CommandForm command={RegisterUser}>
-            <InputTextField property="email" type="email" title="Email" required />
+        <CommandForm<RegisterUser> command={RegisterUser}>
+            <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
             
-            <SelectField 
-                property="accountType"
+            <SelectField<RegisterUser>
+                value={c => c.accountType}
                 title="Account Type"
                 options={[
                     { id: 'personal', name: 'Personal' },
@@ -66,8 +66,8 @@ function RegistrationForm() {
             
             {command.accountType === 'business' && (
                 <>
-                    <InputTextField property="companyName" title="Company Name" required />
-                    <InputTextField property="taxId" title="Tax ID" />
+                    <InputTextField<RegisterUser> value={c => c.companyName} title="Company Name" required />
+                    <InputTextField<RegisterUser> value={c => c.taxId} title="Tax ID" />
                 </>
             )}
         </CommandForm>
@@ -109,8 +109,8 @@ function CustomSubmitButton() {
 }
 
 // Use within CommandForm
-<CommandForm command={UpdateProfile}>
-    <InputTextField property="name" title="Name" />
+<CommandForm<UpdateProfile> command={UpdateProfile}>
+    <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
     <CustomSubmitButton />
 </CommandForm>
 ```
@@ -145,9 +145,9 @@ function MyComponent() {
     return (
         <div>
             <button onClick={handleValidate}>Check Validity</button>
-            <CommandForm command={CreateOrder} initialValues={command}>
-                <SelectField 
-                    property="productId"
+            <CommandForm<CreateOrder> command={CreateOrder} initialValues={command}>
+                <SelectField<CreateOrder>
+                    value={c => c.productId}
                     title="Product"
                     options={command.products || []}
                     optionIdField="id"
@@ -187,9 +187,9 @@ function OrderForm() {
     }
     
     return (
-        <CommandForm command={CreateOrder}>
-            <SelectField 
-                property="productId"
+        <CommandForm<CreateOrder> command={CreateOrder}>
+            <SelectField<CreateOrder>
+                value={c => c.productId}
                 title="Product"
                 options={products}
                 optionIdField="id"
@@ -197,7 +197,7 @@ function OrderForm() {
                 placeholder="Select a product..."
                 required
             />
-            <NumberField property="quantity" title="Quantity" min={1} required />
+            <NumberField<CreateOrder> value={c => c.quantity} title="Quantity" min={1} required />
         </CommandForm>
     );
 }
@@ -227,9 +227,9 @@ function LocationForm() {
     }, [command.country]);
     
     return (
-        <CommandForm command={SaveLocation}>
-            <SelectField 
-                property="country"
+        <CommandForm<SaveLocation> command={SaveLocation}>
+            <SelectField<SaveLocation>
+                value={c => c.country}
                 title="Country"
                 options={countries}
                 optionIdField="id"
@@ -237,8 +237,8 @@ function LocationForm() {
                 required
             />
             
-            <SelectField 
-                property="city"
+            <SelectField<SaveLocation>
+                value={c => c.city}
                 title="City"
                 options={cities}
                 optionIdField="id"
@@ -273,11 +273,11 @@ function OrderForm() {
     };
     
     return (
-        <CommandForm 
+        <CommandForm<CreateOrder>
             command={CreateOrder}
             beforeExecute={handleBeforeExecute}
         >
-            <InputTextField property="customerName" title="Customer" required />
+            <InputTextField<CreateOrder> value={c => c.customerName} title="Customer" required />
             {/* More fields... */}
         </CommandForm>
     );
@@ -314,9 +314,9 @@ function SmartForm() {
     
     return (
         <div>
-            <CommandForm command={UpdateProfile}>
-                <InputTextField property="name" title="Name" />
-                <InputTextField property="email" type="email" title="Email" />
+            <CommandForm<UpdateProfile> command={UpdateProfile}>
+                <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+                <InputTextField<UpdateProfile> value={c => c.email} type="email" title="Email" />
             </CommandForm>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
@@ -375,9 +375,9 @@ function AutoSaveForm() {
     }, [command.hasChanges]);
     
     return (
-        <CommandForm command={UpdateDraft}>
-            <InputTextField property="title" title="Title" />
-            <TextAreaField property="content" title="Content" rows={10} />
+        <CommandForm<UpdateDraft> command={UpdateDraft}>
+            <InputTextField<UpdateDraft> value={c => c.title} title="Title" />
+            <TextAreaField<UpdateDraft> value={c => c.content} title="Content" rows={10} />
             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
                 Changes are saved automatically
             </div>
@@ -468,9 +468,9 @@ function EditUserModal({ userId, onClose }: { userId: string, onClose: () => voi
     return (
         <Modal open={open} onClose={onClose}>
             <h2>Edit User</h2>
-            <CommandForm command={UpdateUser} initialValues={command}>
-                <InputTextField property="name" title="Name" required />
-                <InputTextField property="email" type="email" title="Email" required />
+            <CommandForm<UpdateUser> command={UpdateUser} initialValues={command}>
+                <InputTextField<UpdateUser> value={c => c.name} title="Name" required />
+                <InputTextField<UpdateUser> value={c => c.email} type="email" title="Email" required />
             </CommandForm>
             <button onClick={handleSubmit}>Save</button>
             <button onClick={onClose}>Cancel</button>

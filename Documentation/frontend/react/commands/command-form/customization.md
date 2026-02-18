@@ -11,9 +11,9 @@ By default, CommandForm displays field titles above each field when they are def
 Set the `showTitles` prop to `false`:
 
 ```tsx
-<CommandForm command={MyCommand} showTitles={false}>
-    <InputTextField property="name" title="Full Name" />
-    <InputTextField property="email" type="email" title="Email Address" />
+<CommandForm<MyCommand> command={MyCommand} showTitles={false}>
+    <InputTextField<MyCommand> value={c => c.name} title="Full Name" />
+    <InputTextField<MyCommand> value={c => c.email} type="email" title="Email Address" />
 </CommandForm>
 ```
 
@@ -22,16 +22,16 @@ Set the `showTitles` prop to `false`:
 Combine `showTitles={false}` with custom heading or label elements:
 
 ```tsx
-<CommandForm command={MyCommand} showTitles={false}>
+<CommandForm<MyCommand> command={MyCommand} showTitles={false}>
     <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
         Full Name
     </h3>
-    <InputTextField property="name" title="Full Name" />
+    <InputTextField<MyCommand> value={c => c.name} title="Full Name" />
     
     <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem', marginTop: '1rem' }}>
         Email Address
     </h3>
-    <InputTextField property="email" type="email" title="Email Address" />
+    <InputTextField<MyCommand> value={c => c.email} type="email" title="Email Address" />
 </CommandForm>
 ```
 
@@ -53,9 +53,9 @@ CommandForm automatically displays error messages below fields when validation f
 Set the `showErrors` prop to `false`:
 
 ```tsx
-<CommandForm command={MyCommand} showErrors={false}>
-    <InputTextField property="email" type="email" title="Email" required />
-    <InputTextField property="password" type="password" title="Password" required />
+<CommandForm<MyCommand> command={MyCommand} showErrors={false}>
+    <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<MyCommand> value={c => c.password} type="password" title="Password" required />
 </CommandForm>
 ```
 
@@ -70,8 +70,8 @@ function MyForm() {
     const { instance } = useCommandFormContext();
     
     return (
-        <CommandForm command={MyCommand} showErrors={false}>
-            <InputTextField property="email" type="email" title="Email" required />
+        <CommandForm<MyCommand> command={MyCommand} showErrors={false}>
+            <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
             {instance.hasErrors('email') && (
                 <div className="error-message" style={{
                     backgroundColor: '#fee',
@@ -85,7 +85,7 @@ function MyForm() {
                 </div>
             )}
             
-            <InputTextField property="password" type="password" title="Password" required />
+            <InputTextField<MyCommand> value={c => c.password} type="password" title="Password" required />
             {instance.hasErrors('password') && (
                 <div className="error-message">
                     ⚠️ {instance.getErrorsFor('password').join(', ')}
@@ -105,7 +105,7 @@ function MyForm() {
     const { instance } = useCommandFormContext();
     
     return (
-        <CommandForm command={MyCommand} showErrors={false}>
+        <CommandForm<MyCommand> command={MyCommand} showErrors={false}>
             {instance.hasErrors() && (
                 <div className="error-summary" style={{
                     backgroundColor: '#fee',
@@ -127,8 +127,8 @@ function MyForm() {
                 </div>
             )}
             
-            <InputTextField property="email" type="email" title="Email" required />
-            <InputTextField property="password" type="password" title="Password" required />
+            <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
+            <InputTextField<MyCommand> value={c => c.password} type="password" title="Password" required />
         </CommandForm>
     );
 }
@@ -194,13 +194,13 @@ const CustomFieldContainer = ({ title, errorMessage, children }: FieldContainerP
 Then use it with CommandForm:
 
 ```tsx
-<CommandForm 
+<CommandForm<MyCommand>
     command={MyCommand} 
     fieldContainerComponent={CustomFieldContainer}
 >
-    <InputTextField property="name" title="Full Name" required />
-    <InputTextField property="email" type="email" title="Email Address" required />
-    <TextAreaField property="bio" title="Biography" rows={5} />
+    <InputTextField<MyCommand> value={c => c.name} title="Full Name" required />
+    <InputTextField<MyCommand> value={c => c.email} type="email" title="Email Address" required />
+    <TextAreaField<MyCommand> value={c => c.bio} title="Biography" rows={5} />
 </CommandForm>
 ```
 
@@ -284,18 +284,18 @@ Custom field containers are useful when you want:
 You can combine multiple customization options:
 
 ```tsx
-<CommandForm 
+<CommandForm<MyCommand>
     command={MyCommand} 
     showTitles={false}           // Disable auto titles
     showErrors={false}           // Disable auto errors
     fieldContainerComponent={CustomFieldContainer}  // Use custom container
 >
     <h2>Account Information</h2>
-    <InputTextField property="username" title="Username" required />
-    <InputTextField property="email" type="email" title="Email" required />
+    <InputTextField<MyCommand> value={c => c.username} title="Username" required />
+    <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
     
     <h2>Profile</h2>
-    <TextAreaField property="bio" title="Bio" />
+    <TextAreaField<MyCommand> value={c => c.bio} title="Bio" />
 </CommandForm>
 ```
 

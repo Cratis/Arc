@@ -2,13 +2,27 @@
 
 CommandForm provides a comprehensive set of built-in field components for common form inputs. All field components automatically integrate with the command's state management and validation system.
 
+## Type Safety
+
+All field components are generic and require an explicit type parameter to ensure type-safe accessor functions:
+
+```tsx
+// ✅ Correct: Full type safety with IntelliSense
+<InputTextField<UserCommand> value={c => c.name} title="Name" />
+
+// ❌ Incorrect: Missing type parameter - 'c' will be 'unknown'
+<InputTextField value={c => c.name} title="Name" />
+```
+
+The type parameter ensures the `value` accessor function parameter `c` is properly typed as your command class.
+
 ## Common Props
 
 All field components share these base props:
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `property` | `string` | **Required.** The property name on the command. |
+| `value` | `(instance: TCommand) => unknown` | **Required.** Accessor function that returns the property value from the command instance. |
 | `title` | `string` | The label for the field (shown when `showTitles` is enabled). |
 | `required` | `boolean` | Marks the field as required for validation. |
 
@@ -28,37 +42,37 @@ A versatile text input field that supports multiple input types through HTML5 in
 **Text Input:**
 
 ```tsx
-<InputTextField property="name" title="Full Name" placeholder="Enter your name" />
+<InputTextField<UserCommand> value={c => c.name} title="Full Name" placeholder="Enter your name" />
 ```
 
 **Email Input:**
 
 ```tsx
-<InputTextField property="email" type="email" title="Email" placeholder="your@email.com" required />
+<InputTextField<UserCommand> value={c => c.email} type="email" title="Email" placeholder="your@email.com" required />
 ```
 
 **Password Input:**
 
 ```tsx
-<InputTextField property="password" type="password" title="Password" required />
+<InputTextField<UserCommand> value={c => c.password} type="password" title="Password" required />
 ```
 
 **Date Input:**
 
 ```tsx
-<InputTextField property="birthDate" type="date" title="Birth Date" />
+<InputTextField<UserCommand> value={c => c.birthDate} type="date" title="Birth Date" />
 ```
 
 **Color Picker:**
 
 ```tsx
-<InputTextField property="favoriteColor" type="color" title="Favorite Color" />
+<InputTextField<UserCommand> value={c => c.favoriteColor} type="color" title="Favorite Color" />
 ```
 
 **URL Input:**
 
 ```tsx
-<InputTextField property="website" type="url" title="Website" placeholder="https://example.com" />
+<InputTextField<UserCommand> value={c => c.website} type="url" title="Website" placeholder="https://example.com" />
 ```
 
 ## NumberField
@@ -77,8 +91,8 @@ A specialized field for numeric input with support for min/max constraints and s
 ### Example
 
 ```tsx
-<NumberField 
-    property="age" 
+<NumberField<UserCommand>
+    value={c => c.age} 
     title="Age" 
     min={0} 
     max={120} 
@@ -86,8 +100,8 @@ A specialized field for numeric input with support for min/max constraints and s
     required 
 />
 
-<NumberField 
-    property="price" 
+<NumberField<ProductCommand>
+    value={c => c.price} 
     title="Price" 
     min={0} 
     step={0.01}
@@ -110,15 +124,15 @@ A multi-line text input field for longer content.
 ### Example
 
 ```tsx
-<TextAreaField 
-    property="bio" 
+<TextAreaField<UserCommand>
+    value={c => c.bio} 
     title="Biography" 
     placeholder="Tell us about yourself..."
     rows={8}
 />
 
-<TextAreaField 
-    property="notes" 
+<TextAreaField<NoteCommand>
+    value={c => c.notes} 
     title="Additional Notes" 
     rows={3}
 />
@@ -137,15 +151,15 @@ A checkbox input for boolean (true/false) values.
 ### Example
 
 ```tsx
-<CheckboxField 
-    property="agreeToTerms" 
+<CheckboxField<UserCommand>
+    value={c => c.agreeToTerms} 
     title="Terms of Service"
     label="I agree to the terms and conditions" 
     required 
 />
 
-<CheckboxField 
-    property="newsletter" 
+<CheckboxField<UserCommand>
+    value={c => c.newsletter} 
     title="Newsletter"
     label="Send me newsletter updates" 
 />
@@ -166,16 +180,16 @@ A slider input for selecting a numeric value within a range.
 ### Example
 
 ```tsx
-<RangeField 
-    property="volume" 
+<RangeField<AudioCommand>
+    value={c => c.volume} 
     title="Volume" 
     min={0} 
     max={100} 
     step={1}
 />
 
-<RangeField 
-    property="experience" 
+<RangeField<UserCommand>
+    value={c => c.experience} 
     title="Years of Experience" 
     min={0} 
     max={50} 
@@ -208,8 +222,8 @@ const countries = [
     { id: 'no', name: 'Norway' }
 ];
 
-<SelectField 
-    property="country" 
+<SelectField<UserCommand>
+    value={c => c.country} 
     title="Country"
     options={countries}
     optionIdField="id"
@@ -228,8 +242,8 @@ const roles = [
     { value: 'guest', display: 'Guest' }
 ];
 
-<SelectField 
-    property="role" 
+<SelectField<UserCommand>
+    value={c => c.role} 
     title="User Role"
     options={roles}
     optionIdField="value"

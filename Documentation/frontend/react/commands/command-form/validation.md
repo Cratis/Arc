@@ -16,10 +16,10 @@ CommandForm automatically validates field inputs and displays errors based on:
 Mark fields as required using the `required` prop:
 
 ```tsx
-<CommandForm command={RegisterUser}>
-    <InputTextField property="email" type="email" title="Email" required />
-    <InputTextField property="password" type="password" title="Password" required />
-    <CheckboxField property="agreeToTerms" title="Terms" label="I agree" required />
+<CommandForm<RegisterUser> command={RegisterUser}>
+    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
+    <CheckboxField<RegisterUser> value={c => c.agreeToTerms} title="Terms" label="I agree" required />
 </CommandForm>
 ```
 
@@ -34,11 +34,11 @@ By default, CommandForm displays error messages below each invalid field:
 
 ```tsx
 // Errors shown automatically for invalid/required fields
-<CommandForm command={CreateAccount}>
-    <InputTextField property="username" title="Username" required />
+<CommandForm<CreateAccount> command={CreateAccount}>
+    <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
     {/* Error appears here if username is empty or invalid */}
     
-    <InputTextField property="email" type="email" title="Email" required />
+    <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
     {/* Error appears here if email is invalid format */}
 </CommandForm>
 ```
@@ -48,8 +48,8 @@ By default, CommandForm displays error messages below each invalid field:
 Disable automatic errors to implement custom error rendering:
 
 ```tsx
-<CommandForm command={CreateAccount} showErrors={false}>
-    <InputTextField property="username" title="Username" required />
+<CommandForm<CreateAccount> command={CreateAccount} showErrors={false}>
+    <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
     {/* No automatic error rendering */}
 </CommandForm>
 ```
@@ -61,26 +61,26 @@ See [Customization](./customization.md) for custom error rendering patterns.
 Field components leverage HTML5 validation attributes:
 
 ```tsx
-<CommandForm command={UpdateProfile}>
+<CommandForm<UpdateProfile> command={UpdateProfile}>
     {/* Email format validation */}
-    <InputTextField 
-        property="email" 
+    <InputTextField<UpdateProfile>
+        value={c => c.email} 
         type="email" 
         title="Email" 
         required 
     />
     
     {/* URL format validation */}
-    <InputTextField 
-        property="website" 
+    <InputTextField<UpdateProfile>
+        value={c => c.website} 
         type="url" 
         title="Website" 
         placeholder="https://example.com"
     />
     
     {/* Number range validation */}
-    <NumberField 
-        property="age" 
+    <NumberField<UpdateProfile>
+        value={c => c.age} 
         title="Age" 
         min={18} 
         max={120} 
@@ -88,8 +88,8 @@ Field components leverage HTML5 validation attributes:
     />
     
     {/* Pattern matching */}
-    <InputTextField 
-        property="phone" 
+    <InputTextField<UpdateProfile>
+        value={c => c.phone} 
         type="tel" 
         title="Phone Number"
     />
@@ -129,9 +129,9 @@ public class CreateUserHandler : ICommandHandler<CreateUser>
 ### Form Usage
 
 ```tsx
-<CommandForm command={CreateUser}>
-    <InputTextField property="email" type="email" title="Email" required />
-    <InputTextField property="username" title="Username" required />
+<CommandForm<CreateUser> command={CreateUser}>
+    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
 </CommandForm>
 ```
 
@@ -153,8 +153,8 @@ function MyForm() {
     const { instance } = useCommandFormContext();
     
     return (
-        <CommandForm command={CreateAccount} showErrors={false}>
-            <InputTextField property="email" type="email" title="Email" required />
+        <CommandForm<CreateAccount> command={CreateAccount} showErrors={false}>
+            <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
             
             {/* Check for specific field errors */}
             {instance.hasErrors('email') && (
@@ -163,7 +163,7 @@ function MyForm() {
                 </div>
             )}
             
-            <InputTextField property="username" title="Username" required />
+            <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
             
             {/* Check for any errors */}
             {instance.hasErrors() && (
@@ -201,9 +201,9 @@ function MyForm() {
     }, [command.hasChanges]);
     
     return (
-        <CommandForm command={CreateAccount}>
-            <InputTextField property="email" type="email" title="Email" required />
-            <InputTextField property="username" title="Username" required />
+        <CommandForm<CreateAccount> command={CreateAccount}>
+            <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
+            <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
             
             <button type="submit" disabled={!canSubmit}>
                 Create Account
@@ -234,9 +234,9 @@ function RegistrationForm() {
     };
     
     return (
-        <CommandForm command={RegisterUser} showErrors={false}>
-            <InputTextField 
-                property="email" 
+        <CommandForm<RegisterUser> command={RegisterUser} showErrors={false}>
+            <InputTextField<RegisterUser>
+                value={c => c.email} 
                 type="email" 
                 title="Email" 
                 required 
