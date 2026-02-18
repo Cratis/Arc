@@ -56,6 +56,6 @@ describe("when rendering with mixed children", given(a_command_form_fields_conte
     it("should render custom content in correct order", () => {
         const customContent = container.querySelector('[data-testid="custom-content"]');
         (customContent !== null).should.be.true;
-        customContent!.textContent.should.equal('Custom Content');
+        customContent!.textContent!.should.equal('Custom Content');
     });
 }));
