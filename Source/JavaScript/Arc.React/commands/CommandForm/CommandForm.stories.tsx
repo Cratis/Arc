@@ -514,8 +514,6 @@ export const CustomFieldContainer: Story = {
             );
         };
 
-        const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
         return (
             <StoryContainer size="sm" asCard>
                 <h2>Custom Field Container</h2>
@@ -525,24 +523,6 @@ export const CustomFieldContainer: Story = {
                 <CommandForm<SimpleCommand>
                     command={SimpleCommand}
                     fieldContainerComponent={CustomContainer}
-                    onFieldChange={async (command, fieldName) => {
-                        const result = await command.validate();
-                        
-                        if (!result.isValid) {
-                            const fieldError = result.validationResults.find(
-                                v => v.members.includes(fieldName)
-                            );
-                            
-                            if (fieldError) {
-                                setFieldErrors(prev => ({ ...prev, [fieldName]: fieldError.message }));
-                            }
-                        } else {
-                            setFieldErrors(prev => {
-                                const { [fieldName]: removed, ...rest } = prev;
-                                return rest;
-                            });
-                        }
-                    }}
                 >
                     <InputTextField<SimpleCommand> 
                         value={c => c.name} 

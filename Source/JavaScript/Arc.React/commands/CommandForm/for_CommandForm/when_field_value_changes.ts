@@ -4,6 +4,7 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { CommandForm, useCommandInstance } from '../CommandForm';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { CommandFormField } from '../CommandFormField';
 import { asCommandFormField } from '../asCommandFormField';
 import { TestCommand } from './TestCommand';

@@ -3,7 +3,8 @@
 
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
+import { CommandForm } from '../CommandForm';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { CommandFormField } from '../CommandFormField';
 import { asCommandFormField } from '../asCommandFormField';
 import { TestCommand } from './TestCommand';
@@ -28,13 +29,11 @@ const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: un
 describe("when field validation callback provided", given(a_command_form_context, context => {
     let validationCallCount = 0;
     let lastValidatedFieldName = '';
-    let lastOldValue: unknown;
     let lastNewValue: unknown;
 
     beforeEach(() => {
         validationCallCount = 0;
         lastValidatedFieldName = '';
-        lastOldValue = undefined;
         lastNewValue = undefined;
 
         const result = render(
@@ -42,10 +41,9 @@ describe("when field validation callback provided", given(a_command_form_context
                 CommandForm,
                 {
                     command: TestCommand,
-                    onFieldValidate: (cmd, fieldName, oldValue, newValue) => {
+                    onFieldValidate: (cmd, fieldName, _oldValue, newValue) => {
                         validationCallCount++;
                         lastValidatedFieldName = fieldName;
-                        lastOldValue = oldValue;
                         lastNewValue = newValue;
                         if (newValue === 'invalid') {
                             return 'This value is not allowed';

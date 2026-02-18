@@ -135,7 +135,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
 };
 
 const CommandFormComponent = <TCommand extends object = object>(props: CommandFormProps<TCommand>) => {
-    const { fieldsOrColumns, otherChildren, initialValuesFromFields, orderedChildren } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
+    const { fieldsOrColumns, initialValuesFromFields, orderedChildren } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
 
     // Extract matching properties from currentValues
     const valuesFromCurrentValues = useMemo(() => {

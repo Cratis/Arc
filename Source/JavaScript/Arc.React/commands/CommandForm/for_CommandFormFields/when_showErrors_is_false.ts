@@ -4,7 +4,7 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
-import { CommandFormField } from '../CommandFormField';
+
 import { asCommandFormField } from '../asCommandFormField';
 import { TestCommand } from '../for_CommandForm/TestCommand';
 import { a_command_form_fields_context } from './given/a_command_form_fields_context';

@@ -4,6 +4,7 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { CommandFormField } from '../CommandFormField';
 import { asCommandFormField } from '../asCommandFormField';
 import { TestCommand } from './TestCommand';
@@ -28,13 +29,11 @@ const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: un
 describe("when field change callback provided", given(a_command_form_context, context => {
     let changeCallCount = 0;
     let lastChangedFieldName = '';
-    let lastOldValue: unknown;
     let lastNewValue: unknown;
 
     beforeEach(() => {
         changeCallCount = 0;
         lastChangedFieldName = '';
-        lastOldValue = undefined;
         lastNewValue = undefined;
 
         const result = render(
@@ -42,10 +41,9 @@ describe("when field change callback provided", given(a_command_form_context, co
                 CommandForm,
                 {
                     command: TestCommand,
-                    onFieldChange: (cmd, fieldName, oldValue, newValue) => {
+                    onFieldChange: (cmd, fieldName, _oldValue, newValue) => {
                         changeCallCount++;
                         lastChangedFieldName = fieldName;
-                        lastOldValue = oldValue;
                         lastNewValue = newValue;
                     }
                 },
