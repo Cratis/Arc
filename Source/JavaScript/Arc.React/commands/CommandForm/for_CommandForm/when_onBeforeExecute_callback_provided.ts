@@ -33,11 +33,11 @@ describe("when onBeforeExecute callback provided", given(a_command_form_context,
     });
 
     it("should set onBeforeExecute in context", () => {
-        contextValue!.onBeforeExecute.should.not.be.undefined;
+        contextValue!.onBeforeExecute!.should.not.be.undefined;
     });
 
     it("should execute callback correctly", () => {
-        const result = contextValue!.onBeforeExecute!({ name: 'Original', email: 'test@example.com' } as TestCommand);
-        result.name.should.equal('Modified');
+        const result = contextValue!.onBeforeExecute!({ name: 'Original', email: 'test@example.com' } as TestCommand) as TestCommand;
+        result.name!.should.equal('Modified');
     });
 }));

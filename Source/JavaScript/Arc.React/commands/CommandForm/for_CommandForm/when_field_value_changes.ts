@@ -54,6 +54,6 @@ describe("when field value changes", given(a_command_form_context, context => {
     });
 
     it("should update command instance", () => {
-        capturedCommand!.name.should.equal('Updated Name');
+        capturedCommand!.name!.should.equal('Updated Name');
     });
 }));

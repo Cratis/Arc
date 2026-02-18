@@ -34,10 +34,10 @@ describe("when initializing with initial values", given(a_command_form_context, 
     });
 
     it("should set name from initial values", () => {
-        capturedCommand!.name.should.equal('John');
+        capturedCommand!.name!.should.equal('John');
     });
 
     it("should set email from initial values", () => {
-        capturedCommand!.email.should.equal('john@example.com');
+        capturedCommand!.email!.should.equal('john@example.com');
     });
 }));

@@ -32,10 +32,10 @@ describe("when initializing with current values", given(a_command_form_context, 
     });
 
     it("should set name from current values", () => {
-        capturedCommand!.name.should.equal('Jane');
+        capturedCommand!.name!.should.equal('Jane');
     });
 
     it("should set age from current values", () => {
-        capturedCommand!.age.should.equal(30);
+        capturedCommand!.age!.should.equal(30);
     });
 }));

@@ -40,10 +40,10 @@ describe("when extracting initial values from field currentValue props", given(a
     });
 
     it("should set name from field currentValue", () => {
-        capturedCommand!.name.should.equal('Field Value');
+        capturedCommand!.name!.should.equal('Field Value');
     });
 
     it("should set email from field currentValue", () => {
-        capturedCommand!.email.should.equal('field@example.com');
+        capturedCommand!.email!.should.equal('field@example.com');
     });
 }));

@@ -32,7 +32,7 @@ describe("when accessing context from child component", given(a_command_form_con
     });
 
     it("should provide command instance in context", () => {
-        contextValue!.commandInstance.should.not.be.null;
+        (contextValue!.commandInstance as object).should.not.be.null;
     });
 
     it("should provide isValid flag in context", () => {

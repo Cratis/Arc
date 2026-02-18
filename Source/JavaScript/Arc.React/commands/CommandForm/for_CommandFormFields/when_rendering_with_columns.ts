@@ -35,7 +35,7 @@ describe("when rendering with columns", given(a_command_form_fields_context, con
                 { command: TestCommand },
                 React.createElement(
                     CommandForm.Column,
-                    {},
+                    null,
                     React.createElement(SimpleTextField, {
                         value: (c: TestCommand) => c.name,
                         title: 'Name'
@@ -43,7 +43,7 @@ describe("when rendering with columns", given(a_command_form_fields_context, con
                 ),
                 React.createElement(
                     CommandForm.Column,
-                    {},
+                    null,
                     React.createElement(SimpleTextField, {
                         value: (c: TestCommand) => c.email,
                         title: 'Email'

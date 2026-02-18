@@ -72,6 +72,6 @@ describe("when field validation callback provided", given(a_command_form_context
     });
 
     it("should pass new value to validator", () => {
-        lastNewValue.should.equal('test-value');
+        (lastNewValue as string).should.equal('test-value');
     });
 }));

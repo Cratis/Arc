@@ -68,6 +68,6 @@ describe("when field change callback provided", given(a_command_form_context, co
     });
 
     it("should pass new value to callback", () => {
-        lastNewValue.should.equal('new-value');
+        (lastNewValue as string).should.equal('new-value');
     });
 }));

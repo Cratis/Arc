@@ -35,14 +35,14 @@ describe("when initial values and current values both provided", given(a_command
     });
 
     it("should prefer initial values over current values for name", () => {
-        capturedCommand!.name.should.equal('FromInitial');
+        capturedCommand!.name!.should.equal('FromInitial');
     });
 
     it("should use email from initial values", () => {
-        capturedCommand!.email.should.equal('initial@example.com');
+        capturedCommand!.email!.should.equal('initial@example.com');
     });
 
     it("should use age from current values when not in initial values", () => {
-        capturedCommand!.age.should.equal(25);
+        capturedCommand!.age!.should.equal(25);
     });
 }));

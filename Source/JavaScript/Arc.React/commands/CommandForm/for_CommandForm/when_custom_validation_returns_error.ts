@@ -58,11 +58,11 @@ describe("when custom validation returns error", given(a_command_form_context, c
 
     it("should display error message", () => {
         const errorText = container.querySelector('small');
-        errorText!.textContent.should.equal('This value is not allowed');
+        errorText!.textContent!.should.equal('This value is not allowed');
     });
 
     it("should mark field as invalid", () => {
         const input = container.querySelector('[data-testid="text-input"]') as HTMLInputElement;
-        input.getAttribute('aria-invalid').should.equal('true');
+        input.getAttribute('aria-invalid')!.should.equal('true');
     });
 }));

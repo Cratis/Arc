@@ -67,6 +67,6 @@ describe("when custom field container provided", given(a_command_form_fields_con
 
     it("should pass title to custom container", () => {
         const customContainer = container.querySelector('[data-testid="custom-container"]');
-        customContainer!.getAttribute('data-title').should.equal('Name');
+        customContainer!.getAttribute('data-title')!.should.equal('Name');
     });
 }));
