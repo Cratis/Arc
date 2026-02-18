@@ -81,6 +81,18 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
 
     return (
         <div className="w-full">
+            {fieldProps.title && (
+                <label 
+                    style={{ 
+                        display: 'block', 
+                        marginBottom: '0.5rem', 
+                        fontWeight: 500,
+                        color: 'var(--color-text)'
+                    }}
+                >
+                    {fieldProps.title}
+                </label>
+            )}
             <div className="p-inputgroup w-full">
                 {fieldProps.description && (
                     <Tooltip target={`.${tooltipId}`} content={fieldProps.description} />
