@@ -38,8 +38,11 @@ describe('when field has nullable property', () => {
         const contextValue = {
             commandInstance: command,
             commandVersion: 0,
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
             setCommandValues: () => {},
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
             setCommandResult: () => {},
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
             setCustomFieldError: () => {},
             getFieldError: () => undefined,
             customFieldErrors: {},
