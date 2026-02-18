@@ -24,7 +24,9 @@ All field components share these base props:
 |------|------|-------------|
 | `value` | `(instance: TCommand) => unknown` | **Required.** Accessor function that returns the property value from the command instance. |
 | `title` | `string` | The label for the field (shown when `showTitles` is enabled). |
-| `required` | `boolean` | Marks the field as required for validation. |
+| `required` | `boolean` | Marks the field as required for validation. **Automatically determined** from the command property's `PropertyDescriptor.isOptional` (required if not optional). Only specify explicitly to override the automatic behavior. |
+
+> **Note**: Fields are automatically marked as required based on the command property's nullability. In C#, non-nullable properties generate `PropertyDescriptor` with `isOptional: false`, making those fields required by default. You only need to specify `required` explicitly when you want to override this behavior.
 
 ## InputTextField
 
@@ -48,13 +50,13 @@ A versatile text input field that supports multiple input types through HTML5 in
 **Email Input:**
 
 ```tsx
-<InputTextField<UserCommand> value={c => c.email} type="email" title="Email" placeholder="your@email.com" required />
+<InputTextField<UserCommand> value={c => c.email} type="email" title="Email" placeholder="your@email.com" />
 ```
 
 **Password Input:**
 
 ```tsx
-<InputTextField<UserCommand> value={c => c.password} type="password" title="Password" required />
+<InputTextField<UserCommand> value={c => c.password} type="password" title="Password" />
 ```
 
 **Date Input:**
@@ -97,7 +99,6 @@ A specialized field for numeric input with support for min/max constraints and s
     min={0} 
     max={120} 
     step={1}
-    required 
 />
 
 <NumberField<ProductCommand>
@@ -155,7 +156,6 @@ A checkbox input for boolean (true/false) values.
     value={c => c.agreeToTerms} 
     title="Terms of Service"
     label="I agree to the terms and conditions" 
-    required 
 />
 
 <CheckboxField<UserCommand>
@@ -229,7 +229,6 @@ const countries = [
     optionIdField="id"
     optionLabelField="name"
     placeholder="Select a country..."
-    required
 />
 ```
 
