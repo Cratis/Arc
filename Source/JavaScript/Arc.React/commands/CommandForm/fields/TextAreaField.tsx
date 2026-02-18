@@ -20,6 +20,7 @@ export const TextAreaField = asCommandFormField<TextAreaFieldComponentProps>(
             rows={props.rows ?? 5}
             cols={props.cols}
             className={`w-full p-3 rounded-md text-base ${props.invalid ? 'border border-red-500' : 'border border-gray-300'}`}
+            style={{ width: '100%', display: 'block' }}
         />
     ),
     {
