@@ -2,7 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import type { StorybookConfig } from "@storybook/react-vite";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
+import type { InlineConfig } from 'vite';
 
 const config: StorybookConfig = {
   stories: [
@@ -17,6 +18,20 @@ const config: StorybookConfig = {
   framework: {
     name: getAbsolutePath("@storybook/react-vite"),
     options: {},
+  },
+  async viteFinal(config: InlineConfig) {
+    // Resolve workspace dependencies for monorepo setup
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@cratis/arc/reflection': resolve(__dirname, '../../Arc/reflection/index.ts'),
+      '@cratis/arc/commands': resolve(__dirname, '../../Arc/commands/index.ts'),
+      '@cratis/arc/queries': resolve(__dirname, '../../Arc/queries/index.ts'),
+      '@cratis/arc/validation': resolve(__dirname, '../../Arc/validation/index.ts'),
+      '@cratis/arc/identity': resolve(__dirname, '../../Arc/identity/index.ts'),
+      '@cratis/arc': resolve(__dirname, '../../Arc/index.ts'),
+    };
+    return config;
   },
 };
 
