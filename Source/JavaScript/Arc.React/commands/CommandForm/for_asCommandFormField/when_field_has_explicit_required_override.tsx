@@ -37,6 +37,7 @@ describe('when field has explicit required override', () => {
             const propertyDescriptor = command.propertyDescriptors.find(pd => pd.name === 'optionalField')!;
 
             const contextValue = {
+                command: TestCommand,
                 commandInstance: command,
                 commandVersion: 0,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -47,6 +48,9 @@ describe('when field has explicit required override', () => {
                 setCustomFieldError: () => {},
                 getFieldError: () => undefined,
                 customFieldErrors: {},
+                isValid: true,
+                // eslint-disable-next-line @typescript-eslint/no-empty-function
+                setFieldValidity: () => {},
                 showTitles: true,
                 showErrors: true,
                 fieldContainerComponent: undefined,
@@ -81,6 +85,7 @@ describe('when field has explicit required override', () => {
             const propertyDescriptor = command.propertyDescriptors.find(pd => pd.name === 'requiredField')!;
 
             const contextValue = {
+                command: TestCommand,
                 commandInstance: command,
                 commandVersion: 0,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -91,6 +96,9 @@ describe('when field has explicit required override', () => {
                 setCustomFieldError: () => {},
                 getFieldError: () => undefined,
                 customFieldErrors: {},
+                isValid: true,
+                // eslint-disable-next-line @typescript-eslint/no-empty-function
+                setFieldValidity: () => {},
                 showTitles: true,
                 showErrors: true,
                 fieldContainerComponent: undefined,

@@ -36,6 +36,7 @@ describe('when field has non-nullable property', () => {
         const propertyDescriptor = command.propertyDescriptors.find(pd => pd.name === 'requiredField')!;
 
         const contextValue = {
+            command: TestCommand,
             commandInstance: command,
             commandVersion: 0,
             // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -46,6 +47,9 @@ describe('when field has non-nullable property', () => {
             setCustomFieldError: () => {},
             getFieldError: () => undefined,
             customFieldErrors: {},
+            isValid: true,
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            setFieldValidity: () => {},
             showTitles: true,
             showErrors: true,
             fieldContainerComponent: undefined,

@@ -35,6 +35,7 @@ describe('when field has no property descriptor', () => {
         const command = new TestCommand();
 
         const contextValue = {
+            command: TestCommand,
             commandInstance: command,
             commandVersion: 0,
             // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -45,6 +46,9 @@ describe('when field has no property descriptor', () => {
             setCustomFieldError: () => {},
             getFieldError: () => undefined,
             customFieldErrors: {},
+            isValid: true,
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            setFieldValidity: () => {},
             showTitles: true,
             showErrors: true,
             fieldContainerComponent: undefined,
