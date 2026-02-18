@@ -5,7 +5,7 @@
 - name: Dialogs
   href: dialogs.md
 - name: Commands
-  href: commands/
+  href: commands/commands.toc
 - name: Queries
   href: queries.md
 - name: Proxy Generation
