@@ -4,7 +4,6 @@
 import React, { useState } from 'react';
 import { Meta, StoryObj } from '@storybook/react';
 import { CommandForm } from './CommandForm';
-import { ValidationMessage } from './ValidationMessage';
 import { UserRegistrationCommand } from './UserRegistrationCommand';
 import { 
     InputTextField, 
@@ -108,31 +107,28 @@ export const Default: Story = {
                         }
                     }}
                 >
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Name
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<SimpleCommand> value={c => c.name} placeholder="Enter your name (min 3 chars)" />
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter your name (min 3 chars)" 
+                    />
+                    {validationState.errors.name && (
+                        <div style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+                            {validationState.errors.name}
                         </div>
-                        <ValidationMessage<SimpleCommand> value={c => c.name} />
-                        {validationState.errors.name && (
-                            <div className="text-red-500 text-sm mt-1">{validationState.errors.name}</div>
-                        )}
-                    </div>
+                    )}
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Email
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<SimpleCommand> value={c => c.email} type="email" placeholder="Enter your email" />
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter your email" 
+                    />
+                    {validationState.errors.email && (
+                        <div style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+                            {validationState.errors.email}
                         </div>
-                        <ValidationMessage<SimpleCommand> value={c => c.email} />
-                        {validationState.errors.email && (
-                            <div className="text-red-500 text-sm mt-1">{validationState.errors.email}</div>
-                        )}
-                    </div>
+                    )}
 
                     <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         <button 
@@ -214,120 +210,87 @@ export const UserRegistration: Story = {
                         }
                     }}
                 >
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Username
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<UserRegistrationCommand> value={c => c.username} placeholder="Enter username" />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.username} />
-                    </div>
+                    <InputTextField<UserRegistrationCommand> 
+                        value={c => c.username} 
+                        title="Username"
+                        placeholder="Enter username" 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Email Address
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<UserRegistrationCommand> value={c => c.email} type="email" placeholder="Enter email" />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.email} />
-                    </div>
+                    <InputTextField<UserRegistrationCommand> 
+                        value={c => c.email} 
+                        title="Email Address"
+                        type="email" 
+                        placeholder="Enter email" 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Password
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<UserRegistrationCommand> value={c => c.password} type="password" placeholder="Enter password" />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.password} />
-                    </div>
+                    <InputTextField<UserRegistrationCommand> 
+                        value={c => c.password} 
+                        title="Password"
+                        type="password" 
+                        placeholder="Enter password" 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Confirm Password
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<UserRegistrationCommand> value={c => c.confirmPassword} type="password" placeholder="Confirm password" />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.confirmPassword} />
-                    </div>
+                    <InputTextField<UserRegistrationCommand> 
+                        value={c => c.confirmPassword} 
+                        title="Confirm Password"
+                        type="password" 
+                        placeholder="Confirm password" 
+                    />
 
                     <h3 style={{ marginTop: 'var(--space-2xl)' }}>Personal Information</h3>
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Age
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <NumberField<UserRegistrationCommand> value={c => c.age} placeholder="Enter age" min={13} max={120} />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.age} />
-                    </div>
+                    <NumberField<UserRegistrationCommand> 
+                        value={c => c.age} 
+                        title="Age"
+                        placeholder="Enter age" 
+                        min={13} 
+                        max={120} 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Birth Date
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<UserRegistrationCommand> value={c => c.birthDate} type="date" placeholder="Select birth date" />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.birthDate} />
-                    </div>
+                    <InputTextField<UserRegistrationCommand> 
+                        value={c => c.birthDate} 
+                        title="Birth Date"
+                        type="date" 
+                        placeholder="Select birth date" 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Bio
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <TextAreaField<UserRegistrationCommand> value={c => c.bio} placeholder="Tell us about yourself" rows={4} required={false} />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.bio} />
-                    </div>
+                    <TextAreaField<UserRegistrationCommand> 
+                        value={c => c.bio} 
+                        title="Bio"
+                        placeholder="Tell us about yourself" 
+                        rows={4} 
+                        required={false} 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Favorite Color
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <InputTextField<UserRegistrationCommand> value={c => c.favoriteColor} type="color" />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.favoriteColor} />
-                    </div>
+                    <InputTextField<UserRegistrationCommand> 
+                        value={c => c.favoriteColor} 
+                        title="Favorite Color"
+                        type="color" 
+                    />
 
                     <h3 style={{ marginTop: 'var(--space-2xl)' }}>Preferences</h3>
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Role
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <SelectField<UserRegistrationCommand>
-                                value={c => c.role}
-                                options={roleOptions} 
-                                optionIdField="id" 
-                                optionLabelField="name"
-                                placeholder="Select a role"
-                            />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.role} />
-                    </div>
+                    <SelectField<UserRegistrationCommand>
+                        value={c => c.role}
+                        title="Role"
+                        options={roleOptions} 
+                        optionIdField="id" 
+                        optionLabelField="name"
+                        placeholder="Select a role"
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
-                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
-                            Experience Level
-                        </label>
-                        <div style={{ width: '100%' }}>
-                            <RangeField<UserRegistrationCommand> value={c => c.experienceLevel} min={0} max={100} step={10} />
-                        </div>
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.experienceLevel} />
-                    </div>
+                    <RangeField<UserRegistrationCommand> 
+                        value={c => c.experienceLevel} 
+                        title="Experience Level"
+                        min={0} 
+                        max={100} 
+                        step={10} 
+                    />
                     
-                    <div style={{ marginBottom: 'var(--space-lg)' }}>
-                        <CheckboxField<UserRegistrationCommand> value={c => c.agreeToTerms} label="I agree to the terms and conditions" />
-                        <ValidationMessage<UserRegistrationCommand> value={c => c.agreeToTerms} />
-                    </div>
+                    <CheckboxField<UserRegistrationCommand> 
+                        value={c => c.agreeToTerms} 
+                        label="I agree to the terms and conditions" 
+                    />
                 </CommandForm>
 
                 <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-xl)', alignItems: 'center', flexWrap: 'wrap' }}>
