@@ -9,16 +9,13 @@ import { TestCommand } from './TestCommand';
 import { a_command_form_context } from './given/a_command_form_context';
 import { given } from '../../../given';
 
-const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: string) => void; invalid: boolean; required: boolean; errors: string[]; title?: string }>(
+const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: unknown) => void; invalid: boolean; required: boolean; errors: string[]; title?: string }>(
     (props) => {
-        return React.createElement('div', {},
-            props.title && React.createElement('label', {}, props.title),
-            React.createElement('input', {
-                type: 'text',
-                value: props.value,
-                onChange: (e: React.ChangeEvent<HTMLInputElement>) => props.onChange(e.target.value)
-            })
-        );
+        return React.createElement('input', {
+            type: 'text',
+            value: props.value,
+            onChange: props.onChange
+        });
     },
     {
         defaultValue: '',
@@ -49,7 +46,7 @@ describe("when rendering with direct field children", given(a_command_form_conte
     });
 
     it("should render the form", () => {
-        container.should.not.be.null;
+        (container !== undefined && container !== null).should.be.true;
     });
 
     it("should render field titles when showTitles is default true", () => {

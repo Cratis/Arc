@@ -35,18 +35,18 @@ describe("when rendering with columns", given(a_command_form_fields_context, con
                 React.createElement(
                     CommandForm.Column,
                     {},
-                    React.createElement(CommandFormField, {
+                    React.createElement(SimpleTextField, {
                         value: (c: TestCommand) => c.name,
                         title: 'Name'
-                    }, React.createElement(SimpleTextField))
+                    })
                 ),
                 React.createElement(
                     CommandForm.Column,
                     {},
-                    React.createElement(CommandFormField, {
+                    React.createElement(SimpleTextField, {
                         value: (c: TestCommand) => c.email,
                         title: 'Email'
-                    }, React.createElement(SimpleTextField))
+                    })
                 )
             ),
             { wrapper: context.createWrapper() }

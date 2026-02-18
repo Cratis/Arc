@@ -42,10 +42,10 @@ describe("when showErrors is false", given(a_command_form_fields_context, contex
                         return undefined;
                     }
                 },
-                React.createElement(CommandFormField, {
+                React.createElement(SimpleTextField, {
                     value: (c: TestCommand) => c.name,
                     title: 'Name'
-                }, React.createElement(SimpleTextField))
+                })
             ),
             { wrapper: context.createWrapper() }
         );

@@ -32,15 +32,15 @@ describe("when rendering with mixed children", given(a_command_form_fields_conte
             React.createElement(
                 CommandForm,
                 { command: TestCommand },
-                React.createElement(CommandFormField, {
+                React.createElement(SimpleTextField, {
                     value: (c: TestCommand) => c.name,
                     title: 'Name'
-                }, React.createElement(SimpleTextField)),
+                }),
                 React.createElement('div', { 'data-testid': 'custom-content' }, 'Custom Content'),
-                React.createElement(CommandFormField, {
+                React.createElement(SimpleTextField, {
                     value: (c: TestCommand) => c.email,
                     title: 'Email'
-                }, React.createElement(SimpleTextField))
+                })
             ),
             { wrapper: context.createWrapper() }
         );
@@ -54,7 +54,7 @@ describe("when rendering with mixed children", given(a_command_form_fields_conte
 
     it("should render custom content in correct order", () => {
         const customContent = container.querySelector('[data-testid="custom-content"]');
-        customContent.should.not.be.null;
+        (customContent !== null).should.be.true;
         customContent!.textContent.should.equal('Custom Content');
     });
 }));

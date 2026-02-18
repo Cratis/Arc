@@ -33,14 +33,14 @@ describe("when rendering with fields array", given(a_command_form_fields_context
             React.createElement(
                 CommandForm,
                 { command: TestCommand },
-                React.createElement(CommandFormField, {
+                React.createElement(SimpleTextField, {
                     value: (c: TestCommand) => c.name,
                     title: 'Name'
-                }, React.createElement(SimpleTextField)),
-                React.createElement(CommandFormField, {
+                }),
+                React.createElement(SimpleTextField, {
                     value: (c: TestCommand) => c.email,
                     title: 'Email'
-                }, React.createElement(SimpleTextField))
+                })
             ),
             { wrapper: context.createWrapper() }
         );
@@ -54,6 +54,6 @@ describe("when rendering with fields array", given(a_command_form_fields_context
 
     it("should render fields in single column layout", () => {
         const fieldsContainer = container.querySelector('[style*="flex-direction: column"]');
-        fieldsContainer.should.not.be.null;
+        (fieldsContainer !== null).should.be.true;
     });
 }));

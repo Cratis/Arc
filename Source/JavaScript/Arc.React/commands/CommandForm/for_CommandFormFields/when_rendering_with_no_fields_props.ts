@@ -37,7 +37,7 @@ describe("when rendering with no fields props", given(a_command_form_fields_cont
     });
 
     it("should render without errors", () => {
-        container.should.not.be.null;
+        (container !== undefined && container !== null).should.be.true;
     });
 
     it("should not render any inputs", () => {

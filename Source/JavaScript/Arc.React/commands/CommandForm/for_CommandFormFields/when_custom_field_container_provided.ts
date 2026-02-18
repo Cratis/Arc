@@ -49,10 +49,10 @@ describe("when custom field container provided", given(a_command_form_fields_con
                     command: TestCommand,
                     fieldContainerComponent: CustomFieldContainer
                 },
-                React.createElement(CommandFormField, {
+                React.createElement(SimpleTextField, {
                     value: (c: TestCommand) => c.name,
                     title: 'Name'
-                }, React.createElement(SimpleTextField))
+                })
             ),
             { wrapper: context.createWrapper() }
         );
@@ -61,7 +61,7 @@ describe("when custom field container provided", given(a_command_form_fields_con
 
     it("should use custom field container", () => {
         const customContainer = container.querySelector('[data-testid="custom-container"]');
-        customContainer.should.not.be.null;
+        (customContainer !== null).should.be.true;
     });
 
     it("should pass title to custom container", () => {

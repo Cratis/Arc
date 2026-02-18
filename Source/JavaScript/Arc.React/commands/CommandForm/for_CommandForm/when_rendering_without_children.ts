@@ -23,7 +23,7 @@ describe("when rendering without children", given(a_command_form_context, contex
     });
 
     it("should render without errors", () => {
-        container.should.not.be.null;
+        (container !== undefined && container !== null).should.be.true;
     });
 
     it("should not render any field labels", () => {
