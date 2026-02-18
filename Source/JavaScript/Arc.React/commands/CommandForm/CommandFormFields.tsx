@@ -80,7 +80,7 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
     const tooltipId = fieldProps.description ? `tooltip-${propertyName}-${index}` : undefined;
 
     return (
-        <div className="w-full">
+        <div className="w-full" style={{ marginBottom: '1rem' }}>
             {fieldProps.title && (
                 <label 
                     style={{ 
@@ -141,7 +141,7 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
 
     // Render fields (single column layout)
     return (
-        <div className="flex flex-col gap-4 w-full">
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
             {(fields || []).map((field, index) => {
                 const fieldProps = field.props as CommandFormFieldProps<unknown>;
                 const propertyAccessor = fieldProps.value;
