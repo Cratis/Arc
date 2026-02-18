@@ -77,9 +77,11 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
         invalid: !!errorMessage
     } as Record<string, unknown>);
 
-    return (
-        <div className="w-full" style={{ marginBottom: '1rem' }}>
-            {fieldProps.title && (
+    const FieldContainer = context.fieldContainerComponent;
+
+    const fieldContent = (
+        <>
+            {context.showTitles && fieldProps.title && (
                 <label
                     style={{
                         display: 'block',
@@ -111,9 +113,26 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 )}
                 {clonedField}
             </div>
-            {errorMessage && (
+            {context.showErrors && errorMessage && (
                 <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-error, #c00)', fontSize: '0.875rem' }}>{errorMessage}</small>
             )}
+        </>
+    );
+
+    if (FieldContainer) {
+        return (
+            <FieldContainer
+                title={fieldProps.title}
+                errorMessage={errorMessage}
+            >
+                {fieldContent}
+            </FieldContainer>
+        );
+    }
+
+    return (
+        <div className="w-full" style={{ marginBottom: '1rem' }}>
+            {fieldContent}
         </div>
     );
 };

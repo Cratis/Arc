@@ -8,6 +8,12 @@ import type { ICommandResult } from '@cratis/arc/commands';
 
 export type BeforeExecuteCallback<TCommand> = (values: TCommand) => TCommand;
 
+export interface FieldContainerProps {
+    title?: string;
+    errorMessage?: string;
+    children: React.ReactNode;
+}
+
 export interface CommandFormContextValue<TCommand> {
     command: Constructor<TCommand>;
     commandInstance: TCommand;
@@ -23,6 +29,9 @@ export interface CommandFormContextValue<TCommand> {
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     customFieldErrors: Record<string, string>;
     setCustomFieldError: (fieldName: string, error: string | undefined) => void;
+    showTitles: boolean;
+    showErrors: boolean;
+    fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
 }
 
 export const CommandFormContext = createContext<CommandFormContextValue<unknown> | undefined>(undefined);

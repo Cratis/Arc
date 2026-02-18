@@ -21,6 +21,9 @@ export interface CommandFormProps<TCommand extends object> {
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
+    showTitles?: boolean;
+    showErrors?: boolean;
+    fieldContainerComponent?: React.ComponentType<import('./CommandFormContext').FieldContainerProps>;
     children?: React.ReactNode;
 }
 
@@ -231,7 +234,10 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         onFieldChange: props.onFieldChange,
         onBeforeExecute: props.onBeforeExecute,
         customFieldErrors,
-        setCustomFieldError
+        setCustomFieldError,
+        showTitles: props.showTitles ?? true,
+        showErrors: props.showErrors ?? true,
+        fieldContainerComponent: props.fieldContainerComponent
     };
 
     return (

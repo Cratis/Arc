@@ -325,3 +325,241 @@ export const UserRegistration: Story = {
         );
     }
 };
+
+export const CustomTitles: Story = {
+    render: () => {
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Custom Titles</h2>
+                <p>
+                    This form shows how to disable built-in titles and use custom title rendering.
+                </p>
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    showTitles={false}
+                >
+                    <div style={{ marginBottom: '1rem' }}>
+                        <div style={{ 
+                            fontSize: '0.75rem', 
+                            textTransform: 'uppercase', 
+                            letterSpacing: '0.05em', 
+                            marginBottom: '0.5rem',
+                            color: 'var(--color-text-secondary)',
+                            fontWeight: 600
+                        }}>
+                            Full Name *
+                        </div>
+                        <InputTextField<SimpleCommand> 
+                            value={c => c.name} 
+                            placeholder="Enter your full name" 
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                        <div style={{ 
+                            fontSize: '0.875rem', 
+                            marginBottom: '0.5rem',
+                            color: 'var(--color-primary)',
+                            fontWeight: 700
+                        }}>
+                            📧 Email Address
+                        </div>
+                        <InputTextField<SimpleCommand> 
+                            value={c => c.email} 
+                            type="email" 
+                            placeholder="your.email@example.com" 
+                        />
+                    </div>
+
+                    <button type="submit">Submit</button>
+                </CommandForm>
+            </StoryContainer>
+        );
+    }
+};
+
+export const CustomErrorRendering: Story = {
+    render: () => {
+        const [errors, setErrors] = useState<Record<string, string>>({});
+
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Custom Error Rendering</h2>
+                <p>
+                    This form shows how to disable built-in error messages and render custom ones.
+                </p>
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    showErrors={false}
+                    onFieldChange={async (command, fieldName) => {
+                        const result = await command.validate();
+                        
+                        if (!result.isValid) {
+                            const fieldError = result.validationResults.find(
+                                v => v.members.includes(fieldName)
+                            );
+                            
+                            if (fieldError) {
+                                setErrors(prev => ({ ...prev, [fieldName]: fieldError.message }));
+                            }
+                        } else {
+                            setErrors(prev => {
+                                const { [fieldName]: removed, ...rest } = prev;
+                                return rest;
+                            });
+                        }
+                    }}
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter your name (min 3 chars)" 
+                    />
+                    {errors.name && (
+                        <div style={{ 
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid var(--color-error)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '0.75rem',
+                            marginTop: '0.5rem',
+                            marginBottom: '1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}>
+                            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                            <div>
+                                <strong style={{ color: 'var(--color-error)' }}>Validation Error</strong>
+                                <div style={{ fontSize: '0.875rem', marginTop: '0.25rem', color: 'var(--color-text)' }}>
+                                    {errors.name}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter your email" 
+                    />
+                    {errors.email && (
+                        <div style={{ 
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid var(--color-error)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '0.75rem',
+                            marginTop: '0.5rem',
+                            marginBottom: '1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}>
+                            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                            <div>
+                                <strong style={{ color: 'var(--color-error)' }}>Validation Error</strong>
+                                <div style={{ fontSize: '0.875rem', marginTop: '0.25rem', color: 'var(--color-text)' }}>
+                                    {errors.email}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <button type="submit">Submit</button>
+                </CommandForm>
+            </StoryContainer>
+        );
+    }
+};
+
+export const CustomFieldContainer: Story = {
+    render: () => {
+        const CustomContainer: React.FC<import('./CommandFormContext').FieldContainerProps> = ({ title, errorMessage, children }) => {
+            return (
+                <div style={{ 
+                    marginBottom: '1.5rem',
+                    padding: '1rem',
+                    border: `2px solid ${errorMessage ? 'var(--color-error)' : 'var(--color-border)'}`,
+                    borderRadius: 'var(--radius-lg)',
+                    backgroundColor: errorMessage ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-background-secondary)',
+                    transition: 'all 0.2s ease'
+                }}>
+                    {title && (
+                        <div style={{ 
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            color: errorMessage ? 'var(--color-error)' : 'var(--color-text)',
+                            marginBottom: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}>
+                            {errorMessage && <span>❌</span>}
+                            {!errorMessage && <span>✓</span>}
+                            {title}
+                        </div>
+                    )}
+                    {children}
+                    {errorMessage && (
+                        <div style={{ 
+                            marginTop: '0.5rem',
+                            fontSize: '0.875rem',
+                            color: 'var(--color-error)',
+                            fontWeight: 500
+                        }}>
+                            {errorMessage}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Custom Field Container</h2>
+                <p>
+                    This form shows how to use a custom component for rendering field containers.
+                </p>
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    fieldContainerComponent={CustomContainer}
+                    onFieldChange={async (command, fieldName) => {
+                        const result = await command.validate();
+                        
+                        if (!result.isValid) {
+                            const fieldError = result.validationResults.find(
+                                v => v.members.includes(fieldName)
+                            );
+                            
+                            if (fieldError) {
+                                setFieldErrors(prev => ({ ...prev, [fieldName]: fieldError.message }));
+                            }
+                        } else {
+                            setFieldErrors(prev => {
+                                const { [fieldName]: removed, ...rest } = prev;
+                                return rest;
+                            });
+                        }
+                    }}
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter your name (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter your email" 
+                    />
+
+                    <button type="submit">Submit</button>
+                </CommandForm>
+            </StoryContainer>
+        );
+    }
+};
