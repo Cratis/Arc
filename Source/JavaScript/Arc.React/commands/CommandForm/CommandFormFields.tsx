@@ -73,7 +73,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
             }
             fieldProps.onChange?.(value as unknown);
         },
-        required: fieldProps.required ?? true,
+        required: fieldProps.required ?? (propertyDescriptor ? !(propertyDescriptor as { isOptional?: boolean }).isOptional : true),
         invalid: !!errorMessage
     } as Record<string, unknown>);
 

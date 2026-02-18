@@ -117,11 +117,15 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             currentValue,
             onValueChange,
             fieldName,
-            required = true,
+            propertyDescriptor,
+            required,
             ...componentProps
         } = props;
 
         const { getFieldError, customFieldErrors } = useCommandFormContext();
+
+        // Determine if field is required based on PropertyDescriptor or explicit prop
+        const isRequired = required ?? (propertyDescriptor ? !propertyDescriptor.isOptional : true);
 
         const serverError = fieldName ? getFieldError(fieldName) : undefined;
         const customError = fieldName ? customFieldErrors[fieldName] : undefined;
@@ -144,7 +148,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             value: displayValue,
             onChange: handleChange,
             invalid: isInvalid,
-            required,
+            required: isRequired,
             errors
         } as TComponentProps;
 
