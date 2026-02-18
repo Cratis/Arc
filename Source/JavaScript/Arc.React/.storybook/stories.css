@@ -351,3 +351,19 @@ body[data-theme="light"] {
 .sb-show-main ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-light);
 }
+/* Date input calendar icon color fix for dark mode */
+.sb-show-main input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+body[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0);
+}
+
+/* Color input styling - make it taller and easier to click */
+.sb-show-main input[type="color"] {
+  height: 3rem;
+  min-height: 3rem;
+  cursor: pointer;
+}
