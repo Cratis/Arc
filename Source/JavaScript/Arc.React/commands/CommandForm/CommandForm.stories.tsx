@@ -16,6 +16,7 @@ import {
 } from './fields';
 import { Command, CommandValidator } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
+import { StoryContainer, StoryBadge } from '../../stories';
 import '@cratis/arc/validation';
 
 const meta: Meta<typeof CommandForm> = {
@@ -73,9 +74,9 @@ export const Default: Story = {
         }>({ errors: {}, canSubmit: false });
 
         return (
-            <div className="p-8 w-[600px] mx-auto">
-                <h2 className="text-2xl font-bold mb-6">Simple Command Form with Validation</h2>
-                <p className="mb-4 text-gray-600">
+            <StoryContainer size="sm" asCard>
+                <h2>Simple Command Form with Validation</h2>
+                <p>
                     This form demonstrates validation on blur. Fields are validated when you leave them.
                 </p>
                 <CommandForm<SimpleCommand>
@@ -107,32 +108,45 @@ export const Default: Story = {
                         }
                     }}
                 >
-                    <InputTextField<SimpleCommand> value={c => c.name} title="Name" placeholder="Enter your name (min 3 chars)" />
-                    <ValidationMessage<SimpleCommand> value={c => c.name} />
-                    {validationState.errors.name && (
-                        <div className="text-red-500 text-sm mt-1">{validationState.errors.name}</div>
-                    )}
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Name
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<SimpleCommand> value={c => c.name} placeholder="Enter your name (min 3 chars)" />
+                        </div>
+                        <ValidationMessage<SimpleCommand> value={c => c.name} />
+                        {validationState.errors.name && (
+                            <div className="text-red-500 text-sm mt-1">{validationState.errors.name}</div>
+                        )}
+                    </div>
                     
-                    <InputTextField<SimpleCommand> value={c => c.email} title="Email" type="email" placeholder="Enter your email" />
-                    <ValidationMessage<SimpleCommand> value={c => c.email} />
-                    {validationState.errors.email && (
-                        <div className="text-red-500 text-sm mt-1">{validationState.errors.email}</div>
-                    )}
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Email
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<SimpleCommand> value={c => c.email} type="email" placeholder="Enter your email" />
+                        </div>
+                        <ValidationMessage<SimpleCommand> value={c => c.email} />
+                        {validationState.errors.email && (
+                            <div className="text-red-500 text-sm mt-1">{validationState.errors.email}</div>
+                        )}
+                    </div>
 
-                    <div className="mt-4 flex gap-2 items-center">
+                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         <button 
                             type="submit" 
                             disabled={!validationState.canSubmit}
-                            className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
                             Submit
                         </button>
                         {!validationState.canSubmit && Object.keys(validationState.errors).length > 0 && (
-                            <span className="text-sm text-orange-600">Please fix validation errors</span>
+                            <StoryBadge variant="warning">Please fix validation errors</StoryBadge>
                         )}
                     </div>
                 </CommandForm>
-            </div>
+            </StoryContainer>
         );
     }
 };
@@ -148,24 +162,28 @@ export const UserRegistration: Story = {
         };
 
         return (
-            <div className="p-8 w-[800px] mx-auto">
-                <h2 className="text-2xl font-bold mb-6">User Registration Form with Progressive Validation</h2>
-                <p className="mb-4 text-gray-600">
+            <StoryContainer size="sm" asCard>
+                <h1>User Registration Form</h1>
+                <p>
                     This form validates progressively as you type. The submit button is enabled only when all validation passes.
                 </p>
                 
                 {validationSummary.length > 0 && (
-                    <div className="bg-orange-100 border border-orange-300 p-4 rounded-lg mb-4">
-                        <strong className="text-orange-800">Validation Issues:</strong>
-                        <ul className="mt-2 mb-0 text-sm">
+                    <div className="story-card" style={{ 
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                        borderColor: 'var(--color-warning)',
+                        marginBottom: 'var(--space-lg)'
+                    }}>
+                        <strong style={{ color: 'var(--color-warning)' }}>Validation Issues:</strong>
+                        <ul style={{ marginTop: 'var(--space-sm)', marginBottom: 0 }}>
                             {validationSummary.map((error, index) => (
-                                <li key={index} className="text-orange-700">{error}</li>
+                                <li key={index} style={{ color: 'var(--color-warning)' }}>{error}</li>
                             ))}
                         </ul>
                     </div>
                 )}
                 
-                <h3 className="text-xl font-semibold mb-4 mt-6">Account Information</h3>
+                <h3>Account Information</h3>
                 <CommandForm<UserRegistrationCommand>
                     command={UserRegistrationCommand}
                     initialValues={{
@@ -196,74 +214,151 @@ export const UserRegistration: Story = {
                         }
                     }}
                 >
-                    <InputTextField<UserRegistrationCommand> value={c => c.username} title="Username" placeholder="Enter username" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.username} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Username
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<UserRegistrationCommand> value={c => c.username} placeholder="Enter username" />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.username} />
+                    </div>
                     
-                    <InputTextField<UserRegistrationCommand> value={c => c.email} title="Email Address" type="email" placeholder="Enter email" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.email} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Email Address
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<UserRegistrationCommand> value={c => c.email} type="email" placeholder="Enter email" />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.email} />
+                    </div>
                     
-                    <InputTextField<UserRegistrationCommand> value={c => c.password} title="Password" type="password" placeholder="Enter password" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.password} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Password
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<UserRegistrationCommand> value={c => c.password} type="password" placeholder="Enter password" />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.password} />
+                    </div>
                     
-                    <InputTextField<UserRegistrationCommand> value={c => c.confirmPassword} title="Confirm Password" type="password" placeholder="Confirm password" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.confirmPassword} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Confirm Password
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<UserRegistrationCommand> value={c => c.confirmPassword} type="password" placeholder="Confirm password" />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.confirmPassword} />
+                    </div>
 
-                    <h3 className="text-xl font-semibold mb-0 mt-6">Personal Information</h3>
-                    <NumberField<UserRegistrationCommand> value={c => c.age} title="Age" placeholder="Enter age" min={13} max={120} />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.age} />
+                    <h3 style={{ marginTop: 'var(--space-2xl)' }}>Personal Information</h3>
                     
-                    <InputTextField<UserRegistrationCommand> value={c => c.birthDate} title="Birth Date" type="date" placeholder="Select birth date" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.birthDate} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Age
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <NumberField<UserRegistrationCommand> value={c => c.age} placeholder="Enter age" min={13} max={120} />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.age} />
+                    </div>
                     
-                    <TextAreaField<UserRegistrationCommand> value={c => c.bio} title="Bio" placeholder="Tell us about yourself" rows={4} required={false} />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.bio} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Birth Date
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<UserRegistrationCommand> value={c => c.birthDate} type="date" placeholder="Select birth date" />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.birthDate} />
+                    </div>
                     
-                    <InputTextField<UserRegistrationCommand> value={c => c.favoriteColor} title="Favorite Color" type="color" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.favoriteColor} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Bio
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <TextAreaField<UserRegistrationCommand> value={c => c.bio} placeholder="Tell us about yourself" rows={4} required={false} />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.bio} />
+                    </div>
+                    
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Favorite Color
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <InputTextField<UserRegistrationCommand> value={c => c.favoriteColor} type="color" />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.favoriteColor} />
+                    </div>
 
-                    <h3 className="text-xl font-semibold mb-0 mt-6">Preferences</h3>
-                    <SelectField<UserRegistrationCommand>
-                        value={c => c.role}
-                        title="Role"
-                        options={roleOptions} 
-                        optionIdField="id" 
-                        optionLabelField="name"
-                        placeholder="Select a role"
-                    />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.role} />
+                    <h3 style={{ marginTop: 'var(--space-2xl)' }}>Preferences</h3>
                     
-                    <RangeField<UserRegistrationCommand> value={c => c.experienceLevel} title="Experience Level" min={0} max={100} step={10} />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.experienceLevel} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Role
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <SelectField<UserRegistrationCommand>
+                                value={c => c.role}
+                                options={roleOptions} 
+                                optionIdField="id" 
+                                optionLabelField="name"
+                                placeholder="Select a role"
+                            />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.role} />
+                    </div>
                     
-                    <CheckboxField<UserRegistrationCommand> value={c => c.agreeToTerms} title="Terms & Conditions" label="I agree to the terms and conditions" />
-                    <ValidationMessage<UserRegistrationCommand> value={c => c.agreeToTerms} />
+                    <div style={{ marginBottom: 'var(--space-lg)', width: '100%' }}>
+                        <label style={{ display: 'block', marginBottom: 'var(--space-sm)', fontWeight: 500 }}>
+                            Experience Level
+                        </label>
+                        <div style={{ width: '100%' }}>
+                            <RangeField<UserRegistrationCommand> value={c => c.experienceLevel} min={0} max={100} step={10} />
+                        </div>
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.experienceLevel} />
+                    </div>
+                    
+                    <div style={{ marginBottom: 'var(--space-lg)' }}>
+                        <CheckboxField<UserRegistrationCommand> value={c => c.agreeToTerms} label="I agree to the terms and conditions" />
+                        <ValidationMessage<UserRegistrationCommand> value={c => c.agreeToTerms} />
+                    </div>
                 </CommandForm>
 
-                <div className="flex gap-2 mt-6 items-center">
+                <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-xl)', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button 
                         onClick={handleSubmit} 
                         disabled={!canSubmit}
-                        className="px-4 py-2 bg-green-600 text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: canSubmit ? 'var(--color-success)' : undefined }}
                     >
                         Submit
                     </button>
                     <button 
                         onClick={() => setResult('')}
-                        className="px-4 py-2 bg-gray-500 text-white rounded"
+                        style={{ backgroundColor: 'var(--color-text-muted)' }}
                     >
                         Cancel
                     </button>
                     {!canSubmit && (
-                        <span className="text-sm text-orange-600 ml-2">Complete required fields with valid data</span>
+                        <StoryBadge variant="warning">Complete required fields with valid data</StoryBadge>
                     )}
                 </div>
 
                 {result && (
-                    <div className="bg-green-100 p-4 rounded-lg mt-4 border border-green-300">
-                        <p className="text-green-800 font-semibold m-0">{result}</p>
+                    <div className="story-card" style={{ 
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderColor: 'var(--color-success)',
+                        marginTop: 'var(--space-lg)'
+                    }}>
+                        <p style={{ color: 'var(--color-success)', fontWeight: 600, margin: 0 }}>{result}</p>
                     </div>
                 )}
-            </div>
+            </StoryContainer>
         );
     }
 };
