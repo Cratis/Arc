@@ -29,7 +29,7 @@ type Story = StoryObj<typeof CommandForm>;
 // Simple command for the default story with validation
 class SimpleCommand extends Command {
     readonly route: string = '/api/simple';
-    readonly validation: CommandValidator = new SimpleCommandValidator();
+    readonly validation: SimpleCommandValidator = new SimpleCommandValidator();
     readonly propertyDescriptors: PropertyDescriptor[] = [
         new PropertyDescriptor('name', String),
         new PropertyDescriptor('email', String),
