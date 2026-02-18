@@ -179,7 +179,6 @@ export const UserRegistration: Story = {
                     </div>
                 )}
                 
-                <h3>Account Information</h3>
                 <CommandForm<UserRegistrationCommand>
                     command={UserRegistrationCommand}
                     initialValues={{
@@ -210,6 +209,7 @@ export const UserRegistration: Story = {
                         }
                     }}
                 >
+                    <h3>Account Information</h3>
                     <InputTextField<UserRegistrationCommand> 
                         value={c => c.username} 
                         title="Username"
@@ -237,7 +237,7 @@ export const UserRegistration: Story = {
                         placeholder="Confirm password" 
                     />
 
-                    <h3 style={{ marginTop: 'var(--space-2xl)' }}>Personal Information</h3>
+                    <h3 style={{ marginTop: 'var(--space-2xl)', marginBottom: 0 }}>Personal Information</h3>
                     
                     <NumberField<UserRegistrationCommand> 
                         value={c => c.age} 
@@ -268,7 +268,7 @@ export const UserRegistration: Story = {
                         type="color" 
                     />
 
-                    <h3 style={{ marginTop: 'var(--space-2xl)' }}>Preferences</h3>
+                    <h3 style={{ marginTop: 'var(--space-2xl)', marginBottom: 0 }}>Preferences</h3>
                     
                     <SelectField<UserRegistrationCommand>
                         value={c => c.role}

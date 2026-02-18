@@ -17,7 +17,7 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
         const step = props.step ?? 1;
 
         return (
-            <div className="w-full flex items-center gap-4 p-3 border border-gray-300 rounded-md" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.375rem' }}>
+            <div className="w-full flex items-center gap-4 p-3 border border-gray-300 rounded-md" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', border: '1px solid var(--color-border)', borderRadius: '0.375rem', backgroundColor: 'var(--color-background-secondary)' }}>
                 <input
                     type="range"
                     value={props.value}
@@ -29,7 +29,7 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
                     className="flex-1"
                     style={{ flex: 1 }}
                 />
-                <span className="min-w-[3rem] text-right font-semibold" style={{ minWidth: '3rem', textAlign: 'right', fontWeight: 600 }}>
+                <span className="min-w-[3rem] text-right font-semibold" style={{ minWidth: '3rem', textAlign: 'right', fontWeight: 600, color: 'var(--color-text)' }}>
                     {props.value}
                 </span>
             </div>

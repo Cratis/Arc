@@ -3,7 +3,6 @@
 
 import { useCommandFormContext } from './CommandForm';
 import React from 'react';
-import { Tooltip } from 'primereact/tooltip';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
 
@@ -14,6 +13,7 @@ export interface ColumnInfo {
 export interface CommandFormFieldsProps {
     fields?: React.ReactElement<CommandFormFieldProps<unknown>>[];
     columns?: ColumnInfo[];
+    orderedChildren?: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }>;
 }
 
 // Separate component for each field to prevent re-rendering all fields
@@ -77,8 +77,6 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
         invalid: !!errorMessage
     } as Record<string, unknown>);
 
-    const tooltipId = fieldProps.description ? `tooltip-${propertyName}-${index}` : undefined;
-
     return (
         <div className="w-full" style={{ marginBottom: '1rem' }}>
             {fieldProps.title && (
@@ -93,26 +91,35 @@ const CommandFormFieldWrapper = ({ field, index }: { field: React.ReactElement<C
                     {fieldProps.title}
                 </label>
             )}
-            <div className="p-inputgroup w-full">
-                {fieldProps.description && (
-                    <Tooltip target={`.${tooltipId}`} content={fieldProps.description} />
-                )}
+            <div style={{ display: 'flex', width: '100%' }}>
                 {fieldProps.icon && (
-                    <span className={`p-inputgroup-addon ${tooltipId || ''}`}>
+                    <span 
+                        title={fieldProps.description}
+                        style={{ 
+                            cursor: fieldProps.description ? 'help' : 'default',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0.5rem',
+                            backgroundColor: 'var(--color-background-secondary)',
+                            border: '1px solid var(--color-border)',
+                            borderRight: 'none',
+                            borderRadius: 'var(--radius-md) 0 0 var(--radius-md)'
+                        }}
+                    >
                         {fieldProps.icon}
                     </span>
                 )}
                 {clonedField}
             </div>
             {errorMessage && (
-                <small className="p-error block mt-1">{errorMessage}</small>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-error, #c00)', fontSize: '0.875rem' }}>{errorMessage}</small>
             )}
         </div>
     );
 };
 
 export const CommandFormFields = (props: CommandFormFieldsProps) => {
-    const { fields, columns } = props;
+    const { fields, columns, orderedChildren } = props;
 
     // Render columns if provided
     if (columns && columns.length > 0) {
@@ -139,7 +146,37 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
         );
     }
 
-    // Render fields (single column layout)
+    // If we have ordered children, use them to render in the correct order
+    if (orderedChildren && orderedChildren.length > 0) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                {orderedChildren.map((item, idx) => {
+                    if (item.type === 'field') {
+                        const field = item.content as React.ReactElement<CommandFormFieldProps<unknown>>;
+                        const fieldProps = field.props as CommandFormFieldProps<unknown>;
+                        const propertyAccessor = fieldProps.value;
+                        const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : `field-${item.index}`;
+                        
+                        return (
+                            <CommandFormFieldWrapper
+                                key={propertyName}
+                                field={field}
+                                index={item.index}
+                            />
+                        );
+                    } else {
+                        return (
+                            <React.Fragment key={`other-${item.index}`}>
+                                {item.content}
+                            </React.Fragment>
+                        );
+                    }
+                })}
+            </div>
+        );
+    }
+
+    // Fallback: Render fields only (single column layout)
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
             {(fields || []).map((field, index) => {

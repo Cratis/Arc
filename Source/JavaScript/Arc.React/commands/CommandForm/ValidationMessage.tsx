@@ -27,7 +27,7 @@ export const ValidationMessage = <TCommand,>(props: ValidationMessageProps<TComm
     }
     
     return (
-        <small className="p-error block mt-1">{errorMessage}</small>
+        <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-error, #c00)', fontSize: '0.875rem' }}>{errorMessage}</small>
     );
 };
 

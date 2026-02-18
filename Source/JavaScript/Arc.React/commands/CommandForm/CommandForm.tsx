@@ -8,7 +8,6 @@ import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
 import React, { createContext, useContext, useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
-import { Panel } from 'primereact/panel';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
 
 export type BeforeExecuteCallback<TCommand> = (values: TCommand) => TCommand;
@@ -77,14 +76,17 @@ const CommandFormFieldsWrapper = (props: { children: React.ReactNode }) => {
 
 CommandFormFieldsWrapper.displayName = 'CommandFormFieldsWrapper';
 
-const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }): { fieldsOrColumns: React.ReactElement[] | ColumnInfo[], otherChildren: React.ReactNode[], initialValuesFromFields: Partial<TCommand> } => {
+const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }): { fieldsOrColumns: React.ReactElement[] | ColumnInfo[], otherChildren: React.ReactNode[], initialValuesFromFields: Partial<TCommand>, orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> } => {
     if (!props.children) {
-        return { fieldsOrColumns: [], otherChildren: [], initialValuesFromFields: {} };
+        return { fieldsOrColumns: [], otherChildren: [], initialValuesFromFields: {}, orderedChildren: [] };
     }
     let fields: React.ReactElement<CommandFormFieldProps<unknown>>[] = [];
     const columns: ColumnInfo[] = [];
     let hasColumns = false;
     const otherChildren: React.ReactNode[] = [];
+    const orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> = [];
+    let fieldIndex = 0;
+    let otherIndex = 0;
     let initialValuesFromFields: Partial<TCommand> = {};
 
     const extractInitialValue = (field: React.ReactElement) => {
@@ -101,6 +103,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
     React.Children.toArray(props.children).forEach(child => {
         if (!React.isValidElement(child)) {
             otherChildren.push(child);
+            orderedChildren.push({ type: 'other', content: child, index: otherIndex++ });
             return;
         }
 
@@ -126,6 +129,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
         else if (component.displayName === 'CommandFormField') {
             extractInitialValue(child as React.ReactElement);
             fields.push(child as React.ReactElement<CommandFormFieldProps<unknown>>);
+            orderedChildren.push({ type: 'field', content: child, index: fieldIndex++ });
         }
         // Check if child is Fields wrapper (backwards compatibility)
         else if (component === CommandFormFieldsWrapper || component.displayName === 'CommandFormFieldsWrapper') {
@@ -145,14 +149,15 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
         // Everything else is not a field, keep it as other children
         else {
             otherChildren.push(child);
+            orderedChildren.push({ type: 'other', content: child, index: otherIndex++ });
         }
     });
 
-    return { fieldsOrColumns: hasColumns ? columns : fields, otherChildren, initialValuesFromFields };
+    return { fieldsOrColumns: hasColumns ? columns : fields, otherChildren, initialValuesFromFields, orderedChildren };
 };
 
 const CommandFormComponent = <TCommand extends object = object>(props: CommandFormProps<TCommand>) => {
-    const { fieldsOrColumns, otherChildren, initialValuesFromFields } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
+    const { fieldsOrColumns, otherChildren, initialValuesFromFields, orderedChildren } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
 
     // Extract matching properties from currentValues
     const valuesFromCurrentValues = useMemo(() => {
@@ -256,19 +261,21 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
 
     return (
         <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
-            <CommandFormFields fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps<unknown>>[])} columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined} />
+            <CommandFormFields 
+                fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps<unknown>>[])} 
+                columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}
+                orderedChildren={orderedChildren}
+            />
             {exceptionMessages.length > 0 && (
-                <div className="card flex flex-row gap-3 mt-3">
-                    <Panel header="The server responded with" className="w-full">
-                        <ul>
-                            {exceptionMessages.map((msg, idx) => (
-                                <li key={idx}>{msg}</li>
-                            ))}
-                        </ul>
-                    </Panel>
+                <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-bg, #fee)' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: 600, color: 'var(--color-error, #c00)' }}>The server responded with</h4>
+                    <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                        {exceptionMessages.map((msg, idx) => (
+                            <li key={idx}>{msg}</li>
+                        ))}
+                    </ul>
                 </div>
             )}
-            {otherChildren}
         </CommandFormContext.Provider>
     );
 };
