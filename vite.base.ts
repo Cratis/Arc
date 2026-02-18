@@ -21,11 +21,6 @@ export function createConfig() {
             isolate: false,
             fileParallelism: false,
             pool: 'threads',
-            poolOptions: {
-                forks: {
-                    isolate: false,
-                },
-            },
             mock: {
                 exclude: ['**/node_modules/**', 'node_modules/**'],
             },

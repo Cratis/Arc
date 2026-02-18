@@ -155,7 +155,7 @@ The system provides comprehensive error handling for commands:
 
 ## Next Steps
 
-- Explore [React integration](../react/commands.md) for React-specific command usage
+- Explore [React integration](../react/commands/index.md) for React-specific command usage
 - Learn about [Queries](./queries.md) for data retrieval
 - Understand [MVVM patterns](../react.mvvm/index.md) for more sophisticated frontend architectures
 - Set up [Proxy Generation](../../backend/proxy-generation/index.md) to automatically generate your command proxies

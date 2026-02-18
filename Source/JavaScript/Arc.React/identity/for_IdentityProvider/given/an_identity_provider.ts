@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, RenderResult } from '@testing-library/react';
+import { render, RenderResult, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
 import { IdentityProvider } from '../../IdentityProvider';
 import { useIdentity } from '../../useIdentity';
@@ -74,7 +74,9 @@ export class an_identity_provider {
     }
 
     async waitForAsyncUpdates() {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await waitFor(() => {
+            expect(this.capturedIdentity).not.toBeNull();
+        }, { timeout: 1000 });
     }
 
     suppressConsoleErrors() {

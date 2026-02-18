@@ -58,7 +58,7 @@ const command = new OpenDebitAccount();
 
 The generated command automatically handles route parameters, query string arguments, and request body serialization.
 
-For detailed information on using commands in React, see the [Commands documentation](./commands.md).
+For detailed information on using commands in React, see the [Commands documentation](./commands/index.md).
 
 ## Queries
 
