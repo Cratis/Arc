@@ -1,31 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
 <Solution>
-  <Folder Name="/Source/DotNET/">
-    <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
-    <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
-    <Project Path="Source\DotNET\Arc.Core.CodeAnalysis\Arc.Core.CodeAnalysis.csproj" />
-    <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
-    <Project Path="Source\DotNET\Arc\Arc.csproj" />
-    <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />
-    <Project Path="Source\DotNET\Cratis\Cratis.csproj" />
-    <Project Path="Source\DotNET\Chronicle\Chronicle.csproj" />
-    <Project Path="Source\DotNET\Chronicle.Specs\Chronicle.Specs.csproj" />
-    <Project Path="Source\DotNET\Chronicle.CodeAnalysis\Chronicle.CodeAnalysis.csproj" />
-    <Project Path="Source\DotNET\Chronicle.CodeAnalysis.Specs\Chronicle.CodeAnalysis.Specs.csproj" />
-    <Project Path="Source\DotNET\EntityFrameworkCore\EntityFrameworkCore.csproj" />
-    <Project Path="Source\DotNET\EntityFrameworkCore.Specs\EntityFrameworkCore.Specs.csproj" />
-    <Project Path="Source\DotNET\EntityFrameworkCore.SqlServer.Specs\EntityFrameworkCore.SqlServer.Specs.csproj" />
-    <Project Path="Source\DotNET\EntityFrameworkCore.PostgreSql.Specs\EntityFrameworkCore.PostgreSql.Specs.csproj" />
-    <Project Path="Source\DotNET\MongoDB\MongoDB.csproj" />
-    <Project Path="Source\DotNET\MongoDB.Specs\MongoDB.Specs.csproj" />
-    <Project Path="Source\DotNET\Swagger\Swagger.csproj" />
-  </Folder>
-  <Folder Name="/Source/DotNET/Tools/">
-    <Project Path="Source\DotNET\Tools\ProxyGenerator\ProxyGenerator.csproj" />
-    <Project Path="Source\DotNET\Tools\ProxyGenerator.Build\ProxyGenerator.Build.csproj" />
-    <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\ProxyGenerator.Specs.csproj" />
-  </Folder>
-  <Folder Name="/TestApps/">
-    <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />
-    <Project Path="TestApps\Core\Core.csproj" />
-  </Folder>
+    <Folder Name="/Source/DotNET/">
+        <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.CodeAnalysis\Arc.Core.CodeAnalysis.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc\Arc.csproj" />
+        <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />
+        <Project Path="Source\DotNET\Cratis\Cratis.csproj" />
+        <Project Path="Source\DotNET\Chronicle\Chronicle.csproj" />
+        <Project Path="Source\DotNET\Chronicle.Specs\Chronicle.Specs.csproj" />
+        <Project Path="Source\DotNET\Chronicle.CodeAnalysis\Chronicle.CodeAnalysis.csproj" />
+        <Project Path="Source\DotNET\Chronicle.CodeAnalysis.Specs\Chronicle.CodeAnalysis.Specs.csproj" />
+        <Project Path="Source\DotNET\EntityFrameworkCore\EntityFrameworkCore.csproj" />
+        <Project Path="Source\DotNET\EntityFrameworkCore.Specs\EntityFrameworkCore.Specs.csproj" />
+        <Project Path="Source\DotNET\EntityFrameworkCore.SqlServer.Specs\EntityFrameworkCore.SqlServer.Specs.csproj" />
+        <Project Path="Source\DotNET\EntityFrameworkCore.PostgreSql.Specs\EntityFrameworkCore.PostgreSql.Specs.csproj" />
+        <Project Path="Source\DotNET\MongoDB\MongoDB.csproj" />
+        <Project Path="Source\DotNET\MongoDB.Specs\MongoDB.Specs.csproj" />
+        <Project Path="Source\DotNET\Swagger\Swagger.csproj" />
+    </Folder>
+    <Folder Name="/Source/DotNET/Tools/">
+        <Project Path="Source\DotNET\Tools\ProxyGenerator\ProxyGenerator.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Build\ProxyGenerator.Build.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\ProxyGenerator.Specs.csproj" />
+    </Folder>
+    <Folder Name="/TestApps/">
+        <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />
+        <Project Path="TestApps\Core\Core.csproj" />
+    </Folder>
 </Solution>
