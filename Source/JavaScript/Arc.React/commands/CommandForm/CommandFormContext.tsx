@@ -43,6 +43,7 @@ export interface CommandFormContextValue<TCommand> {
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
+    onExecute?: () => Promise<ICommandResult<unknown>>;
     customFieldErrors: Record<string, string>;
     setCustomFieldError: (fieldName: string, error: string | undefined) => void;
     showTitles: boolean;
