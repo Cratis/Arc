@@ -67,12 +67,14 @@ Use the `useCommandFormContext` hook to access validation state and render error
 import { useCommandFormContext } from '@cratis/applications-react/commands';
 
 function MyForm() {
-    const { instance } = useCommandFormContext();
+    const { getFieldError } = useCommandFormContext();
+    const emailError = getFieldError('email');
+    const passwordError = getFieldError('password');
     
     return (
         <CommandForm<MyCommand> command={MyCommand} showErrors={false}>
             <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
-            {instance.hasErrors('email') && (
+            {emailError && (
                 <div className="error-message" style={{
                     backgroundColor: '#fee',
                     color: '#c00',
@@ -81,14 +83,14 @@ function MyForm() {
                     marginTop: '0.25rem',
                     fontSize: '0.875rem'
                 }}>
-                    ⚠️ {instance.getErrorsFor('email').join(', ')}
+                    ⚠️ {emailError}
                 </div>
             )}
             
             <InputTextField<MyCommand> value={c => c.password} type="password" title="Password" required />
-            {instance.hasErrors('password') && (
+            {passwordError && (
                 <div className="error-message">
-                    ⚠️ {instance.getErrorsFor('password').join(', ')}
+                    ⚠️ {passwordError}
                 </div>
             )}
         </CommandForm>
@@ -102,11 +104,12 @@ Display all errors at once at the top or bottom of the form:
 
 ```tsx
 function MyForm() {
-    const { instance } = useCommandFormContext();
+    const { commandResult } = useCommandFormContext();
+    const hasErrors = commandResult?.validationResults && commandResult.validationResults.length > 0;
     
     return (
         <CommandForm<MyCommand> command={MyCommand} showErrors={false}>
-            {instance.hasErrors() && (
+            {hasErrors && (
                 <div className="error-summary" style={{
                     backgroundColor: '#fee',
                     border: '2px solid #c00',
