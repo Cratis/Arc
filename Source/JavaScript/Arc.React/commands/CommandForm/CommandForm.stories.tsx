@@ -329,17 +329,10 @@ export const UserRegistration: Story = {
 
 export const CustomTitles: Story = {
     render: () => {
-        return (
-            <StoryContainer size="sm" asCard>
-                <h2>Custom Titles</h2>
-                <p>
-                    This form shows how to disable built-in titles and use custom title rendering.
-                </p>
-                <CommandForm<SimpleCommand>
-                    command={SimpleCommand}
-                    showTitles={false}
-                >
-                    <div style={{ marginBottom: '1rem' }}>
+        const CustomTitleContainer: React.FC<import('./CommandFormContext').FieldContainerProps> = ({ title, errorMessage, children }) => {
+            return (
+                <div style={{ marginBottom: '1rem' }}>
+                    {title && (
                         <div style={{ 
                             fontSize: '0.75rem', 
                             textTransform: 'uppercase', 
@@ -348,32 +341,63 @@ export const CustomTitles: Story = {
                             color: 'var(--color-text-secondary)',
                             fontWeight: 600
                         }}>
-                            Full Name *
+                            {title}
                         </div>
-                        <InputTextField<SimpleCommand> 
-                            value={c => c.name} 
-                            placeholder="Enter your full name" 
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '1rem' }}>
+                    )}
+                    {children}
+                    {errorMessage && (
                         <div style={{ 
+                            color: 'var(--color-error)', 
                             fontSize: '0.875rem', 
-                            marginBottom: '0.5rem',
-                            color: 'var(--color-primary)',
-                            fontWeight: 700
+                            marginTop: '0.25rem' 
                         }}>
-                            📧 Email Address
+                            {errorMessage}
                         </div>
-                        <InputTextField<SimpleCommand> 
-                            value={c => c.email} 
-                            type="email" 
-                            placeholder="your.email@example.com" 
-                        />
-                    </div>
+                    )}
+                </div>
+            );
+        };
+
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Custom Titles</h2>
+                <p>
+                    This form shows how to customize title rendering using a custom <code>fieldContainerComponent</code>.
+                </p>
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    initialValues={{ name: '', email: '' }}
+                    fieldContainerComponent={CustomTitleContainer}
+                    showTitles={false}
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Full Name *"
+                        placeholder="Enter your full name" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="📧 Email Address"
+                        type="email" 
+                        placeholder="your.email@example.com" 
+                    />
 
                     <button type="submit">Submit</button>
                 </CommandForm>
+                
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af' }}>
+                        💡 <strong>Tip:</strong> Use a custom <code>fieldContainerComponent</code> to control 
+                        how titles are rendered while keeping fields properly connected to the form.
+                    </p>
+                </div>
             </StoryContainer>
         );
     }
@@ -524,6 +548,7 @@ export const CustomFieldContainer: Story = {
                 <CommandForm<SimpleCommand>
                     command={SimpleCommand}
                     fieldContainerComponent={CustomContainer}
+                    initialValues={{ name: '', email: '' }}
                 >
                     <InputTextField<SimpleCommand> 
                         value={c => c.name} 
@@ -707,6 +732,7 @@ export const CustomRenderers: Story = {
                     tooltipComponent={CustomTooltip}
                     errorClassName="custom-error"
                     iconAddonClassName="custom-icon-addon"
+                    initialValues={{ name: '', email: '' }}
                 >
                     <InputTextField<SimpleCommand> 
                         value={c => c.name} 
@@ -1337,6 +1363,7 @@ export const CustomCSSClasses: Story = {
                     command={SimpleCommand}
                     errorClassName="my-custom-error"
                     iconAddonClassName="my-custom-icon-addon"
+                    initialValues={{ name: '', email: '' }}
                 >
                     <InputTextField<SimpleCommand> 
                         value={c => c.name} 
