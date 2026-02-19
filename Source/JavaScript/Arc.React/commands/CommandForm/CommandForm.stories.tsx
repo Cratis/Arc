@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { Meta, StoryObj } from '@storybook/react';
 import { CommandForm } from './CommandForm';
+import type { FieldContainerProps } from './CommandFormContext';
 import { UserRegistrationCommand } from './UserRegistrationCommand';
 import { 
     InputTextField, 
@@ -81,31 +82,31 @@ export const Default: Story = {
                 </p>
                 <CommandForm<SimpleCommand>
                     command={SimpleCommand}
+                    showErrors={false}
                     initialValues={{
                         name: '',
                         email: '',
                     }}
-                    onFieldChange={async (command, fieldName) => {
-                        // Validate on blur pattern
+                    onFieldChange={async (command, fieldName, _oldValue, _newValue, validationInfo) => {
+                        // Check overall form validity
                         const result = await command.validate();
                         
-                        if (!result.isValid) {
-                            const fieldError = result.validationResults.find(
-                                v => v.members.includes(fieldName)
-                            );
+                        setValidationState(prev => {
+                            const newErrors = { ...prev.errors };
                             
-                            if (fieldError) {
-                                setValidationState(prev => ({
-                                    errors: { ...prev.errors, [fieldName]: fieldError.message },
-                                    canSubmit: false
-                                }));
+                            // Use validationInfo for field-specific errors
+                            if (validationInfo && !validationInfo.isValid && validationInfo.errors.length > 0) {
+                                newErrors[fieldName] = validationInfo.errors[0];
+                            } else {
+                                delete newErrors[fieldName];
                             }
-                        } else {
-                            setValidationState(prev => {
-                                const { [fieldName]: removed, ...rest } = prev.errors;
-                                return { errors: rest, canSubmit: true };
-                            });
-                        }
+                            
+                            return {
+                                errors: newErrors,
+                                // Can only submit if overall validation passes
+                                canSubmit: result.isValid
+                            };
+                        });
                     }}
                 >
                     <InputTextField<SimpleCommand> 
@@ -114,7 +115,20 @@ export const Default: Story = {
                         placeholder="Enter your name (min 3 chars)" 
                     />
                     {validationState.errors.name && (
-                        <div style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+                        <div style={{ 
+                            color: 'var(--color-error)', 
+                            fontSize: '0.875rem', 
+                            marginTop: '0.25rem', 
+                            marginBottom: '1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.375rem',
+                            padding: '0.5rem 0.75rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: 'var(--radius-md, 0.375rem)'
+                        }}>
+                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
                             {validationState.errors.name}
                         </div>
                     )}
@@ -126,7 +140,20 @@ export const Default: Story = {
                         placeholder="Enter your email" 
                     />
                     {validationState.errors.email && (
-                        <div style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+                        <div style={{ 
+                            color: 'var(--color-error)', 
+                            fontSize: '0.875rem', 
+                            marginTop: '0.25rem', 
+                            marginBottom: '1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.375rem',
+                            padding: '0.5rem 0.75rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: 'var(--radius-md, 0.375rem)'
+                        }}>
+                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
                             {validationState.errors.email}
                         </div>
                     )}
@@ -329,7 +356,7 @@ export const UserRegistration: Story = {
 
 export const CustomTitles: Story = {
     render: () => {
-        const CustomTitleContainer: React.FC<import('./CommandFormContext').FieldContainerProps> = ({ title, errorMessage, children }) => {
+        const CustomTitleContainer: React.FC<FieldContainerProps> = ({ title, errorMessage, children }) => {
             return (
                 <div style={{ marginBottom: '1rem' }}>
                     {title && (
@@ -415,6 +442,7 @@ export const CustomErrorRendering: Story = {
                 </p>
                 <CommandForm<SimpleCommand>
                     command={SimpleCommand}
+                    initialValues={{ name: '', email: '' }}
                     showErrors={false}
                     onFieldChange={async (command, fieldName) => {
                         const result = await command.validate();
@@ -499,7 +527,7 @@ export const CustomErrorRendering: Story = {
 
 export const CustomFieldContainer: Story = {
     render: () => {
-        const CustomContainer: React.FC<import('./CommandFormContext').FieldContainerProps> = ({ title, errorMessage, children }) => {
+        const CustomContainer: React.FC<FieldContainerProps> = ({ title, errorMessage, children }) => {
             return (
                 <div style={{ 
                     marginBottom: '1.5rem',
@@ -662,7 +690,7 @@ export const CustomRenderers: Story = {
                             zIndex: 1000,
                             maxWidth: '300px',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                            animation: 'fadeIn 0.15s ease-in'
+                            animation: 'fadeIn 0.1s ease-out'
                         }}>
                             {description}
                             <div style={{
