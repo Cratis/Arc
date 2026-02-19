@@ -14,6 +14,22 @@ export interface FieldContainerProps {
     children: React.ReactNode;
 }
 
+export interface FieldDecoratorProps {
+    icon?: React.ReactElement;
+    description?: string;
+    children: React.ReactNode;
+}
+
+export interface ErrorDisplayProps {
+    errors: string[];
+    fieldName?: string;
+}
+
+export interface TooltipWrapperProps {
+    description: string;
+    children: React.ReactNode;
+}
+
 export interface CommandFormContextValue<TCommand> {
     command: Constructor<TCommand>;
     commandInstance: TCommand;
@@ -32,6 +48,11 @@ export interface CommandFormContextValue<TCommand> {
     showTitles: boolean;
     showErrors: boolean;
     fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
+    fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
+    errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;
+    tooltipComponent?: React.ComponentType<TooltipWrapperProps>;
+    errorClassName?: string;
+    iconAddonClassName?: string;
 }
 
 export const CommandFormContext = createContext<CommandFormContextValue<unknown> | undefined>(undefined);

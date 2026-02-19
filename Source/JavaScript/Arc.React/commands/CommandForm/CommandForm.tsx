@@ -24,6 +24,11 @@ export interface CommandFormProps<TCommand extends object> {
     showTitles?: boolean;
     showErrors?: boolean;
     fieldContainerComponent?: React.ComponentType<import('./CommandFormContext').FieldContainerProps>;
+    fieldDecoratorComponent?: React.ComponentType<import('./CommandFormContext').FieldDecoratorProps>;
+    errorDisplayComponent?: React.ComponentType<import('./CommandFormContext').ErrorDisplayProps>;
+    tooltipComponent?: React.ComponentType<import('./CommandFormContext').TooltipWrapperProps>;
+    errorClassName?: string;
+    iconAddonClassName?: string;
     children?: React.ReactNode;
 }
 
@@ -237,7 +242,12 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
         showErrors: props.showErrors ?? true,
-        fieldContainerComponent: props.fieldContainerComponent
+        fieldContainerComponent: props.fieldContainerComponent,
+        fieldDecoratorComponent: props.fieldDecoratorComponent,
+        errorDisplayComponent: props.errorDisplayComponent,
+        tooltipComponent: props.tooltipComponent,
+        errorClassName: props.errorClassName,
+        iconAddonClassName: props.iconAddonClassName
     };
 
     return (

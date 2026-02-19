@@ -279,20 +279,332 @@ Custom field containers are useful when you want:
 - Conditional styling based on validation state
 - Accessibility enhancements (ARIA attributes, screen reader support)
 
+## Custom Field Decorator
+
+The `fieldDecoratorComponent` allows you to customize how fields with icons and descriptions are wrapped and decorated. This is particularly useful for integrating with UI frameworks like PrimeReact, Material-UI, or custom design systems.
+
+### Using Custom Field Decorator
+
+Define a custom decorator component:
+
+```tsx
+import { FieldDecoratorProps } from '@cratis/applications-react/commands';
+
+const PrimeReactFieldDecorator = ({ icon, description, children }: FieldDecoratorProps) => {
+    if (!icon && !description) {
+        return <>{children}</>;
+    }
+
+    return (
+        <div className="p-inputgroup">
+            {icon && (
+                <span className="p-inputgroup-addon">
+                    {icon}
+                </span>
+            )}
+            <div className="p-field" data-pr-tooltip={description}>
+                {children}
+            </div>
+        </div>
+    );
+};
+```
+
+Use it with CommandForm:
+
+```tsx
+<CommandForm<MyCommand>
+    command={MyCommand}
+    fieldDecoratorComponent={PrimeReactFieldDecorator}
+>
+    <InputTextField<MyCommand> 
+        value={c => c.email} 
+        title="Email"
+        icon={<i className="pi pi-envelope" />}
+        description="We'll never share your email"
+    />
+</CommandForm>
+```
+
+### FieldDecoratorProps Interface
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `icon` | `React.ReactElement \| undefined` | Icon element to display alongside the field. |
+| `description` | `string \| undefined` | Description text to show as tooltip or help text. |
+| `children` | `React.ReactNode` | The field component to decorate. |
+
+## Custom Error Display
+
+The `errorDisplayComponent` allows complete control over how validation errors are rendered for each field.
+
+### Using Custom Error Display
+
+Define a custom error display component:
+
+```tsx
+import { ErrorDisplayProps } from '@cratis/applications-react/commands';
+
+const CustomErrorDisplay = ({ errors, fieldName }: ErrorDisplayProps) => (
+    <div className="custom-errors" role="alert" aria-live="polite">
+        {errors.map((error, idx) => (
+            <div key={idx} className="error-item" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '0.25rem',
+                marginTop: '0.25rem',
+                fontSize: '0.875rem',
+                color: '#dc2626'
+            }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM7 5a1 1 0 1 1 2 0v4a1 1 0 1 1-2 0V5zm1 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
+                </svg>
+                <span>{error}</span>
+            </div>
+        ))}
+    </div>
+);
+```
+
+Use it with CommandForm:
+
+```tsx
+<CommandForm<MyCommand>
+    command={MyCommand}
+    errorDisplayComponent={CustomErrorDisplay}
+>
+    <InputTextField<MyCommand> value={c => c.email} title="Email" required />
+    <InputTextField<MyCommand> value={c => c.password} title="Password" required />
+</CommandForm>
+```
+
+### ErrorDisplayProps Interface
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `errors` | `string[]` | Array of error messages for the field. |
+| `fieldName` | `string \| undefined` | Name of the field with errors (useful for custom error handling). |
+
+## Custom Tooltip Component
+
+The `tooltipComponent` allows you to integrate custom tooltip libraries or components for field descriptions.
+
+### Using Custom Tooltip
+
+Define a custom tooltip wrapper:
+
+```tsx
+import { TooltipWrapperProps } from '@cratis/applications-react/commands';
+import { Tooltip } from 'primereact/tooltip';
+
+const PrimeReactTooltip = ({ description, children }: TooltipWrapperProps) => {
+    const tooltipId = `tooltip-${Math.random().toString(36).substr(2, 9)}`;
+    
+    return (
+        <>
+            <div data-pr-tooltip={description} data-pr-position="top" id={tooltipId}>
+                {children}
+            </div>
+            <Tooltip target={`#${tooltipId}`} />
+        </>
+    );
+};
+```
+
+Use it with CommandForm:
+
+```tsx
+<CommandForm<MyCommand>
+    command={MyCommand}
+    tooltipComponent={PrimeReactTooltip}
+>
+    <InputTextField<MyCommand> 
+        value={c => c.username} 
+        title="Username"
+        description="Choose a unique username. Letters, numbers, and underscores only."
+    />
+</CommandForm>
+```
+
+### TooltipWrapperProps Interface
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `description` | `string` | The tooltip text to display. |
+| `children` | `React.ReactNode` | The content to attach the tooltip to. |
+
+## Custom CSS Classes
+
+For lightweight customization without creating custom components, use the CSS class customization options.
+
+### Using Custom CSS Classes
+
+```tsx
+<CommandForm<MyCommand>
+    command={MyCommand}
+    errorClassName="my-error-message"
+    iconAddonClassName="my-icon-addon"
+>
+    <InputTextField<MyCommand> 
+        value={c => c.email} 
+        title="Email"
+        icon={<span>📧</span>}
+        required
+    />
+</CommandForm>
+```
+
+Then define your CSS:
+
+```css
+.my-error-message {
+    display: block;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: #fee;
+    border-left: 3px solid #c00;
+    color: #c00;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.my-icon-addon {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+```
+
+### CSS Class Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `errorClassName` | `string` | `'p-error'` | CSS class applied to error message elements. |
+| `iconAddonClassName` | `string` | `'p-inputgroup-addon'` | CSS class applied to icon addon containers. |
+
+## Framework Integration Examples
+
+### PrimeReact Integration
+
+```tsx
+import { CommandForm } from '@cratis/applications-react/commands';
+import { Tooltip } from 'primereact/tooltip';
+import 'primereact/resources/themes/lara-light-blue/theme.css';
+import 'primereact/resources/primereact.min.css';
+
+const PrimeFieldDecorator = ({ icon, description, children }) => (
+    <div className="p-inputgroup">
+        {icon && <span className="p-inputgroup-addon">{icon}</span>}
+        {children}
+    </div>
+);
+
+const PrimeErrorDisplay = ({ errors }) => (
+    <div>
+        {errors.map((error, idx) => (
+            <small key={idx} className="p-error block mt-1">{error}</small>
+        ))}
+    </div>
+);
+
+function MyForm() {
+    return (
+        <CommandForm<MyCommand>
+            command={MyCommand}
+            fieldDecoratorComponent={PrimeFieldDecorator}
+            errorDisplayComponent={PrimeErrorDisplay}
+            errorClassName="p-error"
+            iconAddonClassName="p-inputgroup-addon"
+        >
+            {/* Your fields */}
+        </CommandForm>
+    );
+}
+```
+
+### Tailwind CSS Integration
+
+```tsx
+const TailwindFieldDecorator = ({ icon, description, children }) => (
+    <div className="relative" title={description}>
+        {icon && (
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                {icon}
+            </div>
+        )}
+        <div className={icon ? 'pl-10' : ''}>
+            {children}
+        </div>
+    </div>
+);
+
+const TailwindErrorDisplay = ({ errors }) => (
+    <div className="mt-1 space-y-1">
+        {errors.map((error, idx) => (
+            <p key={idx} className="text-sm text-red-600 flex items-center gap-1">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <span>{error}</span>
+            </p>
+        ))}
+    </div>
+);
+
+function MyForm() {
+    return (
+        <CommandForm<MyCommand>
+            command={MyCommand}
+            fieldDecoratorComponent={TailwindFieldDecorator}
+            errorDisplayComponent={TailwindErrorDisplay}
+            errorClassName="text-sm text-red-600 mt-1"
+        >
+            {/* Your fields */}
+        </CommandForm>
+    );
+}
+```
+
 ## Combining Customizations
 
-You can combine multiple customization options:
+You can combine multiple customization options for complete control:
 
 ```tsx
 <CommandForm<MyCommand>
     command={MyCommand} 
-    showTitles={false}           // Disable auto titles
-    showErrors={false}           // Disable auto errors
-    fieldContainerComponent={CustomFieldContainer}  // Use custom container
+    showTitles={false}                              // Disable auto titles
+    showErrors={true}                               // Keep auto errors
+    fieldContainerComponent={CustomFieldContainer}  // Custom container
+    fieldDecoratorComponent={CustomFieldDecorator}  // Custom field decoration
+    errorDisplayComponent={CustomErrorDisplay}      // Custom error rendering
+    tooltipComponent={CustomTooltip}                // Custom tooltips
+    errorClassName="my-error"                       // Custom error CSS class
+    iconAddonClassName="my-icon"                    // Custom icon CSS class
 >
     <h2>Account Information</h2>
-    <InputTextField<MyCommand> value={c => c.username} title="Username" required />
-    <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<MyCommand> 
+        value={c => c.username} 
+        title="Username" 
+        icon={<span>👤</span>}
+        description="Choose a unique username"
+        required 
+    />
+    <InputTextField<MyCommand> 
+        value={c => c.email} 
+        type="email" 
+        title="Email"
+        icon={<span>📧</span>}
+        description="We'll never share your email"
+        required 
+    />
     
     <h2>Profile</h2>
     <TextAreaField<MyCommand> value={c => c.bio} title="Bio" />
