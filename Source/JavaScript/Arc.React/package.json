@@ -45,6 +45,11 @@
             "types": "./dist/esm/identity/index.d.ts",
             "require": "./dist/cjs/identity/index.js",
             "import": "./dist/esm/identity/index.js"
+        },
+        "./stories": {
+            "types": "./dist/esm/stories/index.d.ts",
+            "require": "./dist/cjs/stories/index.js",
+            "import": "./dist/esm/stories/index.js"
         }
     },
     "scripts": {

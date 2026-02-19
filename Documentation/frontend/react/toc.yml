@@ -12,3 +12,5 @@
   href: proxy-generation.md
 - name: Storybook
   href: storybook.md
+- name: Story Components
+  href: stories/toc.yml
