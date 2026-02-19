@@ -20,16 +20,16 @@ export const InputTextField = asCommandFormField<InputTextComponentProps>(
             onChange={props.onChange}
             required={props.required}
             placeholder={props.placeholder}
-            className={`w-full p-3 text-base rounded-md ${props.invalid ? 'border border-red-500' : 'border border-gray-300'} ${props.className || ''}`}
+            className={props.className || ''}
             style={{ 
                 width: '100%', 
                 display: 'block',
                 padding: '0.75rem',
                 fontSize: '1rem',
-                border: '1px solid var(--color-border)',
+                border: props.invalid ? '1px solid #ef4444' : '1px solid var(--color-border, #d1d5db)',
                 borderRadius: '0.375rem',
                 boxSizing: 'border-box',
-                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 } : {}),
+                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, height: '100%' } : {}),
                 ...props.style 
             }}
         />

@@ -112,9 +112,19 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
     let decoratedField = clonedField;
     if (fieldProps.icon || fieldProps.description) {
         if (FieldDecorator) {
+            // When using a custom decorator with an icon, set hasLeftAddon on the field
+            const fieldForDecorator = fieldProps.icon ? (
+                React.cloneElement(clonedField as React.ReactElement, {
+                    hasLeftAddon: true,
+                    style: {
+                        ...((clonedField as React.ReactElement).props?.style || {}),
+                        flex: 1
+                    }
+                })
+            ) : clonedField;
             decoratedField = (
                 <FieldDecorator icon={fieldProps.icon} description={fieldProps.description}>
-                    {clonedField}
+                    {fieldForDecorator}
                 </FieldDecorator>
             );
         } else {
