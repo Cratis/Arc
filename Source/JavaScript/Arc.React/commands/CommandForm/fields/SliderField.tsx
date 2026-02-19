@@ -8,6 +8,9 @@ interface RangeComponentProps extends WrappedFieldProps<number> {
     min?: number;
     max?: number;
     step?: number;
+    className?: string;
+    style?: React.CSSProperties;
+    hasLeftAddon?: boolean;
 }
 
 export const RangeField = asCommandFormField<RangeComponentProps>(
@@ -17,7 +20,21 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
         const step = props.step ?? 1;
 
         return (
-            <div className="w-full flex items-center gap-4 p-3 border border-gray-300 rounded-md" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', border: '1px solid var(--color-border)', borderRadius: '0.375rem', backgroundColor: 'var(--color-background-secondary)' }}>
+            <div 
+                className={`w-full flex items-center gap-4 p-3 border border-gray-300 rounded-md ${props.className || ''}`} 
+                style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    padding: '0.75rem', 
+                    border: '1px solid var(--color-border)', 
+                    borderRadius: '0.375rem', 
+                    backgroundColor: 'var(--color-background-secondary)',
+                    boxSizing: 'border-box',
+                    ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 } : {}),
+                    ...props.style 
+                }}
+            >
                 <input
                     type="range"
                     value={props.value}

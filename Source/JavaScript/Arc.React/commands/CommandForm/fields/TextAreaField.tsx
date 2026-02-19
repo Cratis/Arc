@@ -8,6 +8,9 @@ interface TextAreaFieldComponentProps extends WrappedFieldProps<string> {
     placeholder?: string;
     rows?: number;
     cols?: number;
+    className?: string;
+    style?: React.CSSProperties;
+    hasLeftAddon?: boolean;
 }
 
 export const TextAreaField = asCommandFormField<TextAreaFieldComponentProps>(
@@ -19,8 +22,18 @@ export const TextAreaField = asCommandFormField<TextAreaFieldComponentProps>(
             placeholder={props.placeholder}
             rows={props.rows ?? 5}
             cols={props.cols}
-            className={`w-full p-3 rounded-md text-base ${props.invalid ? 'border border-red-500' : 'border border-gray-300'}`}
-            style={{ width: '100%', display: 'block' }}
+            className={`w-full p-3 rounded-md text-base ${props.invalid ? 'border border-red-500' : 'border border-gray-300'} ${props.className || ''}`}
+            style={{ 
+                width: '100%', 
+                display: 'block',
+                padding: '0.75rem',
+                fontSize: '1rem',
+                border: '1px solid var(--color-border)',
+                borderRadius: '0.375rem',
+                boxSizing: 'border-box',
+                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 } : {}),
+                ...props.style 
+            }}
         />
     ),
     {

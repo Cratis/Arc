@@ -125,7 +125,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                     style={{
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '0.5rem',
+                        padding: '0.75rem',
                         backgroundColor: 'var(--color-background-secondary)',
                         border: '1px solid var(--color-border)',
                         borderRight: 'none',
@@ -136,10 +136,21 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 </span>
             );
 
+            // When there's an icon, set hasLeftAddon prop to remove left border-radius
+            const fieldWithAdjustedStyle = fieldProps.icon ? (
+                React.cloneElement(clonedField as React.ReactElement, {
+                    hasLeftAddon: true,
+                    style: {
+                        ...((clonedField as React.ReactElement).props?.style || {}),
+                        flex: 1
+                    }
+                })
+            ) : clonedField;
+
             const wrappedField = (
-                <div style={{ display: 'flex', width: '100%' }}>
+                <div style={{ display: 'flex', width: '100%', alignItems: 'stretch' }}>
                     {iconAddon}
-                    {clonedField}
+                    {fieldWithAdjustedStyle}
                 </div>
             );
 
