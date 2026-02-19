@@ -31,7 +31,7 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
                     borderRadius: '0.375rem', 
                     backgroundColor: 'var(--color-background-secondary)',
                     boxSizing: 'border-box',
-                    ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, height: '100%' } : {}),
+                    ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, alignSelf: 'stretch' } : {}),
                     ...props.style 
                 }}
             >

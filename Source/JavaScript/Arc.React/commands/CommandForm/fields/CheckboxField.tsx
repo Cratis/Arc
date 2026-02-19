@@ -23,7 +23,7 @@ export const CheckboxField = asCommandFormField<CheckboxFieldComponentProps>(
                 borderRadius: '0.375rem',
                 width: '100%',
                 boxSizing: 'border-box',
-                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, height: '100%' } : {}),
+                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, alignSelf: 'stretch' } : {}),
                 ...props.style
             }}
         >

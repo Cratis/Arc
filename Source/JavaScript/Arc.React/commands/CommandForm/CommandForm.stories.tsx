@@ -622,7 +622,7 @@ export const CustomRenderers: Story = {
                         </div>
                     )}
                     <div 
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'stretch' }}
                         title={description}
                     >
                         {children}
