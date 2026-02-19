@@ -301,3 +301,5 @@ function getPropertyName<T>(accessor: (obj: T) => unknown): string {
 }
 
 CommandFormFields.displayName = 'CommandFormFields';
+
+export { CommandFormFieldWrapper };

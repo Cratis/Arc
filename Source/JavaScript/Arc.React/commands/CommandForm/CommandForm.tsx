@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandFormFields, ColumnInfo } from './CommandFormFields';
+import { CommandFormFields, ColumnInfo, CommandFormFieldWrapper } from './CommandFormFields';
 import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue, type FieldValidationInfo, type FieldContainerProps, type FieldDecoratorProps, type ErrorDisplayProps, type TooltipWrapperProps } from './CommandFormContext';
 import { Constructor } from '@cratis/fundamentals';
 import { useCommand, SetCommandValues } from '../useCommand';
@@ -299,9 +299,32 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     );
 };
 
-const CommandFormColumnComponent = (_props: { children: React.ReactNode }) => {
-    void _props;
-    return <></>;
+interface CommandFormColumnProps {
+    children: React.ReactNode;
+}
+
+const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
+    const children = React.Children.toArray(props.children);
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            {children.map((child, index) => {
+                if (React.isValidElement(child)) {
+                    const component = child.type as React.ComponentType<unknown>;
+                    if (component.displayName === 'CommandFormField') {
+                        return (
+                            <CommandFormFieldWrapper
+                                key={`column-field-${index}`}
+                                field={child as React.ReactElement}
+                            />
+                        );
+                    }
+                }
+                // Render non-field children as-is
+                return <React.Fragment key={`column-other-${index}`}>{child}</React.Fragment>;
+            })}
+        </div>
+    );
 };
 
 CommandFormColumnComponent.displayName = 'CommandFormColumn';
