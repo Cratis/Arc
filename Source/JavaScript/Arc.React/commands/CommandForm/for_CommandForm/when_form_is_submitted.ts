@@ -26,7 +26,7 @@ describe("when form is submitted", given(a_command_form_context, context => {
 
     it('should render a form element', () => expect(formElement).to.not.be.null);
     it('should have submit button inside form', () => {
-        const submitButton = screen.getByTestId('submit-button');
+        const submitButton = screen.getByTestId('submit-button') as HTMLButtonElement;
         expect(submitButton.type).to.equal('submit');
     });
 }));
