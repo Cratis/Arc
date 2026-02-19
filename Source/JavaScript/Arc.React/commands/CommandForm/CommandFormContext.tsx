@@ -30,6 +30,11 @@ export interface TooltipWrapperProps {
     children: React.ReactNode;
 }
 
+export interface FieldValidationInfo {
+    isValid: boolean;
+    errors: string[];
+}
+
 export interface CommandFormContextValue<TCommand> {
     command: Constructor<TCommand>;
     commandInstance: TCommand;
@@ -41,7 +46,7 @@ export interface CommandFormContextValue<TCommand> {
     isValid: boolean;
     setFieldValidity: (fieldName: string, isValid: boolean) => void;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
-    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => void;
+    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     onExecute?: () => Promise<ICommandResult<unknown>>;
     customFieldErrors: Record<string, string>;

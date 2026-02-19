@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { CommandFormFields, ColumnInfo } from './CommandFormFields';
-import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue } from './CommandFormContext';
+import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue, type FieldValidationInfo, type FieldContainerProps, type FieldDecoratorProps, type ErrorDisplayProps, type TooltipWrapperProps } from './CommandFormContext';
 import { Constructor } from '@cratis/fundamentals';
 import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
@@ -19,14 +19,14 @@ export interface CommandFormProps<TCommand extends object> {
     initialValues?: Partial<TCommand>;
     currentValues?: Partial<TCommand> | undefined;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
-    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => void;
+    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     showTitles?: boolean;
     showErrors?: boolean;
-    fieldContainerComponent?: React.ComponentType<import('./CommandFormContext').FieldContainerProps>;
-    fieldDecoratorComponent?: React.ComponentType<import('./CommandFormContext').FieldDecoratorProps>;
-    errorDisplayComponent?: React.ComponentType<import('./CommandFormContext').ErrorDisplayProps>;
-    tooltipComponent?: React.ComponentType<import('./CommandFormContext').TooltipWrapperProps>;
+    fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
+    fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
+    errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;
+    tooltipComponent?: React.ComponentType<TooltipWrapperProps>;
     errorClassName?: string;
     iconAddonClassName?: string;
     children?: React.ReactNode;
@@ -243,6 +243,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
 
     const handleFormSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         void handleExecute();
     }, [handleExecute]);
 
@@ -277,7 +278,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
 
     return (
         <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
-            <form onSubmit={handleFormSubmit}>
+            <form onSubmit={handleFormSubmit} noValidate>
                 <CommandFormFields 
                     fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps>[])} 
                     columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCommandFormContext } from './CommandFormContext';
+import { useCommandFormContext, type FieldValidationInfo } from './CommandFormContext';
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
@@ -45,7 +45,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
         currentValue,
         propertyDescriptor,
         fieldName: propertyName,
-        onValueChange: (value: unknown) => {
+        onValueChange: async (value: unknown) => {
             if (propertyName) {
                 const oldValue = currentValue;
 
@@ -53,8 +53,9 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 context.setCommandValues({ [propertyName]: value } as Record<string, unknown>);
 
                 // Call validate() on the command instance and store the result
+                let validationResult: ICommandResult<unknown> | undefined = undefined;
                 if (context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
-                    const validationResult = ((context.commandInstance as Record<string, unknown>).validate as () => ICommandResult<unknown>)();
+                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
                     if (validationResult) {
                         context.setCommandResult(validationResult);
                     }
@@ -68,7 +69,17 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
 
                 // Call field change callback if provided
                 if (context.onFieldChange) {
-                    context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value);
+                    // Get field-specific validation info from the fresh validation result
+                    const fieldErrors = validationResult?.validationResults?.filter(
+                        vr => vr.members.includes(propertyName)
+                    ).map(vr => vr.message) || [];
+                    
+                    const validationInfo: FieldValidationInfo = {
+                        isValid: fieldErrors.length === 0,
+                        errors: fieldErrors
+                    };
+                    
+                    context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value, validationInfo);
                 }
             }
             fieldProps.onChange?.(value as unknown);
@@ -161,15 +172,15 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 </label>
             )}
             {decoratedField}
-            {errorElement}
         </>
     );
 
     if (FieldContainer) {
+        // FieldContainer handles error display through errorMessage prop
         return (
             <FieldContainer
                 title={fieldProps.title}
-                errorMessage={errorMessage}
+                errorMessage={context.showErrors ? errorMessage : undefined}
             >
                 {fieldContent}
             </FieldContainer>
@@ -179,6 +190,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
     return (
         <div className="w-full" style={{ marginBottom: '1rem' }}>
             {fieldContent}
+            {errorElement}
         </div>
     );
 };
