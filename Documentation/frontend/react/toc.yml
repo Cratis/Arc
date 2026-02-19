@@ -10,7 +10,7 @@
   href: queries.md
 - name: Proxy Generation
   href: proxy-generation.md
-- name: Storybook
-  href: storybook.md
 - name: Story Components
   href: stories/toc.yml
+- name: Storybook
+  href: storybook.md

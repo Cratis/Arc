@@ -20,7 +20,7 @@ A container component for wrapping stories with consistent spacing and styling.
 ### Example
 
 ```tsx
-import { StoryContainer } from '../stories';
+import { StoryContainer } from '@cratis/arc.react/stories';
 
 export const MyStory: Story = {
   render: () => (

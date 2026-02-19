@@ -39,7 +39,7 @@ Thoughtfully designed defaults for colors, shadows, borders, and spacing mean yo
 Import the components you need in your story files:
 
 ```tsx
-import { StoryContainer, StorySection, StoryGrid, StoryBadge, StoryDivider } from '../stories';
+import { StoryContainer, StorySection, StoryGrid, StoryBadge, StoryDivider } from '@cratis/arc.react/stories';
 
 export const MyStory: Story = {
   render: () => (
