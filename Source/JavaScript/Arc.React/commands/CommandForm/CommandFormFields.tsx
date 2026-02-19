@@ -78,6 +78,73 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
     } as Record<string, unknown>);
 
     const FieldContainer = context.fieldContainerComponent;
+    const FieldDecorator = context.fieldDecoratorComponent;
+    const ErrorDisplay = context.errorDisplayComponent;
+    const TooltipWrapper = context.tooltipComponent;
+
+    // Prepare error display
+    const errors = errorMessage ? [errorMessage] : [];
+    const errorElement = context.showErrors && errors.length > 0 && (
+        ErrorDisplay ? (
+            <ErrorDisplay errors={errors} fieldName={propertyName} />
+        ) : (
+            <small 
+                className={context.errorClassName || 'p-error'}
+                style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-error, #c00)', fontSize: '0.875rem' }}
+            >
+                {errorMessage}
+            </small>
+        )
+    );
+
+    // Wrap field with decorator if icon or description exists
+    let decoratedField = clonedField;
+    if (fieldProps.icon || fieldProps.description) {
+        if (FieldDecorator) {
+            decoratedField = (
+                <FieldDecorator icon={fieldProps.icon} description={fieldProps.description}>
+                    {clonedField}
+                </FieldDecorator>
+            );
+        } else {
+            // Default decoration: icon addon and tooltip
+            const iconAddon = fieldProps.icon && (
+                <span
+                    className={context.iconAddonClassName || 'p-inputgroup-addon'}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.5rem',
+                        backgroundColor: 'var(--color-background-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRight: 'none',
+                        borderRadius: 'var(--radius-md) 0 0 var(--radius-md)'
+                    }}
+                >
+                    {fieldProps.icon}
+                </span>
+            );
+
+            const wrappedField = (
+                <div style={{ display: 'flex', width: '100%' }}>
+                    {iconAddon}
+                    {clonedField}
+                </div>
+            );
+
+            decoratedField = fieldProps.description ? (
+                TooltipWrapper ? (
+                    <TooltipWrapper description={fieldProps.description}>
+                        {wrappedField}
+                    </TooltipWrapper>
+                ) : (
+                    <div title={fieldProps.description} style={{ cursor: 'help' }}>
+                        {wrappedField}
+                    </div>
+                )
+            ) : wrappedField;
+        }
+    }
 
     const fieldContent = (
         <>
@@ -93,29 +160,8 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                     {fieldProps.title}
                 </label>
             )}
-            <div style={{ display: 'flex', width: '100%' }}>
-                {fieldProps.icon && (
-                    <span
-                        title={fieldProps.description}
-                        style={{
-                            cursor: fieldProps.description ? 'help' : 'default',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0.5rem',
-                            backgroundColor: 'var(--color-background-secondary)',
-                            border: '1px solid var(--color-border)',
-                            borderRight: 'none',
-                            borderRadius: 'var(--radius-md) 0 0 var(--radius-md)'
-                        }}
-                    >
-                        {fieldProps.icon}
-                    </span>
-                )}
-                {clonedField}
-            </div>
-            {context.showErrors && errorMessage && (
-                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-error, #c00)', fontSize: '0.875rem' }}>{errorMessage}</small>
-            )}
+            {decoratedField}
+            {errorElement}
         </>
     );
 

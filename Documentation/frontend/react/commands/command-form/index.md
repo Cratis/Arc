@@ -57,7 +57,14 @@ function MyForm() {
 | `showTitles` | `boolean` | `true` | Whether to show field titles automatically |
 | `showErrors` | `boolean` | `true` | Whether to show field error messages automatically |
 | `fieldContainerComponent` | `React.ComponentType<FieldContainerProps>` | `undefined` | Custom component for rendering field containers |
+| `fieldDecoratorComponent` | `React.ComponentType<FieldDecoratorProps>` | `undefined` | Custom component for decorating fields with icons and tooltips |
+| `errorDisplayComponent` | `React.ComponentType<ErrorDisplayProps>` | `undefined` | Custom component for rendering validation errors |
+| `tooltipComponent` | `React.ComponentType<TooltipWrapperProps>` | `undefined` | Custom component for rendering tooltips on field descriptions |
+| `errorClassName` | `string` | `'p-error'` | CSS class name for error message elements |
+| `iconAddonClassName` | `string` | `'p-inputgroup-addon'` | CSS class name for icon addon containers |
 | `onFieldValidate` | `(command, fieldName, oldValue, newValue) => string \| undefined` | `undefined` | Custom field validation function |
+| `onFieldChange` | `(command, fieldName, oldValue, newValue) => void` | `undefined` | Callback when field value changes |
+| `onBeforeExecute` | `(values) => values` | `undefined` | Transform command values before execution |
 | `onFieldChange` | `(command, fieldName, oldValue, newValue) => void` | `undefined` | Callback when a field value changes |
 | `onBeforeExecute` | `(values) => values` | `undefined` | Transform values before command execution |
 

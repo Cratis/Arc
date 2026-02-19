@@ -150,23 +150,25 @@ Use the `useCommandFormContext` hook to access validation state programmatically
 import { useCommandFormContext } from '@cratis/applications-react/commands';
 
 function MyForm() {
-    const { instance } = useCommandFormContext();
+    const { getFieldError, commandResult } = useCommandFormContext();
+    const emailError = getFieldError('email');
+    const hasAnyErrors = commandResult?.validationResults && commandResult.validationResults.length > 0;
     
     return (
         <CommandForm<CreateAccount> command={CreateAccount} showErrors={false}>
             <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
             
             {/* Check for specific field errors */}
-            {instance.hasErrors('email') && (
+            {emailError && (
                 <div className="error">
-                    {instance.getErrorsFor('email').join(', ')}
+                    {emailError}
                 </div>
             )}
             
             <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
             
             {/* Check for any errors */}
-            {instance.hasErrors() && (
+            {hasAnyErrors && (
                 <div className="error-summary">
                     Please fix the errors above before submitting.
                 </div>

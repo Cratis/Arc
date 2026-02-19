@@ -84,12 +84,15 @@ Access the form context to inspect state and control behavior:
 
 ```tsx
 import { useCommandFormContext } from '@cratis/applications-react/commands';
+import { Command } from '@cratis/arc/commands';
 
 function CustomSubmitButton() {
-    const { instance, onExecute } = useCommandFormContext();
+    const { commandInstance, onExecute, commandResult } = useCommandFormContext();
     
     const handleClick = async () => {
-        if (instance.hasErrors()) {
+        const command = commandInstance as unknown as Command;
+        
+        if (!commandResult?.isValid && commandResult?.validationResults?.length > 0) {
             alert('Please fix validation errors');
             return;
         }
@@ -99,10 +102,11 @@ function CustomSubmitButton() {
     
     return (
         <button 
+            type="button"
             onClick={handleClick}
-            disabled={!instance.hasChanges}
+            disabled={!command.hasChanges}
         >
-            {instance.hasChanges ? 'Save Changes' : 'No Changes'}
+            {command.hasChanges ? 'Save Changes' : 'No Changes'}
         </button>
     );
 }

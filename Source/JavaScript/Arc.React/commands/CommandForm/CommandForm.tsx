@@ -24,6 +24,11 @@ export interface CommandFormProps<TCommand extends object> {
     showTitles?: boolean;
     showErrors?: boolean;
     fieldContainerComponent?: React.ComponentType<import('./CommandFormContext').FieldContainerProps>;
+    fieldDecoratorComponent?: React.ComponentType<import('./CommandFormContext').FieldDecoratorProps>;
+    errorDisplayComponent?: React.ComponentType<import('./CommandFormContext').ErrorDisplayProps>;
+    tooltipComponent?: React.ComponentType<import('./CommandFormContext').TooltipWrapperProps>;
+    errorClassName?: string;
+    iconAddonClassName?: string;
     children?: React.ReactNode;
 }
 
@@ -217,6 +222,30 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         return undefined;
     };
 
+    const handleExecute = useCallback(async (): Promise<ICommandResult<unknown>> => {
+        let finalValues = commandInstance;
+
+        // Apply onBeforeExecute transformation if provided
+        if (props.onBeforeExecute) {
+            finalValues = props.onBeforeExecute(commandInstance);
+            setCommandValues(finalValues);
+        }
+
+        // Execute the command
+        if (typeof (finalValues as unknown as Command).execute === 'function') {
+            const result = await (finalValues as unknown as Command).execute();
+            setCommandResult(result);
+            return result;
+        }
+
+        throw new Error('Command instance does not have an execute method');
+    }, [commandInstance, props.onBeforeExecute, setCommandValues, setCommandResult]);
+
+    const handleFormSubmit = useCallback((e: React.FormEvent) => {
+        e.preventDefault();
+        void handleExecute();
+    }, [handleExecute]);
+
     const exceptionMessages = commandResult?.exceptionMessages || [];
     const hasColumns = fieldsOrColumns.length > 0 && 'fields' in fieldsOrColumns[0];
 
@@ -233,30 +262,38 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         onFieldValidate: props.onFieldValidate,
         onFieldChange: props.onFieldChange,
         onBeforeExecute: props.onBeforeExecute,
+        onExecute: handleExecute,
         customFieldErrors,
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
         showErrors: props.showErrors ?? true,
-        fieldContainerComponent: props.fieldContainerComponent
+        fieldContainerComponent: props.fieldContainerComponent,
+        fieldDecoratorComponent: props.fieldDecoratorComponent,
+        errorDisplayComponent: props.errorDisplayComponent,
+        tooltipComponent: props.tooltipComponent,
+        errorClassName: props.errorClassName,
+        iconAddonClassName: props.iconAddonClassName
     };
 
     return (
         <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
-            <CommandFormFields 
-                fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps>[])} 
-                columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}
-                orderedChildren={orderedChildren}
-            />
-            {exceptionMessages.length > 0 && (
-                <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-bg, #fee)' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: 600, color: 'var(--color-error, #c00)' }}>The server responded with</h4>
-                    <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
-                        {exceptionMessages.map((msg, idx) => (
-                            <li key={idx}>{msg}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+            <form onSubmit={handleFormSubmit}>
+                <CommandFormFields 
+                    fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps>[])} 
+                    columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}
+                    orderedChildren={orderedChildren}
+                />
+                {exceptionMessages.length > 0 && (
+                    <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-bg, #fee)' }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: 600, color: 'var(--color-error, #c00)' }}>The server responded with</h4>
+                        <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                            {exceptionMessages.map((msg, idx) => (
+                                <li key={idx}>{msg}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </form>
         </CommandFormContext.Provider>
     );
 };
