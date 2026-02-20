@@ -23,6 +23,9 @@ export interface CommandFormProps<TCommand extends object> {
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     showTitles?: boolean;
     showErrors?: boolean;
+    validateOn?: 'blur' | 'change' | 'both';
+    validateAllFieldsOnChange?: boolean;
+    validateOnInit?: boolean;
     fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
     fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
     errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;
@@ -178,13 +181,35 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     const initializedRef = React.useRef(false);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
-    // Only run on mount or when initial values actually change, not on every render
+    // When using currentValues, always update when they change (reactive mode for editing)
+    // When using initialValues only, set values once on mount
     React.useEffect(() => {
-        if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+        const hasCurrentValues = props.currentValues !== undefined && props.currentValues !== null;
+        
+        if (hasCurrentValues) {
+            // Reactive mode: update whenever currentValues changes
+            if (mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+                setCommandValues(mergedInitialValues as TCommand);
+            }
+        } else if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+            // Static mode: set values only once on initialization
             setCommandValues(mergedInitialValues as TCommand);
             initializedRef.current = true;
         }
-    }, [mergedInitialValues]); // removed setCommandValues from deps as it's stable
+
+        // Validate on init if requested (only on first initialization)
+        if (!initializedRef.current && props.validateOnInit && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+            initializedRef.current = true;
+            void (async () => {
+                const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                if (validationResult) {
+                    setCommandResult(validationResult);
+                }
+            })();
+        } else if (!initializedRef.current) {
+            initializedRef.current = true;
+        }
+    }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
 
     const isValid = Object.values(fieldValidities).every(valid => valid);
 
@@ -268,6 +293,9 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
         showErrors: props.showErrors ?? true,
+        validateOn: props.validateOn ?? 'blur',
+        validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,
+        validateOnInit: props.validateOnInit ?? false,
         fieldContainerComponent: props.fieldContainerComponent,
         fieldDecoratorComponent: props.fieldDecoratorComponent,
         errorDisplayComponent: props.errorDisplayComponent,

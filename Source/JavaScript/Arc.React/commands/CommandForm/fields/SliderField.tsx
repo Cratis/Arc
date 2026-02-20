@@ -39,6 +39,7 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
                     type="range"
                     value={props.value}
                     onChange={props.onChange}
+                    onBlur={props.onBlur}
                     min={min}
                     max={max}
                     step={step}

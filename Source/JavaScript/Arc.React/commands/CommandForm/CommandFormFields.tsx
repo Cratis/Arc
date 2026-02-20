@@ -52,9 +52,11 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 // Update the command value
                 context.setCommandValues({ [propertyName]: value } as Record<string, unknown>);
 
-                // Call validate() on the command instance and store the result
+                // Validate on change if requested
+                const shouldValidateOnChange = context.validateOn === 'change' || context.validateOn === 'both';
+                
                 let validationResult: ICommandResult<unknown> | undefined = undefined;
-                if (context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
+                if (shouldValidateOnChange && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
                     validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
                     if (validationResult) {
                         context.setCommandResult(validationResult);
@@ -83,6 +85,65 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 }
             }
             fieldProps.onChange?.(value as unknown);
+        },
+        onBlur: async () => {
+            if (propertyName) {
+                const shouldValidateOnBlur = context.validateOn === 'blur' || context.validateOn === 'both';
+                
+                let validationResult: ICommandResult<unknown> | undefined = undefined;
+                if (shouldValidateOnBlur && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
+                    // Always validate the entire command to get fresh validation results
+                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                    
+                    if (validationResult) {
+                        if (context.validateAllFieldsOnChange) {
+                            // Show all validation errors
+                            context.setCommandResult(validationResult);
+                        } else {
+                            // Per-field validation: merge new errors for this field with existing errors from other fields
+                            const currentErrors = context.commandResult?.validationResults || [];
+                            
+                            // Keep errors from other fields that are still present
+                            const errorsFromOtherFields = currentErrors.filter(
+                                vr => !vr.members.includes(propertyName)
+                            );
+                            
+                            // Get errors for this specific field from the new validation
+                            const errorsForThisField = validationResult.validationResults?.filter(
+                                vr => vr.members.includes(propertyName)
+                            ) || [];
+                            
+                            // Merge: errors from other fields + errors for this field
+                            const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
+                            
+                            const mergedResult = {
+                                ...validationResult,
+                                validationResults: mergedValidationResults,
+                                isValid: mergedValidationResults.length === 0
+                            };
+                            
+                            context.setCommandResult(mergedResult);
+                        }
+                    }
+                }
+                
+                // Call field change callback if provided
+                if (context.onFieldChange && validationResult) {
+                    const currentValue = (context.commandInstance as Record<string, unknown>)[propertyName];
+                    
+                    // Get field-specific validation info from the validation result
+                    const fieldErrors = validationResult?.validationResults?.filter(
+                        vr => vr.members.includes(propertyName)
+                    ).map(vr => vr.message) || [];
+                    
+                    const validationInfo: FieldValidationInfo = {
+                        isValid: fieldErrors.length === 0,
+                        errors: fieldErrors
+                    };
+                    
+                    context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, currentValue, currentValue, validationInfo);
+                }
+            }
         },
         required: fieldProps.required ?? (propertyDescriptor ? !(propertyDescriptor as { isOptional?: boolean }).isOptional : true),
         invalid: !!errorMessage

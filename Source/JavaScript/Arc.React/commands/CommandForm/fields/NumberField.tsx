@@ -20,6 +20,7 @@ export const NumberField = asCommandFormField<NumberFieldComponentProps>(
             type="number"
             value={props.value}
             onChange={props.onChange}
+            onBlur={props.onBlur}
             required={props.required}
             placeholder={props.placeholder}
             min={props.min}

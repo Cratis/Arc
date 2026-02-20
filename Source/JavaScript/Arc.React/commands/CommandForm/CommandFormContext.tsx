@@ -53,6 +53,9 @@ export interface CommandFormContextValue<TCommand> {
     setCustomFieldError: (fieldName: string, error: string | undefined) => void;
     showTitles: boolean;
     showErrors: boolean;
+    validateOn: 'blur' | 'change' | 'both';
+    validateAllFieldsOnChange: boolean;
+    validateOnInit: boolean;
     fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
     fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
     errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;

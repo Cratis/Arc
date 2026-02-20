@@ -31,6 +31,7 @@ export const CheckboxField = asCommandFormField<CheckboxFieldComponentProps>(
                 type="checkbox"
                 checked={props.value}
                 onChange={props.onChange}
+                onBlur={props.onBlur}
                 required={props.required}
                 style={{ width: '1.25rem', height: '1.25rem' }}
             />

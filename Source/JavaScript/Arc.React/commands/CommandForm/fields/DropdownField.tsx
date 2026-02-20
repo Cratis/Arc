@@ -18,6 +18,7 @@ const SelectComponent = (props: SelectComponentProps) => (
     <select
         value={props.value || ''}
         onChange={props.onChange}
+        onBlur={props.onBlur}
         required={props.required}
         className={props.className || ''}
         style={{ 

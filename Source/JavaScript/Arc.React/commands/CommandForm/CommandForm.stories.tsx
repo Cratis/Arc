@@ -1102,7 +1102,7 @@ export const BeforeExecuteCallback: Story = {
 
 export const CurrentValuesVsInitialValues: Story = {
     render: () => {
-        const [showInitial, setShowInitial] = useState(true);
+        const [showInitial, setShowInitial] = useState(false);
         const [currentData, setCurrentData] = useState({ name: 'Jane Doe', email: 'jane@example.com' });
 
         return (
@@ -1550,6 +1550,238 @@ export const MixedChildrenWithFields: Story = {
                 }}>
                     <p style={{ margin: 0, fontSize: '0.875rem', color: '#166534' }}>
                         ✓ <strong>Flexible Structure:</strong> Form fields work seamlessly alongside any other React content.
+                    </p>
+                </div>
+            </StoryContainer>
+        );
+    }
+};
+
+export const ValidationOnBlur: Story = {
+    render: () => {
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Validation on Blur (Default)</h2>
+                <p>
+                    Fields are validated only when you leave them (blur). This is the default behavior 
+                    and provides the best user experience - errors appear after the user finishes editing a field.
+                </p>
+                
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    validateOn="blur"
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter name (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter valid email" 
+                    />
+
+                    <button type="submit" style={{ marginTop: '1rem' }}>Submit</button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af' }}>
+                        💡 <strong>Try it:</strong> Start typing in a field, then click or tab away. Errors appear only after you leave the field.
+                    </p>
+                </div>
+            </StoryContainer>
+        );
+    }
+};
+
+export const ValidationOnChange: Story = {
+    render: () => {
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Validation on Change</h2>
+                <p>
+                    Fields are validated immediately as you type. Use this when you need instant feedback,
+                    but be aware it can feel aggressive to users.
+                </p>
+                
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    validateOn="change"
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter name (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter valid email" 
+                    />
+
+                    <button type="submit" style={{ marginTop: '1rem' }}>Submit</button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#92400e' }}>
+                        ⚠️ <strong>Notice:</strong> Errors appear immediately as you type. This can be helpful but may feel intrusive.
+                    </p>
+                </div>
+            </StoryContainer>
+        );
+    }
+};
+
+export const ValidationOnBoth: Story = {
+    render: () => {
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Validation on Both Change and Blur</h2>
+                <p>
+                    Fields are validated both when you type and when you leave them. This provides
+                    continuous feedback once you start editing a field.
+                </p>
+                
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    validateOn="both"
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter name (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter valid email" 
+                    />
+
+                    <button type="submit" style={{ marginTop: '1rem' }}>Submit</button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af' }}>
+                        💡 <strong>Best of both:</strong> Validation happens as you type AND when you leave fields.
+                    </p>
+                </div>
+            </StoryContainer>
+        );
+    }
+};
+
+export const ValidationOnInit: Story = {
+    render: () => {
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Validation on Initialization</h2>
+                <p>
+                    The form is validated immediately when it loads. This is useful when you want to 
+                    show validation errors right away, such as when editing a record that has invalid data.
+                </p>
+                
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    validateOnInit={true}
+                    initialValues={{ name: 'ab', email: 'invalid' }}
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter name (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter valid email" 
+                    />
+
+                    <button type="submit" style={{ marginTop: '1rem' }}>Submit</button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#92400e' }}>
+                        ⚠️ <strong>Notice:</strong> Errors are shown immediately on load because the initial values are invalid.
+                    </p>
+                </div>
+            </StoryContainer>
+        );
+    }
+};
+
+export const ValidationAllFieldsOnChange: Story = {
+    render: () => {
+        return (
+            <StoryContainer size="sm" asCard>
+                <h2>Validate All Fields on Change</h2>
+                <p>
+                    When enabled, changing any field validates the entire form. This is useful for 
+                    cross-field validation rules where one field affects another.
+                </p>
+                
+                <CommandForm<SimpleCommand>
+                    command={SimpleCommand}
+                    validateOn="blur"
+                    validateAllFieldsOnChange={true}
+                >
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.name} 
+                        title="Name"
+                        placeholder="Enter name (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<SimpleCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter valid email" 
+                    />
+
+                    <button type="submit" style={{ marginTop: '1rem' }}>Submit</button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af' }}>
+                        💡 <strong>Try it:</strong> Enter invalid data in both fields. When you blur one field, both will be validated and show errors.
                     </p>
                 </div>
             </StoryContainer>

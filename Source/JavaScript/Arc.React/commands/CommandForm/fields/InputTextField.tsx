@@ -18,6 +18,7 @@ export const InputTextField = asCommandFormField<InputTextComponentProps>(
             type={props.type || 'text'}
             value={props.value}
             onChange={props.onChange}
+            onBlur={props.onBlur}
             required={props.required}
             placeholder={props.placeholder}
             className={props.className || ''}
