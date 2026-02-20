@@ -252,7 +252,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
             };
 
             // Apply throttle if specified
-            const throttleMs = props.autoServerValidateThrottle ?? 0;
+            const throttleMs = props.autoServerValidateThrottle ?? 500;
             if (throttleMs > 0) {
                 serverValidateThrottleTimer.current = setTimeout(performValidation, throttleMs);
             } else {
@@ -352,7 +352,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,
         validateOnInit: props.validateOnInit ?? false,
         autoServerValidate: props.autoServerValidate ?? false,
-        autoServerValidateThrottle: props.autoServerValidateThrottle ?? 0,
+        autoServerValidateThrottle: props.autoServerValidateThrottle ?? 500,
         fieldContainerComponent: props.fieldContainerComponent,
         fieldDecoratorComponent: props.fieldDecoratorComponent,
         errorDisplayComponent: props.errorDisplayComponent,
