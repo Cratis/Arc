@@ -46,7 +46,8 @@ class TrackableCommand extends Command {
     }
 
     // Override performRequest to track only server validation HTTP calls
-    protected async performRequest(route: string, notFoundMessage: string, errorMessage: string): Promise<CommandResult> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    protected async performRequest(route: string, _notFoundMessage: string, _errorMessage: string): Promise<CommandResult> {
         // Only count calls to the /validate endpoint (server validation)
         if (route.includes('/validate')) {
             serverValidateCallCount++;
