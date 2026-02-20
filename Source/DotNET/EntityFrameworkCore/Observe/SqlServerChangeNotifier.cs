@@ -32,6 +32,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
     SqlCommand? _command;
     SqlDependency? _dependency;
     string? _tableName;
+    string? _schemaName;
     string? _columnList;
     Action? _onChanged;
     CancellationToken _cancellationToken;
@@ -42,9 +43,10 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
     int _consecutiveFailures;
 
     /// <inheritdoc/>
-    public async Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, string? schemaName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
         _tableName = tableName;
+        _schemaName = schemaName;
         _columnList = string.Join(", ", columnNames.Select(c => $"[{c}]"));
         _onChanged = onChanged;
         _cancellationToken = cancellationToken;
@@ -211,7 +213,8 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
             // Must use two-part name (schema.table) and specific columns (no *)
             // We select all columns to ensure notifications are received for any column change
             // Adding WHERE 1=1 helps ensure SqlDependency can track changes properly
-            var sql = $"SELECT {_columnList} FROM dbo.[{_tableName}] WHERE 1=1";
+            var effectiveSchema = _schemaName ?? "dbo";
+            var sql = $"SELECT {_columnList} FROM [{effectiveSchema}].[{_tableName}] WHERE 1=1";
 
             // IMPORTANT: Do NOT use 'await using' - the command must stay alive for SqlDependency!
             // SqlDependency holds a weak reference and needs the command to exist
