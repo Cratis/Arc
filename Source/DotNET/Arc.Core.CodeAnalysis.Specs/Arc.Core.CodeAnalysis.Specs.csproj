@@ -5,6 +5,7 @@
         <RootNamespace>Cratis.Arc.CodeAnalysis</RootNamespace>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <Compile Remove="../GlobalUsings.Specs.cs" />
@@ -12,6 +13,10 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+        <PackageReference Include="Microsoft.Composition" />
+        <PackageReference Include="System.Formats.Asn1" />
         <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" />
     </ItemGroup>
 </Project>

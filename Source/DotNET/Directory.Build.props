@@ -32,11 +32,18 @@
         <StyleCopTreatErrorsAsWarnings>True</StyleCopTreatErrorsAsWarnings>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <PropertyGroup Condition="'$(Configuration)'=='Release' And '$(IsTestProject)'!='true'">
         <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
         <MSBuildTreatWarningsAsErrors>True</MSBuildTreatWarningsAsErrors>
         <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
         <StyleCopTreatErrorsAsWarnings>False</StyleCopTreatErrorsAsWarnings>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'=='Release' And '$(IsTestProject)'=='true'">
+        <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+        <MSBuildTreatWarningsAsErrors>False</MSBuildTreatWarningsAsErrors>
+        <CodeAnalysisTreatWarningsAsErrors>False</CodeAnalysisTreatWarningsAsErrors>
+        <StyleCopTreatErrorsAsWarnings>True</StyleCopTreatErrorsAsWarnings>
     </PropertyGroup>
 
     <ItemGroup>
@@ -66,4 +73,9 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <Compile Include="$(MSBuildThisFileDirectory)/GlobalUsings.Specs.cs" />
     </ItemGroup>
+
+    <PropertyGroup Condition="'$(IsTestProject)'=='true'">
+        <!-- Disable code quality analyzers for test projects to speed up build and avoid treating test code style issues as errors -->
+        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031</NoWarn>
+    </PropertyGroup>
 </Project>
