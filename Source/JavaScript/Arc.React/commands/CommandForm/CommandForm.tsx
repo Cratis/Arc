@@ -194,7 +194,6 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         } else if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
             // Static mode: set values only once on initialization
             setCommandValues(mergedInitialValues as TCommand);
-            initializedRef.current = true;
         }
 
         // Validate on init if requested (only on first initialization)
