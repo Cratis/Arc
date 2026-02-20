@@ -14,7 +14,7 @@ import {
     RangeField,
     SelectField 
 } from './fields';
-import { Command, CommandValidator } from '@cratis/arc/commands';
+import { Command, CommandValidator, CommandResult } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { StoryContainer, StoryBadge } from '../../stories';
 import type { FieldDecoratorProps, ErrorDisplayProps, TooltipWrapperProps } from './CommandFormContext';
@@ -1784,6 +1784,186 @@ export const ValidationAllFieldsOnChange: Story = {
                         💡 <strong>Try it:</strong> Enter invalid data in both fields. When you blur one field, both will be validated and show errors.
                     </p>
                 </div>
+            </StoryContainer>
+        );
+    }
+};
+
+// Server-validated command that checks for reserved names
+class ServerValidatedCommand extends Command {
+    readonly route: string = '/api/server-validated';
+    readonly validation: ServerValidatedCommandValidator = new ServerValidatedCommandValidator();
+    readonly propertyDescriptors: PropertyDescriptor[] = [
+        new PropertyDescriptor('username', String),
+        new PropertyDescriptor('email', String),
+    ];
+
+    username = '';
+    email = '';
+
+    constructor() {
+        super(Object, false);
+    }
+
+    get requestParameters(): string[] {
+        return [];
+    }
+
+    get properties(): string[] {
+        return ['username', 'email'];
+    }
+
+    // Override validate to simulate server-side validation
+    async validate() {
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const result = await super.validate();
+
+        // Simulate server-side validation: check for reserved usernames
+        const reservedUsernames = ['admin', 'root', 'system'];
+        if (reservedUsernames.includes(this.username.toLowerCase())) {
+            const validationResult = CommandResult.validationFailed([
+                {
+                    severity: 0,
+                    message: 'This username is reserved and cannot be used.',
+                    members: ['username'],
+                    state: {}
+                }
+            ]);
+            return validationResult;
+        }
+
+        // Simulate checking if email is already registered
+        const registeredEmails = ['test@example.com', 'admin@example.com'];
+        if (registeredEmails.includes(this.email.toLowerCase())) {
+            return CommandResult.validationFailed([
+                {
+                    severity: 0,
+                    message: 'This email address is already registered.',
+                    members: ['email'],
+                    state: {}
+                }
+            ]);
+        }
+
+        // All good!
+        return result;
+    }
+}
+
+class ServerValidatedCommandValidator extends CommandValidator<ServerValidatedCommand> {
+    constructor() {
+        super();
+        this.ruleFor(c => c.username).notEmpty().minLength(3).maxLength(20);
+        this.ruleFor(c => c.email).notEmpty().emailAddress();
+    }
+}
+
+export const AutoServerValidation: Story = {
+    render: () => {
+        const [validationLog, setValidationLog] = useState<string[]>([]);
+        const [serverCallCount, setServerCallCount] = useState(0);
+
+        // Create a command class that logs server validation calls
+        class TrackedServerValidatedCommand extends ServerValidatedCommand {
+            async validate() {
+                const callNumber = serverCallCount + 1;
+                setServerCallCount(callNumber);
+                setValidationLog(prev => [
+                    ...prev,
+                    `[${new Date().toLocaleTimeString()}] Server validation #${callNumber}: username="${this.username}", email="${this.email}"`
+                ]);
+                return await super.validate();
+            }
+        }
+
+        return (
+            <StoryContainer size="md" asCard>
+                <h2>Auto Server Validation</h2>
+                <p>
+                    When <code>autoServerValidate</code> is enabled, the form automatically calls the 
+                    server validation method when all client-side validations pass. This provides 
+                    real-time feedback for server-side validation rules (like checking if a username 
+                    is already taken).
+                </p>
+                
+                <CommandForm<ServerValidatedCommand>
+                    command={TrackedServerValidatedCommand}
+                    validateOn="change"
+                    autoServerValidate={true}
+                >
+                    <InputTextField<ServerValidatedCommand> 
+                        value={c => c.username} 
+                        title="Username"
+                        placeholder="Enter username (min 3 chars)" 
+                    />
+                    
+                    <InputTextField<ServerValidatedCommand> 
+                        value={c => c.email} 
+                        title="Email"
+                        type="email" 
+                        placeholder="Enter email address" 
+                    />
+
+                    <button type="submit" style={{ marginTop: '1rem' }}>Submit</button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#92400e', marginBottom: '0.5rem' }}>
+                        <strong>Reserved Usernames:</strong> admin, root, system<br />
+                        <strong>Registered Emails:</strong> test@example.com, admin@example.com
+                    </p>
+                </div>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #93c5fd',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af' }}>
+                        💡 <strong>Try it:</strong> Type valid values in both fields. Once all client validations pass, 
+                        the server validation will automatically run (notice the brief delay simulating a network call). 
+                        Try entering reserved usernames or registered emails to see server-side validation errors.
+                    </p>
+                </div>
+
+                {validationLog.length > 0 && (
+                    <div style={{
+                        marginTop: '1.5rem',
+                        padding: '1rem',
+                        backgroundColor: '#f3f4f6',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.5rem'
+                    }}>
+                        <h3 style={{ marginTop: 0, fontSize: '1rem' }}>
+                            Server Validation Log ({serverCallCount} call{serverCallCount !== 1 ? 's' : ''})
+                        </h3>
+                        <div style={{
+                            maxHeight: '200px',
+                            overflowY: 'auto',
+                            fontFamily: 'monospace',
+                            fontSize: '0.75rem',
+                            backgroundColor: '#ffffff',
+                            padding: '0.5rem',
+                            borderRadius: '0.25rem'
+                        }}>
+                            {validationLog.map((log, index) => (
+                                <div key={index} style={{ marginBottom: '0.25rem' }}>
+                                    {log}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </StoryContainer>
         );
     }

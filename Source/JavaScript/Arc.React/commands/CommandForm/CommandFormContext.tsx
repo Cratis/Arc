@@ -56,6 +56,7 @@ export interface CommandFormContextValue<TCommand> {
     validateOn: 'blur' | 'change' | 'both';
     validateAllFieldsOnChange: boolean;
     validateOnInit: boolean;
+    autoServerValidate: boolean;
     fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
     fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
     errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;

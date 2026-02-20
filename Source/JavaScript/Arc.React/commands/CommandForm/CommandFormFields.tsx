@@ -57,9 +57,38 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 
                 let validationResult: ICommandResult<unknown> | undefined = undefined;
                 if (shouldValidateOnChange && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
+                    // Always validate the entire command to get fresh validation results
                     validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                    
                     if (validationResult) {
-                        context.setCommandResult(validationResult);
+                        if (context.validateAllFieldsOnChange) {
+                            // Show all validation errors
+                            context.setCommandResult(validationResult);
+                        } else {
+                            // Per-field validation: merge new errors for this field with existing errors from other fields
+                            const currentErrors = context.commandResult?.validationResults || [];
+                            
+                            // Keep errors from other fields
+                            const errorsFromOtherFields = currentErrors.filter(
+                                vr => !vr.members.includes(propertyName)
+                            );
+                            
+                            // Get errors for this specific field from the new validation
+                            const errorsForThisField = validationResult.validationResults?.filter(
+                                vr => vr.members.includes(propertyName)
+                            ) || [];
+                            
+                            // Merge: errors from other fields + errors for this field
+                            const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
+                            
+                            const mergedResult = {
+                                ...validationResult,
+                                validationResults: mergedValidationResults,
+                                isValid: mergedValidationResults.length === 0
+                            };
+                            
+                            context.setCommandResult(mergedResult);
+                        }
                     }
                 }
 
