@@ -51,6 +51,11 @@ describe('when field has no property descriptor', () => {
             setFieldValidity: () => {},
             showTitles: true,
             showErrors: true,
+            validateOn: 'blur' as const,
+            validateAllFieldsOnChange: false,
+            validateOnInit: false,
+            autoServerValidate: false,
+            autoServerValidateThrottle: 500,
             fieldContainerComponent: undefined,
             onFieldValidate: undefined,
             onFieldChange: undefined
