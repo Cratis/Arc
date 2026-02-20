@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandFormFields, ColumnInfo } from './CommandFormFields';
-import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue } from './CommandFormContext';
+import { CommandFormFields, ColumnInfo, CommandFormFieldWrapper } from './CommandFormFields';
+import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue, type FieldValidationInfo, type FieldContainerProps, type FieldDecoratorProps, type ErrorDisplayProps, type TooltipWrapperProps } from './CommandFormContext';
 import { Constructor } from '@cratis/fundamentals';
 import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
@@ -19,14 +19,19 @@ export interface CommandFormProps<TCommand extends object> {
     initialValues?: Partial<TCommand>;
     currentValues?: Partial<TCommand> | undefined;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
-    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => void;
+    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     showTitles?: boolean;
     showErrors?: boolean;
-    fieldContainerComponent?: React.ComponentType<import('./CommandFormContext').FieldContainerProps>;
-    fieldDecoratorComponent?: React.ComponentType<import('./CommandFormContext').FieldDecoratorProps>;
-    errorDisplayComponent?: React.ComponentType<import('./CommandFormContext').ErrorDisplayProps>;
-    tooltipComponent?: React.ComponentType<import('./CommandFormContext').TooltipWrapperProps>;
+    validateOn?: 'blur' | 'change' | 'both';
+    validateAllFieldsOnChange?: boolean;
+    validateOnInit?: boolean;
+    autoServerValidate?: boolean;
+    autoServerValidateThrottle?: number;
+    fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
+    fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
+    errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;
+    tooltipComponent?: React.ComponentType<TooltipWrapperProps>;
     errorClassName?: string;
     iconAddonClassName?: string;
     children?: React.ReactNode;
@@ -176,17 +181,92 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     const [fieldValidities, setFieldValidities] = useState<Record<string, boolean>>({});
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
     const initializedRef = React.useRef(false);
+    const lastServerValidateVersion = React.useRef<number>(-1);
+    const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
-    // Only run on mount or when initial values actually change, not on every render
+    // When using currentValues, always update when they change (reactive mode for editing)
+    // When using initialValues only, set values once on mount
     React.useEffect(() => {
-        if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+        const hasCurrentValues = props.currentValues !== undefined && props.currentValues !== null;
+        
+        if (hasCurrentValues) {
+            // Reactive mode: update whenever currentValues changes
+            if (mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+                setCommandValues(mergedInitialValues as TCommand);
+            }
+        } else if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
+            // Static mode: set values only once on initialization
             setCommandValues(mergedInitialValues as TCommand);
+        }
+
+        // Validate on init if requested (only on first initialization)
+        if (!initializedRef.current && props.validateOnInit && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+            initializedRef.current = true;
+            void (async () => {
+                const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                if (validationResult) {
+                    setCommandResult(validationResult);
+                }
+            })();
+        } else if (!initializedRef.current) {
             initializedRef.current = true;
         }
-    }, [mergedInitialValues]); // removed setCommandValues from deps as it's stable
+    }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
 
     const isValid = Object.values(fieldValidities).every(valid => valid);
+
+    // Auto server validate when all client validations pass
+    React.useEffect(() => {
+        if (!props.autoServerValidate) {
+            return;
+        }
+
+        // Clear any pending throttle timer
+        if (serverValidateThrottleTimer.current) {
+            clearTimeout(serverValidateThrottleTimer.current);
+            serverValidateThrottleTimer.current = null;
+        }
+
+        // Only call server validate if all fields are valid (client validation passed)
+        const allFieldsValid = Object.keys(fieldValidities).length > 0 && isValid;
+        
+        // Check if we've already validated this command version
+        const alreadyValidatedThisVersion = lastServerValidateVersion.current === commandVersion;
+        
+        // Must have all fields valid and not already validated this version
+        if (allFieldsValid && !alreadyValidatedThisVersion && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+            const performValidation = () => {
+                lastServerValidateVersion.current = commandVersion;
+                void (async () => {
+                    try {
+                        const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                        if (validationResult) {
+                            setCommandResult(validationResult);
+                        }
+                    } catch (error) {
+                        // Silently handle validation errors - they'll be in the result
+                        console.error('Server validation error:', error);
+                    }
+                })();
+            };
+
+            // Apply throttle if specified
+            const throttleMs = props.autoServerValidateThrottle ?? 500;
+            if (throttleMs > 0) {
+                serverValidateThrottleTimer.current = setTimeout(performValidation, throttleMs);
+            } else {
+                performValidation();
+            }
+        }
+
+        return () => {
+            if (serverValidateThrottleTimer.current) {
+                clearTimeout(serverValidateThrottleTimer.current);
+                serverValidateThrottleTimer.current = null;
+            }
+        };
+    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, fieldValidities]);
 
     const setFieldValidity = useCallback((fieldName: string, isFieldValid: boolean) => {
         setFieldValidities(prev => ({ ...prev, [fieldName]: isFieldValid }));
@@ -243,6 +323,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
 
     const handleFormSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         void handleExecute();
     }, [handleExecute]);
 
@@ -267,6 +348,11 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
         showErrors: props.showErrors ?? true,
+        validateOn: props.validateOn ?? 'blur',
+        validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,
+        validateOnInit: props.validateOnInit ?? false,
+        autoServerValidate: props.autoServerValidate ?? false,
+        autoServerValidateThrottle: props.autoServerValidateThrottle ?? 500,
         fieldContainerComponent: props.fieldContainerComponent,
         fieldDecoratorComponent: props.fieldDecoratorComponent,
         errorDisplayComponent: props.errorDisplayComponent,
@@ -277,7 +363,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
 
     return (
         <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
-            <form onSubmit={handleFormSubmit}>
+            <form onSubmit={handleFormSubmit} noValidate>
                 <CommandFormFields 
                     fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps>[])} 
                     columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}
@@ -298,9 +384,32 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     );
 };
 
-const CommandFormColumnComponent = (_props: { children: React.ReactNode }) => {
-    void _props;
-    return <></>;
+interface CommandFormColumnProps {
+    children: React.ReactNode;
+}
+
+const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
+    const children = React.Children.toArray(props.children);
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            {children.map((child, index) => {
+                if (React.isValidElement(child)) {
+                    const component = child.type as React.ComponentType<unknown>;
+                    if (component.displayName === 'CommandFormField') {
+                        return (
+                            <CommandFormFieldWrapper
+                                key={`column-field-${index}`}
+                                field={child as React.ReactElement}
+                            />
+                        );
+                    }
+                }
+                // Render non-field children as-is
+                return <React.Fragment key={`column-other-${index}`}>{child}</React.Fragment>;
+            })}
+        </div>
+    );
 };
 
 CommandFormColumnComponent.displayName = 'CommandFormColumn';

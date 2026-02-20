@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCommandFormContext } from './CommandFormContext';
+import { useCommandFormContext, type FieldValidationInfo } from './CommandFormContext';
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
@@ -45,18 +45,50 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
         currentValue,
         propertyDescriptor,
         fieldName: propertyName,
-        onValueChange: (value: unknown) => {
+        onValueChange: async (value: unknown) => {
             if (propertyName) {
                 const oldValue = currentValue;
 
                 // Update the command value
                 context.setCommandValues({ [propertyName]: value } as Record<string, unknown>);
 
-                // Call validate() on the command instance and store the result
-                if (context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
-                    const validationResult = ((context.commandInstance as Record<string, unknown>).validate as () => ICommandResult<unknown>)();
+                // Validate on change if requested
+                const shouldValidateOnChange = context.validateOn === 'change' || context.validateOn === 'both';
+                
+                let validationResult: ICommandResult<unknown> | undefined = undefined;
+                if (shouldValidateOnChange && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
+                    // Always validate the entire command to get fresh validation results
+                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                    
                     if (validationResult) {
-                        context.setCommandResult(validationResult);
+                        if (context.validateAllFieldsOnChange) {
+                            // Show all validation errors
+                            context.setCommandResult(validationResult);
+                        } else {
+                            // Per-field validation: merge new errors for this field with existing errors from other fields
+                            const currentErrors = context.commandResult?.validationResults || [];
+                            
+                            // Keep errors from other fields
+                            const errorsFromOtherFields = currentErrors.filter(
+                                vr => !vr.members.includes(propertyName)
+                            );
+                            
+                            // Get errors for this specific field from the new validation
+                            const errorsForThisField = validationResult.validationResults?.filter(
+                                vr => vr.members.includes(propertyName)
+                            ) || [];
+                            
+                            // Merge: errors from other fields + errors for this field
+                            const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
+                            
+                            const mergedResult = {
+                                ...validationResult,
+                                validationResults: mergedValidationResults,
+                                isValid: mergedValidationResults.length === 0
+                            };
+                            
+                            context.setCommandResult(mergedResult);
+                        }
                     }
                 }
 
@@ -68,10 +100,79 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
 
                 // Call field change callback if provided
                 if (context.onFieldChange) {
-                    context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value);
+                    // Get field-specific validation info from the fresh validation result
+                    const fieldErrors = validationResult?.validationResults?.filter(
+                        vr => vr.members.includes(propertyName)
+                    ).map(vr => vr.message) || [];
+                    
+                    const validationInfo: FieldValidationInfo = {
+                        isValid: fieldErrors.length === 0,
+                        errors: fieldErrors
+                    };
+                    
+                    context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value, validationInfo);
                 }
             }
             fieldProps.onChange?.(value as unknown);
+        },
+        onBlur: async () => {
+            if (propertyName) {
+                const shouldValidateOnBlur = context.validateOn === 'blur' || context.validateOn === 'both';
+                
+                let validationResult: ICommandResult<unknown> | undefined = undefined;
+                if (shouldValidateOnBlur && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
+                    // Always validate the entire command to get fresh validation results
+                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                    
+                    if (validationResult) {
+                        if (context.validateAllFieldsOnChange) {
+                            // Show all validation errors
+                            context.setCommandResult(validationResult);
+                        } else {
+                            // Per-field validation: merge new errors for this field with existing errors from other fields
+                            const currentErrors = context.commandResult?.validationResults || [];
+                            
+                            // Keep errors from other fields that are still present
+                            const errorsFromOtherFields = currentErrors.filter(
+                                vr => !vr.members.includes(propertyName)
+                            );
+                            
+                            // Get errors for this specific field from the new validation
+                            const errorsForThisField = validationResult.validationResults?.filter(
+                                vr => vr.members.includes(propertyName)
+                            ) || [];
+                            
+                            // Merge: errors from other fields + errors for this field
+                            const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
+                            
+                            const mergedResult = {
+                                ...validationResult,
+                                validationResults: mergedValidationResults,
+                                isValid: mergedValidationResults.length === 0
+                            };
+                            
+                            context.setCommandResult(mergedResult);
+                        }
+                    }
+                }
+                
+                // Call field change callback if provided
+                if (context.onFieldChange && validationResult) {
+                    const currentValue = (context.commandInstance as Record<string, unknown>)[propertyName];
+                    
+                    // Get field-specific validation info from the validation result
+                    const fieldErrors = validationResult?.validationResults?.filter(
+                        vr => vr.members.includes(propertyName)
+                    ).map(vr => vr.message) || [];
+                    
+                    const validationInfo: FieldValidationInfo = {
+                        isValid: fieldErrors.length === 0,
+                        errors: fieldErrors
+                    };
+                    
+                    context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, currentValue, currentValue, validationInfo);
+                }
+            }
         },
         required: fieldProps.required ?? (propertyDescriptor ? !(propertyDescriptor as { isOptional?: boolean }).isOptional : true),
         invalid: !!errorMessage
@@ -101,9 +202,19 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
     let decoratedField = clonedField;
     if (fieldProps.icon || fieldProps.description) {
         if (FieldDecorator) {
+            // When using a custom decorator with an icon, set hasLeftAddon on the field
+            const fieldForDecorator = fieldProps.icon ? (
+                React.cloneElement(clonedField as React.ReactElement, {
+                    hasLeftAddon: true,
+                    style: {
+                        ...((clonedField as React.ReactElement).props?.style || {}),
+                        flex: 1
+                    }
+                })
+            ) : clonedField;
             decoratedField = (
                 <FieldDecorator icon={fieldProps.icon} description={fieldProps.description}>
-                    {clonedField}
+                    {fieldForDecorator}
                 </FieldDecorator>
             );
         } else {
@@ -114,7 +225,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                     style={{
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '0.5rem',
+                        padding: '0.75rem',
                         backgroundColor: 'var(--color-background-secondary)',
                         border: '1px solid var(--color-border)',
                         borderRight: 'none',
@@ -125,10 +236,21 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 </span>
             );
 
+            // When there's an icon, set hasLeftAddon prop to remove left border-radius
+            const fieldWithAdjustedStyle = fieldProps.icon ? (
+                React.cloneElement(clonedField as React.ReactElement, {
+                    hasLeftAddon: true,
+                    style: {
+                        ...((clonedField as React.ReactElement).props?.style || {}),
+                        flex: 1
+                    }
+                })
+            ) : clonedField;
+
             const wrappedField = (
-                <div style={{ display: 'flex', width: '100%' }}>
+                <div style={{ display: 'flex', width: '100%', alignItems: 'stretch' }}>
                     {iconAddon}
-                    {clonedField}
+                    {fieldWithAdjustedStyle}
                 </div>
             );
 
@@ -161,15 +283,15 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 </label>
             )}
             {decoratedField}
-            {errorElement}
         </>
     );
 
     if (FieldContainer) {
+        // FieldContainer handles error display through errorMessage prop
         return (
             <FieldContainer
                 title={fieldProps.title}
-                errorMessage={errorMessage}
+                errorMessage={context.showErrors ? errorMessage : undefined}
             >
                 {fieldContent}
             </FieldContainer>
@@ -179,6 +301,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
     return (
         <div className="w-full" style={{ marginBottom: '1rem' }}>
             {fieldContent}
+            {errorElement}
         </div>
     );
 };
@@ -268,3 +391,5 @@ function getPropertyName<T>(accessor: (obj: T) => unknown): string {
 }
 
 CommandFormFields.displayName = 'CommandFormFields';
+
+export { CommandFormFieldWrapper };

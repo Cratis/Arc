@@ -11,6 +11,138 @@ CommandForm automatically validates field inputs and displays errors based on:
 - **Command Validation Rules**: Backend validation rules defined on your command
 - **Custom Validation**: Custom validators you define
 
+## Validation Timing
+
+CommandForm provides flexible control over when validation occurs through the `validateOn` prop:
+
+### Validate on Blur (Default)
+
+By default, validation occurs when a field loses focus (blur event). This provides a balance between immediate feedback and not interrupting the user while typing:
+
+```tsx
+<CommandForm<RegisterUser> command={RegisterUser} validateOn="blur">
+    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
+</CommandForm>
+```
+
+**When to use**: Most forms - provides feedback after the user completes a field without being intrusive.
+
+### Validate on Change
+
+Validation runs immediately as the user types. This provides the fastest feedback but can be distracting:
+
+```tsx
+<CommandForm<RegisterUser> command={RegisterUser} validateOn="change">
+    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
+</CommandForm>
+```
+
+**When to use**: Forms where immediate validation is critical, like password strength meters or username availability checks.
+
+### Validate on Both
+
+Validation runs on both change and blur events:
+
+```tsx
+<CommandForm<RegisterUser> command={RegisterUser} validateOn="both">
+    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
+</CommandForm>
+```
+
+**When to use**: Forms where continuous validation is important for complex rules.
+
+## Validation Scope
+
+Control whether validation validates just the changed field or all fields:
+
+### Per-Field Validation (Default)
+
+By default, only the field that changed is validated. This is more efficient and provides focused feedback:
+
+```tsx
+<CommandForm<CreateUser> 
+    command={CreateUser} 
+    validateOn="blur"
+>
+    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
+    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
+</CommandForm>
+```
+
+In this example, when the username field loses focus, only username validation runs.
+
+### Full Form Validation
+
+Set `validateAllFieldsOnChange` to `true` to validate the entire form when any field changes:
+
+```tsx
+<CommandForm<CreateUser> 
+    command={CreateUser} 
+    validateOn="blur"
+    validateAllFieldsOnChange={true}
+>
+    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
+    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
+    <InputTextField<CreateUser> value={c => c.confirmEmail} type="email" title="Confirm Email" required />
+</CommandForm>
+```
+
+**When to use**: Forms with interdependent fields where one field's validity depends on another (e.g., password confirmation, start/end dates).
+
+## Initial Validation
+
+Validate the form immediately when it renders:
+
+```tsx
+<CommandForm<CreateUser> 
+    command={CreateUser} 
+    validateOnInit={true}
+    initialValues={{ username: '', email: '' }}
+>
+    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
+    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
+</CommandForm>
+```
+
+**When to use**:
+
+- Edit forms where existing data might have validation issues
+- Forms where you want to show all errors upfront
+- Step-by-step wizards showing validation state of upcoming steps
+
+For automatic server-side validation as users type, see [Auto Server Validation](./auto-server-validation.md).
+
+## Validation Options Summary
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `validateOn` | `'blur' \| 'change' \| 'both'` | `'blur'` | When to trigger validation |
+| `validateAllFieldsOnChange` | `boolean` | `false` | Validate all fields or just the changed field |
+| `validateOnInit` | `boolean` | `false` | Validate on form initialization |
+
+### Examples
+
+**Gentle validation (recommended for most forms)**:
+
+```tsx
+<CommandForm<T> command={T} validateOn="blur" />
+```
+
+**Aggressive validation (real-time feedback)**:
+
+```tsx
+<CommandForm<T> command={T} validateOn="change" validateAllFieldsOnChange={true} />
+```
+
+**Show all errors immediately**:
+
+```tsx
+<CommandForm<T> command={T} validateOn="blur" validateOnInit={true} />
+```
+
 ## Required Fields
 
 Mark fields as required using the `required` prop:

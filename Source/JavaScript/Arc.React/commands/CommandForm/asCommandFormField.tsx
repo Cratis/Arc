@@ -11,6 +11,7 @@ import { useCommandFormContext } from './CommandForm';
 export interface InjectedCommandFormFieldProps {
     currentValue?: unknown;
     onValueChange?: (value: unknown) => void;
+    onBlur?: () => void;
     propertyDescriptor?: PropertyDescriptor;
     fieldName?: string;
 }
@@ -49,6 +50,7 @@ export interface CommandFormFieldConfig<TValue = unknown> {
 export interface WrappedFieldProps<TValue = unknown> {
     value: TValue;
     onChange: (valueOrEvent: TValue | unknown) => void;
+    onBlur?: () => void;
     invalid: boolean;
     required: boolean;
     errors: string[];
@@ -116,6 +118,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
         const {
             currentValue,
             onValueChange,
+            onBlur,
             fieldName,
             propertyDescriptor,
             required,
@@ -147,6 +150,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             ...componentProps,
             value: displayValue,
             onChange: handleChange,
+            onBlur,
             invalid: isInvalid,
             required: isRequired,
             errors

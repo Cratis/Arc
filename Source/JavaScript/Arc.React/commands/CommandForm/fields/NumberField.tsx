@@ -9,6 +9,9 @@ interface NumberFieldComponentProps extends WrappedFieldProps<number> {
     min?: number;
     max?: number;
     step?: number;
+    className?: string;
+    style?: React.CSSProperties;
+    hasLeftAddon?: boolean;
 }
 
 export const NumberField = asCommandFormField<NumberFieldComponentProps>(
@@ -17,13 +20,23 @@ export const NumberField = asCommandFormField<NumberFieldComponentProps>(
             type="number"
             value={props.value}
             onChange={props.onChange}
+            onBlur={props.onBlur}
             required={props.required}
             placeholder={props.placeholder}
             min={props.min}
             max={props.max}
             step={props.step}
-            className={`w-full p-3 rounded-md text-base ${props.invalid ? 'border border-red-500' : 'border border-gray-300'}`}
-            style={{ width: '100%', display: 'block' }}
+            className={props.className || ''}
+            style={{ 
+                width: '100%', 
+                padding: '0.75rem',
+                fontSize: '1rem',
+                border: props.invalid ? '1px solid #ef4444' : '1px solid var(--color-border, #d1d5db)',
+                borderRadius: '0.375rem',
+                boxSizing: 'border-box',
+                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, alignSelf: 'stretch' } : {}),
+                ...props.style 
+            }}
         />
     ),
     {

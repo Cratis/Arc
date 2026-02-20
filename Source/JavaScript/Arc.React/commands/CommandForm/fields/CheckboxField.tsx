@@ -6,19 +6,36 @@ import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField';
 
 interface CheckboxFieldComponentProps extends WrappedFieldProps<boolean> {
     label?: string;
+    className?: string;
+    style?: React.CSSProperties;
+    hasLeftAddon?: boolean;
 }
 
 export const CheckboxField = asCommandFormField<CheckboxFieldComponentProps>(
     (props) => (
-        <div className="flex items-center">
+        <div 
+            className={props.className || ''}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0.75rem',
+                border: props.invalid ? '1px solid #ef4444' : '1px solid var(--color-border, #d1d5db)',
+                borderRadius: '0.375rem',
+                width: '100%',
+                boxSizing: 'border-box',
+                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, alignSelf: 'stretch' } : {}),
+                ...props.style
+            }}
+        >
             <input
                 type="checkbox"
                 checked={props.value}
                 onChange={props.onChange}
+                onBlur={props.onBlur}
                 required={props.required}
-                className={`h-5 w-5 rounded ${props.invalid ? 'border-red-500' : 'border-gray-300'}`}
+                style={{ width: '1.25rem', height: '1.25rem' }}
             />
-            {props.label && <label className="ml-2">{props.label}</label>}
+            {props.label && <label style={{ marginLeft: '0.5rem' }}>{props.label}</label>}
         </div>
     ),
     {
