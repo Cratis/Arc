@@ -36,7 +36,7 @@ When enabled, the form will automatically call the command's `validate()` method
 
 ## Validation Flow
 
-```
+```flow
 User types → Client validation runs → All fields valid? 
     ↓ Yes
 Throttle timer starts (if configured) → Timer expires → HTTP POST /validate
@@ -84,7 +84,7 @@ The throttle value is in milliseconds:
    - Errors are displayed in the form
    - Timer resets for next validation
 
-**Example**: With a 500ms throttle, typing "john@example.com" character by character:
+**Example**: With a 500ms throttle, typing "<john@example.com>" character by character:
 
 - Without throttle: 17 server calls (one per character)
 - With throttle: 1 server call (after user stops typing for 500ms)
@@ -384,20 +384,20 @@ function RegistrationForm() {
 1. User types username: `"john"`
    - Client validation: ✓ Passes (3 chars, valid pattern)
    - Throttle: 500ms timer starts
-   
+
 2. User continues typing: `"john_"`
    - Client validation: ✓ Passes (5 chars, valid pattern)
    - Throttle: Previous timer cancelled, new 500ms timer starts
-   
+
 3. User continues typing: `"john_smith"`
    - Client validation: ✓ Passes (10 chars, valid pattern)
    - Throttle: Previous timer cancelled, new 500ms timer starts
-   
+
 4. User stops typing for 500ms
    - Server validation: HTTP POST /api/register-user/validate
    - Response: `{ "validationErrors": { "username": ["This username is already taken"] } }`
    - Form: Error displayed below username field
-   
+
 5. User changes username to `"john_smith_2024"`
    - Client validation: ✓ Passes
    - Throttle: 500ms timer starts
