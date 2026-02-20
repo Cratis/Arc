@@ -113,6 +113,8 @@ Validate the form immediately when it renders:
 - Forms where you want to show all errors upfront
 - Step-by-step wizards showing validation state of upcoming steps
 
+For automatic server-side validation as users type, see [Auto Server Validation](./auto-server-validation.md).
+
 ## Validation Options Summary
 
 | Prop | Type | Default | Description |
