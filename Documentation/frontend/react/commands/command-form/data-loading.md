@@ -26,7 +26,7 @@ function OrderForm() {
     }
     
     return (
-        <CommandForm<CreateOrder> command={CreateOrder}>
+        <CommandForm command={CreateOrder}>
             <SelectField<CreateOrder>
                 value={c => c.productId}
                 title="Product"
@@ -66,7 +66,7 @@ function LocationForm() {
     }, [command.country]);
     
     return (
-        <CommandForm<SaveLocation> command={SaveLocation}>
+        <CommandForm command={SaveLocation}>
             <SelectField<SaveLocation>
                 value={c => c.country}
                 title="Country"

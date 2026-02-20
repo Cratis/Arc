@@ -7,7 +7,7 @@ CommandForm renders children in the order they are defined. You can create custo
 CommandForm provides a built-in `CommandForm.Column` component for creating responsive multi-column layouts:
 
 ```tsx
-<CommandForm<UpdateProfile> command={UpdateProfile}>
+<CommandForm command={UpdateProfile}>
     <h3>Personal Information</h3>
     
     <CommandForm.Column>
@@ -45,7 +45,7 @@ The `CommandForm.Column` component:
 For more control over layout, you can use CSS Grid directly:
 
 ```tsx
-<CommandForm<UpdateProfile> command={UpdateProfile}>
+<CommandForm command={UpdateProfile}>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <InputTextField<UpdateProfile> value={c => c.firstName} title="First Name" />
         <InputTextField<UpdateProfile> value={c => c.lastName} title="Last Name" />
@@ -69,7 +69,7 @@ For more control over layout, you can use CSS Grid directly:
 ## Grouped Fields
 
 ```tsx
-<CommandForm<RegisterUser> command={RegisterUser}>
+<CommandForm command={RegisterUser}>
     <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
         <legend style={{ fontWeight: 'bold', padding: '0 0.5rem' }}>Account Information</legend>
         <InputTextField<RegisterUser> value={c => c.username} title="Username" />
@@ -95,7 +95,7 @@ function RegistrationForm() {
     const command = useCommandInstance(RegisterUser);
     
     return (
-        <CommandForm<RegisterUser> command={RegisterUser}>
+        <CommandForm command={RegisterUser}>
             <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" />
             
             <SelectField<RegisterUser>

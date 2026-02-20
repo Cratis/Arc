@@ -414,7 +414,13 @@ const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
 
 CommandFormColumnComponent.displayName = 'CommandFormColumn';
 
-CommandFormComponent.Fields = CommandFormFieldsWrapper;
-CommandFormComponent.Column = CommandFormColumnComponent;
+// Export as function to enable proper type inference from command prop
+export function CommandForm<TCommand extends object = object>(
+    props: CommandFormProps<TCommand>
+): React.ReactElement {
+    return <CommandFormComponent<TCommand> {...props} />;
+}
 
-export const CommandForm = CommandFormComponent;
+// Attach static members for backwards compatibility
+CommandForm.Fields = CommandFormFieldsWrapper;
+CommandForm.Column = CommandFormColumnComponent;

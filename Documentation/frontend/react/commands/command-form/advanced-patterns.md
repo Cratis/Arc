@@ -84,7 +84,7 @@ function EditUserModal({ userId, onClose }: { userId: string, onClose: () => voi
     return (
         <Modal open={open} onClose={onClose}>
             <h2>Edit User</h2>
-            <CommandForm<UpdateUser> command={UpdateUser} initialValues={command}>
+            <CommandForm command={UpdateUser} initialValues={command}>
                 <InputTextField<UpdateUser> value={c => c.name} title="Name" required />
                 <InputTextField<UpdateUser> value={c => c.email} type="email" title="Email" required />
             </CommandForm>

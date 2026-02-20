@@ -25,7 +25,7 @@ class UserCommand extends Command {
 
 function MyForm() {
     return (
-        <CommandForm<UserCommand> command={UserCommand}>
+        <CommandForm command={UserCommand}>
             <InputTextField<UserCommand>
                 value={c => c.name} 
                 title="Name"
@@ -73,7 +73,7 @@ function MyForm() {
 Set initial values for the form:
 
 ```tsx
-<CommandForm<UserCommand>
+<CommandForm
     command={UserCommand}
     initialValues={{
         name: 'John Doe',

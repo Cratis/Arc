@@ -80,7 +80,7 @@ export const Default: Story = {
                 <p>
                     This form demonstrates validation on blur. Fields are validated when you leave them.
                 </p>
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     showErrors={false}
                     initialValues={{
@@ -192,7 +192,7 @@ export const UserRegistration: Story = {
                     This form validates progressively as you type. The submit button is enabled only when all validation passes.
                 </p>
                                
-                <CommandForm<UserRegistrationCommand>
+                <CommandForm
                     command={UserRegistrationCommand}
                     initialValues={{
                         username: '',
@@ -391,7 +391,7 @@ export const CustomTitles: Story = {
                 <p>
                     This form shows how to customize title rendering using a custom <code>fieldContainerComponent</code>.
                 </p>
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     initialValues={{ name: '', email: '' }}
                     fieldContainerComponent={CustomTitleContainer}
@@ -440,7 +440,7 @@ export const CustomErrorRendering: Story = {
                 <p>
                     This form shows how to disable built-in error messages and render custom ones.
                 </p>
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     initialValues={{ name: '', email: '' }}
                     showErrors={false}
@@ -573,7 +573,7 @@ export const CustomFieldContainer: Story = {
                 <p>
                     This form shows how to use a custom component for rendering field containers.
                 </p>
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     fieldContainerComponent={CustomContainer}
                     initialValues={{ name: '', email: '' }}
@@ -753,7 +753,7 @@ export const CustomRenderers: Story = {
                     </ul>
                 </div>
 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     fieldDecoratorComponent={CustomFieldDecorator}
                     errorDisplayComponent={CustomErrorDisplay}
@@ -827,7 +827,7 @@ export const MultiColumnLayout: Story = {
                     Each column automatically adapts to different screen sizes.
                 </p>
                 
-                <CommandForm<UserRegistrationCommand>
+                <CommandForm
                     command={UserRegistrationCommand}
                     initialValues={{
                         username: '',
@@ -953,7 +953,7 @@ export const CustomValidationCallback: Story = {
                     This is perfect for business rules that need access to runtime data.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     onFieldValidate={(command, fieldName, oldValue, newValue) => {
                         const error = handleFieldValidate(command, fieldName, oldValue, newValue);
@@ -1038,7 +1038,7 @@ export const BeforeExecuteCallback: Story = {
                     Perfect for sanitizing input, formatting data, or adding computed fields.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     initialValues={{ name: '', email: '' }}
                     onBeforeExecute={(command) => {
@@ -1152,7 +1152,7 @@ export const CurrentValuesVsInitialValues: Story = {
                     </label>
                 </div>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     initialValues={showInitial ? { name: 'Initial Name', email: 'initial@example.com' } : undefined}
                     currentValues={!showInitial ? currentData : undefined}
@@ -1204,7 +1204,7 @@ export const FieldWithIcons: Story = {
                     Icons help users quickly identify field purposes.
                 </p>
                 
-                <CommandForm<UserRegistrationCommand>
+                <CommandForm
                     command={UserRegistrationCommand}
                     initialValues={{
                         username: '',
@@ -1289,7 +1289,7 @@ export const FieldWithTooltips: Story = {
                     Combine with a custom <code>tooltipComponent</code> for styled tooltips.
                 </p>
                 
-                <CommandForm<UserRegistrationCommand>
+                <CommandForm
                     command={UserRegistrationCommand}
                     initialValues={{
                         username: '',
@@ -1387,7 +1387,7 @@ export const CustomCSSClasses: Story = {
                     custom CSS classes for framework-agnostic styling.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     errorClassName="my-custom-error"
                     iconAddonClassName="my-custom-icon-addon"
@@ -1440,7 +1440,7 @@ export const MixedChildrenWithFields: Story = {
                     cards, custom components, etc. Create rich, structured forms.
                 </p>
                 
-                <CommandForm<UserRegistrationCommand>
+                <CommandForm
                     command={UserRegistrationCommand}
                     initialValues={{
                         username: '',
@@ -1567,7 +1567,7 @@ export const ValidationOnBlur: Story = {
                     and provides the best user experience - errors appear after the user finishes editing a field.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     validateOn="blur"
                 >
@@ -1613,7 +1613,7 @@ export const ValidationOnChange: Story = {
                     but be aware it can feel aggressive to users.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     validateOn="change"
                 >
@@ -1659,7 +1659,7 @@ export const ValidationOnBoth: Story = {
                     continuous feedback once you start editing a field.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     validateOn="both"
                 >
@@ -1705,7 +1705,7 @@ export const ValidationOnInit: Story = {
                     show validation errors right away, such as when editing a record that has invalid data.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     validateOnInit={true}
                     initialValues={{ name: 'ab', email: 'invalid' }}
@@ -1752,7 +1752,7 @@ export const ValidationAllFieldsOnChange: Story = {
                     cross-field validation rules where one field affects another.
                 </p>
                 
-                <CommandForm<SimpleCommand>
+                <CommandForm
                     command={SimpleCommand}
                     validateOn="blur"
                     validateAllFieldsOnChange={true}
@@ -1893,7 +1893,7 @@ export const AutoServerValidation: Story = {
                     to 500ms, so validation will only occur after you stop typing for half a second.
                 </p>
                 
-                <CommandForm<ServerValidatedCommand>
+                <CommandForm
                     command={TrackedServerValidatedCommand}
                     validateOn="change"
                     autoServerValidate={true}

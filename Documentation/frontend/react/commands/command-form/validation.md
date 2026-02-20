@@ -20,7 +20,7 @@ CommandForm provides flexible control over when validation occurs through the `v
 By default, validation occurs when a field loses focus (blur event). This provides a balance between immediate feedback and not interrupting the user while typing:
 
 ```tsx
-<CommandForm<RegisterUser> command={RegisterUser} validateOn="blur">
+<CommandForm command={RegisterUser} validateOn="blur">
     <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
     <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
 </CommandForm>
@@ -33,7 +33,7 @@ By default, validation occurs when a field loses focus (blur event). This provid
 Validation runs immediately as the user types. This provides the fastest feedback but can be distracting:
 
 ```tsx
-<CommandForm<RegisterUser> command={RegisterUser} validateOn="change">
+<CommandForm command={RegisterUser} validateOn="change">
     <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
     <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
 </CommandForm>
@@ -46,7 +46,7 @@ Validation runs immediately as the user types. This provides the fastest feedbac
 Validation runs on both change and blur events:
 
 ```tsx
-<CommandForm<RegisterUser> command={RegisterUser} validateOn="both">
+<CommandForm command={RegisterUser} validateOn="both">
     <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
     <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
 </CommandForm>
@@ -63,7 +63,7 @@ Control whether validation validates just the changed field or all fields:
 By default, only the field that changed is validated. This is more efficient and provides focused feedback:
 
 ```tsx
-<CommandForm<CreateUser> 
+<CommandForm 
     command={CreateUser} 
     validateOn="blur"
 >
@@ -79,7 +79,7 @@ In this example, when the username field loses focus, only username validation r
 Set `validateAllFieldsOnChange` to `true` to validate the entire form when any field changes:
 
 ```tsx
-<CommandForm<CreateUser> 
+<CommandForm 
     command={CreateUser} 
     validateOn="blur"
     validateAllFieldsOnChange={true}
@@ -97,7 +97,7 @@ Set `validateAllFieldsOnChange` to `true` to validate the entire form when any f
 Validate the form immediately when it renders:
 
 ```tsx
-<CommandForm<CreateUser> 
+<CommandForm 
     command={CreateUser} 
     validateOnInit={true}
     initialValues={{ username: '', email: '' }}
@@ -128,19 +128,19 @@ For automatic server-side validation as users type, see [Auto Server Validation]
 **Gentle validation (recommended for most forms)**:
 
 ```tsx
-<CommandForm<T> command={T} validateOn="blur" />
+<CommandForm command={T} validateOn="blur" />
 ```
 
 **Aggressive validation (real-time feedback)**:
 
 ```tsx
-<CommandForm<T> command={T} validateOn="change" validateAllFieldsOnChange={true} />
+<CommandForm command={T} validateOn="change" validateAllFieldsOnChange={true} />
 ```
 
 **Show all errors immediately**:
 
 ```tsx
-<CommandForm<T> command={T} validateOn="blur" validateOnInit={true} />
+<CommandForm command={T} validateOn="blur" validateOnInit={true} />
 ```
 
 ## Required Fields
@@ -148,7 +148,7 @@ For automatic server-side validation as users type, see [Auto Server Validation]
 Mark fields as required using the `required` prop:
 
 ```tsx
-<CommandForm<RegisterUser> command={RegisterUser}>
+<CommandForm command={RegisterUser}>
     <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
     <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
     <CheckboxField<RegisterUser> value={c => c.agreeToTerms} title="Terms" label="I agree" required />
@@ -166,7 +166,7 @@ By default, CommandForm displays error messages below each invalid field:
 
 ```tsx
 // Errors shown automatically for invalid/required fields
-<CommandForm<CreateAccount> command={CreateAccount}>
+<CommandForm command={CreateAccount}>
     <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
     {/* Error appears here if username is empty or invalid */}
     
@@ -180,7 +180,7 @@ By default, CommandForm displays error messages below each invalid field:
 Disable automatic errors to implement custom error rendering:
 
 ```tsx
-<CommandForm<CreateAccount> command={CreateAccount} showErrors={false}>
+<CommandForm command={CreateAccount} showErrors={false}>
     <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
     {/* No automatic error rendering */}
 </CommandForm>
@@ -193,7 +193,7 @@ See [Customization](./customization.md) for custom error rendering patterns.
 Field components leverage HTML5 validation attributes:
 
 ```tsx
-<CommandForm<UpdateProfile> command={UpdateProfile}>
+<CommandForm command={UpdateProfile}>
     {/* Email format validation */}
     <InputTextField<UpdateProfile>
         value={c => c.email} 
@@ -261,7 +261,7 @@ public class CreateUserHandler : ICommandHandler<CreateUser>
 ### Form Usage
 
 ```tsx
-<CommandForm<CreateUser> command={CreateUser}>
+<CommandForm command={CreateUser}>
     <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
     <InputTextField<CreateUser> value={c => c.username} title="Username" required />
 </CommandForm>
@@ -287,7 +287,7 @@ function MyForm() {
     const hasAnyErrors = commandResult?.validationResults && commandResult.validationResults.length > 0;
     
     return (
-        <CommandForm<CreateAccount> command={CreateAccount} showErrors={false}>
+        <CommandForm command={CreateAccount} showErrors={false}>
             <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
             
             {/* Check for specific field errors */}
@@ -335,7 +335,7 @@ function MyForm() {
     }, [command.hasChanges]);
     
     return (
-        <CommandForm<CreateAccount> command={CreateAccount}>
+        <CommandForm command={CreateAccount}>
             <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
             <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
             
@@ -368,7 +368,7 @@ function RegistrationForm() {
     };
     
     return (
-        <CommandForm<RegisterUser> command={RegisterUser} showErrors={false}>
+        <CommandForm command={RegisterUser} showErrors={false}>
             <InputTextField<RegisterUser>
                 value={c => c.email} 
                 type="email" 
