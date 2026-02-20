@@ -36,7 +36,7 @@ function CustomSubmitButton() {
 }
 
 // Use within CommandForm
-<CommandForm<UpdateProfile> command={UpdateProfile}>
+<CommandForm command={UpdateProfile}>
     <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
     <CustomSubmitButton />
 </CommandForm>
@@ -72,7 +72,7 @@ function MyComponent() {
     return (
         <div>
             <button onClick={handleValidate}>Check Validity</button>
-            <CommandForm<CreateOrder> command={CreateOrder} initialValues={command}>
+            <CommandForm command={CreateOrder} initialValues={command}>
                 <SelectField<CreateOrder>
                     value={c => c.productId}
                     title="Product"

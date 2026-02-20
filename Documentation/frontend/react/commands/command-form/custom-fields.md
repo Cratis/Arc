@@ -147,7 +147,7 @@ interface UserCommand {
 
 function UserForm() {
     return (
-        <CommandForm<UserCommand> command={UserCommand}>
+        <CommandForm command={UserCommand}>
             <PrimeInputTextField<UserCommand>
                 value={c => c.name}
                 title="Full Name"
@@ -454,7 +454,7 @@ import {
 
 function MyForm() {
     return (
-        <CommandForm<MyCommand> command={MyCommand}>
+        <CommandForm command={MyCommand}>
             <PrimeInputTextField<MyCommand> value={c => c.name} title="Name" />
             <PrimeNumberField<MyCommand> value={c => c.age} title="Age" min={0} max={120} />
             <PrimeSwitchField<MyCommand> value={c => c.active} title="Active" />

@@ -24,7 +24,7 @@ function OrderForm() {
     };
     
     return (
-        <CommandForm<CreateOrder>
+        <CommandForm
             command={CreateOrder}
             beforeExecute={handleBeforeExecute}
         >
@@ -65,7 +65,7 @@ function SmartForm() {
     
     return (
         <div>
-            <CommandForm<UpdateProfile> command={UpdateProfile}>
+            <CommandForm command={UpdateProfile}>
                 <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
                 <InputTextField<UpdateProfile> value={c => c.email} type="email" title="Email" />
             </CommandForm>
@@ -126,7 +126,7 @@ function AutoSaveForm() {
     }, [command.hasChanges]);
     
     return (
-        <CommandForm<UpdateDraft> command={UpdateDraft}>
+        <CommandForm command={UpdateDraft}>
             <InputTextField<UpdateDraft> value={c => c.title} title="Title" />
             <TextAreaField<UpdateDraft> value={c => c.content} title="Content" rows={10} />
             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>

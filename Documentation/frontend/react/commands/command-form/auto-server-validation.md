@@ -18,7 +18,7 @@ Auto server validation is designed for scenarios where you need to validate data
 Enable auto server validation by setting the `autoServerValidate` prop:
 
 ```tsx
-<CommandForm<RegisterUser> 
+<CommandForm 
     command={RegisterUser} 
     validateOn="change"
     autoServerValidate={true}
@@ -51,7 +51,7 @@ If the user continues typing before the throttle timer expires, the timer resets
 To avoid excessive server calls during rapid typing, use the `autoServerValidateThrottle` prop to delay validation:
 
 ```tsx
-<CommandForm<RegisterUser> 
+<CommandForm 
     command={RegisterUser} 
     validateOn="change"
     autoServerValidate={true}
@@ -152,7 +152,7 @@ The validation endpoint returns a `CommandResult` with validation errors:
 The frontend automatically handles the validation response and displays errors:
 
 ```tsx
-<CommandForm<RegisterUser> 
+<CommandForm 
     command={RegisterUser} 
     validateOn="change"
     autoServerValidate={true}
@@ -327,7 +327,7 @@ function RegistrationForm() {
         <div className="registration-form">
             <h2>Create Your Account</h2>
             
-            <CommandForm<RegisterUser> 
+            <CommandForm 
                 command={RegisterUser} 
                 validateOn="change"
                 autoServerValidate={true}

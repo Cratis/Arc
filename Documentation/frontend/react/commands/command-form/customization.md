@@ -11,7 +11,7 @@ By default, CommandForm displays field titles above each field when they are def
 Set the `showTitles` prop to `false`:
 
 ```tsx
-<CommandForm<MyCommand> command={MyCommand} showTitles={false}>
+<CommandForm command={MyCommand} showTitles={false}>
     <InputTextField<MyCommand> value={c => c.name} title="Full Name" />
     <InputTextField<MyCommand> value={c => c.email} type="email" title="Email Address" />
 </CommandForm>
@@ -22,7 +22,7 @@ Set the `showTitles` prop to `false`:
 Combine `showTitles={false}` with custom heading or label elements:
 
 ```tsx
-<CommandForm<MyCommand> command={MyCommand} showTitles={false}>
+<CommandForm command={MyCommand} showTitles={false}>
     <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
         Full Name
     </h3>
@@ -53,7 +53,7 @@ CommandForm automatically displays error messages below fields when validation f
 Set the `showErrors` prop to `false`:
 
 ```tsx
-<CommandForm<MyCommand> command={MyCommand} showErrors={false}>
+<CommandForm command={MyCommand} showErrors={false}>
     <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
     <InputTextField<MyCommand> value={c => c.password} type="password" title="Password" required />
 </CommandForm>
@@ -72,7 +72,7 @@ function MyForm() {
     const passwordError = getFieldError('password');
     
     return (
-        <CommandForm<MyCommand> command={MyCommand} showErrors={false}>
+        <CommandForm command={MyCommand} showErrors={false}>
             <InputTextField<MyCommand> value={c => c.email} type="email" title="Email" required />
             {emailError && (
                 <div className="error-message" style={{
@@ -108,7 +108,7 @@ function MyForm() {
     const hasErrors = commandResult?.validationResults && commandResult.validationResults.length > 0;
     
     return (
-        <CommandForm<MyCommand> command={MyCommand} showErrors={false}>
+        <CommandForm command={MyCommand} showErrors={false}>
             {hasErrors && (
                 <div className="error-summary" style={{
                     backgroundColor: '#fee',
@@ -197,7 +197,7 @@ const CustomFieldContainer = ({ title, errorMessage, children }: FieldContainerP
 Then use it with CommandForm:
 
 ```tsx
-<CommandForm<MyCommand>
+<CommandForm
     command={MyCommand} 
     fieldContainerComponent={CustomFieldContainer}
 >
@@ -316,7 +316,7 @@ const PrimeReactFieldDecorator = ({ icon, description, children }: FieldDecorato
 Use it with CommandForm:
 
 ```tsx
-<CommandForm<MyCommand>
+<CommandForm
     command={MyCommand}
     fieldDecoratorComponent={PrimeReactFieldDecorator}
 >
@@ -376,7 +376,7 @@ const CustomErrorDisplay = ({ errors, fieldName }: ErrorDisplayProps) => (
 Use it with CommandForm:
 
 ```tsx
-<CommandForm<MyCommand>
+<CommandForm
     command={MyCommand}
     errorDisplayComponent={CustomErrorDisplay}
 >
@@ -421,7 +421,7 @@ const PrimeReactTooltip = ({ description, children }: TooltipWrapperProps) => {
 Use it with CommandForm:
 
 ```tsx
-<CommandForm<MyCommand>
+<CommandForm
     command={MyCommand}
     tooltipComponent={PrimeReactTooltip}
 >
@@ -447,7 +447,7 @@ For lightweight customization without creating custom components, use the CSS cl
 ### Using Custom CSS Classes
 
 ```tsx
-<CommandForm<MyCommand>
+<CommandForm
     command={MyCommand}
     errorClassName="my-error-message"
     iconAddonClassName="my-icon-addon"
@@ -520,7 +520,7 @@ const PrimeErrorDisplay = ({ errors }) => (
 
 function MyForm() {
     return (
-        <CommandForm<MyCommand>
+        <CommandForm
             command={MyCommand}
             fieldDecoratorComponent={PrimeFieldDecorator}
             errorDisplayComponent={PrimeErrorDisplay}
@@ -564,7 +564,7 @@ const TailwindErrorDisplay = ({ errors }) => (
 
 function MyForm() {
     return (
-        <CommandForm<MyCommand>
+        <CommandForm
             command={MyCommand}
             fieldDecoratorComponent={TailwindFieldDecorator}
             errorDisplayComponent={TailwindErrorDisplay}
@@ -581,7 +581,7 @@ function MyForm() {
 You can combine multiple customization options for complete control:
 
 ```tsx
-<CommandForm<MyCommand>
+<CommandForm
     command={MyCommand} 
     showTitles={false}                              // Disable auto titles
     showErrors={true}                               // Keep auto errors
