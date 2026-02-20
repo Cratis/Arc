@@ -27,6 +27,7 @@ export interface CommandFormProps<TCommand extends object> {
     validateAllFieldsOnChange?: boolean;
     validateOnInit?: boolean;
     autoServerValidate?: boolean;
+    autoServerValidateThrottle?: number;
     fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
     fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
     errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;
@@ -181,6 +182,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
     const initializedRef = React.useRef(false);
     const lastServerValidateVersion = React.useRef<number>(-1);
+    const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
     // When using currentValues, always update when they change (reactive mode for editing)
@@ -220,6 +222,12 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
             return;
         }
 
+        // Clear any pending throttle timer
+        if (serverValidateThrottleTimer.current) {
+            clearTimeout(serverValidateThrottleTimer.current);
+            serverValidateThrottleTimer.current = null;
+        }
+
         // Only call server validate if all fields are valid (client validation passed)
         const allFieldsValid = Object.keys(fieldValidities).length > 0 && isValid;
         
@@ -228,20 +236,37 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         
         // Must have all fields valid and not already validated this version
         if (allFieldsValid && !alreadyValidatedThisVersion && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
-            lastServerValidateVersion.current = commandVersion;
-            void (async () => {
-                try {
-                    const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
-                    if (validationResult) {
-                        setCommandResult(validationResult);
+            const performValidation = () => {
+                lastServerValidateVersion.current = commandVersion;
+                void (async () => {
+                    try {
+                        const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                        if (validationResult) {
+                            setCommandResult(validationResult);
+                        }
+                    } catch (error) {
+                        // Silently handle validation errors - they'll be in the result
+                        console.error('Server validation error:', error);
                     }
-                } catch (error) {
-                    // Silently handle validation errors - they'll be in the result
-                    console.error('Server validation error:', error);
-                }
-            })();
+                })();
+            };
+
+            // Apply throttle if specified
+            const throttleMs = props.autoServerValidateThrottle ?? 0;
+            if (throttleMs > 0) {
+                serverValidateThrottleTimer.current = setTimeout(performValidation, throttleMs);
+            } else {
+                performValidation();
+            }
         }
-    }, [props.autoServerValidate, commandInstance, commandVersion, isValid, fieldValidities]);
+
+        return () => {
+            if (serverValidateThrottleTimer.current) {
+                clearTimeout(serverValidateThrottleTimer.current);
+                serverValidateThrottleTimer.current = null;
+            }
+        };
+    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, fieldValidities]);
 
     const setFieldValidity = useCallback((fieldName: string, isFieldValid: boolean) => {
         setFieldValidities(prev => ({ ...prev, [fieldName]: isFieldValid }));
@@ -327,6 +352,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,
         validateOnInit: props.validateOnInit ?? false,
         autoServerValidate: props.autoServerValidate ?? false,
+        autoServerValidateThrottle: props.autoServerValidateThrottle ?? 0,
         fieldContainerComponent: props.fieldContainerComponent,
         fieldDecoratorComponent: props.fieldDecoratorComponent,
         errorDisplayComponent: props.errorDisplayComponent,

@@ -1887,11 +1887,17 @@ export const AutoServerValidation: Story = {
                     real-time feedback for server-side validation rules (like checking if a username 
                     is already taken).
                 </p>
+                <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                    The <code>autoServerValidateThrottle</code> prop (in milliseconds) delays server 
+                    validation to avoid excessive calls during rapid typing. In this example, it's set 
+                    to 500ms, so validation will only occur after you stop typing for half a second.
+                </p>
                 
                 <CommandForm<ServerValidatedCommand>
                     command={TrackedServerValidatedCommand}
                     validateOn="change"
                     autoServerValidate={true}
+                    autoServerValidateThrottle={500}
                 >
                     <InputTextField<ServerValidatedCommand> 
                         value={c => c.username} 
