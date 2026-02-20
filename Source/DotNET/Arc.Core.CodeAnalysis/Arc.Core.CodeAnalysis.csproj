@@ -9,6 +9,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
+        <NoWarn>$(NoWarn);NU5128;NU1507</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

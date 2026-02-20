@@ -40,9 +40,10 @@
     <!-- Roslyn-->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
+    <!-- Override vulnerable/incompatible transitive dependencies from analyzer testing packages -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.0.0" />
     <PackageVersion Include="System.Formats.Asn1" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Composition" Version="1.0.31" />
     <!-- Analysis -->
