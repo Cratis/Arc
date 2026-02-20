@@ -8,5 +8,13 @@
   href: validation.md
 - name: Customization
   href: customization.md
-- name: Advanced Usage
-  href: advanced.md
+- name: Layouts
+  href: layouts.md
+- name: Working with Hooks
+  href: hooks.md
+- name: Data Loading
+  href: data-loading.md
+- name: Form Lifecycle
+  href: form-lifecycle.md
+- name: Advanced Patterns
+  href: advanced-patterns.md
