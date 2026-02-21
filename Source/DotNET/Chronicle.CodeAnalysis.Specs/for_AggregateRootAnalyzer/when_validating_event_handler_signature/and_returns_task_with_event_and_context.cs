@@ -7,9 +7,9 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.for_AggregateRootAnalyzer.when_valid
 
 public class and_returns_task_with_event_and_context : Specification
 {
-    Exception result;
+    Exception _result;
 
-    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Chronicle.Aggregates;
 using Cratis.Chronicle.Events;
 using System.Threading.Tasks;
@@ -27,5 +27,5 @@ namespace TestNamespace
     }
 }"));
 
-    [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
+    [Fact] void should_not_report_diagnostic() => _result.ShouldBeNull();
 }

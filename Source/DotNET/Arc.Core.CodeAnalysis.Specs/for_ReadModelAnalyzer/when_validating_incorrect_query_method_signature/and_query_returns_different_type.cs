@@ -7,9 +7,9 @@ namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer.when_validating_incorrec
 
 public class and_query_returns_different_type : Specification
 {
-    Exception result;
+    Exception _result;
 
-    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Queries.ModelBound;
 
 namespace TestNamespace
@@ -26,5 +26,5 @@ namespace TestNamespace
                     .WithLocation(0)
                     .WithArguments("GetOther", "TestReadModel", "TestNamespace.OtherType")));
 
-    [Fact] void should_report_diagnostic() => result.ShouldBeNull();
+    [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }

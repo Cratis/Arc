@@ -7,9 +7,9 @@ namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer.when_validating_query_me
 
 public class and_record_has_properties : Specification
 {
-    Exception result;
+    Exception _result;
 
-    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Queries.ModelBound;
 using System.Collections.Generic;
 
@@ -25,5 +25,5 @@ namespace TestNamespace
     }
 }"));
 
-    [Fact] void should_not_report_diagnostic() => result.ShouldBeNull();
+    [Fact] void should_not_report_diagnostic() => _result.ShouldBeNull();
 }

@@ -5,6 +5,7 @@
         <RootNamespace>Cratis.Arc.CodeAnalysis</RootNamespace>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <NoWarn>$(NoWarn);MA0101;RCS1266</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <Compile Remove="../GlobalUsings.Specs.cs" />

@@ -7,9 +7,9 @@ namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_mi
 
 public class and_record_has_primary_constructor : Specification
 {
-    Exception result;
+    Exception _result;
 
-    async Task Because() => result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
+    async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 namespace TestNamespace
 {
     public record {|#0:TestCommand|}(string Name, int Age)
@@ -23,5 +23,5 @@ namespace TestNamespace
                     .WithLocation(0)
                     .WithArguments("TestCommand")));
 
-    [Fact] void should_report_diagnostic() => result.ShouldBeNull();
+    [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }
