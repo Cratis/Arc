@@ -58,7 +58,12 @@ public sealed class ObserveInterceptor(IEntityChangeTracker changeTracker, ILogg
         // This is important because deleted entities are detached after SaveChanges.
         _changedTables = context.ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
-            .Select(e => e.Metadata.GetTableName())
+            .Select(e =>
+            {
+                var tblName = e.Metadata.GetTableName();
+                var schema = e.Metadata.GetSchema() ?? e.Metadata.Model.GetDefaultSchema();
+                return schema is not null ? $"{schema}.{tblName}" : tblName;
+            })
             .Where(tableName => tableName is not null)
             .Cast<string>()
             .ToHashSet();

@@ -136,9 +136,10 @@ public static class DbSetObserveExtensions
         var idProperty = GetIdProperty(dbSet);
         var entities = new QueryContextAwareSet<TEntity>(queryContext, idProperty);
 
-        // Get table name for database notifications
+        // Get table name and schema for database notifications
         var entityType = dbSet.EntityType;
         var tableName = entityType.GetTableName() ?? typeof(TEntity).Name;
+        var schemaName = entityType.GetSchema() ?? entityType.Model.GetDefaultSchema();
 
         // Get column names for SQL Server SqlDependency
         // SqlDependency monitors only the columns specified in the SELECT query
@@ -231,14 +232,15 @@ public static class DbSetObserveExtensions
         }
 
         // Subscribe to in-process changes (via SaveChanges interceptor)
-        changeSubscription = changeTracker.RegisterCallback(tableName, OnChangeDetected);
+        var tableKey = schemaName is not null ? $"{schemaName}.{tableName}" : tableName;
+        changeSubscription = changeTracker.RegisterCallback(tableKey, OnChangeDetected);
 
         // Subscribe to database-level changes (cross-process notifications)
         // This is done SYNCHRONOUSLY to ensure SqlDependency is ready before returning
         try
         {
             databaseNotifier = notifierFactory.Create(databaseType, connectionString);
-            databaseNotifier.StartListening(tableName, columnNames, OnChangeDetected, cancellationToken).GetAwaiter().GetResult();
+            databaseNotifier.StartListening(tableName, schemaName, columnNames, OnChangeDetected, cancellationToken).GetAwaiter().GetResult();
             logger.DatabaseNotifierStarted(typeof(TEntity).Name);
         }
         catch (Exception ex)

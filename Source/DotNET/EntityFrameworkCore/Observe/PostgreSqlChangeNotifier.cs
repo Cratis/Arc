@@ -30,6 +30,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
     Task? _listenerTask;
     string? _channelName;
     string? _tableName;
+    string? _schemaName;
     Action? _onChanged;
     DateTime _lastNotification = DateTime.MinValue;
     bool _triggerCreated;
@@ -37,10 +38,13 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 
     /// <inheritdoc/>
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - channel name is derived from table name from EF Core metadata
-    public async Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
+    public async Task StartListening(string tableName, string? schemaName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
         _tableName = tableName;
-        _channelName = $"table_change_{tableName.ToLowerInvariant()}";
+        _schemaName = schemaName;
+        _channelName = schemaName is not null
+            ? $"table_change_{schemaName.ToLowerInvariant()}_{tableName.ToLowerInvariant()}"
+            : $"table_change_{tableName.ToLowerInvariant()}";
         _onChanged = onChanged;
 
         await ConnectAndSubscribe(cancellationToken);
@@ -155,8 +159,12 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 #pragma warning disable CA2100, MA0101, MA0136 // Review SQL queries for security vulnerabilities, Use raw string literal
     async Task EnsureTriggerExists(string tableName, CancellationToken cancellationToken)
     {
-        var functionName = $"notify_{tableName.ToLowerInvariant()}_changes";
-        var triggerName = $"trigger_{tableName.ToLowerInvariant()}_notify";
+        var schemaPrefix = _schemaName is not null ? $"{_schemaName.ToLowerInvariant()}_" : string.Empty;
+        var functionName = $"notify_{schemaPrefix}{tableName.ToLowerInvariant()}_changes";
+        var triggerName = $"trigger_{schemaPrefix}{tableName.ToLowerInvariant()}_notify";
+        var qualifiedTableName = _schemaName is not null
+            ? $"\"{_schemaName}\".\"{tableName}\""
+            : $"\"{tableName}\"";
 
         // Create the notification function
         var createFunctionSql = $"""
@@ -174,7 +182,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 
         // Create the trigger (drop first to avoid duplicates)
         var dropTriggerSql = $"""
-            DROP TRIGGER IF EXISTS {triggerName} ON "{tableName}";
+            DROP TRIGGER IF EXISTS {triggerName} ON {qualifiedTableName};
             """;
 
         await using var dropTriggerCmd = new NpgsqlCommand(dropTriggerSql, _connection);
@@ -182,7 +190,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
 
         var createTriggerSql = $"""
             CREATE TRIGGER {triggerName}
-            AFTER INSERT OR UPDATE OR DELETE ON "{tableName}"
+            AFTER INSERT OR UPDATE OR DELETE ON {qualifiedTableName}
             FOR EACH ROW EXECUTE FUNCTION {functionName}();
             """;
 

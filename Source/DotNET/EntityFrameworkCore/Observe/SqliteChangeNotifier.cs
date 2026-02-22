@@ -16,7 +16,7 @@ public sealed class SqliteChangeNotifier(ILogger<SqliteChangeNotifier> logger) :
     bool _disposed;
 
     /// <inheritdoc/>
-    public Task StartListening(string tableName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
+    public Task StartListening(string tableName, string? schemaName, IEnumerable<string> columnNames, Action onChanged, CancellationToken cancellationToken = default)
     {
         logger.SqliteUsingInProcessOnly(tableName);
         return Task.CompletedTask;

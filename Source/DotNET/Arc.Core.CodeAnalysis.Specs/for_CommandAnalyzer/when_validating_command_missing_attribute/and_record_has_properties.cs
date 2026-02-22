@@ -28,3 +28,4 @@ namespace TestNamespace
 
     [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }
+
