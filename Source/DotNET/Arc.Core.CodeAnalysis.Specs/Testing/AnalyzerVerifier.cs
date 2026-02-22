@@ -40,7 +40,7 @@ public static class AnalyzerVerifier<TAnalyzer>
 
         if (orderedDiagnostics.Length != expected.Length)
         {
-            var diagnosticInfo = string.Join("\n", orderedDiagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"));
+            var diagnosticInfo = string.Join('\n', orderedDiagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}"));
             throw new Exception($"Expected {expected.Length} diagnostics but got {orderedDiagnostics.Length}\nActual diagnostics:\n{diagnosticInfo}");
         }
 
@@ -82,35 +82,5 @@ public static class AnalyzerVerifier<TAnalyzer>
 
         span = default;
         return false;
-    }
-}
-
-public class DiagnosticBuilder(string diagnosticId)
-{
-    readonly string _diagnosticId = diagnosticId;
-    DiagnosticSeverity _severity = DiagnosticSeverity.Error;
-    readonly List<string> _arguments = [];
-
-    public DiagnosticBuilder WithSeverity(DiagnosticSeverity severity)
-    {
-        _severity = severity;
-        return this;
-    }
-
-    public DiagnosticBuilder WithLocation(int location)
-    {
-        // Location is handled by markers in the source, so we ignore this
-        return this;
-    }
-
-    public DiagnosticBuilder WithArguments(params string[] arguments)
-    {
-        _arguments.AddRange(arguments);
-        return this;
-    }
-
-    public static implicit operator ExpectedDiagnostic(DiagnosticBuilder builder)
-    {
-        return new ExpectedDiagnostic(builder._diagnosticId, builder._severity, builder._arguments);
     }
 }
