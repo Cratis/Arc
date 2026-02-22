@@ -2,7 +2,6 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.ProxyGenerator.Build</AssemblyName>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
         <NoPackageAnalysis>true</NoPackageAnalysis>
         <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
         <NoWarn>$(NoWarn);NU5118</NoWarn>
