@@ -1,0 +1,46 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Validation;
+using Cratis.Concepts;
+using FluentValidation;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+
+namespace Cratis.Arc.Validation.for_DiscoverableModelValidator.when_validating;
+
+public class with_concept_validator_and_no_aspnet_result_attribute : given.a_discoverable_model_validator
+{
+    IEnumerable<ModelValidationResult> _result;
+    TestConcept _conceptModel;
+
+    void Establish()
+    {
+        var conceptValidator = new TestConceptValidator();
+        _modelValidator = new DiscoverableModelValidator(conceptValidator);
+
+        _actionContext.HttpContext.Request.Method = "POST";
+
+        _conceptModel = new TestConcept("");
+        var modelMetadataProvider = new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider();
+        var conceptMetadata = modelMetadataProvider.GetMetadataForType(typeof(TestConcept));
+        _validationContext = new ModelValidationContext(_actionContext, conceptMetadata, modelMetadataProvider, null, _conceptModel);
+    }
+
+    void Because() => _result = _modelValidator.Validate(_validationContext);
+
+    [Fact] void should_run_validation() => _result.Count().ShouldEqual(1);
+    [Fact] void should_have_validation_error_for_value() => _result.First().MemberName.ShouldEqual("Value");
+
+    class TestConceptValidator : ConceptValidator<TestConcept>
+    {
+        public TestConceptValidator()
+        {
+            RuleFor(x => x.Value).NotEmpty().WithMessage("Value is required");
+        }
+    }
+
+    record TestConcept(string Value) : ConceptAs<string>(Value)
+    {
+        public static implicit operator TestConcept(string value) => new(value);
+    }
+}
