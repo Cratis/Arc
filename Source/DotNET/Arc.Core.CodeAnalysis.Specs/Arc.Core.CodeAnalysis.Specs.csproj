@@ -21,3 +21,4 @@
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
 </Project>
+

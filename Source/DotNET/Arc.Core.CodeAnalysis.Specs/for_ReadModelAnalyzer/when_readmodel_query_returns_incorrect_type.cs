@@ -22,3 +22,4 @@ namespace TestNamespace
             .WithLocation(0)
             .WithArguments("GetName", "TestReadModel", "string"));
 }
+

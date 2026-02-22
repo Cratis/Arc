@@ -24,3 +24,4 @@ namespace TestNamespace
             .WithLocation(0)
             .WithArguments("TestCommand"));
 }
+
