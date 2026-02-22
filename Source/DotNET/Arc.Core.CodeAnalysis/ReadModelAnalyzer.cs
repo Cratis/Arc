@@ -157,6 +157,15 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
 
         if (type is INamedTypeSymbol namedType)
         {
+            // Check if the type itself is IEnumerable<T>
+            if (namedType.Name == "IEnumerable" &&
+                namedType.TypeArguments.Length == 1 &&
+                SymbolEqualityComparer.Default.Equals(namedType.TypeArguments[0], elementType))
+            {
+                return true;
+            }
+
+            // Check if the type implements IEnumerable<T>
             var iEnumerableInterface = namedType.AllInterfaces
                 .FirstOrDefault(i => i.Name == "IEnumerable" &&
                                     i.TypeArguments.Length == 1 &&
