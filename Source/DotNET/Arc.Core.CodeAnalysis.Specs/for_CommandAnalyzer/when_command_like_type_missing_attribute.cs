@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using VerifyCS = Microsoft.CodeAnalysis.CSharp.Testing.XUnit.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
+using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
 namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer;
 
@@ -20,6 +20,7 @@ namespace TestNamespace
     }
 }",
         VerifyCS.Diagnostic("ARC0002")
+            .WithSeverity(Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
             .WithLocation(0)
             .WithArguments("TestCommand"));
 }

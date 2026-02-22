@@ -114,7 +114,7 @@ public class AggregateRootAnalyzer : DiagnosticAnalyzer
 
     static string GetMethodSignature(IMethodSymbol method)
     {
-        var parameters = string.Join(", ", method.Parameters.Select(p => p.Type.ToDisplayString()));
+        var parameters = string.Join(", ", method.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
         return $"{method.ReturnType.ToDisplayString()} {method.Name}({parameters})";
     }
 }
