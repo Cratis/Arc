@@ -5,6 +5,9 @@ using Cratis.Arc;
 using Cratis.Arc.Http;
 
 var builder = ArcApplication.CreateBuilder(args);
+
+// Uncomment the following line to configure the application to use invariant culture
+// builder.UseInvariantCulture();
 builder.AddCratisArc(configureOptions: options =>
 {
     options.GeneratedApis.RoutePrefix = "api";
