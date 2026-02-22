@@ -12,7 +12,7 @@
         "allowJs": false,
         "checkJs": false,
         "module": "ES2022",
-        "moduleResolution": "Bundler",
+        "moduleResolution": "Node",
         "target": "ES2022",
         "noEmit": false,
         "pretty": true,
