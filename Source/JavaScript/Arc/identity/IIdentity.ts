@@ -17,6 +17,11 @@ export interface IIdentity<TDetails = object> {
     name: string;
 
     /**
+     * The roles the identity is in.
+     */
+    roles: string[];
+
+    /**
      * The application specific details for the identity.
      */
     details: TDetails;
@@ -25,6 +30,13 @@ export interface IIdentity<TDetails = object> {
      * Whether the details are set.
      */
     isSet: boolean;
+
+    /**
+     * Check if the identity is in a role.
+     * @param role The role to check.
+     * @returns True if the identity is in the role, false otherwise.
+     */
+    isInRole(role: string): boolean;
 
     /**
      * Refreshes the identity context.

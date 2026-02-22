@@ -16,6 +16,7 @@ public class and_user_is_authenticated_but_not_authorized : given.an_identity_en
             new IdentityName("Test User"),
             IsAuthenticated: true,
             IsAuthorized: false,
+            Roles: [],
             string.Empty);
 
         _identityProviderResultHandler.GenerateFromCurrentContext().Returns(Task.FromResult(_result));

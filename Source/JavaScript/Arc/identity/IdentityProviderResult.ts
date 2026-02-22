@@ -4,5 +4,6 @@
 export type IdentityProviderResult = {
     id: string;
     name: string;
+    roles: string[];
     details: object;
 };

@@ -16,6 +16,7 @@ public class and_user_is_authenticated_and_authorized : given.an_identity_endpoi
             new IdentityName("Test User"),
             IsAuthenticated: true,
             IsAuthorized: true,
+            Roles: [],
             "Additional details");
 
         _identityProviderResultHandler.GenerateFromCurrentContext().Returns(Task.FromResult(_result));

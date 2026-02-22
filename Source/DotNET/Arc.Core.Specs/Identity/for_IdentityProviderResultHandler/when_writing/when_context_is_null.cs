@@ -10,7 +10,7 @@ public class when_context_is_null : given.an_identity_provider_result_handler
     void Establish()
     {
         _httpRequestContextAccessor.Current.Returns((Http.IHttpRequestContext?)null);
-        _identityProviderResult = new IdentityProviderResult("user-123", "Test User", true, true, new { role = "Admin" });
+        _identityProviderResult = new IdentityProviderResult("user-123", "Test User", true, true, [], new { role = "Admin" });
     }
 
     async Task Because() => await _handler.Write(_identityProviderResult);

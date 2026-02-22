@@ -59,8 +59,33 @@ The return type coming from `getCurrent()` looks like the following:
 | ---- | ---- | ----------- |
 | id | string | The unique identifier from the identity provider |
 | name | string | The user name |
-| claims | { [key: string]: string; } | Key/value of strings holding claims |
+| roles | string[] | Array of roles the identity is in |
 | details | any / type | Any additional identity details with type given, defaults to `any` |
+| isInRole | (role: string) => boolean | Method to check if the identity is in a specific role |
+
+## Role checking
+
+The identity includes information about the roles assigned to the user. You can check if a user is in a specific role using the `isInRole()` method:
+
+```typescript
+import { IdentityProvider } from '@cratis/arc/identity';
+
+const identity = await IdentityProvider.getCurrent();
+
+if (identity.isInRole('Admin')) {
+    console.log('User is an admin');
+}
+```
+
+You can also access the roles array directly:
+
+```typescript
+import { IdentityProvider } from '@cratis/arc/identity';
+
+const identity = await IdentityProvider.getCurrent();
+
+console.log(`User roles: ${identity.roles.join(', ')}`);
+```
 
 ## Refresh
 
