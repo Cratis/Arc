@@ -1,5 +1,7 @@
 - name: Aggregates
   href: aggregates/toc.yml
+- name: Read Models
+  href: read-models/toc.yml
 - name: Commands
   href: commands.md
 - name: Event Source Values Provider
