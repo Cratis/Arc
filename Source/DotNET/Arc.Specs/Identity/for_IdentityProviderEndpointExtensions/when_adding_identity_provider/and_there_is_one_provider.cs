@@ -7,11 +7,6 @@ namespace Cratis.Arc.Identity.for_IdentityProviderEndpointExtensions.when_adding
 
 public class and_there_is_one_provider : Specification
 {
-    abstract class MyIdentityProvider : IProvideIdentityDetails
-    {
-        public Task<IdentityDetails> Provide(IdentityProviderContext context) => throw new NotImplementedException();
-    }
-
     IServiceCollection _services;
     ITypes _types;
     List<ServiceDescriptor> _serviceDescriptors;
@@ -22,7 +17,7 @@ public class and_there_is_one_provider : Specification
         _serviceDescriptors = [];
         _services = Substitute.For<IServiceCollection>();
         _types = Substitute.For<ITypes>();
-        _types.FindMultiple<IProvideIdentityDetails>().Returns([typeof(MyIdentityProvider)]);
+        _types.FindMultiple<IProvideIdentityDetails>().Returns([typeof(given.ConcreteIdentityProvider)]);
         _services
             .When(_ => _.Add(Arg.Any<ServiceDescriptor>()))
             .Do(_ => _serviceDescriptors.Add(_.Arg<ServiceDescriptor>()));
@@ -31,7 +26,7 @@ public class and_there_is_one_provider : Specification
     void Because()
     {
         _services.AddIdentityProvider(_types);
-        _serviceDescriptor = _serviceDescriptors.Find(_ => _.ImplementationType == typeof(MyIdentityProvider));
+        _serviceDescriptor = _serviceDescriptors.Find(_ => _.ImplementationType == typeof(given.ConcreteIdentityProvider));
     }
 
     [Fact] void should_register_expected_provider() => _serviceDescriptor.ShouldNotBeNull();

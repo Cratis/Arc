@@ -21,7 +21,7 @@ public static class IdentityProviderServiceCollectionExtensions
     public static IServiceCollection AddIdentityProvider(this IServiceCollection services, ITypes types)
     {
         var defaultImplementationType = typeof(DefaultIdentityDetailsProvider);
-        var providerTypes = types.FindMultiple<IProvideIdentityDetails>().Where(_ => _ != defaultImplementationType).ToArray();
+        var providerTypes = types.FindMultiple<IProvideIdentityDetails>().Where(_ => _ != defaultImplementationType && _.IsVisible).ToArray();
         if (providerTypes.Length > 1)
         {
             throw new MultipleIdentityDetailsProvidersFound(providerTypes);

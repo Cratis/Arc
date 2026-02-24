@@ -7,16 +7,7 @@ namespace Cratis.Arc.Identity.for_IdentityProviderEndpointExtensions.when_adding
 
 public class and_there_is_one_typed_provider : Specification
 {
-    record MyDetails(string Name, int Age);
-
-    abstract class MyTypedIdentityProvider : IProvideIdentityDetails
-    {
-        public Task<IdentityDetails> Provide(IdentityProviderContext context)
-            => Task.FromResult(new IdentityDetails(true, new MyDetails("John", 30)));
-    }
-
     IServiceCollection _services;
-    ITypes _types;
     List<ServiceDescriptor> _serviceDescriptors;
     ServiceDescriptor _serviceDescriptor;
 
@@ -24,8 +15,6 @@ public class and_there_is_one_typed_provider : Specification
     {
         _serviceDescriptors = [];
         _services = Substitute.For<IServiceCollection>();
-        _types = Substitute.For<ITypes>();
-        _types.FindMultiple<IProvideIdentityDetails>().Returns([typeof(MyTypedIdentityProvider)]);
         _services
             .When(_ => _.Add(Arg.Any<ServiceDescriptor>()))
             .Do(_ => _serviceDescriptors.Add(_.Arg<ServiceDescriptor>()));
@@ -33,11 +22,12 @@ public class and_there_is_one_typed_provider : Specification
 
     void Because()
     {
-        _services.AddIdentityProvider(_types);
-        _serviceDescriptor = _serviceDescriptors.Find(_ => _.ImplementationType == typeof(MyTypedIdentityProvider));
+        _services.AddIdentityProvider<given.ConcreteIdentityProvider>();
+        _serviceDescriptor = _serviceDescriptors.Find(_ => _.ImplementationType == typeof(given.ConcreteIdentityProvider));
     }
 
     [Fact] void should_register_expected_provider() => _serviceDescriptor.ShouldNotBeNull();
     [Fact] void should_register_as_identity_details_provider() => _serviceDescriptor.ServiceType.ShouldEqual(typeof(IProvideIdentityDetails));
     [Fact] void should_register_as_transient() => _serviceDescriptor.Lifetime.ShouldEqual(ServiceLifetime.Transient);
 }
+
