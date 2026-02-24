@@ -24,7 +24,7 @@ public class when_adding_cratis_mongodb_with_configuration_and_overrides : Speci
 
     void Because()
     {
-        var configurationPath = ConfigurationPath.Combine(global::Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.DefaultSectionPaths);
+        var configurationPath = ConfigurationPath.Combine(ServiceCollectionExtensions.DefaultSectionPaths);
         var configurationValues = new Dictionary<string, string?>
         {
             [$"{configurationPath}:Server"] = _configuredServer,

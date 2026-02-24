@@ -31,13 +31,13 @@ public static class ArcApplicationBuilderExtensions
         var configSection = configSectionPath ?? ConfigurationPath.Combine(HostBuilderExtensions.DefaultSectionPaths);
         builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
 
-        var optionsBuilder = builder.Services
+        builder.Services
             .AddOptions<ArcOptions>()
             .ValidateOnStart();
 
         if (configureOptions is not null)
         {
-            optionsBuilder.Configure(configureOptions);
+            builder.Services.PostConfigure(configureOptions);
         }
 
         if (configureBuilder is not null)

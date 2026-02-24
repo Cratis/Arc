@@ -44,12 +44,12 @@ public static class HostBuilderExtensions
             var configSection = configSectionPath ?? ConfigurationPath.Combine(DefaultSectionPaths);
             services.Configure<ArcOptions>(context.Configuration.GetSection(configSection));
 
-            var optionsBuilder = services.AddOptions<ArcOptions>()
+            services.AddOptions<ArcOptions>()
                 .ValidateOnStart();
 
             if (configureOptions is not null)
             {
-                optionsBuilder.Configure(configureOptions);
+                services.PostConfigure(configureOptions);
             }
 
             services.AddCratisArcCore();

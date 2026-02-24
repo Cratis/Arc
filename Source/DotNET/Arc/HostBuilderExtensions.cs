@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -35,29 +33,8 @@ public static class HostBuilderExtensions
         Action<IArcBuilder>? configureBuilder = default,
         string? configSectionPath = default)
     {
-        builder.AddCratisArcCore();
+        builder.AddCratisArcCore(configureOptions, configureBuilder, configSectionPath);
         builder.AddArcImplementation();
-        builder.ConfigureServices(_ =>
-        {
-            var arcBuilder = new ArcBuilder(_, Internals.Types);
-            configureBuilder?.Invoke(arcBuilder);
-            AddOptions(_, configureOptions)
-                .BindConfiguration(configSectionPath ?? ConfigurationPath.Combine(DefaultArcSectionPaths));
-        });
-
-        return builder;
-    }
-
-    static OptionsBuilder<ArcOptions> AddOptions(IServiceCollection services, Action<ArcOptions>? configureOptions = default)
-    {
-        var builder = services
-            .AddOptions<ArcOptions>()
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-        if (configureOptions is not null)
-        {
-            services.PostConfigure(configureOptions);
-        }
 
         return builder;
     }
