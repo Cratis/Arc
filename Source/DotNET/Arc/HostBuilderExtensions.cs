@@ -56,7 +56,7 @@ public static class HostBuilderExtensions
             .ValidateOnStart();
         if (configureOptions is not null)
         {
-            builder.Configure(configureOptions);
+            services.PostConfigure(configureOptions);
         }
 
         return builder;
