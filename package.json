@@ -35,7 +35,7 @@
         "@tony.ganchev/eslint-plugin-header": "^3.2.4",
         "@types/chai": "5.2.3",
         "@types/chai-as-promised": "8.0.2",
-        "@types/jsdom": "^27",
+        "@types/jsdom": "^28",
         "@types/mocha": "10.0.10",
         "@types/node": "25.3.0",
         "@types/react": "^19.2.14",
