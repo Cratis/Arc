@@ -7,7 +7,7 @@ namespace Cratis.Arc.Identity.for_IdentityProviderEndpointExtensions.when_adding
 
 public class and_there_is_one_provider : Specification
 {
-    class MyIdentityProvider : IProvideIdentityDetails
+    abstract class MyIdentityProvider : IProvideIdentityDetails
     {
         public Task<IdentityDetails> Provide(IdentityProviderContext context) => throw new NotImplementedException();
     }

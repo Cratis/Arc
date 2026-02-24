@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
-using Cratis.Arc.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -31,7 +30,7 @@ public class when_adding_cratis_arc_with_configuration_and_overrides : Specifica
 
         using var host = new HostBuilder()
             .ConfigureAppConfiguration((_, configurationBuilder) => configurationBuilder.AddInMemoryCollection(configurationValues))
-            .AddCratisArc(configureOptions: options => options.CorrelationId.HttpHeader = _overrideHttpHeader, identityDetailsProvider: typeof(DefaultIdentityDetailsProvider))
+            .AddCratisArc(options => options.CorrelationId.HttpHeader = _overrideHttpHeader)
             .Build();
 
         var options = host.Services.GetRequiredService<IOptions<ArcOptions>>();

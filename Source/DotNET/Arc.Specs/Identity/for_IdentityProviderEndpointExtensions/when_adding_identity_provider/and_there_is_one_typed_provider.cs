@@ -9,7 +9,7 @@ public class and_there_is_one_typed_provider : Specification
 {
     record MyDetails(string Name, int Age);
 
-    class MyTypedIdentityProvider : IProvideIdentityDetails
+    abstract class MyTypedIdentityProvider : IProvideIdentityDetails
     {
         public Task<IdentityDetails> Provide(IdentityProviderContext context)
             => Task.FromResult(new IdentityDetails(true, new MyDetails("John", 30)));
