@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -28,15 +29,17 @@ public static class HostBuilderExtensions
     /// <param name="configureOptions">The optional callback for configuring <see cref="ArcOptions"/>.</param>
     /// <param name="configureBuilder">Optional callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
+    /// <param name="identityDetailsProvider">Optional explicit <see cref="Type"/> of the <see cref="IProvideIdentityDetails"/> implementation to use. If not provided, the type is discovered automatically.</param>
     /// <returns><see cref="IHostBuilder"/> for building continuation.</returns>
     public static IHostBuilder AddCratisArc(
         this IHostBuilder builder,
         Action<ArcOptions>? configureOptions = default,
         Action<IArcBuilder>? configureBuilder = default,
-        string? configSectionPath = default)
+        string? configSectionPath = default,
+        Type? identityDetailsProvider = default)
     {
         builder.AddCratisArcCore();
-        builder.AddArcImplementation();
+        builder.AddArcImplementation(identityDetailsProvider);
         builder.ConfigureServices(_ =>
         {
             var arcBuilder = new ArcBuilder(_, Internals.Types);
