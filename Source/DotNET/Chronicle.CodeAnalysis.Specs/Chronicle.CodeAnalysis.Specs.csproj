@@ -22,3 +22,4 @@
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
     </ItemGroup>
 </Project>
+
