@@ -30,25 +30,19 @@ public static class QueryEndpointMapper
         var options = arcOptions.GeneratedApis;
         var queryPerformerProviders = serviceProvider.GetRequiredService<IQueryPerformerProviders>();
 
-        var prefix = options.RoutePrefix.Trim('/');
-
-        var performersByNamespace = queryPerformerProviders.Performers
-            .GroupBy(p => string.Join('.', p.Location.Skip(options.SegmentsToSkipForRoute)))
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var performersByNamespace = EndpointRouteHelper.GroupByNamespace(
+            queryPerformerProviders.Performers,
+            p => p.Location,
+            options.SegmentsToSkipForRoute);
 
         foreach (var performer in queryPerformerProviders.Performers)
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
-            var segments = location.Select(segment => segment.ToKebabCase());
-            var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
-
-            var namespaceKey = string.Join('.', location);
-            var hasConflict = performersByNamespace.TryGetValue(namespaceKey, out var performersInNamespace) && performersInNamespace.Count > 1;
-            var includeQueryName = options.IncludeQueryNameInRoute || hasConflict;
-            var typeName = includeQueryName ? performer.Name.ToString() : string.Empty;
-
-            var url = includeQueryName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
-            url = url.ToLowerInvariant().SanitizeUrl();
+            var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
+                options.IncludeQueryNameInRoute,
+                location,
+                performersByNamespace);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, location, performer.Name.ToString(), includeQueryName);
 
             var executeEndpointName = $"Execute{performer.Name}";
             if (!mapper.EndpointExists(executeEndpointName))
@@ -57,7 +51,8 @@ public static class QueryEndpointMapper
                     executeEndpointName,
                     $"Execute {performer.Name} query",
                     [string.Join('.', location)],
-                    performer.AllowsAnonymousAccess);
+                    performer.AllowsAnonymousAccess,
+                    ResponseType: typeof(QueryResult));
 
                 mapper.MapGet(
                     url,
@@ -83,7 +78,8 @@ public static class QueryEndpointMapper
                             return;
                         }
 
-                        context.SetStatusCode(queryResult.IsSuccess ? 200 : !queryResult.IsValid ? 400 : 500);
+                        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid);
+                        context.SetStatusCode(statusCode);
                         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
                     },
                     metadata);
@@ -93,11 +89,16 @@ public static class QueryEndpointMapper
 
     static Paging GetPagingInfo(IHttpRequestContext context)
     {
-        if (context.Query.TryGetValue(PageQueryStringKey, out var pageString) &&
-            context.Query.TryGetValue(PageSizeQueryStringKey, out var pageSizeString) &&
-            int.TryParse(pageString, out var page) &&
+        if (context.Query.TryGetValue(PageSizeQueryStringKey, out var pageSizeString) &&
             int.TryParse(pageSizeString, out var pageSize))
         {
+            var page = 0;
+            if (context.Query.TryGetValue(PageQueryStringKey, out var pageString) &&
+                int.TryParse(pageString, out var parsedPage))
+            {
+                page = parsedPage;
+            }
+
             return new Paging(page, pageSize, true);
         }
 

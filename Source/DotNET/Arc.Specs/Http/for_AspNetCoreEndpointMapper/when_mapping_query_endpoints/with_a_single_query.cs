@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.Queries;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 
 namespace Cratis.Arc.Http.for_AspNetCoreEndpointMapper.when_mapping_query_endpoints;
@@ -24,4 +25,5 @@ public class with_a_single_query : given.a_query_endpoint
     [Fact] void should_have_method_info_on_query_endpoint() => _queryEndpoint.Metadata.GetMetadata<MethodInfo>().ShouldNotBeNull();
     [Fact] void should_use_get_for_query_endpoint() => _queryEndpoint.Metadata.GetMetadata<HttpMethodMetadata>().HttpMethods.ShouldContain("GET");
     [Fact] void should_register_one_endpoint() => _endpoints.Count.ShouldEqual(1);
+    [Fact] void should_produce_json_on_query_endpoint() => _queryEndpoint.Metadata.GetMetadata<IProducesResponseTypeMetadata>().Type.ShouldEqual(typeof(QueryResult));
 }

@@ -38,6 +38,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         Dependencies = _dependencies.Select(p => p.ParameterType);
         Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType)));
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
+        SupportsPaging = ComputeSupportsPaging(performMethod);
         _performMethod = performMethod;
         _authorizationEvaluator = authorizationEvaluator;
     }
@@ -67,6 +68,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     public bool AllowsAnonymousAccess { get; }
 
     /// <inheritdoc/>
+    public bool SupportsPaging { get; }
+
+    /// <inheritdoc/>
     public bool IsAuthorized(QueryContext context) => _authorizationEvaluator.IsAuthorized(_performMethod);
 
     /// <inheritdoc/>
@@ -92,6 +96,18 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         var type = parameter.ParameterType;
 
         return !type.IsValueType || Nullable.GetUnderlyingType(type) is not null;
+    }
+
+    static bool ComputeSupportsPaging(MethodInfo performMethod)
+    {
+        var returnType = performMethod.ReturnType;
+
+        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
+        {
+            returnType = returnType.GetGenericArguments()[0];
+        }
+
+        return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
     object?[] GetMethodArguments(ParameterInfo[] parameters, object[] dependencies, QueryArguments queryStringParameters)

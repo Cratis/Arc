@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+
 <Solution>
+    <Folder Name="/Source/" />
     <Folder Name="/Source/DotNET/">
         <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis\Arc.Core.CodeAnalysis.csproj" />
+        <Project Path="Source/DotNET/Swagger.Specs/Swagger.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
         <Project Path="Source\DotNET\Arc\Arc.csproj" />
         <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />

@@ -71,5 +71,15 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         {
             builder.AllowAnonymous();
         }
+
+        if (metadata.RequestBodyType is not null)
+        {
+            builder.Accepts(metadata.RequestBodyType, "application/json");
+        }
+
+        if (metadata.ResponseType is not null)
+        {
+            builder.Produces(200, metadata.ResponseType, "application/json");
+        }
     }
 }

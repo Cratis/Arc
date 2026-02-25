@@ -24,25 +24,19 @@ public static class CommandEndpointMapper
         var options = arcOptions.GeneratedApis;
         var commandHandlerProviders = serviceProvider.GetRequiredService<ICommandHandlerProviders>();
 
-        var prefix = options.RoutePrefix.Trim('/');
-
-        var handlersByNamespace = commandHandlerProviders.Handlers
-            .GroupBy(h => string.Join('.', h.Location.Skip(options.SegmentsToSkipForRoute)))
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var handlersByNamespace = EndpointRouteHelper.GroupByNamespace(
+            commandHandlerProviders.Handlers,
+            h => h.Location,
+            options.SegmentsToSkipForRoute);
 
         foreach (var handler in commandHandlerProviders.Handlers)
         {
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
-            var segments = location.Select(segment => segment.ToKebabCase());
-            var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
-
-            var namespaceKey = string.Join('.', location);
-            var hasConflict = handlersByNamespace.TryGetValue(namespaceKey, out var handlersInNamespace) && handlersInNamespace.Count > 1;
-            var includeCommandName = options.IncludeCommandNameInRoute || hasConflict;
-            var typeName = includeCommandName ? handler.CommandType.Name : string.Empty;
-
-            var url = includeCommandName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
-            url = url.ToLowerInvariant();
+            var includeCommandName = EndpointRouteHelper.ShouldIncludeNameInRoute(
+                options.IncludeCommandNameInRoute,
+                location,
+                handlersByNamespace);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, location, handler.CommandType.Name, includeCommandName);
 
             MapCommandEndpoint(
                 mapper,
@@ -84,7 +78,9 @@ public static class CommandEndpointMapper
             endpointName,
             summary,
             [string.Join('.', location)],
-            allowAnonymous);
+            allowAnonymous,
+            RequestBodyType: commandType,
+            ResponseType: typeof(CommandResult));
 
         mapper.MapPost(
             url,
@@ -96,21 +92,29 @@ public static class CommandEndpointMapper
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
-                var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
                 CommandResult commandResult;
-
-                if (command is null)
+                try
                 {
-                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
+                    var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
+
+                    if (command is null)
+                    {
+                        commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
+                    }
+                    else
+                    {
+                        commandResult = validateOnly
+                            ? await commandPipeline.Validate(command, context.RequestServices)
+                            : await commandPipeline.Execute(command, context.RequestServices);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    commandResult = validateOnly
-                        ? await commandPipeline.Validate(command, context.RequestServices)
-                        : await commandPipeline.Execute(command, context.RequestServices);
+                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Failed to read request body: {ex.Message}");
                 }
 
-                context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);
+                var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
+                context.SetStatusCode(statusCode);
                 await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
             metadata);
