@@ -14,7 +14,7 @@ public class when_query_has_custom_parameters : given.a_query_operation_filter
     {
         var performer = CreateQueryPerformer(
             "OrdersByCustomer",
-            isEnumerable: true,
+            supportsPaging: true,
             new QueryParameter("customerId", typeof(string)),
             new QueryParameter("status", typeof(int)));
 

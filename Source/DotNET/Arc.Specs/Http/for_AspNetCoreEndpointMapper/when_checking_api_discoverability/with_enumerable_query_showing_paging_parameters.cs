@@ -38,7 +38,7 @@ public class with_enumerable_query_showing_paging_parameters : Specification
         queryPerformer.Dependencies.Returns([]);
         queryPerformer.Parameters.Returns(QueryParameters.Empty);
         queryPerformer.AllowsAnonymousAccess.Returns(false);
-        queryPerformer.IsEnumerableResult.Returns(true);
+        queryPerformer.SupportsPaging.Returns(true);
 
         var queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         queryPerformerProviders.Performers.Returns([queryPerformer]);

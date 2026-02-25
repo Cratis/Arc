@@ -89,11 +89,16 @@ public static class QueryEndpointMapper
 
     static Paging GetPagingInfo(IHttpRequestContext context)
     {
-        if (context.Query.TryGetValue(PageQueryStringKey, out var pageString) &&
-            context.Query.TryGetValue(PageSizeQueryStringKey, out var pageSizeString) &&
-            int.TryParse(pageString, out var page) &&
+        if (context.Query.TryGetValue(PageSizeQueryStringKey, out var pageSizeString) &&
             int.TryParse(pageSizeString, out var pageSize))
         {
+            var page = 0;
+            if (context.Query.TryGetValue(PageQueryStringKey, out var pageString) &&
+                int.TryParse(pageString, out var parsedPage))
+            {
+                page = parsedPage;
+            }
+
             return new Paging(page, pageSize, true);
         }
 

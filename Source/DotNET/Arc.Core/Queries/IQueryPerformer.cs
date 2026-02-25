@@ -55,12 +55,14 @@ public interface IQueryPerformer
     bool AllowsAnonymousAccess { get; }
 
     /// <summary>
-    /// Gets a value indicating whether this query returns an enumerable (collection) result.
+    /// Gets a value indicating whether this query supports server-side paging and sorting.
     /// </summary>
     /// <remarks>
-    /// This is used to determine whether paging and sorting parameters should be exposed for this query endpoint.
+    /// This is true only when the return type implements <see cref="IQueryable"/>, which allows
+    /// <see cref="QueryableQueryRenderer"/> to apply <c>Skip</c> and <c>Take</c>.
+    /// Plain <see cref="IEnumerable{T}"/> results do not support paging.
     /// </remarks>
-    bool IsEnumerableResult { get; }
+    bool SupportsPaging { get; }
 
     /// <summary>
     /// Checks if the current user is authorized to perform this query.

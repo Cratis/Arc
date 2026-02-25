@@ -38,7 +38,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         Dependencies = _dependencies.Select(p => p.ParameterType);
         Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType)));
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
-        IsEnumerableResult = ComputeIsEnumerableResult(performMethod, readModelType);
+        SupportsPaging = ComputeSupportsPaging(performMethod);
         _performMethod = performMethod;
         _authorizationEvaluator = authorizationEvaluator;
     }
@@ -68,7 +68,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     public bool AllowsAnonymousAccess { get; }
 
     /// <inheritdoc/>
-    public bool IsEnumerableResult { get; }
+    public bool SupportsPaging { get; }
 
     /// <inheritdoc/>
     public bool IsAuthorized(QueryContext context) => _authorizationEvaluator.IsAuthorized(_performMethod);
@@ -98,38 +98,16 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         return !type.IsValueType || Nullable.GetUnderlyingType(type) is not null;
     }
 
-    static bool ComputeIsEnumerableResult(MethodInfo performMethod, Type readModelType)
+    static bool ComputeSupportsPaging(MethodInfo performMethod)
     {
         var returnType = performMethod.ReturnType;
 
-        // Unwrap Task<T> if it's an async method
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
         {
             returnType = returnType.GetGenericArguments()[0];
         }
 
-        // Check if it's a collection of the read model type
-        if (returnType.IsArray && returnType.GetElementType() == readModelType)
-        {
-            return true;
-        }
-
-        if (returnType.IsAssignableTo(typeof(IEnumerable<>).MakeGenericType(readModelType)))
-        {
-            return true;
-        }
-
-        // IAsyncEnumerable<T> is considered enumerable for paging purposes
-        if (returnType.IsGenericType &&
-            returnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>) &&
-            returnType.GetGenericArguments()[0] == readModelType)
-        {
-            return true;
-        }
-
-        // ISubject<T> is a streaming/observable result handled via WebSocket,
-        // not a pageable collection. Paging parameters should NOT be added for these.
-        return false;
+        return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
     object?[] GetMethodArguments(ParameterInfo[] parameters, object[] dependencies, QueryArguments queryStringParameters)

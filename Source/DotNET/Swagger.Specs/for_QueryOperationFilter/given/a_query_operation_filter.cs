@@ -39,7 +39,7 @@ public class a_query_operation_filter : Specification
         };
     }
 
-    protected IQueryPerformer CreateQueryPerformer(string name, bool isEnumerable, params QueryParameter[] parameters)
+    protected IQueryPerformer CreateQueryPerformer(string name, bool supportsPaging, params QueryParameter[] parameters)
     {
         var performer = Substitute.For<IQueryPerformer>();
         performer.Name.Returns(new QueryName(name));
@@ -50,7 +50,7 @@ public class a_query_operation_filter : Specification
         performer.Dependencies.Returns([]);
         performer.Parameters.Returns(new QueryParameters(parameters));
         performer.AllowsAnonymousAccess.Returns(false);
-        performer.IsEnumerableResult.Returns(isEnumerable);
+        performer.SupportsPaging.Returns(supportsPaging);
         return performer;
     }
 

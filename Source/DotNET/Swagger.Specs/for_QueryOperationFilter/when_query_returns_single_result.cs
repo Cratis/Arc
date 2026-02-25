@@ -11,7 +11,7 @@ public class when_query_returns_single_result : given.a_query_operation_filter
 
     void Establish()
     {
-        var performer = CreateQueryPerformer("OrderById", isEnumerable: false);
+        var performer = CreateQueryPerformer("OrderById", supportsPaging: false);
         _queryPerformerProviders.Performers.Returns([performer]);
 
         _operation = CreateOperation("ExecuteOrderById");

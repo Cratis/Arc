@@ -11,7 +11,7 @@ public class when_operation_does_not_match_any_query : given.a_query_operation_f
 
     void Establish()
     {
-        var performer = CreateQueryPerformer("AllOrders", isEnumerable: true);
+        var performer = CreateQueryPerformer("AllOrders", supportsPaging: true);
         _queryPerformerProviders.Performers.Returns([performer]);
 
         _operation = CreateOperation("ExecuteNonExistentQuery");

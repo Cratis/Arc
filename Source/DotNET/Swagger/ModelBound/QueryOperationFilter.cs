@@ -57,8 +57,8 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
             });
         }
 
-        // Add standard paging and sorting parameters for enumerable results
-        if (queryPerformer.IsEnumerableResult)
+        // Add standard paging and sorting parameters only for results that support server-side paging (IQueryable)
+        if (queryPerformer.SupportsPaging)
         {
             QueryParameterUtilities.AddPagingAndSortingParameters(operation);
         }

@@ -11,7 +11,7 @@ public class when_query_returns_enumerable_result : given.a_query_operation_filt
 
     void Establish()
     {
-        var performer = CreateQueryPerformer("AllOrders", isEnumerable: true);
+        var performer = CreateQueryPerformer("AllOrders", supportsPaging: true);
         _queryPerformerProviders.Performers.Returns([performer]);
 
         _operation = CreateOperation("ExecuteAllOrders");
