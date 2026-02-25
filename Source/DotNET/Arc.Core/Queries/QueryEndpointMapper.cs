@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Cratis.Strings;
@@ -31,25 +30,19 @@ public static class QueryEndpointMapper
         var options = arcOptions.GeneratedApis;
         var queryPerformerProviders = serviceProvider.GetRequiredService<IQueryPerformerProviders>();
 
-        var prefix = options.RoutePrefix.Trim('/');
-
-        var performersByNamespace = queryPerformerProviders.Performers
-            .GroupBy(p => string.Join('.', p.Location.Skip(options.SegmentsToSkipForRoute)))
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var performersByNamespace = EndpointRouteHelper.GroupByNamespace(
+            queryPerformerProviders.Performers,
+            p => p.Location,
+            options.SegmentsToSkipForRoute);
 
         foreach (var performer in queryPerformerProviders.Performers)
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
-            var segments = location.Select(segment => segment.ToKebabCase());
-            var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
-
-            var namespaceKey = string.Join('.', location);
-            var hasConflict = performersByNamespace.TryGetValue(namespaceKey, out var performersInNamespace) && performersInNamespace.Count > 1;
-            var includeQueryName = options.IncludeQueryNameInRoute || hasConflict;
-            var typeName = includeQueryName ? performer.Name.ToString() : string.Empty;
-
-            var url = includeQueryName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
-            url = url.ToLowerInvariant().SanitizeUrl();
+            var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
+                options.IncludeQueryNameInRoute,
+                location,
+                performersByNamespace);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, location, performer.Name.ToString(), includeQueryName);
 
             var executeEndpointName = $"Execute{performer.Name}";
             if (!mapper.EndpointExists(executeEndpointName))
@@ -84,13 +77,8 @@ public static class QueryEndpointMapper
                             await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
                             return;
                         }
-                        var statusCode = queryResult switch
-                        {
-                            { IsSuccess: true } => HttpStatusCode.OK,
-                            { IsAuthorized: false } => HttpStatusCode.Forbidden,
-                            { IsValid: false } => HttpStatusCode.BadRequest,
-                            _ => HttpStatusCode.InternalServerError
-                        };
+
+                        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid);
                         context.SetStatusCode(statusCode);
                         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
                     },

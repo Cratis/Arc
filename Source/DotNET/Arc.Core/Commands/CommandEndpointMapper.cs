@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,25 +24,19 @@ public static class CommandEndpointMapper
         var options = arcOptions.GeneratedApis;
         var commandHandlerProviders = serviceProvider.GetRequiredService<ICommandHandlerProviders>();
 
-        var prefix = options.RoutePrefix.Trim('/');
-
-        var handlersByNamespace = commandHandlerProviders.Handlers
-            .GroupBy(h => string.Join('.', h.Location.Skip(options.SegmentsToSkipForRoute)))
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var handlersByNamespace = EndpointRouteHelper.GroupByNamespace(
+            commandHandlerProviders.Handlers,
+            h => h.Location,
+            options.SegmentsToSkipForRoute);
 
         foreach (var handler in commandHandlerProviders.Handlers)
         {
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
-            var segments = location.Select(segment => segment.ToKebabCase());
-            var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
-
-            var namespaceKey = string.Join('.', location);
-            var hasConflict = handlersByNamespace.TryGetValue(namespaceKey, out var handlersInNamespace) && handlersInNamespace.Count > 1;
-            var includeCommandName = options.IncludeCommandNameInRoute || hasConflict;
-            var typeName = includeCommandName ? handler.CommandType.Name : string.Empty;
-
-            var url = includeCommandName ? $"{baseUrl}/{typeName.ToKebabCase()}" : baseUrl;
-            url = url.ToLowerInvariant();
+            var includeCommandName = EndpointRouteHelper.ShouldIncludeNameInRoute(
+                options.IncludeCommandNameInRoute,
+                location,
+                handlersByNamespace);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, location, handler.CommandType.Name, includeCommandName);
 
             MapCommandEndpoint(
                 mapper,
@@ -96,10 +89,12 @@ public static class CommandEndpointMapper
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+
+                context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+
                 CommandResult commandResult;
                 try
                 {
-                    context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
                     var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
 
                     if (command is null)
@@ -117,13 +112,8 @@ public static class CommandEndpointMapper
                 {
                     commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Failed to read request body: {ex.Message}");
                 }
-                var statusCode = commandResult switch
-                {
-                    { IsSuccess: true } => HttpStatusCode.OK,
-                    { IsAuthorized: false } => HttpStatusCode.Forbidden,
-                    { IsValid: false } => HttpStatusCode.BadRequest,
-                    _ => HttpStatusCode.InternalServerError
-                };
+
+                var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
                 context.SetStatusCode(statusCode);
                 await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
