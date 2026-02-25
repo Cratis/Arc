@@ -26,10 +26,7 @@ public class when_handling_async_enumerable_via_http : given.an_observable_query
             });
 
         _requestContext.When(x => x.SetStatusCode(Arg.Any<int>()))
-            .Do(ci =>
-            {
-                _statusCodeSet = ci.ArgAt<int>(0);
-            });
+            .Do(ci => _statusCodeSet = ci.ArgAt<int>(0));
     }
 
     async Task Because() => await _handler.HandleStreamingResult(_requestContext, "TestQuery", new TestAsyncEnumerable());

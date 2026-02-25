@@ -6,7 +6,6 @@ using Cratis.Arc.Commands;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 
-
 namespace Cratis.Arc.Http.for_AspNetCoreEndpointMapper.when_mapping_command_endpoints;
 
 public class with_a_single_command : given.a_command_endpoint
