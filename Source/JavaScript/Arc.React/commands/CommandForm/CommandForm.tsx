@@ -178,6 +178,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     const setCommandValues = useCommandResult[1] as SetCommandValues<TCommand>;
     const commandVersion = useCommandResult[3];
     const [commandResult, setCommandResult] = useState<ICommandResult<unknown> | undefined>(undefined);
+    const [silentValidationResult, setSilentValidationResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [fieldValidities, setFieldValidities] = useState<Record<string, boolean>>({});
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
     const initializedRef = React.useRef(false);
@@ -200,13 +201,19 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
             setCommandValues(mergedInitialValues as TCommand);
         }
 
-        // Validate on init if requested (only on first initialization)
-        if (!initializedRef.current && props.validateOnInit && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+        // Always run silent client validation on init to determine if the form is valid.
+        // This ensures isValid reflects the real validity state from the first render,
+        // even when no error messages are shown yet.
+        // Error messages are only rendered (via commandResult) when validateOnInit is true.
+        if (!initializedRef.current && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
             initializedRef.current = true;
             void (async () => {
                 const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
                 if (validationResult) {
-                    setCommandResult(validationResult);
+                    setSilentValidationResult(validationResult);
+                    if (props.validateOnInit) {
+                        setCommandResult(validationResult);
+                    }
                 }
             })();
         } else if (!initializedRef.current) {
@@ -214,7 +221,15 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         }
     }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
 
-    const isValid = Object.values(fieldValidities).every(valid => valid);
+    // Use the most recent validation result to determine form validity.
+    // commandResult is set after user interaction (blur/change) or when validateOnInit is true.
+    // silentValidationResult is set on load and is used until the user starts interacting.
+    // This ensures isValid reflects the true validity state from the first render onward,
+    // even before error messages are displayed.
+    const validationForValidity = commandResult ?? silentValidationResult;
+    const isValid = validationForValidity
+        ? (validationForValidity.validationResults?.length ?? 0) === 0
+        : Object.values(fieldValidities).every(valid => valid);
 
     // Auto server validate when all client validations pass
     React.useEffect(() => {
