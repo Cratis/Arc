@@ -92,9 +92,33 @@ Set `validateAllFieldsOnChange` to `true` to validate the entire form when any f
 
 **When to use**: Forms with interdependent fields where one field's validity depends on another (e.g., password confirmation, start/end dates).
 
-## Initial Validation
+## Silent Validation on Load
 
-Validate the form immediately when it renders:
+CommandForm **always** runs client validation silently on load, regardless of any other settings. This means `isValid` in the form context correctly reflects the real validity state from the very first render — before the user has interacted with any field.
+
+This is useful for scenarios such as:
+
+- Disabling a submit button until the form is valid
+- Conditionally rendering actions based on form state
+- Knowing whether previously loaded data is valid before the user touches anything
+
+```tsx
+function EditUserForm({ user }: { user: User }) {
+    return (
+        <CommandForm command={UpdateUser} currentValues={user}>
+            <InputTextField<UpdateUser> value={c => c.username} title="Username" required />
+            <InputTextField<UpdateUser> value={c => c.email} type="email" title="Email" required />
+            <SubmitButton /> {/* can use isValid from useCommandFormContext */}
+        </CommandForm>
+    );
+}
+```
+
+The silent validation **does not display any error messages**. Errors are only rendered after the user has interacted with a field (governed by `validateOn`) or when `validateOnInit` is set to `true`.
+
+## Showing Errors on Load (`validateOnInit`)
+
+Set `validateOnInit` to `true` to show validation error messages immediately when the form renders:
 
 ```tsx
 <CommandForm 
@@ -121,7 +145,7 @@ For automatic server-side validation as users type, see [Auto Server Validation]
 |------|------|---------|-------------|
 | `validateOn` | `'blur' \| 'change' \| 'both'` | `'blur'` | When to trigger validation |
 | `validateAllFieldsOnChange` | `boolean` | `false` | Validate all fields or just the changed field |
-| `validateOnInit` | `boolean` | `false` | Validate on form initialization |
+| `validateOnInit` | `boolean` | `false` | Show validation error messages on form initialization (validation itself always runs silently on load) |
 
 ### Examples
 
@@ -130,6 +154,8 @@ For automatic server-side validation as users type, see [Auto Server Validation]
 ```tsx
 <CommandForm command={T} validateOn="blur" />
 ```
+
+> Note: `isValid` in context is already accurate on first render due to silent validation on load, even though no errors are displayed yet.
 
 **Aggressive validation (real-time feedback)**:
 
