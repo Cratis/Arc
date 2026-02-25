@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using Cratis.Arc.Execution;
 using Cratis.Execution;
 
@@ -37,5 +38,15 @@ public static class HttpRequestContextExtensions
 
         CorrelationIdAccessor.SetCurrent(correlationId);
         context.SetResponseHeader(options.HttpHeader, correlationId.Value.ToString());
+    }
+
+    /// <summary>
+    /// Sets the HTTP response status code.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    /// <param name="statusCode">The <see cref="HttpStatusCode"/> to set.</param>
+    public static void SetStatusCode(this IHttpRequestContext context, HttpStatusCode statusCode)
+    {
+        context.SetStatusCode((int)statusCode);
     }
 }

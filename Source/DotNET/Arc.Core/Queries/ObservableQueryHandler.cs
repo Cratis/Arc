@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
@@ -147,8 +148,8 @@ public class ObservableQueryHandler(
 #pragma warning restore IDE0060
     {
         // For HTTP, we need to serialize the enumerable
+        context.SetStatusCode(HttpStatusCode.BadRequest);
         await context.WriteResponseAsJson(new { message = "AsyncEnumerable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
-        context.SetStatusCode(400);
     }
 
     async Task<QueryResult> GetCurrentValueAsQueryResult(object streamingData)

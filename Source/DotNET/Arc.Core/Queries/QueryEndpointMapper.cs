@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Cratis.Strings;
@@ -57,7 +58,8 @@ public static class QueryEndpointMapper
                     executeEndpointName,
                     $"Execute {performer.Name} query",
                     [string.Join('.', location)],
-                    performer.AllowsAnonymousAccess);
+                    performer.AllowsAnonymousAccess,
+                    ResponseType: typeof(QueryResult));
 
                 mapper.MapGet(
                     url,
@@ -82,8 +84,14 @@ public static class QueryEndpointMapper
                             await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
                             return;
                         }
-
-                        context.SetStatusCode(queryResult.IsSuccess ? 200 : !queryResult.IsValid ? 400 : 500);
+                        var statusCode = queryResult switch
+                        {
+                            { IsSuccess: true } => HttpStatusCode.OK,
+                            { IsAuthorized: false } => HttpStatusCode.Forbidden,
+                            { IsValid: false } => HttpStatusCode.BadRequest,
+                            _ => HttpStatusCode.InternalServerError
+                        };
+                        context.SetStatusCode(statusCode);
                         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
                     },
                     metadata);

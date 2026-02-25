@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,7 +85,9 @@ public static class CommandEndpointMapper
             endpointName,
             summary,
             [string.Join('.', location)],
-            allowAnonymous);
+            allowAnonymous,
+            RequestBodyType: commandType,
+            ResponseType: typeof(CommandResult));
 
         mapper.MapPost(
             url,
@@ -93,24 +96,35 @@ public static class CommandEndpointMapper
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-
-                context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
-
-                var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
                 CommandResult commandResult;
-
-                if (command is null)
+                try
                 {
-                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
-                }
-                else
-                {
-                    commandResult = validateOnly
-                        ? await commandPipeline.Validate(command, context.RequestServices)
-                        : await commandPipeline.Execute(command, context.RequestServices);
-                }
+                    context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+                    var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
 
-                context.SetStatusCode(commandResult.IsSuccess ? 200 : !commandResult.IsValid ? 400 : 500);
+                    if (command is null)
+                    {
+                        commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
+                    }
+                    else
+                    {
+                        commandResult = validateOnly
+                            ? await commandPipeline.Validate(command, context.RequestServices)
+                            : await commandPipeline.Execute(command, context.RequestServices);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Failed to read request body: {ex.Message}");
+                }
+                var statusCode = commandResult switch
+                {
+                    { IsSuccess: true } => HttpStatusCode.OK,
+                    { IsAuthorized: false } => HttpStatusCode.Forbidden,
+                    { IsValid: false } => HttpStatusCode.BadRequest,
+                    _ => HttpStatusCode.InternalServerError
+                };
+                context.SetStatusCode(statusCode);
                 await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
             metadata);
