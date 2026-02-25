@@ -119,7 +119,7 @@ public class ObservableQueryHandler(
         // For HTTP, serialize the current state from BehaviorSubject if available
         // This allows HTTP clients to get a snapshot of the observable's current value
         var queryResult = await GetCurrentValueAsQueryResult(streamingData);
-        context.SetStatusCode(200);
+        context.SetStatusCode(HttpStatusCode.OK);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }
 

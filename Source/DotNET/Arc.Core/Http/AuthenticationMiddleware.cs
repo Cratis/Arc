@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using Cratis.Arc.Authentication;
 
 namespace Cratis.Arc.Http;
@@ -28,7 +29,7 @@ public class AuthenticationMiddleware(IAuthentication authentication)
 
         if (!result.IsAuthenticated)
         {
-            context.SetStatusCode(401);
+            context.SetStatusCode(HttpStatusCode.Unauthorized);
             await context.Write("Unauthorized", context.RequestAborted);
             return false;
         }
