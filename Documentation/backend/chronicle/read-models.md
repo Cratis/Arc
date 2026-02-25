@@ -3,11 +3,11 @@ uid: Arc.Chronicle.ReadModels
 ---
 # Read Models
 
-Read Models in Arc provide automatic dependency injection and seamless integration with Chronicle's projection system. The client automatically resolves read models based on the event source ID from the [Command Context](../../commands/command-context.md) values provided by the [Event Source Values Provider](../event-source-values-provider.md).
+Read Models in Arc provide automatic dependency injection and seamless integration with Chronicle's projection system. The client automatically resolves read models based on the identity/key extracted from the command using flexible resolution strategies, with values provided through the [Command Context](../../commands/command-context.md) by the [Event Source Values Provider](../event-source-values-provider.md).
 
 ## Overview
 
-Arc automatically registers all read model types and provides them as transient services in the dependency injection container. When a read model is requested, it uses the event source ID from the current command context to load the appropriate projection instance.
+Arc automatically registers all read model types and provides them as transient services in the dependency injection container. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate projection instance.
 
 ## Automatic Registration
 
@@ -28,7 +28,7 @@ public record UpdateUserProfileCommand([Key] Guid UserId, string DisplayName, st
     public object Handle(UserProfile profile, ILogger<UpdateUserProfileCommand> logger)
     {
         // The 'profile' read model is automatically loaded using the UserId
-        // from the command as the event source ID
+        // which is marked with [Key] to identify which instance to load
         
         logger.LogInformation(
             "Updating profile for {Email} from {OldName} to {NewName}",
@@ -47,23 +47,26 @@ public record UpdateUserProfileCommand([Key] Guid UserId, string DisplayName, st
 }
 ```
 
-## Event Source ID Resolution
+## Id/Key Resolution
 
-The read model resolution works exactly the same way as [Aggregate Root](../aggregates/aggregate-roots.md) resolution. It depends entirely on the event source ID being available in the command context. The [Event Source Values Provider](../event-source-values-provider.md) supplies this value through the [Command Context Values](../../commands/command-context.md#command-context-values) pipeline. The resolution process works as follows:
+The read model resolution works exactly the same way as [Aggregate Root](../aggregates/aggregate-roots.md) resolution. It depends on identifying which read model instance to load from the projection store. The system supports multiple strategies for resolving this identity, with the [Event Source Values Provider](../event-source-values-provider.md) supplying the resolved value through the [Command Context Values](../../commands/command-context.md#command-context-values) pipeline. The resolution process works as follows:
 
-1. **Command Context Lookup**: The system retrieves the event source ID from the current `CommandContext`
-2. **Validation**: If no event source ID is found, an `UnableToResolveReadModelFromCommandContext` exception is thrown
-3. **Projection Query**: The system queries Chronicle's projection store using `IProjections.GetInstanceById()` with the resolved event source ID
-4. **Instance Return**: The loaded read model instance is returned
+1. **Identity Strategy Resolution**: The system inspects the command to determine the identity using one of the available strategies
+2. **Command Context Lookup**: The resolved identity is retrieved from the current `CommandContext`
+3. **Validation**: If no identity is found, an `UnableToResolveReadModelFromCommandContext` exception is thrown
+4. **Projection Query**: The system queries Chronicle's projection store using `IProjections.GetInstanceById()` with the resolved identity
+5. **Instance Return**: The loaded read model instance is returned
 
-### Event Source ID Requirements
+### Id/Key Resolution Strategies
 
-For read model resolution to work, the command must provide an event source ID through one of these methods:
+The system provides multiple strategies for resolving the identity used to load read models. The command can provide its identity through any of these approaches:
 
-- Implement `ICanProvideEventSourceId`
-- Have a property of type `EventSourceId`
-- Have a property marked with `[Key]` attribute
-- Be part of a tuple that contains an `EventSourceId`
+- **[Key] Attribute**: Mark a property with `[Key]` attribute (most explicit and recommended)
+- **EventSourceId Type**: Have a property of type `EventSourceId` or a type that inherits from it
+- **ICanProvideEventSourceId Interface**: Implement the interface and return the id from `GetEventSourceId()`
+- **Tuple Composition**: Be part of a tuple that contains an `EventSourceId`
+
+The `[Key]` attribute approach is the most flexible as it works with any type (Guid, string, int, etc.) and clearly communicates intent in the command definition.
 
 ## Example Usage
 
@@ -196,14 +199,14 @@ For more details on command validation, see the [Validation](../../commands/vali
 
 This exception is thrown when:
 
-- No event source ID is available in the command context
-- The event source ID is `EventSourceId.Unspecified`
+- No identity/key is available in the command context
+- The resolved identity is `EventSourceId.Unspecified`
 
 ```csharp
 public record InvalidCommand(string SomeProperty);
-// No event source ID property or interface implementation
+// No identity property, attribute, or interface implementation
 
-// This will fail because no event source ID can be resolved
+// This will fail because no identity can be resolved
 ```
 
 ## Lifecycle Management
@@ -213,7 +216,7 @@ public record InvalidCommand(string SomeProperty);
 Read models are registered as transient services, meaning:
 
 - The current projected state is fetched for each request
-- The instance is tied to the specific event source ID from the command context
+- The instance is tied to the specific identity/key resolved from the command context
 - Read models are read-only snapshots of the current projection state
 - The read model is automatically disposed after the command completes
 
