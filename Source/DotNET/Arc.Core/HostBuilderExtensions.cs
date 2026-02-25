@@ -74,22 +74,17 @@ public static class HostBuilderExtensions
         Internals.DerivedTypes = DerivedTypes.Instance;
         TypeConverters.Register();
 
-        services.AddSingleton<ICorrelationIdAccessor>(sp => new CorrelationIdAccessor());
+        services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
-        services.AddTransient<HeaderTenantIdResolver>();
-        services.AddTransient<QueryTenantIdResolver>();
-        services.AddTransient<ClaimTenantIdResolver>();
-        services.AddTransient<DevelopmentTenantIdResolver>();
-
-        services.AddTransient<ITenantIdResolver>(sp =>
+        services.AddSingleton<ITenantIdResolver>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ArcOptions>>();
             return options.Value.Tenancy.ResolverType switch
             {
-                TenantResolverType.Header => sp.GetRequiredService<HeaderTenantIdResolver>(),
-                TenantResolverType.Query => sp.GetRequiredService<QueryTenantIdResolver>(),
-                TenantResolverType.Claim => sp.GetRequiredService<ClaimTenantIdResolver>(),
-                TenantResolverType.Development => sp.GetRequiredService<DevelopmentTenantIdResolver>(),
+                TenantResolverType.Header => ActivatorUtilities.GetServiceOrCreateInstance<HeaderTenantIdResolver>(sp),
+                TenantResolverType.Query => ActivatorUtilities.GetServiceOrCreateInstance<QueryTenantIdResolver>(sp),
+                TenantResolverType.Claim => ActivatorUtilities.GetServiceOrCreateInstance<ClaimTenantIdResolver>(sp),
+                TenantResolverType.Development => ActivatorUtilities.GetServiceOrCreateInstance<DevelopmentTenantIdResolver>(sp),
                 _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development")
             };
         });
