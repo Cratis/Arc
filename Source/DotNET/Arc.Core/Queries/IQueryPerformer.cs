@@ -55,6 +55,14 @@ public interface IQueryPerformer
     bool AllowsAnonymousAccess { get; }
 
     /// <summary>
+    /// Gets a value indicating whether this query returns an enumerable (collection) result.
+    /// </summary>
+    /// <remarks>
+    /// This is used to determine whether paging and sorting parameters should be exposed for this query endpoint.
+    /// </remarks>
+    bool IsEnumerableResult { get; }
+
+    /// <summary>
     /// Checks if the current user is authorized to perform this query.
     /// </summary>
     /// <param name="context">The context for the query.</param>
