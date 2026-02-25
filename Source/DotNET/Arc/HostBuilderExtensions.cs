@@ -39,7 +39,7 @@ public static class HostBuilderExtensions
         return builder;
     }
 
-    static IHostBuilder AddArcImplementation(this IHostBuilder builder, Type? identityDetailsProvider = default)
+    static IHostBuilder AddArcImplementation(this IHostBuilder builder)
     {
         builder.UseDefaultServiceProvider(_ => _.ValidateOnBuild = false);
         builder.AddCorrelationIdLogEnricher();
@@ -49,15 +49,6 @@ public static class HostBuilderExtensions
             {
                 services.AddHttpContextAccessor();
                 services.AddControllersFromProjectReferencedAssembles(Internals.Types);
-
-                if (identityDetailsProvider is not null)
-                {
-                    services.AddIdentityProvider(identityDetailsProvider);
-                }
-                else
-                {
-                    services.AddIdentityProvider(Internals.Types);
-                }
             });
 
         return builder;

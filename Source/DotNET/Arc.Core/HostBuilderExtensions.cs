@@ -53,6 +53,7 @@ public static class HostBuilderExtensions
             }
 
             services.AddCratisArcCore();
+            services.AddIdentityProvider();
 
             var arcBuilder = new ArcBuilder(services, Internals.Types);
             configureBuilder?.Invoke(arcBuilder);

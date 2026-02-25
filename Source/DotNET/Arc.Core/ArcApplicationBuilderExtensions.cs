@@ -48,16 +48,7 @@ public static class ArcApplicationBuilderExtensions
 
         builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();
         builder.Services.AddTransient<IObservableQueryHandler, ObservableQueryHandler>();
-
-        var arcOptions = builder.Configuration.GetSection(configSection).Get<ArcOptions>();
-        if (arcOptions?.IdentityDetailsProvider is not null)
-        {
-            builder.Services.AddIdentityProvider(arcOptions.IdentityDetailsProvider);
-        }
-        else
-        {
-            builder.Services.AddIdentityProvider(Internals.Types);
-        }
+        builder.Services.AddIdentityProvider();
 
         return builder;
     }
