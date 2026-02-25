@@ -22,6 +22,11 @@ public class when_adding_cratis_arc_with_configuration_and_overrides : Specifica
 
     void Because()
     {
+        if (!Directory.Exists(Environment.CurrentDirectory))
+        {
+            Environment.CurrentDirectory = AppContext.BaseDirectory;
+        }
+
         var configurationPath = ConfigurationPath.Combine(HostBuilderExtensions.DefaultSectionPaths);
         var configurationValues = new Dictionary<string, string?>
         {
