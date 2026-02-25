@@ -3,6 +3,7 @@
 
 namespace Cratis.Arc.Http.for_HttpListenerEndpointMapper.when_resolving_static_file_path;
 
+[Collection("UsesCurrentDirectory")]
 public class with_relative_path_in_temp_directory : given.a_running_endpoint_mapper
 {
     string _originalDirectory;

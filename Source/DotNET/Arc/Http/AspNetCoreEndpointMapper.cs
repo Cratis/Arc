@@ -23,11 +23,13 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
     {
-        var builder = _group.MapGet(pattern, async httpContext =>
+        Delegate requestHandler = async (HttpContext httpContext) =>
         {
             var context = new AspNetCoreHttpRequestContext(httpContext);
             await handler(context);
-        });
+        };
+
+        var builder = _group.MapGet(pattern, requestHandler);
 
         ApplyMetadata((RouteHandlerBuilder)(object)builder, metadata);
     }
@@ -35,11 +37,13 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     /// <inheritdoc/>
     public void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
     {
-        var builder = _group.MapPost(pattern, async httpContext =>
+        Delegate requestHandler = async (HttpContext httpContext) =>
         {
             var context = new AspNetCoreHttpRequestContext(httpContext);
             await handler(context);
-        });
+        };
+
+        var builder = _group.MapPost(pattern, requestHandler);
 
         ApplyMetadata((RouteHandlerBuilder)(object)builder, metadata);
     }
