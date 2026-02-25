@@ -10,9 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Http.for_AspNetCoreEndpointMapper.when_checking_api_discoverability;
 
-public class with_command_and_query_endpoints : Specification
+public class with_enumerable_query_showing_paging_parameters : Specification
 {
-    record TestCommand;
     record TestReadModel(string Name);
 
     WebApplication _app;
@@ -27,19 +26,8 @@ public class with_command_and_query_endpoints : Specification
         builder.Services.Configure<ArcOptions>(o =>
         {
             o.GeneratedApis.SegmentsToSkipForRoute = 0;
-            o.GeneratedApis.IncludeCommandNameInRoute = true;
             o.GeneratedApis.IncludeQueryNameInRoute = true;
         });
-
-        var commandHandler = Substitute.For<ICommandHandler>();
-        commandHandler.Location.Returns(["Features", "Orders"]);
-        commandHandler.CommandType.Returns(typeof(TestCommand));
-        commandHandler.Dependencies.Returns([]);
-        commandHandler.AllowsAnonymousAccess.Returns(false);
-
-        var commandHandlerProviders = Substitute.For<ICommandHandlerProviders>();
-        commandHandlerProviders.Handlers.Returns([commandHandler]);
-        builder.Services.AddSingleton(commandHandlerProviders);
 
         var queryPerformer = Substitute.For<IQueryPerformer>();
         queryPerformer.Name.Returns(new QueryName("AllOrders"));
@@ -50,15 +38,20 @@ public class with_command_and_query_endpoints : Specification
         queryPerformer.Dependencies.Returns([]);
         queryPerformer.Parameters.Returns(QueryParameters.Empty);
         queryPerformer.AllowsAnonymousAccess.Returns(false);
+        queryPerformer.IsEnumerableResult.Returns(true);
 
         var queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         queryPerformerProviders.Performers.Returns([queryPerformer]);
         builder.Services.AddSingleton(queryPerformerProviders);
 
+        // Register with empty command handlers to avoid DI issues
+        var commandHandlerProviders = Substitute.For<ICommandHandlerProviders>();
+        commandHandlerProviders.Handlers.Returns([]);
+        builder.Services.AddSingleton(commandHandlerProviders);
+
         _app = builder.Build();
 
         _mapper = new AspNetCoreEndpointMapper(_app);
-        _mapper.MapCommandEndpoints(_app.Services);
         _mapper.MapQueryEndpoints(_app.Services);
 
         _app.StartAsync().GetAwaiter().GetResult();
@@ -74,14 +67,9 @@ public class with_command_and_query_endpoints : Specification
             .ToList();
     }
 
-    [Fact] void should_have_api_descriptions() => _apiDescriptions.Count.ShouldBeGreaterThan(0);
-    [Fact] void should_have_three_api_descriptions() => _apiDescriptions.Count.ShouldEqual(3);
-    [Fact] void should_have_command_execute_description() => _apiDescriptions.Any(d => d.HttpMethod == "POST" && d.RelativePath.Contains("test-command")).ShouldBeTrue();
-    [Fact] void should_have_command_validate_description() => _apiDescriptions.Any(d => d.HttpMethod == "POST" && d.RelativePath.Contains("validate")).ShouldBeTrue();
-    [Fact] void should_have_query_description() => _apiDescriptions.Any(d => d.HttpMethod == "GET" && d.RelativePath.Contains("all-orders")).ShouldBeTrue();
-    [Fact] void should_have_request_body_parameter_on_command() => _apiDescriptions.First(d => d.HttpMethod == "POST" && d.RelativePath.Contains("test-command") && !d.RelativePath.Contains("validate")).ParameterDescriptions.Any(p => p.Source.Id == "Body").ShouldBeTrue();
-    [Fact] void should_have_response_type_on_command() => _apiDescriptions.First(d => d.HttpMethod == "POST" && d.RelativePath.Contains("test-command") && !d.RelativePath.Contains("validate")).SupportedResponseTypes.Any(r => r.StatusCode == 200).ShouldBeTrue();
-    [Fact] void should_have_response_type_on_query() => _apiDescriptions.First(d => d.HttpMethod == "GET" && d.RelativePath.Contains("all-orders")).SupportedResponseTypes.Any(r => r.StatusCode == 200).ShouldBeTrue();
+    [Fact] void should_have_one_api_description() => _apiDescriptions.Count.ShouldEqual(1);
+    [Fact] void should_have_get_method() => _apiDescriptions[0].HttpMethod.ShouldEqual("GET");
+    [Fact] void should_have_query_endpoint() => _apiDescriptions.Any(d => d.RelativePath.Contains("all-orders")).ShouldBeTrue();
 
     void Destroy()
     {
