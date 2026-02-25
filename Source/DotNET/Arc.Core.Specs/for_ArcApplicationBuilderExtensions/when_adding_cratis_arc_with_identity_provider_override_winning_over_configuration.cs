@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.for_ArcApplicationBuilderExtensions;
 
+[Collection("UsesCurrentDirectory")]
 public class when_adding_cratis_arc_with_identity_provider_override_winning_over_configuration : Specification
 {
     Type _resolvedProviderType;

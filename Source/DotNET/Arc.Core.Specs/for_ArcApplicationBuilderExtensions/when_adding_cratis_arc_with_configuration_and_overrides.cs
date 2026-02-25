@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.for_ArcApplicationBuilderExtensions;
 
+[Collection("UsesCurrentDirectory")]
 public class when_adding_cratis_arc_with_configuration_and_overrides : Specification
 {
     string _configuredHttpHeader = string.Empty;

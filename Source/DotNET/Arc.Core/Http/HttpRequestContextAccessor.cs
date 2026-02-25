@@ -8,7 +8,7 @@ namespace Cratis.Arc.Http;
 /// <summary>
 /// Default implementation of <see cref="IHttpRequestContextAccessor"/>.
 /// </summary>
-[IgnoreConvention]
+[Singleton]
 public class HttpRequestContextAccessor : IHttpRequestContextAccessor
 {
     static readonly AsyncLocal<IHttpRequestContext?> _current = new();
