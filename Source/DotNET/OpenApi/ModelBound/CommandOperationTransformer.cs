@@ -35,7 +35,7 @@ public class CommandOperationTransformer(ICommandHandlerProviders commandHandler
         }
 
         var commandTypeName = operationId.Substring("Execute".Length);
-        return commandHandlerProviders.Handlers.FirstOrDefault(h => h.CommandType.Name == commandTypeName);
+        return commandHandlerProviders.Handlers.FirstOrDefault(h => h.CommandType.FullName == commandTypeName);
     }
 
     static async Task SetupCommandRequestBody(OpenApiOperation operation, ICommandHandler commandHandler, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)

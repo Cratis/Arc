@@ -53,10 +53,8 @@ public class QueryOperationTransformer(IQueryPerformerProviders queryPerformerPr
             });
         }
 
-        var performMethod = queryPerformer.GetType().GetMethod("Perform");
-        var returnType = performMethod?.ReturnType;
-
-        if (returnType is not null && IsEnumerableResult(returnType))
+        // Add standard paging and sorting parameters only for results that support server-side paging (IQueryable)
+        if (queryPerformer.SupportsPaging)
         {
             QueryParameterUtilities.AddPagingAndSortingParameters(operation);
         }
@@ -111,18 +109,5 @@ public class QueryOperationTransformer(IQueryPerformerProviders queryPerformerPr
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
         });
-    }
-
-    static bool IsEnumerableResult(Type returnType)
-    {
-        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
-        {
-            returnType = returnType.GetGenericArguments()[0];
-        }
-
-        return returnType != typeof(string) &&
-               returnType.GetInterfaces().Any(i =>
-                   i.IsGenericType &&
-                   i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
     }
 }
