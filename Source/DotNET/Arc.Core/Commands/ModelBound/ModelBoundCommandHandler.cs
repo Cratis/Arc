@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Tasks;
 
@@ -33,9 +34,16 @@ public class ModelBoundCommandHandler(Type commandType, MethodInfo handleMethod)
         var args = parameters.Length == 0
             ? null
             : commandContext.Dependencies.Take(parameters.Length).ToArray();
-        var invocationResult = handleMethod.Invoke(commandContext.Command, args);
-
-        var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-        return result;
+        try
+        {
+            var invocationResult = handleMethod.Invoke(commandContext.Command, args);
+            var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
+            return result;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
     }
 }
