@@ -84,6 +84,20 @@ public class QueryResult
     public static QueryResult MissingPerformer(CorrelationId correlationId, FullyQualifiedQueryName name) => new() { CorrelationId = correlationId, ExceptionMessages = [$"No performer found for query {name}"] };
 
     /// <summary>
+    /// Creates a new <see cref="QueryResult"/> representing a validation error for a specific field.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
+    /// <param name="memberName">The name of the field that failed validation.</param>
+    /// <param name="message">The validation error message.</param>
+    /// <returns>A <see cref="QueryResult"/>.</returns>
+    public static QueryResult WithValidationError(CorrelationId correlationId, string memberName, string message) =>
+        new()
+        {
+            CorrelationId = correlationId,
+            ValidationResults = [ValidationResult.Error(message, [memberName])]
+        };
+
+    /// <summary>
     /// Creates a new <see cref="QueryResult"/> representing an error.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>

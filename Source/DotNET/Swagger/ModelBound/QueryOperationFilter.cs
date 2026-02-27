@@ -57,11 +57,8 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
             });
         }
 
-        // Add standard paging and sorting parameters for enumerable results
-        var performMethod = queryPerformer.GetType().GetMethod("Perform");
-        var returnType = performMethod?.ReturnType;
-
-        if (returnType is not null && IsEnumerableResult(returnType))
+        // Add standard paging and sorting parameters only for results that support server-side paging (IQueryable)
+        if (queryPerformer.SupportsPaging)
         {
             QueryParameterUtilities.AddPagingAndSortingParameters(operation);
         }
@@ -119,20 +116,5 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
         });
-    }
-
-    static bool IsEnumerableResult(Type returnType)
-    {
-        // Unwrap Task<T> if it's an async method
-        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
-        {
-            returnType = returnType.GetGenericArguments()[0];
-        }
-
-        // Check if the return type implements IEnumerable<T>
-        return returnType != typeof(string) &&
-               returnType.GetInterfaces().Any(i =>
-                   i.IsGenericType &&
-                   i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
     }
 }

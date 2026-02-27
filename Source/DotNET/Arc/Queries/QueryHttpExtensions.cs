@@ -38,11 +38,16 @@ public static class QueryHttpExtensions
     /// <returns>The paging information.</returns>
     public static Paging GetPagingInfo(this HttpContext httpContext)
     {
-        if (httpContext.Request.Query.ContainsKey(PageQueryStringKey) &&
-            httpContext.Request.Query.ContainsKey(PageSizeQueryStringKey) &&
-            int.TryParse(httpContext.Request.Query[PageQueryStringKey].ToString(), out var page) &&
+        if (httpContext.Request.Query.ContainsKey(PageSizeQueryStringKey) &&
             int.TryParse(httpContext.Request.Query[PageSizeQueryStringKey].ToString(), out var pageSize))
         {
+            var page = 0;
+            if (httpContext.Request.Query.ContainsKey(PageQueryStringKey) &&
+                int.TryParse(httpContext.Request.Query[PageQueryStringKey].ToString(), out var parsedPage))
+            {
+                page = parsedPage;
+            }
+
             return new Paging(page, pageSize, true);
         }
 

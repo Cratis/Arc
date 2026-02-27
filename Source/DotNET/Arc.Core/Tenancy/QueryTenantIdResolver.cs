@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Tenancy;
@@ -11,6 +12,7 @@ namespace Cratis.Arc.Tenancy;
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/>.</param>
 /// <param name="options">The <see cref="IOptions{TOptions}"/>.</param>
+[IgnoreConvention]
 public class QueryTenantIdResolver(IHttpRequestContextAccessor httpRequestContextAccessor, IOptions<ArcOptions> options) : ITenantIdResolver
 {
     /// <inheritdoc/>

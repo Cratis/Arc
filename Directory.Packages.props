@@ -5,10 +5,10 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.2.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.2.0" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.5.1" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.5.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="15.3.1" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.2.22" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.7.1" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.7.1" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
@@ -33,7 +33,7 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageVersion Include="handlebars.net" Version="2.1.6" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.2" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.4" />
     <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.3.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.10.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.10.0" />
@@ -42,15 +42,19 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
+    <!-- Override vulnerable/incompatible transitive dependencies from analyzer testing packages -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.0.0" />
+    <PackageVersion Include="System.Formats.Asn1" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Composition" Version="1.0.31" />
     <!-- Analysis -->
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="2.0.299" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.18" />
     <!-- Specifications -->
     <PackageVersion Include="Cratis.Specifications.XUnit" Version="3.0.4" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.0.1" />
+    <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.3.0" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.3" />
     <PackageVersion Include="Microsoft.ClearScript.V8" Version="7.5.0" />

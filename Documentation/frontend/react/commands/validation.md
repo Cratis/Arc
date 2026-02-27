@@ -22,8 +22,8 @@ When you validate a command, the request is sent to the backend validation endpo
 
 For details on:
 
-- The TypeScript command validation API, see [Core Command Validation](../core/command-validation.md)
-- The backend validation pipeline, see [Backend Command Validation](../../backend/commands/command-validation.md)
+- The TypeScript command validation API, see [Core Command Validation](../../core/command-validation.md)
+- The backend validation pipeline, see [Backend Command Validation](../../../backend/commands/command-validation.md)
 
 ## React Hook Usage
 

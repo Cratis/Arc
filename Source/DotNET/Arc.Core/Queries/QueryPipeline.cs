@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -59,6 +60,10 @@ public class QueryPipeline(
                         rendererResult.TotalItems);
 
             return result;
+        }
+        catch (MissingArgumentForQuery ex)
+        {
+            result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
         }
         catch (Exception ex)
         {
