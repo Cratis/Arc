@@ -59,7 +59,9 @@ describe('when field has nullable property', () => {
             autoServerValidateThrottle: 500,
             fieldContainerComponent: undefined,
             onFieldValidate: undefined,
-            onFieldChange: undefined
+onFieldChange: undefined,
+                // eslint-disable-next-line @typescript-eslint/no-empty-function
+                markUserInteracted: () => {}
         };
 
         const { container } = render(
