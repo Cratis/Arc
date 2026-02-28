@@ -6,6 +6,8 @@
   href: dialogs.md
 - name: Commands
   href: commands/toc.yml
+- name: CommandForm
+  href: command-form/toc.yml
 - name: Queries
   href: queries.md
 - name: Proxy Generation
