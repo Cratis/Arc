@@ -192,12 +192,21 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         }
     }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
 
+    // Track whether the user has explicitly changed a field via onChange.
+    // Once the user starts interacting, the stale silentValidationResult (captured on mount)
+    // should no longer block isValid — otherwise a deadlock occurs where validateOn='blur' never
+    // triggers commandResult but silentValidationResult keeps reporting the initial invalid state.
+    const userInteractedRef = React.useRef(false);
+    const markUserInteracted = useCallback(() => { userInteractedRef.current = true; }, []);
+
     // Use the most recent validation result to determine form validity.
     // commandResult is set after user interaction (blur/change) or when validateOnInit is true.
     // silentValidationResult is set on load and is used until the user starts interacting.
+    // Once the user has interacted (changed any field via onChange), silentValidationResult is
+    // treated as stale and isValid falls back to fieldValidities.
     // This ensures isValid reflects the true validity state from the first render onward,
     // even before error messages are displayed.
-    const validationForValidity = commandResult ?? silentValidationResult;
+    const validationForValidity = commandResult ?? (userInteractedRef.current ? undefined : silentValidationResult);
     const isValid = validationForValidity
         ? (validationForValidity.validationResults?.length ?? 0) === 0
         : Object.values(fieldValidities).every(valid => valid);
@@ -333,6 +342,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         customFieldErrors,
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
+        markUserInteracted,
         showErrors: props.showErrors ?? true,
         validateOn: props.validateOn ?? 'blur',
         validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,
