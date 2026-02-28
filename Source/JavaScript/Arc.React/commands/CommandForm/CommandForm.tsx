@@ -49,26 +49,11 @@ export const useSetCommandResult = () => {
     return setCommandResult;
 };
 
-const CommandFormFieldsWrapper = (props: { children: React.ReactNode }) => {
-    React.Children.forEach(props.children, child => {
-        if (React.isValidElement(child)) {
-            const component = child.type as React.ComponentType<unknown>;
-            if (component.displayName !== 'CommandFormField') {
-                throw new Error(`Only CommandFormField components are allowed as children of CommandForm.Fields. Got: ${component.displayName || component.name || 'Unknown'}`);
-            }
-        }
-    });
-
-    return <></>;
-};
-
-CommandFormFieldsWrapper.displayName = 'CommandFormFieldsWrapper';
-
 const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }): { fieldsOrColumns: React.ReactElement[] | ColumnInfo[], otherChildren: React.ReactNode[], initialValuesFromFields: Partial<TCommand>, orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> } => {
     if (!props.children) {
         return { fieldsOrColumns: [], otherChildren: [], initialValuesFromFields: {}, orderedChildren: [] };
     }
-    let fields: React.ReactElement<CommandFormFieldProps>[] = [];
+    const fields: React.ReactElement<CommandFormFieldProps>[] = [];
     const columns: ColumnInfo[] = [];
     let hasColumns = false;
     const otherChildren: React.ReactNode[] = [];
@@ -119,21 +104,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
             fields.push(child as React.ReactElement<CommandFormFieldProps>);
             orderedChildren.push({ type: 'field', content: child, index: fieldIndex++ });
         }
-        // Check if child is Fields wrapper (backwards compatibility)
-        else if (component === CommandFormFieldsWrapper || component.displayName === 'CommandFormFieldsWrapper') {
-            const childProps = child.props as { children: React.ReactNode };
-            const relevantChildren = React.Children.toArray(childProps.children).filter(child => {
-                if (React.isValidElement(child)) {
-                    const component = child.type as React.ComponentType<unknown>;
-                    if (component.displayName === 'CommandFormField') {
-                        extractInitialValue(child as React.ReactElement);
-                        return true;
-                    }
-                }
-                return false;
-            }) as React.ReactElement[];
-            fields = [...fields, ...(relevantChildren as React.ReactElement<CommandFormFieldProps>[])];
-        }
+
         // Everything else is not a field, keep it as other children
         else {
             otherChildren.push(child);
@@ -436,6 +407,5 @@ export function CommandForm<TCommand extends object = object>(
     return <CommandFormComponent<TCommand> {...props} />;
 }
 
-// Attach static members for backwards compatibility
-CommandForm.Fields = CommandFormFieldsWrapper;
+// Attach static members
 CommandForm.Column = CommandFormColumnComponent;
