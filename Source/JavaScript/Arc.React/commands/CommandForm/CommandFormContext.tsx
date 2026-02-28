@@ -45,6 +45,7 @@ export interface CommandFormContextValue<TCommand> {
     getFieldError: (propertyName: string) => string | undefined;
     isValid: boolean;
     setFieldValidity: (fieldName: string, isValid: boolean) => void;
+    markUserInteracted: () => void;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;

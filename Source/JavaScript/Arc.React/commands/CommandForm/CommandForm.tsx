@@ -49,26 +49,11 @@ export const useSetCommandResult = () => {
     return setCommandResult;
 };
 
-const CommandFormFieldsWrapper = (props: { children: React.ReactNode }) => {
-    React.Children.forEach(props.children, child => {
-        if (React.isValidElement(child)) {
-            const component = child.type as React.ComponentType<unknown>;
-            if (component.displayName !== 'CommandFormField') {
-                throw new Error(`Only CommandFormField components are allowed as children of CommandForm.Fields. Got: ${component.displayName || component.name || 'Unknown'}`);
-            }
-        }
-    });
-
-    return <></>;
-};
-
-CommandFormFieldsWrapper.displayName = 'CommandFormFieldsWrapper';
-
 const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }): { fieldsOrColumns: React.ReactElement[] | ColumnInfo[], otherChildren: React.ReactNode[], initialValuesFromFields: Partial<TCommand>, orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> } => {
     if (!props.children) {
         return { fieldsOrColumns: [], otherChildren: [], initialValuesFromFields: {}, orderedChildren: [] };
     }
-    let fields: React.ReactElement<CommandFormFieldProps>[] = [];
+    const fields: React.ReactElement<CommandFormFieldProps>[] = [];
     const columns: ColumnInfo[] = [];
     let hasColumns = false;
     const otherChildren: React.ReactNode[] = [];
@@ -119,21 +104,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
             fields.push(child as React.ReactElement<CommandFormFieldProps>);
             orderedChildren.push({ type: 'field', content: child, index: fieldIndex++ });
         }
-        // Check if child is Fields wrapper (backwards compatibility)
-        else if (component === CommandFormFieldsWrapper || component.displayName === 'CommandFormFieldsWrapper') {
-            const childProps = child.props as { children: React.ReactNode };
-            const relevantChildren = React.Children.toArray(childProps.children).filter(child => {
-                if (React.isValidElement(child)) {
-                    const component = child.type as React.ComponentType<unknown>;
-                    if (component.displayName === 'CommandFormField') {
-                        extractInitialValue(child as React.ReactElement);
-                        return true;
-                    }
-                }
-                return false;
-            }) as React.ReactElement[];
-            fields = [...fields, ...(relevantChildren as React.ReactElement<CommandFormFieldProps>[])];
-        }
+
         // Everything else is not a field, keep it as other children
         else {
             otherChildren.push(child);
@@ -221,12 +192,21 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         }
     }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
 
+    // Track whether the user has explicitly changed a field via onChange.
+    // Once the user starts interacting, the stale silentValidationResult (captured on mount)
+    // should no longer block isValid — otherwise a deadlock occurs where validateOn='blur' never
+    // triggers commandResult but silentValidationResult keeps reporting the initial invalid state.
+    const userInteractedRef = React.useRef(false);
+    const markUserInteracted = useCallback(() => { userInteractedRef.current = true; }, []);
+
     // Use the most recent validation result to determine form validity.
     // commandResult is set after user interaction (blur/change) or when validateOnInit is true.
     // silentValidationResult is set on load and is used until the user starts interacting.
+    // Once the user has interacted (changed any field via onChange), silentValidationResult is
+    // treated as stale and isValid falls back to fieldValidities.
     // This ensures isValid reflects the true validity state from the first render onward,
     // even before error messages are displayed.
-    const validationForValidity = commandResult ?? silentValidationResult;
+    const validationForValidity = commandResult ?? (userInteractedRef.current ? undefined : silentValidationResult);
     const isValid = validationForValidity
         ? (validationForValidity.validationResults?.length ?? 0) === 0
         : Object.values(fieldValidities).every(valid => valid);
@@ -362,6 +342,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         customFieldErrors,
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
+        markUserInteracted,
         showErrors: props.showErrors ?? true,
         validateOn: props.validateOn ?? 'blur',
         validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,
@@ -436,6 +417,5 @@ export function CommandForm<TCommand extends object = object>(
     return <CommandFormComponent<TCommand> {...props} />;
 }
 
-// Attach static members for backwards compatibility
-CommandForm.Fields = CommandFormFieldsWrapper;
+// Attach static members
 CommandForm.Column = CommandFormColumnComponent;

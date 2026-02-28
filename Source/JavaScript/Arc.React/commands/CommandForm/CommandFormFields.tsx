@@ -52,6 +52,11 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 // Update the command value
                 context.setCommandValues({ [propertyName]: value } as Record<string, unknown>);
 
+                // Mark that the user has explicitly interacted with the form.
+                // This prevents stale silentValidationResult from locking isValid=false
+                // when validateOn='blur' and the user fills fields without blurring.
+                context.markUserInteracted();
+
                 // Validate on change if requested
                 const shouldValidateOnChange = context.validateOn === 'change' || context.validateOn === 'both';
                 
