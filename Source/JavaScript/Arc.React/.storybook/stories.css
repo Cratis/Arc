@@ -1,6 +1,11 @@
 /* Copyright (c) Cratis. All rights reserved. */
 /* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
 
+/* Story canvas background */
+body, #storybook-root {
+  background-color: #2a2a2a;
+}
+
 /* Modern font stack optimized for readability */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
