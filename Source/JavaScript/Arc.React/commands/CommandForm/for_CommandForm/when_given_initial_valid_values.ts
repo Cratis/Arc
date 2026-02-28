@@ -93,7 +93,7 @@ describe("when given initial valid values", given(a_command_form_context, contex
 
     it("should be valid", async () => {
         await waitFor(() => {
-            return capturedIsValid === true;
+            expect(capturedIsValid).toBe(true);
         }, { timeout: 2000 });
     });
 }));

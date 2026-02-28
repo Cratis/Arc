@@ -94,11 +94,12 @@ describe("when given partial initial values and remaining set manually", given(a
 
         const emailInput = result.getByTestId('email-input') as HTMLInputElement;
         fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
+        fireEvent.blur(emailInput);
     });
 
     it("should be valid", async () => {
         await waitFor(() => {
-            return capturedIsValid === true;
+            expect(capturedIsValid).toBe(true);
         }, { timeout: 2000 });
     });
 }));
