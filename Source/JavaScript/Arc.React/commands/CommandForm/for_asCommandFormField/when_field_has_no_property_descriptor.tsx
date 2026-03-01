@@ -60,7 +60,9 @@ describe('when field has no property descriptor', () => {
             onFieldValidate: undefined,
 onFieldChange: undefined,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
-                markUserInteracted: () => {}
+                markUserInteracted: () => {},
+                // eslint-disable-next-line @typescript-eslint/no-empty-function
+                setSilentValidationResult: () => {}
         };
 
         const { container } = render(

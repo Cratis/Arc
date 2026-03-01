@@ -49,73 +49,64 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
             if (propertyName) {
                 const oldValue = currentValue;
 
-                // Update the command value
+                // Update the command value (mutates command.current in-place immediately —
+                // useCommand uses a useRef so validate() sees the new value right away).
                 context.setCommandValues({ [propertyName]: value } as Record<string, unknown>);
 
-                // Mark that the user has explicitly interacted with the form.
-                // This prevents stale silentValidationResult from locking isValid=false
-                // when validateOn='blur' and the user fills fields without blurring.
-                context.markUserInteracted();
-
-                // Validate on change if requested
-                const shouldValidateOnChange = context.validateOn === 'change' || context.validateOn === 'both';
-                
-                let validationResult: ICommandResult<unknown> | undefined = undefined;
-                if (shouldValidateOnChange && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
-                    // Always validate the entire command to get fresh validation results
-                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
-                    
-                    if (validationResult) {
-                        if (context.validateAllFieldsOnChange) {
-                            // Show all validation errors
-                            context.setCommandResult(validationResult);
-                        } else {
-                            // Per-field validation: merge new errors for this field with existing errors from other fields
-                            const currentErrors = context.commandResult?.validationResults || [];
-                            
-                            // Keep errors from other fields
-                            const errorsFromOtherFields = currentErrors.filter(
-                                vr => !vr.members.includes(propertyName)
-                            );
-                            
-                            // Get errors for this specific field from the new validation
-                            const errorsForThisField = validationResult.validationResults?.filter(
-                                vr => vr.members.includes(propertyName)
-                            ) || [];
-                            
-                            // Merge: errors from other fields + errors for this field
-                            const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
-                            
-                            const mergedResult = {
-                                ...validationResult,
-                                validationResults: mergedValidationResults,
-                                isValid: mergedValidationResults.length === 0
-                            };
-                            
-                            context.setCommandResult(mergedResult);
-                        }
-                    }
-                }
-
-                // Call custom field validator if provided
+                // Call custom field validator SYNCHRONOUSLY — user-provided logic, no async.
+                // This runs before validate() so the result is available immediately (no await).
                 if (context.onFieldValidate) {
                     const validationError = context.onFieldValidate(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value);
                     context.setCustomFieldError(propertyName, validationError);
                 }
 
-                // Call field change callback if provided
+                // Call field change callback SYNCHRONOUSLY — fired on every value change.
+                // Uses previously computed errors for immediate validationInfo; the full
+                // silent validation result updates asynchronously below.
                 if (context.onFieldChange) {
-                    // Get field-specific validation info from the fresh validation result
-                    const fieldErrors = validationResult?.validationResults?.filter(
+                    const prevErrors = context.commandResult?.validationResults?.filter(
                         vr => vr.members.includes(propertyName)
                     ).map(vr => vr.message) || [];
-                    
                     const validationInfo: FieldValidationInfo = {
-                        isValid: fieldErrors.length === 0,
-                        errors: fieldErrors
+                        isValid: prevErrors.length === 0,
+                        errors: prevErrors
                     };
-                    
                     context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value, validationInfo);
+                }
+
+                // Always run silent validation after every value change.
+                // This is the sole driver of context.isValid — it runs regardless of
+                // validateOn so isValid is always accurate.
+                let validationResult: ICommandResult<unknown> | undefined = undefined;
+                if (context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
+                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                    if (validationResult) {
+                        context.setSilentValidationResult(validationResult);
+                    }
+                }
+
+                // Show validation error messages based on the validateOn setting.
+                // This is purely a display concern and does NOT affect isValid.
+                const shouldValidateOnChange = context.validateOn === 'change' || context.validateOn === 'both';
+                if (shouldValidateOnChange && validationResult) {
+                    if (context.validateAllFieldsOnChange) {
+                        context.setCommandResult(validationResult);
+                    } else {
+                        // Per-field merge: keep errors from untouched fields, update this field.
+                        const currentErrors = context.commandResult?.validationResults || [];
+                        const errorsFromOtherFields = currentErrors.filter(
+                            vr => !vr.members.includes(propertyName)
+                        );
+                        const errorsForThisField = validationResult.validationResults?.filter(
+                            vr => vr.members.includes(propertyName)
+                        ) || [];
+                        const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
+                        context.setCommandResult({
+                            ...validationResult,
+                            validationResults: mergedValidationResults,
+                            isValid: mergedValidationResults.length === 0
+                        });
+                    }
                 }
             }
             fieldProps.onChange?.(value as unknown);
@@ -123,58 +114,47 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
         onBlur: async () => {
             if (propertyName) {
                 const shouldValidateOnBlur = context.validateOn === 'blur' || context.validateOn === 'both';
-                
+
                 let validationResult: ICommandResult<unknown> | undefined = undefined;
                 if (shouldValidateOnBlur && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
-                    // Always validate the entire command to get fresh validation results
                     validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
-                    
+
                     if (validationResult) {
+                        // Keep silent result current (covers edge cases where blur fires
+                        // without a preceding onChange, e.g. clipboard paste in some browsers).
+                        context.setSilentValidationResult(validationResult);
+
                         if (context.validateAllFieldsOnChange) {
-                            // Show all validation errors
                             context.setCommandResult(validationResult);
                         } else {
-                            // Per-field validation: merge new errors for this field with existing errors from other fields
+                            // Per-field merge: keep errors from untouched fields, update this field.
                             const currentErrors = context.commandResult?.validationResults || [];
-                            
-                            // Keep errors from other fields that are still present
                             const errorsFromOtherFields = currentErrors.filter(
                                 vr => !vr.members.includes(propertyName)
                             );
-                            
-                            // Get errors for this specific field from the new validation
                             const errorsForThisField = validationResult.validationResults?.filter(
                                 vr => vr.members.includes(propertyName)
                             ) || [];
-                            
-                            // Merge: errors from other fields + errors for this field
                             const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
-                            
-                            const mergedResult = {
+                            context.setCommandResult({
                                 ...validationResult,
                                 validationResults: mergedValidationResults,
                                 isValid: mergedValidationResults.length === 0
-                            };
-                            
-                            context.setCommandResult(mergedResult);
+                            });
                         }
                     }
                 }
-                
+
                 // Call field change callback if provided
                 if (context.onFieldChange && validationResult) {
                     const currentValue = (context.commandInstance as Record<string, unknown>)[propertyName];
-                    
-                    // Get field-specific validation info from the validation result
                     const fieldErrors = validationResult?.validationResults?.filter(
                         vr => vr.members.includes(propertyName)
                     ).map(vr => vr.message) || [];
-                    
                     const validationInfo: FieldValidationInfo = {
                         isValid: fieldErrors.length === 0,
                         errors: fieldErrors
                     };
-                    
                     context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, currentValue, currentValue, validationInfo);
                 }
             }

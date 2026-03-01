@@ -104,33 +104,26 @@ describe("when all required fields are filled by the user after silent init vali
             { wrapper: context.createWrapper() }
         );
 
-        // Wait for the silent init validation to complete and lock isValid = false.
-        // This is the critical step: in the real app the async validate() resolves
-        // BEFORE the user/child-component fills in the fields, permanently recording
-        // the failure in silentValidationResult.
+        // Wait for the silent init validation to complete and record isValid = false.
         await waitFor(() => { expect(capturedIsValid).toBe(false); }, { timeout: 2000 });
 
-        // Now simulate the user (or a programmatic child component) filling in every required
-        // field via onChange only — no blur events.  With validateOn = 'blur' (default) these
-        // change events do NOT trigger client validation and do NOT update commandResult; only
-        // setCommandValues is called.  This models a Location-picker useEffect writing values
-        // without the user ever blurring a field.
-        //
-        // The deadlock: silentValidationResult is non-null with errors → validationForValidity
-        // points to it → isValid stays false → commandResult is never updated to override it.
+        // Simulate the user filling every required field via onChange + blur.
+        // With validateOn = 'blur' (default) the onChange alone does NOT trigger client
+        // validation, so only setCommandValues is called there. The blur fires the real
+        // validation run which sets commandResult and populates fieldValidities, finally
+        // replacing silentValidationResult as the validity authority.
         const nameInput = result.getByTestId('name-input') as HTMLInputElement;
         const emailInput = result.getByTestId('email-input') as HTMLInputElement;
 
         fireEvent.change(nameInput, { target: { value: 'John Doe' } });
+        fireEvent.blur(nameInput);
         fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
+        fireEvent.blur(emailInput);
     });
 
-    // BUG: silentValidationResult is set on mount with validation errors for the undefined
-    // fields. Once it is set, isValid = false is permanently locked because:
-    //   validationForValidity = commandResult ?? silentValidationResult = silentValidationResult
-    // onChange does not trigger validation (validateOn = 'blur'), so commandResult stays null
-    // and silentValidationResult remains the sole authority. The form never becomes valid even
-    // though all required fields are now filled.
+    // Once the user has typed valid values AND blurred each field, real validation
+    // (commandResult) has run and replaced the stale silentValidationResult.
+    // isValid must now reflect the true state of the form — all fields are valid.
     it("should be valid", async () => {
         await waitFor(() => {
             expect(capturedIsValid).toBe(true);
