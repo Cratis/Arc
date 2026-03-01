@@ -5,7 +5,8 @@ namespace Cratis.Arc.ProxyGenerator.for_TypeScriptContentCombiner.when_combining
 
 public class with_multiple_contents_of_same_type : Specification
 {
-    const string _firstContent = """
+#pragma warning disable MA0136 // Raw String contains an implicit end of line character
+    const string FirstContent = """
         /*---------------------------------------------------------------------------------------------
          *  **DO NOT EDIT** - This file is an automatically generated file.
          *--------------------------------------------------------------------------------------------*/
@@ -17,7 +18,7 @@ public class with_multiple_contents_of_same_type : Specification
         }
         """;
 
-    const string _secondContent = """
+    const string SecondContent = """
         /*---------------------------------------------------------------------------------------------
          *  **DO NOT EDIT** - This file is an automatically generated file.
          *--------------------------------------------------------------------------------------------*/
@@ -28,10 +29,11 @@ public class with_multiple_contents_of_same_type : Specification
         export class SecondType {
         }
         """;
+#pragma warning restore MA0136 // Raw String contains an implicit end of line character
 
     string _result = null!;
 
-    void Because() => _result = TypeScriptContentCombiner.Combine([_firstContent, _secondContent]);
+    void Because() => _result = TypeScriptContentCombiner.Combine([FirstContent, SecondContent]);
 
     [Fact] void should_contain_header() => _result.ShouldContain("DO NOT EDIT");
     [Fact] void should_contain_only_one_eslint_disable() => _result.Split("/* eslint-disable sort-imports */").Length.ShouldEqual(2);

@@ -5,7 +5,8 @@ namespace Cratis.Arc.ProxyGenerator.for_TypeScriptContentCombiner.when_combining
 
 public class with_single_content : Specification
 {
-    const string _content = """
+#pragma warning disable MA0136 // Raw String contains an implicit end of line character
+    const string Content = """
         /*---------------------------------------------------------------------------------------------
          *  **DO NOT EDIT** - This file is an automatically generated file.
          *--------------------------------------------------------------------------------------------*/
@@ -17,10 +18,11 @@ public class with_single_content : Specification
         }
 
         """;
+#pragma warning restore MA0136 // Raw String contains an implicit end of line character
 
     string _result = null!;
 
-    void Because() => _result = TypeScriptContentCombiner.Combine([_content]);
+    void Because() => _result = TypeScriptContentCombiner.Combine([Content]);
 
-    [Fact] void should_return_same_content() => _result.ShouldEqual(_content);
+    [Fact] void should_return_same_content() => _result.ShouldEqual(Content);
 }
