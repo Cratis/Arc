@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Meta, StoryObj } from '@storybook/react';
-import { CommandForm } from './CommandForm';
+import { CommandForm, useCommandFormContext } from './CommandForm';
 import type { FieldContainerProps } from './CommandFormContext';
 import { UserRegistrationCommand } from './UserRegistrationCommand';
 import { 
@@ -67,112 +67,56 @@ const roleOptions = [
     { id: 'moderator', name: 'Moderator' }
 ];
 
+// Child component that reads isValid directly from the CommandForm context.
+// This demonstrates the correct way to consume form validity — no manual tracking
+// via onFieldChange + command.validate() required.
+const DefaultSubmitBar = () => {
+    const { isValid } = useCommandFormContext();
+    return (
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button type="submit" disabled={!isValid}>
+                Submit
+            </button>
+            {!isValid && (
+                <StoryBadge variant="warning">Fill and blur all fields to enable submit</StoryBadge>
+            )}
+        </div>
+    );
+};
+
 export const Default: Story = {
-    render: () => {
-        const [validationState, setValidationState] = useState<{
-            errors: Record<string, string>;
-            canSubmit: boolean;
-        }>({ errors: {}, canSubmit: false });
-
-        return (
-            <StoryContainer size="sm" asCard>
-                <h2>Simple Command Form with Validation</h2>
-                <p>
-                    This form demonstrates validation on blur. Fields are validated when you leave them.
-                </p>
-                <CommandForm
-                    command={SimpleCommand}
-                    showErrors={false}
-                    initialValues={{
-                        name: '',
-                        email: '',
-                    }}
-                    onFieldChange={async (command, fieldName, _oldValue, _newValue, validationInfo) => {
-                        // Check overall form validity
-                        const result = await command.validate();
-                        
-                        setValidationState(prev => {
-                            const newErrors = { ...prev.errors };
-                            
-                            // Use validationInfo for field-specific errors
-                            if (validationInfo && !validationInfo.isValid && validationInfo.errors.length > 0) {
-                                newErrors[fieldName] = validationInfo.errors[0];
-                            } else {
-                                delete newErrors[fieldName];
-                            }
-                            
-                            return {
-                                errors: newErrors,
-                                // Can only submit if overall validation passes
-                                canSubmit: result.isValid
-                            };
-                        });
-                    }}
-                >
-                    <InputTextField<SimpleCommand> 
-                        value={c => c.name} 
-                        title="Name"
-                        placeholder="Enter your name (min 3 chars)" 
-                    />
-                    {validationState.errors.name && (
-                        <div style={{ 
-                            color: 'var(--color-error)', 
-                            fontSize: '0.875rem', 
-                            marginTop: '0.25rem', 
-                            marginBottom: '1rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.375rem',
-                            padding: '0.5rem 0.75rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            borderRadius: 'var(--radius-md, 0.375rem)'
-                        }}>
-                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
-                            {validationState.errors.name}
-                        </div>
-                    )}
-                    
-                    <InputTextField<SimpleCommand> 
-                        value={c => c.email} 
-                        title="Email"
-                        type="email" 
-                        placeholder="Enter your email" 
-                    />
-                    {validationState.errors.email && (
-                        <div style={{ 
-                            color: 'var(--color-error)', 
-                            fontSize: '0.875rem', 
-                            marginTop: '0.25rem', 
-                            marginBottom: '1rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.375rem',
-                            padding: '0.5rem 0.75rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            borderRadius: 'var(--radius-md, 0.375rem)'
-                        }}>
-                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
-                            {validationState.errors.email}
-                        </div>
-                    )}
-
-                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button 
-                            type="submit" 
-                            disabled={!validationState.canSubmit}
-                        >
-                            Submit
-                        </button>
-                        {!validationState.canSubmit && Object.keys(validationState.errors).length > 0 && (
-                            <StoryBadge variant="warning">Please fix validation errors</StoryBadge>
-                        )}
-                    </div>
-                </CommandForm>
-            </StoryContainer>
-        );
-    }
+    render: () => (
+        <StoryContainer size="sm" asCard>
+            <h2>Simple Command Form with Validation</h2>
+            <p>
+                This form uses <code>validateOn="blur"</code> (the default). Errors appear and
+                the Submit button state updates as you fill and blur each field. The button is
+                enabled once every <em>touched</em> field is error-free.
+            </p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+                The Submit button reads <code>isValid</code> directly from the CommandForm context
+                — no manual tracking via <code>onFieldChange</code> or <code>command.validate()</code>
+                is needed.
+            </p>
+            <CommandForm
+                command={SimpleCommand}
+                initialValues={{ name: '', email: '' }}
+            >
+                <InputTextField<SimpleCommand>
+                    value={c => c.name}
+                    title="Name"
+                    placeholder="Enter your name (min 3 chars)"
+                />
+                <InputTextField<SimpleCommand>
+                    value={c => c.email}
+                    title="Email"
+                    type="email"
+                    placeholder="Enter your email"
+                />
+                <DefaultSubmitBar />
+            </CommandForm>
+        </StoryContainer>
+    )
 };
 
 export const UserRegistration: Story = {

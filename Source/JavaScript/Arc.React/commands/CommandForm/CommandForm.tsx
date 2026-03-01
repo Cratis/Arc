@@ -150,7 +150,6 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     const commandVersion = useCommandResult[3];
     const [commandResult, setCommandResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [silentValidationResult, setSilentValidationResult] = useState<ICommandResult<unknown> | undefined>(undefined);
-    const [fieldValidities, setFieldValidities] = useState<Record<string, boolean>>({});
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
     const initializedRef = React.useRef(false);
     const lastServerValidateVersion = React.useRef<number>(-1);
@@ -192,24 +191,13 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         }
     }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
 
-    // Track whether the user has explicitly changed a field via onChange.
-    // Once the user starts interacting, the stale silentValidationResult (captured on mount)
-    // should no longer block isValid — otherwise a deadlock occurs where validateOn='blur' never
-    // triggers commandResult but silentValidationResult keeps reporting the initial invalid state.
-    const userInteractedRef = React.useRef(false);
-    const markUserInteracted = useCallback(() => { userInteractedRef.current = true; }, []);
-
-    // Use the most recent validation result to determine form validity.
-    // commandResult is set after user interaction (blur/change) or when validateOnInit is true.
-    // silentValidationResult is set on load and is used until the user starts interacting.
-    // Once the user has interacted (changed any field via onChange), silentValidationResult is
-    // treated as stale and isValid falls back to fieldValidities.
-    // This ensures isValid reflects the true validity state from the first render onward,
-    // even before error messages are displayed.
-    const validationForValidity = commandResult ?? (userInteractedRef.current ? undefined : silentValidationResult);
-    const isValid = validationForValidity
-        ? (validationForValidity.validationResults?.length ?? 0) === 0
-        : Object.values(fieldValidities).every(valid => valid);
+    // isValid is driven exclusively by silentValidationResult which is updated on mount and
+    // after every field value change. commandResult only controls error message display.
+    // Default to false (not yet validated) so the form is never considered valid before
+    // the first silent validation completes.
+    const isValid = silentValidationResult
+        ? (silentValidationResult.validationResults?.length ?? 0) === 0
+        : false;
 
     // Auto server validate when all client validations pass
     React.useEffect(() => {
@@ -223,8 +211,8 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
             serverValidateThrottleTimer.current = null;
         }
 
-        // Only call server validate if all fields are valid (client validation passed)
-        const allFieldsValid = Object.keys(fieldValidities).length > 0 && isValid;
+        // Only call server validate if silent validation has run and all fields are valid
+        const allFieldsValid = silentValidationResult !== undefined && isValid;
         
         // Check if we've already validated this command version
         const alreadyValidatedThisVersion = lastServerValidateVersion.current === commandVersion;
@@ -261,11 +249,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
                 serverValidateThrottleTimer.current = null;
             }
         };
-    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, fieldValidities]);
-
-    const setFieldValidity = useCallback((fieldName: string, isFieldValid: boolean) => {
-        setFieldValidities(prev => ({ ...prev, [fieldName]: isFieldValid }));
-    }, []);
+    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, silentValidationResult]);
 
     const setCustomFieldError = useCallback((fieldName: string, error: string | undefined) => {
         setCustomFieldErrors(prev => {
@@ -334,7 +318,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         setCommandResult,
         getFieldError,
         isValid,
-        setFieldValidity,
+        setSilentValidationResult,
         onFieldValidate: props.onFieldValidate,
         onFieldChange: props.onFieldChange,
         onBeforeExecute: props.onBeforeExecute,
@@ -342,7 +326,6 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         customFieldErrors,
         setCustomFieldError,
         showTitles: props.showTitles ?? true,
-        markUserInteracted,
         showErrors: props.showErrors ?? true,
         validateOn: props.validateOn ?? 'blur',
         validateAllFieldsOnChange: props.validateAllFieldsOnChange ?? false,

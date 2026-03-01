@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { CommandFormField } from '../CommandFormField';
@@ -30,7 +30,7 @@ const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: un
 describe("when custom validation returns error", given(a_command_form_context, context => {
     let container: HTMLElement;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         const result = render(
             React.createElement(
                 CommandForm,
@@ -53,7 +53,9 @@ describe("when custom validation returns error", given(a_command_form_context, c
 
         container = result.container;
         const input = result.getByTestId('text-input') as HTMLInputElement;
-        fireEvent.change(input, { target: { value: 'invalid' } });
+        await act(async () => {
+            fireEvent.change(input, { target: { value: 'invalid' } });
+        });
     });
 
     it("should display error message", () => {

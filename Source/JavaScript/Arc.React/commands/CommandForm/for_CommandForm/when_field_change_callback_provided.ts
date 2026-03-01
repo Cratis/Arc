@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { CommandFormField } from '../CommandFormField';
@@ -31,7 +31,7 @@ describe("when field change callback provided", given(a_command_form_context, co
     let lastChangedFieldName = '';
     let lastNewValue: unknown;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         changeCallCount = 0;
         lastChangedFieldName = '';
         lastNewValue = undefined;
@@ -56,7 +56,9 @@ describe("when field change callback provided", given(a_command_form_context, co
         );
 
         const input = result.getByTestId('text-input') as HTMLInputElement;
-        fireEvent.change(input, { target: { value: 'new-value' } });
+        await act(async () => {
+            fireEvent.change(input, { target: { value: 'new-value' } });
+        });
     });
 
     it("should call change callback", () => {

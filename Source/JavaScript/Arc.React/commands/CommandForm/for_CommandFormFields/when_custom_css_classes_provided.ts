@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
 import { asCommandFormField } from '../asCommandFormField';
 import { TestCommand } from '../for_CommandForm/TestCommand';
@@ -29,7 +29,7 @@ const TestIcon = () => React.createElement('svg', { 'data-testid': 'field-icon' 
 describe("when custom css classes provided", given(a_command_form_fields_context, context => {
     let container: HTMLElement;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         const result = render(
             React.createElement(
                 CommandForm,
@@ -56,7 +56,9 @@ describe("when custom css classes provided", given(a_command_form_fields_context
 
         // Trigger validation by changing the field
         const input = container.querySelector('[data-testid="text-input"]') as HTMLInputElement;
-        fireEvent.change(input, { target: { value: 'test' } });
+        await act(async () => {
+            fireEvent.change(input, { target: { value: 'test' } });
+        });
     });
 
     it("should apply custom error class name", () => {
