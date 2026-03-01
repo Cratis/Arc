@@ -62,7 +62,9 @@ describe('when field has explicit required override', () => {
                 onFieldValidate: undefined,
                 onFieldChange: undefined,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
-                markUserInteracted: () => {}
+                markUserInteracted: () => {},
+                // eslint-disable-next-line @typescript-eslint/no-empty-function
+                setSilentValidationResult: () => {}
             };
 
             const { container } = render(
@@ -117,7 +119,9 @@ describe('when field has explicit required override', () => {
                 onFieldValidate: undefined,
                 onFieldChange: undefined,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
-                markUserInteracted: () => {}
+                markUserInteracted: () => {},
+                // eslint-disable-next-line @typescript-eslint/no-empty-function
+                setSilentValidationResult: () => {}
             };
 
             const { container } = render(
