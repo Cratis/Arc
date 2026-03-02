@@ -23,4 +23,3 @@
         <None Include="build/Cratis.props" Pack="true" PackagePath="build;buildTransitive" />
     </ItemGroup>
 </Project>
-e
