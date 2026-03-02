@@ -9,7 +9,7 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation]");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file]");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -21,6 +21,7 @@ var skipQueryNameInRoute = args.Any(_ => _ == "--skip-query-name-in-route");
 var apiPrefixArg = args.FirstOrDefault(_ => _.StartsWith("--api-prefix="));
 var apiPrefix = apiPrefixArg is null ? "api" : apiPrefixArg.Split('=')[^1];
 var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
+var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
 
 Console.WriteLine("\nParameters:");
 Console.WriteLine($"Assembly: '{assemblyFile}'");
@@ -31,6 +32,7 @@ Console.WriteLine($"Skip command name in route: {skipCommandNameInRoute}");
 Console.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
 Console.WriteLine($"API prefix: {apiPrefix}");
 Console.WriteLine($"Skip index generation: {skipIndexGeneration}");
+Console.WriteLine($"Use source file as output file: {useSourceFileAsOutputFile}");
 Console.WriteLine();
 
 var result = await Generator.Generate(
@@ -43,5 +45,6 @@ var result = await Generator.Generate(
     skipCommandNameInRoute,
     skipQueryNameInRoute,
     apiPrefix,
-    skipIndexGeneration);
+    skipIndexGeneration,
+    useSourceFileAsOutputFile);
 return result ? 0 : 1;

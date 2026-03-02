@@ -26,6 +26,7 @@ public static class DescriptorExtensions
     /// <param name="errorMessage">Logger to use for outputting error messages.</param>
     /// <param name="generatedFiles">Optional collection to track generated file paths and their metadata.</param>
     /// <param name="descriptorOrigins">Optional origins for descriptors to output contextual error information.</param>
+    /// <param name="sourceFileMap">Optional map of type full name to source C# file name used to group descriptors into a single file per source file.</param>
     /// <returns>Awaitable task.</returns>
     public static async Task Write(
         this IEnumerable<IDescriptor> descriptors,
@@ -38,52 +39,76 @@ public static class DescriptorExtensions
         Action<string> message,
         Action<string> errorMessage,
         IDictionary<string, GeneratedFileMetadata>? generatedFiles = null,
-        IReadOnlyDictionary<Type, (IReadOnlyList<string> Commands, IReadOnlyList<string> Queries)>? descriptorOrigins = null)
+        IReadOnlyDictionary<Type, (IReadOnlyList<string> Commands, IReadOnlyList<string> Queries)>? descriptorOrigins = null,
+        IReadOnlyDictionary<string, string>? sourceFileMap = null)
     {
         var stopwatch = Stopwatch.StartNew();
         var generationTime = DateTime.UtcNow;
         var skippedCount = 0;
 
-        // Detect duplicate output paths and fail with detailed error
-        var descriptorsByOutputPath = new Dictionary<string, IDescriptor>();
-        var duplicates = new List<(string Path, IDescriptor First, IDescriptor Duplicate)>();
+        // Build output path map: each path maps to a list of descriptors (one when no source file grouping, potentially many when grouping)
+        var descriptorsByOutputPath = new Dictionary<string, List<IDescriptor>>();
 
         foreach (var descriptor in descriptors)
         {
             var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
-            var fullPath = Path.Join(targetPath, path, $"{descriptor.Name}.ts");
-            var normalizedFullPath = Path.GetFullPath(fullPath);
+            string outputFileName;
 
-            if (!descriptorsByOutputPath.TryGetValue(normalizedFullPath, out var value))
+            if (sourceFileMap is not null && sourceFileMap.TryGetValue(descriptor.Type.FullName!, out var sourceFile))
             {
-                descriptorsByOutputPath[normalizedFullPath] = descriptor;
+                outputFileName = sourceFile;
             }
             else
             {
-                duplicates.Add((normalizedFullPath, value, descriptor));
+                outputFileName = descriptor.Name;
             }
-        }
 
-        if (duplicates.Count != 0)
-        {
-            errorMessage(string.Empty);
-            errorMessage($"ERROR: Duplicate type names detected in {typeNameToEcho} that would generate to the same file path:");
-            errorMessage(string.Empty);
+            var fullPath = Path.Join(targetPath, path, $"{outputFileName}.ts");
+            var normalizedFullPath = Path.GetFullPath(fullPath);
 
-            foreach (var (path, first, duplicate) in duplicates)
+            if (!descriptorsByOutputPath.TryGetValue(normalizedFullPath, out var group))
             {
-                var firstOrigin = GetOriginDescription(first, descriptorOrigins);
-                var duplicateOrigin = GetOriginDescription(duplicate, descriptorOrigins);
-
-                errorMessage($"  Output path: {path}");
-                errorMessage($"    Type 1: {first.Type.FullName} (from {first.Type.Assembly.GetName().Name}){firstOrigin}");
-                errorMessage($"    Type 2: {duplicate.Type.FullName} (from {duplicate.Type.Assembly.GetName().Name}){duplicateOrigin}");
-                errorMessage(string.Empty);
+                group = [];
+                descriptorsByOutputPath[normalizedFullPath] = group;
             }
-            Environment.Exit(1);
+
+            group.Add(descriptor);
         }
 
-        foreach (var (normalizedFullPath, descriptor) in descriptorsByOutputPath)
+        // When not using source file grouping, check for duplicate type names that map to the same path
+        if (sourceFileMap is null)
+        {
+            var duplicates = new List<(string Path, IDescriptor First, IDescriptor Duplicate)>();
+
+            foreach (var (path, group) in descriptorsByOutputPath)
+            {
+                if (group.Count > 1)
+                {
+                    duplicates.Add((path, group[0], group[1]));
+                }
+            }
+
+            if (duplicates.Count != 0)
+            {
+                errorMessage(string.Empty);
+                errorMessage($"ERROR: Duplicate type names detected in {typeNameToEcho} that would generate to the same file path:");
+                errorMessage(string.Empty);
+
+                foreach (var (path, first, duplicate) in duplicates)
+                {
+                    var firstOrigin = GetOriginDescription(first, descriptorOrigins);
+                    var duplicateOrigin = GetOriginDescription(duplicate, descriptorOrigins);
+
+                    errorMessage($"  Output path: {path}");
+                    errorMessage($"    Type 1: {first.Type.FullName} (from {first.Type.Assembly.GetName().Name}){firstOrigin}");
+                    errorMessage($"    Type 2: {duplicate.Type.FullName} (from {duplicate.Type.Assembly.GetName().Name}){duplicateOrigin}");
+                    errorMessage(string.Empty);
+                }
+                Environment.Exit(1);
+            }
+        }
+
+        foreach (var (normalizedFullPath, group) in descriptorsByOutputPath)
         {
             var directory = Path.GetDirectoryName(normalizedFullPath)!;
             if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
@@ -93,9 +118,23 @@ public static class DescriptorExtensions
                 directories.Add(directory);
             }
 
-            var proxyContent = template(descriptor);
+            string proxyContent;
+            string sourceTypeName;
+
+            if (group.Count == 1)
+            {
+                proxyContent = template(group[0]);
+                sourceTypeName = group[0].Type.FullName!;
+            }
+            else
+            {
+                var contents = group.ConvertAll(d => template(d));
+                proxyContent = TypeScriptContentCombiner.Combine(contents);
+                sourceTypeName = string.Join(", ", group.ConvertAll(d => d.Type.FullName));
+            }
+
             var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
-            var metadata = new GeneratedFileMetadata(descriptor.Type.FullName!, generationTime, contentHash);
+            var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
 
             // Check if file exists with the same hash
             if (File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
