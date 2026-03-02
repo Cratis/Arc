@@ -23,6 +23,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
     <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
     <CratisProxiesSkipFileIndexTracking>false</CratisProxiesSkipFileIndexTracking>
     <CratisProxiesSkipIndexGeneration>false</CratisProxiesSkipIndexGeneration>
+    <CratisProxiesUseSourceFileAsOutputFile>false</CratisProxiesUseSourceFileAsOutputFile>
 </PropertyGroup>
 ```
 
@@ -38,6 +39,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 | `CratisProxiesApiPrefix` | `api` | The API prefix used in generated routes |
 | `CratisProxiesSkipFileIndexTracking` | `false` | When `true`, disables file index tracking for incremental cleanup |
 | `CratisProxiesSkipIndexGeneration` | `false` | When `true`, skips generating `index.ts` files for directories |
+| `CratisProxiesUseSourceFileAsOutputFile` | `false` | When `true`, groups all TypeScript types from the same C# source file into a single `.ts` file named after the source file |
 
 ## Output Deletion Behavior
 
@@ -157,6 +159,52 @@ DeleteOrderCommand → /api/orders/delete-order-command
 ```
 
 This allows for more granular control over API route generation, which can be particularly useful when you want cleaner URLs for queries while keeping explicit command names.
+
+## Source File Output
+
+By default, the proxy generator creates one TypeScript file per type (e.g., `CreateAccount.ts`, `UpdateAccount.ts`). When multiple C# types are defined in the same source file, enabling `CratisProxiesUseSourceFileAsOutputFile` groups them all into a single TypeScript file named after the C# source file.
+
+```xml
+<PropertyGroup>
+    <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
+</PropertyGroup>
+```
+
+For example, if you have a C# file `AccountCommands.cs` containing:
+
+```csharp
+public class CreateAccount { ... }
+public class UpdateAccount { ... }
+public class DeleteAccount { ... }
+```
+
+With the default behavior, three separate files are generated:
+
+```shell
+AccountCommands/
+├── CreateAccount.ts
+├── UpdateAccount.ts
+└── DeleteAccount.ts
+```
+
+With `CratisProxiesUseSourceFileAsOutputFile=true`, all types from the same source file are combined into one:
+
+```shell
+AccountCommands/
+└── AccountCommands.ts   ← Contains CreateAccount, UpdateAccount, and DeleteAccount
+```
+
+This is particularly useful when you want your TypeScript proxy structure to mirror your C# project's file organization.
+
+> **Note**: This feature requires that the project is built with debug symbols (PDB files). Ensure the PDB file is available alongside the compiled assembly. If PDB information is not available, the generator falls back to generating individual files per type.
+
+### CLI Usage
+
+When using the proxy generator CLI directly:
+
+```bash
+proxygenerator assembly.dll output-path --use-source-file-as-output-file
+```
 
 ## Advanced Configuration
 
