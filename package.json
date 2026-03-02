@@ -60,7 +60,7 @@
         "jsdom": "^28.1.0",
         "mocha": "11.7.5",
         "module-alias": "2.3.4",
-        "npm-check-updates": "19.6.2",
+        "npm-check-updates": "19.6.3",
         "prettier": "3.8.1",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
