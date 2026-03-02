@@ -12,7 +12,7 @@
         <CratisProxyGeneratorAssembly>Cratis.Arc.ProxyGenerator.Build.dll</CratisProxyGeneratorAssembly>
     </PropertyGroup>
     
-    <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild"> 
+    <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != ''"> 
         <PropertyGroup>
             <CratisProxiesOutputPath>$([System.String]::Copy('$(CratisProxiesOutputPath)').TrimEnd('\'))</CratisProxiesOutputPath>
         </PropertyGroup>

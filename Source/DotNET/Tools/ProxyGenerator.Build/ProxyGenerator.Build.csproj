@@ -15,7 +15,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="build\*" PackagePath="build\;buildTransitive\" />
+        <None Include="build/Cratis.Arc.ProxyGenerator.Build.props" Pack="true" PackagePath="build/" />
+        <None Include="build/Cratis.Arc.ProxyGenerator.Build.targets" Pack="true" PackagePath="build/" />
+        <None Include="build/Cratis.Arc.ProxyGenerator.Build.props" Pack="true" PackagePath="buildTransitive/" />
+        <None Include="build/Cratis.Arc.ProxyGenerator.Build.targets" Pack="true" PackagePath="buildTransitive/" />
     </ItemGroup>
 
     <ItemGroup>
