@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="build\*" PackagePath="build\" />
+        <Content Include="build\*" PackagePath="build\;buildTransitive\" />
     </ItemGroup>
 
     <ItemGroup>
