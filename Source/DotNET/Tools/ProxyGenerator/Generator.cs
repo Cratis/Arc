@@ -72,6 +72,12 @@ public static class Generator
 
         message($"  Found {commands.Count} commands and {queries.Count} queries");
 
+        IReadOnlyDictionary<string, string>? typeToOutputFileMap = null;
+        if (useSourceFileAsOutputFile)
+        {
+            typeToOutputFileMap = TargetFolderIndexer.BuildTypeToOutputFileMap(outputPath);
+        }
+
         if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
         if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
@@ -80,22 +86,16 @@ public static class Generator
         var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
         var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
 
-        IReadOnlyDictionary<string, string>? sourceFileMap = null;
-        if (useSourceFileAsOutputFile)
-        {
-            sourceFileMap = SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile);
-        }
-
-        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, typeToOutputFileMap);
 
         var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
-        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, typeToOutputFileMap);
 
         var enumerableQueries = queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList();
-        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, typeToOutputFileMap);
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
-        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, typeToOutputFileMap);
 
         foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
         {
@@ -106,10 +106,10 @@ public static class Generator
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
         var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_)).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
-        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, typeToOutputFileMap);
 
         var enumDescriptors = enums.ConvertAll(_ => _.ToEnumDescriptor());
-        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, typeToOutputFileMap);
 
         // Find and remove orphaned files
         var stopwatch = Stopwatch.StartNew();

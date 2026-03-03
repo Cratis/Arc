@@ -54,7 +54,7 @@ public class and_using_source_file_map_with_single_descriptor : Specification, I
             _ => { },
             _ => { },
             _generatedFiles,
-            sourceFileMap: _sourceFileMap);
+            typeToOutputFileMap: _sourceFileMap);
     }
 
     [Fact] void should_create_file_named_after_source_file() => File.Exists(_expectedFilePath).ShouldBeTrue();

@@ -64,7 +64,7 @@ public class and_using_source_file_map_with_multiple_descriptors_for_same_source
             _ => { },
             _ => { },
             _generatedFiles,
-            sourceFileMap: _sourceFileMap);
+            typeToOutputFileMap: _sourceFileMap);
     }
 
     [Fact] void should_create_combined_file() => File.Exists(_expectedFilePath).ShouldBeTrue();
