@@ -21,6 +21,8 @@
         <Project Path="Source\DotNET\MongoDB\MongoDB.csproj" />
         <Project Path="Source\DotNET\MongoDB.Specs\MongoDB.Specs.csproj" />
         <Project Path="Source\DotNET\Swagger\Swagger.csproj" />
+        <Project Path="Source\DotNET\OpenApi\OpenApi.csproj" />
+        <Project Path="Source\DotNET\OpenApi.Specs\OpenApi.Specs.csproj" />
     </Folder>
     <Folder Name="/Source/DotNET/Tools/">
         <Project Path="Source\DotNET\Tools\ProxyGenerator\ProxyGenerator.csproj" />
