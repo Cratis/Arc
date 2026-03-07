@@ -61,7 +61,7 @@ The command scope provides the following properties and methods:
 | hasChanges | Boolean | Whether or not there are changes in any commands within the scope |
 | isPerforming | Boolean | Whether or not any commands or queries are currently being performed |
 | parent | ICommandScope \| undefined | The parent scope, if this scope is nested |
-| execute() | Promise<CommandResults> | Execute all commands with changes within the scope |
+| execute() | Promise\<CommandResults\> | Execute all commands with changes within the scope |
 | revertChanges() | void | Revert any changes to commands within the scope |
 | addCommand(command) | void | Manually add a command for tracking (usually done automatically) |
 | addQuery(query) | void | Manually add a query for tracking (usually done automatically) |
@@ -183,5 +183,5 @@ export const SecondComponent = () => {
 }
 ```
 
-Any changes to properties within commands will bubble up to the context and affect the state flags 
+Any changes to properties within commands will bubble up to the context and affect the state flags
 (`hasChanges`, `isPerforming`).
