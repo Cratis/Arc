@@ -54,7 +54,7 @@
             <ArcReactNeedsRebuild Condition="'$(ArcReactUpToDateCode)' != '0'">true</ArcReactNeedsRebuild>
         </PropertyGroup>
     </Target>
-    <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild">
+    <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' == 'net10.0'">
         <!-- Build JavaScript packages based on property conditions -->
         <Message Text="Building @cratis/arc JavaScript package..." Importance="high" Condition="$(ArcNeedsRebuild)" />
         <Exec Command="yarn build" WorkingDirectory="$(ArcJavaScriptPath)" Condition="$(ArcNeedsRebuild)" />
