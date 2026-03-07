@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Cratis.Arc.Http;
@@ -50,6 +51,7 @@ public class IdentityProviderResultHandler(
             var identityId = claimsPrincipal.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
             var identityName = claimsPrincipal.Identity?.Name ?? "unknown";
             var claims = claimsPrincipal.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value));
+            var roles = claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
 
             var providerContext = new IdentityProviderContext(identityId, identityName, claims);
             var identityProvider = context.RequestServices.GetRequiredService<IProvideIdentityDetails>();
@@ -57,7 +59,7 @@ public class IdentityProviderResultHandler(
 
             if (result.IsUserAuthorized)
             {
-                return new IdentityProviderResult(providerContext.Id, providerContext.Name, true, result.IsUserAuthorized, result.Details);
+                return new IdentityProviderResult(providerContext.Id, providerContext.Name, true, result.IsUserAuthorized, roles, result.Details);
             }
         }
 
@@ -106,6 +108,7 @@ public class IdentityProviderResultHandler(
                 result.Name,
                 result.IsAuthenticated,
                 result.IsAuthorized,
+                result.Roles,
                 modifiedDetails);
 
             await Write(modifiedResult);

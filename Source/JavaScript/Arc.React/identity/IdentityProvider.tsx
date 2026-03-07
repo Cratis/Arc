@@ -12,8 +12,10 @@ import { ArcContext } from '../ArcContext';
 const defaultIdentityContext: IIdentity = {
     id: '',
     name: '',
+    roles: [],
     details: {},
     isSet: false,
+    isInRole: () => false,
     refresh: () => {
         return new Promise((resolve, reject) => {
             reject('Not implemented');
@@ -74,8 +76,10 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     const initialIdentity: IIdentity = {
         id: '',
         name: '',
+        roles: [],
         details: {},
         isSet: false,
+        isInRole: () => false,
         refresh: () => fetchIdentity()
     };
 
