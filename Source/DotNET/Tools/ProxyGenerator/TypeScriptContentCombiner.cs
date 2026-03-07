@@ -97,13 +97,37 @@ public static class TypeScriptContentCombiner
 
         var header = string.Join('\n', lines.Take(3));
 
+        // Walk backwards from the export to include any preceding JSDoc block in the body,
+        // so that per-type documentation is not mixed into the shared preamble section.
+        var bodyStartIndex = exportStartIndex;
+        var checkIndex = exportStartIndex - 1;
+
+        while (checkIndex >= 0 && string.IsNullOrWhiteSpace(lines[checkIndex]))
+        {
+            checkIndex--;
+        }
+
+        if (checkIndex >= 0 && lines[checkIndex].TrimStart().StartsWith("*/", StringComparison.Ordinal))
+        {
+            var scanIndex = checkIndex;
+            while (scanIndex >= 0 && !lines[scanIndex].TrimStart().StartsWith("/**", StringComparison.Ordinal))
+            {
+                scanIndex--;
+            }
+
+            if (scanIndex >= 0 && lines[scanIndex].TrimStart().StartsWith("/**", StringComparison.Ordinal))
+            {
+                bodyStartIndex = scanIndex;
+            }
+        }
+
         var preambleLines = lines
             .Skip(3)
-            .Take(exportStartIndex - 3)
+            .Take(bodyStartIndex - 3)
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .ToList();
 
-        var body = string.Join('\n', lines.Skip(exportStartIndex));
+        var body = string.Join('\n', lines.Skip(bodyStartIndex));
 
         return new ParsedContent(header, preambleLines, body);
     }
