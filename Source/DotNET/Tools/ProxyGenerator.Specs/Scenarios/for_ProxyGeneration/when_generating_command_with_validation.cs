@@ -37,7 +37,8 @@ public class when_generating_command_with_validation : Specification, IDisposabl
             ModelDescriptor.Empty,
             [],
             null,
-            validationRules);
+            validationRules,
+            false);
     }
 
     void Because()
