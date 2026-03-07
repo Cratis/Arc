@@ -152,3 +152,4 @@ Ready to build your first Arc.Core application? Head over to the [Getting Starte
 To learn about specific features:
 - [Authentication](authentication.md) - Implement custom authentication handlers
 - [Authorization](authorization.md) - Protect your endpoints with authorization attributes
+- [Invariant Culture](invariant-culture.md) - Guarantee consistent culture-sensitive behavior across all environments
