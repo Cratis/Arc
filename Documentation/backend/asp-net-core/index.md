@@ -11,6 +11,7 @@ The Arc provides enhanced capabilities for ASP.NET Core applications, building u
 - **[Swagger](swagger.md)** - Enhanced OpenAPI documentation with Arc-specific schema generation
 - **[Validation](validation.md)** - Comprehensive validation with FluentValidation support
 - **[Without Wrappers](without-wrappers.md)** - Control response wrapping behavior for specific endpoints
+- **[Invariant Culture](invariant-culture.md)** - Guarantee consistent culture-sensitive behavior across all environments
 
 ## When to Use ASP.NET Core Integration
 
