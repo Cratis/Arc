@@ -26,7 +26,7 @@ public static class DescriptorExtensions
     /// <param name="errorMessage">Logger to use for outputting error messages.</param>
     /// <param name="generatedFiles">Optional collection to track generated file paths and their metadata.</param>
     /// <param name="descriptorOrigins">Optional origins for descriptors to output contextual error information.</param>
-    /// <param name="sourceFileMap">Optional map of type full name to source C# file name used to group descriptors into a single file per source file.</param>
+    /// <param name="typeToOutputFileMap">Optional map of type full name to output file name used to group descriptors into a single output file.</param>
     /// <returns>Awaitable task.</returns>
     public static async Task Write(
         this IEnumerable<IDescriptor> descriptors,
@@ -40,7 +40,7 @@ public static class DescriptorExtensions
         Action<string> errorMessage,
         IDictionary<string, GeneratedFileMetadata>? generatedFiles = null,
         IReadOnlyDictionary<Type, (IReadOnlyList<string> Commands, IReadOnlyList<string> Queries)>? descriptorOrigins = null,
-        IReadOnlyDictionary<string, string>? sourceFileMap = null)
+        IReadOnlyDictionary<string, string>? typeToOutputFileMap = null)
     {
         var stopwatch = Stopwatch.StartNew();
         var generationTime = DateTime.UtcNow;
@@ -54,7 +54,7 @@ public static class DescriptorExtensions
             var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
             string outputFileName;
 
-            if (sourceFileMap is not null && sourceFileMap.TryGetValue(descriptor.Type.FullName!, out var sourceFile))
+            if (typeToOutputFileMap is not null && typeToOutputFileMap.TryGetValue(descriptor.Type.FullName!, out var sourceFile))
             {
                 outputFileName = sourceFile;
             }
@@ -76,7 +76,7 @@ public static class DescriptorExtensions
         }
 
         // When not using source file grouping, check for duplicate type names that map to the same path
-        if (sourceFileMap is null)
+        if (typeToOutputFileMap is null)
         {
             var duplicates = new List<(string Path, IDescriptor First, IDescriptor Duplicate)>();
 
