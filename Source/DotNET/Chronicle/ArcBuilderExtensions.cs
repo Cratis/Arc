@@ -3,6 +3,7 @@
 
 using Cratis.Chronicle;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
 
@@ -16,15 +17,23 @@ public static class ArcBuilderExtensions
     /// </summary>
     /// <param name="builder">The <see cref="IArcBuilder"/> to add to.</param>
     /// <param name="clientArtifactsProvider">Optional <see cref="IClientArtifactsProvider"/> to use. When not provided, it will
-    /// attempt to resolve from the service collection (if Chronicle has already been registered) or fall back to
-    /// <see cref="DefaultClientArtifactsProvider.Default"/>.</param>
+    /// resolve from the configured <see cref="ChronicleOptions"/> in the service collection, using the
+    /// <see cref="ChronicleOptions.ArtifactsProvider"/> that was configured via the options pipeline.</param>
     /// <returns><see cref="IArcBuilder"/> for continuation.</returns>
     public static IArcBuilder WithChronicle(this IArcBuilder builder, IClientArtifactsProvider? clientArtifactsProvider = null)
     {
-        clientArtifactsProvider ??= builder.Services
-            .LastOrDefault(d => d.ServiceType == typeof(IClientArtifactsProvider))
-            ?.ImplementationInstance as IClientArtifactsProvider
-            ?? DefaultClientArtifactsProvider.Default;
+        if (clientArtifactsProvider is null)
+        {
+            var chronicleOptions = new ChronicleOptions();
+            foreach (var configureOptions in builder.Services
+                .Where(d => d.ServiceType == typeof(IConfigureOptions<ChronicleOptions>) && d.ImplementationInstance is IConfigureOptions<ChronicleOptions>)
+                .Select(d => (IConfigureOptions<ChronicleOptions>)d.ImplementationInstance!))
+            {
+                configureOptions.Configure(chronicleOptions);
+            }
+
+            clientArtifactsProvider = chronicleOptions.ArtifactsProvider;
+        }
 
         clientArtifactsProvider.Initialize();
 

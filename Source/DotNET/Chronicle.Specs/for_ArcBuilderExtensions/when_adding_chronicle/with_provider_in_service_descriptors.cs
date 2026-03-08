@@ -15,7 +15,7 @@ public class with_provider_in_service_descriptors : given.an_arc_builder
         _registeredProvider = Substitute.For<IClientArtifactsProvider>();
         _registeredProvider.Projections.Returns([]);
         _registeredProvider.ModelBoundProjections.Returns([]);
-        _services.AddSingleton(_registeredProvider);
+        _services.Configure<ChronicleOptions>(options => options.ArtifactsProvider = _registeredProvider);
     }
 
     void Because() => _builder.WithChronicle();
