@@ -56,6 +56,7 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{/if}}
     readonly route: string = '{{{Route}}}';
     readonly validation: CommandValidator = new {{Name}}Validator();
+    readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
     readonly propertyDescriptors: PropertyDescriptor[] = [
         {{#Properties}}
         new PropertyDescriptor('{{camelcase Name}}', {{{Constructor}}}, {{lowercase IsNullable}}),

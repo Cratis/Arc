@@ -13,6 +13,16 @@ namespace Cratis.Arc.Validation;
 public record ValidationResult(ValidationResultSeverity Severity, string Message, IEnumerable<string> Members, object State)
 {
     /// <summary>
+    /// Creates a new <see cref="ValidationResult"/> representing information.
+    /// </summary>
+    /// <param name="message">Message of the information.</param>
+    /// <param name="members">Collection of member names that are related to the information.</param>
+    /// <param name="state">State associated with the validation result.</param>
+    /// <returns>A <see cref="ValidationResult"/>.</returns>
+    public static ValidationResult Information(string message, IEnumerable<string>? members = default, object? state = default)
+        => new(ValidationResultSeverity.Information, message, members ?? [], state!);
+
+    /// <summary>
     /// Creates a new <see cref="ValidationResult"/> representing a warning.
     /// </summary>
     /// <param name="message">Message of the warning.</param>
