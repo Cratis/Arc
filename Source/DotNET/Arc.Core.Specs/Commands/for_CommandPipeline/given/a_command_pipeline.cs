@@ -16,6 +16,7 @@ public class a_command_pipeline : Specification
     protected IServiceProvider _serviceProvider;
     protected CommandPipeline _commandPipeline;
     protected CorrelationId _correlationId;
+    protected List<ICommandDependencyResolver> _dependencyResolvers;
 
     void Establish()
     {
@@ -30,6 +31,7 @@ public class a_command_pipeline : Specification
         _commandContextValuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
         _commandContextValuesBuilder.Build(Arg.Any<object>()).Returns(new CommandContextValues());
         _serviceProvider = Substitute.For<IServiceProvider>();
+        _dependencyResolvers = [];
 
         _commandPipeline = new(
             _correlationIdAccessor,
@@ -37,6 +39,7 @@ public class a_command_pipeline : Specification
             _commandHandlerProviders,
             _commandResponseValueHandlers,
             _commandContextModifier,
-            _commandContextValuesBuilder);
+            _commandContextValuesBuilder,
+            _dependencyResolvers);
     }
 }
