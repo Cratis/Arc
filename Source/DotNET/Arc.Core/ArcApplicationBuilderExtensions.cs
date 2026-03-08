@@ -42,7 +42,7 @@ public static class ArcApplicationBuilderExtensions
 
         if (configureBuilder is not null)
         {
-            var arcBuilder = new ArcBuilder(builder.Services, Internals.Types);
+            var arcBuilder = new ArcBuilder(builder.Services, Internals.Types, builder.Configuration);
             configureBuilder.Invoke(arcBuilder);
         }
 

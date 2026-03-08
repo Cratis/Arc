@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Chronicle;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc;
@@ -17,8 +19,9 @@ public static class ArcBuilderExtensions
     /// <returns><see cref="IArcBuilder"/> for continuation.</returns>
     public static IArcBuilder WithChronicle(this IArcBuilder builder)
     {
+        var options = builder.Configuration.Get<ChronicleOptions>();
         builder.Services.AddAggregateRoots(builder.Types);
-        builder.Services.AddReadModels(builder.Types);
+        builder.Services.AddReadModels(options.ArtifactsProvider);
         return builder;
     }
 }

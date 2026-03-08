@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Types;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc;
@@ -11,4 +12,5 @@ namespace Cratis.Arc;
 /// </summary>
 /// <param name="Services">The service collection to which services can be added.</param>
 /// <param name="Types">The types system used by Arc.</param>
-public record ArcBuilder(IServiceCollection Services, ITypes Types) : IArcBuilder;
+/// <param name="Configuration">The configuration manager.</param>
+public record ArcBuilder(IServiceCollection Services, ITypes Types, IConfigurationManager Configuration) : IArcBuilder;

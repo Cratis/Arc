@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Types;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc;
@@ -20,4 +21,9 @@ public interface IArcBuilder
     /// Gets the types system used by Arc.
     /// </summary>
     ITypes Types { get; }
+
+    /// <summary>
+    /// Gets the configuration manager.
+    /// </summary>
+    IConfigurationManager Configuration { get; }
 }
