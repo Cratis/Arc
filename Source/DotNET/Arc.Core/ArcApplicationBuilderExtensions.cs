@@ -40,11 +40,8 @@ public static class ArcApplicationBuilderExtensions
             builder.Services.PostConfigure(configureOptions);
         }
 
-        if (configureBuilder is not null)
-        {
-            var arcBuilder = new ArcBuilder(builder.Services, Internals.Types);
-            configureBuilder.Invoke(arcBuilder);
-        }
+        var arcBuilder = new ArcBuilder(builder.Services, Internals.Types);
+        configureBuilder?.Invoke(arcBuilder);
 
         builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();
         builder.Services.AddTransient<IObservableQueryHandler, ObservableQueryHandler>();
