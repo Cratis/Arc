@@ -3,17 +3,32 @@
 
 import React from 'react';
 import { ICommand, CommandResults } from '@cratis/arc/commands';
+import { IQueryFor } from '@cratis/arc/queries';
 import { ICommandScope } from './ICommandScope';
 
 
 /**
  * Represents an implementation of {@link ICommandScope}.
  */
-export class CommandScopeImplementation implements ICommandScope {
+export class CommandScopeImplementation extends ICommandScope {
     private _commands: ICommand[] = [];
+    private _queries: IQueryFor<any, any>[] = [];
     private _hasChanges = false;
+    private _isPerforming = false;
+    private _parent?: ICommandScope;
 
-    constructor(private readonly _setHasChanges: React.Dispatch<React.SetStateAction<boolean>>) {
+    constructor(
+        private readonly _setHasChanges: (value: boolean) => void,
+        private readonly _setIsPerforming?: (value: boolean) => void,
+        parent?: ICommandScope
+    ) {
+        super();
+        this._parent = parent;
+    }
+
+    /** @inheritdoc */
+    get parent(): ICommandScope | undefined {
+        return this._parent;
     }
 
     /** @inheritdoc */
@@ -21,8 +36,9 @@ export class CommandScopeImplementation implements ICommandScope {
         return this._hasChanges;
     }
 
-    set hasChanges(value: boolean) {
-        this._hasChanges = value;
+    /** @inheritdoc */
+    get isPerforming(): boolean {
+        return this._isPerforming;
     }
 
     /** @inheritdoc */
@@ -37,14 +53,29 @@ export class CommandScopeImplementation implements ICommandScope {
     }
 
     /** @inheritdoc */
+    addQuery(query: IQueryFor<any, any>): void {
+        if (this._queries.some(_ => _ == query)) {
+            return;
+        }
+
+        this._queries.push(query);
+    }
+
+    /** @inheritdoc */
     async execute(): Promise<CommandResults> {
+        this.setIsPerforming(true);
         const commandsToCommandResult = new Map();
 
-        for (const command of this._commands.filter(_ => _.hasChanges === true)) {
-            const commandResult = await command.execute();
-            commandsToCommandResult.set(command, commandResult);
+        try {
+            for (const command of this._commands.filter(_ => _.hasChanges === true)) {
+                const commandResult = await command.execute();
+                commandsToCommandResult.set(command, commandResult);
+            }
+        } finally {
+            this.setIsPerforming(false);
+            this.evaluateHasChanges();
         }
-        this.evaluateHasChanges();
+        
         return new CommandResults(commandsToCommandResult);
     }
 
@@ -52,6 +83,11 @@ export class CommandScopeImplementation implements ICommandScope {
     revertChanges() {
         this._commands.forEach(command => command.revertChanges());
         this.evaluateHasChanges();
+    }
+
+    private setIsPerforming(value: boolean) {
+        this._isPerforming = value;
+        this._setIsPerforming?.(value);
     }
 
     private evaluateHasChanges() {

@@ -20,7 +20,7 @@ public class with_event_source_id_in_response : given.an_events_command_response
 
         _eventSourceId = EventSourceId.New();
         var command = new TestCommand();
-        _commandContext = new CommandContext(_correlationId, typeof(TestCommand), command, [], new(), _eventSourceId);
+        _commandContext = new CommandContext(_correlationId, typeof(TestCommand), command, [], new(), null, _eventSourceId);
     }
 
     void Because() => _result = _handler.CanHandle(_commandContext, _events);
