@@ -25,8 +25,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     /// <param name="readModelType">The type of the read model.</param>
     /// <param name="performMethod">The method info of the perform method.</param>
     /// <param name="serviceProviderIsService">Service to determine if a type is registered as a service.</param>
+    /// <param name="dependencyResolvers">The collection of <see cref="IQueryDependencyResolver"/> used to classify parameters.</param>
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
-    public ModelBoundQueryPerformer(Type readModelType, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
+    public ModelBoundQueryPerformer(Type readModelType, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IEnumerable<IQueryDependencyResolver> dependencyResolvers, IAuthorizationEvaluator authorizationEvaluator)
     {
         Type = readModelType;
         ReadModelType = readModelType;
@@ -34,8 +35,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         FullyQualifiedName = $"{readModelType.FullName}.{performMethod.Name}";
         Location = readModelType.Namespace?.Split('.') ?? [];
 
-        _dependencies = performMethod.GetParameters().Where(p => serviceProviderIsService.IsService(p.ParameterType));
-        _queryParameters = performMethod.GetParameters().Where(p => !serviceProviderIsService.IsService(p.ParameterType));
+        bool IsDependency(ParameterInfo p) => serviceProviderIsService.IsService(p.ParameterType) || dependencyResolvers.Any(r => r.CanResolve(p.ParameterType));
+        _dependencies = performMethod.GetParameters().Where(IsDependency);
+        _queryParameters = performMethod.GetParameters().Where(p => !IsDependency(p));
         Dependencies = _dependencies.Select(p => p.ParameterType);
         Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType)));
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();

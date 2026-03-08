@@ -21,14 +21,15 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     /// </summary>
     /// <param name="types">The types to scan for read models.</param>
     /// <param name="serviceProviderIsService">Service to determine if a type is registered as a service.</param>
+    /// <param name="dependencyResolvers">The collection of <see cref="IQueryDependencyResolver"/> used to classify parameters.</param>
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
-    public QueryPerformerProvider(ITypes types, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
+    public QueryPerformerProvider(ITypes types, IServiceProviderIsService serviceProviderIsService, IEnumerable<IQueryDependencyResolver> dependencyResolvers, IAuthorizationEvaluator authorizationEvaluator)
     {
         var readModelTypes = types.All.Where(t => t.IsReadModel());
         _performers = readModelTypes
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                 .Where(m => m.IsValidQueryFor(t))
-                .Select(m => new ModelBoundQueryPerformer(t, m, serviceProviderIsService, authorizationEvaluator)))
+                .Select(m => new ModelBoundQueryPerformer(t, m, serviceProviderIsService, dependencyResolvers, authorizationEvaluator)))
             .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
     }
 

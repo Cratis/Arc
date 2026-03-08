@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Monads;
+
 namespace Cratis.Arc.Commands.for_CommandPipeline.when_executing;
 
 public class and_there_is_a_handler_with_dependency_resolved_by_resolver : given.a_command_pipeline_and_a_handler_for_command
@@ -16,7 +18,7 @@ public class and_there_is_a_handler_with_dependency_resolved_by_resolver : given
         _resolver = Substitute.For<ICommandDependencyResolver>();
         _resolver.CanResolve(typeof(object)).Returns(true);
         _resolver.Resolve(typeof(object), Arg.Any<object>(), Arg.Any<CommandContextValues>(), Arg.Any<IServiceProvider>())
-            .Returns(_resolvedDependency);
+            .Returns(Catch<object>.Success(_resolvedDependency));
 
         _commandHandler.Dependencies.Returns([typeof(object)]);
         _dependencyResolvers = [_resolver];

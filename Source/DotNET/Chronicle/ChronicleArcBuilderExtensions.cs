@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Chronicle.ReadModels;
-using Cratis.Arc.Commands;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc;
@@ -10,7 +9,7 @@ namespace Cratis.Arc;
 /// <summary>
 /// Extension methods for <see cref="IArcBuilder"/> for adding Chronicle support.
 /// </summary>
-public static class ArcBuilderExtensions
+public static class ChronicleArcBuilderExtensions
 {
     /// <summary>
     /// Adds Chronicle support to Arc.
@@ -20,7 +19,7 @@ public static class ArcBuilderExtensions
     public static IArcBuilder WithChronicle(this IArcBuilder builder)
     {
         builder.Services.AddAggregateRoots(builder.Types);
-        builder.Services.AddSingleton<ICommandDependencyResolver, ReadModelDependencyResolver>();
+        builder.WithCommandDependencyResolver<ReadModelDependencyResolver>();
 
         return builder;
     }

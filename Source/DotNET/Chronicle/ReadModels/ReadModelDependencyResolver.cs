@@ -7,6 +7,7 @@ using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Monads;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
@@ -24,21 +25,21 @@ public class ReadModelDependencyResolver(IClientArtifactsProvider clientArtifact
     public bool CanResolve(Type type) => _readModelTypes.Contains(type);
 
     /// <inheritdoc/>
-    public object Resolve(Type type, object command, CommandContextValues values, IServiceProvider serviceProvider)
+    public Catch<object> Resolve(Type type, object command, CommandContextValues values, IServiceProvider serviceProvider)
     {
         var readModels = serviceProvider.GetRequiredService<IReadModels>();
 
         if (!values.TryGetValue(WellKnownCommandContextKeys.EventSourceId, out var value) || value is not EventSourceId eventSourceId)
         {
-            throw new UnableToResolveReadModelFromCommandContext(type);
+            return Catch<object>.Failed(new UnableToResolveReadModelFromCommandContext(type));
         }
 
         if (eventSourceId == EventSourceId.Unspecified)
         {
-            throw new UnableToResolveReadModelFromCommandContext(type);
+            return Catch<object>.Failed(new UnableToResolveReadModelFromCommandContext(type));
         }
 
-        return readModels.GetInstanceById(type, eventSourceId).GetAwaiter().GetResult();
+        return Catch<object>.Success(readModels.GetInstanceById(type, eventSourceId).GetAwaiter().GetResult());
     }
 
     static HashSet<Type> BuildReadModelTypes(IClientArtifactsProvider provider)

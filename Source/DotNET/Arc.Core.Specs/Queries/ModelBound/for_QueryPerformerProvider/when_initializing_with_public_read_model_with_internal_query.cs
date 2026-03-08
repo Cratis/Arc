@@ -21,7 +21,7 @@ public class when_initializing_with_public_read_model_with_internal_query : Spec
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
     }
 
-    void Because() => _provider = new QueryPerformerProvider(_types, _serviceProviderIsService, _authorizationEvaluator);
+    void Because() => _provider = new QueryPerformerProvider(_types, _serviceProviderIsService, [], _authorizationEvaluator);
 
     [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
 }

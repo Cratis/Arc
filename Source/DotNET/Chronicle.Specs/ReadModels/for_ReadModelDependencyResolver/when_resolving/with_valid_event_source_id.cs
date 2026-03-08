@@ -3,6 +3,7 @@
 
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Monads;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ReadModelDependencyResolver.when_resolving;
 
@@ -10,7 +11,7 @@ public class with_valid_event_source_id : given.a_read_model_dependency_resolver
 {
     EventSourceId _eventSourceId;
     TestReadModel _expectedReadModel;
-    object _result;
+    Catch<object> _result;
 
     void Establish()
     {
@@ -26,5 +27,10 @@ public class with_valid_event_source_id : given.a_read_model_dependency_resolver
         CreateValuesWithEventSourceId(_eventSourceId),
         _serviceProvider);
 
-    [Fact] void should_return_the_read_model_instance() => _result.ShouldEqual(_expectedReadModel);
+    [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_return_the_read_model_instance()
+    {
+        _result.TryGetResult(out var value);
+        value.ShouldEqual(_expectedReadModel);
+    }
 }
