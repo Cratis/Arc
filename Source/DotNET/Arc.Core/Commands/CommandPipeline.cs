@@ -19,6 +19,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="valueHandlers">The <see cref="ICommandResponseValueHandlers"/> to use for handling response values.</param>
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
+/// <param name="dependencyResolvers">The collection of <see cref="ICommandDependencyResolver"/> used to resolve specialized dependencies.</param>
 [Singleton]
 public class CommandPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
@@ -26,7 +27,8 @@ public class CommandPipeline(
     ICommandHandlerProviders handlerProviders,
     ICommandResponseValueHandlers valueHandlers,
     ICommandContextModifier contextModifier,
-    ICommandContextValuesBuilder contextValuesBuilder) : ICommandPipeline
+    ICommandContextValuesBuilder contextValuesBuilder,
+    IEnumerable<ICommandDependencyResolver> dependencyResolvers) : ICommandPipeline
 {
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
@@ -41,13 +43,14 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var dependencies = commandHandler.Dependencies.Select(serviceProvider.GetRequiredService);
+            var values = contextValuesBuilder.Build(command);
+            var dependencies = commandHandler.Dependencies.Select(type => ResolveDependency(type, command, values, serviceProvider));
             var commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
                 dependencies,
-                contextValuesBuilder.Build(command),
+                values,
                 allowedSeverity);
             contextModifier.SetCurrent(commandContext);
             result = await commandFilters.OnExecution(commandContext);
@@ -86,13 +89,14 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var dependencies = commandHandler.Dependencies.Select(serviceProvider.GetRequiredService);
+            var values = contextValuesBuilder.Build(command);
+            var dependencies = commandHandler.Dependencies.Select(type => ResolveDependency(type, command, values, serviceProvider));
             var commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
                 dependencies,
-                contextValuesBuilder.Build(command),
+                values,
                 allowedSeverity);
             contextModifier.SetCurrent(commandContext);
 
@@ -289,6 +293,19 @@ public class CommandPipeline(
         }
 
         return result;
+    }
+
+    object ResolveDependency(Type type, object command, CommandContextValues values, IServiceProvider serviceProvider)
+    {
+        foreach (var resolver in dependencyResolvers)
+        {
+            if (resolver.CanResolve(type))
+            {
+                return resolver.Resolve(type, command, values, serviceProvider);
+            }
+        }
+
+        return serviceProvider.GetRequiredService(type);
     }
 
     CorrelationId GetCorrelationId()
