@@ -98,7 +98,8 @@ public class a_command_pipeline_with_event_handlers : Specification
             _commandHandlerProviders,
             _commandResponseValueHandlers,
             _commandContextModifier,
-            _commandContextValuesBuilder);
+            _commandContextValuesBuilder,
+            []);
     }
 
     protected record TestEvent(string Name);
