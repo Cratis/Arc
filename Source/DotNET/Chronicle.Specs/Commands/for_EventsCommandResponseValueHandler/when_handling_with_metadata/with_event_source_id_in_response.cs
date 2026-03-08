@@ -30,7 +30,7 @@ public class with_event_source_id_in_response : given.an_events_command_response
             { WellKnownCommandContextKeys.EventStreamType, _eventStreamType },
             { WellKnownCommandContextKeys.EventStreamId, _eventStreamId }
         };
-        _commandContext = new CommandContext(_correlationId, typeof(TestCommand), command, [], commandContextValues, _eventSourceId);
+        _commandContext = new CommandContext(_correlationId, typeof(TestCommand), command, [], commandContextValues, null, _eventSourceId);
     }
 
     async Task Because() => _result = await _handler.Handle(_commandContext, _events);
