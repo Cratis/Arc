@@ -6,3 +6,4 @@ export * from './CommandScope';
 export * from './CommandScopeImplementation';
 export * from './useCommand';
 export * from './useCommandScope';
+export * from './CommandForm';

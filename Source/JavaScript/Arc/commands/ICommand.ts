@@ -4,6 +4,7 @@
 import { ICanBeConfigured } from '../ICanBeConfigured';
 import { CommandResult } from './CommandResult';
 import { PropertyDescriptor } from '../reflection/PropertyDescriptor';
+import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
 
 /**
  * Callback for when a property changes.
@@ -26,10 +27,11 @@ export interface ICommand<TCommandContent = object, TCommandResponse = object> e
 
     /**
      * Execute the {@link ICommand}.
-     * @param [args] Optional arguments for the command route - depends on whether or not the command needs arguments.
+     * @param [allowedSeverity] Optional maximum severity level to allow. Validation results with severity higher than this will cause the command to fail.
+     * @param [ignoreWarnings] Optional flag to ignore warnings. When true, only errors will cause the command to fail.
      * @returns {CommandResult} for the execution.
      */
-    execute(): Promise<CommandResult<TCommandResponse>>;
+    execute(allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): Promise<CommandResult<TCommandResponse>>;
 
     /**
      * Validate the {@link ICommand} without executing it.

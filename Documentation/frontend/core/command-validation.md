@@ -161,4 +161,4 @@ debounceValidation(command, (result) => {
 
 ## Framework-Specific Usage
 
-For React-specific patterns and hooks, see [React Command Validation](../react/command-validation.md).
+For React-specific patterns and hooks, see [React Command Validation](../react/commands/validation.md).

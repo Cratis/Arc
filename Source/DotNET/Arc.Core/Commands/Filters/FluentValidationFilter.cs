@@ -36,7 +36,16 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                 commandResult.MergeWith(new CommandResult
                 {
                     ValidationResults = validationResult.Errors.Select(_ =>
-                        new ValidationResult(ValidationResultSeverity.Error, _.ErrorMessage, [_.PropertyName], null!)).ToArray()
+                    {
+                        var severity = _.Severity switch
+                        {
+                            FluentValidation.Severity.Info => ValidationResultSeverity.Information,
+                            FluentValidation.Severity.Warning => ValidationResultSeverity.Warning,
+                            FluentValidation.Severity.Error => ValidationResultSeverity.Error,
+                            _ => ValidationResultSeverity.Error
+                        };
+                        return new ValidationResult(severity, _.ErrorMessage, [_.PropertyName], _.CustomState ?? null!);
+                    }).ToArray()
                 });
             }
         }

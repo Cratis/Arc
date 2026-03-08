@@ -4,6 +4,8 @@
   href: command-result.md
 - name: Command Validation
   href: command-validation.md
+- name: Validation Severity Filtering
+  href: validation-severity-filtering.md
 - name: Validation
   href: validation/toc.yml
 - name: Queries

@@ -5,12 +5,14 @@
 - name: Dialogs
   href: dialogs.md
 - name: Commands
-  href: commands.md
-- name: Command Validation
-  href: command-validation.md
-- name: Command Scope
-  href: command-scope.md
+  href: commands/toc.yml
+- name: CommandForm
+  href: command-form/toc.yml
 - name: Queries
   href: queries.md
 - name: Proxy Generation
   href: proxy-generation.md
+- name: Story Components
+  href: stories/toc.yml
+- name: Storybook
+  href: storybook.md

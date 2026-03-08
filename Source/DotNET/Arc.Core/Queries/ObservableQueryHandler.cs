@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
@@ -118,7 +119,7 @@ public class ObservableQueryHandler(
         // For HTTP, serialize the current state from BehaviorSubject if available
         // This allows HTTP clients to get a snapshot of the observable's current value
         var queryResult = await GetCurrentValueAsQueryResult(streamingData);
-        context.SetStatusCode(200);
+        context.SetStatusCode(HttpStatusCode.OK);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }
 
@@ -147,8 +148,8 @@ public class ObservableQueryHandler(
 #pragma warning restore IDE0060
     {
         // For HTTP, we need to serialize the enumerable
+        context.SetStatusCode(HttpStatusCode.BadRequest);
         await context.WriteResponseAsJson(new { message = "AsyncEnumerable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
-        context.SetStatusCode(400);
     }
 
     async Task<QueryResult> GetCurrentValueAsQueryResult(object streamingData)

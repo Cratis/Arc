@@ -24,3 +24,5 @@
   href: mongodb/toc.yml
 - name: Entity Framework
   href: entity-framework/toc.yml
+- name: OpenAPI
+  href: open-api/toc.yml

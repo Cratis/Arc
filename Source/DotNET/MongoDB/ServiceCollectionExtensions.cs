@@ -119,7 +119,7 @@ public static class ServiceCollectionExtensions
 
         if (configureOptions is not null)
         {
-            builder.Configure(configureOptions);
+            services.PostConfigure(configureOptions);
         }
 
         return builder;

@@ -33,6 +33,8 @@ public class QueryActionFilter(
             context.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
         {
             var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", queryContextManager);
+            var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
+            var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
 
             var callResult = await CallNextAndHandleValidationAndExceptions(context, next);
             if (context.IsAspNetResult()) return;
@@ -45,14 +47,15 @@ public class QueryActionFilter(
             }
 
             logger.NonClientObservableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
-            var validationResults = context.ModelState.SelectMany(_ => _.Value!.Errors.Select(p => p.ToValidationResult(_.Key.ToCamelCase())));
+            var validationResults = context.ModelState.SelectMany(_ => _.Value!.Errors.Select(p => p.ToValidationResult(_.Key.ToCamelCase()))).ToList();
+            var filteredValidationResults = FilterValidationResults(validationResults, treatWarningsAsErrors, ignoreWarnings);
             var queryResult = CreateQueryResult(
                 callResult.Response,
                 queryContext.Name,
                 queryContext,
                 callResult.ExceptionMessages,
                 callResult.ExceptionStackTrace ?? string.Empty,
-                validationResults,
+                filteredValidationResults,
                 queryProviders,
                 context.HttpContext.RequestServices);
 
@@ -73,6 +76,30 @@ public class QueryActionFilter(
         {
             await next();
         }
+    }
+
+    static bool GetIgnoreWarningsFromRequest(ActionExecutingContext context)
+    {
+        if (context.HttpContext.Request.Headers.TryGetValue("X-Ignore-Warnings", out var value))
+        {
+            return bool.TryParse(value, out var ignoreWarnings) && ignoreWarnings;
+        }
+        return false;
+    }
+
+    static ValidationResult[] FilterValidationResults(List<ValidationResult> validationResults, bool treatWarningsAsErrors, bool ignoreWarnings)
+    {
+        if (ignoreWarnings)
+        {
+            return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+        }
+
+        if (treatWarningsAsErrors)
+        {
+            return validationResults.Where(v => v.Severity >= ValidationResultSeverity.Warning).ToArray();
+        }
+
+        return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
     }
 
     QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, IQueryContextManager queryContextManager)

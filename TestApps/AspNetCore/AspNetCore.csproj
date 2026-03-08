@@ -6,10 +6,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);SA0001;SA1600</NoWarn>
     <IsPackable>false</IsPackable>
+
+    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)/Features</CratisProxiesOutputPath>
+    <CratisProxiesSegmentsToSkip>0</CratisProxiesSegmentsToSkip>
+    <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
+    <CratisProxiesSkipCommandNameInRoute>true</CratisProxiesSkipCommandNameInRoute>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
+    <ProjectReference Include="../../Source/DotNET/Swagger/Swagger.csproj" />
   </ItemGroup>
 
 </Project>

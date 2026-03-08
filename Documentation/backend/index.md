@@ -27,4 +27,5 @@
 | [MongoDB](./mongodb.md) | How to work with MongoDB and what the Arc is offering. |
 | [Entity Framework Core](./entity-framework/index.md) | Enhanced Entity Framework Core support with automatic configuration and patterns. |
 | [Code Analysis](./code-analysis/index.md) | Static code analysis and diagnostics for Arc applications. |
+| [OpenAPI](./open-api/index.md) | Microsoft.AspNetCore.OpenApi transformers for accurate API documentation of Arc conventions. |
 

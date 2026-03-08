@@ -5,6 +5,7 @@ import * as commands from './commands';
 import * as dialogs from './dialogs';
 import * as identity from './identity';
 import * as queries from './queries';
+import * as stories from './stories';
 
 export * from './Arc';
 export * from './ArcContext';
@@ -14,5 +15,6 @@ export {
     commands,
     dialogs,
     identity,
-    queries
+    queries,
+    stories
 };

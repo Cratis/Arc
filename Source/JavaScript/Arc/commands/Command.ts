@@ -70,15 +70,17 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     }
 
     /** @inheritdoc */
-    async execute(): Promise<CommandResult<TCommandResponse>> {
+    async execute(allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): Promise<CommandResult<TCommandResponse>> {
         const clientValidationErrors = this.validation?.validate(this) || [];
-        if (clientValidationErrors.length > 0) {
-            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        const filteredClientErrors = this.filterValidationResultsBySeverity(clientValidationErrors, allowedSeverity, ignoreWarnings);
+        if (filteredClientErrors.length > 0) {
+            return CommandResult.validationFailed(filteredClientErrors) as CommandResult<TCommandResponse>;
         }
 
         const validationErrors = this.validateRequiredProperties();
-        if (validationErrors.length > 0) {
-            return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
+        const filteredRequiredErrors = this.filterValidationResultsBySeverity(validationErrors, allowedSeverity, ignoreWarnings);
+        if (filteredRequiredErrors.length > 0) {
+            return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
 
         let actualRoute = this.route;
@@ -89,7 +91,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             actualRoute = route;
         }
 
-        const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call');
+        const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call', allowedSeverity, ignoreWarnings);
         this.setInitialValuesFromCurrentValues();
         return result;
     }
@@ -145,7 +147,17 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         return validationErrors;
     }
 
-    private buildHeaders(): HeadersInit {
+    private filterValidationResultsBySeverity(validationResults: ValidationResult[], allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): ValidationResult[] {
+        if (ignoreWarnings === true) {
+            return validationResults.filter(result => result.severity === ValidationResultSeverity.Error);
+        }
+        if (allowedSeverity === undefined) {
+            return validationResults.filter(result => result.severity === ValidationResultSeverity.Error);
+        }
+        return validationResults.filter(result => result.severity > allowedSeverity);
+    }
+
+    private buildHeaders(allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): HeadersInit {
         const customHeaders = this._httpHeadersCallback?.() ?? {};
         const headers = {
             ...customHeaders,
@@ -157,16 +169,26 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             headers[Globals.microserviceHttpHeader] = this._microservice;
         }
 
+        if (allowedSeverity !== undefined) {
+            headers['X-Allowed-Severity'] = allowedSeverity.toString();
+        }
+
+        if (ignoreWarnings === true) {
+            headers['X-Ignore-Warnings'] = 'true';
+        }
+
         return headers;
     }
 
     private async performRequest(
         route: string,
         notFoundMessage: string,
-        errorMessage: string
+        errorMessage: string,
+        allowedSeverity?: ValidationResultSeverity,
+        ignoreWarnings?: boolean
     ): Promise<CommandResult<TCommandResponse>> {
         const payload = this.buildPayload();
-        const headers = this.buildHeaders();
+        const headers = this.buildHeaders(allowedSeverity, ignoreWarnings);
         const actualRoute = joinPaths(this._apiBasePath, route);
         const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
 

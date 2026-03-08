@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -35,34 +33,13 @@ public static class HostBuilderExtensions
         Action<IArcBuilder>? configureBuilder = default,
         string? configSectionPath = default)
     {
-        builder.AddCratisArcCore();
+        builder.AddCratisArcCore(configureOptions, configureBuilder, configSectionPath);
         builder.AddArcImplementation();
-        builder.ConfigureServices(_ =>
-        {
-            var arcBuilder = new ArcBuilder(_, Internals.Types);
-            configureBuilder?.Invoke(arcBuilder);
-            AddOptions(_, configureOptions)
-                .BindConfiguration(configSectionPath ?? ConfigurationPath.Combine(DefaultArcSectionPaths));
-        });
 
         return builder;
     }
 
-    static OptionsBuilder<ArcOptions> AddOptions(IServiceCollection services, Action<ArcOptions>? configureOptions = default)
-    {
-        var builder = services
-            .AddOptions<ArcOptions>()
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-        if (configureOptions is not null)
-        {
-            builder.Configure(configureOptions);
-        }
-
-        return builder;
-    }
-
-    static IHostBuilder AddArcImplementation(this IHostBuilder builder, Type? identityDetailsProvider = default)
+    static IHostBuilder AddArcImplementation(this IHostBuilder builder)
     {
         builder.UseDefaultServiceProvider(_ => _.ValidateOnBuild = false);
         builder.AddCorrelationIdLogEnricher();
@@ -72,15 +49,6 @@ public static class HostBuilderExtensions
             {
                 services.AddHttpContextAccessor();
                 services.AddControllersFromProjectReferencedAssembles(Internals.Types);
-
-                if (identityDetailsProvider is not null)
-                {
-                    services.AddIdentityProvider(identityDetailsProvider);
-                }
-                else
-                {
-                    services.AddIdentityProvider(Internals.Types);
-                }
             });
 
         return builder;
