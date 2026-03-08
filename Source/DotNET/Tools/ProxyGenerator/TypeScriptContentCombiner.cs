@@ -2,13 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Cratis.Arc.ProxyGenerator;
 
 /// <summary>
 /// Combines multiple generated TypeScript file contents into a single file.
 /// </summary>
-public static class TypeScriptContentCombiner
+public static partial class TypeScriptContentCombiner
 {
     /// <summary>
     /// Combines multiple TypeScript file contents into a single file content.
@@ -64,6 +65,11 @@ public static class TypeScriptContentCombiner
             .Where(b => !string.IsNullOrEmpty(b))
             .ToList();
 
+        var exportedTypes = CollectExportedTypeNames(bodies);
+        var filteredImportLines = importLines
+            .Where(line => !IsImportForExportedType(line, exportedTypes))
+            .ToList();
+
         var sb = new StringBuilder()
             .AppendLine(header);
 
@@ -72,7 +78,7 @@ public static class TypeScriptContentCombiner
             sb.AppendLine(line);
         }
 
-        foreach (var line in importLines)
+        foreach (var line in filteredImportLines)
         {
             sb.AppendLine(line);
         }
@@ -131,6 +137,56 @@ public static class TypeScriptContentCombiner
 
         return new ParsedContent(header, preambleLines, body);
     }
+
+    /// <summary>
+    /// Collects the names of all exported types (class, interface, enum, type, const enum) from the body sections.
+    /// </summary>
+    /// <param name="bodies">The body sections of the combined TypeScript content.</param>
+    /// <returns>A set of exported type names.</returns>
+    static HashSet<string> CollectExportedTypeNames(IReadOnlyList<string> bodies)
+    {
+        var exportPattern = ExportDeclarationRegex();
+        var typeNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var body in bodies)
+        {
+            foreach (Match match in exportPattern.Matches(body))
+            {
+                typeNames.Add(match.Groups["name"].Value);
+            }
+        }
+
+        return typeNames;
+    }
+
+    /// <summary>
+    /// Determines whether an import line imports a type that is defined in the same combined file.
+    /// </summary>
+    /// <param name="importLine">The import line to check.</param>
+    /// <param name="exportedTypes">The set of type names exported within the combined file.</param>
+    /// <returns>True if the import is for a type defined in the same file, false otherwise.</returns>
+    static bool IsImportForExportedType(string importLine, HashSet<string> exportedTypes)
+    {
+        var match = ImportedTypeRegex().Match(importLine);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var importedNames = match.Groups["names"].Value;
+
+        return importedNames
+            .Split(',')
+            .Select(n => n.Trim())
+            .Where(n => !string.IsNullOrEmpty(n))
+            .All(exportedTypes.Contains);
+    }
+
+    [GeneratedRegex(@"export\s+(?:class|interface|enum|type|const\s+enum)\s+(?<name>\w+)", RegexOptions.NonBacktracking)]
+    private static partial Regex ExportDeclarationRegex();
+
+    [GeneratedRegex(@"import\s+\{\s*(?<names>[^}]+)\s*\}\s+from\s+", RegexOptions.NonBacktracking)]
+    private static partial Regex ImportedTypeRegex();
 
     sealed record ParsedContent(string Header, IReadOnlyList<string> PreambleLines, string Body);
 }
