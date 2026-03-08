@@ -4,10 +4,11 @@
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
-using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
+using Cratis.Chronicle.Projections.ModelBound;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Types;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -20,11 +21,13 @@ public static class ReadModelServiceCollectionExtensions
     /// Adds read model auto-discovery and registration to the service collection.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> to add to.</param>
-    /// <param name="clientArtifactsProvider">The <see cref="IClientArtifactsProvider"/> for client artifacts.</param>
+    /// <param name="types">The <see cref="ITypes"/> for type discovery.</param>
     /// <returns>The service collection for continuation.</returns>
-    public static IServiceCollection AddReadModels(this IServiceCollection services, IClientArtifactsProvider clientArtifactsProvider)
+    public static IServiceCollection AddReadModels(this IServiceCollection services, ITypes types)
     {
-        var readModelTypesFromProjections = clientArtifactsProvider.Projections
+        var readModelTypesFromProjections = types.All
+            .Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces()
+                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionFor<>)))
             .Select(projectionType =>
             {
                 var projectionInterface = projectionType.GetInterfaces()
@@ -34,12 +37,14 @@ public static class ReadModelServiceCollectionExtensions
             .Where(type => type?.IsClass == true && !type.IsAbstract)
             .Cast<Type>();
 
-        var modelBoundReadModels = clientArtifactsProvider.ModelBoundProjections
-            .Where(type => type.IsClass && !type.IsAbstract);
+        var modelBoundReadModels = types.All
+            .Where(type => type.IsClass && !type.IsAbstract && type.HasModelBoundProjectionAttributes());
+
         var readModelTypes = readModelTypesFromProjections
             .Concat(modelBoundReadModels)
             .Distinct()
             .ToArray();
+
         foreach (var readModelType in readModelTypes)
         {
             services.AddTransient(readModelType, serviceProvider =>
