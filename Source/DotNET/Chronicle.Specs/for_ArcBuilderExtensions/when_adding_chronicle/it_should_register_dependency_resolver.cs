@@ -3,11 +3,10 @@
 
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.for_ArcBuilderExtensions.when_adding_chronicle;
 
-public class with_explicit_provider : given.an_arc_builder
+public class it_should_register_dependency_resolver : given.an_arc_builder
 {
     void Because() => _builder.WithChronicle();
 
