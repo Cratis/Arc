@@ -16,13 +16,3 @@ public class Commands : ControllerBase
         return $"Doing : {command.StuffToDo}!";
     }
 }
-
-[Command]
-public record ModelBoundCommand(string StuffToDo)
-{
-    public string Handle()
-    {
-        Console.WriteLine("Received command: " + this);
-        return $"Doing : {StuffToDo}!";
-    }
-}

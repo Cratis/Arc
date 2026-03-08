@@ -100,7 +100,6 @@ public static class CommandEndpointMapper
                     allowedSeverity = (ValidationResultSeverity)severityValue;
                 }
 
-                var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
                 CommandResult commandResult;
                 try
                 {
