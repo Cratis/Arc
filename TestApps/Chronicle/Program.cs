@@ -8,7 +8,7 @@ builder.AddCratisArc(
     configureOptions: options =>
     {
         options.GeneratedApis.RoutePrefix = "api";
-        options.GeneratedApis.IncludeCommandNameInRoute = false;
+        options.GeneratedApis.IncludeCommandNameInRoute = true;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
     },
     configureBuilder: arcBuilder => arcBuilder.WithChronicle());
