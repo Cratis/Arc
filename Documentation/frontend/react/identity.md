@@ -112,6 +112,46 @@ export const Home = () => {
 };
 ```
 
+## Role checking
+
+The identity context includes information about the roles assigned to the user. You can check if a user is in a specific role using the `isInRole()` method:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
+
+export const AdminPanel = () => {
+    const identity = useIdentity();
+
+    if (!identity.isInRole('Admin')) {
+        return <div>Access denied. Admin role required.</div>;
+    }
+
+    return (
+        <div>
+            <h3>Admin Panel</h3>
+            {/* Admin content */}
+        </div>
+    );
+};
+```
+
+You can also access the roles array directly:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
+
+export const UserProfile = () => {
+    const identity = useIdentity();
+
+    return (
+        <div>
+            <h3>User: {identity.name}</h3>
+            <p>Roles: {identity.roles.join(', ')}</p>
+        </div>
+    );
+};
+```
+
 ### Type-safe identity with complex types
 
 If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by providing a constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.

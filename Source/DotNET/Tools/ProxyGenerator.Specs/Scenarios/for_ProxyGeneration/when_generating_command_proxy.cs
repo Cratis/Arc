@@ -34,7 +34,8 @@ public class when_generating_command_proxy : Specification, IDisposable
             ModelDescriptor.Empty,
             [],
             null,
-            []);
+            [],
+            false);
     }
 
     void Because()

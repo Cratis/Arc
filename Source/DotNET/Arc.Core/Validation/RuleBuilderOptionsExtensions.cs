@@ -32,4 +32,32 @@ public static class RuleBuilderOptionsExtensions
     /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
     public static IRuleBuilderOptions<T, TProperty> WhenQuery<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, ApplyConditionTo applyConditionTo = ApplyConditionTo.AllValidators) =>
         rule.When((x, ctx) => ctx.IsQuery(), applyConditionTo);
+
+    /// <summary>
+    /// Sets the severity level for the validation rule.
+    /// </summary>
+    /// <param name="rule">The current rule.</param>
+    /// <param name="severity">The <see cref="ValidationResultSeverity"/> to set.</param>
+    /// <typeparam name="T">Type of object being validated.</typeparam>
+    /// <typeparam name="TProperty">Property type.</typeparam>
+    /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
+    public static IRuleBuilderOptions<T, TProperty> WithSeverity<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, ValidationResultSeverity severity) =>
+        rule.WithSeverity(severity switch
+        {
+            ValidationResultSeverity.Information => FluentValidation.Severity.Info,
+            ValidationResultSeverity.Warning => FluentValidation.Severity.Warning,
+            ValidationResultSeverity.Error => FluentValidation.Severity.Error,
+            _ => FluentValidation.Severity.Error
+        });
+
+    /// <summary>
+    /// Sets custom state for the validation rule.
+    /// </summary>
+    /// <param name="rule">The current rule.</param>
+    /// <param name="state">The state object to associate with the validation result.</param>
+    /// <typeparam name="T">Type of object being validated.</typeparam>
+    /// <typeparam name="TProperty">Property type.</typeparam>
+    /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
+    public static IRuleBuilderOptions<T, TProperty> WithState<T, TProperty>(this IRuleBuilderOptions<T, TProperty> rule, object state) =>
+        rule.WithState(_ => state);
 }

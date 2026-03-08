@@ -23,6 +23,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="TypesInvolved">Collection of types involved in the query.</param>
 /// <param name="Documentation">JSDoc documentation for the query.</param>
 /// <param name="ValidationRules">Validation rules for the query parameters.</param>
+/// <param name="TreatWarningsAsErrors">Whether warnings should be treated as errors for this query.</param>
 public record QueryDescriptor(
     Type Type,
     MethodInfo Method,
@@ -38,4 +39,5 @@ public record QueryDescriptor(
     IEnumerable<PropertyDescriptor> Properties,
     IEnumerable<Type> TypesInvolved,
     string? Documentation,
-    IEnumerable<PropertyValidationDescriptor> ValidationRules) : IDescriptor;
+    IEnumerable<PropertyValidationDescriptor> ValidationRules,
+    bool TreatWarningsAsErrors) : IDescriptor;

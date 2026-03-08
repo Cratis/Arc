@@ -4,6 +4,9 @@
 using Cratis.Arc.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Uncomment the following line to configure the application to use invariant culture
+// builder.UseInvariantCulture();
 builder.AddCratisArc();
 builder.Services.AddControllers();
 builder.Services.AddMvc();
@@ -12,6 +15,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.AddConcepts());
 
 var app = builder.Build();
+
+// If using invariant culture, also apply the middleware:
+// app.UseInvariantCulture();
 app.UseRouting();
 app.UseWebSockets();
 app.UseCratisArc();

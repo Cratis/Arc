@@ -84,6 +84,10 @@ public static class CommandExtensions
                 : [];
         }
 
+        // Check for TreatWarningsAsErrors attribute
+        var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
+                                     (method.DeclaringType?.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ?? false);
+
         return new(
             method.DeclaringType!,
             method,
@@ -96,6 +100,7 @@ public static class CommandExtensions
             responseModel,
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            rules.OrderBy(_ => _.PropertyName));
+            rules.OrderBy(_ => _.PropertyName),
+            treatWarningsAsErrors);
     }
 }

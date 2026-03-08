@@ -12,18 +12,19 @@ namespace Cratis.Arc.Identity;
 /// <param name="Name">Name of the identity.</param>
 /// <param name="IsAuthenticated">Indicates whether the user is authenticated.</param>
 /// <param name="IsAuthorized">Indicates whether the user is authorized.</param>
+/// <param name="Roles">The roles the identity is in.</param>
 /// <param name="Details">The resolved details.</param>
-public record IdentityProviderResult(IdentityId Id, IdentityName Name, bool IsAuthenticated, bool IsAuthorized, object Details)
+public record IdentityProviderResult(IdentityId Id, IdentityName Name, bool IsAuthenticated, bool IsAuthorized, IEnumerable<string> Roles, object Details)
 {
     /// <summary>
     /// Represents an anonymous identity result.
     /// </summary>
-    public static readonly IdentityProviderResult Anonymous = new(IdentityId.Empty, IdentityName.Empty, false, false, default!);
+    public static readonly IdentityProviderResult Anonymous = new(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
 
     /// <summary>
     /// Represents an unauthorized identity result.
     /// </summary>
-    public static readonly IdentityProviderResult Unauthorized = new(IdentityId.Empty, IdentityName.Empty, true, false, default!);
+    public static readonly IdentityProviderResult Unauthorized = new(IdentityId.Empty, IdentityName.Empty, true, false, [], default!);
 }
 
 /// <summary>
@@ -34,7 +35,8 @@ public record IdentityProviderResult(IdentityId Id, IdentityName Name, bool IsAu
 /// <param name="Name">Name of the identity.</param>
 /// <param name="IsAuthenticated">Indicates whether the user is authenticated.</param>
 /// <param name="IsAuthorized">Indicates whether the user is authorized.</param>
+/// <param name="Roles">The roles the identity is in.</param>
 /// <param name="Details">The resolved details.</param>
-public record IdentityProviderResult<TDetails>(IdentityId Id, IdentityName Name, bool IsAuthenticated, bool IsAuthorized, TDetails Details);
+public record IdentityProviderResult<TDetails>(IdentityId Id, IdentityName Name, bool IsAuthenticated, bool IsAuthorized, IEnumerable<string> Roles, TDetails Details);
 
 #pragma warning restore SA1402 // File may only contain a single type

@@ -40,7 +40,8 @@ public class when_generating_query_with_validation : Specification, IDisposable
             properties,
             [],
             null,
-            validationRules);
+            validationRules,
+            false);
     }
 
     void Because()
