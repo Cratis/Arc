@@ -15,12 +15,14 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryFilters">The query filters.</param>
 /// <param name="queryPerformerProviders">The query performer providers.</param>
 /// <param name="queryRenderers">The query renderers.</param>
+/// <param name="dependencyResolvers">The collection of <see cref="IQueryDependencyResolver"/> used to resolve specialized dependencies.</param>
 public class QueryPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
     IQueryContextManager queryContextManager,
     IQueryFilters queryFilters,
     IQueryPerformerProviders queryPerformerProviders,
-    IQueryRenderers queryRenderers) : IQueryPipeline
+    IQueryRenderers queryRenderers,
+    IEnumerable<IQueryDependencyResolver> dependencyResolvers) : IQueryPipeline
 {
     /// <inheritdoc/>
     public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider)
@@ -34,7 +36,7 @@ public class QueryPipeline(
                 return QueryResult.MissingPerformer(correlationId, queryName);
             }
 
-            var dependencies = queryPerformer.Dependencies.Select(serviceProvider.GetRequiredService);
+            var dependencies = queryPerformer.Dependencies.Select(type => ResolveDependency(type, arguments, serviceProvider));
             var context = new QueryContext(queryName, correlationId, paging, sorting, arguments, dependencies);
             queryContextManager.Set(context);
 
@@ -71,6 +73,21 @@ public class QueryPipeline(
         }
 
         return result;
+    }
+
+    object ResolveDependency(Type type, QueryArguments arguments, IServiceProvider serviceProvider)
+    {
+        foreach (var resolver in dependencyResolvers)
+        {
+            if (resolver.CanResolve(type))
+            {
+                var resolved = resolver.Resolve(type, arguments, serviceProvider);
+                resolved.RethrowError();
+                return resolved.AsT0;
+            }
+        }
+
+        return serviceProvider.GetRequiredService(type);
     }
 
     CorrelationId GetCorrelationId()

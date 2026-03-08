@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
+using Cratis.Monads;
 using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
@@ -19,6 +20,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="valueHandlers">The <see cref="ICommandResponseValueHandlers"/> to use for handling response values.</param>
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
+/// <param name="dependencyResolvers">The <see cref="IEnumerable{T}"/> of <see cref="ICommandDependencyResolver"/> for resolving command dependencies.</param>
 [Singleton]
 public class CommandPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
@@ -26,7 +28,8 @@ public class CommandPipeline(
     ICommandHandlerProviders handlerProviders,
     ICommandResponseValueHandlers valueHandlers,
     ICommandContextModifier contextModifier,
-    ICommandContextValuesBuilder contextValuesBuilder) : ICommandPipeline
+    ICommandContextValuesBuilder contextValuesBuilder,
+    IEnumerable<ICommandDependencyResolver> dependencyResolvers) : ICommandPipeline
 {
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
@@ -35,23 +38,14 @@ public class CommandPipeline(
         var result = CommandResult.Success(correlationId);
         try
         {
-            handlerProviders.TryGetHandlerFor(command, out var commandHandler);
-            if (commandHandler is null)
+            var preparationResult = await TryPrepareExecution(command, correlationId, serviceProvider, allowedSeverity);
+            if (preparationResult.TryGetError(out var errorResult))
             {
-                return CommandResult.MissingHandler(correlationId, command.GetType());
+                return errorResult;
             }
 
-            var dependencies = commandHandler.Dependencies.Select(serviceProvider.GetRequiredService);
-            var commandContext = new CommandContext(
-                correlationId,
-                command.GetType(),
-                command,
-                dependencies,
-                contextValuesBuilder.Build(command),
-                allowedSeverity);
-            contextModifier.SetCurrent(commandContext);
-            result = await commandFilters.OnExecution(commandContext);
-            result = FilterValidationResults(result, allowedSeverity);
+            preparationResult.TryGetResult(out var preparation);
+            (var commandHandler, var commandContext, result) = preparation;
             if (!result.IsSuccess)
             {
                 return result;
@@ -61,7 +55,6 @@ public class CommandPipeline(
             if (response is not null)
             {
                 var processedResult = await ProcessResponseValue(response, commandContext, correlationId, result);
-                commandContext = processedResult.CommandContext;
                 result = processedResult.Result;
             }
         }
@@ -80,25 +73,14 @@ public class CommandPipeline(
         var result = CommandResult.Success(correlationId);
         try
         {
-            handlerProviders.TryGetHandlerFor(command, out var commandHandler);
-            if (commandHandler is null)
+            var preparationResult = await TryPrepareExecution(command, correlationId, serviceProvider, allowedSeverity);
+            if (preparationResult.TryGetError(out var errorResult))
             {
-                return CommandResult.MissingHandler(correlationId, command.GetType());
+                return errorResult;
             }
 
-            var dependencies = commandHandler.Dependencies.Select(serviceProvider.GetRequiredService);
-            var commandContext = new CommandContext(
-                correlationId,
-                command.GetType(),
-                command,
-                dependencies,
-                contextValuesBuilder.Build(command),
-                allowedSeverity);
-            contextModifier.SetCurrent(commandContext);
-
-            // Run only filters (authorization and validation), skip handler execution
-            result = await commandFilters.OnExecution(commandContext);
-            result = FilterValidationResults(result, allowedSeverity);
+            preparationResult.TryGetResult(out var preparation);
+            result = preparation.FilterResult;
         }
         catch (Exception ex)
         {
@@ -277,18 +259,32 @@ public class CommandPipeline(
     {
         var result = CommandResult.Success(commandContext.CorrelationId);
 
-        for (var i = 0; i < tuple.Length; i++)
+        foreach (var element in ExtractValuesFromTupleInOrder(tuple))
         {
-            var element = tuple[i];
-            if (element is null)
-            {
-                continue;
-            }
-
             result.MergeWith(await HandleValue(element, commandContext));
         }
 
         return result;
+    }
+
+    Catch<object> ResolveDependency(Type type, object command, CommandContextValues values, IServiceProvider serviceProvider)
+    {
+        try
+        {
+            foreach (var resolver in dependencyResolvers)
+            {
+                if (resolver.CanResolve(type))
+                {
+                    return resolver.Resolve(type, command, values, serviceProvider);
+                }
+            }
+
+            return Catch<object>.Success(serviceProvider.GetRequiredService(type));
+        }
+        catch (Exception ex)
+        {
+            return Catch<object>.Failed(ex);
+        }
     }
 
     CorrelationId GetCorrelationId()
@@ -302,28 +298,13 @@ public class CommandPipeline(
         return correlationId;
     }
 
-    /// <summary>
-    /// Filters validation results based on the allowed severity level.
-    /// </summary>
-    /// <param name="result">The command result to filter. This method modifies the ValidationResults property.</param>
-    /// <param name="allowedSeverity">The maximum allowed severity level. Results with higher severity will be kept.</param>
-    /// <returns>The modified command result.</returns>
-    /// <remarks>
-    /// When allowedSeverity is null, only errors block execution (warnings and information are filtered out).
-    /// When allowedSeverity is specified, only validation results with severity > allowedSeverity block execution.
-    /// </remarks>
     CommandResult FilterValidationResults(CommandResult result, ValidationResultSeverity? allowedSeverity)
     {
-        if (allowedSeverity is null)
-        {
-            // Default behavior: only errors block execution (warnings and information are filtered out)
-            result.ValidationResults = result.ValidationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
-        }
-        else
-        {
-            // Filter out validation results with severity <= allowedSeverity
-            result.ValidationResults = result.ValidationResults.Where(v => v.Severity > allowedSeverity).ToArray();
-        }
+        result.ValidationResults = result.ValidationResults
+            .Where(v => allowedSeverity is null
+                ? v.Severity == ValidationResultSeverity.Error
+                : v.Severity > allowedSeverity)
+            .ToArray();
 
         return result;
     }
@@ -333,4 +314,46 @@ public class CommandPipeline(
         var commandResultType = typeof(CommandResult<>).MakeGenericType(response.GetType());
         return (Activator.CreateInstance(commandResultType, correlationId, response) as CommandResult)!;
     }
+
+    async Task<Result<ExecutionPreparation, CommandResult>> TryPrepareExecution(
+        object command,
+        CorrelationId correlationId,
+        IServiceProvider serviceProvider,
+        ValidationResultSeverity? allowedSeverity)
+    {
+        handlerProviders.TryGetHandlerFor(command, out var commandHandler);
+        if (commandHandler is null)
+        {
+            return CommandResult.MissingHandler(correlationId, command.GetType());
+        }
+
+        var values = contextValuesBuilder.Build(command);
+        var resolvedDependencies = new List<object>();
+        foreach (var dependencyType in commandHandler.Dependencies)
+        {
+            var resolved = ResolveDependency(dependencyType, command, values, serviceProvider);
+            if (resolved.TryGetException(out var dependencyError))
+            {
+                return CommandResult.Error(correlationId, dependencyError);
+            }
+
+            resolved.TryGetResult(out var dependency);
+            resolvedDependencies.Add(dependency!);
+        }
+
+        var commandContext = new CommandContext(
+            correlationId,
+            command.GetType(),
+            command,
+            resolvedDependencies,
+            values,
+            allowedSeverity);
+        contextModifier.SetCurrent(commandContext);
+        var result = await commandFilters.OnExecution(commandContext);
+        result = FilterValidationResults(result, allowedSeverity);
+
+        return new ExecutionPreparation(commandHandler, commandContext, result);
+    }
+
+    record ExecutionPreparation(ICommandHandler Handler, CommandContext Context, CommandResult FilterResult);
 }
