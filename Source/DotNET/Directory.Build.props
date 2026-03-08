@@ -66,4 +66,8 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <Compile Include="$(MSBuildThisFileDirectory)/GlobalUsings.Specs.cs" />
     </ItemGroup>
+
+    <PropertyGroup Condition="'$(IsTestProject)'=='true'">
+        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031</NoWarn>
+    </PropertyGroup>
 </Project>

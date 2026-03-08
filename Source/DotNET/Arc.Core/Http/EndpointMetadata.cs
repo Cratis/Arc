@@ -10,8 +10,12 @@ namespace Cratis.Arc.Http;
 /// <param name="Summary">A summary description of what the endpoint does.</param>
 /// <param name="Tags">Tags for grouping endpoints.</param>
 /// <param name="AllowAnonymous">Whether anonymous access is allowed.</param>
+/// <param name="RequestBodyType">The type of the request body, if any.</param>
+/// <param name="ResponseType">The type of the response body, if any.</param>
 public record EndpointMetadata(
     string Name,
     string? Summary = default,
     IEnumerable<string>? Tags = default,
-    bool AllowAnonymous = false);
+    bool AllowAnonymous = false,
+    Type? RequestBodyType = default,
+    Type? ResponseType = default);

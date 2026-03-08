@@ -64,6 +64,6 @@
         "up": "yarn g:up"
     },
     "dependencies": {
-        "@cratis/fundamentals": "^7.5.0"
+        "@cratis/fundamentals": "^7.7.1"
     }
 }

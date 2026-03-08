@@ -22,5 +22,5 @@ The event source ID is resolved when a command has a property of type `EventSour
 
 When model-bound commands depend on read models, Chronicle uses the event source ID from the command context to load the correct read model instance. This leverages the Chronicle read models system for consistency and projection-backed state.
 
-To learn more about read models, see [Read Models](xref:Chronicle.ReadModels).
+To learn more about read models, see [Read Models](read-models/read-models.md).
 

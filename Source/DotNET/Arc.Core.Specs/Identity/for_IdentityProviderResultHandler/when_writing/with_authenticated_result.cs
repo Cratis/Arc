@@ -9,7 +9,7 @@ public class with_authenticated_result : given.an_authenticated_user
 
     void Establish()
     {
-        _identityProviderResult = new IdentityProviderResult("user-123", "Test User", true, true, new { role = "Admin" });
+        _identityProviderResult = new IdentityProviderResult("user-123", "Test User", true, true, [], new { role = "Admin" });
         _httpRequestContext.IsHttps.Returns(true);
     }
 

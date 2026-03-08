@@ -1,0 +1,59 @@
+<script>
+  // Auto-detect and apply light/dark theme based on background color
+  (function() {
+    function updateTheme() {
+      const bgColor = window.getComputedStyle(document.body).backgroundColor;
+      
+      // Parse RGB value
+      const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+      if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        
+        // Calculate relative luminance
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        // If luminance > 0.5, it's a light background
+        if (luminance > 0.5) {
+          document.body.setAttribute('data-theme', 'light');
+        } else {
+          document.body.setAttribute('data-theme', 'dark');
+        }
+      }
+    }
+    
+    // Update theme on load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', updateTheme);
+    } else {
+      updateTheme();
+    }
+    
+    // Watch for background color changes using MutationObserver
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+      subtree: true
+    });
+    
+    // Also watch for inline style changes on body
+    const styleObserver = new MutationObserver(updateTheme);
+    const observeBody = () => {
+      if (document.body) {
+        styleObserver.observe(document.body, {
+          attributes: true,
+          attributeFilter: ['style', 'class']
+        });
+        updateTheme();
+      } else {
+        setTimeout(observeBody, 10);
+      }
+    };
+    observeBody();
+    
+    // Fallback: check periodically
+    setInterval(updateTheme, 500);
+  })();
+</script>

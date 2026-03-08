@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,6 +39,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         Dependencies = _dependencies.Select(p => p.ParameterType);
         Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType)));
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
+        SupportsPaging = ComputeSupportsPaging(performMethod);
         _performMethod = performMethod;
         _authorizationEvaluator = authorizationEvaluator;
     }
@@ -67,6 +69,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     public bool AllowsAnonymousAccess { get; }
 
     /// <inheritdoc/>
+    public bool SupportsPaging { get; }
+
+    /// <inheritdoc/>
     public bool IsAuthorized(QueryContext context) => _authorizationEvaluator.IsAuthorized(_performMethod);
 
     /// <inheritdoc/>
@@ -77,10 +82,54 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         var queryStringParameters = context.Arguments ?? QueryArguments.Empty;
         var args = GetMethodArguments(parameters, dependencies, queryStringParameters);
 
-        var invocationResult = _performMethod.Invoke(null, args);
-        var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-        return result;
+        try
+        {
+            var invocationResult = _performMethod.Invoke(null, args);
+            var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
+            return result;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            // Rethrow the inner exception preserving its original stack trace.
+            // The trailing 'throw' is unreachable but required because the C# compiler
+            // does not propagate [DoesNotReturn] through async state machines.
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
     }
+
+    static object? ResolveDependency(object[] dependencies, ref int dependencyIndex)
+    {
+        if (dependencyIndex < dependencies.Length)
+        {
+            return dependencies[dependencyIndex++];
+        }
+
+        return null;
+    }
+
+    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryStringParameters)
+    {
+        var matchingQueryParam = queryStringParameters.FirstOrDefault(kvp =>
+            string.Equals(kvp.Key, parameter.Name, StringComparison.OrdinalIgnoreCase));
+
+        var parameterWasProvided = !string.IsNullOrEmpty(matchingQueryParam.Key);
+        if (!parameterWasProvided)
+        {
+            return parameter.HasDefaultValue ? parameter.DefaultValue : null;
+        }
+
+        var valueIsEmpty = string.IsNullOrEmpty(matchingQueryParam.Value?.ToString());
+        if (valueIsEmpty && !CanRepresentEmptyString(parameter.ParameterType))
+        {
+            return parameter.HasDefaultValue ? parameter.DefaultValue : null;
+        }
+
+        return matchingQueryParam.Value.ConvertTo(parameter.ParameterType);
+    }
+
+    static bool CanRepresentEmptyString(Type type) =>
+        type == typeof(string) || (type.IsConcept() && type.GetConceptValueType() == typeof(string));
 
     static bool IsNullableOrOptional(ParameterInfo parameter)
     {
@@ -91,7 +140,34 @@ public class ModelBoundQueryPerformer : IQueryPerformer
 
         var type = parameter.ParameterType;
 
-        return !type.IsValueType || Nullable.GetUnderlyingType(type) is not null;
+        // Value types are only optional when wrapped in Nullable<T>.
+        if (type.IsValueType)
+        {
+            return Nullable.GetUnderlyingType(type) is not null;
+        }
+
+        // Concept types are value-like wrappers and are never implicitly nullable.
+        // Use T? (nullable annotation) or a default value to make a concept parameter optional.
+        if (type.IsConcept())
+        {
+            var nullabilityInfo = new NullabilityInfoContext().Create(parameter);
+            return nullabilityInfo.WriteState is NullabilityState.Nullable;
+        }
+
+        // Other reference types (e.g. plain string) remain implicitly optional.
+        return true;
+    }
+
+    static bool ComputeSupportsPaging(MethodInfo performMethod)
+    {
+        var returnType = performMethod.ReturnType;
+
+        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
+        {
+            returnType = returnType.GetGenericArguments()[0];
+        }
+
+        return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
     object?[] GetMethodArguments(ParameterInfo[] parameters, object[] dependencies, QueryArguments queryStringParameters)
@@ -104,25 +180,11 @@ public class ModelBoundQueryPerformer : IQueryPerformer
 
             if (_dependencies.Contains(parameter))
             {
-                if (dependencyIndex < dependencies.Length)
-                {
-                    args[i] = dependencies[dependencyIndex];
-                    dependencyIndex++;
-                }
+                args[i] = ResolveDependency(dependencies, ref dependencyIndex);
             }
             else
             {
-                var matchingQueryParam = queryStringParameters.FirstOrDefault(kvp =>
-                    string.Equals(kvp.Key, parameter.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (!string.IsNullOrEmpty(matchingQueryParam.Key))
-                {
-                    args[i] = matchingQueryParam.Value.ConvertTo(parameter.ParameterType);
-                }
-                else if (parameter.HasDefaultValue)
-                {
-                    args[i] = parameter.DefaultValue;
-                }
+                args[i] = ResolveQueryArgument(parameter, queryStringParameters);
             }
         }
 
