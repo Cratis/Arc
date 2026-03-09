@@ -203,7 +203,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
     // isAuthorized checks if the current user has at least one of the roles required by the command.
     // If the command has no roles defined, all users are considered authorized.
     const identity = useIdentity();
-    const commandRoles = (commandInstance as unknown as { roles?: string[] })?.roles ?? [];
+    const commandRoles = (commandInstance as unknown as Command).roles ?? [];
     const isAuthorized = commandRoles.length === 0 || commandRoles.some(role => identity.isInRole(role));
 
     // Auto server validate when all client validations pass

@@ -74,10 +74,10 @@ public static class MethodInfoExtensions
     public static IEnumerable<string> GetRoles(this MethodInfo method)
     {
         var roles = new List<string>();
-        roles.AddRange(GetRolesFromAttributeData(method.GetCustomAttributesData()));
+        roles.AddRange(GetRolesFromAttributesData(method.GetCustomAttributesData()));
         if (method.DeclaringType is not null)
         {
-            roles.AddRange(GetRolesFromAttributeData(method.DeclaringType.GetCustomAttributesData()));
+            roles.AddRange(GetRolesFromAttributesData(method.DeclaringType.GetCustomAttributesData()));
         }
 
         return roles.Distinct();
@@ -90,17 +90,17 @@ public static class MethodInfoExtensions
     /// <returns>Collection of role strings required.</returns>
     public static IEnumerable<string> GetRoles(this Type type)
     {
-        return GetRolesFromAttributeData(type.GetCustomAttributesData()).Distinct();
+        return GetRolesFromAttributesData(type.GetCustomAttributesData()).Distinct();
     }
 
-    static IEnumerable<string> GetRolesFromAttributeData(IEnumerable<CustomAttributeData> attributes)
+    static IEnumerable<string> GetRolesFromAttributesData(IEnumerable<CustomAttributeData> attributes)
     {
         foreach (var attr in attributes)
         {
-            var isAuthorize = attr.AttributeType.Name == "AuthorizeAttribute" ||
+            var isAuthorizeAttribute = attr.AttributeType.Name == "AuthorizeAttribute" ||
                               attr.AttributeType.BaseType?.Name == "AuthorizeAttribute";
 
-            if (!isAuthorize)
+            if (!isAuthorizeAttribute)
             {
                 continue;
             }
