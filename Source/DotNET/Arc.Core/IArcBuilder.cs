@@ -4,6 +4,7 @@
 using Cratis.Types;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc;
 
@@ -12,6 +13,11 @@ namespace Cratis.Arc;
 /// </summary>
 public interface IArcBuilder
 {
+    /// <summary>
+    /// Gets the <see cref="IHostApplicationBuilder"/> for the application.
+    /// </summary>
+    IHostApplicationBuilder AppBuilder { get; }
+
     /// <summary>
     /// Gets the service collection to which services can be added.
     /// </summary>

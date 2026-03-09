@@ -8,6 +8,7 @@ using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +17,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ReadModelServiceCollectionExtensions
 {
+    static bool _initialized;
+
     /// <summary>
     /// Adds read model auto-discovery and registration to the service collection.
     /// </summary>
@@ -24,6 +27,12 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>The service collection for continuation.</returns>
     public static IServiceCollection AddReadModels(this IServiceCollection services, IClientArtifactsProvider clientArtifactsProvider)
     {
+        if (_initialized)
+        {
+            return services;
+        }
+        _initialized = true;
+
         var readModelTypesFromProjections = clientArtifactsProvider.Projections
             .Select(projectionType =>
             {
@@ -42,7 +51,9 @@ public static class ReadModelServiceCollectionExtensions
             .ToArray();
         foreach (var readModelType in readModelTypes)
         {
-            services.AddTransient(readModelType, serviceProvider =>
+            var existing = services.Where(s => s.ServiceType == readModelType).ToList();
+            services.RemoveAll(readModelType);
+            services.AddScoped(readModelType, serviceProvider =>
             {
                 var commandContext = serviceProvider.GetRequiredService<CommandContext>();
                 var readModels = serviceProvider.GetRequiredService<IReadModels>();

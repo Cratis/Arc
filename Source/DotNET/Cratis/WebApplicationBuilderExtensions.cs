@@ -4,6 +4,7 @@
 using Cratis.Arc;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle.AspNetCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -33,15 +34,8 @@ public static class WebApplicationBuilderExtensions
             configureBuilder: arcBuilder =>
             {
                 configureArcBuilder?.Invoke(arcBuilder);
-                arcBuilder.WithChronicle();
+                arcBuilder.WithChronicle(configureArcChronicleOptions, configureChronicleBuilder);
             });
-        builder.AddCratisChronicle(
-            configureOptions: options =>
-            {
-                options.EventStoreNamespaceResolverType = typeof(TenantNamespaceResolver);
-                configureArcChronicleOptions?.Invoke(options);
-            },
-            configure: configureChronicleBuilder);
 
         return builder;
     }

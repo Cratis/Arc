@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle.AspNetCore;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc;
+namespace Microsoft.AspNetCore.Builder;
 
 /// <summary>
 /// Extension methods for <see cref="IArcBuilder"/> for adding Chronicle support.
