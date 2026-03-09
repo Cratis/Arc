@@ -47,7 +47,6 @@ public class and_file_already_exists_with_same_hash : Specification, IDisposable
 
             /* eslint-disable sort-imports */
             // eslint-disable-next-line header/header
-            import { field } from '@cratis/fundamentals';
 
             export class SimpleType {
             }

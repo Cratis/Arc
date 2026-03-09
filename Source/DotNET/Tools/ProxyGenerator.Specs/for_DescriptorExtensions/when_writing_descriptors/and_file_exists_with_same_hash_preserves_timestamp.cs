@@ -47,7 +47,6 @@ public class and_file_exists_with_same_hash_preserves_timestamp : Specification,
 
             /* eslint-disable sort-imports */
             // eslint-disable-next-line header/header
-            import { field } from '@cratis/fundamentals';
 
             export class TimestampTestType {
             }

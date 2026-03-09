@@ -109,8 +109,12 @@ public static class FileMetadataScanner
             return;
         }
 
-        var files = Directory.GetFiles(directory, "*.ts")
-            .Where(f => Path.GetFileName(f) != "index.ts")
+        var files = Directory.GetFiles(directory)
+            .Where(f =>
+            {
+                var ext = Path.GetExtension(f);
+                return (ext is ".ts" or ".tsx") && Path.GetFileName(f) != "index.ts";
+            })
             .ToList();
 
         var subdirectories = Directory.GetDirectories(directory);
