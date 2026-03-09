@@ -29,11 +29,19 @@ public static partial class IndexFileManager
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // If there are no generated files in this directory, remove the index if it exists
+        // If there are no generated files in this directory, check whether the
+        // existing index.ts has exports referencing files that still exist on disk
+        // (e.g. hand-written .tsx components). Only delete it when all of its
+        // exports are stale or the file has no exports at all.
         if (fileNames.Count == 0)
         {
             if (File.Exists(indexPath))
             {
+                if (HasLiveNonGeneratedExports(indexPath, directory))
+                {
+                    return false;
+                }
+
                 File.Delete(indexPath);
                 message($"    Deleted empty index: {GetRelativePath(outputPath, indexPath)}");
             }
@@ -235,6 +243,42 @@ public static partial class IndexFileManager
         }
 
         return (writtenCount, skippedCount);
+    }
+
+    /// <summary>
+    /// Checks whether an existing index.ts has at least one export whose target file
+    /// exists on disk but is not a proxy-generated file (e.g. hand-written .tsx components).
+    /// </summary>
+    /// <param name="indexPath">The path to the index.ts file to inspect.</param>
+    /// <param name="directory">The directory containing the index.ts file.</param>
+    static bool HasLiveNonGeneratedExports(string indexPath, string directory)
+    {
+        foreach (var line in File.ReadAllLines(indexPath))
+        {
+            var match = ExportRegex().Match(line);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            // Check common TypeScript extensions for the export target
+            foreach (var ext in (string[])[".ts", ".tsx"])
+            {
+                var filePath = Path.Combine(directory, $"{match.Groups["path"].Value.TrimStart('.', '/')}{ext}");
+                if (!File.Exists(filePath))
+                {
+                    continue;
+                }
+
+                // If the file is not proxy-generated, this is a live non-generated export
+                if (!GeneratedFileMetadata.IsGeneratedFile(filePath, out _))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
