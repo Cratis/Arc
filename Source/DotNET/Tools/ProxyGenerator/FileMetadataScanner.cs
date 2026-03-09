@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.ProxyGenerator.Templates;
-
 namespace Cratis.Arc.ProxyGenerator;
 
 /// <summary>
@@ -48,62 +46,6 @@ public static class FileMetadataScanner
         }
 
         return orphanedFiles;
-    }
-
-    /// <summary>
-    /// Finds files that are superseded by source file grouping.
-    /// When <c>UseSourceFileAsOutputFile</c> is enabled, descriptors that were previously written to
-    /// individual per-type files (e.g. <c>AllProspects.ts</c>) are now combined into a source-file-based
-    /// output (e.g. <c>Listing.ts</c>). The old individual files become stale and should be removed,
-    /// regardless of whether they carry the <c>@generated</c> marker.
-    /// </summary>
-    /// <param name="outputPath">The output directory.</param>
-    /// <param name="segmentsToSkip">Number of namespace segments to skip when computing output paths.</param>
-    /// <param name="allDescriptors">All descriptors that were generated in this run.</param>
-    /// <param name="sourceFileMap">Map of type full name to source C# file name.</param>
-    /// <param name="generatedFiles">Dictionary of currently generated files with their full paths.</param>
-    /// <returns>Collection of superseded file paths that should be removed.</returns>
-    public static IEnumerable<string> FindSupersededFiles(
-        string outputPath,
-        int segmentsToSkip,
-        IEnumerable<IDescriptor> allDescriptors,
-        IReadOnlyDictionary<string, string> sourceFileMap,
-        IDictionary<string, GeneratedFileMetadata> generatedFiles)
-    {
-        var superseded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var descriptor in allDescriptors)
-        {
-            var typeName = descriptor.Type.FullName;
-            if (typeName is null)
-            {
-                continue;
-            }
-
-            // Check if this type was redirected to a different file by the source file map
-            if (!sourceFileMap.TryGetValue(typeName, out var sourceFileName))
-            {
-                continue;
-            }
-
-            // If the source file name matches the descriptor name, no redirect happened
-            if (string.Equals(sourceFileName, descriptor.Name, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            // Compute the old per-type file path that would have been generated without source file grouping
-            var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
-            var individualFilePath = Path.GetFullPath(Path.Join(outputPath, path, $"{descriptor.Name}.ts"));
-
-            // If the individual file exists on disk and is not tracked as a current generated file, it's superseded
-            if (File.Exists(individualFilePath) && !generatedFiles.ContainsKey(individualFilePath))
-            {
-                superseded.Add(individualFilePath);
-            }
-        }
-
-        return superseded;
     }
 
     /// <summary>

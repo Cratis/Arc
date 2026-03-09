@@ -114,21 +114,6 @@ public static class Generator
         // Find and remove orphaned files
         var stopwatch = Stopwatch.StartNew();
         var orphanedFiles = FileMetadataScanner.FindOrphanedFiles(outputPath, generatedFiles);
-
-        // When using source file grouping, also find individual per-type files that are now
-        // combined into source-file-based outputs (e.g. AllProspects.ts → Listing.ts).
-        // These files may lack the @generated marker and would not be caught by FindOrphanedFiles.
-        if (useSourceFileAsOutputFile && sourceFileMap is not null)
-        {
-            var allDescriptors = commands.Cast<IDescriptor>()
-                .Concat(queries)
-                .Concat(typeDescriptors)
-                .Concat(enumDescriptors);
-
-            var supersededFiles = FileMetadataScanner.FindSupersededFiles(outputPath, segmentsToSkip, allDescriptors, sourceFileMap, generatedFiles);
-            orphanedFiles = orphanedFiles.Concat(supersededFiles).Distinct();
-        }
-
         var removedCount = FileMetadataScanner.RemoveOrphanedFiles(outputPath, orphanedFiles, message);
         if (removedCount > 0)
         {
