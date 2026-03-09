@@ -68,11 +68,18 @@ public static partial class IndexFileManager
             .Select(f => Path.GetFileNameWithoutExtension(f))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Check if we need to update: either new files were written OR orphans exist
+        // Check if we need to update: new files were written, orphans exist, or
+        // the existing index has exports pointing to files that no longer exist on disk.
         var anyWrittenInDirectory = generatedFiles.Any(kv => Path.GetDirectoryName(kv.Key) == directory && kv.Value.WasWritten);
         var hasOrphansInDirectory = orphanedFileNames.Count > 0;
+        var hasStaleExports = existingExports.Exists(e =>
+        {
+            var fileName = e.TrimStart('.', '/');
+            var filePath = Path.Combine(directory, $"{fileName}.ts");
+            return !File.Exists(filePath) && !generatedFiles.ContainsKey(Path.GetFullPath(filePath));
+        });
 
-        if (!anyWrittenInDirectory && !hasOrphansInDirectory)
+        if (!anyWrittenInDirectory && !hasOrphansInDirectory && !hasStaleExports)
         {
             return false;
         }
@@ -90,16 +97,26 @@ public static partial class IndexFileManager
             }
         }
 
-        // Start with existing exports (without orphans) as the base
+        // Start with existing exports, removing orphans and exports for files that
+        // no longer exist on disk (e.g. after source file grouping changes).
         var finalExports = new List<string>();
         foreach (var export in existingExports)
         {
             var fileName = export.TrimStart('.', '/');
 
-            // If this export is for an orphaned file, remove it
+            // Skip orphaned exports
             if (orphanedFileNames.Contains(fileName))
             {
-                continue; // Skip orphaned exports
+                continue;
+            }
+
+            // Skip exports whose target file no longer exists on disk and is not
+            // tracked as a current generated file (it may not have been written
+            // this run because the content was unchanged).
+            var filePath = Path.Combine(directory, $"{fileName}.ts");
+            if (!File.Exists(filePath) && !generatedFiles.ContainsKey(Path.GetFullPath(filePath)))
+            {
+                continue;
             }
 
             finalExports.Add(export);
@@ -173,7 +190,9 @@ public static partial class IndexFileManager
     }
 
     /// <summary>
-    /// Updates all index.ts files in directories that have generated content.
+    /// Updates all index.ts files in directories that have generated content, and also
+    /// scans for existing index files under the output path that may have stale exports
+    /// pointing to files that no longer exist on disk.
     /// </summary>
     /// <param name="directories">Collection of directories with generated content.</param>
     /// <param name="generatedFiles">Collection of all generated file paths.</param>
@@ -186,7 +205,23 @@ public static partial class IndexFileManager
         var writtenCount = 0;
         var skippedCount = 0;
 
-        foreach (var directory in directories)
+        // Combine explicitly tracked directories with any directory under outputPath
+        // that has an existing index.ts file, to catch stale exports from previous runs.
+        var allDirectories = new HashSet<string>(directories, StringComparer.Ordinal);
+
+        if (Directory.Exists(outputPath))
+        {
+            foreach (var indexFile in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories))
+            {
+                var dir = Path.GetDirectoryName(indexFile);
+                if (dir is not null)
+                {
+                    allDirectories.Add(dir);
+                }
+            }
+        }
+
+        foreach (var directory in allDirectories)
         {
             var wasWritten = UpdateIndexFile(directory, generatedFiles, orphanedFiles, message, outputPath);
             if (wasWritten)

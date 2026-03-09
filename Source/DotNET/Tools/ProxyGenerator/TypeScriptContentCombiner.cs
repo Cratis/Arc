@@ -65,6 +65,8 @@ public static partial class TypeScriptContentCombiner
             .Where(b => !string.IsNullOrEmpty(b))
             .ToList();
 
+        bodies = TopologicallySortBodies(bodies);
+
         var exportedTypes = CollectExportedTypeNames(bodies);
         var filteredImportLines = importLines
             .Where(line => !IsImportForExportedType(line, exportedTypes))
@@ -94,19 +96,22 @@ public static partial class TypeScriptContentCombiner
     {
         var lines = content.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
 
-        var exportStartIndex = lines.FindIndex(l => l.StartsWith("export ", StringComparison.Ordinal));
+        // Find the first line that is a code declaration (exported or non-exported class, interface, etc.)
+        var codeStartIndex = lines.FindIndex(l =>
+            l.StartsWith("export ", StringComparison.Ordinal) ||
+            l.StartsWith("class ", StringComparison.Ordinal));
 
-        if (exportStartIndex < 0)
+        if (codeStartIndex < 0)
         {
             return new ParsedContent(string.Empty, [], content);
         }
 
         var header = string.Join('\n', lines.Take(3));
 
-        // Walk backwards from the export to include any preceding JSDoc block in the body,
+        // Walk backwards from the code start to include any preceding JSDoc block in the body,
         // so that per-type documentation is not mixed into the shared preamble section.
-        var bodyStartIndex = exportStartIndex;
-        var checkIndex = exportStartIndex - 1;
+        var bodyStartIndex = codeStartIndex;
+        var checkIndex = codeStartIndex - 1;
 
         while (checkIndex >= 0 && string.IsNullOrWhiteSpace(lines[checkIndex]))
         {
@@ -187,6 +192,119 @@ public static partial class TypeScriptContentCombiner
 
     [GeneratedRegex(@"import\s+\{\s*(?<names>[^}]+)\s*\}\s+from\s+", RegexOptions.NonBacktracking)]
     private static partial Regex ImportedTypeRegex();
+
+    [GeneratedRegex(@"@field\(\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
+    private static partial Regex FieldDecoratorReferenceRegex();
+
+    /// <summary>
+    /// Topologically sorts body sections so that types referenced by <c>@field</c> decorators
+    /// in other bodies appear before the bodies that reference them. This prevents forward
+    /// reference errors at runtime since TypeScript classes are not hoisted.
+    /// </summary>
+    /// <param name="bodies">The body sections to sort.</param>
+    /// <returns>A topologically sorted list of body sections.</returns>
+    static List<string> TopologicallySortBodies(List<string> bodies)
+    {
+        if (bodies.Count <= 1)
+        {
+            return bodies;
+        }
+
+        var exportPattern = ExportDeclarationRegex();
+        var fieldPattern = FieldDecoratorReferenceRegex();
+        var builtInTypes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "String", "Number", "Boolean", "Date", "Object"
+        };
+
+        // Map each body to its exported type names and the custom types it references via @field.
+        var bodyExports = new List<HashSet<string>>();
+        var bodyDependencies = new List<HashSet<string>>();
+
+        foreach (var body in bodies)
+        {
+            var exports = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match match in exportPattern.Matches(body))
+            {
+                exports.Add(match.Groups["name"].Value);
+            }
+
+            var dependencies = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match match in fieldPattern.Matches(body))
+            {
+                var typeName = match.Groups["type"].Value;
+                if (!builtInTypes.Contains(typeName) && !exports.Contains(typeName))
+                {
+                    dependencies.Add(typeName);
+                }
+            }
+
+            bodyExports.Add(exports);
+            bodyDependencies.Add(dependencies);
+        }
+
+        // Build adjacency: body i depends on body j if j exports a type that i references.
+        var inDegree = new int[bodies.Count];
+        var dependents = new List<List<int>>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            dependents.Add([]);
+        }
+
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            foreach (var dep in bodyDependencies[i])
+            {
+                for (var j = 0; j < bodies.Count; j++)
+                {
+                    if (i != j && bodyExports[j].Contains(dep))
+                    {
+                        dependents[j].Add(i);
+                        inDegree[i]++;
+                    }
+                }
+            }
+        }
+
+        // Kahn's algorithm for topological sort.
+        var queue = new Queue<int>();
+        for (var i = 0; i < bodies.Count; i++)
+        {
+            if (inDegree[i] == 0)
+            {
+                queue.Enqueue(i);
+            }
+        }
+
+        var sorted = new List<string>(bodies.Count);
+        while (queue.Count > 0)
+        {
+            var index = queue.Dequeue();
+            sorted.Add(bodies[index]);
+            foreach (var dependent in dependents[index])
+            {
+                inDegree[dependent]--;
+                if (inDegree[dependent] == 0)
+                {
+                    queue.Enqueue(dependent);
+                }
+            }
+        }
+
+        // If there is a cycle, fall back to original order for any remaining bodies.
+        if (sorted.Count < bodies.Count)
+        {
+            for (var i = 0; i < bodies.Count; i++)
+            {
+                if (inDegree[i] > 0)
+                {
+                    sorted.Add(bodies[i]);
+                }
+            }
+        }
+
+        return sorted;
+    }
 
     sealed record ParsedContent(string Header, IReadOnlyList<string> PreambleLines, string Body);
 }
