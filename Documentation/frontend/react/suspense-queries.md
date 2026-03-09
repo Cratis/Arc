@@ -9,22 +9,97 @@ express their loading and error states without managing `isPerforming` or `hasEx
 
 Suspense-compatible hooks use React's throw-a-Promise protocol:
 
-1. The hook is called inside a component tree wrapped in `<Suspense>` and an `ErrorBoundary`.
+1. The hook is called inside a component tree wrapped in `<Suspense>` and a `QueryErrorBoundary`.
 2. While the query is in-flight the hook **throws a Promise**. React catches it, shows the `<Suspense>` `fallback`, and re-renders the component when the Promise resolves.
 3. On success the component renders normally, with the result already available.
-4. On failure the hook **throws an error** (`QueryFailed` or `QueryUnauthorized`). The nearest `ErrorBoundary` catches it and shows its fallback.
+4. On failure the hook **throws an error** (`QueryFailed` or `QueryUnauthorized`). The nearest `QueryErrorBoundary` catches it and shows its fallback.
 
 This means the component body contains only the **happy-path** rendering logic — loading and error handling are entirely declarative through the surrounding boundaries.
 
 ```tsx
-<ErrorBoundary fallback={<ErrorPanel />}>
+<QueryErrorBoundary onError={({ isQueryUnauthorized, reset }) =>
+    isQueryUnauthorized
+        ? <p>Not authorized. <button onClick={reset}>Retry</button></p>
+        : <p>Something went wrong. <button onClick={reset}>Retry</button></p>
+}>
     <Suspense fallback={<Spinner />}>
         <ItemList />  {/* suspends until data arrives */}
     </Suspense>
-</ErrorBoundary>
+</QueryErrorBoundary>
 ```
 
 > **Note**: Because these hooks suspend during loading, they **must** be rendered inside a `<Suspense>` boundary; otherwise React will throw an unhandled Promise to the root.
+
+## Boundary Components
+
+Arc ships two ready-to-use boundary components so you don't need to write your own class-based `ErrorBoundary`.
+
+### QueryErrorBoundary
+
+A class-based error boundary that catches `QueryFailed` and `QueryUnauthorized` thrown by the Suspense query hooks. Use it when you want to control the `<Suspense>` and `QueryErrorBoundary` separately.
+
+```tsx
+import { QueryErrorBoundary } from '@cratis/arc.react/queries';
+
+<QueryErrorBoundary
+    onError={({ error, isQueryFailed, isQueryUnauthorized, reset }) => (
+        <div>
+            <p>{isQueryUnauthorized ? 'Not authorized' : 'Server error'}</p>
+            {isQueryFailed && <p>{error.exceptionMessages.join(', ')}</p>}
+            <button onClick={reset}>Retry</button>
+        </div>
+    )}
+>
+    <Suspense fallback={<Spinner />}>
+        <ItemList />
+    </Suspense>
+</QueryErrorBoundary>
+```
+
+**Props:**
+
+| Prop | Type | Description |
+| ---- | ---- | ----------- |
+| `onError` | `(info: QueryErrorInfo) => ReactNode` | Called when an error is caught. Return the fallback UI. |
+| `fallback` | `ReactNode` | Static fallback to render when an error is caught. `onError` takes precedence if both are provided. |
+| `children` | `ReactNode` | The subtree to protect. |
+
+**`QueryErrorInfo`:**
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `error` | `Error` | The raw error that was caught. |
+| `isQueryFailed` | `boolean` | `true` when the error is a `QueryFailed`. |
+| `isQueryUnauthorized` | `boolean` | `true` when the error is a `QueryUnauthorized`. |
+| `reset()` | `() => void` | Resets the boundary so the child subtree is re-mounted. |
+
+### QueryBoundary
+
+A convenience wrapper that combines `<Suspense>` and `QueryErrorBoundary` in a single component. Use this for the common case where you want to handle both loading and error states together.
+
+```tsx
+import { QueryBoundary } from '@cratis/arc.react/queries';
+
+<QueryBoundary
+    loadingFallback={<Spinner />}
+    onError={({ isQueryUnauthorized, reset }) =>
+        isQueryUnauthorized
+            ? <p>Not authorized. <button onClick={reset}>Retry</button></p>
+            : <p>Something went wrong. <button onClick={reset}>Retry</button></p>
+    }
+>
+    <ItemList />
+</QueryBoundary>
+```
+
+**Props:**
+
+| Prop | Type | Description |
+| ---- | ---- | ----------- |
+| `loadingFallback` | `ReactNode` | Rendered by the inner `<Suspense>` while the query is loading. Defaults to `null`. |
+| `onError` | `(info: QueryErrorInfo) => ReactNode` | Called when an error is caught. Return the fallback UI. |
+| `fallback` | `ReactNode` | Static error fallback. `onError` takes precedence if both are provided. |
+| `children` | `ReactNode` | The subtree to protect. |
 
 ## Hooks
 
@@ -170,40 +245,11 @@ function LiveFeed() {
 
 ## Complete Example
 
-The following example shows a component tree with a `<Suspense>` spinner and an `ErrorBoundary` that surfaces `QueryFailed` details.
+The following example uses `QueryBoundary` — the simplest way to wrap a Suspense component in Arc.
 
 ```tsx
-import React, { Component } from 'react';
-import { QueryFailed, QueryUnauthorized } from '@cratis/arc.react/queries';
+import { QueryBoundary, QueryFailed } from '@cratis/arc.react/queries';
 import { AllItems } from './generated/queries';
-
-// Minimal class-based ErrorBoundary — or use a library like react-error-boundary
-class AppErrorBoundary extends Component<{ children: React.ReactNode }, { error: Error | null }> {
-    constructor(props) {
-        super(props);
-        this.state = { error: null };
-    }
-
-    static getDerivedStateFromError(error: Error) {
-        return { error };
-    }
-
-    render() {
-        const { error } = this.state;
-        if (error instanceof QueryUnauthorized) {
-            return <p>You are not authorized to view this data.</p>;
-        }
-        if (error instanceof QueryFailed) {
-            return (
-                <div>
-                    <p>Failed to load data:</p>
-                    <ul>{error.exceptionMessages.map((m, i) => <li key={i}>{m}</li>)}</ul>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
 
 function ItemList() {
     const [result, perform] = AllItems.useSuspense();
@@ -220,11 +266,27 @@ function ItemList() {
 
 export function App() {
     return (
-        <AppErrorBoundary>
-            <Suspense fallback={<p>Loading…</p>}>
-                <ItemList />
-            </Suspense>
-        </AppErrorBoundary>
+        <QueryBoundary
+            loadingFallback={<p>Loading…</p>}
+            onError={({ error, isQueryFailed, isQueryUnauthorized, reset }) => (
+                <div>
+                    {isQueryUnauthorized && <p>You are not authorized to view this data.</p>}
+                    {isQueryFailed && (
+                        <>
+                            <p>Failed to load data:</p>
+                            <ul>
+                                {(error as QueryFailed).exceptionMessages.map((m, i) => (
+                                    <li key={i}>{m}</li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+                    <button onClick={reset}>Retry</button>
+                </div>
+            )}
+        >
+            <ItemList />
+        </QueryBoundary>
     );
 }
 ```
@@ -234,10 +296,10 @@ export function App() {
 | Feature | `useQuery` / `useObservableQuery` | `useSuspenseQuery` / `useSuspenseObservableQuery` |
 | ------- | --------------------------------- | ------------------------------------------------- |
 | Loading state | `result.isPerforming === true` | Component suspends; `<Suspense fallback>` renders |
-| Error state | `result.hasExceptions === true` | Hook throws; `ErrorBoundary` catches |
-| Authorization failure | `result.isAuthorized === false` | Hook throws `QueryUnauthorized`; `ErrorBoundary` catches |
-| Requires `<Suspense>` boundary | No | **Yes** |
-| Requires `ErrorBoundary` | No (optional) | **Strongly recommended** |
+| Error state | `result.hasExceptions === true` | Hook throws; `QueryErrorBoundary` catches |
+| Authorization failure | `result.isAuthorized === false` | Hook throws `QueryUnauthorized`; `QueryErrorBoundary` catches |
+| Requires `<Suspense>` boundary | No | **Yes** (or use `QueryBoundary`) |
+| Requires error boundary | No (optional) | **Strongly recommended** (`QueryErrorBoundary` or `QueryBoundary`) |
 | Re-run trigger | `perform()` callback | `perform()` callback — clears cache, re-suspends |
 | Proxy static method | `.use()` | `.useSuspense()` |
 
@@ -255,3 +317,4 @@ afterEach(() => {
     clearSuspenseObservableQueryCache();
 });
 ```
+

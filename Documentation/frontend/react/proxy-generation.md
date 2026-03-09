@@ -100,7 +100,7 @@ The return type `QueryResultWithState<>` provides additional metadata about the 
 
 ### Suspense Hooks on Proxies
 
-Every generated query proxy also exposes `useSuspense()` and `useSuspenseWithPaging()` static methods. These forward to `useSuspenseQuery` / `useSuspenseObservableQuery` and are designed for use inside `<Suspense>` boundaries, where the component suspends while data loads and any server-side errors are propagated to the nearest `ErrorBoundary`.
+Every generated query proxy also exposes `useSuspense()` and `useSuspenseWithPaging()` static methods. These forward to `useSuspenseQuery` / `useSuspenseObservableQuery` and are designed for use inside `QueryBoundary` (or a `<Suspense>` + `QueryErrorBoundary` pair), where the component suspends while data loads and any server-side errors are propagated to the boundary.
 
 ```typescript
 import { AllAccounts } from './generated/queries';

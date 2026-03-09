@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { Component, ErrorInfo, ReactNode, useState } from 'react';
+import React, { useState } from 'react';
 import { Meta } from '@storybook/react';
 import { ObservableQueryFor, QueryResult, ObservableQuerySubscription } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
@@ -10,7 +10,7 @@ import {
     useSuspenseObservableQuery,
     clearSuspenseObservableQueryCache,
     QueryFailed,
-    QueryUnauthorized,
+    QueryErrorBoundary,
 } from '../../queries';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
 import { StoryContainer, StorySection, StoryBadge } from '../StoryContainer';
@@ -186,78 +186,6 @@ class FailingLogQuery extends ObservableQueryFor<LogEntry[]> {
 }
 
 // ---------------------------------------------------------------------------
-// ErrorBoundary
-// ---------------------------------------------------------------------------
-
-interface ErrorBoundaryState {
-    error: Error | null;
-}
-
-interface ErrorBoundaryProps {
-    children: ReactNode;
-    onReset?: () => void;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    constructor(props: ErrorBoundaryProps) {
-        super(props);
-        this.state = { error: null };
-    }
-
-    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-        return { error };
-    }
-
-    componentDidCatch(error: Error, info: ErrorInfo) {
-        console.error('[ErrorBoundary]', error, info);
-    }
-
-    handleReset = () => {
-        this.setState({ error: null });
-        this.props.onReset?.();
-    };
-
-    render() {
-        const { error } = this.state;
-        if (error) {
-            const isQueryFailed = error instanceof QueryFailed;
-            return (
-                <div
-                    style={{
-                        padding: '1.25rem',
-                        border: '1px solid var(--color-error)',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(239,68,68,0.08)',
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                        <StoryBadge variant="error">
-                            {error instanceof QueryUnauthorized ? 'QueryUnauthorized' : 'QueryFailed'}
-                        </StoryBadge>
-                        <strong style={{ color: 'var(--color-error)' }}>
-                            {error instanceof QueryUnauthorized
-                                ? 'Not authorized to run this query'
-                                : 'Query encountered a server error'}
-                        </strong>
-                    </div>
-                    {isQueryFailed && (
-                        <ul style={{ margin: '0 0 0.75rem 1.25rem', padding: 0, color: 'var(--color-text-secondary)' }}>
-                            {(error as QueryFailed).exceptionMessages.map((m, i) => (
-                                <li key={i}>{m}</li>
-                            ))}
-                        </ul>
-                    )}
-                    <button onClick={this.handleReset} style={{ marginTop: '0.5rem' }}>
-                        Retry
-                    </button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Presentational components
 // ---------------------------------------------------------------------------
 
@@ -397,7 +325,7 @@ export const Default = {
 };
 
 // ---------------------------------------------------------------------------
-// Story: observable exception — ErrorBoundary catches QueryFailed.
+// Story: observable exception — QueryErrorBoundary catches QueryFailed.
 // ---------------------------------------------------------------------------
 
 export const WithQueryFailed = {
@@ -418,16 +346,48 @@ export const WithQueryFailed = {
                         <p>
                             The first message from the observable carries <code>hasExceptions: true</code>.
                             The hook throws a <code>QueryFailed</code> error that is caught by the{' '}
-                            <code>ErrorBoundary</code> below.
+                            <code>QueryErrorBoundary</code> below.
                         </p>
                     </StorySection>
 
                     <StorySection>
-                        <ErrorBoundary key={key} onReset={handleReset}>
+                        <QueryErrorBoundary
+                            key={key}
+                            onError={({ error, isQueryFailed, reset }) => (
+                                <div
+                                    style={{
+                                        padding: '1.25rem',
+                                        border: '1px solid var(--color-error)',
+                                        borderRadius: 'var(--radius-md)',
+                                        background: 'rgba(239,68,68,0.08)',
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                        <StoryBadge variant="error">QueryFailed</StoryBadge>
+                                        <strong style={{ color: 'var(--color-error)' }}>
+                                            Query encountered a server error
+                                        </strong>
+                                    </div>
+                                    {isQueryFailed && (
+                                        <ul style={{ margin: '0 0 0.75rem 1.25rem', padding: 0, color: 'var(--color-text-secondary)' }}>
+                                            {(error as QueryFailed).exceptionMessages.map((m, i) => (
+                                                <li key={i}>{m}</li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    <button
+                                        style={{ marginTop: '0.5rem' }}
+                                        onClick={() => { reset(); handleReset(); }}
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
+                            )}
+                        >
                             <React.Suspense fallback={<LoadingSpinner />}>
                                 <FailingContent key={key} />
                             </React.Suspense>
-                        </ErrorBoundary>
+                        </QueryErrorBoundary>
                     </StorySection>
                 </StoryContainer>
             </ArcContext.Provider>

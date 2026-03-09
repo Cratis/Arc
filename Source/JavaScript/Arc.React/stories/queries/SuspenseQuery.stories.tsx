@@ -2,11 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { Component, ErrorInfo, ReactNode, useState } from 'react';
+import React, { useState } from 'react';
 import { Meta } from '@storybook/react';
 import { QueryFor, QueryResult } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
-import { useSuspenseQuery, clearSuspenseQueryCache, QueryFailed, QueryUnauthorized } from '../../queries';
+import { useSuspenseQuery, clearSuspenseQueryCache, QueryFailed, QueryErrorBoundary, QueryBoundary, QueryErrorInfo } from '../../queries';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
 import { StoryContainer, StorySection, StoryBadge } from '../StoryContainer';
 
@@ -46,7 +46,7 @@ class DelayedTodoQuery extends QueryFor<TodoItem[]> {
                 data: [
                     { id: '1', title: 'Learn React Suspense', completed: true },
                     { id: '2', title: 'Use useSuspenseQuery hook', completed: true },
-                    { id: '3', title: 'Add ErrorBoundary', completed: false },
+                    { id: '3', title: 'Add QueryBoundary', completed: true },
                 ] as unknown as object,
                 isSuccess: true,
                 isAuthorized: true,
@@ -137,83 +137,6 @@ class UnauthorizedTodoQuery extends QueryFor<TodoItem[]> {
 }
 
 // ---------------------------------------------------------------------------
-// ErrorBoundary — a minimal class-based component that catches thrown errors
-// from useSuspenseQuery and renders an error panel instead of crashing.
-// ---------------------------------------------------------------------------
-
-interface ErrorBoundaryState {
-    error: Error | null;
-}
-
-interface ErrorBoundaryProps {
-    children: ReactNode;
-    onReset?: () => void;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    constructor(props: ErrorBoundaryProps) {
-        super(props);
-        this.state = { error: null };
-    }
-
-    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-        return { error };
-    }
-
-    componentDidCatch(error: Error, info: ErrorInfo) {
-        console.error('[ErrorBoundary]', error, info);
-    }
-
-    handleReset = () => {
-        this.setState({ error: null });
-        this.props.onReset?.();
-    };
-
-    render() {
-        const { error } = this.state;
-        if (error) {
-            const isQueryFailed = error instanceof QueryFailed;
-            const isUnauthorized = error instanceof QueryUnauthorized;
-            return (
-                <div
-                    style={{
-                        padding: '1.25rem',
-                        border: '1px solid var(--color-error)',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(239,68,68,0.08)',
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                        <StoryBadge variant="error">
-                            {isUnauthorized ? 'QueryUnauthorized' : 'QueryFailed'}
-                        </StoryBadge>
-                        <strong style={{ color: 'var(--color-error)' }}>
-                            {isUnauthorized
-                                ? 'Not authorized to run this query'
-                                : 'Query encountered a server error'}
-                        </strong>
-                    </div>
-                    {isQueryFailed && (
-                        <ul style={{ margin: '0 0 0.75rem 1.25rem', padding: 0, color: 'var(--color-text-secondary)' }}>
-                            {(error as QueryFailed).exceptionMessages.map((m, i) => (
-                                <li key={i}>{m}</li>
-                            ))}
-                        </ul>
-                    )}
-                    <button
-                        style={{ marginTop: '0.5rem' }}
-                        onClick={this.handleReset}
-                    >
-                        Retry
-                    </button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Loading / content components
 // ---------------------------------------------------------------------------
 
@@ -288,6 +211,42 @@ const arcConfig: ArcConfiguration = {
 };
 
 // ---------------------------------------------------------------------------
+// Shared error fallback renderer used across stories
+// ---------------------------------------------------------------------------
+
+const renderErrorFallback = ({ error, isQueryFailed, isQueryUnauthorized, reset }: QueryErrorInfo) => (
+    <div
+        style={{
+            padding: '1.25rem',
+            border: '1px solid var(--color-error)',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239,68,68,0.08)',
+        }}
+    >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+            <StoryBadge variant="error">
+                {isQueryUnauthorized ? 'QueryUnauthorized' : 'QueryFailed'}
+            </StoryBadge>
+            <strong style={{ color: 'var(--color-error)' }}>
+                {isQueryUnauthorized
+                    ? 'Not authorized to run this query'
+                    : 'Query encountered a server error'}
+            </strong>
+        </div>
+        {isQueryFailed && (
+            <ul style={{ margin: '0 0 0.75rem 1.25rem', padding: 0, color: 'var(--color-text-secondary)' }}>
+                {(error as QueryFailed).exceptionMessages.map((m, i) => (
+                    <li key={i}>{m}</li>
+                ))}
+            </ul>
+        )}
+        <button style={{ marginTop: '0.5rem' }} onClick={reset}>
+            Retry
+        </button>
+    </div>
+);
+
+// ---------------------------------------------------------------------------
 // Storybook metadata
 // ---------------------------------------------------------------------------
 
@@ -298,7 +257,7 @@ const meta: Meta = {
             description: {
                 component:
                     'Showcases `useSuspenseQuery` — the Suspense-compatible variant of the query hook. ' +
-                    'Components suspend while the query is in-flight and errors are propagated to the nearest ErrorBoundary.',
+                    'Components suspend while the query is in-flight and errors are propagated to the nearest `QueryErrorBoundary`.',
             },
         },
     },
@@ -348,7 +307,7 @@ export const Default = {
 };
 
 // ---------------------------------------------------------------------------
-// Story: server exception — ErrorBoundary catches QueryFailed.
+// Story: server exception — QueryErrorBoundary catches QueryFailed.
 // ---------------------------------------------------------------------------
 
 export const WithQueryFailed = {
@@ -369,16 +328,19 @@ export const WithQueryFailed = {
                         <p>
                             The query returns <code>hasExceptions: true</code>. The hook throws a{' '}
                             <code>QueryFailed</code> error that is caught by the{' '}
-                            <code>ErrorBoundary</code> below.
+                            <code>QueryErrorBoundary</code> below.
                         </p>
                     </StorySection>
 
                     <StorySection>
-                        <ErrorBoundary key={key} onReset={handleReset}>
+                        <QueryErrorBoundary
+                            key={key}
+                            onError={info => renderErrorFallback({ ...info, reset: () => { info.reset(); handleReset(); } })}
+                        >
                             <React.Suspense fallback={<LoadingSpinner />}>
                                 <ErrorContent key={key} />
                             </React.Suspense>
-                        </ErrorBoundary>
+                        </QueryErrorBoundary>
                     </StorySection>
                 </StoryContainer>
             </ArcContext.Provider>
@@ -387,7 +349,7 @@ export const WithQueryFailed = {
 };
 
 // ---------------------------------------------------------------------------
-// Story: unauthorized — ErrorBoundary catches QueryUnauthorized.
+// Story: unauthorized — QueryErrorBoundary catches QueryUnauthorized.
 // ---------------------------------------------------------------------------
 
 export const WithUnauthorized = {
@@ -408,19 +370,69 @@ export const WithUnauthorized = {
                         <p>
                             The query returns <code>isAuthorized: false</code>. The hook throws a{' '}
                             <code>QueryUnauthorized</code> error that is caught by the{' '}
-                            <code>ErrorBoundary</code> below.
+                            <code>QueryErrorBoundary</code> below.
                         </p>
                     </StorySection>
 
                     <StorySection>
-                        <ErrorBoundary key={key} onReset={handleReset}>
+                        <QueryErrorBoundary
+                            key={key}
+                            onError={info => renderErrorFallback({ ...info, reset: () => { info.reset(); handleReset(); } })}
+                        >
                             <React.Suspense fallback={<LoadingSpinner />}>
                                 <UnauthorizedContent key={key} />
                             </React.Suspense>
-                        </ErrorBoundary>
+                        </QueryErrorBoundary>
                     </StorySection>
                 </StoryContainer>
             </ArcContext.Provider>
         );
     },
 };
+
+// ---------------------------------------------------------------------------
+// Story: QueryBoundary convenience component — combines Suspense + QueryErrorBoundary.
+// ---------------------------------------------------------------------------
+
+export const WithQueryBoundary = {
+    name: 'QueryBoundary (Combined)',
+    render: () => {
+        const [runKey, setRunKey] = useState(0);
+
+        const handleRerun = () => {
+            clearSuspenseQueryCache();
+            setRunKey(k => k + 1);
+        };
+
+        return (
+            <ArcContext.Provider value={arcConfig}>
+                <StoryContainer size="sm" asCard>
+                    <StorySection>
+                        <h2>Using QueryBoundary</h2>
+                        <p>
+                            <code>QueryBoundary</code> wraps <code>&lt;Suspense&gt;</code> and{' '}
+                            <code>QueryErrorBoundary</code> into a single component. Use{' '}
+                            <code>loadingFallback</code> for the loading state and{' '}
+                            <code>onError</code> for error handling.
+                        </p>
+                        <button onClick={handleRerun}>Re-run query</button>
+                    </StorySection>
+
+                    <StorySection>
+                        <QueryBoundary
+                            key={runKey}
+                            loadingFallback={<LoadingSpinner />}
+                            onError={info => renderErrorFallback({ ...info, reset: () => { info.reset(); handleRerun(); } })}
+                        >
+                            <TodoList
+                                key={runKey}
+                                onPerformReady={() => {}}
+                            />
+                        </QueryBoundary>
+                    </StorySection>
+                </StoryContainer>
+            </ArcContext.Provider>
+        );
+    },
+};
+
