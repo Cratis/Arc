@@ -41,7 +41,8 @@ public class when_generating_query_with_validation : Specification, IDisposable
             [],
             null,
             validationRules,
-            false);
+            false,
+            []);
     }
 
     void Because()

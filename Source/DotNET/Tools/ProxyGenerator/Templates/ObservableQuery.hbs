@@ -97,6 +97,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 {{/if}}
     readonly route: string = '{{{Route}}}';
     readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
+    readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
 {{#if IsEnumerable}}
     readonly defaultValue: {{{Model}}}[] = [];
     private readonly _sortBy: {{Name}}SortBy;

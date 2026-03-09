@@ -66,6 +66,56 @@ public static class MethodInfoExtensions
         return method.DeclaringType;
     }
 
+    /// <summary>
+    /// Get the roles required to execute a method, extracted from authorization attributes.
+    /// </summary>
+    /// <param name="method">Method to inspect.</param>
+    /// <returns>Collection of role strings required to execute the method.</returns>
+    public static IEnumerable<string> GetRoles(this MethodInfo method)
+    {
+        var roles = new List<string>();
+        roles.AddRange(GetRolesFromAttributeData(method.GetCustomAttributesData()));
+        if (method.DeclaringType is not null)
+        {
+            roles.AddRange(GetRolesFromAttributeData(method.DeclaringType.GetCustomAttributesData()));
+        }
+
+        return roles.Distinct();
+    }
+
+    /// <summary>
+    /// Get the roles required from a type, extracted from authorization attributes.
+    /// </summary>
+    /// <param name="type">Type to inspect.</param>
+    /// <returns>Collection of role strings required.</returns>
+    public static IEnumerable<string> GetRoles(this Type type)
+    {
+        return GetRolesFromAttributeData(type.GetCustomAttributesData()).Distinct();
+    }
+
+    static IEnumerable<string> GetRolesFromAttributeData(IEnumerable<CustomAttributeData> attributes)
+    {
+        foreach (var attr in attributes)
+        {
+            var isAuthorize = attr.AttributeType.Name == "AuthorizeAttribute" ||
+                              attr.AttributeType.BaseType?.Name == "AuthorizeAttribute";
+
+            if (!isAuthorize)
+            {
+                continue;
+            }
+
+            var rolesArg = attr.NamedArguments.FirstOrDefault(a => a.MemberName == "Roles");
+            if (rolesArg != default && rolesArg.TypedValue.Value is string rolesStr && !string.IsNullOrEmpty(rolesStr))
+            {
+                foreach (var role in rolesStr.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                {
+                    yield return role;
+                }
+            }
+        }
+    }
+
     static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type)
     {
         if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))

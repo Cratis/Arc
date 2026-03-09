@@ -48,6 +48,7 @@ describe('when field has non-nullable property', () => {
             getFieldError: () => undefined,
             customFieldErrors: {},
             isValid: true,
+            isAuthorized: true,
             // eslint-disable-next-line @typescript-eslint/no-empty-function
             setFieldValidity: () => {},
             showTitles: true,
