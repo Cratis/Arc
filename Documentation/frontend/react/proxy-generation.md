@@ -98,6 +98,27 @@ const MyComponent = () => {
 
 The return type `QueryResultWithState<>` provides additional metadata about the query state, including whether the query is currently executing (`isPerforming`), making it easy to implement loading indicators and error handling.
 
+### Suspense Hooks on Proxies
+
+Every generated query proxy also exposes `useSuspense()` and `useSuspenseWithPaging()` static methods. These forward to `useSuspenseQuery` / `useSuspenseObservableQuery` and are designed for use inside `<Suspense>` boundaries, where the component suspends while data loads and any server-side errors are propagated to the nearest `ErrorBoundary`.
+
+```typescript
+import { AllAccounts } from './generated/queries';
+
+function AccountList() {
+    // Component suspends until the query resolves
+    const [result, perform] = AllAccounts.useSuspense();
+
+    return (
+        <ul>
+            {result.data.map(account => <li key={account.id}>{account.name}</li>)}
+        </ul>
+    );
+}
+```
+
+See [Suspense Queries](./suspense-queries.md) for full documentation and error handling patterns.
+
 ### Observable Queries
 
 Observable queries provide real-time updates to your React components, typically using WebSockets for live data synchronization.
