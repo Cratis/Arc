@@ -9,8 +9,9 @@ namespace Chronicle;
 [Command]
 public record MyCommand(EventSourceId EventSourceId)
 {
-    public Task Handle(MyReadModel readModel)
+    public Task Handle(MyReadModel readModel, IServiceProvider serviceProvider)
     {
+        var rm = serviceProvider.GetRequiredService<MyReadModel>();
         return Task.CompletedTask;
     }
 }
