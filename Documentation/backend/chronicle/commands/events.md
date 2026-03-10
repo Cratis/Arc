@@ -1,10 +1,9 @@
-# Commands
+---
+uid: Arc.Chronicle.Commands.Events
+---
+# Events
 
-This content has moved. See [Commands](commands/index.md) for the full documentation.
-
-## Automatic Event Appending
-
-When a model-bound command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
+When a [model-bound](../../commands/model-bound/index.md) command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -49,7 +48,7 @@ public record CustomerDisplayNameChanged(EventSourceId CustomerId, string Displa
 public record CustomerEmailChanged(EventSourceId CustomerId, string Email);
 ```
 
-Chronicle uses the command context to resolve the event source identity, event stream metadata, and concurrency scope before appending events.
+Chronicle uses the command context to resolve the event source identity and event stream metadata before appending events.
 
 ## Event Source Id Resolution
 
@@ -57,9 +56,9 @@ Chronicle resolves the event source id for commands using a small set of convent
 
 Chronicle resolves the event source id in this order:
 
-- Implement `ICanProvideEventSourceId` on the command and return the id from `GetEventSourceId()`.
-- Add a property of type `EventSourceId` to the command.
-- Mark a property with `[Key]` and let Chronicle use its value as the event source id.
+1. Implement `ICanProvideEventSourceId` on the command and return the id from `GetEventSourceId()`.
+2. Add a property of type `EventSourceId` to the command.
+3. Mark a property with `[Key]` and let Chronicle use its value as the event source id.
 
 If none of these are present, Chronicle creates a new `EventSourceId` so the command still has a valid identity for event appends.
 
@@ -82,9 +81,9 @@ public record RenameAccount(EventSourceId AccountId, string NewName);
 public record CloseAccount([Key] Guid AccountId);
 ```
 
-## Event Stream Id and Event Source Type
+## Event Stream Metadata
 
-Chronicle supports additional metadata that can be attached to commands and then used when appending events.
+Chronicle supports additional metadata that can be attached to commands and used when appending events. This metadata tags the appended events with the specified stream identity, making them easier to query and react to.
 
 ### EventStreamId
 
@@ -107,7 +106,21 @@ public record UpdateCustomerPreferences(EventSourceId CustomerId, string Prefere
 }
 ```
 
-If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are used, Chronicle treats this as ambiguous. Choose one or set the attribute value to `null` to use the interface.
+If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are used, Chronicle treats this as ambiguous and throws an `AmbiguousEventStreamId` exception. Choose one approach, or set the attribute value to `null` to defer to the interface.
+
+### EventStreamType
+
+Use `[EventStreamType]` to categorize events under a named stream type. This is useful for grouping related streams, such as separating onboarding events from transaction events for the same event source.
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Chronicle.Events;
+
+[Command]
+[EventStreamType("Onboarding")]
+public record RegisterCustomer(EventSourceId CustomerId, string Email);
+```
 
 ### EventSourceType
 
@@ -123,32 +136,4 @@ using Cratis.Chronicle.Events;
 public record RegisterCustomer(EventSourceId CustomerId, string Email);
 ```
 
-## Concurrency Scope from Metadata
-
-Chronicle can build a concurrency scope based on command metadata so event appends can participate in optimistic concurrency checks. The scope is built from any of these attributes when their `concurrency` flag is set to `true`:
-
-- `EventStreamIdAttribute`
-- `EventStreamTypeAttribute`
-- `EventSourceTypeAttribute`
-
-This builds a [concurrency scope](xref:Chronicle.ConcurrencyScope) using the metadata values in the command context.
-
-```csharp
-using Cratis.Arc.Commands;
-using Cratis.Arc.Chronicle.Commands;
-using Cratis.Chronicle.Events;
-
-[Command]
-[EventStreamId("customer-profile", concurrency: true)]
-[EventSourceType("Customer", concurrency: true)]
-public record UpdateCustomerProfile(EventSourceId CustomerId, string DisplayName, string Email)
-{
-    public CustomerDisplayNameChanged Handle() => new(CustomerId, DisplayName);
-}
-
-[EventType]
-public record CustomerDisplayNameChanged(EventSourceId CustomerId, string DisplayName);
-```
-
-If no metadata has `concurrency: true`, Chronicle does not include a concurrency scope when appending events.
-
+These metadata attributes tag the appended events without affecting concurrency control. To additionally participate in [concurrency scoping](./concurrency.md), set `concurrency: true` on the attribute.
