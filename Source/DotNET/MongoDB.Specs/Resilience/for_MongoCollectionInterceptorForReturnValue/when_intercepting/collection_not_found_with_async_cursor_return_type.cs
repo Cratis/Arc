@@ -21,7 +21,7 @@ public class collection_not_found_with_async_cursor_return_type : Specification
         _interceptor = new(resiliencePipeline, _semaphore);
 
         _invocation = Substitute.For<Castle.DynamicProxy.IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.FindAsyncCollectionNotFound))!);
+        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.FindAsyncCollectionNotFound)));
         _target = new InvocationTargetWithCollectionNotFound();
         _invocation.InvocationTarget.Returns(_target);
         _invocation.When(_ => _.ReturnValue = Arg.Any<Task<IAsyncCursor<string>>>()).Do((_) => _returnValue = _.Arg<Task<IAsyncCursor<string>>>());

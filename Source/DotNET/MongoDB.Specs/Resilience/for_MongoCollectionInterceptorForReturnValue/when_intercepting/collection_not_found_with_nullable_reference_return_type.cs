@@ -19,7 +19,7 @@ public class collection_not_found_with_nullable_reference_return_type : Specific
         _interceptor = new(resiliencePipeline, _semaphore);
 
         _invocation = Substitute.For<Castle.DynamicProxy.IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.FindOneCollectionNotFound))!);
+        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.FindOneCollectionNotFound)));
         _target = new InvocationTargetWithCollectionNotFound();
         _invocation.InvocationTarget.Returns(_target);
         _invocation.When(_ => _.ReturnValue = Arg.Any<Task<string?>>()).Do((_) => _returnValue = _.Arg<Task<string?>>());

@@ -27,7 +27,7 @@ public abstract class an_interceptor : Specification
         _interceptor = new(_resiliencePipeline, _semaphore);
 
         _invocation = Substitute.For<Castle.DynamicProxy.IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTarget).GetMethod(GetInvocationTargetMethod())!);
+        _invocation.Method.Returns(typeof(InvocationTarget).GetMethod(GetInvocationTargetMethod()));
         _target = new();
         _invocation.InvocationTarget.Returns(_target);
         _invocation.When(_ => _.ReturnValue = Arg.Any<Task<string>>()).Do((_) => _returnValue = _.Arg<Task<string>>());
