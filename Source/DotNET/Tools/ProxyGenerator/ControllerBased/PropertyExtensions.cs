@@ -46,7 +46,7 @@ public static class PropertyExtensions
         var documentation = propertyInfo.GetDocumentation();
         return new RequestParameterDescriptor(
             propertyInfo.PropertyType,
-            propertyInfo.Name!,
+            propertyInfo.Name,
             type.Type,
             type.Constructor,
             optional,

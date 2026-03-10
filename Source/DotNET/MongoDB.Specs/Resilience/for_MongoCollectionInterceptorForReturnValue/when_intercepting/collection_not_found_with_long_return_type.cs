@@ -19,7 +19,7 @@ public class collection_not_found_with_long_return_type : Specification
         _interceptor = new(resiliencePipeline, _semaphore);
 
         _invocation = Substitute.For<Castle.DynamicProxy.IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.CountAsyncCollectionNotFound))!);
+        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.CountAsyncCollectionNotFound)));
         _target = new InvocationTargetWithCollectionNotFound();
         _invocation.InvocationTarget.Returns(_target);
         _invocation.When(_ => _.ReturnValue = Arg.Any<Task<long>>()).Do((_) => _returnValue = _.Arg<Task<long>>());

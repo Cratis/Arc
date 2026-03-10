@@ -17,7 +17,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 ```xml
 <PropertyGroup>
     <CratisProxiesSegmentsToSkip>1</CratisProxiesSegmentsToSkip>
-    <CratisProxiesSkipOutputDeletion>false</CratisProxiesSkipOutputDeletion>
+    <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
     <CratisProxiesSkipCommandNameInRoute>false</CratisProxiesSkipCommandNameInRoute>
     <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>
     <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
@@ -33,7 +33,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 |----------|---------|-------------|
 | `CratisProxiesOutputPath` | *(Required)* | The output directory for generated TypeScript files |
 | `CratisProxiesSegmentsToSkip` | `0` | Number of namespace segments to skip when creating the folder structure |
-| `CratisProxiesSkipOutputDeletion` | `false` | **When `false` (default), the entire output directory is deleted on every build.** Set to `true` to enable incremental generation. See [Output Deletion Behavior](#output-deletion-behavior) below. |
+| `CratisProxiesSkipOutputDeletion` | `true` | **When `true` (default), the generator uses incremental generation** — only changed files are updated and stale files are removed automatically. Set to `false` to force deletion of the entire output directory on every build. See [Output Deletion Behavior](#output-deletion-behavior) below. |
 | `CratisProxiesSkipCommandNameInRoute` | `false` | When `true`, excludes the command name from the generated route for command endpoints |
 | `CratisProxiesSkipQueryNameInRoute` | `false` | When `true`, excludes the query name from the generated route for query endpoints |
 | `CratisProxiesApiPrefix` | `api` | The API prefix used in generated routes |
@@ -43,32 +43,30 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 
 ## Output Deletion Behavior
 
-**Important**: By default (`CratisProxiesSkipOutputDeletion=false`), the proxy generator **deletes the entire output directory** before generating proxies on every build. This ensures a clean generation but means:
+By default (`CratisProxiesSkipOutputDeletion=true`), the proxy generator uses **incremental generation**:
 
-- All proxies are regenerated on every build
-- Any manual files in the output directory will be deleted
-- Build times may be longer as everything is recreated each time
+- Only files whose content has changed are written to disk — timestamps of unchanged files are preserved
+- [File index tracking](file-index-tracking.md) automatically removes orphaned files from renamed/deleted commands or queries
+- Build times are faster as only necessary files are regenerated
+- Generated proxies committed to the repository keep their original timestamps when another developer builds the solution
 
-This default behavior is ideal when:
-- Proxies are in a dedicated folder separate from other source files
-- You want guaranteed clean state with no stale files
-- Your project structure keeps generated code isolated from feature code
+This default is suitable for virtually all projects, including those that mix generated proxies with other source files.
 
-**To enable incremental generation**, set:
+**To force full regeneration** (deletes the entire output directory on every build), set:
 
 ```xml
 <PropertyGroup>
-    <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
+    <CratisProxiesSkipOutputDeletion>false</CratisProxiesSkipOutputDeletion>
 </PropertyGroup>
 ```
 
-When output deletion is skipped:
-- The generator only updates changed proxies
-- [File index tracking](file-index-tracking.md) automatically removes orphaned files from renamed/deleted commands or queries
-- Build times are faster as only necessary files are regenerated
-- You can safely mix generated proxies with other code in the same directory
+When output deletion is enabled:
+- All proxies are regenerated on every build
+- Any manual files in the output directory will be deleted
+- Build times may be longer as everything is recreated each time
+- Committed proxy files will always appear as modified after a build
 
-**Recommendation**: Use `CratisProxiesSkipOutputDeletion=true` when your proxies are intertwined with feature code in your frontend. Use the default `false` when proxies are in a dedicated output folder.
+**Recommendation**: Keep the default `true` for incremental generation. Only set to `false` if you specifically need a guaranteed clean state and understand that all proxy timestamps will be updated on every build.
 
 ## Namespace Segment Skipping
 

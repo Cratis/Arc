@@ -38,6 +38,6 @@ public static class RequestExtensions
             .GetRequiredService<IOptions<ArcOptions>>()
             .Value
             .JsonSerializerOptions;
-        return JsonSerializer.Deserialize<ClientPrincipal>(token, jsonSerializerOptions)!;
+        return JsonSerializer.Deserialize<ClientPrincipal>(token, jsonSerializerOptions);
     }
 }

@@ -336,7 +336,7 @@ public static class TypeExtensions
             }
         }
 
-        imports.AddRange(typesInvolved.GetImports(targetPath, type!.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+        imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
         imports = [.. imports
                     .DistinctBy(_ => _.Type)
                     .Where(_ => propertyDescriptors.Exists(pd => pd.Type == _.Type) && _.OriginalType != type)];
@@ -372,18 +372,18 @@ public static class TypeExtensions
         var isSubject = type.IsSubject();
         if (isSubject)
         {
-            type = type.GetSubjectElementType()!;
+            type = type.GetSubjectElementType();
         }
         var isAsyncEnumerable = type.IsAsyncEnumerable();
         if (isAsyncEnumerable)
         {
-            type = type.GetAsyncEnumerableElementType()!;
+            type = type.GetAsyncEnumerableElementType();
         }
 
         var isEnumerable = type.IsEnumerable();
         if (isEnumerable)
         {
-            type = type.GetEnumerableElementType()!;
+            type = type.GetEnumerableElementType();
         }
 
         var targetType = type.GetTargetType();

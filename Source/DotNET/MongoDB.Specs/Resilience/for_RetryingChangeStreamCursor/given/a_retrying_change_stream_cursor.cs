@@ -20,7 +20,7 @@ public class a_retrying_change_stream_cursor : Specification
         _target = new InvocationTargetWithChangeStreamCursor(failCount: 2, successCursor: _actualCursor);
 
         _invocation = Substitute.For<IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTargetWithChangeStreamCursor).GetMethod(nameof(InvocationTargetWithChangeStreamCursor.WatchAsyncCollectionNotFound))!);
+        _invocation.Method.Returns(typeof(InvocationTargetWithChangeStreamCursor).GetMethod(nameof(InvocationTargetWithChangeStreamCursor.WatchAsyncCollectionNotFound)));
         _invocation.InvocationTarget.Returns(_target);
         _invocation.Arguments.Returns([]);
 

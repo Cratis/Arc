@@ -22,7 +22,7 @@ public class collection_not_found_with_change_stream_cursor_return_type : Specif
 
         _target = new InvocationTargetWithChangeStreamCursor(failCount: 1);
         _invocation = Substitute.For<Castle.DynamicProxy.IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTargetWithChangeStreamCursor).GetMethod(nameof(InvocationTargetWithChangeStreamCursor.WatchAsyncCollectionNotFound))!);
+        _invocation.Method.Returns(typeof(InvocationTargetWithChangeStreamCursor).GetMethod(nameof(InvocationTargetWithChangeStreamCursor.WatchAsyncCollectionNotFound)));
         _invocation.InvocationTarget.Returns(_target);
         _invocation.Arguments.Returns([]);
         _invocation.When(_ => _.ReturnValue = Arg.Any<Task<IChangeStreamCursor<string>>>()).Do((_) => _returnValue = _.Arg<Task<IChangeStreamCursor<string>>>());

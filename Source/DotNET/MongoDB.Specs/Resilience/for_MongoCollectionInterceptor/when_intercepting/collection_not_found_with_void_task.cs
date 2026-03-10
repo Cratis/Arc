@@ -19,7 +19,7 @@ public class collection_not_found_with_void_task : Specification
         _interceptor = new(resiliencePipeline, _semaphore);
 
         _invocation = Substitute.For<Castle.DynamicProxy.IInvocation>();
-        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.DeleteAsyncCollectionNotFound))!);
+        _invocation.Method.Returns(typeof(InvocationTargetWithCollectionNotFound).GetMethod(nameof(InvocationTargetWithCollectionNotFound.DeleteAsyncCollectionNotFound)));
         _target = new InvocationTargetWithCollectionNotFound();
         _invocation.InvocationTarget.Returns(_target);
         _invocation.When(_ => _.ReturnValue = Arg.Any<Task>()).Do((_) => _returnValue = _.Arg<Task>());
