@@ -51,7 +51,6 @@ public static class ReadModelServiceCollectionExtensions
             .ToArray();
         foreach (var readModelType in readModelTypes)
         {
-            var existing = services.Where(s => s.ServiceType == readModelType).ToList();
             services.RemoveAll(readModelType);
             services.AddScoped(readModelType, serviceProvider =>
             {
