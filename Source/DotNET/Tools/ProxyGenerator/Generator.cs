@@ -34,7 +34,7 @@ public static class Generator
         int segmentsToSkip,
         Action<string> message,
         Action<string> errorMessage,
-        bool skipOutputDeletion = false,
+        bool skipOutputDeletion = true,
         bool skipCommandNameInRoute = false,
         bool skipQueryNameInRoute = false,
         string apiPrefix = "api",

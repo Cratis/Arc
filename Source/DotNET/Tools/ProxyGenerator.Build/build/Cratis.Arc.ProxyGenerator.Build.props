@@ -3,7 +3,7 @@
         <CratisProxiesInputAssembly></CratisProxiesInputAssembly>
         <CratisProxiesOutputPath></CratisProxiesOutputPath>
         <CratisProxiesSegmentsToSkip></CratisProxiesSegmentsToSkip>
-        <CratisProxiesSkipOutputDeletion>false</CratisProxiesSkipOutputDeletion>
+        <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
         <CratisProxiesSkipCommandNameInRoute>false</CratisProxiesSkipCommandNameInRoute>
         <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>
         <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
