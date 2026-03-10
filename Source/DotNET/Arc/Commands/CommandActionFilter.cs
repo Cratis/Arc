@@ -11,13 +11,19 @@ namespace Cratis.Arc.Commands;
 /// <summary>
 /// Represents a <see cref="IAsyncActionFilter"/> for providing a proper <see cref="CommandResult{T}"/> for post actions.
 /// </summary>
-public class CommandActionFilter : IAsyncActionFilter
+/// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
+/// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
+public class CommandActionFilter(
+    ICommandContextModifier contextModifier,
+    ICommandContextValuesBuilder contextValuesBuilder) : IAsyncActionFilter
 {
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         if (context.HttpContext.Request.Method == HttpMethod.Post.Method)
         {
+            EstablishCommandContext(context);
+
             var exceptionMessages = new List<string>();
             var exceptionStackTrace = string.Empty;
             ActionExecutedContext? result = null;
@@ -116,6 +122,36 @@ public class CommandActionFilter : IAsyncActionFilter
         }
 
         return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
+    }
+
+    void EstablishCommandContext(ActionExecutingContext context)
+    {
+        var bodyParam = context.ActionDescriptor.Parameters
+            .FirstOrDefault(p => p.BindingInfo?.BindingSource == BindingSource.Body);
+
+        object command;
+        Type commandType;
+
+        if (bodyParam is not null && context.ActionArguments.TryGetValue(bodyParam.Name, out var commandObj) && commandObj is not null)
+        {
+            command = commandObj;
+            commandType = commandObj.GetType();
+        }
+        else
+        {
+            command = new object();
+            commandType = typeof(object);
+        }
+
+        var values = contextValuesBuilder.Build(command);
+        var commandContext = new CommandContext(
+            context.HttpContext.GetCorrelationId(),
+            commandType,
+            command,
+            [],
+            values);
+
+        contextModifier.SetCurrent(commandContext);
     }
 
     void AddAdditionalValidationResultsAfterActionExecute(ActionExecutingContext context, List<ValidationResult> validationResult, IEnumerable<ModelError> errorsBefore)

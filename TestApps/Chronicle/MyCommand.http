@@ -1,0 +1,6 @@
+POST http://localhost:5001/api/my-command
+Content-Type: application/json
+
+{
+    "eventSourceId": "Something"
+}

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -29,7 +30,31 @@ public static class WebApplicationBuilderExtensions
         Action<IArcBuilder>? configureBuilder = default,
         string? configSectionPath = default)
     {
-        builder.Host.AddCratisArc(configureOptions, configureBuilder, configSectionPath);
+        var configSection = configSectionPath ?? ConfigurationPath.Combine(Cratis.Arc.HostBuilderExtensions.DefaultSectionPaths);
+        builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
+
+        builder.Services.AddOptions<ArcOptions>()
+            .ValidateOnStart();
+
+        if (configureOptions is not null)
+        {
+            builder.Services.PostConfigure(configureOptions);
+        }
+
+        builder.Services.AddCratisArcCore();
+        builder.Services.AddIdentityProvider();
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddControllersFromProjectReferencedAssembles(Internals.Types);
+
+        builder.Host.UseDefaultServiceProvider(_ => _.ValidateOnBuild = false);
+        builder.AddCorrelationIdLogEnricher();
+
+        if (configureBuilder is not null)
+        {
+            var arcBuilder = new ArcBuilder(builder, Internals.Types);
+            configureBuilder.Invoke(arcBuilder);
+        }
+
         return builder;
     }
 }

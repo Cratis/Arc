@@ -4,6 +4,7 @@
 using Cratis.Arc;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle.AspNetCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -18,14 +19,14 @@ public static class WebApplicationBuilderExtensions
     /// <param name="builder"><see cref="WebApplicationBuilder"/> to extend.</param>
     /// <param name="configureArcOptions">An optional action to configure <see cref="ArcOptions"/>.</param>
     /// <param name="configureArcBuilder">An optional action to configure the <see cref="ArcBuilder"/>.</param>
-    /// <param name="configureArcChronicleOptions">An optional action to configure <see cref="ChronicleAspNetCoreOptions"/>.</param>
+    /// <param name="configureChronicleOptions">An optional action to configure <see cref="ChronicleAspNetCoreOptions"/>.</param>
     /// <param name="configureChronicleBuilder">An optional action to configure the <see cref="ChronicleBuilder"/>.</param>
     /// <returns><see cref="WebApplicationBuilder"/> for building continuation.</returns>
     public static WebApplicationBuilder AddCratis(
         this WebApplicationBuilder builder,
         Action<ArcOptions>? configureArcOptions = default,
         Action<IArcBuilder>? configureArcBuilder = default,
-        Action<ChronicleAspNetCoreOptions>? configureArcChronicleOptions = default,
+        Action<ChronicleAspNetCoreOptions>? configureChronicleOptions = default,
         Action<IChronicleBuilder>? configureChronicleBuilder = default)
     {
         builder.AddCratisArc(
@@ -33,15 +34,8 @@ public static class WebApplicationBuilderExtensions
             configureBuilder: arcBuilder =>
             {
                 configureArcBuilder?.Invoke(arcBuilder);
-                arcBuilder.WithChronicle();
+                arcBuilder.WithChronicle(configureChronicleOptions, configureChronicleBuilder);
             });
-        builder.AddCratisChronicle(
-            configureOptions: options =>
-            {
-                options.EventStoreNamespaceResolverType = typeof(TenantNamespaceResolver);
-                configureArcChronicleOptions?.Invoke(options);
-            },
-            configure: configureChronicleBuilder);
 
         return builder;
     }

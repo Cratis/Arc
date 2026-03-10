@@ -32,5 +32,6 @@
     <Folder Name="/TestApps/">
         <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />
         <Project Path="TestApps\Core\Core.csproj" />
+        <Project Path="TestApps\Chronicle\Chronicle.csproj" />
     </Folder>
 </Solution>

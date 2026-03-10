@@ -1,7 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Types;
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Commands;
+using Cratis.Chronicle;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.Projections;
+using Cratis.Chronicle.ReadModels;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -10,15 +17,22 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ReadModelServiceCollectionExtensions
 {
+    static bool _initialized;
+
     /// <summary>
     /// Adds read model auto-discovery and registration to the service collection.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> to add to.</param>
-    /// <param name="types">The <see cref="ITypes"/> for type discovery.</param>
+    /// <param name="clientArtifactsProvider">The <see cref="IClientArtifactsProvider"/> for client artifacts.</param>
     /// <returns>The service collection for continuation.</returns>
-    public static IServiceCollection AddReadModels(this IServiceCollection services, ITypes types)
+    public static IServiceCollection AddReadModels(this IServiceCollection services, IClientArtifactsProvider clientArtifactsProvider)
     {
-#if false
+        if (_initialized)
+        {
+            return services;
+        }
+        _initialized = true;
+
         var readModelTypesFromProjections = clientArtifactsProvider.Projections
             .Select(projectionType =>
             {
@@ -37,10 +51,11 @@ public static class ReadModelServiceCollectionExtensions
             .ToArray();
         foreach (var readModelType in readModelTypes)
         {
-            services.AddTransient(readModelType, serviceProvider =>
+            services.RemoveAll(readModelType);
+            services.AddScoped(readModelType, serviceProvider =>
             {
                 var commandContext = serviceProvider.GetRequiredService<CommandContext>();
-                var projections = serviceProvider.GetRequiredService<IProjections>();
+                var readModels = serviceProvider.GetRequiredService<IReadModels>();
 
                 var eventSourceId = commandContext.GetEventSourceId();
                 if (eventSourceId == EventSourceId.Unspecified)
@@ -48,11 +63,10 @@ public static class ReadModelServiceCollectionExtensions
                     throw new UnableToResolveReadModelFromCommandContext(readModelType);
                 }
 
-                var result = projections.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
-                return result.ReadModel;
+                return readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
             });
         }
-#endif
+
         return services;
     }
 }

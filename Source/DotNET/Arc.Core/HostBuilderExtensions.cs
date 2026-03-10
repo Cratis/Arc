@@ -55,8 +55,12 @@ public static class HostBuilderExtensions
             services.AddCratisArcCore();
             services.AddIdentityProvider();
 
-            var arcBuilder = new ArcBuilder(services, Internals.Types);
-            configureBuilder?.Invoke(arcBuilder);
+            if (configureBuilder is not null)
+            {
+                throw new NotSupportedException(
+                    "The IHostBuilder path does not support configureBuilder because IHostApplicationBuilder is not available. " +
+                    "Use WebApplicationBuilder.AddCratisArc() or ArcApplicationBuilder.AddCratisArc() instead.");
+            }
         });
 
         return builder;

@@ -7,6 +7,7 @@ using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Reflection;
 using Cratis.Types;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -25,7 +26,8 @@ public static class AggregateRootServiceCollectionExtensions
     {
         foreach (var aggregateRootType in types.All.Where(_ => _.HasInterface<IAggregateRoot>()).ToArray())
         {
-            services.AddTransient(aggregateRootType, serviceProvider =>
+            services.RemoveAll(aggregateRootType);
+            services.AddScoped(aggregateRootType, serviceProvider =>
             {
                 var commandContext = serviceProvider.GetRequiredService<CommandContext>();
                 var aggregateRootFactory = serviceProvider.GetRequiredService<IAggregateRootFactory>();
