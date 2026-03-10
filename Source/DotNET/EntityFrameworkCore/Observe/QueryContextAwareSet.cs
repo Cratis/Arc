@@ -17,11 +17,11 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
 {
     readonly IEqualityComparer _idEqualityComparer;
     readonly Func<TEntity, object> _getId;
-    LinkedList<(object Id, TEntity Entity)> _items = null!;
+    LinkedList<(object Id, TEntity Entity)> _items = new();
     QueryContext? _queryContext;
     int? _maxSize;
     Func<TEntity, object?> _getSortingField = _ => null;
-    IComparer _sortingFieldComparer = null!;
+    IComparer _sortingFieldComparer = Comparer<object>.Default;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QueryContextAwareSet{TEntity}"/> class.

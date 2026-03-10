@@ -30,7 +30,7 @@ public class ServiceBrokerManager(ILogger<ServiceBrokerManager> logger) : IServi
             string databaseKey;
             await using (var dbNameCommand = new SqlCommand("SELECT @@SERVERNAME + '|' + DB_NAME()", connection))
             {
-                databaseKey = (string)(await dbNameCommand.ExecuteScalarAsync(cancellationToken))!;
+                databaseKey = (string)await dbNameCommand.ExecuteScalarAsync(cancellationToken);
             }
 
             // Check if Service Broker is enabled
@@ -77,7 +77,7 @@ public class ServiceBrokerManager(ILogger<ServiceBrokerManager> logger) : IServi
         {
             // Get the database name
             await using var dbNameCommand = new SqlCommand("SELECT DB_NAME()", connection);
-            var dbName = (string)(await dbNameCommand.ExecuteScalarAsync(cancellationToken))!;
+            var dbName = (string)await dbNameCommand.ExecuteScalarAsync(cancellationToken);
 
             // Try to enable Service Broker - database name comes from DB_NAME() system function
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
