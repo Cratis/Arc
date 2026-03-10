@@ -13,9 +13,7 @@ builder.AddCratis(
         options.GeneratedApis.IncludeCommandNameInRoute = true;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
     },
-    configureChronicleBuilder: chronicleBuilder =>
-    {
-    });
+    configureChronicleOptions: chronicleOptions => chronicleOptions.EventStore = "ArcChronicleTestApp");
 
 var services = builder.Services.Where(s => s.ServiceType == typeof(MyReadModel)).ToList();
 
