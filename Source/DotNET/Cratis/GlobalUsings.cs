@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #pragma warning disable IDE0005 // Using directive is unnecessary.
+#pragma warning disable SA1200 // Using directives should be placed correctly
+
 global using Cratis.Arc;
 global using Cratis.Arc.Authentication;
 global using Cratis.Arc.Authorization;
