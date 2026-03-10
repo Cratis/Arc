@@ -3,7 +3,6 @@
 
 using Cratis.Arc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -31,7 +30,7 @@ public static class WebApplicationBuilderExtensions
         Action<IArcBuilder>? configureBuilder = default,
         string? configSectionPath = default)
     {
-        var configSection = configSectionPath ?? ConfigurationPath.Combine(Arc.HostBuilderExtensions.DefaultSectionPaths);
+        var configSection = configSectionPath ?? ConfigurationPath.Combine(Cratis.Arc.HostBuilderExtensions.DefaultSectionPaths);
         builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
 
         builder.Services.AddOptions<ArcOptions>()
