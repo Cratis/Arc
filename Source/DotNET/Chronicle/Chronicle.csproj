@@ -11,6 +11,7 @@
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="System.Collections.Immutable" />
         <PackageReference Include="Cratis.Chronicle" />
     </ItemGroup>
 

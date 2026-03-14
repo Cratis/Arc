@@ -181,7 +181,8 @@ class FailingLogQuery extends ObservableQueryFor<LogEntry[]> {
             );
         }, 1000);
 
-        return { unsubscribe: () => {} } as unknown as ObservableQuerySubscription<LogEntry[]>;
+        return { // eslint-disable-next-line @typescript-eslint/no-empty-function
+            unsubscribe: () => {} } as unknown as ObservableQuerySubscription<LogEntry[]>;
     }
 }
 

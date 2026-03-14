@@ -24,7 +24,7 @@ describe('when waiting for first data', () => {
 
     it('should initially show suspense fallback before first data arrives', () => {
         const TestComponent = () => {
-            const [result] = useSuspenseObservableQuery(FakeSuspenseObservableQuery);
+            useSuspenseObservableQuery(FakeSuspenseObservableQuery);
             return React.createElement('div', { 'data-testid': 'content' }, 'loaded');
         };
 

@@ -272,6 +272,7 @@ export default meta;
 export const Default = {
     name: 'Happy Path',
     render: () => {
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const performRef = React.useRef<() => Promise<void>>(async () => {});
         const [runKey, setRunKey] = useState(0);
 
@@ -426,6 +427,7 @@ export const WithQueryBoundary = {
                         >
                             <TodoList
                                 key={runKey}
+                                // eslint-disable-next-line @typescript-eslint/no-empty-function
                                 onPerformReady={() => {}}
                             />
                         </QueryBoundary>
