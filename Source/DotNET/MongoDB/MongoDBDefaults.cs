@@ -67,7 +67,23 @@ public static class MongoDBDefaults
             RegisterConventionAsPack(conventionPackFilters, NamingPolicyNameConvention.ConventionName, new NamingPolicyNameConvention());
             RegisterConventionAsPack(conventionPackFilters, ConventionPacks.IgnoreExtraElements, new IgnoreExtraElementsConvention(true));
 
+            RegisterDerivedTypeDiscriminatorConventions();
             RegisterClassMaps(builder);
+        }
+    }
+
+    static void RegisterDerivedTypeDiscriminatorConventions()
+    {
+        var derivedTypes = Internals.DerivedTypesOrDefault;
+        if (derivedTypes is null)
+        {
+            return;
+        }
+
+        var convention = new DerivedTypeDiscriminatorConvention(derivedTypes);
+        foreach (var type in derivedTypes.TypesWithDerivatives)
+        {
+            BsonSerializer.RegisterDiscriminatorConvention(type, convention);
         }
     }
 
