@@ -21,6 +21,11 @@ export interface ICommand<TCommandContent = object, TCommandResponse = object> e
     readonly route: string;
 
     /**
+     * Gets the roles required to execute the command. An empty array means no specific roles are required.
+     */
+    readonly roles: string[];
+
+    /**
      * Gets the property descriptors for the command.
      */
     readonly propertyDescriptors: PropertyDescriptor[];

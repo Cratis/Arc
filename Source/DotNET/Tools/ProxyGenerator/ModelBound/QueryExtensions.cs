@@ -179,6 +179,9 @@ public static class QueryExtensions
         var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
                                      readModelType.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute");
 
+        // Extract roles from authorization attributes on the method and its declaring type (read model)
+        var roles = method.GetRoles().ToArray();
+
         return new(
             readModelType,
             method,
@@ -195,7 +198,8 @@ public static class QueryExtensions
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
             validationRules.OrderBy(_ => _.PropertyName),
-            treatWarningsAsErrors);
+            treatWarningsAsErrors,
+            roles);
     }
 
     /// <summary>

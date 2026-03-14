@@ -6,7 +6,7 @@ using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration;
 
-public class when_generating_command_proxy : Specification, IDisposable
+public class when_generating_command_with_roles : Specification, IDisposable
 {
     JavaScriptRuntime _runtime = null!;
     string _generatedCode = null!;
@@ -36,7 +36,7 @@ public class when_generating_command_proxy : Specification, IDisposable
             null,
             [],
             false,
-            []);
+            ["Admin", "Manager"]);
     }
 
     void Because()
@@ -55,10 +55,9 @@ public class when_generating_command_proxy : Specification, IDisposable
     }
 
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeEmpty();
-    [Fact] void should_contain_class_name() => _generatedCode.ShouldContain("class SimpleCommand");
-    [Fact] void should_contain_route() => _generatedCode.ShouldContain("/api/commands/simple-command");
-    [Fact] void should_contain_name_property() => _generatedCode.ShouldContain("name");
-    [Fact] void should_contain_value_property() => _generatedCode.ShouldContain("value");
+    [Fact] void should_contain_roles_property() => _generatedCode.ShouldContain("readonly roles: string[]");
+    [Fact] void should_contain_admin_role() => _generatedCode.ShouldContain("'Admin'");
+    [Fact] void should_contain_manager_role() => _generatedCode.ShouldContain("'Manager'");
     [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
 
     public void Dispose()

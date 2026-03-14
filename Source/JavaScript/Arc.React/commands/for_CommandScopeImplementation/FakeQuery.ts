@@ -9,6 +9,7 @@ import { ParameterDescriptor } from '@cratis/arc/reflection';
 
 export class FakeQuery implements IQueryFor<any, any> {
     route = '';
+    roles: string[] = [];
     requiredRequestParameters: string[] = [];
     defaultValue: any = null;
     parameterDescriptors: ParameterDescriptor[] = [];

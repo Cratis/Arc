@@ -29,6 +29,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
     /* eslint-disable @typescript-eslint/no-explicit-any */
     readonly validation?: QueryValidator<any>;
     /* eslint-enable @typescript-eslint/no-explicit-any */
+    readonly roles: string[] = [];
     abstract readonly parameterDescriptors: ParameterDescriptor[];
     abstract get requiredRequestParameters(): string[];
     abstract defaultValue: TDataType;
