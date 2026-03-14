@@ -30,6 +30,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     /* eslint-disable @typescript-eslint/no-explicit-any */
     readonly validation?: CommandValidator<any>;
     /* eslint-enable @typescript-eslint/no-explicit-any */
+    readonly roles: string[] = [];
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
 

@@ -9,6 +9,7 @@ import { PropertyDescriptor } from '@cratis/arc/reflection';
 
 export class FakeCommand implements ICommand {
     route = '';
+    roles: string[] = [];
     propertyDescriptors: PropertyDescriptor[] = [];
     private _hasChanges: boolean;
 
