@@ -30,7 +30,7 @@
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="MongoDB.Driver" Version="3.7.0" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageVersion Include="handlebars.net" Version="2.1.6" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.5" />
