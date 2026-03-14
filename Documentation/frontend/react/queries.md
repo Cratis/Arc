@@ -3,7 +3,7 @@
 Queries in the frontend is divided into the following:
 
 - The underlying `IQueryFor<>`, `IObservableQueryFor<>` interfaces
-- The React hooks; `useQuery()` and `useObservableQuery()``
+- The React hooks; `useQuery()` and `useObservableQuery()` for standard usage, and `useSuspenseQuery()` / `useSuspenseObservableQuery()` for [React Suspense](./suspense-queries.md) boundaries
 - Proxy generator that generates TypeScript from the C# code to leverage the constructs.
 
 ## HTTP Headers
@@ -101,3 +101,10 @@ export const MyComponent = () => {
 
 > Note: Route values will also be considered parameters and generated when adorning
 > a method parameter with `[HttpPost]`.
+
+## Suspense-Compatible Hooks
+
+Arc also provides Suspense-compatible variants of these hooks — `useSuspenseQuery()` and `useSuspenseObservableQuery()` — that integrate with React's `<Suspense>` and `ErrorBoundary` patterns, letting components declaratively describe loading and error states without inspecting `isPerforming` or `hasExceptions` manually.
+
+See [Suspense Queries](./suspense-queries.md) for details and examples.
+
