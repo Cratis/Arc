@@ -118,6 +118,9 @@ public static class QueryExtensions
         var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
                                      (method.DeclaringType?.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ?? false);
 
+        // Extract roles from authorization attributes on the method and its declaring type
+        var roles = method.GetRoles().ToArray();
+
         return new(
             method.DeclaringType!,
             method,
@@ -134,6 +137,7 @@ public static class QueryExtensions
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
             validationRules.OrderBy(_ => _.PropertyName),
-            treatWarningsAsErrors);
+            treatWarningsAsErrors,
+            roles);
     }
 }

@@ -21,6 +21,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="Documentation">JSDoc documentation for the command.</param>
 /// <param name="ValidationRules">Validation rules for the command properties.</param>
 /// <param name="TreatWarningsAsErrors">Whether warnings should be treated as errors for this command.</param>
+/// <param name="Roles">Roles required to execute the command.</param>
 public record CommandDescriptor(
     Type Type,
     MethodInfo Method,
@@ -34,4 +35,5 @@ public record CommandDescriptor(
     IEnumerable<Type> TypesInvolved,
     string? Documentation,
     IEnumerable<PropertyValidationDescriptor> ValidationRules,
-    bool TreatWarningsAsErrors) : IDescriptor;
+    bool TreatWarningsAsErrors,
+    IEnumerable<string> Roles) : IDescriptor;

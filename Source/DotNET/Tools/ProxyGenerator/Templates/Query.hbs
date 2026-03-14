@@ -121,6 +121,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     readonly route: string = '{{{Route}}}';
     readonly validation: QueryValidator = new {{Name}}Validator();
     readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
+    readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
 {{#if IsEnumerable}}
     readonly defaultValue: {{{Model}}}[] = [];
     private readonly _sortBy: {{Name}}SortBy;
