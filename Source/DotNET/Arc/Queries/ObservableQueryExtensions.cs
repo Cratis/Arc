@@ -20,14 +20,14 @@ public static class ObservableQueryExtensions
     /// <param name="logger">Optional logger for diagnostics.</param>
     public static void HandleWebSocketHeadersForMultipleProxies(this HttpContext httpContext, ILogger? logger = null)
     {
-#pragma warning disable CA1848 // Use LoggerMessage delegates for improved performance - acceptable for this diagnostic scenario
+#pragma warning disable CA1848, CA1873 // Use LoggerMessage delegates / Evaluation of arguments - acceptable for this diagnostic scenario
         logger?.LogDebug(
             "WebSocket Headers: Protocol={Protocol}, Extensions={Extensions}, Version={Version}, Key={Key}",
             httpContext.Request.Headers.SecWebSocketProtocol.ToString(),
             httpContext.Request.Headers.SecWebSocketExtensions.ToString(),
             httpContext.Request.Headers.SecWebSocketVersion.ToString(),
             httpContext.Request.Headers.SecWebSocketKey.ToString());
-#pragma warning restore CA1848
+#pragma warning restore CA1848, CA1873
 
         var keys = httpContext.Request.Headers.SecWebSocketKey.ToString().Split(',').Select(_ => _.Trim()).ToArray();
         if (keys.Length > 1)

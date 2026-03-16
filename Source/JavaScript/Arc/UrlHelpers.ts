@@ -33,6 +33,12 @@ export class UrlHelpers {
         const unusedParameters: Partial<T> = { ...parameters };
 
         for (const [key, value] of Object.entries(parameters)) {
+            // Array values cannot be encoded as a single route segment — leave them as unused so
+            // they are serialized as repeated query string parameters (e.g. ?ids=1&ids=2&ids=3).
+            if (Array.isArray(value)) {
+                continue;
+            }
+
             const pattern = new RegExp(`\\{${key}\\}`, 'gi');
             const newRoute = result.replace(pattern, encodeURIComponent(String(value)));
             
