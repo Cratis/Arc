@@ -4,7 +4,6 @@
 import { given } from '../../../given';
 import { a_command } from '../given/a_command';
 import { ValidationResultSeverity } from '../../../validation/ValidationResultSeverity';
-import { CommandResult } from '../../CommandResult';
 
 describe("when executing with allowed severity warning", given(class extends a_command {
     constructor() {
