@@ -11,7 +11,8 @@ export class ParameterDescriptor {
      * Initializes a new instance of the {@link ParameterDescriptor} class.
      * @param name Name of the parameter.
      * @param type Type of the parameter.
+     * @param isEnumerable Whether the parameter is an enumerable (collection) type.
      */
-    constructor(readonly name: string, readonly type: Constructor) {
+    constructor(readonly name: string, readonly type: Constructor, readonly isEnumerable: boolean = false) {
     }
 }

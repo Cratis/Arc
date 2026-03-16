@@ -97,8 +97,14 @@ public static class MethodInfoExtensions
     {
         List<PropertyDescriptor> properties = [];
         var parameters = method.GetParameters();
-        var primitives = parameters.Where(_ => _.ParameterType.IsAPrimitiveType() || _.ParameterType.IsConcept());
-        var complex = parameters.Where(_ => !_.ParameterType.IsAPrimitiveType() && !_.ParameterType.IsConcept());
+        var primitives = parameters.Where(_ =>
+            _.ParameterType.IsAPrimitiveType() ||
+            _.ParameterType.IsConcept() ||
+            _.ParameterType.IsEnumerableOfPrimitiveOrConcept());
+        var complex = parameters.Where(_ =>
+            !_.ParameterType.IsAPrimitiveType() &&
+            !_.ParameterType.IsConcept() &&
+            !_.ParameterType.IsEnumerableOfPrimitiveOrConcept());
 
         properties.AddRange(primitives.ToList().ConvertAll(_ => _.ToPropertyDescriptor()));
 

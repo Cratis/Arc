@@ -199,7 +199,7 @@ public static class QueryExtensions
     }
 
     /// <summary>
-    /// Get query parameter descriptors from a method - only primitives and concepts are included.
+    /// Get query parameter descriptors from a method - primitives, concepts and enumerables of primitives/concepts are included.
     /// </summary>
     /// <param name="method">Method to get parameters for.</param>
     /// <returns>Collection of <see cref="RequestParameterDescriptor"/>.</returns>
@@ -207,15 +207,18 @@ public static class QueryExtensions
     {
         var parameters = method.GetParameters();
 
-        // Include only primitive types and concepts as query parameters
-        // Everything else is assumed to be a dependency
-        var queryParameters = parameters.Where(p => p.ParameterType.IsAPrimitiveType() || p.ParameterType.IsConcept());
+        // Include primitive types, concepts and enumerables of primitive/concept types as query parameters.
+        // Everything else is assumed to be a dependency.
+        var queryParameters = parameters.Where(p =>
+            p.ParameterType.IsAPrimitiveType() ||
+            p.ParameterType.IsConcept() ||
+            p.ParameterType.IsEnumerableOfPrimitiveOrConcept());
 
         return queryParameters.Select(p => p.ToQueryRequestParameterDescriptor());
     }
 
     /// <summary>
-    /// Get query property descriptors from a method - only primitives and concepts are included.
+    /// Get query property descriptors from a method - primitives, concepts and enumerables of primitives/concepts are included.
     /// </summary>
     /// <param name="method">Method to get properties for.</param>
     /// <returns>Collection of <see cref="PropertyDescriptor"/>.</returns>
@@ -223,8 +226,11 @@ public static class QueryExtensions
     {
         var parameters = method.GetParameters();
 
-        // Include only primitive types and concepts as query properties
-        var queryParameters = parameters.Where(p => p.ParameterType.IsAPrimitiveType() || p.ParameterType.IsConcept());
+        // Include primitive types, concepts and enumerables of primitive/concept types as query properties.
+        var queryParameters = parameters.Where(p =>
+            p.ParameterType.IsAPrimitiveType() ||
+            p.ParameterType.IsConcept() ||
+            p.ParameterType.IsEnumerableOfPrimitiveOrConcept());
 
         return queryParameters.Select(p => p.ToPropertyDescriptor());
     }
@@ -236,12 +242,20 @@ public static class QueryExtensions
     /// <returns>Converted <see cref="RequestParameterDescriptor"/>.</returns>
     static RequestParameterDescriptor ToQueryRequestParameterDescriptor(this ParameterInfo parameterInfo)
     {
-        var type = parameterInfo.ParameterType.GetTargetType();
+        var paramType = parameterInfo.ParameterType;
+        var isEnumerable = paramType.IsEnumerableOfPrimitiveOrConcept();
+
+        if (isEnumerable)
+        {
+            paramType = paramType.GetEnumerableElementType();
+        }
+
+        var type = paramType.GetTargetType();
         var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
         var documentation = parameterInfo.GetDocumentation();
 
         // All query parameters are considered query string parameters
-        return new RequestParameterDescriptor(parameterInfo.ParameterType, parameterInfo.Name!, type.Type, type.Constructor, optional, true, documentation);
+        return new RequestParameterDescriptor(paramType, parameterInfo.Name!, type.Type, type.Constructor, optional, true, isEnumerable, documentation);
     }
 
     /// <summary>

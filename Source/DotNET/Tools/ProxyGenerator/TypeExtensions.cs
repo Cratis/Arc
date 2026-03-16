@@ -528,6 +528,20 @@ public static class TypeExtensions
     }
 
     /// <summary>
+    /// Check if a type is an enumerable of primitive or concept types.
+    /// Supports <see cref="IEnumerable{T}"/>, arrays and other collection types where the element type is primitive or concept.
+    /// </summary>
+    /// <param name="type"><see cref="Type"/> to check.</param>
+    /// <returns>True if type is an enumerable of primitives or concepts, false otherwise.</returns>
+    public static bool IsEnumerableOfPrimitiveOrConcept(this Type type)
+    {
+        if (!type.IsEnumerable()) return false;
+
+        var elementType = type.GetEnumerableElementType();
+        return elementType is not null && (elementType.IsAPrimitiveType() || elementType.IsConcept());
+    }
+
+    /// <summary>
     /// Check if a type is a "primitive" type.  This is not just dot net primitives but basic types like string, decimal, datetime,
     /// that are not classified as primitive types.
     /// </summary>

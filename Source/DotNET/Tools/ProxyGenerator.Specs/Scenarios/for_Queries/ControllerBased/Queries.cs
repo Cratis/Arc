@@ -176,6 +176,25 @@ public class ControllerQueriesController : ControllerBase
             new() { Id = Guid.NewGuid(), Name = name, Value = minAge }
         });
     }
+
+    /// <summary>
+    /// Searches items by a list of names and values.
+    /// </summary>
+    /// <param name="names">The name filters.</param>
+    /// <param name="values">The value filters.</param>
+    /// <returns>Collection of matching items.</returns>
+    [HttpGet("items/search-by-lists")]
+    public ActionResult<IEnumerable<ControllerQueryItem>> SearchByLists(
+        [FromQuery] IEnumerable<string> names,
+        [FromQuery] IEnumerable<int> values)
+    {
+        return Ok(names.Select((name, i) => new ControllerQueryItem
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Value = values.ElementAtOrDefault(i)
+        }).ToList());
+    }
 }
 
 /// <summary>

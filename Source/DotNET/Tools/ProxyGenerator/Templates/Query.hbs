@@ -67,9 +67,9 @@ export interface {{Name}}Parameters {
     */
     {{/if}}
     {{#if IsOptional}}
-    {{camelcase Name}}?: {{{Type}}};
+    {{camelcase Name}}?: {{{Type}}}{{#if IsEnumerable}}[]{{/if}};
     {{else}}
-    {{camelcase Name}}: {{{Type}}};
+    {{camelcase Name}}: {{{Type}}}{{#if IsEnumerable}}[]{{/if}};
     {{/if}}
     {{/Parameters}}
 }
@@ -146,12 +146,12 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
 
     readonly parameterDescriptors: ParameterDescriptor[] = [
         {{#Parameters}}
-        new ParameterDescriptor('{{camelcase Name}}', {{{Constructor}}}),
+        new ParameterDescriptor('{{camelcase Name}}', {{{Constructor}}}, {{lowercase IsEnumerable}}),
         {{/Parameters}}
     ];
 
 {{#Parameters}}
-    {{camelcase Name}}!: {{Type}};
+    {{camelcase Name}}!: {{Type}}{{#if IsEnumerable}}[]{{/if}};
 {{/Parameters}}
 
 {{#if IsEnumerable}}

@@ -47,6 +47,7 @@ export class UrlHelpers {
 
     /**
      * Builds URLSearchParams from the given parameters and additional query parameters.
+     * Array values are serialized as repeated key=value pairs (e.g. ?ids=1&ids=2&ids=3).
      * @param unusedParameters Parameters that were not used in route replacement.
      * @param additionalParams Additional query parameters to include.
      * @returns URLSearchParams containing all parameters.
@@ -56,7 +57,13 @@ export class UrlHelpers {
 
         for (const [key, value] of Object.entries(unusedParameters)) {
             if (value !== undefined && value !== null) {
-                queryParams.set(key, String(value));
+                if (Array.isArray(value)) {
+                    for (const item of value) {
+                        queryParams.append(key, String(item));
+                    }
+                } else {
+                    queryParams.set(key, String(value));
+                }
             }
         }
 
