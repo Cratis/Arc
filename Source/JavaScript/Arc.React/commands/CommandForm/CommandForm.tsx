@@ -10,6 +10,7 @@ import { Command } from '@cratis/arc/commands';
 import React, { useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
+import { useIdentity } from '@cratis/arc.react/identity';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
@@ -199,6 +200,12 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         ? (silentValidationResult.validationResults?.length ?? 0) === 0
         : false;
 
+    // isAuthorized checks if the current user has at least one of the roles required by the command.
+    // If the command has no roles defined, all users are considered authorized.
+    const identity = useIdentity();
+    const commandRoles = (commandInstance as unknown as Command).roles ?? [];
+    const isAuthorized = commandRoles.length === 0 || commandRoles.some(role => identity.isInRole(role));
+
     // Auto server validate when all client validations pass
     React.useEffect(() => {
         if (!props.autoServerValidate) {
@@ -318,6 +325,7 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
         setCommandResult,
         getFieldError,
         isValid,
+        isAuthorized,
         setSilentValidationResult,
         onFieldValidate: props.onFieldValidate,
         onFieldChange: props.onFieldChange,

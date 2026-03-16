@@ -35,6 +35,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
     abstract readonly route: string;
     abstract readonly defaultValue: TDataType;
+    readonly roles: string[] = [];
     abstract readonly parameterDescriptors: ParameterDescriptor[];
     abstract get requiredRequestParameters(): string[];
     sorting: Sorting;

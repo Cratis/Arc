@@ -38,7 +38,8 @@ public class when_generating_command_with_validation : Specification, IDisposabl
             [],
             null,
             validationRules,
-            false);
+            false,
+            []);
     }
 
     void Because()

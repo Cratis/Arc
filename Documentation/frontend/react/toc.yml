@@ -10,6 +10,8 @@
   href: command-form/toc.yml
 - name: Queries
   href: queries.md
+- name: Suspense Queries
+  href: suspense-queries.md
 - name: Proxy Generation
   href: proxy-generation.md
 - name: Story Components

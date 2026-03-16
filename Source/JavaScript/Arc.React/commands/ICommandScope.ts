@@ -32,9 +32,9 @@ export abstract class ICommandScope {
 
     /**
      * Add a query for tracking in the scope.
-     * @param {IQueryFor<any, any>} query Query to add.
+     * @param {IQueryFor<unknown, unknown>} query Query to add.
      */
-    abstract addQuery(query: IQueryFor<any, any>): void;
+    abstract addQuery(query: IQueryFor<unknown, unknown>): void;
 
     /**
      * Execute all commands with changes.

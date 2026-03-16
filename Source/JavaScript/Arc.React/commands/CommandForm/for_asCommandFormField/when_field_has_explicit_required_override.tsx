@@ -49,6 +49,7 @@ describe('when field has explicit required override', () => {
                 getFieldError: () => undefined,
                 customFieldErrors: {},
                 isValid: true,
+                isAuthorized: true,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
                 setFieldValidity: () => {},
                 showTitles: true,
@@ -106,6 +107,7 @@ describe('when field has explicit required override', () => {
                 getFieldError: () => undefined,
                 customFieldErrors: {},
                 isValid: true,
+                isAuthorized: true,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
                 setFieldValidity: () => {},
                 showTitles: true,
