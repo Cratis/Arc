@@ -81,21 +81,23 @@ public static class Generator
         var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
 
         IReadOnlyDictionary<string, string>? sourceFileMap = null;
+        Dictionary<string, (string Content, string SourceTypeName)>? pendingContent = null;
         if (useSourceFileAsOutputFile)
         {
             sourceFileMap = SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile);
+            pendingContent = [];
         }
 
-        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
-        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var enumerableQueries = queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList();
-        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
-        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
         {
@@ -106,10 +108,16 @@ public static class Generator
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
         var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_)).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
-        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var enumDescriptors = enums.ConvertAll(_ => _.ToEnumDescriptor());
-        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap);
+        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+
+        // Flush deferred content to disk, comparing final merged hashes against original files
+        if (pendingContent is { Count: > 0 })
+        {
+            await DescriptorExtensions.FlushPendingContent(pendingContent, generatedFiles, message);
+        }
 
         // Find and remove orphaned files
         var stopwatch = Stopwatch.StartNew();

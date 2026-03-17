@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import React from 'react';
 import { ICommand, CommandResults } from '@cratis/arc/commands';
 import { IQueryFor } from '@cratis/arc/queries';
 import { ICommandScope } from './ICommandScope';
@@ -12,7 +11,7 @@ import { ICommandScope } from './ICommandScope';
  */
 export class CommandScopeImplementation extends ICommandScope {
     private _commands: ICommand[] = [];
-    private _queries: IQueryFor<any, any>[] = [];
+    private _queries: IQueryFor<unknown, unknown>[] = [];
     private _hasChanges = false;
     private _isPerforming = false;
     private _parent?: ICommandScope;
@@ -53,7 +52,7 @@ export class CommandScopeImplementation extends ICommandScope {
     }
 
     /** @inheritdoc */
-    addQuery(query: IQueryFor<any, any>): void {
+    addQuery(query: IQueryFor<unknown, unknown>): void {
         if (this._queries.some(_ => _ == query)) {
             return;
         }

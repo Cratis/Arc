@@ -108,25 +108,44 @@ jobs:
     if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
     needs: [release]
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-
       - name: Setup node
         uses: actions/setup-node@v4
-        env:
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         with:
           node-version: 23.x
-          registry-url: "https://registry.npmjs.org"
+          registry-url: 'https://registry.npmjs.org'
 
-      - uses: actions/cache@v3
+      - name: Configure npm for OIDC-based publishing
+        run: |
+          # setup-node writes a placeholder _authToken (XXXXX-XXXXX-XXXXX-XXXXX) into
+          # .npmrc and exports NODE_AUTH_TOKEN with the same placeholder. npm uses this
+          # token as-is for registry auth → 404. Remove it so npm falls back to OIDC.
+          sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+          echo "NODE_AUTH_TOKEN=" >> "$GITHUB_ENV"
+          echo "--- .npmrc after stripping placeholder ---"
+          cat "$NPM_CONFIG_USERCONFIG"
+
+      - name: Upgrade npm for trusted publishing (requires >= 11.5.1)
+        run: |
+          npm install -g npm@11
+          NPM_VER="$(npm --version)"
+          echo "Installed npm $NPM_VER"
+          node -e "
+            const v = '$NPM_VER'.split('.').map(Number);
+            if (v[0] < 11 || (v[0] === 11 && v[1] < 5) || (v[0] === 11 && v[1] === 5 && v[2] < 1)) {
+              console.error('npm >= 11.5.1 is required for trusted publishing, got $NPM_VER');
+              process.exit(1);
+            }
+          "
+
+      - uses: actions/cache@v4
         id: yarn-cache
         with:
           path: |
@@ -141,6 +160,12 @@ jobs:
 
       - name: Publish NPM packages
         run: |
+          echo "npm $(npm --version) | node $(node --version)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL is $([ -n \"$ACTIONS_ID_TOKEN_REQUEST_URL\" ] && echo 'set' || echo 'NOT set')"
+          echo "NODE_AUTH_TOKEN is '${NODE_AUTH_TOKEN:-(unset)}'"
+          echo "--- .npmrc ---"
+          cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(no .npmrc)"
+          echo "---"
           yarn build
           yarn publish-version ${{ needs.release.outputs.version }}
 

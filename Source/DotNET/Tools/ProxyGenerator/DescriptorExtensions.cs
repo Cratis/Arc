@@ -28,6 +28,7 @@ public static partial class DescriptorExtensions
     /// <param name="generatedFiles">Optional collection to track generated file paths and their metadata.</param>
     /// <param name="descriptorOrigins">Optional origins for descriptors to output contextual error information.</param>
     /// <param name="sourceFileMap">Optional map of type full name to source C# file name used to group descriptors into a single file per source file.</param>
+    /// <param name="pendingContent">Optional dictionary to accumulate content for deferred writing when using source file grouping. When provided, content is stored here instead of being written to disk immediately. Use <see cref="FlushPendingContent"/> to write the final merged content.</param>
     /// <returns>Awaitable task.</returns>
     public static async Task Write(
         this IEnumerable<IDescriptor> descriptors,
@@ -41,7 +42,8 @@ public static partial class DescriptorExtensions
         Action<string> errorMessage,
         IDictionary<string, GeneratedFileMetadata>? generatedFiles = null,
         IReadOnlyDictionary<Type, (IReadOnlyList<string> Commands, IReadOnlyList<string> Queries)>? descriptorOrigins = null,
-        IReadOnlyDictionary<string, string>? sourceFileMap = null)
+        IReadOnlyDictionary<string, string>? sourceFileMap = null,
+        IDictionary<string, (string Content, string SourceTypeName)>? pendingContent = null)
     {
         var stopwatch = Stopwatch.StartNew();
         var generationTime = DateTime.UtcNow;
@@ -150,44 +152,68 @@ public static partial class DescriptorExtensions
                 proxyContent = FixImportModulePaths(proxyContent, importPathFixups);
             }
 
-            // When using source file grouping and a previous Write call already produced content
-            // for this same output file (cross-category collision), merge the contents.
-            if (sourceFileMap is not null &&
-                generatedFiles is not null &&
-                generatedFiles.TryGetValue(normalizedFullPath, out var previousMetadata) &&
-                File.Exists(normalizedFullPath))
+            // When using deferred writing (source file grouping), accumulate content in memory
+            // so that cross-category merging happens without touching disk. This prevents the
+            // first Write call from overwriting the merged file with partial content, which would
+            // force every subsequent call to rewrite the file even when the final content is unchanged.
+            if (pendingContent is not null)
             {
-                var existingFileContent = await File.ReadAllTextAsync(normalizedFullPath);
-                var existingProxyContent = StripMetadataLine(existingFileContent);
-                proxyContent = TypeScriptContentCombiner.Combine([existingProxyContent, proxyContent]);
-                sourceTypeName = $"{previousMetadata.SourceTypeName}, {sourceTypeName}";
-            }
+                if (pendingContent.TryGetValue(normalizedFullPath, out var pending))
+                {
+                    proxyContent = TypeScriptContentCombiner.Combine([pending.Content, proxyContent]);
+                    sourceTypeName = $"{pending.SourceTypeName}, {sourceTypeName}";
+                }
 
-            var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
-            var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
+                pendingContent[normalizedFullPath] = (proxyContent, sourceTypeName);
 
-            // Check if file exists with the same hash
-            if (File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
-                    existingMetadata is not null &&
-                    existingMetadata.ContentHash == contentHash)
-            {
-                // File hasn't changed, skip writing
-                skippedCount++;
+                // Track in generatedFiles so orphan detection knows about this file
                 if (generatedFiles is not null)
                 {
-                    // Mark as not written - preserve the existing timestamp
-                    generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, existingMetadata.GeneratedTime, metadata.ContentHash, false);
+                    var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
+                    generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash, false);
                 }
-                continue;
             }
-
-            var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
-            await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
-
-            // Track generated file metadata and mark as written
-            if (generatedFiles is not null)
+            else
             {
-                generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, metadata.GeneratedTime, metadata.ContentHash, true);
+                // When using source file grouping and a previous Write call already produced content
+                // for this same output file (cross-category collision), merge the contents.
+                if (sourceFileMap is not null &&
+                    generatedFiles is not null &&
+                    generatedFiles.TryGetValue(normalizedFullPath, out var previousMetadata) &&
+                    File.Exists(normalizedFullPath))
+                {
+                    var existingFileContent = await File.ReadAllTextAsync(normalizedFullPath);
+                    var existingProxyContent = StripMetadataLine(existingFileContent);
+                    proxyContent = TypeScriptContentCombiner.Combine([existingProxyContent, proxyContent]);
+                    sourceTypeName = $"{previousMetadata.SourceTypeName}, {sourceTypeName}";
+                }
+
+                var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
+                var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
+
+                // Check if file exists with the same hash
+                if (File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
+                        existingMetadata is not null &&
+                        existingMetadata.ContentHash == contentHash)
+                {
+                    // File hasn't changed, skip writing
+                    skippedCount++;
+                    if (generatedFiles is not null)
+                    {
+                        // Mark as not written - preserve the existing timestamp
+                        generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, existingMetadata.GeneratedTime, metadata.ContentHash, false);
+                    }
+                    continue;
+                }
+
+                var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{proxyContent}";
+                await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
+
+                // Track generated file metadata and mark as written
+                if (generatedFiles is not null)
+                {
+                    generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(metadata.SourceTypeName, metadata.GeneratedTime, metadata.ContentHash, true);
+                }
             }
         }
 
@@ -206,6 +232,51 @@ public static partial class DescriptorExtensions
             var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
             message($"  {writtenCount} {typeNameToEcho} written{skippedInfo} in {stopwatch.Elapsed}");
         }
+    }
+
+    /// <summary>
+    /// Writes all accumulated pending content to disk, comparing each file's final merged hash
+    /// against the original file on disk to avoid unnecessary rewrites and timestamp changes.
+    /// </summary>
+    /// <param name="pendingContent">The accumulated pending content from all Write calls.</param>
+    /// <param name="generatedFiles">The generated files metadata dictionary to update.</param>
+    /// <param name="message">Logger to use for outputting messages.</param>
+    /// <returns>Awaitable task.</returns>
+    public static async Task FlushPendingContent(
+        IDictionary<string, (string Content, string SourceTypeName)> pendingContent,
+        IDictionary<string, GeneratedFileMetadata> generatedFiles,
+        Action<string> message)
+    {
+        var generationTime = DateTime.UtcNow;
+        var writtenCount = 0;
+        var skippedCount = 0;
+
+        foreach (var (normalizedFullPath, (content, sourceTypeName)) in pendingContent)
+        {
+            var contentHash = GeneratedFileMetadata.ComputeHash(content);
+
+            // Compare against the original file on disk (untouched since last build)
+            if (File.Exists(normalizedFullPath) &&
+                GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
+                existingMetadata is not null &&
+                existingMetadata.ContentHash == contentHash)
+            {
+                // File hasn't changed, skip writing and preserve the existing timestamp
+                skippedCount++;
+                generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(sourceTypeName, existingMetadata.GeneratedTime, contentHash, false);
+                continue;
+            }
+
+            var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
+            var contentWithMetadata = $"{metadata.ToCommentLine()}{Environment.NewLine}{content}";
+            await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
+
+            writtenCount++;
+            generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash, true);
+        }
+
+        var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
+        message($"  {writtenCount} deferred file(s) written{skippedInfo}");
     }
 
     /// <summary>

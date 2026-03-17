@@ -19,6 +19,7 @@ These rules exist so that every file in the codebase reads the same way. When fo
 - Apply code-formatting style defined in `.editorconfig`.
 - Use file-scoped namespace declarations — one less level of indentation for the entire file.
 - Use single-line `using` directives, sorted alphabetically.
+- Never qualify a type that is already unambiguously in scope via a `using` directive. When two `using` directives introduce conflicting type names, qualify only the conflicting occurrences using the shortest unambiguous path (e.g. `Concepts.Events.Foo` or `Contracts.Events.Foo`) — do not add `using` aliases for every conflicting type.
 - Insert a blank line before the opening `{` of every code block (`if`, `for`, `foreach`, `try`, `using`, etc.).
 - Ensure the final `return` statement of a method is on its own line.
 - Use pattern matching and switch expressions wherever possible — they are more readable and the compiler verifies exhaustiveness.
@@ -131,21 +132,6 @@ The framework discovers and wires dependencies by convention. Explicit registrat
 - Use `async`/`await` for asynchronous programming.
 - Use `Task` and `Task<T>` for asynchronous methods.
 
-## File Header
-
-Every C# file must start with:
-
-```csharp
-// Copyright (c) Cratis. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-```
-
-## Generated Files
-
-**Never edit generated files.** Files produced by code generators, scaffolding tools, or any other automated tool must not be modified by hand — in any language. Generated files are overwritten on the next build, so hand-edits are silently lost and create false confidence that a fix is in place.
-
-- If the generated output is wrong, fix the **source** (the template, the generator configuration, or the source type) and rebuild.
-
 ## Chronicle & Arc — Key API Types
 
 These are the building blocks. Each type has a specific role in the vertical slice architecture — using the right type in the right place means the framework handles discovery, wiring, and proxy generation automatically.
@@ -167,3 +153,9 @@ These are the building blocks. Each type has a specific role in the vertical sli
 | `EventContext` | Event metadata: `Occurred`, `SequenceNumber`, `CorrelationId`, `EventSourceId`, etc. |
 | `ISubject<T>` | Observable query return type — enables real-time WebSocket push |
 | `IMongoCollection<T>` | MongoDB collection — use `.Observe()` for reactive queries |
+
+**Key conventions:**
+- Prefer `ConceptAs<T>` over raw primitives in all domain models, commands, events, and queries — prevents accidental mix-ups and makes APIs self-documenting. See [concepts.instructions.md](./concepts.instructions.md) for details.
+- Projections join **events**, never read models — projections rebuild state from the event stream, not from other projections.
+- For fluent projections, AutoMap is on by default — just call `.From<EventType>()` without manually mapping every property.
+- Use model-bound projection attributes (`[FromEvent<T>]`, `[SetFrom<T>]`, etc.) when possible; fall back to `IProjectionFor<T>` for complex cases.
