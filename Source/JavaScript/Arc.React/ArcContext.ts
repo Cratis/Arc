@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { GetHttpHeaders, Globals } from '@cratis/arc';
+import { QueryTransportMethod } from '@cratis/arc/queries';
 import React from 'react';
 
 export interface ArcConfiguration {
@@ -11,6 +12,7 @@ export interface ArcConfiguration {
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    queryTransportMethod?: QueryTransportMethod;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
@@ -19,5 +21,6 @@ export const ArcContext = React.createContext<ArcConfiguration>({
     origin: '',
     basePath: '',
     apiBasePath: '',
-    httpHeadersCallback: () => ({})
+    httpHeadersCallback: () => ({}),
+    queryTransportMethod: QueryTransportMethod.ServerSentEvents,
 });

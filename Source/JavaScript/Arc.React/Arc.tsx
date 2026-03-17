@@ -6,6 +6,7 @@ import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders } from '@cratis/arc';
+import { QueryTransportMethod } from '@cratis/arc/queries';
 
 /**
  * Properties for the Arc context component.
@@ -18,6 +19,11 @@ export interface ArcProps {
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    /**
+     * The transport method used for observable query subscriptions.
+     * Defaults to {@link QueryTransportMethod.ServerSentEvents}.
+     */
+    queryTransportMethod?: QueryTransportMethod;
 }
 
 /**
@@ -31,14 +37,16 @@ export const Arc = (props: ArcProps) => {
         origin: props.origin ?? '',
         basePath: props.basePath ?? '',
         apiBasePath: props.apiBasePath ?? '',
-        httpHeadersCallback: props.httpHeadersCallback
+        httpHeadersCallback: props.httpHeadersCallback,
+        queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
     };
 
     Bindings.initialize(
         configuration.microservice,
         configuration.apiBasePath,
         configuration.origin,
-        configuration.httpHeadersCallback);
+        configuration.httpHeadersCallback,
+        configuration.queryTransportMethod);
 
     return (
         <ArcContext.Provider value={configuration}>

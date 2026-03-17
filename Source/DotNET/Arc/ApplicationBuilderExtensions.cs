@@ -31,6 +31,7 @@ public static class ApplicationBuilderExtensions
         app.MapIdentityProvider();
         app.UseCommandEndpoints();
         app.UseQueryEndpoints();
+        app.UseObservableQueryHub();
 
         return app;
     }
