@@ -70,3 +70,23 @@ export class TestQueryForWithParameterDescriptorValues extends QueryFor<string, 
         super(String as Constructor, false);
     }
 }
+
+export class TestQueryForWithEnumerableParameterDescriptorValues extends QueryFor<string[], object> {
+    readonly route = '/api/search-by-lists';
+    readonly defaultValue: string[] = [];
+    readonly parameterDescriptors: ParameterDescriptor[] = [
+        new ParameterDescriptor('names', String as Constructor, true),
+        new ParameterDescriptor('ids', Number as Constructor, true)
+    ];
+
+    names?: string[];
+    ids?: number[];
+
+    get requiredRequestParameters(): string[] {
+        return [];
+    }
+
+    constructor() {
+        super(String as Constructor, true);
+    }
+}

@@ -634,3 +634,56 @@ public class DataAnnotationsValidatedReadModel
         ];
     }
 }
+
+/// <summary>
+/// A read model with enumerable query parameters for testing.
+/// </summary>
+[ReadModel]
+public class EnumerableParameterReadModel
+{
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the category.
+    /// </summary>
+    public string Category { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Searches by name list and category list.
+    /// </summary>
+    /// <param name="names">The name filters.</param>
+    /// <param name="categories">The category filters.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<EnumerableParameterReadModel> SearchByLists(IEnumerable<string> names, IEnumerable<string> categories)
+    {
+        return names.Select((name, i) => new EnumerableParameterReadModel
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Category = categories.ElementAtOrDefault(i) ?? string.Empty
+        });
+    }
+
+    /// <summary>
+    /// Searches by IDs.
+    /// </summary>
+    /// <param name="ids">The IDs to search for.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<EnumerableParameterReadModel> SearchByIds(IEnumerable<int> ids)
+    {
+        return ids.Select(id => new EnumerableParameterReadModel
+        {
+            Id = Guid.NewGuid(),
+            Name = $"Item {id}",
+            Category = "Default"
+        });
+    }
+}
