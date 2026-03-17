@@ -9,6 +9,18 @@ import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 
+function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
+    if (requiredRequestParameters.length === 0) {
+        return true;
+    }
+
+    const argumentValues = args as Record<string, unknown> | undefined;
+    return requiredRequestParameters.every(requiredRequestParameter => {
+        const value = argumentValues?.[requiredRequestParameter];
+        return value !== undefined && value !== null && value !== '';
+    });
+}
+
 function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
@@ -27,9 +39,16 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
 
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current.defaultValue));
-    const argumentsDependency = queryInstance.current.requiredRequestParameters.map(_ => args?.[_]);
+    const requiredRequestParameters = queryInstance.current.requiredRequestParameters;
+    const currentArguments = args as Record<string, unknown> | undefined;
+    const argumentsDependency = requiredRequestParameters.map(requiredRequestParameter => currentArguments?.[requiredRequestParameter]);
+    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(requiredRequestParameters, args as object | undefined);
 
     useEffect(() => {
+        if (!hasAllRequiredArgumentsSet) {
+            return;
+        }
+
         const subscription = queryInstance.current!.subscribe(response => {
             setResult(QueryResultWithState.fromQueryResult(response, false));
         }, args as object);
@@ -37,7 +56,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         return () => {
             subscription.unsubscribe();
         };
-    }, [...argumentsDependency, ...[currentPaging, currentSorting]]);
+    }, [...argumentsDependency, currentPaging, currentSorting, hasAllRequiredArgumentsSet]);
 
     return [
         result,

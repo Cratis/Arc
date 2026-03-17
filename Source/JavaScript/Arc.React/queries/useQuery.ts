@@ -17,6 +17,18 @@ export type PerformQuery<TArguments = object> = (args?: TArguments) => Promise<v
 
 type QueryPerformer<TQuery extends IQueryFor<TDataType>, TDataType, TArguments = object> = (performer: TQuery, args?: TArguments) => Promise<QueryResult<TDataType>>;
 
+function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
+    if (requiredRequestParameters.length === 0) {
+        return true;
+    }
+
+    const argumentValues = args as Record<string, unknown> | undefined;
+    return requiredRequestParameters.every(requiredRequestParameter => {
+        const value = argumentValues?.[requiredRequestParameter];
+        return value !== undefined && value !== null && value !== '';
+    });
+}
+
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
@@ -41,7 +53,10 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     }, [query, currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, commandScope]);
 
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current!.defaultValue));
-    const argumentsDependency = queryInstance.current!.requiredRequestParameters.map(_ => args?.[_]);
+    const requiredRequestParameters = queryInstance.current!.requiredRequestParameters;
+    const currentArguments = args as Record<string, unknown> | undefined;
+    const argumentsDependency = requiredRequestParameters.map(requiredRequestParameter => currentArguments?.[requiredRequestParameter]);
+    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(requiredRequestParameters, args as object | undefined);
 
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
@@ -55,14 +70,23 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     });
 
     useEffect(() => {
+        if (!hasAllRequiredArgumentsSet) {
+            return;
+        }
+
         queryExecutor(args);
-    }, [...argumentsDependency, ...[currentPaging, currentSorting]]);
+    }, [...argumentsDependency, currentPaging, currentSorting, hasAllRequiredArgumentsSet]);
 
     return [
         result!,
-        async (args?: TArguments) => {
+        async (argsToPerform?: TArguments) => {
+            const effectiveArguments = (argsToPerform ?? args) as object | undefined;
+            if (!hasAllRequiredArguments(requiredRequestParameters, effectiveArguments)) {
+                return;
+            }
+
             setResult(QueryResultWithState.fromQueryResult(result!, true));
-            await queryExecutor(args);
+            await queryExecutor(argsToPerform);
         },
         async (sorting: Sorting) => {
             setCurrentSorting(sorting);
