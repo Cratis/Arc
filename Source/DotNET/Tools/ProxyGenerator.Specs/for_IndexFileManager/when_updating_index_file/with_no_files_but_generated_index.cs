@@ -4,10 +4,10 @@
 namespace Cratis.Arc.ProxyGenerator.for_IndexFileManager.when_updating_index_file;
 
 /// <summary>
-/// When a directory has no generated files and the existing index.ts was not created by
-/// the proxy generator (no @generated marker), the generator must not touch it.
+/// When a directory has no generated files and the existing index.ts WAS created
+/// by the proxy generator (has the @generated marker), it should be deleted to clean up.
 /// </summary>
-public class with_no_files : Specification
+public class with_no_files_but_generated_index : Specification
 {
     string _tempDir;
     List<string> _messages;
@@ -19,7 +19,10 @@ public class with_no_files : Specification
         Directory.CreateDirectory(_tempDir);
 
         _indexPath = Path.Combine(_tempDir, "index.ts");
-        File.WriteAllText(_indexPath, "export * from './FileA';\n");
+
+        // Write an index.ts that has the generated marker
+        var metadata = new GeneratedFileMetadata("SourceA", DateTime.UtcNow, GeneratedFileMetadata.ComputeHash("export * from './FileA';"), true);
+        File.WriteAllText(_indexPath, $"{metadata.ToCommentLine()}\nexport * from './FileA';\n");
 
         _messages = [];
     }
@@ -31,8 +34,8 @@ public class with_no_files : Specification
         _messages.Add,
         _tempDir);
 
-    [Fact] void should_preserve_hand_written_index_file() => File.Exists(_indexPath).ShouldBeTrue();
-    [Fact] void should_not_log_deletion() => _messages.ShouldNotContain(m => m.Contains("Deleted"));
+    [Fact] void should_delete_generated_index_file() => File.Exists(_indexPath).ShouldBeFalse();
+    [Fact] void should_log_deletion() => _messages.ShouldContain(m => m.Contains("Deleted"));
 
     void Cleanup()
     {
