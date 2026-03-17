@@ -33,5 +33,7 @@ public class CustomArtifactsProvider : IClientArtifactsProvider
 
     public IEnumerable<Type> EventSeeders => throw new NotImplementedException();
 
+    public IEnumerable<Type> EventTypeMigrators => throw new NotImplementedException();
+
     public void Initialize() => throw new NotImplementedException();
 }
