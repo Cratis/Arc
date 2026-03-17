@@ -16,6 +16,11 @@ export interface IQueryFor<TDataType, TArguments = object> extends IQuery, IHave
     readonly defaultValue: TDataType;
 
     /**
+     * Gets the roles required to perform the query. An empty array means no specific roles are required.
+     */
+    readonly roles: string[];
+
+    /**
      * Gets the current arguments for the query.
      */
     get parameters(): TArguments | undefined;

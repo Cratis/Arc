@@ -22,6 +22,11 @@ export interface IObservableQueryFor<TDataType, TArguments = object> extends IQu
     readonly defaultValue: TDataType;
 
     /**
+     * Gets the roles required to perform the query. An empty array means no specific roles are required.
+     */
+    readonly roles: string[];
+
+    /**
      * Subscribe to the query. This will create a subscription onto the server.
      * @param {OnNextResult} callback The callback that will receive result from the server.
      * @param [args] Optional arguments for the query - depends on whether or not the query needs arguments.

@@ -34,8 +34,8 @@ export interface ICommandScopeProps {
 
 export const CommandScope = (props: ICommandScopeProps) => {
     const parentScope = useCommandScope();
-    const [hasChanges, setHasChanges] = useState(false);
-    const [isPerforming, setIsPerforming] = useState(false);
+    const [, setHasChanges] = useState(false);
+    const [, setIsPerforming] = useState(false);
     const [commandScope, setCommandScope] = useState<ICommandScope>(defaultCommandScopeContext);
     
     // Use refs to capture latest prop values without triggering re-creation
