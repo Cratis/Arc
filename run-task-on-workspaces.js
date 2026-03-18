@@ -18,8 +18,17 @@ const glob = require('glob').sync;
 
 const workspaces = {};
 
+const workspaceIgnorePatterns = rootPackageJson.workspaces
+    .filter(_ => _.startsWith('!'))
+    .map(_ => _.substring(1));
+
 const distFolder = `dist${path.sep}`
 for (const workspaceDef of rootPackageJson.workspaces) {
+    if (workspaceDef.startsWith('!')) {
+        console.log(`Skipping negated workspace definition '${workspaceDef}' \n`);
+        continue;
+    }
+
     console.log(`Getting packages for workspace definition '${workspaceDef}' \n`);
 
     const pattern = path.join(workspaceDef, '**','package.json');
@@ -27,6 +36,7 @@ for (const workspaceDef of rootPackageJson.workspaces) {
     const packages = glob(pattern, { 
         cwd: `${process.cwd()}`,
         ignore: [
+            ...workspaceIgnorePatterns,
             `**${path.sep}${distFolder}**`,
             '**/node_modules/**'
         ]
@@ -34,7 +44,7 @@ for (const workspaceDef of rootPackageJson.workspaces) {
 
     if (packages.length === 0) {
         console.log(`  No packages found for workspace definition '${workspaceDef}' \n`);
-        return;
+        continue;
     }
 
     packages.forEach(_ => {
