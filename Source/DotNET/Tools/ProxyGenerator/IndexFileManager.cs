@@ -87,8 +87,7 @@ public static partial class IndexFileManager
         var hasStaleExports = existingExports.Exists(e =>
         {
             var fileName = e.TrimStart('.', '/');
-            var filePath = Path.Combine(directory, $"{fileName}.ts");
-            return !File.Exists(filePath) && !generatedFiles.ContainsKey(Path.GetFullPath(filePath));
+            return !ExportTargetExistsOnDisk(directory, fileName) && !generatedFiles.ContainsKey(Path.GetFullPath(Path.Combine(directory, $"{fileName}.ts")));
         });
 
         if (!anyWrittenInDirectory && !hasOrphansInDirectory && !hasStaleExports)
@@ -125,8 +124,7 @@ public static partial class IndexFileManager
             // Skip exports whose target file no longer exists on disk and is not
             // tracked as a current generated file (it may not have been written
             // this run because the content was unchanged).
-            var filePath = Path.Combine(directory, $"{fileName}.ts");
-            if (!File.Exists(filePath) && !generatedFiles.ContainsKey(Path.GetFullPath(filePath)))
+            if (!ExportTargetExistsOnDisk(directory, fileName) && !generatedFiles.ContainsKey(Path.GetFullPath(Path.Combine(directory, $"{fileName}.ts"))))
             {
                 continue;
             }
@@ -285,8 +283,21 @@ public static partial class IndexFileManager
         return false;
     }
 
+    static bool ExportTargetExistsOnDisk(string directory, string fileName)
+    {
+        foreach (var ext in (string[])[".ts", ".tsx"])
+        {
+            if (File.Exists(Path.Combine(directory, $"{fileName}{ext}")))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
-    private static partial Regex ExportRegex();
+    static partial Regex ExportRegex();
 
     static string GetRelativePath(string basePath, string fullPath)
     {
