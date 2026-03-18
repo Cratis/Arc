@@ -108,3 +108,90 @@ Arc also provides Suspense-compatible variants of these hooks — `useSuspenseQu
 
 See [Suspense Queries](./suspense-queries.md) for details and examples.
 
+## Paging
+
+When the backend query returns `IQueryable<T>`, the query pipeline applies server-side paging automatically — appending `.Skip()` and `.Take()` at the database level so only the requested page of data is fetched. The generated TypeScript proxy includes `useWithPaging` and `useSuspenseWithPaging` methods.
+
+### Enabling paging
+
+Use `useWithPaging` instead of `use`, passing the desired page size:
+
+```tsx
+export const AccountList = () => {
+    const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(25);
+
+    return (
+        <>
+            <DataTable value={result.data}>
+                <Column field="name" header="Name" />
+                <Column field="balance" header="Balance" />
+            </DataTable>
+            <p>
+                Page {result.paging.page + 1} of {result.paging.totalPages}
+                ({result.paging.totalItems} total items)
+            </p>
+            <button
+                disabled={result.paging.page === 0}
+                onClick={() => setPage(result.paging.page - 1)}>
+                Previous
+            </button>
+            <button
+                disabled={result.paging.page >= result.paging.totalPages - 1}
+                onClick={() => setPage(result.paging.page + 1)}>
+                Next
+            </button>
+        </>
+    );
+};
+```
+
+### Return tuple for paged queries
+
+The `useWithPaging` hook returns an extended tuple:
+
+| Index | Name | Type | Description |
+| ----- | ---- | ---- | ----------- |
+| 0 | `result` | `QueryResultWithState<T>` | The query result including paging metadata |
+| 1 | `perform` | `() => Promise<void>` | Re-execute the query |
+| 2 | `setSorting` | `(sorting: Sorting) => Promise<void>` | Change sort field and direction |
+| 3 | `setPage` | `(page: number) => Promise<void>` | Navigate to a specific page (zero-based) |
+| 4 | `setPageSize` | `(pageSize: number) => Promise<void>` | Change the number of items per page |
+
+### Paging metadata
+
+Paging information is available on `result.paging`:
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `page` | `number` | Current zero-based page number |
+| `size` | `number` | Items per page |
+| `totalItems` | `number` | Total items across all pages |
+| `totalPages` | `number` | Total number of pages |
+
+### All hook variants with paging
+
+| Hook | Description |
+| ---- | ----------- |
+| `MyQuery.useWithPaging(pageSize)` | Standard query with paging |
+| `MyQuery.useSuspenseWithPaging(pageSize)` | Suspense-compatible with paging |
+| `MyObservableQuery.useWithPaging(pageSize)` | Observable query with paging |
+
+Each variant accepts an optional `args` parameter (for filtered queries) and an optional `sorting` parameter.
+
+### Sorting
+
+Sorting is independent of paging and works with all query hooks. Pass a `Sorting` instance to the hook or use the `setSorting` callback:
+
+```tsx
+import { Sorting, SortDirection } from '@cratis/arc/queries';
+
+// Initial sorting
+const [result] = AllAccounts.use(undefined, new Sorting('name', SortDirection.ascending));
+
+// Change sorting dynamically
+const [result, perform, setSorting] = AllAccounts.use();
+await setSorting(new Sorting('balance', SortDirection.descending));
+```
+
+> **Important**: Automatic paging requires the backend to return `IQueryable<T>`. If the backend returns `IEnumerable<T>` or `List<T>`, the paging parameters are sent but ignored — all rows are returned in a single response.
+

@@ -166,6 +166,55 @@ Use a **standard query** for data that only changes when the user takes an actio
 
 ---
 
+### Step 5b — Paging
+
+Paging is automatic when the backend query returns `IQueryable<T>`. The generated TypeScript proxy includes `useWithPaging` and `useSuspenseWithPaging` methods that send `page` and `pageSize` query string parameters to the backend, where the query pipeline applies `.Skip()` and `.Take()` at the database level.
+
+**Using the proxy directly (without DataPage):**
+
+```tsx
+const pageSize = 25;
+const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(pageSize);
+
+return (
+    <>
+        <DataTable value={result.data}>
+            <Column field="name" header="Name" />
+            <Column field="balance" header="Balance" />
+        </DataTable>
+        <Paginator
+            first={result.paging.page * result.paging.size}
+            rows={result.paging.size}
+            totalRecords={result.paging.totalItems}
+            onPageChange={(e) => setPage(e.page)}
+        />
+    </>
+);
+```
+
+**Paging metadata** is available on `result.paging`:
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `page` | `number` | Current zero-based page number |
+| `size` | `number` | Items per page |
+| `totalItems` | `number` | Total items across all pages |
+| `totalPages` | `number` | Total number of pages |
+
+**Hook variants with paging:**
+
+| Hook | Usage |
+| ---- | ----- |
+| `MyQuery.useWithPaging(pageSize)` | Standard query with paging |
+| `MyQuery.useSuspenseWithPaging(pageSize)` | Suspense-compatible with paging |
+| `MyObservableQuery.useWithPaging(pageSize)` | Observable query with paging |
+
+All paging hooks return `setPage` and `setPageSize` callbacks. Calling either re-runs the query with updated parameters.
+
+> **Important**: Paging only works when the backend returns `IQueryable<T>`. If the backend returns `IEnumerable<T>` or `List<T>`, paging parameters are ignored and all rows are returned.
+
+---
+
 ### Step 6 — Detail panel (optional)
 
 A detail panel renders beside the table when a row is selected.

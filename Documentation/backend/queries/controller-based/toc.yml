@@ -6,6 +6,8 @@
   href: query-arguments.md
 - name: Return Types
   href: return-types.md
+- name: Paging
+  href: paging.md
 - name: Observable Queries
   href: observable-queries.md
 - name: Dependency Injection
