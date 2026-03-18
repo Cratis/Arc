@@ -1918,3 +1918,138 @@ export const AutoServerValidation: Story = {
         );
     }
 };
+
+/**
+ * Demonstrates the command result callbacks (onSuccess, onFailed, onException, onUnauthorized, onValidationFailure).
+ * These callbacks are invoked automatically after command execution based on the result state.
+ */
+export const WithCallbacks: Story = {
+    render: function WithCallbacks() {
+        const [messages, setMessages] = useState<string[]>([]);
+        
+        const addMessage = (message: string) => {
+            setMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+        };
+
+        return (
+            <StoryContainer>
+                <h2 style={{ marginTop: 0 }}>Command Result Callbacks</h2>
+                <p style={{ marginBottom: '1.5rem' }}>
+                    This example demonstrates the callback props that are invoked after command execution.
+                    Submit the form to see which callbacks are triggered.
+                </p>
+
+                <CommandForm<SimpleCommand, object>
+                    command={SimpleCommand}
+                    onSuccess={(response) => {
+                        addMessage('✅ onSuccess called with response: ' + JSON.stringify(response));
+                    }}
+                    onFailed={(result) => {
+                        addMessage('❌ onFailed called - isSuccess: ' + result.isSuccess);
+                    }}
+                    onException={(messages, stackTrace) => {
+                        addMessage('🔥 onException called - messages: ' + messages.join(', '));
+                    }}
+                    onUnauthorized={() => {
+                        addMessage('🚫 onUnauthorized called');
+                    }}
+                    onValidationFailure={(validationResults) => {
+                        addMessage('⚠️ onValidationFailure called - ' + validationResults.length + ' errors');
+                    }}
+                >
+                    <InputTextField<SimpleCommand>
+                        value={c => c.name}
+                        title="Name"
+                        placeholder="Enter name (required)"
+                    />
+                    
+                    <InputTextField<SimpleCommand>
+                        value={c => c.email}
+                        title="Email"
+                        type="email"
+                        placeholder="Enter email (required)"
+                    />
+
+                    <button 
+                        type="submit" 
+                        style={{ 
+                            marginTop: '1rem', 
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Submit
+                    </button>
+                </CommandForm>
+
+                <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: '#f0f9ff',
+                    border: '1px solid #0ea5e9',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af' }}>
+                        💡 <strong>Try it:</strong> Submit the form with valid or invalid values to see different 
+                        callbacks being triggered. Multiple callbacks can fire for the same execution (e.g., both 
+                        onFailed and onValidationFailure will be called if validation fails).
+                    </p>
+                </div>
+
+                {messages.length > 0 && (
+                    <div style={{
+                        marginTop: '1.5rem',
+                        padding: '1rem',
+                        backgroundColor: '#f3f4f6',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.5rem'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <h3 style={{ margin: 0, fontSize: '1rem' }}>
+                                Callback Log ({messages.length} event{messages.length !== 1 ? 's' : ''})
+                            </h3>
+                            <button
+                                onClick={() => setMessages([])}
+                                style={{
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '0.75rem',
+                                    backgroundColor: '#6b7280',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.25rem',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Clear
+                            </button>
+                        </div>
+                        <div style={{
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            fontFamily: 'monospace',
+                            fontSize: '0.75rem',
+                            backgroundColor: '#ffffff',
+                            padding: '0.5rem',
+                            borderRadius: '0.25rem'
+                        }}>
+                            {messages.map((message, index) => (
+                                <div key={index} style={{ marginBottom: '0.25rem' }}>
+                                    {message}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </StoryContainer>
+        );
+    }
+};
