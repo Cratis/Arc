@@ -2,13 +2,17 @@
 
 ## Query endpoint patterns
 
-### Collection query
+### Collection query (with automatic paging)
+
+Return `IQueryable<T>` to enable automatic server-side paging and sorting. The query pipeline appends `.Skip()` and `.Take()` before the database query executes, so only the requested page of data is loaded.
 
 ```csharp
 [HttpGet]
-public IEnumerable<AccountSummary> AllAccounts()
-    => collection.Find(_ => true).ToList();
+public IQueryable<AccountSummary> AllAccounts()
+    => collection.AsQueryable();
 ```
+
+Returning `IEnumerable<T>`, `List<T>`, or `T[]` **disables** automatic paging — all rows are loaded into memory.
 
 ### Single item query
 
@@ -22,8 +26,8 @@ public AccountSummary? GetAccount(Guid id)
 
 ```csharp
 [HttpGet("search")]
-public IEnumerable<AccountSummary> Search([FromQuery] string? filter)
-    => collection.Find(a => a.Name.StartsWith(filter ?? string.Empty)).ToList();
+public IQueryable<AccountSummary> Search([FromQuery] string? filter)
+    => collection.AsQueryable().Where(a => a.Name.StartsWith(filter ?? string.Empty));
 ```
 
 The `[FromQuery]` parameter is included in the generated TypeScript proxy.
@@ -88,6 +92,37 @@ const [results] = Search.use({ filter: searchText });
 // Observable query — returns [result] only (no manual refresh)
 const [liveAccounts] = AllAccountsLive.use();
 ```
+
+### Paging in React
+
+When the backend returns `IQueryable<T>`, the generated proxy includes `useWithPaging` and `useSuspenseWithPaging` methods. Pass the page size to enable paging:
+
+```tsx
+// Standard query with paging
+const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(25);
+
+// Navigate pages
+await setPage(result.paging.page + 1);
+
+// Change page size
+await setPageSize(50);
+
+// Access paging metadata
+const { page, size, totalItems, totalPages } = result.paging;
+```
+
+```tsx
+// Suspense query with paging
+const [result, perform, setSorting, setPage, setPageSize] =
+    AllAccounts.useSuspenseWithPaging(25);
+```
+
+```tsx
+// Observable query with paging
+const [result, setSorting, setPage, setPageSize] = AllAccountsLive.useWithPaging(25);
+```
+
+The paging hooks automatically send `page` and `pageSize` query string parameters to the backend. When the user calls `setPage` or `setPageSize`, the hook re-runs the query with the updated parameters.
 
 For full page layouts with tables and menu actions, see the `cratis-react-page` skill.
 

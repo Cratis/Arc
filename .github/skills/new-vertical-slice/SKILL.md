@@ -29,6 +29,7 @@ File creation order within the slice:
 5. Event `record` with `[EventType]` (no arguments, no mutable properties)
 6. Read model `record` with `[ReadModel]` and model-bound projection attributes (`[FromEvent<T>]`, `[Key]`, etc.)
    - Use fluent `IProjectionFor<T>` only when model-bound attributes don't fit
+   - Collection query methods should return `IQueryable<T>` (e.g. `collection.AsQueryable()`) to enable automatic server-side paging and sorting — returning `IEnumerable<T>` or `List<T>` disables paging
 
 **Critical rules:**
 - Commands are `record` types with a `Handle()` method directly on them — DO NOT create separate handler classes
@@ -75,10 +76,26 @@ const handleSubmit = async () => {
 ```
 
 **Query with paging:**
+
+When the backend query returns `IQueryable<T>`, the generated proxy includes `useWithPaging` and `useSuspenseWithPaging` methods. The pipeline automatically applies `.Skip()` and `.Take()` at the database level.
+
 ```tsx
-const pageSize = 10;
-const [result, , setPage] = MyQuery.useWithPaging(pageSize);
-// Use result.data, result.paging.totalItems, result.paging.page
+const pageSize = 25;
+const [result, perform, setSorting, setPage, setPageSize] = MyQuery.useWithPaging(pageSize);
+
+// Access paging metadata
+const { page, size, totalItems, totalPages } = result.paging;
+
+// Navigate pages
+await setPage(page + 1);
+
+// Change page size
+await setPageSize(50);
+```
+
+For observable queries with paging:
+```tsx
+const [result, setSorting, setPage, setPageSize] = MyQuery.useWithPaging(pageSize);
 ```
 
 ## Step 7 — Update the composition page
