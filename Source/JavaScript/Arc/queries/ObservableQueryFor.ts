@@ -7,6 +7,8 @@ import { ObservableQuerySubscription } from './ObservableQuerySubscription';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
 import { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
+import { ServerSentEventQueryConnection, SSE_HUB_ROUTE } from './ServerSentEventQueryConnection';
+import { QueryTransportMethod } from './QueryTransportMethod';
 import { Constructor } from '@cratis/fundamentals';
 import { JsonSerializer } from '@cratis/fundamentals';
 import { QueryResult } from './QueryResult';
@@ -90,6 +92,15 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
         if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
+        } else if (Globals.queryTransportMethod === QueryTransportMethod.ServerSentEvents) {
+            // SSE: connect to the composite hub endpoint with the fully-qualified query name
+            const sseRoute = joinPaths(this._apiBasePath, SSE_HUB_ROUTE);
+            const sseUrl = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, sseRoute);
+            const fullyQualifiedName = this.constructor.name;
+            const queryParam = `query=${encodeURIComponent(fullyQualifiedName)}`;
+            const separator = sseUrl.search ? '&' : '?';
+            const sseUrlWithQuery = new URL(`${sseUrl.toString()}${separator}${queryParam}`);
+            this._connection = new ServerSentEventQueryConnection<TDataType>(sseUrlWithQuery);
         } else {
             const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
             const actualRoute = joinPaths(this._apiBasePath, route);

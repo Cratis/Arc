@@ -19,6 +19,9 @@ internal static partial class ObservableQueryHandlerLogMessages
     [LoggerMessage(LogLevel.Debug, "Handling streaming result via WebSocket")]
     internal static partial void HandlingAsWebSocket(this ILogger<ObservableQueryHandler> logger);
 
+    [LoggerMessage(LogLevel.Debug, "Handling streaming result via Server-Sent Events")]
+    internal static partial void HandlingAsSSE(this ILogger<ObservableQueryHandler> logger);
+
     [LoggerMessage(LogLevel.Debug, "Handling streaming result via HTTP")]
     internal static partial void HandlingAsHttp(this ILogger<ObservableQueryHandler> logger);
 

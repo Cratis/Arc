@@ -111,6 +111,39 @@ public static class ObservableQueryExtensions
     }
 
     /// <summary>
+    /// Creates a client observable from an object result using Server-Sent Events.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="objectResult">The object result.</param>
+    /// <param name="queryContextManager">The query context manager.</param>
+    /// <returns>The client observable.</returns>
+    public static IClientObservable CreateClientObservableSSEFrom(
+        IServiceProvider serviceProvider,
+        ObjectResult objectResult,
+        IQueryContextManager queryContextManager)
+    {
+        var type = objectResult.Value!.GetType();
+        var subjectType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
+        var clientObservableType = typeof(ClientObservableSSE<>).MakeGenericType(subjectType.GetGenericArguments()[0]);
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContextManager.Current, objectResult.Value) as IClientObservable)!;
+    }
+
+    /// <summary>
+    /// Creates a client enumerable observable from an object result using Server-Sent Events.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="objectResult">The object result.</param>
+    /// <returns>The client enumerable observable.</returns>
+    public static IClientEnumerableObservable CreateClientEnumerableObservableSSEFrom(
+        IServiceProvider serviceProvider,
+        ObjectResult objectResult)
+    {
+        var type = objectResult.Value!.GetType();
+        var clientEnumerableObservableType = typeof(ClientEnumerableObservableSSE<>).MakeGenericType(type.GetGenericArguments()[0]);
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, objectResult.Value) as IClientEnumerableObservable)!;
+    }
+
+    /// <summary>
     /// Creates a client enumerable observable from an async enumerable directly.
     /// </summary>
     /// <typeparam name="T">The type of data being enumerated.</typeparam>
@@ -123,5 +156,22 @@ public static class ObservableQueryExtensions
     {
         var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(typeof(T));
         return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, enumerable) as IClientEnumerableObservable)!;
+    }
+
+    /// <summary>
+    /// Creates a client observable SSE from a subject directly.
+    /// </summary>
+    /// <typeparam name="T">The type of data being observed.</typeparam>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="subject">The subject to wrap.</param>
+    /// <param name="queryContext">The query context.</param>
+    /// <returns>The client observable.</returns>
+    public static IClientObservable CreateClientObservableSSEFrom<T>(
+        IServiceProvider serviceProvider,
+        ISubject<T> subject,
+        QueryContext queryContext)
+    {
+        var clientObservableType = typeof(ClientObservableSSE<>).MakeGenericType(typeof(T));
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContext, subject) as IClientObservable)!;
     }
 }

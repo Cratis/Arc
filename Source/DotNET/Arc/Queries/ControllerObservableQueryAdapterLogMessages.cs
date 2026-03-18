@@ -16,6 +16,9 @@ internal static partial class ControllerObservableQueryAdapterLogMessages
     [LoggerMessage(LogLevel.Trace, "Request is WebSocket")]
     internal static partial void RequestIsWebSocket(this ILogger<ControllerObservableQueryAdapter> logger);
 
+    [LoggerMessage(LogLevel.Trace, "Request is Server-Sent Events")]
+    internal static partial void RequestIsSSE(this ILogger<ControllerObservableQueryAdapter> logger);
+
     [LoggerMessage(LogLevel.Trace, "Request is regular HTTP")]
     internal static partial void RequestIsHttp(this ILogger<ControllerObservableQueryAdapter> logger);
 
