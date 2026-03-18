@@ -37,6 +37,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Microsoft.Net.Compilers.Toolset" PrivateAssets="All" />
         <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
         <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
         <PackageReference Include="Meziantou.Analyzer" PrivateAssets="All" />
