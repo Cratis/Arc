@@ -9,6 +9,7 @@ import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { useCommandScope } from '../commands/useCommandScope';
+import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -23,31 +24,50 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
     const commandScope = useCommandScope();
-    const queryInstance = useRef<TQuery | null>(null);
+    const queryCache = useContext(QueryInstanceCacheContext);
+    const cacheKeyRef = useRef<string>('');
 
-    queryInstance.current = useMemo(() => {
-        const instance = new query() as TQuery;
-        instance.paging = currentPaging;
-        instance.sorting = currentSorting;
-        instance.setMicroservice(arc.microservice);
-        instance.setApiBasePath(arc.apiBasePath ?? '');
-        instance.setOrigin(arc.origin ?? '');
-        instance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-        
+    const queryInstance = useMemo(() => {
+        const key = queryCache.buildKey(query.name, args as object | undefined);
+        cacheKeyRef.current = key;
+
+        const { instance, isNew } = queryCache.getOrCreate(key, () => {
+            const instance = new query() as TQuery;
+            instance.paging = currentPaging;
+            instance.sorting = currentSorting;
+            instance.setMicroservice(arc.microservice);
+            instance.setApiBasePath(arc.apiBasePath ?? '');
+            instance.setOrigin(arc.origin ?? '');
+            instance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+            return instance;
+        });
+
+        if (!isNew) {
+            (instance as TQuery).paging = currentPaging;
+            (instance as TQuery).sorting = currentSorting;
+        }
+
         // Register query with command scope
-        commandScope.addQuery(instance);
-        
-        return instance;
+        commandScope.addQuery(instance as TQuery);
+
+        return instance as TQuery;
     }, [query, currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, commandScope]);
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current!.defaultValue));
-    const argumentsDependency = queryInstance.current!.requiredRequestParameters.map(_ => args?.[_]);
+    const cachedResult = queryCache.getLastResult<TDataType>(cacheKeyRef.current);
+
+    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
+        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
+    );
+
+    const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
 
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
             try {
-                const queryResult = await performer(queryInstance.current!, args);
-                setResult(QueryResultWithState.fromQueryResult(queryResult, false));
+                const queryResult = await performer(queryInstance, args);
+                const withState = QueryResultWithState.fromQueryResult(queryResult, false);
+                queryCache.setLastResult(cacheKeyRef.current, withState);
+                setResult(withState);
             } catch {
                 // Ignore
             }
@@ -56,6 +76,10 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     useEffect(() => {
         queryExecutor(args);
+
+        return () => {
+            queryCache.release(cacheKeyRef.current);
+        };
     }, [...argumentsDependency, ...[currentPaging, currentSorting]]);
 
     return [

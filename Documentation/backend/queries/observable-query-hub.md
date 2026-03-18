@@ -142,7 +142,7 @@ If the current user is not authorized to access the requested query, the server 
 
 Connect to `/.cratis/queries/sse` using the `EventSource` API. Pass the fully qualified query name in the `query` query-string parameter. All other query-string parameters are forwarded as query arguments.
 
-```
+```http
 GET /.cratis/queries/sse?query=MyApp.Authors.Listing.AllAuthors&filter=active
 ```
 
@@ -154,7 +154,7 @@ Each SSE connection carries a **single query subscription**. To observe multiple
 
 Pass paging and sorting directly as query-string parameters:
 
-```
+```http
 GET /.cratis/queries/sse?query=MyApp.Authors.Listing.AllAuthors&page=0&pageSize=20&sortBy=name&sortDirection=asc
 ```
 

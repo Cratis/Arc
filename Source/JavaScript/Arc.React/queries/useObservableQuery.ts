@@ -8,34 +8,59 @@ import { SetSorting } from './SetSorting';
 import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
+import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
 
 function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
-    const queryInstance = useRef<TQuery | null>(null);
+    const queryCache = useContext(QueryInstanceCacheContext);
+    const cacheKeyRef = useRef<string>('');
 
-    queryInstance.current = useMemo(() => {
-        const instance = new query() as TQuery;
-        instance.paging = currentPaging;
-        instance.sorting = currentSorting;
-        instance.setMicroservice(arc.microservice);
-        instance.setApiBasePath(arc.apiBasePath ?? '');
-        instance.setOrigin(arc.origin ?? '');
-        return instance;
-    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
+    const queryInstance = useMemo(() => {
+        const key = queryCache.buildKey(query.name, args as object | undefined);
+        cacheKeyRef.current = key;
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current.defaultValue));
-    const argumentsDependency = queryInstance.current.requiredRequestParameters.map(_ => args?.[_]);
+        const { instance, isNew } = queryCache.getOrCreate(key, () => {
+            const instance = new query() as TQuery;
+            instance.paging = currentPaging;
+            instance.sorting = currentSorting;
+            instance.setMicroservice(arc.microservice);
+            instance.setApiBasePath(arc.apiBasePath ?? '');
+            instance.setOrigin(arc.origin ?? '');
+            return instance;
+        });
+
+        if (!isNew) {
+            // Update mutable settings on the shared instance
+            (instance as TQuery).paging = currentPaging;
+            (instance as TQuery).sorting = currentSorting;
+        }
+
+        return instance as TQuery;
+    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, ...(args ? Object.values(args) : [])]);
+
+    const cachedResult = queryCache.getLastResult<TDataType>(cacheKeyRef.current);
+
+    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
+        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
+    );
+
+    const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
 
     useEffect(() => {
-        const subscription = queryInstance.current!.subscribe(response => {
-            setResult(QueryResultWithState.fromQueryResult(response, false));
+        const key = cacheKeyRef.current;
+
+        const subscription = queryInstance.subscribe(response => {
+            const withState = QueryResultWithState.fromQueryResult(response, false);
+            queryCache.setLastResult(key, withState);
+            setResult(withState);
         }, args as object);
 
         return () => {
             subscription.unsubscribe();
+            queryCache.release(key);
         };
     }, [...argumentsDependency, ...[currentPaging, currentSorting]]);
 

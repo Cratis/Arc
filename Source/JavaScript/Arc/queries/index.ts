@@ -20,6 +20,7 @@ export * from './ServerSentEventQueryConnection';
 export * from './ObservableQuerySubscription';
 export * from './WebSocketMessage';
 export * from './QueryTransportMethod';
+export * from './QueryInstanceCache';
 export * from './IQueryProvider';
 export * from './QueryProvider';
 export * from './QueryValidator';

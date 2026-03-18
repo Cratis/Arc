@@ -18,5 +18,5 @@ export const Globals: IGlobals = {
     origin: '',
     microserviceHttpHeader: 'x-cratis-microservice',
     microserviceWSQueryArgument: 'x-cratis-microservice',
-    queryTransportMethod: QueryTransportMethod.ServerSentEvents,
+    queryTransportMethod: QueryTransportMethod.WebSocket,
 };

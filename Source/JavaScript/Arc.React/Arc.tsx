@@ -6,7 +6,9 @@ import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders } from '@cratis/arc';
-import { QueryTransportMethod } from '@cratis/arc/queries';
+import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
+import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
+import { useRef } from 'react';
 
 /**
  * Properties for the Arc context component.
@@ -48,12 +50,17 @@ export const Arc = (props: ArcProps) => {
         configuration.httpHeadersCallback,
         configuration.queryTransportMethod);
 
+    // The cache is application-scoped — create once per Arc mount.
+    const queryInstanceCache = useRef(new QueryInstanceCache());
+
     return (
         <ArcContext.Provider value={configuration}>
-            <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
-                <CommandScope>
-                    {props.children}
-                </CommandScope>
-            </IdentityProvider>
+            <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
+                <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
+                    <CommandScope>
+                        {props.children}
+                    </CommandScope>
+                </IdentityProvider>
+            </QueryInstanceCacheContext.Provider>
         </ArcContext.Provider>);
 };
