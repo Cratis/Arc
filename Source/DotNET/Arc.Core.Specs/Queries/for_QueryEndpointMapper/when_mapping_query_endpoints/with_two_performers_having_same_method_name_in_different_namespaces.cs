@@ -7,6 +7,9 @@ namespace Cratis.Arc.Queries.for_QueryEndpointMapper.when_mapping_query_endpoint
 
 public class with_two_performers_having_same_method_name_in_different_namespaces : given.a_query_endpoint_mapper
 {
+    record FirstReadModel;
+    record SecondReadModel;
+
     IQueryPerformer _firstPerformer;
     IQueryPerformer _secondPerformer;
 
@@ -15,6 +18,7 @@ public class with_two_performers_having_same_method_name_in_different_namespaces
         _firstPerformer = Substitute.For<IQueryPerformer>();
         _firstPerformer.Name.Returns(new QueryName("GetAll"));
         _firstPerformer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Namespace1.Feature1.ReadModel1.GetAll"));
+        _firstPerformer.ReadModelType.Returns(typeof(FirstReadModel));
         _firstPerformer.Location.Returns(["Namespace1", "Feature1", "ReadModel1"]);
         _firstPerformer.AllowsAnonymousAccess.Returns(false);
         _firstPerformer.Parameters.Returns(new QueryParameters([]));
@@ -22,6 +26,7 @@ public class with_two_performers_having_same_method_name_in_different_namespaces
         _secondPerformer = Substitute.For<IQueryPerformer>();
         _secondPerformer.Name.Returns(new QueryName("GetAll"));
         _secondPerformer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Namespace2.Feature2.ReadModel2.GetAll"));
+        _secondPerformer.ReadModelType.Returns(typeof(SecondReadModel));
         _secondPerformer.Location.Returns(["Namespace2", "Feature2", "ReadModel2"]);
         _secondPerformer.AllowsAnonymousAccess.Returns(false);
         _secondPerformer.Parameters.Returns(new QueryParameters([]));
