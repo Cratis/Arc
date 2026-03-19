@@ -7,6 +7,7 @@ import { Constructor } from '@cratis/fundamentals';
 import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
+import { ValidationResult } from '@cratis/arc/validation';
 import React, { useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
@@ -15,13 +16,18 @@ import { useIdentity } from '@cratis/arc.react/identity';
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
 
-export interface CommandFormProps<TCommand extends object> {
+export interface CommandFormProps<TCommand extends object, TResponse = object> {
     command: Constructor<TCommand>;
     initialValues?: Partial<TCommand>;
     currentValues?: Partial<TCommand> | undefined;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
+    onSuccess?: (response: TResponse) => void;
+    onFailed?: (commandResult: ICommandResult<TResponse>) => void;
+    onException?: (messages: string[], stackTrace: string) => void;
+    onUnauthorized?: () => void;
+    onValidationFailure?: (validationResults: ValidationResult[]) => void;
     showTitles?: boolean;
     showErrors?: boolean;
     validateOn?: 'blur' | 'change' | 'both';
@@ -116,7 +122,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
     return { fieldsOrColumns: hasColumns ? columns : fields, otherChildren, initialValuesFromFields, orderedChildren };
 };
 
-const CommandFormComponent = <TCommand extends object = object>(props: CommandFormProps<TCommand>) => {
+const CommandFormComponent = <TCommand extends object = object, TResponse = object>(props: CommandFormProps<TCommand, TResponse>) => {
     const { fieldsOrColumns, initialValuesFromFields, orderedChildren } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
 
     // Extract matching properties from currentValues
@@ -299,13 +305,31 @@ const CommandFormComponent = <TCommand extends object = object>(props: CommandFo
 
         // Execute the command
         if (typeof (finalValues as unknown as Command).execute === 'function') {
-            const result = await (finalValues as unknown as Command).execute();
+            const result = await (finalValues as unknown as Command).execute() as ICommandResult<TResponse>;
             setCommandResult(result);
+            
+            // Invoke callbacks based on result state
+            if (result.isSuccess && props.onSuccess) {
+                props.onSuccess(result.response as TResponse);
+            }
+            if (!result.isSuccess && props.onFailed) {
+                props.onFailed(result);
+            }
+            if (result.hasExceptions && props.onException) {
+                props.onException(result.exceptionMessages, result.exceptionStackTrace);
+            }
+            if (!result.isAuthorized && props.onUnauthorized) {
+                props.onUnauthorized();
+            }
+            if (!result.isValid && props.onValidationFailure) {
+                props.onValidationFailure(result.validationResults);
+            }
+            
             return result;
         }
 
         throw new Error('Command instance does not have an execute method');
-    }, [commandInstance, props.onBeforeExecute, setCommandValues, setCommandResult]);
+    }, [commandInstance, props, setCommandValues, setCommandResult]);
 
     const handleFormSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
@@ -402,10 +426,10 @@ const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
 CommandFormColumnComponent.displayName = 'CommandFormColumn';
 
 // Export as function to enable proper type inference from command prop
-export function CommandForm<TCommand extends object = object>(
-    props: CommandFormProps<TCommand>
+export function CommandForm<TCommand extends object = object, TResponse = object>(
+    props: CommandFormProps<TCommand, TResponse>
 ): React.ReactElement {
-    return <CommandFormComponent<TCommand> {...props} />;
+    return <CommandFormComponent<TCommand, TResponse> {...props} />;
 }
 
 // Attach static members

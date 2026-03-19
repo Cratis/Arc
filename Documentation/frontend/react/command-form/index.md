@@ -65,8 +65,11 @@ function MyForm() {
 | `onFieldValidate` | `(command, fieldName, oldValue, newValue) => string \| undefined` | `undefined` | Custom field validation function |
 | `onFieldChange` | `(command, fieldName, oldValue, newValue) => void` | `undefined` | Callback when field value changes |
 | `onBeforeExecute` | `(values) => values` | `undefined` | Transform command values before execution |
-| `onFieldChange` | `(command, fieldName, oldValue, newValue) => void` | `undefined` | Callback when a field value changes |
-| `onBeforeExecute` | `(values) => values` | `undefined` | Transform values before command execution |
+| `onSuccess` | `(response: TResponse) => void` | `undefined` | Called when command executes successfully |
+| `onFailed` | `(commandResult: CommandResult<TResponse>) => void` | `undefined` | Called when command execution fails |
+| `onException` | `(messages: string[], stackTrace: string) => void` | `undefined` | Called when command throws an exception |
+| `onUnauthorized` | `() => void` | `undefined` | Called when user is not authorized |
+| `onValidationFailure` | `(validationResults: ValidationResult[]) => void` | `undefined` | Called when command fails validation |
 
 ## Initial Values
 
