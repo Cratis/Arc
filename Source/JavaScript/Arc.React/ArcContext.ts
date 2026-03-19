@@ -13,6 +13,13 @@ export interface ArcConfiguration {
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
     queryTransportMethod?: QueryTransportMethod;
+    /**
+     * Number of hub connections maintained for observable queries.
+     * When greater than one, queries are distributed across the pool round-robin.
+     * Only applies when {@link queryTransportMethod} is a centralised hub transport.
+     * Defaults to 1.
+     */
+    queryConnectionCount?: number;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
@@ -23,4 +30,5 @@ export const ArcContext = React.createContext<ArcConfiguration>({
     apiBasePath: '',
     httpHeadersCallback: () => ({}),
     queryTransportMethod: QueryTransportMethod.ServerSentEvents,
+    queryConnectionCount: 1,
 });

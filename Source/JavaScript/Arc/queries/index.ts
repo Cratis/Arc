@@ -16,6 +16,7 @@ export * from './IObservableQueryFor';
 export * from './ObservableQueryFor';
 export * from './IObservableQueryConnection';
 export * from './ObservableQueryConnection';
+export * from './ObservableQueryConnectionPool';
 export * from './ServerSentEventQueryConnection';
 export * from './ObservableQuerySubscription';
 export * from './WebSocketMessage';

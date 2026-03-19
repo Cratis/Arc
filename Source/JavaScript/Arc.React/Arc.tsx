@@ -26,6 +26,13 @@ export interface ArcProps {
      * Defaults to {@link QueryTransportMethod.ServerSentEvents}.
      */
     queryTransportMethod?: QueryTransportMethod;
+    /**
+     * Number of hub connections maintained for observable queries.
+     * When greater than one, queries are distributed across the pool round-robin.
+     * Only applies when {@link ArcProps.queryTransportMethod} is a centralised hub transport.
+     * Defaults to 1.
+     */
+    queryConnectionCount?: number;
 }
 
 /**
@@ -41,6 +48,7 @@ export const Arc = (props: ArcProps) => {
         apiBasePath: props.apiBasePath ?? '',
         httpHeadersCallback: props.httpHeadersCallback,
         queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
+        queryConnectionCount: props.queryConnectionCount ?? 1,
     };
 
     Bindings.initialize(
@@ -48,7 +56,8 @@ export const Arc = (props: ArcProps) => {
         configuration.apiBasePath,
         configuration.origin,
         configuration.httpHeadersCallback,
-        configuration.queryTransportMethod);
+        configuration.queryTransportMethod,
+        configuration.queryConnectionCount);
 
     // The cache is application-scoped — create once per Arc mount.
     const queryInstanceCache = useRef(new QueryInstanceCache());

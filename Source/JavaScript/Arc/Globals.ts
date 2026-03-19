@@ -10,6 +10,13 @@ export interface IGlobals {
     microserviceHttpHeader: string;
     microserviceWSQueryArgument: string;
     queryTransportMethod: QueryTransportMethod;
+    /**
+     * Number of hub connections maintained for observable queries.
+     * When greater than one, queries are distributed across the pool round-robin.
+     * Only applies when {@link queryTransportMethod} is a centralised hub transport.
+     * Defaults to 1.
+     */
+    queryConnectionCount: number;
 }
 
 export const Globals: IGlobals = {
@@ -19,4 +26,5 @@ export const Globals: IGlobals = {
     microserviceHttpHeader: 'x-cratis-microservice',
     microserviceWSQueryArgument: 'x-cratis-microservice',
     queryTransportMethod: QueryTransportMethod.WebSocket,
+    queryConnectionCount: 1,
 };
