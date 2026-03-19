@@ -12,11 +12,6 @@ on:
         - info
         - warning
         - debug
-  push:
-    branches:
-      - "main"
-    paths:
-      - "Source/JavaScript/**"
   pull_request:
     branches:
       - "**"

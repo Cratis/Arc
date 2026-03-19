@@ -17,12 +17,6 @@ on:
         - info
         - warning
         - debug
-  push:
-    branches:
-      - "main"
-    paths:
-      - "Source/DotNET/**"
-      - "Specifications/**"
   pull_request:
     branches:
       - "**"
