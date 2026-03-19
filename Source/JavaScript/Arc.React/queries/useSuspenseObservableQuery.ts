@@ -54,24 +54,26 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
     query: Constructor<TQuery>,
     sorting?: Sorting,
     paging?: Paging,
-    args?: TArguments
+    args?: TArguments,
+    isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [result, setResult] = useState<QueryResultWithState<TDataType> | null>(null);
 
-    const cacheKey = makeCacheKey(
-        (query as unknown as { name: string }).name,
-        arc.microservice,
-        arc.apiBasePath ?? '',
-        arc.origin ?? '',
-        currentSorting,
-        currentPaging,
-        args
-    );
+    const cacheKey = isEnabled
+        ? makeCacheKey(
+            (query as unknown as { name: string }).name,
+            arc.microservice,
+            arc.apiBasePath ?? '',
+            arc.origin ?? '',
+            currentSorting,
+            currentPaging,
+            args)
+        : `__noop__${(query as unknown as { name: string }).name}`;
 
-    if (!_observableCache.has(cacheKey)) {
+    if (isEnabled && !_observableCache.has(cacheKey)) {
         const queryInstance = new query() as TQuery;
         queryInstance.sorting = currentSorting;
         queryInstance.paging = currentPaging;
@@ -133,6 +135,9 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
     const resource = _observableCache.get(cacheKey) as ObservableSuspenseResource<TDataType>;
 
     useEffect(() => {
+        if (!isEnabled) {
+            return;
+        }
         const handleUpdate = (value: QueryResultWithState<TDataType>) => {
             setResult(value);
         };
@@ -145,7 +150,17 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
                 _observableCache.delete(cacheKey);
             }
         };
-    }, [cacheKey, resource]);
+    }, [cacheKey, resource, isEnabled]);
+
+    if (!isEnabled) {
+        const disabledInstance = new query();
+        return [
+            QueryResultWithState.empty(disabledInstance.defaultValue),
+            async (newSorting: Sorting) => { setCurrentSorting(newSorting); },
+            async (page: number) => { setCurrentPaging(new Paging(page, currentPaging.pageSize)); },
+            async (pageSize: number) => { setCurrentPaging(new Paging(currentPaging.page, pageSize)); }
+        ];
+    }
 
     if (resource.status === 'rejected') {
         throw resource.error;
@@ -220,6 +235,7 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
  * @param query Query type constructor.
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query.
+ * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result without suspending.
  * @returns Tuple of {@link QueryResultWithState} and a {@link SetSorting} delegate.
  * @throws {QueryFailed} The exception that is thrown when the query has server-side exceptions.
  * @throws {QueryUnauthorized} The exception that is thrown when the query is not authorized.
@@ -227,9 +243,10 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
 export function useSuspenseObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
     args?: TArguments,
-    sorting?: Sorting
+    sorting?: Sorting,
+    isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, SetSorting] {
-    const [result, setSorting] = useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args);
+    const [result, setSorting] = useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled);
     return [result, setSorting];
 }
 
@@ -243,6 +260,7 @@ export function useSuspenseObservableQuery<TDataType, TQuery extends IObservable
  * @param paging Paging information.
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query.
+ * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result without suspending.
  * @returns Tuple of {@link QueryResultWithState} and paging/sorting controls.
  * @throws {QueryFailed} The exception that is thrown when the query has server-side exceptions.
  * @throws {QueryUnauthorized} The exception that is thrown when the query is not authorized.
@@ -251,7 +269,8 @@ export function useSuspenseObservableQueryWithPaging<TDataType, TQuery extends I
     query: Constructor<TQuery>,
     paging: Paging,
     args?: TArguments,
-    sorting?: Sorting
+    sorting?: Sorting,
+    isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    return useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args);
+    return useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled);
 }
