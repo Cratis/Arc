@@ -53,10 +53,10 @@ using MongoDB.Driver;
 [ReadModel]
 public record AccountSummary(AccountId Id, string Name, OwnerId OwnerId, decimal Balance, bool IsClosed)
 {
-    // Snapshot query — returns IQueryable for automatic paging and sorting
-    public static IQueryable<AccountSummary> AllAccounts(
+    // Snapshot query — returns current data once
+    public static async Task<IEnumerable<AccountSummary>> AllAccounts(
         IMongoCollection<AccountSummary> collection)
-        => collection.AsQueryable();
+        => await collection.Find(Builders<AccountSummary>.Filter.Empty).ToListAsync();
 
     public static async Task<AccountSummary?> GetAccount(
         AccountId id,
@@ -171,18 +171,14 @@ The method name becomes the TypeScript proxy class name — use descriptive name
 
 ### Snapshot (one-time) queries
 
-For collection queries, return `IQueryable<T>` to enable automatic server-side paging and sorting. The query pipeline appends `.Skip()` and `.Take()` before the database executes the query, so only the requested page travels over the wire. Returning `IEnumerable<T>` or `List<T>` disables paging — all rows are loaded into memory.
-
 ```csharp
 [ReadModel]
 public record AccountSummary(AccountId Id, string Name, decimal Balance)
 {
-    // ✅ Returns IQueryable — enables automatic paging and sorting
-    public static IQueryable<AccountSummary> AllAccounts(
+    public static async Task<IEnumerable<AccountSummary>> AllAccounts(
         IMongoCollection<AccountSummary> collection)
-        => collection.AsQueryable();
+        => await collection.Find(_ => true).ToListAsync();
 
-    // Single-item queries don't need IQueryable
     public static async Task<AccountSummary?> GetAccount(
         AccountId id,
         IMongoCollection<AccountSummary> collection)
