@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ServerSentEventQueryConnection } from '../../../ServerSentEventQueryConnection';
-import { QueryResult } from '../../../QueryResult';
+import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection';
+import { QueryResult } from '../../QueryResult';
 
 interface FakeEventSource {
     url: string;
@@ -58,6 +58,6 @@ describe('when connecting with query arguments', () => {
         });
 
         it('should deliver the payload to the callback', () => receivedData.length.should.equal(1));
-        it('should extract the inner payload from the hub envelope', () => (receivedData[0] as unknown as Record<string, unknown>)['isSuccess'].should.be.true);
+        it('should extract the inner payload from the hub envelope', () => receivedData[0]!.isSuccess.should.be.true);
     });
 });

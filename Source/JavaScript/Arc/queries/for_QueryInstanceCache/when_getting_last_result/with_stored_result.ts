@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryInstanceCache } from '../../../QueryInstanceCache';
-import { QueryResultWithState } from '../../../QueryResultWithState';
+import { QueryInstanceCache } from '../../QueryInstanceCache';
+import { QueryResultWithState } from '../../QueryResultWithState';
 
 describe('when getting the last result for a key that has a stored result', () => {
     let cache: QueryInstanceCache;
@@ -13,7 +13,7 @@ describe('when getting the last result for a key that has a stored result', () =
         cache = new QueryInstanceCache();
         cache.getOrCreate('MyQuery::', () => ({}));
 
-        stored = QueryResultWithState.empty<string[]>();
+        stored = QueryResultWithState.empty<string[]>([]);
         cache.setLastResult('MyQuery::', stored);
 
         retrieved = cache.getLastResult<string[]>('MyQuery::');

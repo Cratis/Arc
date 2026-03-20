@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ServerSentEventQueryConnection } from '../../../ServerSentEventQueryConnection';
-import { QueryResult } from '../../../QueryResult';
+import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection';
+import { QueryResult } from '../../QueryResult';
 
 describe('when disconnecting closes the EventSource', () => {
     let closeStub: sinon.SinonStub;

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryInstanceCache } from '../../../QueryInstanceCache';
+import { QueryInstanceCache } from '../../QueryInstanceCache';
 
 describe('when getting the last result for a key that has no result yet', () => {
     let cache: QueryInstanceCache;

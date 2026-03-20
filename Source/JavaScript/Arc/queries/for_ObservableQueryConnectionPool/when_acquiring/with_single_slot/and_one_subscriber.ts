@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ObservableQueryConnectionPool } from '../../../../ObservableQueryConnectionPool';
-import { IObservableQueryConnection } from '../../../../IObservableQueryConnection';
-import { DataReceived } from '../../../../ObservableQueryConnection';
-import { QueryResult } from '../../../../QueryResult';
+import { ObservableQueryConnectionPool } from '../../../ObservableQueryConnectionPool';
+import { IObservableQueryConnection } from '../../../IObservableQueryConnection';
+import { DataReceived } from '../../../ObservableQueryConnection';
+import { QueryResult } from '../../../QueryResult';
 
 describe('when acquiring from a pool with a single slot', () => {
     let connectStub: sinon.SinonStub;

@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ObservableQueryConnectionPool } from '../../../../ObservableQueryConnectionPool';
-import { IObservableQueryConnection } from '../../../../IObservableQueryConnection';
-import { QueryResult } from '../../../../QueryResult';
+import { ObservableQueryConnectionPool } from '../../../ObservableQueryConnectionPool';
+import { IObservableQueryConnection } from '../../../IObservableQueryConnection';
+import { QueryResult } from '../../../QueryResult';
 
 describe('when constructing a pool with zero size', () => {
     let pool: ObservableQueryConnectionPool<string>;
