@@ -10,6 +10,18 @@ import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
 
+function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
+    if (requiredRequestParameters.length === 0) {
+        return true;
+    }
+
+    const argumentValues = args as Record<string, unknown> | undefined;
+    return requiredRequestParameters.every(requiredRequestParameter => {
+        const value = argumentValues?.[requiredRequestParameter];
+        return value !== undefined && value !== null && value !== '';
+    });
+}
+
 function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled: boolean = true):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
@@ -48,11 +60,12 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     );
 
     const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
+    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(queryInstance.requiredRequestParameters, args as object | undefined);
 
     useEffect(() => {
         const key = cacheKeyRef.current;
 
-        if (!isEnabled) {
+        if (!isEnabled || !hasAllRequiredArgumentsSet) {
             return () => {
                 queryCache.release(key);
             };
@@ -68,7 +81,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             subscription.unsubscribe();
             queryCache.release(key);
         };
-    }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled]]);
+    }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet]]);
 
     return [
         !isEnabled ? QueryResultWithState.empty(queryInstance.defaultValue) : result,
