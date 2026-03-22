@@ -2,9 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useState } from 'react';
-import { All } from 'Features/AspNetCore/All';
-import { ByAuthor } from 'Features/AspNetCore/ByAuthor';
-import { PostToFeed } from 'Features/AspNetCore/PostToFeed';
+import { All, ByAuthor } from 'Features/LiveFeed';
+import { PostToFeed } from 'Features/PostToFeed';
 
 /**
  * Page that demonstrates the LiveFeed observable query and PostToFeed command.

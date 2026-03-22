@@ -8,9 +8,10 @@
     <IsPackable>false</IsPackable>
 
     <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)/Features</CratisProxiesOutputPath>
-    <CratisProxiesSegmentsToSkip>0</CratisProxiesSegmentsToSkip>
+    <CratisProxiesSegmentsToSkip>1</CratisProxiesSegmentsToSkip>
     <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
     <CratisProxiesSkipCommandNameInRoute>true</CratisProxiesSkipCommandNameInRoute>
+    <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
   </PropertyGroup>
 
   <ItemGroup>

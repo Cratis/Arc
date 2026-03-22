@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Observe } from 'Features/AspNetCore/Observe';
+import { Observe } from 'Features/Ticker';
 
 /**
  * Page that displays a live-updating counter streaming from the server via SSE.
