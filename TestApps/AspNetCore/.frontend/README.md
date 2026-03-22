@@ -17,7 +17,7 @@ A Vite + React frontend that demonstrates the real-time query features built int
    ```
    The backend listens on `http://localhost:5000`.
 
-2. Start the frontend dev server (from `TestApps/AspNetCore/Web`):
+2. Start the frontend dev server (from `TestApps/AspNetCore/.frontend`):
    ```sh
    yarn dev
    ```
@@ -25,13 +25,21 @@ A Vite + React frontend that demonstrates the real-time query features built int
 
 3. Open `http://localhost:5173` in your browser.
 
+## Module resolution
+
+`@cratis/arc` and `@cratis/arc.react` are resolved directly from source via Vite aliases defined in
+`vite.config.ts`. This means no build step is required for the Arc packages — Vite/esbuild compiles
+the TypeScript source on demand.
+
+TypeScript's `paths` in `tsconfig.json` mirror the same aliases for type checking.
+
 ## Frontend structure
 
 ```
-Web/
+.frontend/
 ├── index.html          ← HTML entry point
-├── vite.config.ts      ← Vite config (proxies backend routes)
-├── tsconfig.json       ← TypeScript config
+├── vite.config.ts      ← Vite config (source aliases + backend proxies)
+├── tsconfig.json       ← TypeScript config (paths for @cratis/* source)
 ├── package.json
 └── src/
     ├── main.tsx        ← React entry point, mounts <Arc>

@@ -19,11 +19,12 @@
         "emitDecoratorMetadata": false,
         "baseUrl": ".",
         "paths": {
+            "@cratis/arc.react": ["../../Source/JavaScript/Arc.React"],
+            "@cratis/arc.react/*": ["../../Source/JavaScript/Arc.React/*"],
+            "@cratis/arc": ["../../Source/JavaScript/Arc"],
+            "@cratis/arc/*": ["../../Source/JavaScript/Arc/*"],
             "Features/*": ["../Features/*"]
         }
     },
-    "include": ["src"],
-    "references": [
-        "../../Source/JavaScript/Arc.React/tsconfig.json"
-    ]
+    "include": ["src"]
 }
