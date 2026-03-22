@@ -4,6 +4,8 @@
         "Source/**/*",
         "!**/dist",
         "!**/dist/**",
+        "!**/bin/**",
+        "!**/obj/**",
         "Samples/**/*",
         "TestApps/**/*",
         "TestApps/AspNetCore"

@@ -27,5 +27,5 @@
         }
     },
     "include": ["."],
-    "exclude": [".frontend/vite.config.ts"]
+    "exclude": [".frontend"]
 }
