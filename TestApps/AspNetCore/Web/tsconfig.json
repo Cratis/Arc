@@ -22,5 +22,8 @@
             "Features/*": ["../Features/*"]
         }
     },
-    "include": ["src"]
+    "include": ["src"],
+    "references": [
+        "../../Source/JavaScript/Arc.React/tsconfig.json"
+    ]
 }
