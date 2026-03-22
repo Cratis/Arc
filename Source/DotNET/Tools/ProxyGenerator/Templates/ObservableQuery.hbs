@@ -96,6 +96,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
     readonly route: string = '{{{Route}}}';
+    readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
     readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
     readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
 {{#if IsEnumerable}}

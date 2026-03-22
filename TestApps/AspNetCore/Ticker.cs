@@ -9,11 +9,8 @@ namespace AspNetCore;
 /// <summary>
 /// Represents a live counter that ticks every second.
 /// </summary>
-/// <remarks>
-/// Demonstrates a model-bound observable read model streaming real-time updates through the
-/// centralised SSE hub at <c>/.cratis/queries/sse</c>.
-/// Connect from the frontend with <c>Ticker.use()</c> — the hook auto-subscribes via SSE.
-/// </remarks>
+/// <param name="Count">The current count value.</param>
+/// <param name="LastUpdated">The timestamp of the last update.</param>
 [ReadModel]
 public record Ticker(int Count, DateTimeOffset LastUpdated)
 {

@@ -7,8 +7,7 @@
         "!**/bin/**",
         "!**/obj/**",
         "Samples/**/*",
-        "TestApps/**/*",
-        "TestApps/AspNetCore"
+        "TestApps/**/*"
     ],
     "engines": {
         "node": ">=23.0.0"

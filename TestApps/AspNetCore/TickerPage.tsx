@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Observe } from 'Features/Ticker';
+import { Observe } from './Ticker';
 
 /**
  * Page that displays a live-updating counter streaming from the server via SSE.
@@ -22,7 +22,7 @@ export const TickerPage = () => {
                     {result.data.count}
                 </div>
             )}
-            {result.hasData && (
+            {result.hasData && result.data.lastUpdated && (
                 <p style={{ textAlign: 'center', color: '#888', fontSize: 12 }}>
                     Last updated: {new Date(result.data.lastUpdated).toISOString()}
                 </p>

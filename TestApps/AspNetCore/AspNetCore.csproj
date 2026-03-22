@@ -7,7 +7,7 @@
     <NoWarn>$(NoWarn);SA0001;SA1600</NoWarn>
     <IsPackable>false</IsPackable>
 
-    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)/Features</CratisProxiesOutputPath>
+    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)/</CratisProxiesOutputPath>
     <CratisProxiesSegmentsToSkip>1</CratisProxiesSegmentsToSkip>
     <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
     <CratisProxiesSkipCommandNameInRoute>true</CratisProxiesSkipCommandNameInRoute>
@@ -17,6 +17,9 @@
   <ItemGroup>
     <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
     <ProjectReference Include="../../Source/DotNET/Swagger/Swagger.csproj" />
+    <ProjectReference Include="../../Source/DotNET/Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Import Project="../../Source/DotNET/Tools/ProxyGenerator.Build/build/Cratis.Arc.ProxyGenerator.Build.targets" />
 
 </Project>

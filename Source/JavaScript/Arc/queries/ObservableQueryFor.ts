@@ -38,6 +38,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     abstract readonly route: string;
     abstract readonly defaultValue: TDataType;
     readonly roles: string[] = [];
+    /** Backend fully-qualified query name used when subscribing via the SSE hub. Overridden in generated proxies. */
+    readonly queryName?: string;
     abstract readonly parameterDescriptors: ParameterDescriptor[];
     abstract get requiredRequestParameters(): string[];
     sorting: Sorting;
@@ -96,7 +98,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             // SSE: connect to the composite hub endpoint with the fully-qualified query name
             const sseRoute = joinPaths(this._apiBasePath, SSE_HUB_ROUTE);
             const sseUrl = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, sseRoute);
-            const fullyQualifiedName = this.constructor.name;
+            const fullyQualifiedName = this.queryName ?? this.constructor.name;
             const queryParam = `query=${encodeURIComponent(fullyQualifiedName)}`;
             const separator = sseUrl.search ? '&' : '?';
             const sseUrlWithQuery = new URL(`${sseUrl.toString()}${separator}${queryParam}`);

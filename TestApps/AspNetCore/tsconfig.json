@@ -19,13 +19,16 @@
         "emitDecoratorMetadata": false,
         "baseUrl": ".",
         "paths": {
-            "@cratis/arc.react": ["../../Source/JavaScript/Arc.React"],
-            "@cratis/arc.react/*": ["../../Source/JavaScript/Arc.React/*"],
-            "@cratis/arc": ["../../Source/JavaScript/Arc"],
-            "@cratis/arc/*": ["../../Source/JavaScript/Arc/*"],
-            "Features/*": ["./Features/*"]
+            "@cratis/arc.react": ["../../Source/JavaScript/Arc.React/dist/esm/index"],
+            "@cratis/arc.react/*": ["../../Source/JavaScript/Arc.React/dist/esm/*"],
+            "@cratis/arc": ["../../Source/JavaScript/Arc/dist/esm/index"],
+            "@cratis/arc/*": ["../../Source/JavaScript/Arc/dist/esm/*"]
         }
     },
+    "references": [
+        { "path": "../../Source/JavaScript/Arc" },
+        { "path": "../../Source/JavaScript/Arc.React" }
+    ],
     "include": ["."],
     "exclude": [".frontend"]
 }

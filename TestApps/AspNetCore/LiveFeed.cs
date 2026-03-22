@@ -9,20 +9,9 @@ namespace AspNetCore;
 /// <summary>
 /// Represents a live feed observable read model.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Demonstrates a model-bound observable read model that streams the current collection of
-/// feed messages in real time through the centralised SSE hub
-/// (<c>/.cratis/queries/sse?query=LiveFeed</c>).
-/// </para>
-/// <para>
-/// Post a new message via <see cref="PostToFeed"/> to trigger a push to all connected subscribers.
-/// </para>
-/// <para>
-/// Also demonstrates the <c>ByAuthor</c> parameterised query: connect with
-/// <c>LiveFeed.ByAuthor.use({ author })</c> from React to filter messages server-side.
-/// </para>
-/// </remarks>
+/// <param name="Author">The author of the message.</param>
+/// <param name="Text">The message text.</param>
+/// <param name="PostedAt">The timestamp when the message was posted.</param>
 [ReadModel]
 public record LiveFeed(string Author, string Text, DateTimeOffset PostedAt)
 {
