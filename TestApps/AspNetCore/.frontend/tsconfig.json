@@ -19,12 +19,13 @@
         "emitDecoratorMetadata": false,
         "baseUrl": ".",
         "paths": {
-            "@cratis/arc.react": ["../../Source/JavaScript/Arc.React"],
-            "@cratis/arc.react/*": ["../../Source/JavaScript/Arc.React/*"],
-            "@cratis/arc": ["../../Source/JavaScript/Arc"],
-            "@cratis/arc/*": ["../../Source/JavaScript/Arc/*"],
+            "@cratis/arc.react": ["../../../Source/JavaScript/Arc.React"],
+            "@cratis/arc.react/*": ["../../../Source/JavaScript/Arc.React/*"],
+            "@cratis/arc": ["../../../Source/JavaScript/Arc"],
+            "@cratis/arc/*": ["../../../Source/JavaScript/Arc/*"],
             "Features/*": ["../Features/*"]
         }
     },
-    "include": ["src"]
+    "include": ["."],
+    "exclude": ["vite.config.ts"]
 }

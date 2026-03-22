@@ -6,7 +6,7 @@
         "!**/dist/**",
         "Samples/**/*",
         "TestApps/**/*",
-        "TestApps/**/.frontend"
+        "TestApps/AspNetCore"
     ],
     "engines": {
         "node": ">=23.0.0"

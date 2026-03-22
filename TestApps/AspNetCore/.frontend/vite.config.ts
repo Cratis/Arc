@@ -1,27 +1,29 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
-
-const arcRoot = resolve(__dirname, '../../Source/JavaScript/Arc');
-const arcReactRoot = resolve(__dirname, '../../Source/JavaScript/Arc.React');
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+    root: fileURLToPath(new URL('./', import.meta.url)),
+    build: {
+        outDir: '../wwwroot',
+        assetsDir: '',
+    },
     plugins: [react()],
     resolve: {
         alias: [
             // Resolve @cratis/arc sub-paths to source files directly (no build required)
-            { find: '@cratis/arc.react/queries', replacement: resolve(arcReactRoot, 'queries/index.ts') },
-            { find: '@cratis/arc.react/commands', replacement: resolve(arcReactRoot, 'commands/index.ts') },
-            { find: '@cratis/arc.react/dialogs', replacement: resolve(arcReactRoot, 'dialogs/index.ts') },
-            { find: '@cratis/arc.react/identity', replacement: resolve(arcReactRoot, 'identity/index.ts') },
-            { find: '@cratis/arc.react', replacement: resolve(arcReactRoot, 'index.ts') },
-            { find: '@cratis/arc/reflection', replacement: resolve(arcRoot, 'reflection/index.ts') },
-            { find: '@cratis/arc/commands', replacement: resolve(arcRoot, 'commands/index.ts') },
-            { find: '@cratis/arc/queries', replacement: resolve(arcRoot, 'queries/index.ts') },
-            { find: '@cratis/arc/validation', replacement: resolve(arcRoot, 'validation/index.ts') },
-            { find: '@cratis/arc/identity', replacement: resolve(arcRoot, 'identity/index.ts') },
-            { find: '@cratis/arc', replacement: resolve(arcRoot, 'index.ts') },
-            { find: 'Features', replacement: resolve(__dirname, '../Features') },
+            { find: '@cratis/arc.react/queries', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc.React/queries/index.ts', import.meta.url)) },
+            { find: '@cratis/arc.react/commands', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc.React/commands/index.ts', import.meta.url)) },
+            { find: '@cratis/arc.react/dialogs', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc.React/dialogs/index.ts', import.meta.url)) },
+            { find: '@cratis/arc.react/identity', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc.React/identity/index.ts', import.meta.url)) },
+            { find: '@cratis/arc.react', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc.React/index.ts', import.meta.url)) },
+            { find: '@cratis/arc/reflection', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc/reflection/index.ts', import.meta.url)) },
+            { find: '@cratis/arc/commands', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc/commands/index.ts', import.meta.url)) },
+            { find: '@cratis/arc/queries', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc/queries/index.ts', import.meta.url)) },
+            { find: '@cratis/arc/validation', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc/validation/index.ts', import.meta.url)) },
+            { find: '@cratis/arc/identity', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc/identity/index.ts', import.meta.url)) },
+            { find: '@cratis/arc', replacement: fileURLToPath(new URL('../../../Source/JavaScript/Arc/index.ts', import.meta.url)) },
+            { find: 'Features', replacement: fileURLToPath(new URL('../Features', import.meta.url)) },
         ],
     },
     server: {

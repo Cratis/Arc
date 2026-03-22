@@ -1,12 +1,12 @@
 {
-    "name": "@testapps/aspnetcore-frontend",
+    "name": "@testapps/aspnetcore",
     "private": true,
     "version": "1.0.0",
     "type": "module",
     "scripts": {
-        "dev": "vite",
-        "build": "tsc -b && vite build",
-        "preview": "vite preview"
+        "dev": "vite --config .frontend/vite.config.ts",
+        "build": "tsc -b .frontend/tsconfig.json && vite build --config .frontend/vite.config.ts",
+        "preview": "vite preview --config .frontend/vite.config.ts"
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",

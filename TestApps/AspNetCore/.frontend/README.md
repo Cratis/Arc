@@ -17,7 +17,7 @@ A Vite + React frontend that demonstrates the real-time query features built int
    ```
    The backend listens on `http://localhost:5000`.
 
-2. Start the frontend dev server (from `TestApps/AspNetCore/.frontend`):
+2. Start the frontend dev server (from `TestApps/AspNetCore`):
    ```sh
    yarn dev
    ```
@@ -36,12 +36,12 @@ TypeScript's `paths` in `tsconfig.json` mirror the same aliases for type checkin
 ## Frontend structure
 
 ```
-.frontend/
-├── index.html          ← HTML entry point
-├── vite.config.ts      ← Vite config (source aliases + backend proxies)
-├── tsconfig.json       ← TypeScript config (paths for @cratis/* source)
-├── package.json
-└── src/
+AspNetCore/
+├── package.json        ← JS project root; scripts reference .frontend/vite.config.ts
+└── .frontend/
+    ├── index.html      ← HTML entry point
+    ├── vite.config.ts  ← Vite config (source aliases + backend proxies)
+    ├── tsconfig.json   ← TypeScript config (paths for @cratis/* source)
     ├── main.tsx        ← React entry point, mounts <Arc>
     ├── App.tsx         ← Root component with tab navigation
     ├── TickerPage.tsx  ← Live counter via Observe.use()
