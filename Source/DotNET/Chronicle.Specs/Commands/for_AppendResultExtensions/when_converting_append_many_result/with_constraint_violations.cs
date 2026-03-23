@@ -20,12 +20,14 @@ public class with_constraint_violations : given.all_dependencies
             new ConstraintViolation(
                 EventTypeId.Unknown,
                 EventSequenceNumber.Unavailable,
+                ConstraintType.Unknown,
                 new ConstraintName("FirstConstraint"),
                 new ConstraintViolationMessage("First violation"),
                 new ConstraintViolationDetails()),
             new ConstraintViolation(
                 EventTypeId.Unknown,
                 EventSequenceNumber.Unavailable,
+                ConstraintType.Unknown,
                 new ConstraintName("SecondConstraint"),
                 new ConstraintViolationMessage("Second violation"),
                 new ConstraintViolationDetails())

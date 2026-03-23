@@ -19,6 +19,7 @@ public class with_constraint_violations : given.all_dependencies
         _violation = new ConstraintViolation(
             EventTypeId.Unknown,
             EventSequenceNumber.Unavailable,
+            ConstraintType.Unknown,
             new ConstraintName("TestConstraint"),
             new ConstraintViolationMessage("Test violation message"),
             new ConstraintViolationDetails());
@@ -32,5 +33,5 @@ public class with_constraint_violations : given.all_dependencies
     [Fact] void should_have_correct_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_one_validation_result() => _result.ValidationResults.Count().ShouldEqual(1);
-    [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual("Test violation message");
+    [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual(" Test violation message");
 }

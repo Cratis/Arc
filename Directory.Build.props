@@ -21,7 +21,7 @@
         <EnableNETAnalyzers>True</EnableNETAnalyzers>
         <AnalysisMode>AllEnabledByDefault</AnalysisMode>
 
-        <NoWarn>NU1507;NU1608;NU1510;NU1603;NU1605;CS1705;CS9057;IDE0031;IDE0032;IDE0340;CA1873;IDE0330;MA0158;ASPDEPR002;CS8602;CS8604;CS8670;RCS1238;SA1414</NoWarn>
+        <NoWarn>NU1507;NU1608;NU1510;NU1603;NU1605;CS1705;IDE0031;IDE0032;IDE0340;CA1873;IDE0330;MA0158;ASPDEPR002;CS8602;CS8604;CS8670;RCS1238;SA1414</NoWarn>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)'==''">
@@ -37,16 +37,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Microsoft.Net.Compilers.Toolset" PrivateAssets="All" />
         <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
         <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
         <PackageReference Include="Meziantou.Analyzer" PrivateAssets="All" />
         <PackageReference Include="System.Text.Json" />
-    </ItemGroup>
-    <!-- System.Collections.Immutable 9.0.0 override for net8.0:
-         Cratis.Chronicle 15.x is compiled against System.Collections.Immutable 9.0.0.0 assembly
-         identity, but .NET 8 in-box only provides 8.0.0.0, causing CS1705. Adding the NuGet
-         package explicitly for net8.0 ensures the 9.0.0.0 assembly is used at compile time. -->
-    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-        <PackageReference Include="System.Collections.Immutable" />
     </ItemGroup>
 </Project>
