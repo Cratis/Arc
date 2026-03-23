@@ -32,7 +32,7 @@ public static class CommandExtensions
         var properties = commandType.GetPropertyDescriptors();
         var location = commandType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
-        var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}";
+        var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
 
         var namespaceKey = string.Join('.', location.Skip(segmentsToSkip));
         var hasConflict = allCommandTypes.Count(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(segmentsToSkip)) == namespaceKey) > 1;
