@@ -6,4 +6,5 @@ export * from './ModelBoundCommand';
 export * from './ModelBoundReadModel';
 export * from './ObservableQueries';
 export * from './PostToFeed';
+export * from './ShowcaseItem';
 export * from './Ticker';

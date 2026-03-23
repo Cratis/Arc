@@ -2,10 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useState } from 'react';
-import { TickerPage } from './TickerPage';
-import { LiveFeedPage } from './LiveFeedPage';
+import { TickerPage } from './Features/Ticker/TickerPage';
+import { LiveFeedPage } from './Features/LiveFeed/LiveFeedPage';
+import { QueryShowcasePage } from './Features/QueryShowcase/QueryShowcasePage';
 
-type Page = 'ticker' | 'livefeed';
+type Page = 'ticker' | 'livefeed' | 'queryshowcase';
 
 /**
  * Root application component with simple tab navigation.
@@ -14,7 +15,7 @@ export const App = () => {
     const [page, setPage] = useState<Page>('ticker');
 
     return (
-        <div style={{ fontFamily: 'sans-serif', maxWidth: 800, margin: '0 auto', padding: 24 }}>
+        <div style={{ fontFamily: 'sans-serif', maxWidth: 1000, margin: '0 auto', padding: 24 }}>
             <h1>AspNetCore TestApp</h1>
             <nav style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
                 <button
@@ -29,9 +30,16 @@ export const App = () => {
                 >
                     Live Feed
                 </button>
+                <button
+                    onClick={() => setPage('queryshowcase')}
+                    style={{ fontWeight: page === 'queryshowcase' ? 'bold' : 'normal' }}
+                >
+                    Query Showcase
+                </button>
             </nav>
             {page === 'ticker' && <TickerPage />}
             {page === 'livefeed' && <LiveFeedPage />}
+            {page === 'queryshowcase' && <QueryShowcasePage />}
         </div>
     );
 };
