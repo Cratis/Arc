@@ -14,7 +14,19 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 public class KeepAliveTracker
 {
-    DateTimeOffset _lastMessageSent = DateTimeOffset.UtcNow;
+    DateTimeOffset _lastMessageSent;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="KeepAliveTracker"/> class.
+    /// </summary>
+    public KeepAliveTracker() => _lastMessageSent = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="KeepAliveTracker"/> class with a specific initial timestamp.
+    /// </summary>
+    /// <param name="initialLastMessageSent">The initial value for the last-message-sent timestamp.</param>
+    public KeepAliveTracker(DateTimeOffset initialLastMessageSent) =>
+        _lastMessageSent = initialLastMessageSent;
 
     /// <summary>
     /// Records that a message was sent to the client, resetting the keep-alive timer.

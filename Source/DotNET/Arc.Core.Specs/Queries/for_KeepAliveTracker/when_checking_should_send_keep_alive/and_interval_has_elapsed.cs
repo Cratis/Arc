@@ -8,15 +8,8 @@ public class and_interval_has_elapsed : Specification
     KeepAliveTracker _tracker;
     bool _result;
 
-    void Establish()
-    {
-        _tracker = new KeepAliveTracker();
-
-        // Manipulate internal state by recording a message sent far in the past
-        typeof(KeepAliveTracker)
-            .GetField("_lastMessageSent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .SetValue(_tracker, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(5));
-    }
+    void Establish() =>
+        _tracker = new KeepAliveTracker(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(5));
 
     void Because() => _result = _tracker.ShouldSendKeepAlive(TimeSpan.FromSeconds(30));
 

@@ -63,7 +63,7 @@ public class ObservableQueryHub(
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
         var subscriptions = new ConcurrentDictionary<string, IDisposable>();
 
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
@@ -72,7 +72,7 @@ public class ObservableQueryHub(
 
         try
         {
-#pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts.Dispose()
+#pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
             keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, linkedCts.Token);
 #pragma warning restore CA2025
             await ReadWebSocketMessages(webSocket, subscriptions, context, keepAliveTracker, linkedCts.Token);
@@ -89,7 +89,6 @@ public class ObservableQueryHub(
         {
             await linkedCts.CancelAsync();
             await keepAliveTask;
-            linkedCts.Dispose();
 
             foreach (var subscription in subscriptions.Values)
             {
@@ -123,7 +122,7 @@ public class ObservableQueryHub(
         var arguments = BuildArgumentsFromQueryString(context.Query, excludeKeys: ["query", "queryId"]);
         var request = BuildSubscriptionRequest(queryName, arguments, context.Query);
 
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
@@ -165,7 +164,6 @@ public class ObservableQueryHub(
         {
             await linkedCts.CancelAsync();
             await keepAliveTask;
-            linkedCts.Dispose();
         }
 
         logger.SseClientDisconnected();

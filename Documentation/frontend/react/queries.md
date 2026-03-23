@@ -119,7 +119,7 @@ Selects the transport protocol used for the hub connection.
 | Value | Description |
 |-------|-------------|
 | `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query, routed through `/.cratis/queries/sse` (default). |
-| `QueryTransportMethod.WebSocket` | Per-query WebSocket, connecting directly to each query's own URL (legacy behavior). |
+| `QueryTransportMethod.WebSocket` | WebSocket — connects to the per-query WebSocket URL. |
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
@@ -137,7 +137,10 @@ export const App = () => (
 
 ### `queryDirectMode`
 
-When set to `true`, each observable query bypasses the hub entirely and opens its own WebSocket connection directly to the per-query URL. This is useful during local development or when connecting to services that do not expose the centralized hub.
+Controls whether observable queries connect directly to each query's own URL or route through the centralized hub.
+
+- When `false` (default): queries are routed through the centralized hub endpoint (`/.cratis/queries/sse` or `/.cratis/queries/ws` depending on `queryTransportMethod`).
+- When `true`: each observable query opens its own connection directly to the per-query URL, bypassing the hub entirely. Useful during local development or when connecting to services that do not expose the centralized hub.
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
@@ -154,7 +157,7 @@ export const App = () => (
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for hub connections. |
+| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for connections. |
 | `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
 
 See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side configuration including keep-alive settings.

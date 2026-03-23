@@ -8,15 +8,8 @@ public class and_checking_keep_alive_immediately_after : Specification
     KeepAliveTracker _tracker;
     bool _result;
 
-    void Establish()
-    {
-        _tracker = new KeepAliveTracker();
-
-        // Set last message sent to far in the past so ShouldSendKeepAlive would be true before RecordMessageSent
-        typeof(KeepAliveTracker)
-            .GetField("_lastMessageSent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .SetValue(_tracker, DateTimeOffset.UtcNow - TimeSpan.FromMinutes(5));
-    }
+    void Establish() =>
+        _tracker = new KeepAliveTracker(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(5));
 
     void Because()
     {

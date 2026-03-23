@@ -13,7 +13,6 @@ import * as sinon from 'sinon';
 describe('when subscribing with direct mode disabled and SSE transport', given(an_observable_query_for, context => {
     let callback: sinon.SinonStub;
     let subscription: ObservableQuerySubscription<string>;
-    let eventSourceStub: sinon.SinonStub;
     let capturedUrl: string;
     let originalQueryDirectMode: boolean;
     let originalTransportMethod: QueryTransportMethod;
@@ -28,17 +27,19 @@ describe('when subscribing with direct mode disabled and SSE transport', given(a
         context.query.setOrigin('https://example.com');
         callback = sinon.stub();
 
-        eventSourceStub = sinon.stub(global, 'EventSource').callsFake((url: string) => {
+        // EventSource doesn't exist in Node.js — inject a fake via globalThis
+        const FakeEventSourceConstructor = function (this: EventSource, url: string) {
             capturedUrl = url;
-            return {
+            Object.assign(this, {
                 onopen: null,
                 onerror: null,
                 onmessage: null,
                 close: sinon.stub(),
                 addEventListener: sinon.stub(),
-                removeEventListener: sinon.stub()
-            } as unknown as EventSource;
-        });
+                removeEventListener: sinon.stub(),
+            });
+        };
+        (globalThis as Record<string, unknown>)['EventSource'] = FakeEventSourceConstructor;
 
         subscription = context.query.subscribe(callback, { id: 'test-id' });
     });
@@ -49,7 +50,7 @@ describe('when subscribing with direct mode disabled and SSE transport', given(a
         if (subscription) {
             subscription.unsubscribe();
         }
-        eventSourceStub.restore();
+        delete (globalThis as Record<string, unknown>)['EventSource'];
     });
 
     it('should connect to the centralized SSE hub endpoint', () => {
