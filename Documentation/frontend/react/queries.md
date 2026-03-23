@@ -108,3 +108,54 @@ Arc also provides Suspense-compatible variants of these hooks — `useSuspenseQu
 
 See [Suspense Queries](./suspense-queries.md) for details and examples.
 
+## Observable Query Transport
+
+By default, observable queries connect through the centralized hub endpoints. Two props on the `<Arc>` component control this behaviour.
+
+### `queryTransportMethod`
+
+Selects the transport protocol used for the hub connection.
+
+| Value | Description |
+|-------|-------------|
+| `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query, routed through `/.cratis/queries/sse` (default). |
+| `QueryTransportMethod.WebSocket` | Per-query WebSocket, connecting directly to the query's own URL. |
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+import { QueryTransportMethod } from '@cratis/arc/queries';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryTransportMethod={QueryTransportMethod.ServerSentEvents}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+### `queryDirectMode`
+
+When set to `true`, each observable query bypasses the hub entirely and opens its own WebSocket connection directly to the per-query URL. This is useful during local development or when connecting to services that do not expose the centralized hub.
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryDirectMode={true}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for hub connections. |
+| `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
+
+See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side configuration including keep-alive settings.
+

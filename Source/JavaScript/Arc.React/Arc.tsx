@@ -33,6 +33,12 @@ export interface ArcProps {
      * Defaults to 1.
      */
     queryConnectionCount?: number;
+    /**
+     * When true, observable queries connect directly to the per-query WebSocket URL
+     * instead of routing through the centralized hub endpoint.
+     * Defaults to false (use the centralized hub).
+     */
+    queryDirectMode?: boolean;
 }
 
 /**
@@ -49,6 +55,7 @@ export const Arc = (props: ArcProps) => {
         httpHeadersCallback: props.httpHeadersCallback,
         queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
         queryConnectionCount: props.queryConnectionCount ?? 1,
+        queryDirectMode: props.queryDirectMode ?? false,
     };
 
     Bindings.initialize(
@@ -57,7 +64,8 @@ export const Arc = (props: ArcProps) => {
         configuration.origin,
         configuration.httpHeadersCallback,
         configuration.queryTransportMethod,
-        configuration.queryConnectionCount);
+        configuration.queryConnectionCount,
+        configuration.queryDirectMode);
 
     // The cache is application-scoped — create once per Arc mount.
     const queryInstanceCache = useRef(new QueryInstanceCache());

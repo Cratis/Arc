@@ -66,4 +66,11 @@ public class ObservableQueryHubMessage
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
     public static ObservableQueryHubMessage CreatePong(long timestamp) =>
         new() { Type = ObservableQueryHubMessageType.Pong, Timestamp = timestamp };
+
+    /// <summary>
+    /// Creates a <see cref="ObservableQueryHubMessageType.Ping"/> message with the current UTC timestamp.
+    /// </summary>
+    /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
+    public static ObservableQueryHubMessage CreatePing() =>
+        new() { Type = ObservableQueryHubMessageType.Ping, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
 }

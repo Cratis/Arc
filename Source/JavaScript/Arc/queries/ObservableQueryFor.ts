@@ -94,6 +94,12 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
         if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
+        } else if (Globals.queryDirectMode) {
+            // Direct mode: connect directly to the per-query WebSocket URL, bypassing the hub
+            const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
+            const actualRoute = joinPaths(this._apiBasePath, route);
+            const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
+            this._connection = new ObservableQueryConnection<TDataType>(url, this._microservice);
         } else if (Globals.queryTransportMethod === QueryTransportMethod.ServerSentEvents) {
             // SSE: connect to the composite hub endpoint with the fully-qualified query name
             const sseRoute = joinPaths(this._apiBasePath, SSE_HUB_ROUTE);

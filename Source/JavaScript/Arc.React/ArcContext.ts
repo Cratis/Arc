@@ -20,6 +20,12 @@ export interface ArcConfiguration {
      * Defaults to 1.
      */
     queryConnectionCount?: number;
+    /**
+     * When true, observable queries connect directly to the per-query WebSocket URL
+     * instead of routing through the centralized hub endpoint.
+     * Defaults to false (use the centralized hub).
+     */
+    queryDirectMode?: boolean;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
@@ -31,4 +37,5 @@ export const ArcContext = React.createContext<ArcConfiguration>({
     httpHeadersCallback: () => ({}),
     queryTransportMethod: QueryTransportMethod.ServerSentEvents,
     queryConnectionCount: 1,
+    queryDirectMode: false,
 });

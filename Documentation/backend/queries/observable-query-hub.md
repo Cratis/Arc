@@ -166,6 +166,38 @@ Authorization is enforced for every subscription through the standard query pipe
 - If the query allows anonymous access (`[AllowAnonymous]`), the subscription is accepted regardless of authentication state.
 - Authorization is re-evaluated on every new subscription, not cached for the lifetime of the connection.
 
+## Keep-alive
+
+Both WebSocket and SSE transports send automatic keep-alive messages to prevent idle connections from being closed by proxies or firewalls.
+
+The server sends a `ping` message only when no other message has been sent within the configured interval. If data is flowing normally (frequent `queryResult` messages), the keep-alive is suppressed — it fires only during periods of inactivity.
+
+### Configuration
+
+Configure the keep-alive interval in `ArcOptions.Query`:
+
+```csharp
+builder.Services.Configure<ArcOptions>(options =>
+{
+    options.Query.KeepAliveInterval = TimeSpan.FromSeconds(30); // default
+});
+```
+
+Or inline when calling `AddCratisArc()`:
+
+```csharp
+builder.AddCratisArc(options =>
+{
+    options.Query.KeepAliveInterval = TimeSpan.FromSeconds(45);
+});
+```
+
+Set `KeepAliveInterval` to `TimeSpan.Zero` or a negative value to disable keep-alive entirely.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Query.KeepAliveInterval` | `TimeSpan` | 30 seconds | How often to send a keep-alive ping when no data is flowing. |
+
 ## Frontend Integration
 
 The TypeScript client (`@cratis/arc`) uses the hub automatically when the transport method is configured as SSE (the default).
@@ -192,6 +224,27 @@ export const App = () => (
 |-------|-------------|
 | `QueryTransportMethod.ServerSentEvents` | Uses the SSE hub endpoint (default). |
 | `QueryTransportMethod.WebSocket` | Uses the per-query WebSocket endpoint (legacy). |
+
+### Direct mode
+
+By default the client routes all subscriptions through the centralized hub. Set `queryDirectMode={true}` to bypass the hub and connect directly to each query's own WebSocket URL instead.
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryDirectMode={true}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `queryDirectMode` | `boolean` | `false` | When `true`, each observable query opens its own WebSocket connection directly instead of using the hub. |
 
 ### How SSE connections are built
 

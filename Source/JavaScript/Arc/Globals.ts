@@ -17,6 +17,12 @@ export interface IGlobals {
      * Defaults to 1.
      */
     queryConnectionCount: number;
+    /**
+     * When true, observable queries connect directly to the per-query WebSocket URL
+     * instead of routing through the centralized hub endpoint.
+     * Defaults to false (use the centralized hub).
+     */
+    queryDirectMode: boolean;
 }
 
 export const Globals: IGlobals = {
@@ -27,4 +33,5 @@ export const Globals: IGlobals = {
     microserviceWSQueryArgument: 'x-cratis-microservice',
     queryTransportMethod: QueryTransportMethod.WebSocket,
     queryConnectionCount: 1,
+    queryDirectMode: false,
 };

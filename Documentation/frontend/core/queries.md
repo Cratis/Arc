@@ -114,6 +114,24 @@ query.setMicroservice('inventory-service');
 query.setApiBasePath('/api/v1');
 ```
 
+### Observable Query Transport (`queryDirectMode`)
+
+By default, observable queries route through the centralized hub endpoints. Set `Globals.queryDirectMode = true` to connect each observable query directly to its own WebSocket URL, bypassing the hub.
+
+This setting is typically managed via the `<Arc>` React component prop `queryDirectMode` (see [React query integration](../react/queries.md)), but can also be set directly on `Globals` for non-React environments:
+
+```typescript
+import { Globals } from '@cratis/arc';
+
+// Connect each observable query directly (bypass hub)
+Globals.queryDirectMode = true;
+```
+
+| Value | Description |
+|-------|-------------|
+| `false` (default) | Route through the centralized hub (`/.cratis/queries/sse` or `/.cratis/queries/ws`). |
+| `true` | Connect directly to each query's own per-query WebSocket URL. |
+
 ## Error Handling
 
 The system provides comprehensive error handling for queries:

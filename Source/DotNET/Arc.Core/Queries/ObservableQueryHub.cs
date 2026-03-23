@@ -67,9 +67,13 @@ public class ObservableQueryHub(
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
+        var keepAliveTracker = new KeepAliveTracker();
+
         try
         {
-            await ReadWebSocketMessages(webSocket, subscriptions, context, linkedCts.Token);
+            var keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, linkedCts.Token);
+            await ReadWebSocketMessages(webSocket, subscriptions, context, keepAliveTracker, linkedCts.Token);
+            await keepAliveTask;
         }
         catch (OperationCanceledException)
         {
@@ -120,6 +124,9 @@ public class ObservableQueryHub(
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         linkedCts.Token.Register(() => tcs.TrySetResult());
 
+        var keepAliveTracker = new KeepAliveTracker();
+        var keepAliveTask = RunSseKeepAlive(context, keepAliveTracker, linkedCts.Token);
+
         using var subscription = await CreateSubscription(
             context,
             queryId,
@@ -127,24 +134,25 @@ public class ObservableQueryHub(
             async result =>
             {
                 var message = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
-                await SendSseMessage(context, message, linkedCts.Token);
+                await SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
             },
             async (id, errorMsg) =>
             {
                 var message = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendSseMessage(context, message, linkedCts.Token);
+                await SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
                 tcs.TrySetResult();
             },
             unauthorizedId =>
             {
                 var message = ObservableQueryHubMessage.CreateUnauthorized(unauthorizedId);
-                _ = SendSseMessage(context, message, linkedCts.Token);
+                _ = SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
                 tcs.TrySetResult();
                 return Task.CompletedTask;
             },
             linkedCts.Token);
 
         await tcs.Task;
+        await keepAliveTask;
         logger.SseClientDisconnected();
     }
 
@@ -152,6 +160,7 @@ public class ObservableQueryHub(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
+        KeepAliveTracker keepAliveTracker,
         CancellationToken token)
     {
         var buffer = new byte[WebSocketBufferSize];
@@ -194,7 +203,7 @@ public class ObservableQueryHub(
                     continue;
                 }
 
-                await ProcessWebSocketMessage(message, webSocket, subscriptions, context, token);
+                await ProcessWebSocketMessage(message, webSocket, subscriptions, context, keepAliveTracker, token);
             }
             catch (Exception ex)
             {
@@ -216,12 +225,13 @@ public class ObservableQueryHub(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
+        KeepAliveTracker keepAliveTracker,
         CancellationToken token)
     {
         switch (message.Type)
         {
             case ObservableQueryHubMessageType.Subscribe:
-                await HandleWebSocketSubscribe(message, webSocket, subscriptions, context, token);
+                await HandleWebSocketSubscribe(message, webSocket, subscriptions, context, keepAliveTracker, token);
                 break;
 
             case ObservableQueryHubMessageType.Unsubscribe:
@@ -229,7 +239,7 @@ public class ObservableQueryHub(
                 break;
 
             case ObservableQueryHubMessageType.Ping:
-                await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), token);
+                await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), keepAliveTracker, token);
                 break;
         }
     }
@@ -239,6 +249,7 @@ public class ObservableQueryHub(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
+        KeepAliveTracker keepAliveTracker,
         CancellationToken token)
     {
         var request = DeserializeSubscriptionRequest(message.Payload);
@@ -265,17 +276,17 @@ public class ObservableQueryHub(
             async result =>
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
-                await SendWebSocketMessage(webSocket, msg, token);
+                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, token);
             },
             async (id, errorMsg) =>
             {
                 var msg = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendWebSocketMessage(webSocket, msg, token);
+                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, token);
             },
             async id =>
             {
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
-                await SendWebSocketMessage(webSocket, msg, token);
+                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, token);
             },
             token);
 
@@ -509,7 +520,7 @@ public class ObservableQueryHub(
         }
     }
 
-    async Task SendWebSocketMessage(IWebSocket webSocket, ObservableQueryHubMessage message, CancellationToken token)
+    async Task SendWebSocketMessage(IWebSocket webSocket, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, CancellationToken token)
     {
         try
         {
@@ -520,6 +531,7 @@ public class ObservableQueryHub(
 
             var json = JsonSerializer.SerializeToUtf8Bytes(message, arcOptions.Value.JsonSerializerOptions);
             await webSocket.Send(new ArraySegment<byte>(json), System.Net.WebSockets.WebSocketMessageType.Text, true, token);
+            keepAliveTracker.RecordMessageSent();
         }
         catch (Exception ex)
         {
@@ -527,16 +539,71 @@ public class ObservableQueryHub(
         }
     }
 
-    async Task SendSseMessage(IHttpRequestContext context, ObservableQueryHubMessage message, CancellationToken token)
+    async Task SendSseMessage(IHttpRequestContext context, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, CancellationToken token)
     {
         try
         {
             var json = JsonSerializer.Serialize(message, arcOptions.Value.JsonSerializerOptions);
             await context.Write($"data: {json}\n\n", token);
+            keepAliveTracker.RecordMessageSent();
         }
         catch (Exception ex)
         {
             logger.ErrorSendingMessage(ex);
+        }
+    }
+
+    async Task RunWebSocketKeepAlive(IWebSocket webSocket, KeepAliveTracker keepAliveTracker, CancellationToken token)
+    {
+        var interval = arcOptions.Value.Query.KeepAliveInterval;
+
+        if (interval <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, token);
+
+                if (!token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
+                {
+                    await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, token);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown — nothing to report.
+        }
+    }
+
+    async Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationToken token)
+    {
+        var interval = arcOptions.Value.Query.KeepAliveInterval;
+
+        if (interval <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, token);
+
+                if (!token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
+                {
+                    await SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, token);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown — nothing to report.
         }
     }
 
