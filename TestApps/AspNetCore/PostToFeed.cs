@@ -10,7 +10,7 @@ namespace AspNetCore;
 /// </summary>
 /// <remarks>
 /// Demonstrates a model-bound command whose side effect is observed in real time through the
-/// centralised SSE hub (<c>/.cratis/queries/sse</c>) via the <see cref="LiveFeed"/> read model.
+/// centralized SSE hub (<c>/.cratis/queries/sse</c>) via the <see cref="LiveFeed"/> read model.
 /// </remarks>
 [Command]
 public record PostToFeed(string Author, string Text)

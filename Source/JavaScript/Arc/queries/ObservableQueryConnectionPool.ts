@@ -21,7 +21,7 @@ interface PoolSlot {
  * across a fixed number of physical hub connections.
  *
  * When {@link size} is 1 (the default), all queries are counted against a single slot — the
- * natural behaviour for a single centralised hub connection.
+ * natural behaviour for a single centralized hub connection.
  *
  * @template TDataType The type of data received from the connections.
  */

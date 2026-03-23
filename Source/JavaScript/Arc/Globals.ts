@@ -13,7 +13,7 @@ export interface IGlobals {
     /**
      * Number of hub connections maintained for observable queries.
      * When greater than one, queries are distributed across the pool round-robin.
-     * Only applies when {@link queryTransportMethod} is a centralised hub transport.
+     * Only applies when {@link queryTransportMethod} is a centralized hub transport.
      * Defaults to 1.
      */
     queryConnectionCount: number;
