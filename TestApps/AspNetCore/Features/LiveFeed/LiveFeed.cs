@@ -4,7 +4,7 @@
 using System.Reactive.Subjects;
 using Cratis.Arc.Queries.ModelBound;
 
-namespace AspNetCore;
+namespace AspNetCore.Features.LiveFeed;
 
 /// <summary>
 /// Represents a live feed observable read model.

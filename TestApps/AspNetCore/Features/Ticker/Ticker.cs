@@ -4,7 +4,7 @@
 using System.Reactive.Subjects;
 using Cratis.Arc.Queries.ModelBound;
 
-namespace AspNetCore;
+namespace AspNetCore.Features.Ticker;
 
 /// <summary>
 /// Represents a live counter that ticks every second.

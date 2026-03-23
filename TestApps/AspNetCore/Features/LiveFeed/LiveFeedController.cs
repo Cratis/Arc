@@ -3,7 +3,7 @@
 
 using Microsoft.AspNetCore.Mvc;
 
-namespace AspNetCore;
+namespace AspNetCore.Features.LiveFeed;
 
 /// <summary>
 /// Provides an HTTP endpoint for posting to the live feed, demonstrating a command that

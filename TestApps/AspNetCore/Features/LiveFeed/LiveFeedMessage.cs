@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace AspNetCore;
+namespace AspNetCore.Features.LiveFeed;
 
 /// <summary>
 /// Represents a single message in a live feed.

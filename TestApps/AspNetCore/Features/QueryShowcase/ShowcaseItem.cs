@@ -4,7 +4,7 @@
 using System.Reactive.Subjects;
 using Cratis.Arc.Queries.ModelBound;
 
-namespace AspNetCore;
+namespace AspNetCore.Features.QueryShowcase;
 
 /// <summary>
 /// Represents a showcase item for demonstrating different query types.

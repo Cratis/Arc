@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useState } from 'react';
-import { Latest, All, ById, GetAll } from '../../ShowcaseItem';
+import { Latest, All, ById, GetAll } from './ShowcaseItem';
 
 /**
  * Page demonstrating the four distinct query types supported by Arc.

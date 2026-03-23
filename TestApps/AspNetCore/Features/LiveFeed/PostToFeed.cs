@@ -3,7 +3,7 @@
 
 using Cratis.Arc.Commands.ModelBound;
 
-namespace AspNetCore;
+namespace AspNetCore.Features.LiveFeed;
 
 /// <summary>
 /// Represents a command to post a message to the live feed.
