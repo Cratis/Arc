@@ -63,17 +63,19 @@ public class ObservableQueryHub(
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
         var subscriptions = new ConcurrentDictionary<string, IDisposable>();
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
         var keepAliveTracker = new KeepAliveTracker();
+        var keepAliveTask = Task.CompletedTask;
 
         try
         {
-            var keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, linkedCts.Token);
+#pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts.Dispose()
+            keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, linkedCts.Token);
+#pragma warning restore CA2025
             await ReadWebSocketMessages(webSocket, subscriptions, context, keepAliveTracker, linkedCts.Token);
-            await keepAliveTask;
         }
         catch (OperationCanceledException)
         {
@@ -85,6 +87,10 @@ public class ObservableQueryHub(
         }
         finally
         {
+            await linkedCts.CancelAsync();
+            await keepAliveTask;
+            linkedCts.Dispose();
+
             foreach (var subscription in subscriptions.Values)
             {
                 subscription.Dispose();
@@ -117,7 +123,7 @@ public class ObservableQueryHub(
         var arguments = BuildArgumentsFromQueryString(context.Query, excludeKeys: ["query", "queryId"]);
         var request = BuildSubscriptionRequest(queryName, arguments, context.Query);
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
@@ -127,32 +133,41 @@ public class ObservableQueryHub(
         var keepAliveTracker = new KeepAliveTracker();
         var keepAliveTask = RunSseKeepAlive(context, keepAliveTracker, linkedCts.Token);
 
-        using var subscription = await CreateSubscription(
-            context,
-            queryId,
-            request,
-            async result =>
-            {
-                var message = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
-                await SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
-            },
-            async (id, errorMsg) =>
-            {
-                var message = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
-                tcs.TrySetResult();
-            },
-            unauthorizedId =>
-            {
-                var message = ObservableQueryHubMessage.CreateUnauthorized(unauthorizedId);
-                _ = SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
-                tcs.TrySetResult();
-                return Task.CompletedTask;
-            },
-            linkedCts.Token);
+        try
+        {
+            using var subscription = await CreateSubscription(
+                context,
+                queryId,
+                request,
+                async result =>
+                {
+                    var message = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
+                    await SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
+                },
+                async (id, errorMsg) =>
+                {
+                    var message = ObservableQueryHubMessage.CreateError(id, errorMsg);
+                    await SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
+                    tcs.TrySetResult();
+                },
+                unauthorizedId =>
+                {
+                    var message = ObservableQueryHubMessage.CreateUnauthorized(unauthorizedId);
+                    _ = SendSseMessage(context, message, keepAliveTracker, linkedCts.Token);
+                    tcs.TrySetResult();
+                    return Task.CompletedTask;
+                },
+                linkedCts.Token);
 
-        await tcs.Task;
-        await keepAliveTask;
+            await tcs.Task;
+        }
+        finally
+        {
+            await linkedCts.CancelAsync();
+            await keepAliveTask;
+            linkedCts.Dispose();
+        }
+
         logger.SseClientDisconnected();
     }
 

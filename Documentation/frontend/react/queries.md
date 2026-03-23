@@ -119,7 +119,7 @@ Selects the transport protocol used for the hub connection.
 | Value | Description |
 |-------|-------------|
 | `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query, routed through `/.cratis/queries/sse` (default). |
-| `QueryTransportMethod.WebSocket` | Per-query WebSocket, connecting directly to the query's own URL. |
+| `QueryTransportMethod.WebSocket` | Per-query WebSocket, connecting directly to each query's own URL (legacy behavior). |
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
