@@ -15,7 +15,6 @@ const config: StorybookConfig = {
     ],
     addons: [
         getAbsolutePath("@storybook/addon-links"),
-        getAbsolutePath("@storybook/addon-storysource"),
     ],
     framework: {
         name: getAbsolutePath("@storybook/react-vite"),
