@@ -1947,7 +1947,7 @@ export const WithCallbacks: Story = {
                     onFailed={(result) => {
                         addMessage('❌ onFailed called - isSuccess: ' + result.isSuccess);
                     }}
-                    onException={(messages, stackTrace) => {
+                    onException={(messages) => {
                         addMessage('🔥 onException called - messages: ' + messages.join(', '));
                     }}
                     onUnauthorized={() => {

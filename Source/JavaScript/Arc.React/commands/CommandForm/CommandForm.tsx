@@ -11,7 +11,7 @@ import { ValidationResult } from '@cratis/arc/validation';
 import React, { useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
-import { useIdentity } from '@cratis/arc.react/identity';
+import { useIdentity } from '../../identity';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
