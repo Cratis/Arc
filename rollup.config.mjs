@@ -77,6 +77,7 @@ export function rollup(cjsPath, esmPath, tsconfigPath, pkg) {
                 },
             }),
             typescript2({
+                include: ['**/*.ts', '**/*.tsx'],
                 exclude: "for_**/**/*",
                 tsconfig: tsconfigPath,
                 clean: true
