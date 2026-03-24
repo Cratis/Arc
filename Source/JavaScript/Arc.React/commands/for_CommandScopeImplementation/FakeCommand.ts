@@ -26,12 +26,12 @@ export class FakeCommand implements ICommand {
     revertChanges: sinon.SinonSpy;
     setInitialValuesFromCurrentValues: sinon.SinonStub;
 
-    constructor(hasChanges: boolean) {
+    constructor(hasChanges: boolean, result?: CommandResult) {
         this._hasChanges = hasChanges;
         this.execute = sinon.fake(() => {
             this._hasChanges = false;
             return new Promise<CommandResult>(resolve => {
-                resolve(CommandResult.empty);
+                resolve(result ?? CommandResult.empty);
             });
         });
         this.validate = sinon.fake(() => {

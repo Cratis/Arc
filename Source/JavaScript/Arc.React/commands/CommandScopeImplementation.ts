@@ -1,10 +1,55 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ICommand, CommandResults } from '@cratis/arc/commands';
+import { ICommand, CommandResult, CommandResults } from '@cratis/arc/commands';
 import { IQueryFor } from '@cratis/arc/queries';
 import { ICommandScope } from './ICommandScope';
 
+/**
+ * Defines the callbacks that can be provided to a {@link CommandScopeImplementation}.
+ */
+export interface CommandScopeCallbacks {
+    /**
+     * Called before each command is executed.
+     * @param {ICommand} command The command that is about to be executed.
+     */
+    onBeforeExecute?: (command: ICommand) => void;
+
+    /**
+     * Called when a command executes successfully.
+     * @param {ICommand} command The command that was executed.
+     * @param {CommandResult} result The result of the execution.
+     */
+    onSuccess?: (command: ICommand, result: CommandResult) => void;
+
+    /**
+     * Called when a command fails for any reason.
+     * @param {ICommand} command The command that was executed.
+     * @param {CommandResult} result The result of the execution.
+     */
+    onFailed?: (command: ICommand, result: CommandResult) => void;
+
+    /**
+     * Called when a command fails due to an exception.
+     * @param {ICommand} command The command that was executed.
+     * @param {CommandResult} result The result of the execution.
+     */
+    onException?: (command: ICommand, result: CommandResult) => void;
+
+    /**
+     * Called when a command fails due to an authorization failure.
+     * @param {ICommand} command The command that was executed.
+     * @param {CommandResult} result The result of the execution.
+     */
+    onUnauthorized?: (command: ICommand, result: CommandResult) => void;
+
+    /**
+     * Called when a command fails due to validation errors.
+     * @param {ICommand} command The command that was executed.
+     * @param {CommandResult} result The result of the execution.
+     */
+    onValidationFailure?: (command: ICommand, result: CommandResult) => void;
+}
 
 /**
  * Represents an implementation of {@link ICommandScope}.
@@ -19,7 +64,8 @@ export class CommandScopeImplementation extends ICommandScope {
     constructor(
         private readonly _setHasChanges: (value: boolean) => void,
         private readonly _setIsPerforming?: (value: boolean) => void,
-        parent?: ICommandScope
+        parent?: ICommandScope,
+        private readonly _getCallbacks?: () => CommandScopeCallbacks
     ) {
         super();
         this._parent = parent;
@@ -67,8 +113,25 @@ export class CommandScopeImplementation extends ICommandScope {
 
         try {
             for (const command of this._commands.filter(_ => _.hasChanges === true)) {
+                const callbacks = this._getCallbacks?.();
+                callbacks?.onBeforeExecute?.(command);
                 const commandResult = await command.execute();
                 commandsToCommandResult.set(command, commandResult);
+
+                if (commandResult.isSuccess) {
+                    callbacks?.onSuccess?.(command, commandResult);
+                } else {
+                    callbacks?.onFailed?.(command, commandResult);
+                    if (!commandResult.isAuthorized) {
+                        callbacks?.onUnauthorized?.(command, commandResult);
+                    }
+                    if (!commandResult.isValid) {
+                        callbacks?.onValidationFailure?.(command, commandResult);
+                    }
+                    if (commandResult.hasExceptions) {
+                        callbacks?.onException?.(command, commandResult);
+                    }
+                }
             }
         } finally {
             this.setIsPerforming(false);
