@@ -59,11 +59,20 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
     );
 
+    // Stable listener ref so we can add/remove the same function reference.
+    const listenerRef = useRef<(r: QueryResultWithState<TDataType>) => void>();
+    if (!listenerRef.current) {
+        listenerRef.current = (r: QueryResultWithState<TDataType>) => setResult(r);
+    }
+
     const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
     const hasAllRequiredArgumentsSet = hasAllRequiredArguments(queryInstance.requiredRequestParameters, args as object | undefined);
 
     useEffect(() => {
         const key = cacheKeyRef.current;
+        const listener = listenerRef.current!;
+
+        queryCache.acquire(key);
 
         if (!isEnabled || !hasAllRequiredArgumentsSet) {
             return () => {
@@ -71,14 +80,30 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             };
         }
 
-        const subscription = queryInstance.subscribe(response => {
-            const withState = QueryResultWithState.fromQueryResult(response, false);
-            queryCache.setLastResult(key, withState);
-            setResult(withState);
-        }, args as object);
+        // Register this component's listener so it receives broadcasts from setLastResult.
+        queryCache.addListener(key, listener);
+
+        // If the cached result already exists (another subscriber already received data),
+        // immediately apply it to this component's state.
+        const existing = queryCache.getLastResult<TDataType>(key);
+        if (existing) {
+            setResult(existing);
+        }
+
+        // Only start a subscription if one does not already exist for this cache key.
+        if (!queryCache.isSubscribed(key)) {
+            const subscription = queryInstance.subscribe(response => {
+                const withState = QueryResultWithState.fromQueryResult(response, false);
+                queryCache.setLastResult(key, withState);
+            }, args as object);
+
+            queryCache.setTeardown(key, () => {
+                subscription.unsubscribe();
+            });
+        }
 
         return () => {
-            subscription.unsubscribe();
+            queryCache.removeListener(key, listener);
             queryCache.release(key);
         };
     }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet]]);

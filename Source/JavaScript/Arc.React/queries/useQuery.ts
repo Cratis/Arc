@@ -75,15 +75,19 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     });
 
     useEffect(() => {
+        const key = cacheKeyRef.current;
+
+        queryCache.acquire(key);
+
         if (!isEnabled) {
             return () => {
-                queryCache.release(cacheKeyRef.current);
+                queryCache.release(key);
             };
         }
         queryExecutor(args);
 
         return () => {
-            queryCache.release(cacheKeyRef.current);
+            queryCache.release(key);
         };
     }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled]]);
 
