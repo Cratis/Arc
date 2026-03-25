@@ -9,7 +9,8 @@ describe('when releasing one of two subscribers', () => {
     beforeEach(() => {
         cache = new QueryInstanceCache();
         cache.getOrCreate('MyQuery::', () => ({}));
-        cache.getOrCreate('MyQuery::', () => ({})); // second subscriber — reuses entry
+        cache.acquire('MyQuery::');
+        cache.acquire('MyQuery::'); // second subscriber
         cache.release('MyQuery::');
     });
 

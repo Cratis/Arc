@@ -9,6 +9,11 @@ import { QueryResultWithState } from './QueryResultWithState';
 export type QueryCacheKey = string;
 
 /**
+ * Callback invoked when the cached result for an entry changes.
+ */
+export type QueryCacheListener<TDataType> = (result: QueryResultWithState<TDataType>) => void;
+
+/**
  * Represents a single entry in the {@link QueryInstanceCache}.
  * @template TDataType The type of data returned by the query.
  */
@@ -27,6 +32,22 @@ export interface QueryCacheEntry<TDataType> {
      * The number of active subscribers holding a reference to this entry.
      */
     subscriberCount: number;
+
+    /**
+     * Set of listener callbacks that are notified when {@link lastResult} changes.
+     */
+    readonly listeners: Set<QueryCacheListener<TDataType>>;
+
+    /**
+     * Cleanup function returned by the first subscriber that starts the query connection.
+     * Called when the last subscriber releases the entry.
+     */
+    teardown?: () => void;
+
+    /**
+     * Whether an active subscription has been established for this entry.
+     */
+    subscribed: boolean;
 }
 
 /**
@@ -77,7 +98,9 @@ export class QueryInstanceCache {
             const entry: QueryCacheEntry<unknown> = {
                 instance: factory(),
                 lastResult: undefined,
-                subscriberCount: 1,
+                subscriberCount: 0,
+                listeners: new Set(),
+                subscribed: false,
             };
 
             this._entries.set(key, entry);
@@ -85,8 +108,20 @@ export class QueryInstanceCache {
         }
 
         const entry = this._entries.get(key)!;
-        entry.subscriberCount++;
         return { instance: entry.instance as TInstance, isNew: false };
+    }
+
+    /**
+     * Increments the active subscriber count for the given key.
+     * Call from `useEffect` setup to pair with {@link release} in the cleanup.
+     * @param key The cache key produced by {@link buildKey}.
+     */
+    acquire(key: QueryCacheKey): void {
+        const entry = this._entries.get(key);
+
+        if (entry) {
+            entry.subscriberCount++;
+        }
     }
 
     /**
@@ -100,7 +135,7 @@ export class QueryInstanceCache {
     }
 
     /**
-     * Stores the most recent result for the given key so that new subscribers can receive it immediately.
+     * Stores the most recent result for the given key and notifies all registered listeners.
      * @template TDataType The type of data returned by the query.
      * @param key The cache key produced by {@link buildKey}.
      * @param result The result to store.
@@ -110,11 +145,68 @@ export class QueryInstanceCache {
 
         if (entry) {
             entry.lastResult = result as QueryResultWithState<unknown>;
+
+            for (const listener of entry.listeners) {
+                (listener as QueryCacheListener<TDataType>)(result);
+            }
         }
     }
 
     /**
-     * Decrements the subscriber count for the given key. When the count reaches zero the entry is evicted.
+     * Registers a listener that is invoked whenever the cached result for the given key changes.
+     * @template TDataType The type of data returned by the query.
+     * @param key The cache key produced by {@link buildKey}.
+     * @param listener The callback to register.
+     */
+    addListener<TDataType>(key: QueryCacheKey, listener: QueryCacheListener<TDataType>): void {
+        const entry = this._entries.get(key);
+
+        if (entry) {
+            entry.listeners.add(listener as QueryCacheListener<unknown>);
+        }
+    }
+
+    /**
+     * Removes a previously registered listener.
+     * @template TDataType The type of data returned by the query.
+     * @param key The cache key produced by {@link buildKey}.
+     * @param listener The callback to remove.
+     */
+    removeListener<TDataType>(key: QueryCacheKey, listener: QueryCacheListener<TDataType>): void {
+        const entry = this._entries.get(key);
+
+        if (entry) {
+            entry.listeners.delete(listener as QueryCacheListener<unknown>);
+        }
+    }
+
+    /**
+     * Stores a teardown function for the given key and marks the entry as subscribed.
+     * Called automatically when the last subscriber releases the entry.
+     * @param key The cache key produced by {@link buildKey}.
+     * @param teardown Cleanup function that disconnects the underlying query subscription.
+     */
+    setTeardown(key: QueryCacheKey, teardown: () => void): void {
+        const entry = this._entries.get(key);
+
+        if (entry) {
+            entry.teardown = teardown;
+            entry.subscribed = true;
+        }
+    }
+
+    /**
+     * Returns whether an active subscription exists for the given key.
+     * @param key The cache key to check.
+     * @returns `true` if a subscription has been established; `false` otherwise.
+     */
+    isSubscribed(key: QueryCacheKey): boolean {
+        return this._entries.get(key)?.subscribed ?? false;
+    }
+
+    /**
+     * Decrements the subscriber count for the given key. When the count reaches zero the teardown
+     * function is called (if set) and the entry is evicted.
      * @param key The cache key produced by {@link buildKey}.
      */
     release(key: QueryCacheKey): void {
@@ -124,7 +216,18 @@ export class QueryInstanceCache {
             entry.subscriberCount--;
 
             if (entry.subscriberCount <= 0) {
-                this._entries.delete(key);
+                entry.subscribed = false;
+                entry.teardown?.();
+                entry.teardown = undefined;
+
+                // Defer deletion so React Strict Mode re-mounts can re-acquire the entry.
+                setTimeout(() => {
+                    const current = this._entries.get(key);
+
+                    if (current && current.subscriberCount <= 0) {
+                        this._entries.delete(key);
+                    }
+                }, 0);
             }
         }
     }
