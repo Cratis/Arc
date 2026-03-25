@@ -44,7 +44,7 @@ public static class QueryEndpointMapper
                 performersByNamespace);
             var url = EndpointRouteHelper.BuildRouteUrl(options, location, performer.Name.ToString(), includeQueryName);
 
-            var executeEndpointName = $"Execute{performer.Name}";
+            var executeEndpointName = $"Execute{performer.FullyQualifiedName}";
             if (!mapper.EndpointExists(executeEndpointName))
             {
                 var metadata = new EndpointMetadata(

@@ -57,7 +57,14 @@ public class ClientObservable<T>(
         linkedTokenSource.Token.Register(Complete);
 
         await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
-        subject.OnCompleted();
+
+        // The client disconnected — clean up without completing the shared subject.
+        if (!cts.IsCancellationRequested)
+        {
+            await cts.CancelAsync();
+        }
+
+        tcs.TrySetResult();
 
         await tcs.Task;
         return;
