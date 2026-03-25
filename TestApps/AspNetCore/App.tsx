@@ -1,18 +1,21 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useState } from 'react';
 import { TickerPage } from './Features/Ticker/TickerPage';
 import { LiveFeedPage } from './Features/LiveFeed/LiveFeedPage';
 import { QueryShowcasePage } from './Features/QueryShowcase/QueryShowcasePage';
 
-type Page = 'ticker' | 'livefeed' | 'queryshowcase';
+export type Page = 'ticker' | 'livefeed' | 'queryshowcase';
+
+interface AppProps {
+    page: Page;
+    onPageChange: (page: Page) => void;
+}
 
 /**
  * Root application component with simple tab navigation.
  */
-export const App = () => {
-    const [page, setPage] = useState<Page>('ticker');
+export const App = ({ page, onPageChange: setPage }: AppProps) => {
 
     return (
         <div style={{ fontFamily: 'sans-serif', maxWidth: 1000, margin: '0 auto', padding: 24 }}>
