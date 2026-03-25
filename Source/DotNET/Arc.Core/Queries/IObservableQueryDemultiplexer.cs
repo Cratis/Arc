@@ -6,8 +6,8 @@ using Cratis.Arc.Http;
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Defines the observable query hub — a composite endpoint that multiplexes multiple observable query
-/// subscriptions over a single persistent connection.
+/// Defines the observable query demultiplexer — a composite endpoint that accepts multiplexed observable
+/// query subscriptions over a single persistent connection and routes them to individual query pipelines.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,11 +19,11 @@ namespace Cratis.Arc.Queries;
 /// </list>
 /// </para>
 /// <para>
-/// Both transports honour the query authorization pipeline; unauthorized subscriptions receive an
+/// Both transports honor the query authorization pipeline; unauthorized subscriptions receive an
 /// <see cref="ObservableQueryHubMessageType.Unauthorized"/> response rather than data.
 /// </para>
 /// </remarks>
-public interface IObservableQueryHub
+public interface IObservableQueryDemultiplexer
 {
     /// <summary>
     /// Handles an incoming WebSocket connection on the <c>/.cratis/queries/ws</c> endpoint.

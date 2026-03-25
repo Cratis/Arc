@@ -2,13 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
-import { ObservableQueryConnection } from './ObservableQueryConnection';
 import { ObservableQuerySubscription } from './ObservableQuerySubscription';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
 import { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
-import { ServerSentEventQueryConnection, SSE_HUB_ROUTE } from './ServerSentEventQueryConnection';
-import { QueryTransportMethod } from './QueryTransportMethod';
+import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
 import { Constructor } from '@cratis/fundamentals';
 import { JsonSerializer } from '@cratis/fundamentals';
 import { QueryResult } from './QueryResult';
@@ -94,26 +92,15 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
         if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
-        } else if (Globals.queryDirectMode) {
-            // Direct mode: connect directly to the per-query WebSocket URL, bypassing the hub
-            const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
-            const actualRoute = joinPaths(this._apiBasePath, route);
-            const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
-            this._connection = new ObservableQueryConnection<TDataType>(url, this._microservice);
-        } else if (Globals.queryTransportMethod === QueryTransportMethod.ServerSentEvents) {
-            // SSE: connect to the composite hub endpoint with the fully-qualified query name
-            const sseRoute = joinPaths(this._apiBasePath, SSE_HUB_ROUTE);
-            const sseUrl = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, sseRoute);
-            const fullyQualifiedName = this.queryName ?? this.constructor.name;
-            const queryParam = `query=${encodeURIComponent(fullyQualifiedName)}`;
-            const separator = sseUrl.search ? '&' : '?';
-            const sseUrlWithQuery = new URL(`${sseUrl.toString()}${separator}${queryParam}`);
-            this._connection = new ServerSentEventQueryConnection<TDataType>(sseUrlWithQuery);
         } else {
-            const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
-            const actualRoute = joinPaths(this._apiBasePath, route);
-            const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
-            this._connection = new ObservableQueryConnection<TDataType>(url, this._microservice);
+            this._connection = createObservableQueryConnection({
+                route: this.route,
+                queryName: this.queryName ?? this.constructor.name,
+                origin: this._origin,
+                apiBasePath: this._apiBasePath,
+                microservice: this._microservice,
+                args: args as object,
+            });
         }
 
         // Build query arguments including unused args parameters, parameter descriptor values, and paging/sorting

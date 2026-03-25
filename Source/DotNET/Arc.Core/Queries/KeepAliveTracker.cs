@@ -7,7 +7,7 @@ namespace Cratis.Arc.Queries;
 /// Tracks the last time a message was sent to determine whether a keep-alive message should be sent.
 /// </summary>
 /// <remarks>
-/// The keep-alive logic is transport-agnostic. Any transport that needs keep-alive behaviour should
+/// The keep-alive logic is transport-agnostic. Any transport that needs keep-alive behavior should
 /// create an instance of this class and call <see cref="RecordMessageSent"/> every time a message
 /// is dispatched to the client. Before sending a keep-alive, check <see cref="ShouldSendKeepAlive"/>
 /// to avoid sending redundant keep-alive messages when normal data is already flowing.

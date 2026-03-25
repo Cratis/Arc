@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Defines the types of messages exchanged in the <see cref="ObservableQueryHub"/> protocol.
+/// Defines the types of messages exchanged in the <see cref="ObservableQueryDemultiplexer"/> protocol.
 /// </summary>
 public enum ObservableQueryHubMessageType
 {
@@ -42,4 +42,10 @@ public enum ObservableQueryHubMessageType
     /// Response to a ping message.
     /// </summary>
     Pong = 6,
+
+    /// <summary>
+    /// Server sends the connection identifier to the client after an SSE connection is established.
+    /// The client uses this identifier to correlate subscribe/unsubscribe POST requests with the SSE stream.
+    /// </summary>
+    Connected = 7,
 }

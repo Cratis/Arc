@@ -6,16 +6,18 @@ import { DataReceived } from './ObservableQueryConnection';
 import { QueryResult } from './QueryResult';
 
 /**
- * The SSE hub route used when connecting through the composite observable query hub.
+ * The SSE demultiplexer route used when connecting through the multiplexed observable query endpoint.
  */
 export const SSE_HUB_ROUTE = '/.cratis/queries/sse';
 
 /**
- * Represents a Server-Sent Events (SSE) connection for an observable query.
+ * Represents a direct Server-Sent Events (SSE) connection for a single observable query.
  *
- * The connection targets the composite hub endpoint (`/.cratis/queries/sse?query=<queryName>&…`)
- * rather than per-query WebSocket endpoints, enabling SSE-based real-time updates with lower
- * client-side overhead.
+ * In direct mode the URL points to the per-query endpoint (e.g. `/api/queries/latest`).
+ * The backend detects the `Accept: text/event-stream` header and streams results directly.
+ *
+ * The caller (typically {@link createObservableQueryConnection}) decides which URL to use;
+ * this class is transport-agnostic beyond being SSE.
  */
 export class ServerSentEventQueryConnection<TDataType> implements IObservableQueryConnection<TDataType> {
     private _eventSource?: EventSource;
@@ -28,7 +30,7 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
     readonly averageLatency: number = 0;
 
     /**
-     * Initialises a new instance of {@link ServerSentEventQueryConnection}.
+     * Initializes a new instance of {@link ServerSentEventQueryConnection}.
      * @param {URL} url The fully qualified URL of the SSE endpoint (including query parameters).
      */
     constructor(private readonly _url: URL) {}
@@ -59,12 +61,8 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
         this._eventSource.onmessage = (event: MessageEvent) => {
             if (this._disconnected) return;
             try {
-                const parsed = JSON.parse(event.data as string);
-
-                // The hub wraps data in an ObservableQueryHubMessage envelope.
-                // Extract the inner result when the payload is present.
-                const result: QueryResult<TDataType> = parsed?.payload ?? parsed;
-                dataReceived(result as QueryResult<TDataType>);
+                const result = JSON.parse(event.data as string) as QueryResult<TDataType>;
+                dataReceived(result);
             } catch (error) {
                 console.error('SSE: error parsing message', error);
             }

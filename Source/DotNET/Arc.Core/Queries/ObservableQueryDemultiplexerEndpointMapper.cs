@@ -7,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Maps the fixed <see cref="IObservableQueryHub"/> endpoints onto the provided <see cref="IEndpointMapper"/>.
+/// Maps the fixed <see cref="IObservableQueryDemultiplexer"/> endpoints onto the provided <see cref="IEndpointMapper"/>.
 /// </summary>
-public static class ObservableQueryHubEndpointMapper
+public static class ObservableQueryDemultiplexerEndpointMapper
 {
     /// <summary>
     /// The WebSocket endpoint route.
@@ -37,7 +37,7 @@ public static class ObservableQueryHubEndpointMapper
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to register routes on.</param>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
 #pragma warning disable IDE0060 // Remove unused parameter — kept for API consistency with other endpoint mappers
-    public static void MapObservableQueryHubEndpoints(this IEndpointMapper mapper, IServiceProvider serviceProvider)
+    public static void MapObservableQueryDemultiplexerEndpoints(this IEndpointMapper mapper, IServiceProvider serviceProvider)
 #pragma warning restore IDE0060
     {
         MapWebSocketEndpoint(mapper);
@@ -48,7 +48,7 @@ public static class ObservableQueryHubEndpointMapper
 
     static void MapWebSocketEndpoint(IEndpointMapper mapper)
     {
-        const string endpointName = "ObservableQueryHubWebSocket";
+        const string endpointName = "ObservableQueryDemultiplexerWebSocket";
         if (mapper.EndpointExists(endpointName))
         {
             return;
@@ -56,15 +56,15 @@ public static class ObservableQueryHubEndpointMapper
 
         var metadata = new EndpointMetadata(
             endpointName,
-            "Observable query hub — WebSocket transport. Clients subscribe to observable queries and receive streaming results over a single persistent connection.",
-            ["Cratis Observable Query Hub"],
+            "Observable query demultiplexer — WebSocket transport. Clients subscribe to observable queries and receive streaming results over a single persistent connection.",
+            ["Cratis Observable Query Demultiplexer"],
             AllowAnonymous: false);
 
         mapper.MapGet(
             WebSocketRoute,
             async context =>
             {
-                var hub = context.RequestServices.GetRequiredService<IObservableQueryHub>();
+                var hub = context.RequestServices.GetRequiredService<IObservableQueryDemultiplexer>();
                 await hub.HandleWebSocketConnection(context);
             },
             metadata);
@@ -72,7 +72,7 @@ public static class ObservableQueryHubEndpointMapper
 
     static void MapSseEndpoint(IEndpointMapper mapper)
     {
-        const string endpointName = "ObservableQueryHubSSE";
+        const string endpointName = "ObservableQueryDemultiplexerSSE";
         if (mapper.EndpointExists(endpointName))
         {
             return;
@@ -80,15 +80,15 @@ public static class ObservableQueryHubEndpointMapper
 
         var metadata = new EndpointMetadata(
             endpointName,
-            "Observable query hub — Server-Sent Events transport. Opens a multiplexed SSE stream. The server sends a Connected message with the connection identifier; use the subscribe/unsubscribe POST endpoints to manage subscriptions.",
-            ["Cratis Observable Query Hub"],
+            "Observable query demultiplexer — Server-Sent Events transport. Opens a multiplexed SSE stream. The server sends a Connected message with the connection identifier; use the subscribe/unsubscribe POST endpoints to manage subscriptions.",
+            ["Cratis Observable Query Demultiplexer"],
             AllowAnonymous: false);
 
         mapper.MapGet(
             SseRoute,
             async context =>
             {
-                var hub = context.RequestServices.GetRequiredService<IObservableQueryHub>();
+                var hub = context.RequestServices.GetRequiredService<IObservableQueryDemultiplexer>();
                 await hub.HandleSSEConnection(context);
             },
             metadata);
@@ -96,7 +96,7 @@ public static class ObservableQueryHubEndpointMapper
 
     static void MapSseSubscribeEndpoint(IEndpointMapper mapper)
     {
-        const string endpointName = "ObservableQueryHubSSESubscribe";
+        const string endpointName = "ObservableQueryDemultiplexerSSESubscribe";
         if (mapper.EndpointExists(endpointName))
         {
             return;
@@ -104,15 +104,15 @@ public static class ObservableQueryHubEndpointMapper
 
         var metadata = new EndpointMetadata(
             endpointName,
-            "Observable query hub — SSE subscribe. POST a JSON body with connectionId, queryId, and subscription request to start receiving results over the associated SSE stream.",
-            ["Cratis Observable Query Hub"],
+            "Observable query demultiplexer — SSE subscribe. POST a JSON body with connectionId, queryId, and subscription request to start receiving results over the associated SSE stream.",
+            ["Cratis Observable Query Demultiplexer"],
             AllowAnonymous: false);
 
         mapper.MapPost(
             SseSubscribeRoute,
             async context =>
             {
-                var hub = context.RequestServices.GetRequiredService<IObservableQueryHub>();
+                var hub = context.RequestServices.GetRequiredService<IObservableQueryDemultiplexer>();
                 await hub.HandleSSESubscribe(context);
             },
             metadata);
@@ -120,7 +120,7 @@ public static class ObservableQueryHubEndpointMapper
 
     static void MapSseUnsubscribeEndpoint(IEndpointMapper mapper)
     {
-        const string endpointName = "ObservableQueryHubSSEUnsubscribe";
+        const string endpointName = "ObservableQueryDemultiplexerSSEUnsubscribe";
         if (mapper.EndpointExists(endpointName))
         {
             return;
@@ -128,15 +128,15 @@ public static class ObservableQueryHubEndpointMapper
 
         var metadata = new EndpointMetadata(
             endpointName,
-            "Observable query hub — SSE unsubscribe. POST a JSON body with connectionId and queryId to stop receiving results for that subscription.",
-            ["Cratis Observable Query Hub"],
+            "Observable query demultiplexer — SSE unsubscribe. POST a JSON body with connectionId and queryId to stop receiving results for that subscription.",
+            ["Cratis Observable Query Demultiplexer"],
             AllowAnonymous: false);
 
         mapper.MapPost(
             SseUnsubscribeRoute,
             async context =>
             {
-                var hub = context.RequestServices.GetRequiredService<IObservableQueryHub>();
+                var hub = context.RequestServices.GetRequiredService<IObservableQueryDemultiplexer>();
                 await hub.HandleSSEUnsubscribe(context);
             },
             metadata);

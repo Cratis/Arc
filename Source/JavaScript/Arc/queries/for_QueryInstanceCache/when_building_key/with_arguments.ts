@@ -13,5 +13,5 @@ describe('when building key for a query with arguments', () => {
     });
 
     it('should return key containing the query name', () => result.should.contain('MyQuery::'));
-    it('should serialise arguments as sorted JSON', () => result.should.equal('MyQuery::{"category":"books","id":"42"}'));
+    it('should serialize arguments as sorted JSON', () => result.should.equal('MyQuery::{"category":"books","id":"42"}'));
 });

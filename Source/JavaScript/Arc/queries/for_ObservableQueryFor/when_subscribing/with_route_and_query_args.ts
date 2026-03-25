@@ -3,6 +3,7 @@
 
 import { an_observable_query_for } from '../given/an_observable_query_for';
 import { given } from '../../../given';
+import { Globals } from '../../../Globals';
 
 import * as sinon from 'sinon';
 import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
@@ -12,8 +13,11 @@ describe('when subscribing with route and query args', given(an_observable_query
     let subscription: ObservableQuerySubscription<string>;
     let webSocketStub: sinon.SinonStub;
     let capturedUrl: string;
+    let originalDirectMode: boolean;
 
     beforeEach(() => {
+        originalDirectMode = Globals.queryDirectMode;
+        Globals.queryDirectMode = true;
         context.queryWithRouteAndQueryArgs.setOrigin('https://example.com');
         callback = sinon.stub();
 
@@ -39,6 +43,7 @@ describe('when subscribing with route and query args', given(an_observable_query
     });
 
     afterEach(() => {
+        Globals.queryDirectMode = originalDirectMode;
         if (subscription) {
             subscription.unsubscribe();
         }

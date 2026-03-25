@@ -4,7 +4,7 @@
 import { QueryResultWithState } from './QueryResultWithState';
 
 /**
- * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialised arguments.
+ * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialized arguments.
  */
 export type QueryCacheKey = string;
 
@@ -51,7 +51,7 @@ export interface QueryCacheEntry<TDataType> {
 }
 
 /**
- * Provides a cache for query instances, keyed by query type and serialised arguments.
+ * Provides a cache for query instances, keyed by query type and serialized arguments.
  *
  * Two callers requesting the same query type with identical arguments receive the same
  * cached instance and immediately see the last known result — without an additional

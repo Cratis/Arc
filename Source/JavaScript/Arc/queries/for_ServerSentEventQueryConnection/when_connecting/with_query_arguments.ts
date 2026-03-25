@@ -51,13 +51,13 @@ describe('when connecting with query arguments', () => {
     it('should append query arguments to the URL', () => fakeEventSource.url.should.contain('category=books'));
 
     describe('when a message arrives', () => {
-        const payload = { data: ['a', 'b'], isSuccess: true, isAuthorized: true, isValid: true, hasExceptions: false, validationResults: [], exceptionMessages: [], exceptionStackTrace: '' };
+        const result = { data: ['a', 'b'], isSuccess: true, isAuthorized: true, isValid: true, hasExceptions: false, hasData: true, validationResults: [], exceptionMessages: [], exceptionStackTrace: '', paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 } };
 
         beforeEach(() => {
-            fakeEventSource.onmessage!({ data: JSON.stringify({ payload }) } as MessageEvent);
+            fakeEventSource.onmessage!({ data: JSON.stringify(result) } as MessageEvent);
         });
 
         it('should deliver the payload to the callback', () => receivedData.length.should.equal(1));
-        it('should extract the inner payload from the hub envelope', () => receivedData[0]!.isSuccess.should.be.true);
+        it('should pass through the raw QueryResult in direct mode', () => receivedData[0]!.isSuccess.should.be.true);
     });
 });

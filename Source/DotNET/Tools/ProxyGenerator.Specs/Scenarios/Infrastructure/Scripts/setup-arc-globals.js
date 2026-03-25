@@ -6,6 +6,7 @@ try {
         ArcModule.Globals.origin = '{{ORIGIN}}';
         ArcModule.Globals.apiBasePath = '';
         ArcModule.Globals.microservice = '';
+        ArcModule.Globals.queryDirectMode = true;
     }
     
     // Also set on globalThis for compatibility
@@ -15,6 +16,7 @@ try {
         globalThis.Globals.origin = '{{ORIGIN}}';
         globalThis.Globals.apiBasePath = '';
         globalThis.Globals.microservice = '';
+        globalThis.Globals.queryDirectMode = true;
     }
     
     // CRITICAL: Expose TimeSpan from fundamentals globally for command serialization

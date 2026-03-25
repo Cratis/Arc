@@ -16,13 +16,13 @@ using Microsoft.Extensions.Options;
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Represents an implementation of <see cref="IObservableQueryHub"/> providing composite observable
+/// Represents an implementation of <see cref="IObservableQueryDemultiplexer"/> providing composite observable
 /// query streaming over a fixed WebSocket endpoint (<c>/.cratis/queries/ws</c>) and a fixed
 /// Server-Sent Events endpoint (<c>/.cratis/queries/sse</c>).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Authorization is honoured for every subscription through the query pipeline filters. If the
+/// Authorization is honored for every subscription through the query pipeline filters. If the
 /// current user is not authorized to perform a query, an
 /// <see cref="ObservableQueryHubMessageType.Unauthorized"/> message is sent instead of data.
 /// </para>
@@ -39,13 +39,13 @@ namespace Cratis.Arc.Queries;
 /// <param name="arcOptions">The <see cref="ArcOptions"/> used for JSON serialization.</param>
 /// <param name="logger">The logger.</param>
 [Singleton]
-public class ObservableQueryHub(
+public class ObservableQueryDemultiplexer(
     IQueryPipeline queryPipeline,
     IQueryContextManager queryContextManager,
     IHttpRequestContextAccessor httpRequestContextAccessor,
     IHostApplicationLifetime hostApplicationLifetime,
     IOptions<ArcOptions> arcOptions,
-    ILogger<ObservableQueryHub> logger) : IObservableQueryHub
+    ILogger<ObservableQueryDemultiplexer> logger) : IObservableQueryDemultiplexer
 {
     /// <summary>
     /// The SSE content type used in the <c>Content-Type</c> response header.
@@ -494,7 +494,7 @@ public class ObservableQueryHub(
             .First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>))
             .GetGenericArguments()[0];
 
-        var method = typeof(ObservableQueryHub)
+        var method = typeof(ObservableQueryDemultiplexer)
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
@@ -560,7 +560,7 @@ public class ObservableQueryHub(
             .First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
             .GetGenericArguments()[0];
 
-        var method = typeof(ObservableQueryHub)
+        var method = typeof(ObservableQueryDemultiplexer)
             .GetMethod(nameof(StreamAsyncEnumerableOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 

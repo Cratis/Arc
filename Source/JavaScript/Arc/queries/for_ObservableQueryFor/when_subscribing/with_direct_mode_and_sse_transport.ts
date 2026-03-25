@@ -6,11 +6,10 @@ import { given } from '../../../given';
 import { Globals } from '../../../Globals';
 import { QueryTransportMethod } from '../../QueryTransportMethod';
 import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
-import { SSE_HUB_ROUTE } from '../../ServerSentEventQueryConnection';
 
 import * as sinon from 'sinon';
 
-describe('when subscribing with direct mode disabled and SSE transport', given(an_observable_query_for, context => {
+describe('when subscribing with direct mode and SSE transport', given(an_observable_query_for, context => {
     let callback: sinon.SinonStub;
     let subscription: ObservableQuerySubscription<string>;
     let capturedUrl: string;
@@ -21,13 +20,12 @@ describe('when subscribing with direct mode disabled and SSE transport', given(a
         originalQueryDirectMode = Globals.queryDirectMode;
         originalTransportMethod = Globals.queryTransportMethod;
 
-        Globals.queryDirectMode = false;
+        Globals.queryDirectMode = true;
         Globals.queryTransportMethod = QueryTransportMethod.ServerSentEvents;
 
         context.query.setOrigin('https://example.com');
         callback = sinon.stub();
 
-        // EventSource doesn't exist in Node.js — inject a fake via globalThis
         const FakeEventSourceConstructor = function (this: EventSource, url: string) {
             capturedUrl = url;
             Object.assign(this, {
@@ -53,11 +51,15 @@ describe('when subscribing with direct mode disabled and SSE transport', given(a
         delete (globalThis as Record<string, unknown>)['EventSource'];
     });
 
-    it('should connect to the centralized SSE hub endpoint', () => {
-        capturedUrl.should.include(SSE_HUB_ROUTE);
+    it('should connect to the per-query SSE URL', () => {
+        capturedUrl.should.include('/api/test/test-id');
     });
 
-    it('should not include query name in URL since subscriptions are done via POST', () => {
+    it('should not connect to the hub SSE endpoint', () => {
+        capturedUrl.should.not.include('/.cratis/queries/sse');
+    });
+
+    it('should not include a query name parameter', () => {
         capturedUrl.should.not.include('query=');
     });
 

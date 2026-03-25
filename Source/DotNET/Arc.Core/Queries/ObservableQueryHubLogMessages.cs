@@ -16,11 +16,14 @@ internal static partial class ObservableQueryHubLogMessages
     [LoggerMessage(LogLevel.Debug, "WebSocket client disconnected from ObservableQueryHub")]
     internal static partial void WebSocketClientDisconnected(this ILogger<ObservableQueryHub> logger);
 
-    [LoggerMessage(LogLevel.Debug, "SSE client connected to ObservableQueryHub for query '{QueryName}'")]
-    internal static partial void SseClientConnected(this ILogger<ObservableQueryHub> logger, string queryName);
+    [LoggerMessage(LogLevel.Debug, "SSE client connected to ObservableQueryHub with connection id '{ConnectionId}'")]
+    internal static partial void SseClientConnected(this ILogger<ObservableQueryHub> logger, string connectionId);
 
-    [LoggerMessage(LogLevel.Debug, "SSE client disconnected from ObservableQueryHub")]
-    internal static partial void SseClientDisconnected(this ILogger<ObservableQueryHub> logger);
+    [LoggerMessage(LogLevel.Debug, "SSE client disconnected from ObservableQueryHub with connection id '{ConnectionId}'")]
+    internal static partial void SseClientDisconnected(this ILogger<ObservableQueryHub> logger, string connectionId);
+
+    [LoggerMessage(LogLevel.Warning, "SSE subscribe request for unknown connection id '{ConnectionId}'")]
+    internal static partial void SseUnknownConnection(this ILogger<ObservableQueryHub> logger, string connectionId);
 
     [LoggerMessage(LogLevel.Debug, "Client subscribed to query '{QueryName}' with id '{QueryId}'")]
     internal static partial void ClientSubscribed(this ILogger<ObservableQueryHub> logger, string queryName, string queryId);
@@ -45,7 +48,4 @@ internal static partial class ObservableQueryHubLogMessages
 
     [LoggerMessage(LogLevel.Error, "Error in observable subscription for query id '{QueryId}'")]
     internal static partial void SubscriptionError(this ILogger<ObservableQueryHub> logger, string queryId, Exception ex);
-
-    [LoggerMessage(LogLevel.Debug, "SSE query '{QueryName}' missing required 'query' parameter")]
-    internal static partial void SseMissingQueryParameter(this ILogger<ObservableQueryHub> logger, string queryName);
 }

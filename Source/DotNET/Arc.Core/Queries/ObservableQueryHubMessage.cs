@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Represents a protocol message exchanged over the <see cref="ObservableQueryHub"/> WebSocket or SSE connection.
+/// Represents a protocol message exchanged over the <see cref="ObservableQueryDemultiplexer"/> WebSocket or SSE connection.
 /// </summary>
 public class ObservableQueryHubMessage
 {
@@ -73,4 +73,12 @@ public class ObservableQueryHubMessage
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
     public static ObservableQueryHubMessage CreatePing() =>
         new() { Type = ObservableQueryHubMessageType.Ping, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+
+    /// <summary>
+    /// Creates a <see cref="ObservableQueryHubMessageType.Connected"/> message carrying the server-assigned connection identifier.
+    /// </summary>
+    /// <param name="connectionId">The unique identifier for the SSE connection.</param>
+    /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
+    public static ObservableQueryHubMessage CreateConnected(string connectionId) =>
+        new() { Type = ObservableQueryHubMessageType.Connected, Payload = connectionId };
 }

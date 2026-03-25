@@ -17,11 +17,11 @@ interface PoolSlot {
  * Each call to {@link acquire} picks the slot with the fewest active queries (falling back to
  * round-robin when counts are equal) and creates a fresh connection for that subscriber via the
  * provided factory. The connection is a dedicated instance per subscriber; the pool only tracks
- * slot utilisation so future multiplexed transports (e.g. WebSocket hub) can share connections
+ * slot utilization so future multiplexed transports (e.g. WebSocket) can share connections
  * across a fixed number of physical hub connections.
  *
  * When {@link size} is 1 (the default), all queries are counted against a single slot — the
- * natural behaviour for a single centralized hub connection.
+ * natural behavior for a single multiplexed connection.
  *
  * @template TDataType The type of data received from the connections.
  */
@@ -29,7 +29,7 @@ export class ObservableQueryConnectionPool<TDataType> {
     private readonly _slots: PoolSlot[];
 
     /**
-     * Initialises a new {@link ObservableQueryConnectionPool}.
+     * Initializes a new {@link ObservableQueryConnectionPool}.
      * @param {number} size Number of logical slots (hub connections) in the pool.
      * @param {() => IObservableQueryConnection<TDataType>} factory Factory that produces a new connection instance per subscriber.
      */
