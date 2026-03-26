@@ -2,8 +2,8 @@
   href: controller-based/toc.yml
 - name: Model Bound
   href: model-bound/toc.yml
-- name: Observable Query Hub
-  href: observable-query-hub.md
+- name: Observable Query Demultiplexer
+  href: observable-query-demultiplexer.md
 - name: Query Pipeline
   href: query-pipeline.md
 - name: Validation

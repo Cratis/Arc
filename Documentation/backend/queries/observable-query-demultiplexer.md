@@ -1,8 +1,8 @@
-# Observable Query Hub
+# Observable Query Demultiplexer
 
-The Observable Query Hub is a composite real-time streaming endpoint that multiplexes multiple observable query subscriptions over a single persistent connection.
+The Observable Query Demultiplexer is a composite real-time streaming endpoint that multiplexes multiple observable query subscriptions over a single persistent connection.
 
-Rather than creating one WebSocket or SSE connection per query, the hub provides **two fixed, well-known endpoints** — one for WebSocket and one for Server-Sent Events — that all observable queries in an application route through.
+Rather than creating one WebSocket or SSE connection per query, the demultiplexer provides **two fixed, well-known endpoints** — one for WebSocket and one for Server-Sent Events — that all observable queries in an application route through.
 
 ## Endpoints
 
@@ -13,7 +13,7 @@ Rather than creating one WebSocket or SSE connection per query, the hub provides
 
 Both endpoints are registered automatically by `UseCratisArc()` and require no manual configuration.
 
-## Why a Composite Hub?
+## Why a Composite Demultiplexer?
 
 Individual per-query WebSocket endpoints work but come with drawbacks at scale:
 
@@ -21,11 +21,11 @@ Individual per-query WebSocket endpoints work but come with drawbacks at scale:
 - HTTP/1.1 limits the number of concurrent connections per origin.
 - SSE has the same constraint and typically falls back to polling when the connection limit is reached.
 
-The hub solves this by allowing a single WebSocket to carry updates for many queries simultaneously, and by providing a single, predictable SSE endpoint that clients can connect to for any query.
+The demultiplexer solves this by allowing a single WebSocket to carry updates for many queries simultaneously, and by providing a single, predictable SSE endpoint that clients can connect to for any query.
 
 ## Protocol
 
-All messages exchanged over the hub share a common envelope:
+All messages exchanged over the demultiplexer share a common envelope:
 
 ```json
 {
@@ -148,7 +148,7 @@ GET /.cratis/queries/sse?query=MyApp.Authors.Listing.AllAuthors&filter=active
 
 The server responds with the standard SSE content type (`text/event-stream`) and streams `data:` frames containing serialized `ObservableQueryHubMessage` envelopes whenever the underlying data changes.
 
-Each SSE connection carries a **single query subscription**. To observe multiple queries simultaneously, open multiple `EventSource` connections.
+Each SSE connection carries a **single query subscription**. To observe multiple queries simultaneously via SSE, open multiple `EventSource` connections — or use the WebSocket transport which multiplexes all subscriptions over one connection.
 
 ### Paging and Sorting via SSE
 
