@@ -20,7 +20,7 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     /// Initializes a new instance of the <see cref="ObservableAsyncEnumerator{T}"/> class.
     /// </summary>
     /// <param name="observable">The observable to return from.</param>
-    /// <param name="cancellationToken">Cancellation token for cancelling any enumeration.</param>
+    /// <param name="cancellationToken">Cancellation token for canceling any enumeration.</param>
     public ObservableAsyncEnumerator(IObservable<T> observable, CancellationToken cancellationToken)
     {
         Current = default!;

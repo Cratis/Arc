@@ -7,7 +7,7 @@
 export type ReconnectCallback = () => void;
 
 /**
- * Defines the contract for a reconnect policy that controls back-off and retry behaviour
+ * Defines the contract for a reconnect policy that controls back-off and retry behavior
  * for observable query connections.
  */
 export interface IReconnectPolicy {

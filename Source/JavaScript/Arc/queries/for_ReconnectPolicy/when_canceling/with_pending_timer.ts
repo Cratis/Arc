@@ -4,7 +4,7 @@
 import sinon from 'sinon';
 import { ReconnectPolicy } from '../../ReconnectPolicy';
 
-describe('when cancelling a pending reconnect', () => {
+describe('when canceling a pending reconnect', () => {
     let policy: ReconnectPolicy;
     let clock: sinon.SinonFakeTimers;
     let callbackStub: sinon.SinonStub;
