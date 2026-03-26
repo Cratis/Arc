@@ -81,14 +81,25 @@ public class AggregateRootMutation(
     /// <inheritdoc/>
     public async Task<AggregateRootCommitResult> Commit()
     {
+        var eventCount = UncommittedEvents.Count;
         await aggregateRootContext.UnitOfWOrk.Commit();
+
+        IEnumerable<EventSequenceNumber> sequenceNumbers = [];
         if (aggregateRootContext.UnitOfWOrk.TryGetLastCommittedEventSequenceNumber(
                 out var lastCommittedEventSequenceNumber))
         {
             aggregateRootContext.NextSequenceNumber = lastCommittedEventSequenceNumber + 1;
+
+            if (eventCount > 0)
+            {
+                var firstSequenceNumber = lastCommittedEventSequenceNumber.Value - (ulong)(eventCount - 1);
+                sequenceNumbers = Enumerable.Range(0, eventCount)
+                    .Select(i => (EventSequenceNumber)(firstSequenceNumber + (ulong)i))
+                    .ToArray();
+            }
         }
 
         UncommittedEvents = ImmutableList<object>.Empty;
-        return AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk);
+        return AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, sequenceNumbers);
     }
 }

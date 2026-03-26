@@ -28,6 +28,13 @@ public class with_two_uncommitted_events : given.an_aggregate_mutation
         await _mutation.Apply(_secondEvent);
 
         _unitOfWork.GetEvents().Returns(_events.ToImmutableList<object>());
+        _unitOfWork
+            .TryGetLastCommittedEventSequenceNumber(out Arg.Any<EventSequenceNumber>())
+            .Returns(call =>
+            {
+                call[0] = (EventSequenceNumber)10UL;
+                return true;
+            });
 
         _causationManager
             .When(_ => _.Add(AggregateRootMutation.CausationType, Arg.Any<IDictionary<string, string>>()))
@@ -38,6 +45,7 @@ public class with_two_uncommitted_events : given.an_aggregate_mutation
 
     [Fact] void should_return_a_successful_commit_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_return_the_correct_events_in_the_commit_result() => _result.Events.ShouldContainOnly(_events);
+    [Fact] void should_return_the_correct_sequence_numbers_in_the_commit_result() => _result.SequenceNumbers.ShouldContainOnly([(EventSequenceNumber)9UL, (EventSequenceNumber)10UL]);
     [Fact] void should_have_events_in_unit_of_work_in_correct_order()
     {
         var events = _unitOfWork.GetEvents().ToArray();
