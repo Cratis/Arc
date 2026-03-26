@@ -546,6 +546,13 @@ public class ObservableQueryHub(
                     return;
                 }
 
+                // Transport errors (broken pipe, reset connection) indicate the client
+                // disconnected — cancel the connection and do not forward to the client.
+                if (error is IOException)
+                {
+                    return;
+                }
+
                 logger.SubscriptionError(queryId, error);
                 _ = onError(queryId, error.Message);
             });
@@ -605,6 +612,10 @@ public class ObservableQueryHub(
         {
             // Client disconnected.
         }
+        catch (IOException)
+        {
+            // Transport error — client disconnected. Do not forward to the client.
+        }
         catch (Exception ex)
         {
             logger.SubscriptionError(queryId, ex);
@@ -642,6 +653,12 @@ public class ObservableQueryHub(
         catch (HttpListenerException)
         {
             // Client disconnected — cancel the connection token source to trigger cleanup.
+            await cts.CancelAsync();
+        }
+        catch (IOException)
+        {
+            // On macOS and some .NET runtimes, HttpListener throws IOException for broken-pipe
+            // instead of HttpListenerException — treat identically.
             await cts.CancelAsync();
         }
         catch (OperationCanceledException)
