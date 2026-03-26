@@ -27,10 +27,7 @@ public class ClientEnumerableObservableSSE<T>(
     /// <inheritdoc/>
     public async Task HandleConnection(IHttpRequestContext context)
     {
-        context.ContentType = $"{ClientObservableSSE<T>.ContentType}; charset=utf-8";
-        context.SetResponseHeader("Cache-Control", "no-cache");
-        context.SetResponseHeader("Connection", "keep-alive");
-        context.SetResponseHeader("X-Accel-Buffering", "no");
+        context.SetSseResponseHeaders();
 
         using var cts = new CancellationTokenSource();
         var queryResult = new QueryResult();

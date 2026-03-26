@@ -48,11 +48,6 @@ public class ObservableQueryDemultiplexer(
     IOptions<ArcOptions> arcOptions,
     ILogger<ObservableQueryDemultiplexer> logger) : IObservableQueryDemultiplexer
 {
-    /// <summary>
-    /// The SSE content type used in the <c>Content-Type</c> response header.
-    /// </summary>
-    public const string SseContentType = "text/event-stream";
-
     const int WebSocketBufferSize = 1024 * 4;
 
     readonly ConcurrentDictionary<string, SSEConnectionState> _sseConnections = new();
@@ -112,10 +107,7 @@ public class ObservableQueryDemultiplexer(
 
         httpRequestContextAccessor.Current = context;
 
-        context.ContentType = $"{SseContentType}; charset=utf-8";
-        context.SetResponseHeader("Cache-Control", "no-cache");
-        context.SetResponseHeader("Connection", "keep-alive");
-        context.SetResponseHeader("X-Accel-Buffering", "no");
+        context.SetSseResponseHeaders();
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             context.RequestAborted,

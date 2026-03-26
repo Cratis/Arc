@@ -27,35 +27,18 @@ public class ClientObservableSSE<T>(
     ISubject<T> subject,
     IOptions<ArcOptions> arcOptions,
     IHostApplicationLifetime hostApplicationLifetime,
-    ILogger<ClientObservableSSE<T>> logger) : IClientObservable, IAsyncEnumerable<T>
+    ILogger<ClientObservableSSE<T>> logger) : ClientObservableBase<T>(subject)
 {
-    /// <summary>
-    /// The SSE content type.
-    /// </summary>
-    public const string ContentType = "text/event-stream";
-
     /// <inheritdoc/>
-    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) => new ObservableAsyncEnumerator<T>(subject, cancellationToken);
-
-    /// <inheritdoc/>
-    public object GetAsynchronousEnumerator(CancellationToken cancellationToken = default) => GetAsyncEnumerator(cancellationToken);
-
-    /// <inheritdoc/>
-    public async Task HandleConnection(IHttpRequestContext context) =>
-        await HandleConnectionCore(context);
-
-    async Task HandleConnectionCore(IHttpRequestContext context)
+    protected override async Task HandleConnectionCore(IHttpRequestContext context)
     {
-        context.ContentType = $"{ContentType}; charset=utf-8";
-        context.SetResponseHeader("Cache-Control", "no-cache");
-        context.SetResponseHeader("Connection", "keep-alive");
-        context.SetResponseHeader("X-Accel-Buffering", "no");
+        context.SetSseResponseHeaders();
 
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         using var cts = new CancellationTokenSource();
 
-        using var subscription = subject.Subscribe(Next, Error, Complete);
+        using var subscription = Subject.Subscribe(Next, Error, Complete);
 
         // If application is stopping, complete the observable
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
@@ -86,12 +69,12 @@ public class ClientObservableSSE<T>(
                 }
                 catch (Exception ex)
                 {
-                    subject.OnError(ex);
+                    Subject.OnError(ex);
                 }
             }
             catch (Exception ex)
             {
-                subject.OnError(ex);
+                Subject.OnError(ex);
             }
         }
 

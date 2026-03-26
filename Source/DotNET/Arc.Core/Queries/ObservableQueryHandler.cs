@@ -34,7 +34,7 @@ public class ObservableQueryHandler(
     /// <returns>True if the request should be handled as SSE, false otherwise.</returns>
     public bool ShouldHandleAsSSE(IHttpRequestContext context) =>
         context.Headers.TryGetValue("Accept", out var accept) &&
-        accept.Contains(ClientObservableSSE<object>.ContentType, StringComparison.OrdinalIgnoreCase);
+        accept.Contains(HttpRequestContextExtensions.SseContentType, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc/>
     public bool IsStreamingResult(object? data) =>

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.AspNetCore.Http;
+using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -43,7 +44,7 @@ public class ControllerObservableQueryAdapter(
     /// <returns>True if the request should be handled as SSE, false otherwise.</returns>
     public bool ShouldHandleAsSSE(ActionExecutingContext context) =>
         context.HttpContext.Request.Headers.TryGetValue("Accept", out var accept) &&
-        accept.ToString().Contains(ClientObservableSSE<object>.ContentType, StringComparison.OrdinalIgnoreCase);
+        accept.ToString().Contains(HttpRequestContextExtensions.SseContentType, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Handles streaming result for controller-based actions.
