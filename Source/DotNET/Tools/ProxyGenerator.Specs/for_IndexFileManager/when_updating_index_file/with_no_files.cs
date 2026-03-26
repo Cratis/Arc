@@ -3,6 +3,10 @@
 
 namespace Cratis.Arc.ProxyGenerator.for_IndexFileManager.when_updating_index_file;
 
+/// <summary>
+/// When a directory has no generated files and the existing index.ts was not created by
+/// the proxy generator (no @generated marker), the generator must not touch it.
+/// </summary>
 public class with_no_files : Specification
 {
     string _tempDir;
@@ -27,7 +31,8 @@ public class with_no_files : Specification
         _messages.Add,
         _tempDir);
 
-    [Fact] void should_delete_index_file() => File.Exists(_indexPath).ShouldBeFalse();
+    [Fact] void should_preserve_hand_written_index_file() => File.Exists(_indexPath).ShouldBeTrue();
+    [Fact] void should_not_log_deletion() => _messages.ShouldNotContain(m => m.Contains("Deleted"));
 
     void Cleanup()
     {

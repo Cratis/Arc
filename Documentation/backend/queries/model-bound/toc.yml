@@ -8,6 +8,8 @@
   href: dependency-injection.md
 - name: Query Arguments
   href: query-arguments.md
+- name: Paging
+  href: paging.md
 - name: Return Types
   href: return-types.md
 - name: Authorization

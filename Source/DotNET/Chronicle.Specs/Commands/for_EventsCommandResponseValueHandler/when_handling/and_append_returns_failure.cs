@@ -20,6 +20,7 @@ public class and_append_returns_failure : given.an_events_command_response_value
         var violation = new ConstraintViolation(
             EventTypeId.Unknown,
             EventSequenceNumber.Unavailable,
+            ConstraintType.Unknown,
             new ConstraintName("TestConstraint"),
             new ConstraintViolationMessage("Test violation"),
             new ConstraintViolationDetails());
