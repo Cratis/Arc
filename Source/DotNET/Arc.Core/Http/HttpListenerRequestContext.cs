@@ -63,7 +63,17 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public string? ContentType
     {
         get => context.Response.ContentType;
-        set => context.Response.ContentType = value;
+        set
+        {
+            context.Response.ContentType = value;
+
+            // SSE is a streaming response — disable chunked transfer encoding so the raw
+            // bytes reach proxies (e.g. Vite dev server) without chunk-frame wrapping.
+            if (value?.StartsWith("text/event-stream", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                context.Response.SendChunked = false;
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -132,8 +142,8 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public async Task Write(string text, CancellationToken cancellationToken = default)
     {
         var buffer = Encoding.UTF8.GetBytes(text);
-        context.Response.ContentLength64 = buffer.Length;
         await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
+        await context.Response.OutputStream.FlushAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
