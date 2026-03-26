@@ -10,19 +10,26 @@ import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
 describe('when subscribing with partially missing required arguments', given(an_observable_query_for, context => {
     let callback: sinon.SinonStub;
     let subscription: ObservableQuerySubscription<string>;
-    let webSocketStub: sinon.SinonStub;
+    let originalWebSocket: typeof WebSocket;
+    let webSocketCalled: boolean;
 
     beforeEach(() => {
         context.queryWithMultipleRequiredParameters.setOrigin('https://example.com');
         callback = sinon.stub();
-        webSocketStub = sinon.stub(global, 'WebSocket').callsFake(() => ({
-            onopen: null,
-            onclose: null,
-            onerror: null,
-            onmessage: null,
-            close: sinon.stub(),
-            send: sinon.stub()
-        } as unknown as WebSocket));
+        webSocketCalled = false;
+
+        originalWebSocket = global.WebSocket;
+        (global as Record<string, unknown>).WebSocket = function () {
+            webSocketCalled = true;
+            return {
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+                close: sinon.stub(),
+                send: sinon.stub(),
+            };
+        };
 
         subscription = context.queryWithMultipleRequiredParameters.subscribe(callback, {
             userId: 'user-1',
@@ -34,7 +41,8 @@ describe('when subscribing with partially missing required arguments', given(an_
         if (subscription) {
             subscription.unsubscribe();
         }
-        webSocketStub.restore();
+        global.WebSocket = originalWebSocket;
+        sinon.restore();
     });
 
     it('should return a subscription', () => {
@@ -42,7 +50,7 @@ describe('when subscribing with partially missing required arguments', given(an_
     });
 
     it('should not create a web socket connection', () => {
-        webSocketStub.should.not.have.been.called;
+        webSocketCalled.should.be.false;
     });
 
     it('should call callback immediately with default value', () => {

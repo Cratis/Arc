@@ -11,7 +11,7 @@ import * as sinon from 'sinon';
 describe('when subscribing with direct mode enabled', given(an_observable_query_for, context => {
     let callback: sinon.SinonStub;
     let subscription: ObservableQuerySubscription<string>;
-    let webSocketStub: sinon.SinonStub;
+    let originalWebSocket: typeof WebSocket;
     let capturedUrl: string;
     let originalQueryDirectMode: boolean;
 
@@ -22,7 +22,8 @@ describe('when subscribing with direct mode enabled', given(an_observable_query_
         context.query.setOrigin('https://example.com');
         callback = sinon.stub();
 
-        webSocketStub = sinon.stub(global, 'WebSocket').callsFake((url: string) => {
+        originalWebSocket = global.WebSocket;
+        (global as Record<string, unknown>).WebSocket = function (url: string) {
             capturedUrl = url;
             return {
                 onopen: null,
@@ -30,9 +31,9 @@ describe('when subscribing with direct mode enabled', given(an_observable_query_
                 onerror: null,
                 onmessage: null,
                 close: sinon.stub(),
-                send: sinon.stub()
-            } as unknown as WebSocket;
-        });
+                send: sinon.stub(),
+            };
+        };
 
         subscription = context.query.subscribe(callback, { id: 'test-id' });
     });
@@ -42,7 +43,8 @@ describe('when subscribing with direct mode enabled', given(an_observable_query_
         if (subscription) {
             subscription.unsubscribe();
         }
-        webSocketStub.restore();
+        global.WebSocket = originalWebSocket;
+        sinon.restore();
     });
 
     it('should connect directly to the per-query WebSocket URL', () => {

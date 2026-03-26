@@ -13,14 +13,15 @@ import * as sinon from 'sinon';
 
 describe('when creating with hub mode and WebSocket transport', given(a_descriptor, context => {
     let connection: IObservableQueryConnection<unknown>;
-    let webSocketStub: sinon.SinonStub;
+    let originalWebSocket: typeof WebSocket;
     let capturedUrl: string;
 
     beforeEach(() => {
         Globals.queryDirectMode = false;
         Globals.queryTransportMethod = QueryTransportMethod.WebSocket;
 
-        webSocketStub = sinon.stub(global, 'WebSocket').callsFake((url: string) => {
+        originalWebSocket = global.WebSocket;
+        (global as Record<string, unknown>).WebSocket = function (url: string) {
             capturedUrl = url;
             return {
                 onopen: null,
@@ -30,8 +31,8 @@ describe('when creating with hub mode and WebSocket transport', given(a_descript
                 close: sinon.stub(),
                 send: sinon.stub(),
                 readyState: 0,
-            } as unknown as WebSocket;
-        });
+            };
+        };
 
         connection = createObservableQueryConnection(context.descriptor);
     });
@@ -39,7 +40,8 @@ describe('when creating with hub mode and WebSocket transport', given(a_descript
     afterEach(() => {
         Globals.queryDirectMode = context.originalDirectMode;
         Globals.queryTransportMethod = context.originalTransportMethod;
-        webSocketStub.restore();
+        global.WebSocket = originalWebSocket;
+        sinon.restore();
     });
 
     it('should return a MultiplexedObservableQueryConnection', () => {
