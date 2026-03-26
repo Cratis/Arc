@@ -37,6 +37,7 @@ export class a_server_sent_event_hub_connection {
             readyState: 0, // CONNECTING
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         const self = this;
         const FakeEventSourceClass = function (this: any) {
             Object.assign(self.fakeEventSource, { onopen: null, onmessage: null, onerror: null });

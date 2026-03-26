@@ -4,18 +4,16 @@
 import sinon from 'sinon';
 import { ObservableQueryConnectionPool } from '../../../ObservableQueryConnectionPool';
 import { IObservableQueryConnection } from '../../../IObservableQueryConnection';
-import { DataReceived } from '../../../ObservableQueryConnection';
 import { QueryResult } from '../../../QueryResult';
 
 describe('when acquiring from a pool with a single slot', () => {
     let connectStub: sinon.SinonStub;
     let disconnectStub: sinon.SinonStub;
     let pool: ObservableQueryConnectionPool<string>;
-    let capturedCallback: DataReceived<string> | undefined;
     let cleanup: () => void;
 
     beforeEach(() => {
-        connectStub = sinon.stub().callsFake((cb: DataReceived<string>) => { capturedCallback = cb; });
+        connectStub = sinon.stub();
         disconnectStub = sinon.stub();
 
         const fakeConnection: IObservableQueryConnection<string> = {

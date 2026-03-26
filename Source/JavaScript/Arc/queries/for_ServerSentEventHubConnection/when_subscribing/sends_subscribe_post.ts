@@ -30,14 +30,9 @@ describe('when subscribing sends the subscribe POST after Connected', given(a_se
     });
 
     describe('when a query result message arrives', () => {
-        let callbackStub: sinon.SinonStub;
         const result = { isSuccess: true, data: ['x'] };
 
         beforeEach(() => {
-            callbackStub = sinon.stub();
-            // Re-subscribe with the same queryId so we have the callback registered
-            // (the existing one from subscribe above — re-use it via context trick)
-            // Instead trigger the result for the subscription already registered
             context.simulateMessage({ type: HubMessageType.QueryResult, queryId, payload: result });
         });
 

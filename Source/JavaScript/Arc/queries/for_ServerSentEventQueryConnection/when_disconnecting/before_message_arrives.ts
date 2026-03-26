@@ -3,7 +3,6 @@
 
 import sinon from 'sinon';
 import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection';
-import { QueryResult } from '../../QueryResult';
 
 describe('when disconnecting prevents further message delivery', () => {
     let fakeEventSource: Record<string, unknown>;
@@ -21,7 +20,7 @@ describe('when disconnecting prevents further message delivery', () => {
         connection = new ServerSentEventQueryConnection<string[]>(
             new URL('http://localhost/.cratis/queries/sse?query=Test')
         );
-        connection.connect((_: QueryResult<string[]>) => { receivedCount++; });
+        connection.connect(() => { receivedCount++; });
 
         // Disconnect first, then send a message
         connection.disconnect();

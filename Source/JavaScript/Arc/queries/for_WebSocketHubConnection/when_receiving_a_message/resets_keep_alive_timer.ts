@@ -15,6 +15,7 @@ describe('when a message is received and then keep-alive interval elapses', give
         clock = sinon.useFakeTimers();
         context.setup();
 
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
         const { WebSocketHubConnection } = require('../../WebSocketHubConnection');
         context.connection = new WebSocketHubConnection(
             'ws://localhost/.cratis/queries/ws',

@@ -15,6 +15,7 @@ describe('when keep-alive interval elapses without any server message', given(a_
         clock = sinon.useFakeTimers();
         context.setup();
 
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
         const { ServerSentEventHubConnection } = require('../../ServerSentEventHubConnection');
         context.connection = new ServerSentEventHubConnection(
             'http://localhost/.cratis/queries/sse',

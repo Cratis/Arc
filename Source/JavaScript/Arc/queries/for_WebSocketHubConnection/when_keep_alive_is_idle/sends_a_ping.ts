@@ -16,6 +16,7 @@ describe('when keep-alive interval elapses without any message', given(a_web_soc
         context.setup();
 
         // Construct a new connection with a short ping interval so tests are fast.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
         const { WebSocketHubConnection } = require('../../WebSocketHubConnection');
         context.connection = new WebSocketHubConnection(
             'ws://localhost/.cratis/queries/ws',
