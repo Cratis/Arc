@@ -132,8 +132,8 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public async Task Write(string text, CancellationToken cancellationToken = default)
     {
         var buffer = Encoding.UTF8.GetBytes(text);
-        context.Response.ContentLength64 = buffer.Length;
         await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
+        await context.Response.OutputStream.FlushAsync(cancellationToken);
     }
 
     /// <inheritdoc/>

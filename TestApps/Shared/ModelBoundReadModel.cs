@@ -3,7 +3,7 @@
 
 using Cratis.Arc.Queries.ModelBound;
 
-namespace AspNetCore;
+namespace TestApps;
 
 [ReadModel]
 public record ModelBoundReadModel(int Data)

@@ -1,0 +1,34 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "useDefineForClassFields": true,
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "module": "ESNext",
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "isolatedModules": true,
+        "moduleDetection": "force",
+        "noEmit": true,
+        "jsx": "react-jsx",
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": false,
+        "baseUrl": ".",
+        "paths": {
+            "@cratis/arc.react": ["../../Source/JavaScript/Arc.React/dist/esm/index"],
+            "@cratis/arc.react/*": ["../../Source/JavaScript/Arc.React/dist/esm/*"],
+            "@cratis/arc": ["../../Source/JavaScript/Arc/dist/esm/index"],
+            "@cratis/arc/*": ["../../Source/JavaScript/Arc/dist/esm/*"]
+        }
+    },
+    "references": [
+        { "path": "../../Source/JavaScript/Arc" },
+        { "path": "../../Source/JavaScript/Arc.React" }
+    ],
+    "include": [".", "../Shared"],
+    "exclude": [".frontend"]
+}

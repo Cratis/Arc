@@ -16,7 +16,17 @@ When these instructions don't explicitly cover a situation, apply these values t
 
 ## General
 
-- Always use American English spelling in all code, comments, and documentation (e.g. "color" not "colour", "behavior" not "behaviour").
+- **Always use American English spelling** in all code, comments, documentation, and XML docs — no exceptions.
+  - `-ize` not `-ise`: initialize, serialize, customize, normalize, organize, authorize, specialize, centralize, utilize
+  - `-or` not `-our`: behavior, color, favor, honor, humor, neighbor, flavor
+  - `-ization` not `-isation`: initialization, serialization, customization, normalization, organization, authorization
+  - `-er` not `-re`: center, fiber, meter
+  - `-og` not `-ogue`: dialog, catalog, analog
+  - `-ling` not `-lling`: modeling, signaling, labeling, canceling
+  - `-ense` not `-ence`: license, defense, offense
+  - `-ment` not `-ement`: judgment, acknowledgment
+  - Other: gray (not grey), program (not programme), fulfill (not fulfil), enroll (not enrol)
+  - When in doubt, use the US spelling — check a US dictionary.
 - Write clear and concise comments for each function.
 - Make only high confidence suggestions when reviewing code changes.
 - Never change global.json unless explicitly asked to.

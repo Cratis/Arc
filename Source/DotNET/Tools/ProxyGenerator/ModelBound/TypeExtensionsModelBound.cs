@@ -15,13 +15,22 @@ public static class TypeExtensionsModelBound
     /// </summary>
     /// <param name="type">Type to inspect.</param>
     /// <returns>True if the type is a model bound command, false otherwise.</returns>
-    public static bool IsCommand(this Type type) =>
-        type.IsClass &&
-        !type.IsAbstract &&
-        type.GetCustomAttributesData()
-            .Select(_ => _.AttributeType.Name)
-            .Any(_ => _ == WellKnownTypes.CommandAttribute) &&
-        type.HasHandleMethod();
+    public static bool IsCommand(this Type type)
+    {
+        try
+        {
+            return type.IsClass &&
+                !type.IsAbstract &&
+                type.GetCustomAttributesData()
+                    .Select(_ => _.AttributeType.Name)
+                    .Any(_ => _ == WellKnownTypes.CommandAttribute) &&
+                type.HasHandleMethod();
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Determine if a type is a model bound read model (query).

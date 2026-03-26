@@ -6,7 +6,7 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/cratis/arc.git"
+        "url": "git+https://github.com/Cratis/Arc.git"
     },
     "publishConfig": {
         "access": "public"

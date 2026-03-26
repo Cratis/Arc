@@ -3,6 +3,7 @@
 
 import { an_observable_query_for } from '../given/an_observable_query_for';
 import { given } from '../../../given';
+import { Globals } from '../../../Globals';
 
 import * as sinon from 'sinon';
 import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
@@ -10,15 +11,19 @@ import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
 describe('when subscribing with route and query args', given(an_observable_query_for, context => {
     let callback: sinon.SinonStub;
     let subscription: ObservableQuerySubscription<string>;
-    let webSocketStub: sinon.SinonStub;
+    let originalWebSocket: typeof WebSocket;
     let capturedUrl: string;
+    let originalDirectMode: boolean;
 
     beforeEach(() => {
+        originalDirectMode = Globals.queryDirectMode;
+        Globals.queryDirectMode = true;
         context.queryWithRouteAndQueryArgs.setOrigin('https://example.com');
         callback = sinon.stub();
 
-        // Stub WebSocket to capture the URL
-        webSocketStub = sinon.stub(global, 'WebSocket').callsFake((url: string) => {
+        // Replace WebSocket to capture the URL
+        originalWebSocket = global.WebSocket;
+        (global as Record<string, unknown>).WebSocket = function (url: string) {
             capturedUrl = url;
             return {
                 onopen: null,
@@ -26,9 +31,9 @@ describe('when subscribing with route and query args', given(an_observable_query
                 onerror: null,
                 onmessage: null,
                 close: sinon.stub(),
-                send: sinon.stub()
-            } as unknown as WebSocket;
-        });
+                send: sinon.stub(),
+            };
+        };
 
         // Subscribe with args that include both route parameter (id) and query parameters (filter, limit)
         subscription = context.queryWithRouteAndQueryArgs.subscribe(callback, {
@@ -39,10 +44,12 @@ describe('when subscribing with route and query args', given(an_observable_query
     });
 
     afterEach(() => {
+        Globals.queryDirectMode = originalDirectMode;
         if (subscription) {
             subscription.unsubscribe();
         }
-        webSocketStub.restore();
+        global.WebSocket = originalWebSocket;
+        sinon.restore();
     });
 
     it('should include route parameter in the path', () => {

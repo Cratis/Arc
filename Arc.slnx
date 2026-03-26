@@ -31,7 +31,9 @@
     </Folder>
     <Folder Name="/TestApps/">
         <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />
+        <Project Path="TestApps\ArcCore\ArcCore.csproj" />
         <Project Path="TestApps\Core\Core.csproj" />
         <Project Path="TestApps\Chronicle\Chronicle.csproj" />
+        <Project Path="TestApps\Shared\Shared.csproj" />
     </Folder>
 </Solution>

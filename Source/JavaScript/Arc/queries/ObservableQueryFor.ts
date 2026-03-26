@@ -2,11 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
-import { ObservableQueryConnection } from './ObservableQueryConnection';
 import { ObservableQuerySubscription } from './ObservableQuerySubscription';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
 import { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
+import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
 import { Constructor } from '@cratis/fundamentals';
 import { JsonSerializer } from '@cratis/fundamentals';
 import { QueryResult } from './QueryResult';
@@ -36,6 +36,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     abstract readonly route: string;
     abstract readonly defaultValue: TDataType;
     readonly roles: string[] = [];
+    /** Backend fully-qualified query name used when subscribing via the SSE hub. Overridden in generated proxies. */
+    readonly queryName?: string;
     abstract readonly parameterDescriptors: ParameterDescriptor[];
     abstract get requiredRequestParameters(): string[];
     sorting: Sorting;
@@ -91,10 +93,14 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
         if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
         } else {
-            const { route } = UrlHelpers.replaceRouteParameters(this.route, args as object);
-            const actualRoute = joinPaths(this._apiBasePath, route);
-            const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
-            this._connection = new ObservableQueryConnection<TDataType>(url, this._microservice);
+            this._connection = createObservableQueryConnection({
+                route: this.route,
+                queryName: this.queryName ?? this.constructor.name,
+                origin: this._origin,
+                apiBasePath: this._apiBasePath,
+                microservice: this._microservice,
+                args: args as object,
+            });
         }
 
         // Build query arguments including unused args parameters, parameter descriptor values, and paging/sorting

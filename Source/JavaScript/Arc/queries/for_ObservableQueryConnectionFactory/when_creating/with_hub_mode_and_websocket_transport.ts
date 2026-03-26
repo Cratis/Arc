@@ -1,0 +1,61 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+import { a_descriptor } from '../given/a_descriptor';
+import { given } from '../../../given';
+import { Globals } from '../../../Globals';
+import { QueryTransportMethod } from '../../QueryTransportMethod';
+import { createObservableQueryConnection } from '../../ObservableQueryConnectionFactory';
+import { MultiplexedObservableQueryConnection, WS_HUB_ROUTE, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
+import { IObservableQueryConnection } from '../../IObservableQueryConnection';
+
+import * as sinon from 'sinon';
+
+describe('when creating with hub mode and WebSocket transport', given(a_descriptor, context => {
+    let connection: IObservableQueryConnection<unknown>;
+    let originalWebSocket: typeof WebSocket;
+    let capturedUrl: string;
+
+    beforeEach(() => {
+        Globals.queryDirectMode = false;
+        Globals.queryTransportMethod = QueryTransportMethod.WebSocket;
+
+        originalWebSocket = global.WebSocket;
+        (global as Record<string, unknown>).WebSocket = function (url: string) {
+            capturedUrl = url;
+            return {
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+                close: sinon.stub(),
+                send: sinon.stub(),
+                readyState: 0,
+            };
+        };
+
+        connection = createObservableQueryConnection(context.descriptor);
+    });
+
+    afterEach(() => {
+        Globals.queryDirectMode = context.originalDirectMode;
+        Globals.queryTransportMethod = context.originalTransportMethod;
+        global.WebSocket = originalWebSocket;
+        sinon.restore();
+        resetSharedMultiplexer();
+    });
+
+    it('should return a MultiplexedObservableQueryConnection', () => {
+        connection.should.be.instanceOf(MultiplexedObservableQueryConnection);
+    });
+
+    it('should target the WebSocket demultiplexer endpoint when connecting', () => {
+        (connection as MultiplexedObservableQueryConnection<unknown>).connect(sinon.stub());
+        capturedUrl.should.include(WS_HUB_ROUTE);
+    });
+
+    it('should not target the per-query route', () => {
+        (connection as MultiplexedObservableQueryConnection<unknown>).connect(sinon.stub());
+        capturedUrl.should.not.include('/api/test/item-42');
+    });
+}));

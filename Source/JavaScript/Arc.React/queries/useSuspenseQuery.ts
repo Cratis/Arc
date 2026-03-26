@@ -48,7 +48,8 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     query: Constructor<TQuery>,
     sorting?: Sorting,
     paging?: Paging,
-    args?: TArguments
+    args?: TArguments,
+    isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
     const commandScope = useCommandScope();
@@ -56,17 +57,18 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
-    const cacheKey = makeCacheKey(
-        (query as unknown as { name: string }).name,
-        arc.microservice,
-        arc.apiBasePath ?? '',
-        arc.origin ?? '',
-        currentSorting,
-        currentPaging,
-        args
-    );
+    const cacheKey = isEnabled
+        ? makeCacheKey(
+            (query as unknown as { name: string }).name,
+            arc.microservice,
+            arc.apiBasePath ?? '',
+            arc.origin ?? '',
+            currentSorting,
+            currentPaging,
+            args)
+        : `__noop__${(query as unknown as { name: string }).name}`;
 
-    if (!_queryCache.has(cacheKey)) {
+    if (isEnabled && !_queryCache.has(cacheKey)) {
         const queryInstance = new query() as TQuery;
         queryInstance.sorting = currentSorting;
         queryInstance.paging = currentPaging;
@@ -94,13 +96,26 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         _queryCache.set(cacheKey, resource as SuspenseQueryResource<unknown>);
     }
 
-    const resource = _queryCache.get(cacheKey) as SuspenseQueryResource<TDataType>;
-
     useEffect(() => {
         return () => {
-            _queryCache.delete(cacheKey);
+            if (isEnabled) {
+                _queryCache.delete(cacheKey);
+            }
         };
-    }, [cacheKey]);
+    }, [cacheKey, isEnabled]);
+
+    if (!isEnabled) {
+        const disabledInstance = new query();
+        return [
+            QueryResultWithState.empty(disabledInstance.defaultValue),
+            async () => { forceUpdate(); },
+            async (newSorting: Sorting) => { setCurrentSorting(newSorting); },
+            async (page: number) => { setCurrentPaging(new Paging(page, currentPaging.pageSize)); },
+            async (pageSize: number) => { setCurrentPaging(new Paging(currentPaging.page, pageSize)); }
+        ];
+    }
+
+    const resource = _queryCache.get(cacheKey) as SuspenseQueryResource<TDataType>;
 
     if (resource.status === 'rejected') {
         throw resource.error;
@@ -137,6 +152,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
  * @param query Query type constructor.
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query.
+ * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result without suspending.
  * @returns Tuple of {@link QueryResultWithState} and a {@link PerformQuery} delegate.
  * @throws {QueryFailed} The exception that is thrown when the query has server-side exceptions.
  * @throws {QueryUnauthorized} The exception that is thrown when the query is not authorized.
@@ -144,9 +160,10 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
 export function useSuspenseQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
     args?: TArguments,
-    sorting?: Sorting
+    sorting?: Sorting,
+    isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting] {
-    const [result, perform, setSorting] = useSuspenseQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args);
+    const [result, perform, setSorting] = useSuspenseQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled);
     return [result, perform, setSorting];
 }
 
@@ -160,6 +177,7 @@ export function useSuspenseQuery<TDataType, TQuery extends IQueryFor<TDataType>,
  * @param paging Paging information.
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query.
+ * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result without suspending.
  * @returns Tuple of {@link QueryResultWithState}, a {@link PerformQuery} delegate, and paging controls.
  * @throws {QueryFailed} The exception that is thrown when the query has server-side exceptions.
  * @throws {QueryUnauthorized} The exception that is thrown when the query is not authorized.
@@ -168,7 +186,8 @@ export function useSuspenseQueryWithPaging<TDataType, TQuery extends IQueryFor<T
     query: Constructor<TQuery>,
     paging: Paging,
     args?: TArguments,
-    sorting?: Sorting
+    sorting?: Sorting,
+    isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
-    return useSuspenseQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args);
+    return useSuspenseQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled);
 }

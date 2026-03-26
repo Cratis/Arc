@@ -18,16 +18,35 @@ const glob = require('glob').sync;
 
 const workspaces = {};
 
+const workspaceIgnorePatterns = rootPackageJson.workspaces
+    .filter(_ => _.startsWith('!'))
+    .map(_ => _.substring(1));
 
 const distFolder = `dist${path.sep}`
 for (const workspaceDef of rootPackageJson.workspaces) {
+    if (workspaceDef.startsWith('!')) {
+        console.log(`Skipping negated workspace definition '${workspaceDef}' \n`);
+        continue;
+    }
+
     console.log(`Getting packages for workspace definition '${workspaceDef}' \n`);
 
-    const files = glob(workspaceDef, { cwd: process.cwd() });
+    const pattern = path.join(workspaceDef, '**','package.json');
 
-    const packages = files
-        .filter(_ => path.basename(_) === 'package.json' && _.indexOf(distFolder) < 0 && _.indexOf('node_modules') < 0)
-        .sort((a, b) => a.length - b.length);
+    const packages = glob(pattern, { 
+        cwd: `${process.cwd()}`,
+        ignore: [
+            ...workspaceIgnorePatterns,
+            `**${path.sep}${distFolder}**`,
+            '**/node_modules/**'
+        ]
+    });
+
+    if (packages.length === 0) {
+        console.log(`  No packages found for workspace definition '${workspaceDef}' \n`);
+        continue;
+    }
+
     packages.forEach(_ => {
         const package = JSON.parse(fs.readFileSync(_).toString());
         workspaces[package.name] = path.dirname(_);
@@ -95,7 +114,7 @@ for (const workspaceName in workspaces) {
                 }
 
                 console.log(`Publishing workspace '${workspaceName}' at '${workspaceRelativeLocation}'`);
-                const result = spawn('npm', ['publish'], { cwd: workspaceAbsoluteLocation });
+                const result = spawn('npm', ['publish', '--provenance'], { cwd: workspaceAbsoluteLocation });
                 console.log(result.stdout.toString());
                 console.log(result.stderr.toString());
                 if (result.status !== 0) {

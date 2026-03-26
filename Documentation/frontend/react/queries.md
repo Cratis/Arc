@@ -108,3 +108,156 @@ Arc also provides Suspense-compatible variants of these hooks — `useSuspenseQu
 
 See [Suspense Queries](./suspense-queries.md) for details and examples.
 
+## Paging
+
+When the backend query returns `IQueryable<T>`, the query pipeline applies server-side paging automatically — appending `.Skip()` and `.Take()` at the database level so only the requested page of data is fetched. The generated TypeScript proxy includes `useWithPaging` and `useSuspenseWithPaging` methods.
+
+### Enabling paging
+
+Use `useWithPaging` instead of `use`, passing the desired page size:
+
+```tsx
+export const AccountList = () => {
+    const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(25);
+
+    return (
+        <>
+            <DataTable value={result.data}>
+                <Column field="name" header="Name" />
+                <Column field="balance" header="Balance" />
+            </DataTable>
+            <p>
+                Page {result.paging.page + 1} of {result.paging.totalPages}
+                ({result.paging.totalItems} total items)
+            </p>
+            <button
+                disabled={result.paging.page === 0}
+                onClick={() => setPage(result.paging.page - 1)}>
+                Previous
+            </button>
+            <button
+                disabled={result.paging.page >= result.paging.totalPages - 1}
+                onClick={() => setPage(result.paging.page + 1)}>
+                Next
+            </button>
+        </>
+    );
+};
+```
+
+### Return tuple for paged queries
+
+The `useWithPaging` hook returns an extended tuple:
+
+| Index | Name | Type | Description |
+| ----- | ---- | ---- | ----------- |
+| 0 | `result` | `QueryResultWithState<T>` | The query result including paging metadata |
+| 1 | `perform` | `() => Promise<void>` | Re-execute the query |
+| 2 | `setSorting` | `(sorting: Sorting) => Promise<void>` | Change sort field and direction |
+| 3 | `setPage` | `(page: number) => Promise<void>` | Navigate to a specific page (zero-based) |
+| 4 | `setPageSize` | `(pageSize: number) => Promise<void>` | Change the number of items per page |
+
+### Paging metadata
+
+Paging information is available on `result.paging`:
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `page` | `number` | Current zero-based page number |
+| `size` | `number` | Items per page |
+| `totalItems` | `number` | Total items across all pages |
+| `totalPages` | `number` | Total number of pages |
+
+### All hook variants with paging
+
+| Hook | Description |
+| ---- | ----------- |
+| `MyQuery.useWithPaging(pageSize)` | Standard query with paging |
+| `MyQuery.useSuspenseWithPaging(pageSize)` | Suspense-compatible with paging |
+| `MyObservableQuery.useWithPaging(pageSize)` | Observable query with paging |
+
+Each variant accepts an optional `args` parameter (for filtered queries) and an optional `sorting` parameter.
+
+### Sorting
+
+Sorting is independent of paging and works with all query hooks. Pass a `Sorting` instance to the hook or use the `setSorting` callback:
+
+```tsx
+import { Sorting, SortDirection } from '@cratis/arc/queries';
+
+// Initial sorting
+const [result] = AllAccounts.use(undefined, new Sorting('name', SortDirection.ascending));
+
+// Change sorting dynamically
+const [result, perform, setSorting] = AllAccounts.use();
+await setSorting(new Sorting('balance', SortDirection.descending));
+```
+
+> **Important**: Automatic paging requires the backend to return `IQueryable<T>`. If the backend returns `IEnumerable<T>` or `List<T>`, the paging parameters are sent but ignored — all rows are returned in a single response.
+
+
+## Observable Query Transport
+
+By default, observable queries connect through the centralized hub endpoints. Two props on the `<Arc>` component control this behaviour.
+
+### `queryTransportMethod`
+
+Selects the transport protocol used for the hub connection.
+
+| Value | Description |
+|-------|-------------|
+| `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query, routed through `/.cratis/queries/sse` (default). |
+| `QueryTransportMethod.WebSocket` | WebSocket — connects to the per-query WebSocket URL. |
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+import { QueryTransportMethod } from '@cratis/arc/queries';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryTransportMethod={QueryTransportMethod.ServerSentEvents}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+### `queryDirectMode`
+
+Controls whether observable queries connect directly to each query's own URL or route through the centralized hub.
+
+- When `false` (default): queries are routed through the centralized hub endpoint (`/.cratis/queries/sse` or `/.cratis/queries/ws` depending on `queryTransportMethod`).
+- When `true`: each observable query opens its own connection directly to the per-query URL, bypassing the hub entirely. Useful during local development or when connecting to services that do not expose the centralized hub.
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryDirectMode={true}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for connections. |
+| `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
+
+See [Observable Query Multiplexing](./observable-query-multiplexing.md) for full details on transport selection, direct mode, and connection count configuration. See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side protocol reference and keep-alive settings.
+
+## Conditional Queries
+
+Every generated query and observable query class exposes a `when(condition)` static method. When `condition` is `false` the underlying hook is a no-op — no request is made and `QueryResultWithState.empty()` is returned — while still calling the hook unconditionally so React's rules of hooks are never violated.
+
+```tsx
+// Subscription only starts once authorId is available
+const [feed] = LiveFeed.when(!!authorId).use({ author: authorId ?? '' });
+```
+
+See [Conditional Queries](./conditional-queries.md) for the full guide including paging, Suspense, memoization, and the raw `isEnabled` parameter on the underlying hooks.
+

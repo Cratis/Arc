@@ -52,6 +52,60 @@ export const MyPage = () => {
 
 In this example, the inner `CommandScope` has access to its parent scope through the `parent` property.
 
+## Callbacks
+
+You can provide callbacks to the `<CommandScope>` component to react to command execution results.
+These callbacks are invoked for any command tracked within the scope, and each receives the specific
+command that was executed together with its result.
+
+### Before Execution
+
+The `onBeforeExecute` callback is called just before each command is executed:
+
+```typescript
+<CommandScope onBeforeExecute={(command) => console.log('About to execute', command)}>
+    {/* ... */}
+</CommandScope>
+```
+
+### Result Callbacks
+
+The result callbacks mirror the callbacks available on `CommandResult` but also include the command
+instance so you can identify which command produced the result:
+
+```typescript
+<CommandScope
+    onSuccess={(command, result) => {
+        console.log('Command succeeded:', command, result);
+    }}
+    onFailed={(command, result) => {
+        console.log('Command failed:', command, result);
+    }}
+    onException={(command, result) => {
+        console.log('Command threw an exception:', command, result.exceptionMessages);
+    }}
+    onUnauthorized={(command, result) => {
+        console.log('Command was unauthorized:', command);
+    }}
+    onValidationFailure={(command, result) => {
+        console.log('Command had validation errors:', command, result.validationResults);
+    }}>
+    {/* ... */}
+</CommandScope>
+```
+
+| Callback | When called |
+| -------- | ----------- |
+| `onBeforeExecute(command)` | Before each command is executed |
+| `onSuccess(command, result)` | When a command executes successfully |
+| `onFailed(command, result)` | When a command fails for any reason |
+| `onException(command, result)` | When a command fails due to an exception |
+| `onUnauthorized(command, result)` | When a command fails due to an authorization failure |
+| `onValidationFailure(command, result)` | When a command fails due to validation errors |
+
+Note that `onFailed` is always called alongside the more specific callbacks (`onException`,
+`onUnauthorized`, `onValidationFailure`) when the command fails.
+
 ## Command Scope API
 
 The command scope provides the following properties and methods:

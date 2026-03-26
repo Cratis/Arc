@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Execution;
+using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc;
@@ -44,6 +45,11 @@ public class ArcOptions
     /// Gets or sets the options for generated API endpoints (commands and queries).
     /// </summary>
     public ApiEndpointOptions GeneratedApis { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the options for observable queries.
+    /// </summary>
+    public QueryOptions Query { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the hosting options for Arc, only used by Arc.Core.

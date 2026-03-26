@@ -1,0 +1,24 @@
+{
+    "name": "@testapps/arccore",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --config .frontend/vite.config.ts",
+        "build": "tsc -b && vite build --config .frontend/vite.config.ts",
+        "preview": "vite preview --config .frontend/vite.config.ts"
+    },
+    "dependencies": {
+        "@cratis/arc": "1.0.0",
+        "@cratis/arc.react": "1.0.0",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0"
+    },
+    "devDependencies": {
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
+        "@vitejs/plugin-react": "^4.4.1",
+        "typescript": "^5.8.3",
+        "vite": "^8.0.3"
+    }
+}

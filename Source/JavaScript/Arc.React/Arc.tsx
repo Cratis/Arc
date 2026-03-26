@@ -6,6 +6,9 @@ import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders } from '@cratis/arc';
+import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
+import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
+import { useRef } from 'react';
 
 /**
  * Properties for the Arc context component.
@@ -18,6 +21,24 @@ export interface ArcProps {
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    /**
+     * The transport method used for observable query subscriptions.
+     * Defaults to {@link QueryTransportMethod.ServerSentEvents}.
+     */
+    queryTransportMethod?: QueryTransportMethod;
+    /**
+     * Number of hub connections maintained for observable queries.
+     * When greater than one, queries are distributed across the pool round-robin.
+     * Only applies when {@link ArcProps.queryTransportMethod} is a centralized hub transport.
+     * Defaults to 1.
+     */
+    queryConnectionCount?: number;
+    /**
+     * When true, observable queries connect directly to the per-query WebSocket URL
+     * instead of routing through the centralized hub endpoint.
+     * Defaults to false (use the centralized hub).
+     */
+    queryDirectMode?: boolean;
 }
 
 /**
@@ -31,21 +52,32 @@ export const Arc = (props: ArcProps) => {
         origin: props.origin ?? '',
         basePath: props.basePath ?? '',
         apiBasePath: props.apiBasePath ?? '',
-        httpHeadersCallback: props.httpHeadersCallback
+        httpHeadersCallback: props.httpHeadersCallback,
+        queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
+        queryConnectionCount: props.queryConnectionCount ?? 1,
+        queryDirectMode: props.queryDirectMode ?? false,
     };
 
     Bindings.initialize(
         configuration.microservice,
         configuration.apiBasePath,
         configuration.origin,
-        configuration.httpHeadersCallback);
+        configuration.httpHeadersCallback,
+        configuration.queryTransportMethod,
+        configuration.queryConnectionCount,
+        configuration.queryDirectMode);
+
+    // The cache is application-scoped — create once per Arc mount.
+    const queryInstanceCache = useRef(new QueryInstanceCache());
 
     return (
         <ArcContext.Provider value={configuration}>
-            <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
-                <CommandScope>
-                    {props.children}
-                </CommandScope>
-            </IdentityProvider>
+            <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
+                <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
+                    <CommandScope>
+                        {props.children}
+                    </CommandScope>
+                </IdentityProvider>
+            </QueryInstanceCacheContext.Provider>
         </ArcContext.Provider>);
 };

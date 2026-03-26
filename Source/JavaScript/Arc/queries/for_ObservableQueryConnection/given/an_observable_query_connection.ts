@@ -8,19 +8,23 @@ export class an_observable_query_connection {
     connection: ObservableQueryConnection<string>;
     url: URL;
     microservice: string;
-    mockWebSocket: sinon.SinonStubbedInstance<WebSocket>;
+    mockWebSocket: Record<string, unknown>;
 
     constructor() {
         this.url = new URL('https://example.com/api/test');
         this.microservice = 'test-microservice';
-        
-        // Stub the WebSocket constructor
-        this.mockWebSocket = sinon.createStubInstance(WebSocket);
-        Object.defineProperty(this.mockWebSocket, 'readyState', {
-            value: WebSocket.OPEN,
-            writable: false
-        });
-        
+
+        // Create a plain mock WebSocket object
+        this.mockWebSocket = {
+            onopen: null,
+            onclose: null,
+            onerror: null,
+            onmessage: null,
+            close: sinon.stub(),
+            send: sinon.stub(),
+            readyState: WebSocket.OPEN,
+        };
+
         // Create connection with a short ping interval for testing (100ms)
         this.connection = new ObservableQueryConnection<string>(this.url, this.microservice, 100);
     }

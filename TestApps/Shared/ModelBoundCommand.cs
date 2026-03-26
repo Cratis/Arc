@@ -3,7 +3,7 @@
 
 using Cratis.Arc.Commands.ModelBound;
 
-namespace AspNetCore;
+namespace TestApps;
 
 [Command]
 public record ModelBoundCommand(string StuffToDo)

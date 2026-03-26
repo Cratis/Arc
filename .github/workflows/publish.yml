@@ -33,7 +33,7 @@ on:
     branches:
       - "**"
     paths:
-      - "**"
+      - "Source/**"
 
 permissions:
   contents: write

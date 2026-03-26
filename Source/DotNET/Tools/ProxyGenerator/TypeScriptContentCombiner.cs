@@ -38,7 +38,15 @@ public static partial class TypeScriptContentCombiner
 
         var seenPreambleLines = new HashSet<string>(StringComparer.Ordinal);
         var eslintLines = new List<string>();
-        var importLines = new List<string>();
+
+        // Map module path → ordered set of named imports, preserving insertion order per module.
+        var namedImportsByModule = new Dictionary<string, LinkedList<string>>(StringComparer.Ordinal);
+
+        // Preserve the order in which modules are first encountered.
+        var moduleOrder = new List<string>();
+
+        // Non-named imports (side-effect, default, namespace) deduplicated by exact string.
+        var otherImportLines = new List<string>();
 
         foreach (var section in parsed)
         {
@@ -49,16 +57,51 @@ public static partial class TypeScriptContentCombiner
                     continue;
                 }
 
-                if (line.TrimStart().StartsWith("import ", StringComparison.Ordinal))
-                {
-                    importLines.Add(line);
-                }
-                else
+                if (!line.TrimStart().StartsWith("import ", StringComparison.Ordinal))
                 {
                     eslintLines.Add(line);
+                    continue;
+                }
+
+                var namedMatch = NamedImportRegex().Match(line);
+                if (!namedMatch.Success)
+                {
+                    otherImportLines.Add(line);
+                    continue;
+                }
+
+                var modulePath = namedMatch.Groups["module"].Value;
+                var namesRaw = namedMatch.Groups["names"].Value;
+                var names = namesRaw
+                    .Split(',')
+                    .Select(n => n.Trim())
+                    .Where(n => !string.IsNullOrEmpty(n));
+
+                if (!namedImportsByModule.TryGetValue(modulePath, out var existing))
+                {
+                    existing = new LinkedList<string>();
+                    namedImportsByModule[modulePath] = existing;
+                    moduleOrder.Add(modulePath);
+                }
+
+                foreach (var name in names)
+                {
+                    if (!existing.Contains(name))
+                    {
+                        existing.AddLast(name);
+                    }
                 }
             }
         }
+
+        // Reconstruct merged import lines in module encounter order.
+        var importLines = new List<string>();
+        foreach (var modulePath in moduleOrder)
+        {
+            var names = namedImportsByModule[modulePath];
+            importLines.Add($"import {{ {string.Join(", ", names)} }} from '{modulePath}';");
+        }
+        importLines.AddRange(otherImportLines);
 
         var bodies = parsed
             .Select(s => s.Body.Trim())
@@ -189,6 +232,9 @@ public static partial class TypeScriptContentCombiner
 
     [GeneratedRegex(@"export\s+(?:class|interface|enum|type|const\s+enum)\s+(?<name>\w+)", RegexOptions.NonBacktracking)]
     private static partial Regex ExportDeclarationRegex();
+
+    [GeneratedRegex(@"import\s+\{\s*(?<names>[^}]+)\s*\}\s+from\s+'(?<module>[^']+)'", RegexOptions.NonBacktracking)]
+    private static partial Regex NamedImportRegex();
 
     [GeneratedRegex(@"import\s+\{\s*(?<names>[^}]+)\s*\}\s+from\s+", RegexOptions.NonBacktracking)]
     private static partial Regex ImportedTypeRegex();

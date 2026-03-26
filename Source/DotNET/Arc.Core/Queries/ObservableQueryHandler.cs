@@ -27,6 +27,15 @@ public class ObservableQueryHandler(
     public bool ShouldHandleAsWebSocket(IHttpRequestContext context) =>
         context.WebSockets.IsWebSocketRequest;
 
+    /// <summary>
+    /// Determines if the current request should be handled as a Server-Sent Events (SSE) connection.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    /// <returns>True if the request should be handled as SSE, false otherwise.</returns>
+    public bool ShouldHandleAsSSE(IHttpRequestContext context) =>
+        context.Headers.TryGetValue("Accept", out var accept) &&
+        accept.Contains(HttpRequestContextExtensions.SseContentType, StringComparison.OrdinalIgnoreCase);
+
     /// <inheritdoc/>
     public bool IsStreamingResult(object? data) =>
         data?.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) is true ||
@@ -66,6 +75,11 @@ public class ObservableQueryHandler(
             logger.HandlingAsWebSocket();
             await HandleSubjectViaWebSocket(context, streamingData);
         }
+        else if (ShouldHandleAsSSE(context))
+        {
+            logger.HandlingAsSSE();
+            await HandleSubjectViaSSE(context, streamingData);
+        }
         else
         {
             logger.HandlingAsHttp();
@@ -85,6 +99,11 @@ public class ObservableQueryHandler(
             logger.HandlingAsWebSocket();
             await HandleAsyncEnumerableViaWebSocket(context, streamingData);
         }
+        else if (ShouldHandleAsSSE(context))
+        {
+            logger.HandlingAsSSE();
+            await HandleAsyncEnumerableViaSSE(context, streamingData);
+        }
         else
         {
             logger.HandlingAsHttp();
@@ -103,6 +122,26 @@ public class ObservableQueryHandler(
 
         // Create ClientObservable using ActivatorUtilities to get proper dependency injection
         var clientObservableType = typeof(ClientObservable<>).MakeGenericType(elementType);
+        var clientObservable = ActivatorUtilities.CreateInstance(
+            serviceProvider,
+            clientObservableType,
+            queryContext,
+            streamingData) as IClientObservable;
+
+        await clientObservable!.HandleConnection(context);
+    }
+
+    async Task HandleSubjectViaSSE(IHttpRequestContext context, object streamingData)
+    {
+        var type = streamingData.GetType();
+        var subjectType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
+        var elementType = subjectType.GetGenericArguments()[0];
+
+        // Get the current query context
+        var queryContext = queryContextManager.Current;
+
+        // Create ClientObservableSSE using ActivatorUtilities to get proper dependency injection
+        var clientObservableType = typeof(ClientObservableSSE<>).MakeGenericType(elementType);
         var clientObservable = ActivatorUtilities.CreateInstance(
             serviceProvider,
             clientObservableType,
@@ -138,6 +177,22 @@ public class ObservableQueryHandler(
             serviceProvider,
             clientEnumerableObservableType,
             queryContext,
+            streamingData) as IClientObservable;
+
+        await clientEnumerableObservable!.HandleConnection(context);
+    }
+
+    async Task HandleAsyncEnumerableViaSSE(IHttpRequestContext context, object streamingData)
+    {
+        var type = streamingData.GetType();
+        var enumerableType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+        var elementType = enumerableType.GetGenericArguments()[0];
+
+        // Create ClientEnumerableObservableSSE using ActivatorUtilities to get proper dependency injection
+        var clientEnumerableObservableType = typeof(ClientEnumerableObservableSSE<>).MakeGenericType(elementType);
+        var clientEnumerableObservable = ActivatorUtilities.CreateInstance(
+            serviceProvider,
+            clientEnumerableObservableType,
             streamingData) as IClientObservable;
 
         await clientEnumerableObservable!.HandleConnection(context);

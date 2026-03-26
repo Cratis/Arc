@@ -13,6 +13,11 @@ namespace Cratis.Arc.Http;
 public static class HttpRequestContextExtensions
 {
     /// <summary>
+    /// The SSE content type value.
+    /// </summary>
+    public const string SseContentType = "text/event-stream";
+
+    /// <summary>
     /// Handles correlation ID for the HTTP request context.
     /// </summary>
     /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
@@ -48,5 +53,17 @@ public static class HttpRequestContextExtensions
     public static void SetStatusCode(this IHttpRequestContext context, HttpStatusCode statusCode)
     {
         context.SetStatusCode((int)statusCode);
+    }
+
+    /// <summary>
+    /// Sets the standard SSE (Server-Sent Events) response headers on the context.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    public static void SetSseResponseHeaders(this IHttpRequestContext context)
+    {
+        context.ContentType = "text/event-stream; charset=utf-8";
+        context.SetResponseHeader("Cache-Control", "no-cache");
+        context.SetResponseHeader("Connection", "keep-alive");
+        context.SetResponseHeader("X-Accel-Buffering", "no");
     }
 }

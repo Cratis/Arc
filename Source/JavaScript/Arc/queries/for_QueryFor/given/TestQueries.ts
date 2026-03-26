@@ -90,3 +90,25 @@ export class TestQueryForWithEnumerableParameterDescriptorValues extends QueryFo
         super(String as Constructor, true);
     }
 }
+
+export interface TestQueryForWithMultipleRequiredParametersArguments {
+    userId: string;
+    category: string;
+}
+
+export class TestQueryForWithMultipleRequiredParameters extends QueryFor<string, TestQueryForWithMultipleRequiredParametersArguments> {
+    readonly route = '/api/filter/{userId}/{category}';
+    readonly defaultValue = '';
+    readonly parameterDescriptors: ParameterDescriptor[] = [
+        new ParameterDescriptor('userId', String as Constructor),
+        new ParameterDescriptor('category', String as Constructor)
+    ];
+
+    get requiredRequestParameters(): string[] {
+        return ['userId', 'category'];
+    }
+
+    constructor() {
+        super(String as Constructor, false);
+    }
+}

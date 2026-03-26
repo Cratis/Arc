@@ -10,10 +10,10 @@ import { QueryFor, QueryResultWithState, QueryValidator, Sorting, SortingActions
 {{else}}
 import { QueryFor, QueryResultWithState, QueryValidator, Sorting, Paging } from '@cratis/arc/queries';
 {{/if}}
-import { useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize } from '@cratis/arc.react/queries';
+import { useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize, QueryWhen } from '@cratis/arc.react/queries';
 {{else}}
 import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
-import { useQuery, useSuspenseQuery, PerformQuery } from '@cratis/arc.react/queries';
+import { useQuery, useSuspenseQuery, PerformQuery, QueryWhen } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
@@ -182,6 +182,10 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     static useSuspenseWithPaging(pageSize: number, args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery, SetSorting, SetPage, SetPageSize] {
         return useSuspenseQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), args, sorting);
     }
+
+    static when(condition: boolean): QueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters> {
+        return new QueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters>({{Name}}, condition);
+    }
 {{else}}
     static use(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>] {
         const [result, perform] = useQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
@@ -191,6 +195,10 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     static useSuspense(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>] {
         const [result, perform] = useSuspenseQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
         return [result, perform];
+    }
+
+    static when(condition: boolean): QueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters> {
+        return new QueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters>({{Name}}, condition);
     }
 {{/if}}
 {{else}}
@@ -210,6 +218,10 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     static useSuspenseWithPaging(pageSize: number, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery, SetSorting, SetPage, SetPageSize] {
         return useSuspenseQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), undefined, sorting);
     }
+
+    static when(condition: boolean): QueryWhen<{{Name}}, {{{Model}}}[]> {
+        return new QueryWhen<{{Name}}, {{{Model}}}[]>({{Name}}, condition);
+    }
 {{else}}
     static use(): [QueryResultWithState<{{{Model}}}>, PerformQuery] {
         const [result, perform] = useQuery<{{{Model}}}, {{Name}}>({{Name}});
@@ -219,6 +231,10 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     static useSuspense(): [QueryResultWithState<{{{Model}}}>, PerformQuery] {
         const [result, perform] = useSuspenseQuery<{{{Model}}}, {{Name}}>({{Name}});
         return [result, perform];
+    }
+
+    static when(condition: boolean): QueryWhen<{{Name}}, {{{Model}}}> {
+        return new QueryWhen<{{Name}}, {{{Model}}}>({{Name}}, condition);
     }
 {{/if}}
 {{/if}}
