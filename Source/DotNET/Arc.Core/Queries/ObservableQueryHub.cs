@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.WebSockets;
 using System.Reactive.Subjects;
 using System.Text.Json;
@@ -22,7 +23,7 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Authorization is honoured for every subscription through the query pipeline filters. If the
+/// Authorization is honored for every subscription through the query pipeline filters. If the
 /// current user is not authorized to perform a query, an
 /// <see cref="ObservableQueryHubMessageType.Unauthorized"/> message is sent instead of data.
 /// </para>
@@ -123,12 +124,12 @@ public class ObservableQueryHub(
         var state = new SSEConnectionState(context, linkedCts);
         _sseConnections[connectionId] = state;
 
-        var keepAliveTask = RunSseKeepAlive(context, state.KeepAliveTracker, linkedCts.Token);
+        var keepAliveTask = RunSseKeepAlive(context, state.KeepAliveTracker, linkedCts);
 
         try
         {
             // Send the Connected message so the client knows its connection ID for POST requests.
-            await SendSseMessage(context, ObservableQueryHubMessage.CreateConnected(connectionId), state.KeepAliveTracker, linkedCts.Token);
+            await SendSseMessage(context, ObservableQueryHubMessage.CreateConnected(connectionId), state.KeepAliveTracker, linkedCts);
 
             // Block until the client disconnects or the server shuts down.
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -194,17 +195,17 @@ public class ObservableQueryHub(
             async result =>
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource.Token);
+                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
             },
             async (id, errorMsg) =>
             {
                 var msg = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource.Token);
+                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
             },
             async id =>
             {
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource.Token);
+                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
             },
             state.CancellationTokenSource.Token);
 
@@ -627,13 +628,22 @@ public class ObservableQueryHub(
         }
     }
 
-    async Task SendSseMessage(IHttpRequestContext context, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, CancellationToken token)
+    async Task SendSseMessage(IHttpRequestContext context, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts)
     {
         try
         {
             var json = JsonSerializer.Serialize(message, arcOptions.Value.JsonSerializerOptions);
-            await context.Write($"data: {json}\n\n", token);
+            await context.Write($"data: {json}\n\n", cts.Token);
             keepAliveTracker.RecordMessageSent();
+        }
+        catch (HttpListenerException)
+        {
+            // Client disconnected — cancel the connection token source to trigger cleanup.
+            await cts.CancelAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown — nothing to report.
         }
         catch (Exception ex)
         {
@@ -668,7 +678,7 @@ public class ObservableQueryHub(
         }
     }
 
-    async Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationToken token)
+    async Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts)
     {
         var interval = arcOptions.Value.Query.KeepAliveInterval;
 
@@ -679,13 +689,13 @@ public class ObservableQueryHub(
 
         try
         {
-            while (!token.IsCancellationRequested)
+            while (!cts.Token.IsCancellationRequested)
             {
-                await Task.Delay(interval, token);
+                await Task.Delay(interval, cts.Token);
 
-                if (!token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
+                if (!cts.Token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
                 {
-                    await SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, token);
+                    await SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, cts);
                 }
             }
         }
