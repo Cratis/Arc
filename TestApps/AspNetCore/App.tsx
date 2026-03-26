@@ -1,11 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { TickerPage } from './Features/Ticker/TickerPage';
-import { LiveFeedPage } from './Features/LiveFeed/LiveFeedPage';
-import { QueryShowcasePage } from './Features/QueryShowcase/QueryShowcasePage';
+import { TickerPage } from '../Shared/Features/Ticker/TickerPage';
+import { LiveFeedPage } from '../Shared/Features/LiveFeed/LiveFeedPage';
+import { QueryShowcasePage } from '../Shared/Features/QueryShowcase/QueryShowcasePage';
+import { ConditionalQueriesPage } from '../Shared/Features/ConditionalQueries/ConditionalQueriesPage';
 
-export type Page = 'ticker' | 'livefeed' | 'queryshowcase';
+export type Page = 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries';
 
 interface AppProps {
     page: Page;
@@ -39,10 +40,17 @@ export const App = ({ page, onPageChange: setPage }: AppProps) => {
                 >
                     Query Showcase
                 </button>
+                <button
+                    onClick={() => setPage('conditionalqueries')}
+                    style={{ fontWeight: page === 'conditionalqueries' ? 'bold' : 'normal' }}
+                >
+                    Conditional Queries
+                </button>
             </nav>
             {page === 'ticker' && <TickerPage />}
             {page === 'livefeed' && <LiveFeedPage />}
             {page === 'queryshowcase' && <QueryShowcasePage />}
+            {page === 'conditionalqueries' && <ConditionalQueriesPage />}
         </div>
     );
 };

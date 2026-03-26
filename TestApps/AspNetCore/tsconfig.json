@@ -29,6 +29,6 @@
         { "path": "../../Source/JavaScript/Arc" },
         { "path": "../../Source/JavaScript/Arc.React" }
     ],
-    "include": ["."],
+    "include": [".", "../Shared"],
     "exclude": [".frontend"]
 }

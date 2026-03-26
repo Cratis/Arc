@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
     <ProjectReference Include="../../Source/DotNET/Swagger/Swagger.csproj" />
+    <ProjectReference Include="../Shared/Shared.csproj" />
     <ProjectReference Include="../../Source/DotNET/Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
