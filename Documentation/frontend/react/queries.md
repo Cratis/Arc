@@ -250,3 +250,14 @@ export const App = () => (
 
 See [Observable Query Multiplexing](./observable-query-multiplexing.md) for full details on transport selection, direct mode, and connection count configuration. See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side protocol reference and keep-alive settings.
 
+## Conditional Queries
+
+Every generated query and observable query class exposes a `when(condition)` static method. When `condition` is `false` the underlying hook is a no-op — no request is made and `QueryResultWithState.empty()` is returned — while still calling the hook unconditionally so React's rules of hooks are never violated.
+
+```tsx
+// Subscription only starts once authorId is available
+const [feed] = LiveFeed.when(!!authorId).use({ author: authorId ?? '' });
+```
+
+See [Conditional Queries](./conditional-queries.md) for the full guide including paging, Suspense, memoization, and the raw `isEnabled` parameter on the underlying hooks.
+

@@ -16,6 +16,8 @@
   href: observable-query-multiplexing.md
 - name: Query Instance Caching
   href: query-instance-caching.md
+- name: Conditional Queries
+  href: conditional-queries.md
 - name: Proxy Generation
   href: proxy-generation.md
 - name: Story Components
