@@ -248,5 +248,5 @@ export const App = () => (
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for connections. |
 | `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
 
-See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side configuration including keep-alive settings.
+See [Observable Query Multiplexing](./observable-query-multiplexing.md) for full details on transport selection, direct mode, and connection count configuration. See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side protocol reference and keep-alive settings.
 

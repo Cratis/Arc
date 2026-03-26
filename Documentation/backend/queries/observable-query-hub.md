@@ -146,9 +146,9 @@ Connect to `/.cratis/queries/sse` using the `EventSource` API. Pass the fully qu
 GET /.cratis/queries/sse?query=MyApp.Authors.Listing.AllAuthors&filter=active
 ```
 
-The server responds with the standard SSE content type (`text/event-stream`) and streams `data:` frames containing serialised `ObservableQueryHubMessage` envelopes whenever the underlying data changes.
+The server responds with the standard SSE content type (`text/event-stream`) and streams `data:` frames containing serialized `ObservableQueryHubMessage` envelopes whenever the underlying data changes.
 
-Each SSE connection carries a **single query subscription**. To observe multiple queries, open multiple `EventSource` connections.
+Each SSE connection carries a **single query subscription**. To observe multiple queries simultaneously, open multiple `EventSource` connections.
 
 ### Paging and Sorting via SSE
 
@@ -198,61 +198,10 @@ Set `KeepAliveInterval` to `TimeSpan.Zero` or a negative value to disable keep-a
 |----------|------|---------|-------------|
 | `Query.KeepAliveInterval` | `TimeSpan` | 30 seconds | How often to send a keep-alive ping when no data is flowing. |
 
-## Frontend Integration
-
-The TypeScript client (`@cratis/arc`) uses the hub automatically when the transport method is configured as SSE (the default).
-
-### Configuring the transport
-
-Pass `queryTransportMethod` to the `<Arc>` component:
-
-```tsx
-import { Arc } from '@cratis/arc.react';
-import { QueryTransportMethod } from '@cratis/arc/queries';
-
-export const App = () => (
-    <Arc
-        microservice="my-app"
-        queryTransportMethod={QueryTransportMethod.ServerSentEvents}
-    >
-        <MyRoutes />
-    </Arc>
-);
-```
-
-| Value | Description |
-|-------|-------------|
-| `QueryTransportMethod.ServerSentEvents` | Uses the SSE hub endpoint (default). |
-| `QueryTransportMethod.WebSocket` | Uses the per-query WebSocket endpoint (legacy). |
-
-### Direct mode
-
-By default the client routes all subscriptions through the centralized hub. Set `queryDirectMode={true}` to bypass the hub and connect directly to each query's own WebSocket URL instead.
-
-```tsx
-import { Arc } from '@cratis/arc.react';
-
-export const App = () => (
-    <Arc
-        microservice="my-app"
-        queryDirectMode={true}
-    >
-        <MyRoutes />
-    </Arc>
-);
-```
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `queryDirectMode` | `boolean` | `false` | When `true`, each observable query opens its own WebSocket connection directly instead of using the hub. |
-
-### How SSE connections are built
-
-When `ServerSentEvents` is selected, `ObservableQueryFor.subscribe()` connects to
-`/.cratis/queries/sse?query=<fullyQualifiedQueryName>&<queryArgs>` using the browser's native `EventSource`. The connection retries automatically if the server becomes unavailable.
-
 ## See also
 
 - [Observable Queries (model-bound)](./model-bound/observable-queries.md) — How to expose observable queries in the backend.
 - [Query Pipeline](./query-pipeline.md) — How the query pipeline works, including filter hooks.
 - [Authorization](../core/authorization.md) — Role-based authorization for queries and commands.
+- [Frontend: Observable Query Multiplexing](../../frontend/react/observable-query-multiplexing.md) — How to configure the frontend to use the hub.
+
