@@ -195,3 +195,69 @@ await setSorting(new Sorting('balance', SortDirection.descending));
 
 > **Important**: Automatic paging requires the backend to return `IQueryable<T>`. If the backend returns `IEnumerable<T>` or `List<T>`, the paging parameters are sent but ignored — all rows are returned in a single response.
 
+
+## Observable Query Transport
+
+By default, observable queries connect through the centralized hub endpoints. Two props on the `<Arc>` component control this behaviour.
+
+### `queryTransportMethod`
+
+Selects the transport protocol used for the hub connection.
+
+| Value | Description |
+|-------|-------------|
+| `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query, routed through `/.cratis/queries/sse` (default). |
+| `QueryTransportMethod.WebSocket` | WebSocket — connects to the per-query WebSocket URL. |
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+import { QueryTransportMethod } from '@cratis/arc/queries';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryTransportMethod={QueryTransportMethod.ServerSentEvents}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+### `queryDirectMode`
+
+Controls whether observable queries connect directly to each query's own URL or route through the centralized hub.
+
+- When `false` (default): queries are routed through the centralized hub endpoint (`/.cratis/queries/sse` or `/.cratis/queries/ws` depending on `queryTransportMethod`).
+- When `true`: each observable query opens its own connection directly to the per-query URL, bypassing the hub entirely. Useful during local development or when connecting to services that do not expose the centralized hub.
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        queryDirectMode={true}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for connections. |
+| `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
+
+See [Observable Query Multiplexing](./observable-query-multiplexing.md) for full details on transport selection, direct mode, and connection count configuration. See [Observable Query Hub](../../backend/queries/observable-query-hub.md) for server-side protocol reference and keep-alive settings.
+
+## Conditional Queries
+
+Every generated query and observable query class exposes a `when(condition)` static method. When `condition` is `false` the underlying hook is a no-op — no request is made and `QueryResultWithState.empty()` is returned — while still calling the hook unconditionally so React's rules of hooks are never violated.
+
+```tsx
+// Subscription only starts once authorId is available
+const [feed] = LiveFeed.when(!!authorId).use({ author: authorId ?? '' });
+```
+
+See [Conditional Queries](./conditional-queries.md) for the full guide including paging, Suspense, memoization, and the raw `isEnabled` parameter on the underlying hooks.
+

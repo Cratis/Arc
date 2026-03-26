@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.AspNetCore.Http;
+using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -35,6 +36,15 @@ public class ControllerObservableQueryAdapter(
     /// <returns>True if the request should be handled as WebSocket, false otherwise.</returns>
     public bool ShouldHandleAsWebSocket(HttpContext httpContext) =>
         httpContext.WebSockets.IsWebSocketRequest;
+
+    /// <summary>
+    /// Determines if the current request should be handled as a Server-Sent Events (SSE) connection.
+    /// </summary>
+    /// <param name="context">The <see cref="ActionExecutingContext"/>.</param>
+    /// <returns>True if the request should be handled as SSE, false otherwise.</returns>
+    public bool ShouldHandleAsSSE(ActionExecutingContext context) =>
+        context.HttpContext.Request.Headers.TryGetValue("Accept", out var accept) &&
+        accept.ToString().Contains(HttpRequestContextExtensions.SseContentType, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Handles streaming result for controller-based actions.
@@ -87,6 +97,20 @@ public class ControllerObservableQueryAdapter(
                 objResult.Value = null;
             }
         }
+        else if (ShouldHandleAsSSE(context))
+        {
+            logger.RequestIsSSE();
+            var sseObservable = ObservableQueryExtensions.CreateClientObservableSSEFrom(
+                context.HttpContext.RequestServices,
+                objectResult,
+                queryContextManager);
+            var httpRequestContext = new AspNetCoreHttpRequestContext(context.HttpContext);
+            await sseObservable.HandleConnection(httpRequestContext);
+            if (callResult?.Result is ObjectResult objResult)
+            {
+                objResult.Value = null;
+            }
+        }
         else
         {
             logger.RequestIsHttp();
@@ -121,6 +145,15 @@ public class ControllerObservableQueryAdapter(
             logger.RequestIsWebSocket();
             var httpRequestContext = new AspNetCoreHttpRequestContext(context.HttpContext);
             await clientEnumerableObservable.HandleConnection(httpRequestContext);
+        }
+        else if (ShouldHandleAsSSE(context))
+        {
+            logger.RequestIsSSE();
+            var sseEnumerableObservable = ObservableQueryExtensions.CreateClientEnumerableObservableSSEFrom(
+                context.HttpContext.RequestServices,
+                objectResult);
+            var httpRequestContext = new AspNetCoreHttpRequestContext(context.HttpContext);
+            await sseEnumerableObservable.HandleConnection(httpRequestContext);
         }
         else
         {

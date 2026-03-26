@@ -87,7 +87,7 @@ public static class QueryExtensions
 
         var location = readModelType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
-        var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}";
+        var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
 
         var namespaceKey = string.Join('.', location.Skip(segmentsToSkip));
         var queriesInSameNamespace = allQueryTypes.Where(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(segmentsToSkip)) == namespaceKey);

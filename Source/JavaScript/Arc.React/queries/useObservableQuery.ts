@@ -8,6 +8,7 @@ import { SetSorting } from './SetSorting';
 import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
+import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
 
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
     if (requiredRequestParameters.length === 0) {
@@ -21,45 +22,94 @@ function hasAllRequiredArguments(requiredRequestParameters: string[], args?: obj
     });
 }
 
-function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments):
+function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled: boolean = true):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
-    const queryInstance = useRef<TQuery | null>(null);
+    const queryCache = useContext(QueryInstanceCacheContext);
+    const cacheKeyRef = useRef<string>('');
 
-    queryInstance.current = useMemo(() => {
-        const instance = new query() as TQuery;
-        instance.paging = currentPaging;
-        instance.sorting = currentSorting;
-        instance.setMicroservice(arc.microservice);
-        instance.setApiBasePath(arc.apiBasePath ?? '');
-        instance.setOrigin(arc.origin ?? '');
-        return instance;
-    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin]);
+    const queryInstance = useMemo(() => {
+        const key = queryCache.buildKey(query.name, args as object | undefined);
+        cacheKeyRef.current = key;
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(QueryResultWithState.initial(queryInstance.current.defaultValue));
-    const requiredRequestParameters = queryInstance.current.requiredRequestParameters;
-    const currentArguments = args as Record<string, unknown> | undefined;
-    const argumentsDependency = requiredRequestParameters.map(requiredRequestParameter => currentArguments?.[requiredRequestParameter]);
-    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(requiredRequestParameters, args as object | undefined);
+        const { instance, isNew } = queryCache.getOrCreate(key, () => {
+            const instance = new query() as TQuery;
+            instance.paging = currentPaging;
+            instance.sorting = currentSorting;
+            instance.setMicroservice(arc.microservice);
+            instance.setApiBasePath(arc.apiBasePath ?? '');
+            instance.setOrigin(arc.origin ?? '');
+            return instance;
+        });
 
-    useEffect(() => {
-        if (!hasAllRequiredArgumentsSet) {
-            return;
+        if (!isNew) {
+            // Update mutable settings on the shared instance
+            (instance as TQuery).paging = currentPaging;
+            (instance as TQuery).sorting = currentSorting;
         }
 
-        const subscription = queryInstance.current!.subscribe(response => {
-            setResult(QueryResultWithState.fromQueryResult(response, false));
-        }, args as object);
+        return instance as TQuery;
+    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, ...(args ? Object.values(args) : [])]);
+
+    const cachedResult = queryCache.getLastResult<TDataType>(cacheKeyRef.current);
+
+    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
+        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
+    );
+
+    // Stable listener ref so we can add/remove the same function reference.
+    const listenerRef = useRef<(r: QueryResultWithState<TDataType>) => void>();
+    if (!listenerRef.current) {
+        listenerRef.current = (r: QueryResultWithState<TDataType>) => setResult(r);
+    }
+
+    const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
+    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(queryInstance.requiredRequestParameters, args as object | undefined);
+
+    useEffect(() => {
+        const key = cacheKeyRef.current;
+        const listener = listenerRef.current!;
+
+        queryCache.acquire(key);
+
+        if (!isEnabled || !hasAllRequiredArgumentsSet) {
+            return () => {
+                queryCache.release(key);
+            };
+        }
+
+        // Register this component's listener so it receives broadcasts from setLastResult.
+        queryCache.addListener(key, listener);
+
+        // If the cached result already exists (another subscriber already received data),
+        // immediately apply it to this component's state.
+        const existing = queryCache.getLastResult<TDataType>(key);
+        if (existing) {
+            setResult(existing);
+        }
+
+        // Only start a subscription if one does not already exist for this cache key.
+        if (!queryCache.isSubscribed(key)) {
+            const subscription = queryInstance.subscribe(response => {
+                const withState = QueryResultWithState.fromQueryResult(response, false);
+                queryCache.setLastResult(key, withState);
+            }, args as object);
+
+            queryCache.setTeardown(key, () => {
+                subscription.unsubscribe();
+            });
+        }
 
         return () => {
-            subscription.unsubscribe();
+            queryCache.removeListener(key, listener);
+            queryCache.release(key);
         };
-    }, [...argumentsDependency, currentPaging, currentSorting, hasAllRequiredArgumentsSet]);
+    }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet]]);
 
     return [
-        result,
+        !isEnabled ? QueryResultWithState.empty(queryInstance.defaultValue) : result,
         async (sorting: Sorting) => {
             setCurrentSorting(sorting);
         },
@@ -78,11 +128,13 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
  * @template TArguments Optional: Arguments for the query, if any
  * @param query Query type constructor.
  * @param args Optional: Arguments for the query, if any
+ * @param sorting Optional: Sorting for the query, if any
+ * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResultWithState} and a {@link PerformQuery} delegate.
  */
-export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting):
+export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
     [QueryResultWithState<TDataType>, SetSorting] {
-    const [result, setSorting] = useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args);
+    const [result, setSorting] = useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled);
     return [result, setSorting];
 }
 
@@ -92,11 +144,13 @@ export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor
  * @template TQuery Type of observable query to use.
  * @template TArguments Optional: Arguments for the query, if any
  * @param query Query type constructor.
- * @param args Optional: Arguments for the query, if any
  * @param paging Paging information.
- * @returns Tuple of {@link QueryResultWithState} and a {@link PerformQuery} delegate.
+ * @param args Optional: Arguments for the query, if any
+ * @param sorting Optional: Sorting for the query, if any
+ * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result.
+ * @returns Tuple of {@link QueryResultWithState} and paging/sorting controls.
  */
-export function useObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting):
+export function useObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    return useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args);
+    return useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled);
 }

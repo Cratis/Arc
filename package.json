@@ -4,7 +4,10 @@
         "Source/**/*",
         "!**/dist",
         "!**/dist/**",
-        "Samples/**/*"
+        "!**/bin/**",
+        "!**/obj/**",
+        "Samples/**/*",
+        "TestApps/**/*"
     ],
     "engines": {
         "node": ">=23.0.0"

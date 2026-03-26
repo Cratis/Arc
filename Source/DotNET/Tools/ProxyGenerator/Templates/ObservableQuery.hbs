@@ -10,10 +10,10 @@ import { ObservableQueryFor, QueryResultWithState, Sorting, SortingActions, Sort
 {{else}}
 import { ObservableQueryFor, QueryResultWithState, Sorting, Paging } from '@cratis/arc/queries';
 {{/if}}
-import { useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging, SetSorting, SetPage, SetPageSize } from '@cratis/arc.react/queries';
+import { useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging, SetSorting, SetPage, SetPageSize, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{else}}
 import { ObservableQueryFor, QueryResultWithState } from '@cratis/arc/queries';
-import { useObservableQuery, useSuspenseObservableQuery } from '@cratis/arc.react/queries';
+import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
@@ -96,6 +96,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
     readonly route: string = '{{{Route}}}';
+    readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
     readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
     readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
 {{#if IsEnumerable}}
@@ -158,6 +159,10 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     static useSuspenseWithPaging(pageSize: number, args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, SetSorting, SetPage, SetPageSize] {
         return useSuspenseObservableQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), args, sorting);
     }
+
+    static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters> {
+        return new ObservableQueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters>({{Name}}, condition);
+    }
 {{else}}
     static use(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>] {
         const [result] = useObservableQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
@@ -167,6 +172,10 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     static useSuspense(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>] {
         const [result] = useSuspenseObservableQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
         return [result];
+    }
+
+    static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters> {
+        return new ObservableQueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters>({{Name}}, condition);
     }
 {{/if}}    
 {{else}}
@@ -186,6 +195,10 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     static useSuspenseWithPaging(pageSize: number, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, SetSorting, SetPage, SetPageSize] {
         return useSuspenseObservableQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), undefined, sorting);
     }
+
+    static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}[]> {
+        return new ObservableQueryWhen<{{Name}}, {{{Model}}}[]>({{Name}}, condition);
+    }
 {{else}}
     static use(): [QueryResultWithState<{{{Model}}}>] {
         const [result] = useObservableQuery<{{{Model}}}, {{Name}}>({{Name}});
@@ -195,6 +208,10 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     static useSuspense(): [QueryResultWithState<{{{Model}}}>] {
         const [result] = useSuspenseObservableQuery<{{{Model}}}, {{Name}}>({{Name}});
         return [result];
+    }
+
+    static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}> {
+        return new ObservableQueryWhen<{{Name}}, {{{Model}}}>({{Name}}, condition);
     }
 {{/if}}
 {{/if}}

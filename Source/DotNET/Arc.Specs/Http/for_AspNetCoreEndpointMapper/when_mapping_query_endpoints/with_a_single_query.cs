@@ -18,7 +18,7 @@ public class with_a_single_query : given.a_query_endpoint
         _mapper.MapQueryEndpoints(_app.Services);
 
         _endpoints = GetRouteEndpoints().ToList();
-        _queryEndpoint = FindEndpointByName($"Execute{typeof(TestReadModel).FullName}.AllOrders");
+        _queryEndpoint = FindEndpointByName("ExecuteFeatures.Orders.AllOrders");
     }
 
     [Fact] void should_register_the_query_endpoint() => _queryEndpoint.ShouldNotBeNull();

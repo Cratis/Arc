@@ -34,7 +34,7 @@ internal static partial class ClientObservableLogMessages
     [LoggerMessage(LogLevel.Debug, "Received null-item. Waiting for next")]
     internal static partial void ObservableReceivedNullItem(this ILogger<IClientObservable> logger);
 
-    [LoggerMessage(LogLevel.Warning, "Error while processing item from server. Cancelling the connection")]
+    [LoggerMessage(LogLevel.Warning, "Error while processing item from server. Canceling the connection")]
     internal static partial void EnumerableObservableError(this ILogger<IClientObservable> logger, Exception ex);
 
     [LoggerMessage(LogLevel.Warning, "An error occurred")]

@@ -171,7 +171,17 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
     /// <returns>True if it is a controller, false if not.</returns>
-    public static bool IsController(this Type type) => type.IsAssignableTo(_controllerBaseType);
+    public static bool IsController(this Type type)
+    {
+        try
+        {
+            return type.IsAssignableTo(_controllerBaseType);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Check if a type is an async enumerable.

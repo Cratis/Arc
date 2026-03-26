@@ -25,39 +25,37 @@ public class ClientObservable<T>(
     ISubject<T> subject,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     IHostApplicationLifetime hostApplicationLifetime,
-    ILogger<ClientObservable<T>> logger) : IClientObservable, IAsyncEnumerable<T>
+    ILogger<ClientObservable<T>> logger) : ClientObservableBase<T>(subject)
 {
     /// <summary>
     /// Notifies all subscribed and future observers about the arrival of the specified element in the sequence.
     /// </summary>
     /// <param name="next">The value to send to all observers.</param>
-    public void OnNext(T next) => subject.OnNext(next);
+    public void OnNext(T next) => Subject.OnNext(next);
 
     /// <inheritdoc/>
-    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) => new ObservableAsyncEnumerator<T>(subject, cancellationToken);
-
-    /// <inheritdoc/>
-    public object GetAsynchronousEnumerator(CancellationToken cancellationToken = default) => GetAsyncEnumerator(cancellationToken);
-
-    /// <inheritdoc/>
-    public async Task HandleConnection(IHttpRequestContext context) =>
-        await HandleConnectionCore(context);
-
-    async Task HandleConnectionCore(IHttpRequestContext context)
+    protected override async Task HandleConnectionCore(IHttpRequestContext context)
     {
         var webSocket = await context.WebSockets.AcceptWebSocket();
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         using var cts = new CancellationTokenSource();
 
-        using var subscription = subject.Subscribe(Next, Error, Complete);
+        using var subscription = Subject.Subscribe(Next, Error, Complete);
 
         // If application is stopping, complete the observable
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping);
         linkedTokenSource.Token.Register(Complete);
 
         await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
-        subject.OnCompleted();
+
+        // The client disconnected — clean up without completing the shared subject.
+        if (!cts.IsCancellationRequested)
+        {
+            await cts.CancelAsync();
+        }
+
+        tcs.TrySetResult();
 
         await tcs.Task;
         return;
@@ -78,19 +76,19 @@ public class ClientObservable<T>(
                 var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
                 if (error is not null)
                 {
-                    subject.OnError(error);
+                    Subject.OnError(error);
                 }
             }
             catch (Exception ex)
             {
-                subject.OnError(ex);
+                Subject.OnError(ex);
             }
         }
         void Error(Exception error)
         {
             if (cts.IsCancellationRequested)
             {
-                subject.OnCompleted();
+                Subject.OnCompleted();
             }
             logger.ObservableAnErrorOccurred(error);
         }
