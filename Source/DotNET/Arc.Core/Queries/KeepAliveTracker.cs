@@ -31,7 +31,13 @@ public class KeepAliveTracker
     /// <summary>
     /// Records that a message was sent to the client, resetting the keep-alive timer.
     /// </summary>
-    public void RecordMessageSent() => _lastMessageSent = DateTimeOffset.UtcNow;
+    public void RecordMessageSent() => RecordActivity();
+
+    /// <summary>
+    /// Records any connection activity (message sent or received), resetting the keep-alive timer.
+    /// No keep-alive message is needed while the connection is actively exchanging data.
+    /// </summary>
+    public void RecordActivity() => _lastMessageSent = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Determines whether a keep-alive message should be sent given the configured interval.

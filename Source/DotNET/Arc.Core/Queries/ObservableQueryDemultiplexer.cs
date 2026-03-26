@@ -317,6 +317,9 @@ public class ObservableQueryDemultiplexer(
         KeepAliveTracker keepAliveTracker,
         CancellationToken token)
     {
+        // Any inbound message from the client counts as activity — no keep-alive needed.
+        keepAliveTracker.RecordActivity();
+
         switch (message.Type)
         {
             case ObservableQueryHubMessageType.Subscribe:
