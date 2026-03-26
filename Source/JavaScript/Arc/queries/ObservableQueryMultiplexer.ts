@@ -202,3 +202,13 @@ export function getOrCreateMultiplexer(connectionFactory: () => IObservableQuery
     _sharedMultiplexerKey = cacheKey;
     return _sharedMultiplexer;
 }
+
+/**
+ * Disposes and clears the shared multiplexer singleton.
+ * Intended for use in test teardown to prevent state leakage across tests.
+ */
+export function resetSharedMultiplexer(): void {
+    _sharedMultiplexer?.dispose();
+    _sharedMultiplexer = undefined;
+    _sharedMultiplexerKey = '';
+}

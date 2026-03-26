@@ -6,7 +6,7 @@ import { given } from '../../../given';
 import { Globals } from '../../../Globals';
 import { QueryTransportMethod } from '../../QueryTransportMethod';
 import { createObservableQueryConnection } from '../../ObservableQueryConnectionFactory';
-import { MultiplexedObservableQueryConnection, WS_HUB_ROUTE } from '../../ObservableQueryMultiplexer';
+import { MultiplexedObservableQueryConnection, WS_HUB_ROUTE, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
 import { IObservableQueryConnection } from '../../IObservableQueryConnection';
 
 import * as sinon from 'sinon';
@@ -42,6 +42,7 @@ describe('when creating with hub mode and WebSocket transport', given(a_descript
         Globals.queryTransportMethod = context.originalTransportMethod;
         global.WebSocket = originalWebSocket;
         sinon.restore();
+        resetSharedMultiplexer();
     });
 
     it('should return a MultiplexedObservableQueryConnection', () => {

@@ -7,7 +7,7 @@ import { Globals } from '../../../Globals';
 import { QueryTransportMethod } from '../../QueryTransportMethod';
 import { createObservableQueryConnection } from '../../ObservableQueryConnectionFactory';
 import { SSE_HUB_ROUTE } from '../../ServerSentEventQueryConnection';
-import { MultiplexedObservableQueryConnection } from '../../ObservableQueryMultiplexer';
+import { MultiplexedObservableQueryConnection, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
 import { IObservableQueryConnection } from '../../IObservableQueryConnection';
 
 import * as sinon from 'sinon';
@@ -45,6 +45,7 @@ describe('when creating with hub mode and SSE transport', given(a_descriptor, co
         Globals.queryTransportMethod = context.originalTransportMethod;
         delete (globalThis as Record<string, unknown>)['EventSource'];
         delete (globalThis as Record<string, unknown>)['fetch'];
+        resetSharedMultiplexer();
     });
 
     it('should return a MultiplexedObservableQueryConnection', () => {

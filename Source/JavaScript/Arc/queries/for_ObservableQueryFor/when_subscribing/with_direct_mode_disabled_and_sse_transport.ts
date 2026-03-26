@@ -7,6 +7,7 @@ import { Globals } from '../../../Globals';
 import { QueryTransportMethod } from '../../QueryTransportMethod';
 import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
 import { SSE_HUB_ROUTE } from '../../ServerSentEventQueryConnection';
+import { resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
 
 import * as sinon from 'sinon';
 
@@ -20,6 +21,7 @@ describe('when subscribing with direct mode disabled and SSE transport', given(a
     beforeEach(() => {
         originalQueryDirectMode = Globals.queryDirectMode;
         originalTransportMethod = Globals.queryTransportMethod;
+        resetSharedMultiplexer();
 
         Globals.queryDirectMode = false;
         Globals.queryTransportMethod = QueryTransportMethod.ServerSentEvents;
@@ -51,6 +53,7 @@ describe('when subscribing with direct mode disabled and SSE transport', given(a
             subscription.unsubscribe();
         }
         delete (globalThis as Record<string, unknown>)['EventSource'];
+        resetSharedMultiplexer();
     });
 
     it('should connect to the centralized SSE hub endpoint', () => {
