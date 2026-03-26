@@ -3,6 +3,8 @@
 
 import { Globals } from '../Globals';
 import { IObservableQueryConnection } from './IObservableQueryConnection';
+import { IReconnectPolicy } from './IReconnectPolicy';
+import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
 import { WebSocketMessage, WebSocketMessageType } from './WebSocketMessage';
 
@@ -28,8 +30,9 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
      * @param {Url} url The fully qualified Url.
      * @param {string} _microservice The microservice name.
      * @param {number} pingIntervalMs The ping interval in milliseconds (default: 10000).
+     * @param {IReconnectPolicy} reconnectPolicy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
-    constructor(url: URL, private readonly _microservice: string, pingIntervalMs: number = 10000) {
+    constructor(url: URL, private readonly _microservice: string, pingIntervalMs: number = 10000, private readonly _reconnectPolicy: IReconnectPolicy = new ReconnectPolicy()) {
         this._pingIntervalMs = pingIntervalMs;
         const secure = url.protocol?.indexOf('https') === 0 || false;
 
@@ -82,32 +85,12 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
             url = `${url}${query}`;
         }
 
-        let timeToWait = 500;
-        const timeExponent = 500;
-        const retries = 100;
-        let currentAttempt = 0;
-        const maxTime = 10_000;
-
         const connectSocket = () => {
-            const retry = () => {
-                currentAttempt++;
-                if (currentAttempt > retries) {
-                    console.log(`Attempted ${retries} retries for route '${url}'. Abandoning.`);
-                    return;
-                }
-                console.log(`Attempting to reconnect for '${url}' (#${currentAttempt})`);
-
-                setTimeout(connectSocket, timeToWait);
-                timeToWait += (timeExponent * currentAttempt);
-                timeToWait = timeToWait > maxTime ? maxTime : timeToWait; 
-            };
-
             this._socket = new WebSocket(url);
             this._socket.onopen = () => {
                 if (this._disconnected) return;
                 console.log(`Connection for '${url}' established`);
-                timeToWait = 500;
-                currentAttempt = 0;
+                this._reconnectPolicy.reset();
                 this._connectionStartTime = Date.now();
                 this.startPinging();
             };
@@ -115,13 +98,13 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
                 if (this._disconnected) return;
                 console.log(`Unexpected connection closed for route '${url}'`);
                 this.stopPinging();
-                retry();
+                this._reconnectPolicy.schedule(connectSocket, url);
             };
             this._socket.onerror = (error) => {
                 if (this._disconnected) return;
                 console.log(`Error with connection for '${url}' - ${error}`);
                 this.stopPinging();
-                retry();
+                this._reconnectPolicy.schedule(connectSocket, url);
             };
             this._socket.onmessage = (ev) => {
                 if (this._disconnected) {
@@ -143,6 +126,7 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
         }
         console.log(`Disconnecting '${this._url}'`);
         this._disconnected = true;
+        this._reconnectPolicy.cancel();
         this.stopPinging();
         this._socket?.close();
         console.log(`Connection for '${this._url}' closed`);

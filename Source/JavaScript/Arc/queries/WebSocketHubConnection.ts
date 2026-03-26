@@ -3,6 +3,8 @@
 
 import { Globals } from '../Globals';
 import { DataReceived } from './ObservableQueryConnection';
+import { IReconnectPolicy } from './IReconnectPolicy';
+import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -66,15 +68,14 @@ export class WebSocketHubConnection {
     private _lastPingSentTime?: number;
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
-    private _reconnectAttempt = 0;
-    private _reconnectTimer?: ReturnType<typeof setTimeout>;
 
     /**
      * Initializes a new instance of {@link WebSocketHubConnection}.
      * @param {string} url The WebSocket URL of the hub endpoint (e.g. {@code ws://localhost:5000/.cratis/queries/ws}).
      * @param {string} microservice The microservice name to pass as a query argument.
+     * @param {IReconnectPolicy} reconnectPolicy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
-    constructor(private readonly _url: string, private readonly _microservice: string) {
+    constructor(private readonly _url: string, private readonly _microservice: string, private readonly _policy: IReconnectPolicy = new ReconnectPolicy()) {
     }
 
     /**
@@ -140,7 +141,7 @@ export class WebSocketHubConnection {
         this._disconnected = true;
         this._subscriptions.clear();
         this.stopPinging();
-        this.clearReconnectTimer();
+        this._policy.cancel();
         this._socket?.close();
         this._socket = undefined;
     }
@@ -161,7 +162,7 @@ export class WebSocketHubConnection {
     private close(): void {
         this._disconnected = true;
         this.stopPinging();
-        this.clearReconnectTimer();
+        this._policy.cancel();
         this._socket?.close();
         this._socket = undefined;
     }
@@ -178,7 +179,7 @@ export class WebSocketHubConnection {
         this._socket.onopen = () => {
             if (this._disconnected) return;
             console.log(`Hub connection established: '${url}'`);
-            this._reconnectAttempt = 0;
+            this._policy.reset();
             this.startPinging();
             this.sendAllSubscriptions();
         };
@@ -187,7 +188,12 @@ export class WebSocketHubConnection {
             if (this._disconnected) return;
             console.log(`Hub connection closed: '${url}'`);
             this.stopPinging();
-            this.scheduleReconnect();
+            if (this._subscriptions.size === 0) return;
+            this._policy.schedule(() => {
+                if (!this._disconnected && this._subscriptions.size > 0) {
+                    this.openSocket();
+                }
+            }, this._url);
         };
 
         this._socket.onerror = (error) => {
@@ -284,32 +290,6 @@ export class WebSocketHubConnection {
         if (this._pingInterval) {
             clearInterval(this._pingInterval);
             this._pingInterval = undefined;
-        }
-    }
-
-    private scheduleReconnect(): void {
-        if (this._disconnected || this._subscriptions.size === 0) return;
-
-        this._reconnectAttempt++;
-        if (this._reconnectAttempt > 100) {
-            console.log(`Hub: abandoned reconnection after 100 attempts for '${this._url}'`);
-            return;
-        }
-
-        const delay = Math.min(500 + 500 * this._reconnectAttempt, 10_000);
-        console.log(`Hub: reconnecting in ${delay}ms (attempt ${this._reconnectAttempt})`);
-
-        this._reconnectTimer = setTimeout(() => {
-            if (!this._disconnected && this._subscriptions.size > 0) {
-                this.openSocket();
-            }
-        }, delay);
-    }
-
-    private clearReconnectTimer(): void {
-        if (this._reconnectTimer) {
-            clearTimeout(this._reconnectTimer);
-            this._reconnectTimer = undefined;
         }
     }
 }

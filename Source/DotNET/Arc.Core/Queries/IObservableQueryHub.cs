@@ -19,7 +19,7 @@ namespace Cratis.Arc.Queries;
 /// </list>
 /// </para>
 /// <para>
-/// Both transports honour the query authorization pipeline; unauthorized subscriptions receive an
+/// Both transports honor the query authorization pipeline; unauthorized subscriptions receive an
 /// <see cref="ObservableQueryHubMessageType.Unauthorized"/> response rather than data.
 /// </para>
 /// </remarks>

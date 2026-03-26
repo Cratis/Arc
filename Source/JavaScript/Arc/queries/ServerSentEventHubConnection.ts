@@ -4,6 +4,8 @@
 import { Globals } from '../Globals';
 import { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
 import { DataReceived } from './ObservableQueryConnection';
+import { IReconnectPolicy } from './IReconnectPolicy';
+import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
 import { HubMessage, HubMessageType, SubscriptionRequest } from './WebSocketHubConnection';
 
@@ -33,8 +35,6 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private _pendingSubscriptions: Map<string, ActiveSubscription> = new Map();
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
-    private _reconnectAttempt = 0;
-    private _reconnectTimer?: ReturnType<typeof setTimeout>;
 
     /**
      * Initializes a new instance of {@link ServerSentEventHubConnection}.
@@ -42,12 +42,14 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
      * @param {string} _subscribeUrl The subscribe POST endpoint URL.
      * @param {string} _unsubscribeUrl The unsubscribe POST endpoint URL.
      * @param {string} _microservice The microservice name to pass as a query argument.
+     * @param {IReconnectPolicy} _policy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
     constructor(
         private readonly _sseUrl: string,
         private readonly _subscribeUrl: string,
         private readonly _unsubscribeUrl: string,
-        private readonly _microservice: string
+        private readonly _microservice: string,
+        private readonly _policy: IReconnectPolicy = new ReconnectPolicy()
     ) {
     }
 
@@ -101,7 +103,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._disconnected = true;
         this._subscriptions.clear();
         this._pendingSubscriptions.clear();
-        this.clearReconnectTimer();
+        this._policy.cancel();
         this._eventSource?.close();
         this._eventSource = undefined;
         this._connectionId = undefined;
@@ -121,7 +123,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
     private close(): void {
         this._disconnected = true;
-        this.clearReconnectTimer();
+        this._policy.cancel();
         this._eventSource?.close();
         this._eventSource = undefined;
         this._connectionId = undefined;
@@ -140,7 +142,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._eventSource.onopen = () => {
             if (this._disconnected) return;
             console.log(`SSE hub connection established: '${url}'`);
-            this._reconnectAttempt = 0;
+            this._policy.reset();
         };
 
         this._eventSource.onmessage = (event: MessageEvent) => {
@@ -151,12 +153,21 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._eventSource.onerror = () => {
             if (this._disconnected) return;
             console.warn(`SSE hub connection error: '${url}'`);
-            // EventSource auto-reconnects, but we lose connectionId. Reset state.
+            // Close the EventSource so the reconnect policy manages the schedule.
+            this._eventSource?.close();
+            this._eventSource = undefined;
             this._connectionId = undefined;
-            // Move all active subscriptions to pending so they re-subscribe on reconnect.
+            // Move all active subscriptions to pending so they re-subscribe when
+            // the next Connected message arrives after the managed reconnect.
             for (const [queryId, sub] of this._subscriptions) {
                 this._pendingSubscriptions.set(queryId, sub);
             }
+            if (this._subscriptions.size === 0) return;
+            this._policy.schedule(() => {
+                if (!this._disconnected && this._subscriptions.size > 0) {
+                    this.openEventSource();
+                }
+            }, this._sseUrl);
         };
     }
 
@@ -240,31 +251,5 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         }).catch(error => {
             console.error(`SSE hub: unsubscribe POST failed for '${queryId}'`, error);
         });
-    }
-
-    private scheduleReconnect(): void {
-        if (this._disconnected || this._subscriptions.size === 0) return;
-
-        this._reconnectAttempt++;
-        if (this._reconnectAttempt > 100) {
-            console.log(`SSE hub: abandoned reconnection after 100 attempts for '${this._sseUrl}'`);
-            return;
-        }
-
-        const delay = Math.min(500 + 500 * this._reconnectAttempt, 10_000);
-        console.log(`SSE hub: reconnecting in ${delay}ms (attempt ${this._reconnectAttempt})`);
-
-        this._reconnectTimer = setTimeout(() => {
-            if (!this._disconnected && this._subscriptions.size > 0) {
-                this.openEventSource();
-            }
-        }, delay);
-    }
-
-    private clearReconnectTimer(): void {
-        if (this._reconnectTimer) {
-            clearTimeout(this._reconnectTimer);
-            this._reconnectTimer = undefined;
-        }
     }
 }
