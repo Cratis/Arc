@@ -53,7 +53,7 @@ describe('when connection errors', given(a_server_sent_event_hub_connection, con
         beforeEach(() => {
             const reconnectCallback = (context.policy.schedule as sinon.SinonStub).getCall(0).args[0] as ReconnectCallback;
             reconnectCallback();
-            context.fetchStub.reset();
+            context.fetchStub.resetHistory();
             context.simulateMessage({ type: HubMessageType.Connected, payload: 'conn-2' });
         });
 
