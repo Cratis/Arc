@@ -63,17 +63,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public string? ContentType
     {
         get => context.Response.ContentType;
-        set
-        {
-            context.Response.ContentType = value;
-
-            // SSE is a streaming response — disable chunked transfer encoding so the raw
-            // bytes reach proxies (e.g. Vite dev server) without chunk-frame wrapping.
-            if (value?.StartsWith("text/event-stream", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                context.Response.SendChunked = false;
-            }
-        }
+        set => context.Response.ContentType = value;
     }
 
     /// <inheritdoc/>
