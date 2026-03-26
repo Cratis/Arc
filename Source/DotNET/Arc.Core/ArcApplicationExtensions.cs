@@ -30,7 +30,7 @@ public static class ArcApplicationExtensions
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
         app.EndpointMapper.MapCommandEndpoints(app.Services);
         app.EndpointMapper.MapQueryEndpoints(app.Services);
-        app.EndpointMapper.MapObservableQueryHubEndpoints(app.Services);
+        app.EndpointMapper.MapObservableQueryDemultiplexerEndpoints(app.Services);
 
         app.AddStartupAction(serviceProvider =>
         {
