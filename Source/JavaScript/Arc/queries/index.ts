@@ -18,6 +18,7 @@ export * from './IObservableQueryConnection';
 export * from './IObservableQueryHubConnection';
 export * from './IReconnectPolicy';
 export * from './ReconnectPolicy';
+export * from './HubConnectionKeepAlive';
 export * from './ObservableQueryConnection';
 export * from './ObservableQueryConnectionFactory';
 export * from './ObservableQueryConnectionPool';

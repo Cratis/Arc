@@ -8,16 +8,16 @@ import { IReconnectPolicy, ReconnectCallback } from '../../IReconnectPolicy';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export class a_server_sent_event_hub_connection {
-    connection: ServerSentEventHubConnection;
-    fakeEventSource: {
+    connection!: ServerSentEventHubConnection;
+    fakeEventSource!: {
         onopen: (() => void) | null;
         onmessage: ((event: MessageEvent) => void) | null;
         onerror: (() => void) | null;
         close: sinon.SinonStub;
         readyState: number;
     };
-    policy: sinon.SinonStubbedInstance<IReconnectPolicy>;
-    fetchStub: sinon.SinonStub;
+    policy!: sinon.SinonStubbedInstance<IReconnectPolicy>;
+    fetchStub!: sinon.SinonStub;
 
     constructor() {
         this.setup();
@@ -63,6 +63,8 @@ export class a_server_sent_event_hub_connection {
             'http://localhost/.cratis/queries/sse/subscribe',
             'http://localhost/.cratis/queries/sse/unsubscribe',
             '',
+            undefined,
+            undefined,
             this.policy
         );
     }

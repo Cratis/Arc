@@ -4,6 +4,7 @@
 import { Globals } from '../Globals';
 import { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
 import { DataReceived } from './ObservableQueryConnection';
+import { HubConnectionKeepAlive } from './HubConnectionKeepAlive';
 import { IReconnectPolicy } from './IReconnectPolicy';
 import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
@@ -35,6 +36,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private _pendingSubscriptions: Map<string, ActiveSubscription> = new Map();
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
+    private _connectTimeoutTimer?: ReturnType<typeof setTimeout>;
+    private readonly _keepAlive: HubConnectionKeepAlive;
 
     /**
      * Initializes a new instance of {@link ServerSentEventHubConnection}.
@@ -42,6 +45,10 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
      * @param {string} _subscribeUrl The subscribe POST endpoint URL.
      * @param {string} _unsubscribeUrl The unsubscribe POST endpoint URL.
      * @param {string} _microservice The microservice name to pass as a query argument.
+     * @param {number} keepAliveIntervalMs How long without any server message before the connection
+     *   is considered stale and a reconnect is forced (default: 30 000 ms).
+     * @param {number} connectTimeoutMs How long to wait for the {@link HubMessageType.Connected}
+     *   message after the HTTP connection opens before giving up and retrying (default: 15 000 ms).
      * @param {IReconnectPolicy} _policy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
     constructor(
@@ -49,8 +56,19 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         private readonly _subscribeUrl: string,
         private readonly _unsubscribeUrl: string,
         private readonly _microservice: string,
+        keepAliveIntervalMs: number = 30000,
+        private readonly _connectTimeoutMs: number = 15000,
         private readonly _policy: IReconnectPolicy = new ReconnectPolicy()
     ) {
+        // SSE is server→client only: the client cannot send pings. Instead we watch for
+        // inactivity — if the server stops sending messages (including its own keep-alive
+        // pings) for the entire interval, the connection is stale and we reconnect.
+        this._keepAlive = new HubConnectionKeepAlive(keepAliveIntervalMs, () => {
+            if (!this._disconnected && this._subscriptions.size > 0) {
+                console.warn(`SSE hub: no messages received for ${keepAliveIntervalMs}ms, reconnecting '${this._sseUrl}'`);
+                this.reconnect();
+            }
+        });
     }
 
     /** @inheritdoc */
@@ -104,6 +122,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._subscriptions.clear();
         this._pendingSubscriptions.clear();
         this._policy.cancel();
+        this._keepAlive.stop();
+        this.clearConnectTimeout();
         this._eventSource?.close();
         this._eventSource = undefined;
         this._connectionId = undefined;
@@ -124,6 +144,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private close(): void {
         this._disconnected = true;
         this._policy.cancel();
+        this._keepAlive.stop();
+        this.clearConnectTimeout();
         this._eventSource?.close();
         this._eventSource = undefined;
         this._connectionId = undefined;
@@ -143,32 +165,61 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             if (this._disconnected) return;
             console.log(`SSE hub connection established: '${url}'`);
             this._policy.reset();
+            this._keepAlive.start();
+
+            // If the server does not send a Connected message within the timeout, the
+            // connection is broken. Close and retry via the reconnect policy.
+            this.clearConnectTimeout();
+            this._connectTimeoutTimer = setTimeout(() => {
+                if (!this._disconnected && !this._connectionId) {
+                    console.warn(`SSE hub: no Connected message within ${this._connectTimeoutMs}ms, retrying '${url}'`);
+                    this.reconnect();
+                }
+            }, this._connectTimeoutMs);
         };
 
         this._eventSource.onmessage = (event: MessageEvent) => {
             if (this._disconnected) return;
+            this._keepAlive.recordActivity();
             this.handleMessage(event.data as string);
         };
 
         this._eventSource.onerror = () => {
             if (this._disconnected) return;
             console.warn(`SSE hub connection error: '${url}'`);
-            // Close the EventSource so the reconnect policy manages the schedule.
-            this._eventSource?.close();
-            this._eventSource = undefined;
-            this._connectionId = undefined;
-            // Move all active subscriptions to pending so they re-subscribe when
-            // the next Connected message arrives after the managed reconnect.
-            for (const [queryId, sub] of this._subscriptions) {
-                this._pendingSubscriptions.set(queryId, sub);
-            }
-            if (this._subscriptions.size === 0) return;
-            this._policy.schedule(() => {
-                if (!this._disconnected && this._subscriptions.size > 0) {
-                    this.openEventSource();
-                }
-            }, this._sseUrl);
+            this.reconnect();
         };
+    }
+
+    private reconnect(): void {
+        this._keepAlive.stop();
+        this.clearConnectTimeout();
+
+        // Close the EventSource so the reconnect policy manages the schedule.
+        this._eventSource?.close();
+        this._eventSource = undefined;
+        this._connectionId = undefined;
+
+        // Move all active subscriptions to pending so they re-subscribe when
+        // the next Connected message arrives after the managed reconnect.
+        for (const [queryId, sub] of this._subscriptions) {
+            this._pendingSubscriptions.set(queryId, sub);
+        }
+
+        if (this._subscriptions.size === 0) return;
+
+        this._policy.schedule(() => {
+            if (!this._disconnected && this._subscriptions.size > 0) {
+                this.openEventSource();
+            }
+        }, this._sseUrl);
+    }
+
+    private clearConnectTimeout(): void {
+        if (this._connectTimeoutTimer !== undefined) {
+            clearTimeout(this._connectTimeoutTimer);
+            this._connectTimeoutTimer = undefined;
+        }
     }
 
     private handleMessage(rawData: string): void {
@@ -183,7 +234,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     this.handleQueryResult(message);
                     break;
                 case HubMessageType.Ping:
-                    // Server-sent ping; SSE is one-directional so we just record it.
+                    // Server-sent keep-alive ping — activity already recorded in onmessage.
                     break;
                 case HubMessageType.Unauthorized:
                     console.warn(`SSE hub: query '${message.queryId}' unauthorized`);
@@ -200,6 +251,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private handleConnected(message: HubMessage): void {
         this._connectionId = message.payload as string;
         console.log(`SSE hub: connected with id '${this._connectionId}'`);
+
+        // Connected message arrived — cancel the connect timeout.
+        this.clearConnectTimeout();
 
         // Send all pending subscriptions now that we have a connection ID.
         for (const [queryId, sub] of this._pendingSubscriptions) {

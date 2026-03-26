@@ -9,8 +9,8 @@ import { ReconnectCallback } from '../../IReconnectPolicy';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export class a_web_socket_hub_connection {
-    connection: WebSocketHubConnection;
-    fakeSocket: {
+    connection!: WebSocketHubConnection;
+    fakeSocket!: {
         onopen: (() => void) | null;
         onclose: (() => void) | null;
         onerror: ((error: Event) => void) | null;
@@ -19,8 +19,8 @@ export class a_web_socket_hub_connection {
         close: sinon.SinonStub;
         readyState: number;
     };
-    policy: sinon.SinonStubbedInstance<IReconnectPolicy>;
-    WebSocketStub: sinon.SinonStub;
+    policy!: sinon.SinonStubbedInstance<IReconnectPolicy>;
+    WebSocketStub!: sinon.SinonStub;
 
     constructor() {
         this.setup();
@@ -60,6 +60,7 @@ export class a_web_socket_hub_connection {
         this.connection = new WebSocketHubConnection(
             'ws://localhost/.cratis/queries/ws',
             '',
+            undefined,
             this.policy
         );
     }

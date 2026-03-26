@@ -3,6 +3,7 @@
 
 import { Globals } from '../Globals';
 import { DataReceived } from './ObservableQueryConnection';
+import { HubConnectionKeepAlive } from './HubConnectionKeepAlive';
 import { IReconnectPolicy } from './IReconnectPolicy';
 import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
@@ -63,8 +64,7 @@ export class WebSocketHubConnection {
     private _socket?: WebSocket;
     private _disconnected = false;
     private _subscriptions: Map<string, ActiveSubscription> = new Map();
-    private _pingInterval?: ReturnType<typeof setInterval>;
-    private readonly _pingIntervalMs: number = 10000;
+    private readonly _keepAlive: HubConnectionKeepAlive;
     private _lastPingSentTime?: number;
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
@@ -73,9 +73,21 @@ export class WebSocketHubConnection {
      * Initializes a new instance of {@link WebSocketHubConnection}.
      * @param {string} url The WebSocket URL of the hub endpoint (e.g. {@code ws://localhost:5000/.cratis/queries/ws}).
      * @param {string} microservice The microservice name to pass as a query argument.
+     * @param {number} pingIntervalMs How often to send keep-alive pings when the connection is idle (default: 10 000 ms).
      * @param {IReconnectPolicy} reconnectPolicy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
-    constructor(private readonly _url: string, private readonly _microservice: string, private readonly _policy: IReconnectPolicy = new ReconnectPolicy()) {
+    constructor(
+        private readonly _url: string,
+        private readonly _microservice: string,
+        pingIntervalMs: number = 10000,
+        private readonly _policy: IReconnectPolicy = new ReconnectPolicy()
+    ) {
+        this._keepAlive = new HubConnectionKeepAlive(pingIntervalMs, () => {
+            if (this._socket?.readyState === WebSocket.OPEN) {
+                this._lastPingSentTime = Date.now();
+                this.sendMessage({ type: HubMessageType.Ping, timestamp: this._lastPingSentTime });
+            }
+        });
     }
 
     /**
@@ -140,7 +152,7 @@ export class WebSocketHubConnection {
     dispose(): void {
         this._disconnected = true;
         this._subscriptions.clear();
-        this.stopPinging();
+        this._keepAlive.stop();
         this._policy.cancel();
         this._socket?.close();
         this._socket = undefined;
@@ -161,7 +173,7 @@ export class WebSocketHubConnection {
 
     private close(): void {
         this._disconnected = true;
-        this.stopPinging();
+        this._keepAlive.stop();
         this._policy.cancel();
         this._socket?.close();
         this._socket = undefined;
@@ -180,14 +192,14 @@ export class WebSocketHubConnection {
             if (this._disconnected) return;
             console.log(`Hub connection established: '${url}'`);
             this._policy.reset();
-            this.startPinging();
+            this._keepAlive.start();
             this.sendAllSubscriptions();
         };
 
         this._socket.onclose = () => {
             if (this._disconnected) return;
             console.log(`Hub connection closed: '${url}'`);
-            this.stopPinging();
+            this._keepAlive.stop();
             if (this._subscriptions.size === 0) return;
             this._policy.schedule(() => {
                 if (!this._disconnected && this._subscriptions.size > 0) {
@@ -199,7 +211,7 @@ export class WebSocketHubConnection {
         this._socket.onerror = (error) => {
             if (this._disconnected) return;
             console.error(`Hub connection error: '${url}'`, error);
-            this.stopPinging();
+            this._keepAlive.stop();
             // onclose will fire after onerror, triggering reconnect
         };
 
@@ -232,6 +244,9 @@ export class WebSocketHubConnection {
     private handleMessage(rawData: string): void {
         try {
             const message = JSON.parse(rawData) as HubMessage;
+
+            // Every received message is activity — skip keep-alive ping if data is flowing.
+            this._keepAlive.recordActivity();
 
             switch (message.type) {
                 case HubMessageType.QueryResult:
@@ -271,25 +286,6 @@ export class WebSocketHubConnection {
             if (this._latencySamples.length > 100) {
                 this._latencySamples.shift();
             }
-        }
-    }
-
-    private startPinging(): void {
-        this.stopPinging();
-        this._pingInterval = setInterval(() => {
-            if (this._socket?.readyState !== WebSocket.OPEN) return;
-            this._lastPingSentTime = Date.now();
-            this.sendMessage({
-                type: HubMessageType.Ping,
-                timestamp: this._lastPingSentTime,
-            });
-        }, this._pingIntervalMs);
-    }
-
-    private stopPinging(): void {
-        if (this._pingInterval) {
-            clearInterval(this._pingInterval);
-            this._pingInterval = undefined;
         }
     }
 }
