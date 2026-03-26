@@ -18,7 +18,7 @@ When the last subscriber unmounts, the cache entry is released. The next time an
 
 ## Lifecycle
 
-```
+```text
 Component A mounts
   → Cache miss → create new query instance → subscribe to server → receive first result
   → Cache stores the result

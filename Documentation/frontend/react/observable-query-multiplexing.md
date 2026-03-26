@@ -19,7 +19,7 @@ The frontend `ObservableQueryFor.subscribe()` constructs the correct URL from th
 
 When transport is SSE, `subscribe()` calls the hub as:
 
-```
+```http
 GET /.cratis/queries/sse?query=<fullyQualifiedQueryName>&<queryArgs>
 ```
 
