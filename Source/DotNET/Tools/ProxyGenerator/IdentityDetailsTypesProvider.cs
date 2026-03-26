@@ -24,13 +24,20 @@ public class IdentityDetailsTypesProvider
         {
             foreach (var type in assembly.DefinedTypes)
             {
-                if (type.IsClass && !type.IsAbstract)
+                try
                 {
-                    var detailsType = GetIdentityDetailsType(type);
-                    if (detailsType is not null)
+                    if (type.IsClass && !type.IsAbstract)
                     {
-                        identityDetailsTypes.Add(detailsType);
+                        var detailsType = GetIdentityDetailsType(type);
+                        if (detailsType is not null)
+                        {
+                            identityDetailsTypes.Add(detailsType);
+                        }
                     }
+                }
+                catch
+                {
+                    // Skip types that cannot be inspected.
                 }
             }
         }
