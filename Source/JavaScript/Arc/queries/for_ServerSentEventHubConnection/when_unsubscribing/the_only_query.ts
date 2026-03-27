@@ -29,4 +29,14 @@ describe('when unsubscribing the only query', given(a_server_sent_event_hub_conn
         );
         unsubscribeCalls.length.should.equal(1);
     });
+
+    it('should include credentials with the unsubscribe request', () => {
+        const unsubscribeCall = context.fetchStub.args.find(
+            (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('unsubscribe')
+        );
+        if (unsubscribeCall === undefined) {
+            throw new Error('Expected unsubscribe request');
+        }
+        unsubscribeCall[1].credentials.should.equal('include');
+    });
 }));
