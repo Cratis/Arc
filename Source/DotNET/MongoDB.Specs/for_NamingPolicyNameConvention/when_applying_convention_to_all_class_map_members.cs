@@ -38,6 +38,6 @@ public class when_applying_convention_to_all_class_map_members : Specification
     [Fact] void should_have_two_members() => _classMap.DeclaredMemberMaps.Count().ShouldEqual(2);
     [Fact] void should_convert_SomeProperty_to_camelCase() => _classMap.DeclaredMemberMaps.Where(_ => _.ElementName == "someProperty").ShouldContainSingleItem();
     [Fact] void should_convert_SomeOtherProperty_to_someOtherPropertyName() => _classMap.DeclaredMemberMaps.Where(_ => _.ElementName == "someOtherPropertyName").ShouldContainSingleItem();
-    [Fact] void should_call_naming_policy_for_SomeProperty() => _namingPolicy.Received(1).GetPropertyName(nameof(SomeType.SomeProperty));
-    [Fact] void should_call_naming_policy_for_SomeOtherProperty() => _namingPolicy.Received(1).GetPropertyName("SomeOtherPropertyName");
+    [Fact] void should_call_naming_policy_for_SomeProperty() => _namingPolicy.Received().GetPropertyName(nameof(SomeType.SomeProperty));
+    [Fact] void should_call_naming_policy_for_SomeOtherProperty() => _namingPolicy.Received().GetPropertyName("SomeOtherPropertyName");
 }
