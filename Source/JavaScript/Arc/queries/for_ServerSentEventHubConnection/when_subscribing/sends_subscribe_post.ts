@@ -28,6 +28,10 @@ describe('when subscribing sends the subscribe POST after Connected', given(a_se
         const body = JSON.parse(context.fetchStub.getCall(0).args[1].body);
         body.queryId.should.equal(queryId);
     });
+    it('should include credentials with the subscribe request', () => {
+        const [, options] = context.fetchStub.getCall(0).args;
+        options.credentials.should.equal('include');
+    });
 
     describe('when a query result message arrives', () => {
         const result = { isSuccess: true, data: ['x'] };

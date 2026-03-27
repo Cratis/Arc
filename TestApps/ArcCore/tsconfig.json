@@ -17,7 +17,6 @@
         "noFallthroughCasesInSwitch": true,
         "experimentalDecorators": true,
         "emitDecoratorMetadata": false,
-        "baseUrl": ".",
         "paths": {
             "@cratis/arc.react": ["../../Source/JavaScript/Arc.React/dist/esm/index"],
             "@cratis/arc.react/*": ["../../Source/JavaScript/Arc.React/dist/esm/*"],

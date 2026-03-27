@@ -5,7 +5,7 @@ import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { IIdentityProvider } from './IIdentityProvider';
 import { IIdentity } from './IIdentity';
 import { IdentityProviderResult } from './IdentityProviderResult';
-import { GetHttpHeaders } from 'GetHttpHeaders';
+import { GetHttpHeaders } from '../GetHttpHeaders';
 import { Globals } from '../Globals';
 import { UrlHelpers } from '../UrlHelpers';
 import { joinPaths } from '../joinPaths';
