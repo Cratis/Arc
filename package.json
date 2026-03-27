@@ -31,6 +31,7 @@
         "up": "node ./run-task-on-workspaces.js up"
     },
     "devDependencies": {
+        "@cratis/fundamentals": "^7.7.1",
         "@eslint/eslintrc": "3.3.5",
         "@eslint/js": "10.0.1",
         "@testing-library/dom": "^10.4.1",
