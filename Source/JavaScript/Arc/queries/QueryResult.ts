@@ -107,20 +107,6 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
                 }
             } else {
                 data = JsonSerializer.deserializeFromInstance(instanceType, data);
-
-                // Fallback: when @field decorator metadata is missing (e.g. due to bundler
-                // tree-shaking, missing experimentalDecorators, or duplicate @cratis/fundamentals
-                // copies), deserializeFromInstance returns an empty typed instance with no
-                // populated properties. Copy raw values so the data is at least present.
-                if (data && typeof result.data === 'object' && !Array.isArray(result.data)) {
-                    const sourceKeys = Object.keys(result.data);
-                    if (sourceKeys.length > 0) {
-                        const hasPopulatedProperties = sourceKeys.some(key => (data as Record<string, unknown>)[key] !== undefined);
-                        if (!hasPopulatedProperties) {
-                            Object.assign(data, result.data);
-                        }
-                    }
-                }
             }
 
             this.data = data as TDataType;
