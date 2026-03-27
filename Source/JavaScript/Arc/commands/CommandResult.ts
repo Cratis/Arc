@@ -158,6 +158,20 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
             } else {
                 this.response = JsonSerializer.deserializeFromInstance(responseInstanceType, result.response) as TResponse;
             }
+
+            // Fallback: when @field decorator metadata is missing (e.g. due to bundler
+            // tree-shaking, missing experimentalDecorators, or duplicate @cratis/fundamentals
+            // copies), deserializeFromInstance returns an empty typed instance with no
+            // populated properties. Copy raw values so the data is at least present.
+            if (this.response && typeof result.response === 'object' && !Array.isArray(result.response)) {
+                const sourceKeys = Object.keys(result.response as object);
+                if (sourceKeys.length > 0) {
+                    const hasPopulatedProperties = sourceKeys.some(key => (this.response as Record<string, unknown>)[key] !== undefined);
+                    if (!hasPopulatedProperties) {
+                        Object.assign(this.response as object, result.response);
+                    }
+                }
+            }
         }
     }
 
