@@ -8,9 +8,6 @@ import { IReconnectPolicy, ReconnectCallback } from '../../IReconnectPolicy';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export class a_server_sent_event_hub_connection {
-    readonly sseUrl = 'http://localhost/.cratis/queries/sse';
-    readonly subscribeUrl = 'http://localhost/.cratis/queries/sse/subscribe';
-    readonly unsubscribeUrl = 'http://localhost/.cratis/queries/sse/unsubscribe';
     connection!: ServerSentEventHubConnection;
     fakeEventSource!: {
         onopen: (() => void) | null;
@@ -63,9 +60,9 @@ export class a_server_sent_event_hub_connection {
         };
 
         this.connection = new ServerSentEventHubConnection(
-            this.sseUrl,
-            this.subscribeUrl,
-            this.unsubscribeUrl,
+            'http://localhost/.cratis/queries/sse',
+            'http://localhost/.cratis/queries/sse/subscribe',
+            'http://localhost/.cratis/queries/sse/unsubscribe',
             '',
             undefined,
             undefined,

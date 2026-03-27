@@ -58,7 +58,7 @@ public static class ObservableQueryDemultiplexerEndpointMapper
             endpointName,
             "Observable query demultiplexer — WebSocket transport. Clients subscribe to observable queries and receive streaming results over a single persistent connection.",
             ["Cratis Observable Query Demultiplexer"],
-            AllowAnonymous: true);
+            AllowAnonymous: false);
 
         mapper.MapGet(
             WebSocketRoute,
@@ -82,7 +82,7 @@ public static class ObservableQueryDemultiplexerEndpointMapper
             endpointName,
             "Observable query demultiplexer — Server-Sent Events transport. Opens a multiplexed SSE stream. The server sends a Connected message with the connection identifier; use the subscribe/unsubscribe POST endpoints to manage subscriptions.",
             ["Cratis Observable Query Demultiplexer"],
-            AllowAnonymous: true);
+            AllowAnonymous: false);
 
         mapper.MapGet(
             SseRoute,
@@ -106,7 +106,7 @@ public static class ObservableQueryDemultiplexerEndpointMapper
             endpointName,
             "Observable query demultiplexer — SSE subscribe. POST a JSON body with connectionId, queryId, and subscription request to start receiving results over the associated SSE stream.",
             ["Cratis Observable Query Demultiplexer"],
-            AllowAnonymous: true);
+            AllowAnonymous: false);
 
         mapper.MapPost(
             SseSubscribeRoute,
@@ -130,7 +130,7 @@ public static class ObservableQueryDemultiplexerEndpointMapper
             endpointName,
             "Observable query demultiplexer — SSE unsubscribe. POST a JSON body with connectionId and queryId to stop receiving results for that subscription.",
             ["Cratis Observable Query Demultiplexer"],
-            AllowAnonymous: true);
+            AllowAnonymous: false);
 
         mapper.MapPost(
             SseUnsubscribeRoute,

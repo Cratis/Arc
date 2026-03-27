@@ -20,7 +20,7 @@ public class a_controller_query_performer_provider : Specification
 
     void Establish()
     {
-        var descriptor = new ControllerActionDescriptor
+        var descriptor1 = new ControllerActionDescriptor
         {
             ActionName = nameof(TestController.AllEventStores),
             ControllerName = nameof(TestController),
@@ -28,8 +28,16 @@ public class a_controller_query_performer_provider : Specification
             MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AllEventStores))!
         };
 
+        var descriptor2 = new ControllerActionDescriptor
+        {
+            ActionName = nameof(TestController.AnonymousEventStores),
+            ControllerName = nameof(TestController),
+            ControllerTypeInfo = typeof(TestController).GetTypeInfo(),
+            MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AnonymousEventStores))!
+        };
+
         _actionDescriptorCollectionProvider = Substitute.For<IActionDescriptorCollectionProvider>();
-        _actionDescriptorCollectionProvider.ActionDescriptors.Returns(new ActionDescriptorCollection([descriptor], 1));
+        _actionDescriptorCollectionProvider.ActionDescriptors.Returns(new ActionDescriptorCollection([descriptor1, descriptor2], 1));
 
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _serviceProviderIsService.IsService(typeof(ITestEventStores)).Returns(true);

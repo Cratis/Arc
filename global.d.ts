@@ -5,6 +5,12 @@
 /// <reference types="chai/register-should" />
 /// <reference types="sinon-chai" />
 
+// Declare the global object for test environment
+declare const global: {
+    document?: Document;
+    [key: string]: any;
+};
+
 // Ensure chai should is available globally
 declare global {
     namespace Chai {

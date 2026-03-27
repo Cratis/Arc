@@ -283,7 +283,6 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
         fetch(this._subscribeUrl, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         }).catch(error => {
@@ -301,7 +300,6 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
         fetch(this._unsubscribeUrl, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         }).catch(error => {
