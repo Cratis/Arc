@@ -36,6 +36,7 @@ When these instructions don't explicitly cover a situation, apply these values t
 - Always ensure that the code passes all tests.
 - Always ensure that the code adheres to the project's coding standards.
 - Always ensure that the code is maintainable.
+- For PR descriptions, use short release-note bullets with issue references and never include Copilot "Original prompt" blocks.
 - Always reuse the active terminal for commands.
 - Do not create new terminals unless current one is busy or fails.
 

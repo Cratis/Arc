@@ -1,33 +1,34 @@
 ## Summary
 
-Optional summary of the PR here. The GitHub release description is created from this comment so keep it nice and descriptive.
-Remember to remove sections that you don't need or use.
+Optional summary of the PR. Keep it short.
+Remove this section if the bullets already tell the full story.
 
-If it does not make sense to have a summary, you can take that out as well.
-You would typically keep the summary only if there is a general theme change that can be summarized. If you find
-yourself saying the same thing as any of the bullet points in a slightly different way; then this section is not
-needed.
+Release notes are generated from this description:
+- Keep bullets short and specific.
+- End each bullet with the relevant issue reference, for example `(#123)`.
+- Remove any empty sections.
+- Do not include "Original prompt" or any Copilot prompt transcript.
 
 ### Added
 
-- Describe the added features
+- Short statement of what was added (#123)
 
 ### Changed
 
-- Describe the outwards facing code change
+- Short statement of what changed (#123)
 
 ### Fixed
 
-- Describe the fix and the bug
+- Short statement of what was fixed (#123)
 
 ### Removed
 
-- Describe what was removed and why
+- Short statement of what was removed (#123)
 
 ### Security
 
-- Describe the security issue and the fix
+- Short statement of the security fix (#123)
 
 ### Deprecated
 
-- Describe the part of the code being deprecated and why
+- Short statement of what is deprecated (#123)
