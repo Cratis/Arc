@@ -1,0 +1,44 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.Authorization;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+
+namespace Cratis.Arc.Queries.ControllerBased;
+
+/// <summary>
+/// Represents a provider for controller-based query performers.
+/// </summary>
+public class QueryPerformerProvider : IQueryPerformerProvider
+{
+    readonly Dictionary<FullyQualifiedQueryName, IQueryPerformer> _performers;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="QueryPerformerProvider"/> class.
+    /// </summary>
+    /// <param name="actionDescriptorCollectionProvider">The action descriptor collection provider.</param>
+    /// <param name="serviceProviderIsService">Service to determine if a type is registered as a service.</param>
+    /// <param name="authorizationEvaluator">The authorization evaluator.</param>
+    public QueryPerformerProvider(
+        IActionDescriptorCollectionProvider actionDescriptorCollectionProvider,
+        IServiceProviderIsService serviceProviderIsService,
+        IAuthorizationEvaluator authorizationEvaluator)
+    {
+        var controllerActions = actionDescriptorCollectionProvider.ActionDescriptors.Items
+            .OfType<ControllerActionDescriptor>()
+            .Where(_ => _.MethodInfo.IsQuery());
+
+        _performers = controllerActions
+            .Select(_ => new ControllerQueryPerformer(_, serviceProviderIsService, authorizationEvaluator))
+            .ToDictionary(_ => _.FullyQualifiedName, _ => (IQueryPerformer)_);
+    }
+
+    /// <inheritdoc/>
+    public IEnumerable<IQueryPerformer> Performers => _performers.Values;
+
+    /// <inheritdoc/>
+    public bool TryGetPerformerFor(FullyQualifiedQueryName query, [NotNullWhen(true)] out IQueryPerformer? performer) =>
+        _performers.TryGetValue(query, out performer);
+}
