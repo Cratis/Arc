@@ -98,23 +98,50 @@
                     if (init.startsWith('?')) init = init.slice(1);
                     init.split('&').forEach(pair => {
                         const [key, value] = pair.split('=');
-                        if (key) this._params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+                        if (!key) {
+                            return;
+                        }
+
+                        const decodedKey = decodeURIComponent(key);
+                        const decodedValue = decodeURIComponent(value || '');
+                        this.append(decodedKey, decodedValue);
                     });
                 } else if (init) {
                     // Copy from object or another URLSearchParams
                     for (const key in init) {
-                        this._params[key] = init[key];
+                        const value = init[key];
+                        if (Array.isArray(value)) {
+                            value.forEach(item => this.append(key, item));
+                        } else {
+                            this.set(key, value);
+                        }
                     }
                 }
             }
             append(name, value) {
-                this._params[name] = String(value);
+                if (!Object.prototype.hasOwnProperty.call(this._params, name)) {
+                    this._params[name] = [];
+                }
+
+                this._params[name].push(String(value));
             }
             set(name, value) {
-                this._params[name] = String(value);
+                this._params[name] = [String(value)];
             }
             get(name) {
-                return this._params[name] || null;
+                if (!Object.prototype.hasOwnProperty.call(this._params, name)) {
+                    return null;
+                }
+
+                const values = this._params[name];
+                return values.length > 0 ? values[0] : null;
+            }
+            getAll(name) {
+                if (!Object.prototype.hasOwnProperty.call(this._params, name)) {
+                    return [];
+                }
+
+                return this._params[name].slice();
             }
             has(name) {
                 return name in this._params;
@@ -123,9 +150,16 @@
                 delete this._params[name];
             }
             toString() {
-                return Object.keys(this._params)
-                    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(this._params[key])}`)
-                    .join('&');
+                const entries = [];
+
+                Object.keys(this._params).forEach(key => {
+                    const values = this._params[key];
+                    values.forEach(value => {
+                        entries.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+                    });
+                });
+
+                return entries.join('&');
             }
         };
     }

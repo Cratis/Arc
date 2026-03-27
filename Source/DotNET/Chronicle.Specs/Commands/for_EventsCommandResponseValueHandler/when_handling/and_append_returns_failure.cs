@@ -38,5 +38,5 @@ public class and_append_returns_failure : given.an_events_command_response_value
 
     [Fact] void should_return_failed_command_result() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_include_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
-    [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual(" Test violation");
+    [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual("Test violation");
 }

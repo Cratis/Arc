@@ -5,9 +5,14 @@ namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions.when_checking_is_enumerab
 
 public class with_IEnumerable_of_complex_type : Specification
 {
+    class ComplexType
+    {
+        public string Value { get; set; } = string.Empty;
+    }
+
     bool _result;
 
-    void Because() => _result = typeof(IEnumerable<object>).IsEnumerableOfPrimitiveOrConcept();
+    void Because() => _result = typeof(IEnumerable<ComplexType>).IsEnumerableOfPrimitiveOrConcept();
 
     [Fact] void should_return_false() => _result.ShouldBeFalse();
 }
