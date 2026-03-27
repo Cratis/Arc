@@ -13,8 +13,8 @@ public class when_checking_controller_query_allows_anonymous_access : given.a_co
         // Get the performers by finding them in the provider
         var performers = _provider.Performers.ToList();
 
-        _anonymousPerformer = performers.FirstOrDefault(p => p.Name == nameof(given.TestController.AnonymousEventStores))!;
-        _securedPerformer = performers.FirstOrDefault(p => p.Name == nameof(given.TestController.AllEventStores))!;
+        _anonymousPerformer = performers.Find(p => p.Name == nameof(given.TestController.AnonymousEventStores));
+        _securedPerformer = performers.Find(p => p.Name == nameof(given.TestController.AllEventStores));
     }
 
     [Fact] void should_find_anonymous_performer() => _anonymousPerformer.ShouldNotBeNull();
