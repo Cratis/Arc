@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Reflection;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cratis.Arc.Queries;
@@ -24,4 +25,12 @@ public static class QueryMethodExtensions
         methodInfo.ReturnType != typeof(ValueTask) &&
         !methodInfo.HasAttribute<AspNetResultAttribute>() &&
         (!methodInfo.DeclaringType?.HasAttribute<AspNetResultAttribute>() ?? false);
+
+    /// <summary>
+    /// Check if a method allows anonymous access.
+    /// </summary>
+    /// <param name="methodInfo">The <see cref="MethodInfo"/> to check.</param>
+    /// <returns>True if the method has [AllowAnonymous], false otherwise.</returns>
+    public static bool IsAnonymousAllowed(this MethodInfo methodInfo) =>
+        methodInfo.HasAttribute<AllowAnonymousAttribute>();
 }

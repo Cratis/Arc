@@ -38,7 +38,10 @@ public static class MethodInfoExtensions
 
         if (includeQueryStringParameters)
         {
-            var queryStringParameters = parameters.Where(parameter => parameter.IsQueryStringParameter).ToArray();
+            // Enumerable parameters cannot be expressed as a single `{placeholder}` in a route template.
+            // They are serialized as repeated key=value pairs on the frontend (e.g. ?ids=1&ids=2&ids=3),
+            // so they are excluded from the template and handled separately by the TypeScript QueryFor class.
+            var queryStringParameters = parameters.Where(parameter => parameter.IsQueryStringParameter && !parameter.IsEnumerable).ToArray();
             if (queryStringParameters.Length > 0)
             {
                 var queryString = string.Join('&', queryStringParameters.Select(_ => $"{_.Name}={{{_.Name}}}"));
@@ -97,8 +100,14 @@ public static class MethodInfoExtensions
     {
         List<PropertyDescriptor> properties = [];
         var parameters = method.GetParameters();
-        var primitives = parameters.Where(_ => _.ParameterType.IsAPrimitiveType() || _.ParameterType.IsConcept());
-        var complex = parameters.Where(_ => !_.ParameterType.IsAPrimitiveType() && !_.ParameterType.IsConcept());
+        var primitives = parameters.Where(_ =>
+            _.ParameterType.IsAPrimitiveType() ||
+            _.ParameterType.IsConcept() ||
+            _.ParameterType.IsEnumerableOfPrimitiveOrConcept());
+        var complex = parameters.Where(_ =>
+            !_.ParameterType.IsAPrimitiveType() &&
+            !_.ParameterType.IsConcept() &&
+            !_.ParameterType.IsEnumerableOfPrimitiveOrConcept());
 
         properties.AddRange(primitives.ToList().ConvertAll(_ => _.ToPropertyDescriptor()));
 

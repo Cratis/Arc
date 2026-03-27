@@ -445,3 +445,52 @@ public class CommandWithNullableProperties
     /// <returns>A confirmation message.</returns>
     public string Handle() => $"Handled: {Name}";
 }
+
+/// <summary>
+/// A command that returns a response containing Guid properties.
+/// </summary>
+[Command]
+public class CommandWithGuidResponse
+{
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the Guid identifier for the command.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Handles the command and returns a response with Guid properties.
+    /// </summary>
+    /// <returns>The response containing Guid values.</returns>
+    public GuidResponseData Handle() => new()
+    {
+        UserId = new Guid(0x12345678, 0x1234, 0x1234, 0x12, 0x34, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc),
+        Name = Name,
+        SessionId = new Guid(0x87654321, 0x4321, 0x4321, 0x43, 0x21, 0xcb, 0xa9, 0x87, 0x65, 0x43, 0x21)
+    };
+}
+
+/// <summary>
+/// Response type containing Guid properties for testing Guid serialization.
+/// </summary>
+public class GuidResponseData
+{
+    /// <summary>
+    /// Gets or sets the user identifier.
+    /// </summary>
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the session identifier.
+    /// </summary>
+    public Guid SessionId { get; set; }
+}

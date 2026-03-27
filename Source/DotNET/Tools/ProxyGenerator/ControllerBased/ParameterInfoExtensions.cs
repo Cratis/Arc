@@ -18,16 +18,25 @@ public static class ParameterInfoExtensions
     /// <returns>Converted <see cref="RequestParameterDescriptor"/>.</returns>
     public static RequestParameterDescriptor ToRequestParameterDescriptor(this ParameterInfo parameterInfo)
     {
-        var type = parameterInfo.ParameterType.GetTargetType();
+        var paramType = parameterInfo.ParameterType;
+        var isEnumerable = paramType.IsEnumerableOfPrimitiveOrConcept();
+
+        if (isEnumerable)
+        {
+            paramType = paramType.GetEnumerableElementType();
+        }
+
+        var type = paramType.GetTargetType();
         var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
         var documentation = parameterInfo.GetDocumentation();
         return new RequestParameterDescriptor(
-            parameterInfo.ParameterType,
+            paramType,
             parameterInfo.Name!,
             type.Type,
             type.Constructor,
             optional,
             parameterInfo.IsFromQueryArgument(),
+            isEnumerable,
             documentation);
     }
 

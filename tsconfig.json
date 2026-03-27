@@ -1,6 +1,5 @@
 {
     "compilerOptions": {
-        "baseUrl": ".",
         "outDir": "dist/esm",
         "declaration": true,
         "declarationMap": true,
@@ -28,7 +27,6 @@
         "esModuleInterop": true,
         "strictNullChecks": true,
         "resolveJsonModule": true,
-        "downlevelIteration": true,
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
         "noImplicitReturns": true,

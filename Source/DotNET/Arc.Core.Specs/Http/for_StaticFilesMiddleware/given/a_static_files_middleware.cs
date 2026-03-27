@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Http.for_StaticFilesMiddleware.given;
@@ -16,7 +17,7 @@ public class a_static_files_middleware : Specification
 
     void Establish()
     {
-        _port = Random.Shared.Next(50000, 60000);
+        _port = GetAvailablePort();
 
         _logger = Substitute.For<ILogger<StaticFilesMiddleware>>();
         _middleware = new StaticFilesMiddleware(_logger);
@@ -26,6 +27,13 @@ public class a_static_files_middleware : Specification
 
         _testDirectory = Path.Combine(Path.GetTempPath(), $"arc_specs_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDirectory);
+    }
+
+    static int GetAvailablePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
     void Destroy()

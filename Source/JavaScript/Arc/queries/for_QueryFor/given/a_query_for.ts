@@ -6,7 +6,8 @@ import {
     TestEnumerableQueryFor,
     TestQueryForWithoutRequiredParams,
     TestQueryForWithParameterDescriptorValues,
-    TestQueryForWithMultipleRequiredParameters
+    TestQueryForWithMultipleRequiredParameters,
+    TestQueryForWithEnumerableParameterDescriptorValues
 } from './TestQueries';
 
 export class a_query_for {
@@ -14,6 +15,7 @@ export class a_query_for {
     enumerableQuery: TestEnumerableQueryFor;
     queryWithoutParams: TestQueryForWithoutRequiredParams;
     queryWithParameterDescriptorValues: TestQueryForWithParameterDescriptorValues;
+    queryWithEnumerableParameterDescriptorValues: TestQueryForWithEnumerableParameterDescriptorValues;
     queryWithMultipleRequiredParameters: TestQueryForWithMultipleRequiredParameters;
 
     constructor() {
@@ -21,6 +23,7 @@ export class a_query_for {
         this.enumerableQuery = new TestEnumerableQueryFor();
         this.queryWithoutParams = new TestQueryForWithoutRequiredParams();
         this.queryWithParameterDescriptorValues = new TestQueryForWithParameterDescriptorValues();
+        this.queryWithEnumerableParameterDescriptorValues = new TestQueryForWithEnumerableParameterDescriptorValues();
         this.queryWithMultipleRequiredParameters = new TestQueryForWithMultipleRequiredParameters();
     }
 }

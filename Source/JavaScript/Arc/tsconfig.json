@@ -1,9 +1,14 @@
 {
     "extends": "../../../tsconfig.json",
     "compilerOptions": {
-        "baseUrl": ".",
         "rootDir": ".",
-        "outDir": "dist/esm"
+        "outDir": "dist/esm",
+        "lib": [
+            "ESNext",
+            "ES2022",
+            "DOM",
+            "DOM.Iterable"
+        ]
     },
     "references": [],
     "files": [
