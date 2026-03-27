@@ -41,16 +41,25 @@ public static class PropertyExtensions
     /// <returns>Converted <see cref="RequestParameterDescriptor"/>.</returns>
     public static RequestParameterDescriptor ToRequestParameterDescriptor(this PropertyInfo propertyInfo)
     {
-        var type = propertyInfo.PropertyType.GetTargetType();
+        var propType = propertyInfo.PropertyType;
+        var isEnumerable = propType.IsEnumerableOfPrimitiveOrConcept();
+
+        if (isEnumerable)
+        {
+            propType = propType.GetEnumerableElementType();
+        }
+
+        var type = propType.GetTargetType();
         var optional = propertyInfo.IsOptional();
         var documentation = propertyInfo.GetDocumentation();
         return new RequestParameterDescriptor(
-            propertyInfo.PropertyType,
+            propType,
             propertyInfo.Name,
             type.Type,
             type.Constructor,
             optional,
             propertyInfo.IsFromQueryParameter(),
+            isEnumerable,
             documentation);
     }
 }
