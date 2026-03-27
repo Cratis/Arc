@@ -29,7 +29,8 @@ describe('when subscribing sends the subscribe POST after Connected', given(a_se
         body.queryId.should.equal(queryId);
     });
     it('should include credentials with the subscribe request', () => {
-        context.fetchStub.getCall(0).args[1].credentials.should.equal('include');
+        const [, options] = context.fetchStub.getCall(0).args;
+        options.credentials.should.equal('include');
     });
 
     describe('when a query result message arrives', () => {
