@@ -3,7 +3,7 @@
 
 namespace Cratis.Arc.Queries.Filters.for_AuthorizationFilter.when_performing;
 
-public class and_authorization_succeeds_with_performer : given.an_authorization_filter
+public class and_type_has_authorize_but_method_has_allow_anonymous : given.an_authorization_filter
 {
     QueryResult _result;
     FullyQualifiedQueryName _queryName;
@@ -12,14 +12,16 @@ public class and_authorization_succeeds_with_performer : given.an_authorization_
     {
         _queryName = new FullyQualifiedQueryName("TestQuery");
         _queryPerformer.Type.Returns(typeof(object));
-        _queryPerformerProviders.TryGetPerformersFor(_queryName, out var _).Returns(callInfo =>
+        _queryPerformer.AllowsAnonymousAccess.Returns(true);
+        _queryPerformerProviders.TryGetPerformersFor(_queryName, out Arg.Any<IQueryPerformer?>()).Returns(callInfo =>
         {
             callInfo[1] = _queryPerformer;
             return true;
         });
 
         _context = new QueryContext(_queryName, _correlationId, Paging.NotPaged, Sorting.None, null, []);
-        _authorizationEvaluator.IsAuthorized(typeof(object)).Returns(true);
+
+        // Method-level authorization check passes ([AllowAnonymous] on the method overrides type-level [Authorize])
         _queryPerformer.IsAuthorized(_context).Returns(true);
     }
 

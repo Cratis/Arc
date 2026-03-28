@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace TestApps.Features.LiveFeed;
@@ -13,6 +14,7 @@ namespace TestApps.Features.LiveFeed;
 /// <param name="Text">The message text.</param>
 /// <param name="PostedAt">The timestamp when the message was posted.</param>
 [ReadModel]
+[AllowAnonymous]
 public record LiveFeed(string Author, string Text, DateTimeOffset PostedAt)
 {
     static readonly BehaviorSubject<IEnumerable<LiveFeed>> _all = new([

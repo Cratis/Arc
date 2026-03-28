@@ -21,6 +21,6 @@ public class an_authorization_filter : Specification
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
         _queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         _queryPerformer = Substitute.For<IQueryPerformer>();
-        _filter = new AuthorizationFilter(_authorizationEvaluator, _queryPerformerProviders);
+        _filter = new AuthorizationFilter(_queryPerformerProviders);
     }
 }

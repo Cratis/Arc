@@ -281,9 +281,11 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             request,
         };
 
+        const customHeaders = Globals.httpHeadersCallback?.() ?? {};
+
         fetch(this._subscribeUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...customHeaders },
             body: JSON.stringify(body),
         }).catch(error => {
             console.error(`SSE hub: subscribe POST failed for '${queryId}'`, error);
@@ -298,9 +300,11 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             queryId,
         };
 
+        const customHeaders = Globals.httpHeadersCallback?.() ?? {};
+
         fetch(this._unsubscribeUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...customHeaders },
             body: JSON.stringify(body),
         }).catch(error => {
             console.error(`SSE hub: unsubscribe POST failed for '${queryId}'`, error);
