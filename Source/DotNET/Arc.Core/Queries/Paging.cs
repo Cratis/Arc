@@ -19,12 +19,8 @@ public record Paging
     /// <param name="page">The page number.</param>
     /// <param name="size">The size of a page.</param>
     /// <param name="isPaged">Whether or not paging is to be used.</param>
-    public Paging(int page, int size, bool isPaged)
+    public Paging(PageNumber page, PageSize size, bool isPaged)
     {
-        if (isPaged)
-        {
-            Validate(page, size);
-        }
         Page = page;
         Size = size;
         IsPaged = isPaged;
@@ -33,12 +29,12 @@ public record Paging
     /// <summary>
     /// The page number.
     /// </summary>
-    public int Page { get; }
+    public PageNumber Page { get; }
 
     /// <summary>
     /// The size of a page.
     /// </summary>
-    public int Size { get; }
+    public PageSize Size { get; }
 
     /// <summary>
     /// Whether paging is to be used.
@@ -48,17 +44,5 @@ public record Paging
     /// <summary>
     /// Gets the number of items to skip.
     /// </summary>
-    public int Skip => Page * Size;
-
-    void Validate(int page, int size)
-    {
-        if (page < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(page), "Page number must be greater or equal to 0");
-        }
-        if (size <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(size), "Page size must be greater than 0");
-        }
-    }
+    public int Skip => Page.Value * Size.Value;
 }
