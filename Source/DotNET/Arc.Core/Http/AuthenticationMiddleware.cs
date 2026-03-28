@@ -20,12 +20,23 @@ public class AuthenticationMiddleware(IAuthentication authentication)
     /// <returns>True if the request is authenticated or allows anonymous access, false otherwise.</returns>
     public async Task<bool> Authenticate(IHttpRequestContext context, EndpointMetadata? metadata)
     {
-        if (metadata?.AllowAnonymous == true || !authentication.HasHandlers)
+        if (!authentication.HasHandlers)
         {
             return true;
         }
 
         var result = await authentication.HandleAuthentication(context);
+
+        if (result.IsAuthenticated)
+        {
+            context.User = result.Principal!;
+        }
+
+        // Anonymous endpoints are always allowed through, even without valid credentials.
+        if (metadata?.AllowAnonymous == true)
+        {
+            return true;
+        }
 
         if (!result.IsAuthenticated)
         {
@@ -34,7 +45,6 @@ public class AuthenticationMiddleware(IAuthentication authentication)
             return false;
         }
 
-        context.User = result.Principal!;
         return true;
     }
 }
