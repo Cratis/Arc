@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import { GetHttpHeaders } from './GetHttpHeaders';
 import { QueryTransportMethod } from './queries/QueryTransportMethod';
 
 export interface IGlobals {
@@ -23,6 +24,11 @@ export interface IGlobals {
      * Defaults to false (use the centralized hub).
      */
     queryDirectMode: boolean;
+    /**
+     * Callback that returns custom HTTP headers to include in hub transport requests
+     * (e.g. SSE subscribe/unsubscribe POST calls).
+     */
+    httpHeadersCallback: GetHttpHeaders;
 }
 
 export const Globals: IGlobals = {
@@ -34,4 +40,5 @@ export const Globals: IGlobals = {
     queryTransportMethod: QueryTransportMethod.WebSocket,
     queryConnectionCount: 1,
     queryDirectMode: false,
+    httpHeadersCallback: () => ({}),
 };
