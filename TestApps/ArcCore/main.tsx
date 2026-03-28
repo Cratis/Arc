@@ -20,6 +20,15 @@ const encodeClientPrincipal = (userId: string, userName: string, roles: string):
     return btoa(json);
 };
 
+const setAuthCookie = (userId: string, userName: string, roles: string): void => {
+    const encoded = encodeClientPrincipal(userId, userName, roles);
+    document.cookie = `x-ms-client-principal=${encoded}; path=/; SameSite=Lax`;
+};
+
+const clearAuthCookie = (): void => {
+    document.cookie = 'x-ms-client-principal=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+};
+
 const Root = () => {
     const [transport, setTransport] = useState<QueryTransportMethod>(QueryTransportMethod.WebSocket);
     const [connectionCount, setConnectionCount] = useState(1);
@@ -48,6 +57,12 @@ const Root = () => {
         setUserName(newUserName);
         setRoles(newRoles);
         setConfigKey(current => current + 1);
+
+        if (newLoggedIn) {
+            setAuthCookie(newUserId, newUserName, newRoles);
+        } else {
+            clearAuthCookie();
+        }
     };
 
     const httpHeadersCallback = (): Record<string, string> => {
