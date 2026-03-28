@@ -70,7 +70,26 @@ automatically infer its type from the first argument that specifies the type to 
 ### Injecting Props as dependency
 
 If you're component only gets loaded once and the props typically don't change without the component being unloaded
-and then loaded again, you can simply inject it as part of the constructor:
+and then loaded again, you can simply inject it as part of the constructor.
+
+#### Using `@props` decorator (recommended)
+
+The `@props` decorator wraps tsyringe's `@inject` and also captures the parameter type:
+
+```ts
+import { props } from '@cratis/arc.react.mvvm';
+import { injectable } from 'tsyringe';
+
+@injectable()
+export class MyViewModel {
+    constructor(@props componentProps: Props) {
+    }
+}
+```
+
+#### Using `@inject` manually
+
+You can also use tsyringe's `@inject` directly with `WellKnownBindings.props`:
 
 ```ts
 import { WellKnownBindings } from '@cratis/arc.react.mvvm';
@@ -107,7 +126,38 @@ Params defined as part of routes using `react-router` can easily be accessed by 
 ### Injecting Params as dependency
 
 If you're component only gets loaded once and the parameters can't change without the component being unloaded
-and then loaded again, you can simply inject it as part of the constructor:
+and then loaded again, you can simply inject it as part of the constructor.
+
+#### Using `@params` decorator (recommended)
+
+The `@params` decorator wraps tsyringe's `@inject` and also captures the parameter type. When a typed class is
+provided, `withViewModel` will use `JsonSerializer` to deserialize the string-based URL parameters into the
+correct types. Properties on the params class must be annotated with `@field` from `@cratis/fundamentals` so
+the serializer knows how to convert each value — for example a `number` property will be converted from the
+URL string `"42"` to the integer `42`. Without `@field`, the property values remain as strings:
+
+```ts
+import { field } from '@cratis/fundamentals';
+import { params } from '@cratis/arc.react.mvvm';
+import { injectable } from 'tsyringe';
+
+class RouteParams {
+    @field id!: string;
+    @field count!: number;
+}
+
+@injectable()
+export class MyViewModel {
+    constructor(@params routeParams: RouteParams) {
+        // routeParams.count is a proper number, not the URL string "42"
+    }
+}
+```
+
+#### Using `@inject` manually
+
+You can also use tsyringe's `@inject` directly with `WellKnownBindings.params`. In this case the parameters
+are injected as raw strings as they appear in the URL:
 
 ```ts
 import { WellKnownBindings } from '@cratis/arc.react.mvvm';
@@ -148,7 +198,38 @@ QueryParams defined as part of routes using `react-router` can easily be accesse
 ### Injecting Query Params as dependency
 
 If you're component only gets loaded once and the query parameters can't change without the component being unloaded
-and then loaded again, you can simply inject it as part of the constructor:
+and then loaded again, you can simply inject it as part of the constructor.
+
+#### Using `@queryParams` decorator (recommended)
+
+The `@queryParams` decorator wraps tsyringe's `@inject` and also captures the parameter type. When a typed class is
+provided, `withViewModel` will use `JsonSerializer` to deserialize the string-based URL query parameters into the
+correct types. Properties on the query params class must be annotated with `@field` from `@cratis/fundamentals` so
+the serializer knows how to convert each value — for example a `number` property will be converted from the
+URL string `"1"` to the integer `1`. Without `@field`, the property values remain as strings:
+
+```ts
+import { field } from '@cratis/fundamentals';
+import { queryParams } from '@cratis/arc.react.mvvm';
+import { injectable } from 'tsyringe';
+
+class SearchParams {
+    @field filter!: string;
+    @field page!: number;
+}
+
+@injectable()
+export class MyViewModel {
+    constructor(@queryParams searchParams: SearchParams) {
+        // searchParams.page is a proper number, not the URL string "1"
+    }
+}
+```
+
+#### Using `@inject` manually
+
+You can also use tsyringe's `@inject` directly with `WellKnownBindings.queryParams`. In this case the parameters
+are injected as raw strings as they appear in the URL:
 
 ```ts
 import { WellKnownBindings } from '@cratis/arc.react.mvvm';
