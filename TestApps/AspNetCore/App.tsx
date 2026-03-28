@@ -5,8 +5,9 @@ import { TickerPage } from '../Shared/Features/Ticker/TickerPage';
 import { LiveFeedPage } from '../Shared/Features/LiveFeed/LiveFeedPage';
 import { QueryShowcasePage } from '../Shared/Features/QueryShowcase/QueryShowcasePage';
 import { ConditionalQueriesPage } from '../Shared/Features/ConditionalQueries/ConditionalQueriesPage';
+import { AuthenticationQueriesPage } from '../Shared/Features/AuthenticationQueries/AuthenticationQueriesPage';
 
-export type Page = 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries';
+export type Page = 'authenticationqueries' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries';
 
 interface AppProps {
     page: Page;
@@ -17,11 +18,16 @@ interface AppProps {
  * Root application component with simple tab navigation.
  */
 export const App = ({ page, onPageChange: setPage }: AppProps) => {
-
     return (
         <div style={{ fontFamily: 'sans-serif', maxWidth: 1000, margin: '0 auto', padding: 24 }}>
             <h1>AspNetCore TestApp</h1>
-            <nav style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+            <nav style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+                <button
+                    onClick={() => setPage('authenticationqueries')}
+                    style={{ fontWeight: page === 'authenticationqueries' ? 'bold' : 'normal' }}
+                >
+                    Authentication Queries
+                </button>
                 <button
                     onClick={() => setPage('ticker')}
                     style={{ fontWeight: page === 'ticker' ? 'bold' : 'normal' }}
@@ -47,6 +53,7 @@ export const App = ({ page, onPageChange: setPage }: AppProps) => {
                     Conditional Queries
                 </button>
             </nav>
+            {page === 'authenticationqueries' && <AuthenticationQueriesPage />}
             {page === 'ticker' && <TickerPage />}
             {page === 'livefeed' && <LiveFeedPage />}
             {page === 'queryshowcase' && <QueryShowcasePage />}

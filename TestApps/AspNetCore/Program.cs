@@ -2,12 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Swagger;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Uncomment the following line to configure the application to use invariant culture
 // builder.UseInvariantCulture();
 builder.AddCratisArc();
+builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
 builder.Services.AddControllers();
 builder.Services.AddMvc();
 
