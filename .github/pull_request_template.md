@@ -6,7 +6,7 @@ Remove this section if the bullets already tell the full story.
 Release notes are generated from this description:
 
 - Keep bullets short and specific.
-- End each bullet with the relevant issue reference, for example `(#123)`.
+- End each bullet with the relevant issue reference, for example `(#123)`. Always replace `123` with the **actual GitHub issue number** this PR resolves — never leave a placeholder like `(#issue)` or the literal `(#123)`.
 - Remove any empty sections.
 - Do not include "Original prompt" or any Copilot prompt transcript.
 
