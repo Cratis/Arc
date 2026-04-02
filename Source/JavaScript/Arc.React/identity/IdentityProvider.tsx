@@ -26,10 +26,12 @@ const defaultIdentityContext: IIdentity = {
 type IdentityContextValue = {
     identity: IIdentity;
     detailsConstructor?: Constructor;
+    clearIdentity: () => void;
 };
 
 const defaultContextValue: IdentityContextValue = {
-    identity: defaultIdentityContext
+    identity: defaultIdentityContext,
+    clearIdentity: () => { /* no-op until provider initializes */ },
 };
 
 export const IdentityProviderContext = React.createContext<IdentityContextValue>(defaultContextValue);
@@ -46,11 +48,19 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     const fetchIdentity = (): Promise<IIdentity> => {
         return RootIdentityProvider.refresh(props.detailsType).then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
-            setContext({
+            setIdentityState({
                 identity: wrappedIdentity,
                 detailsConstructor: props.detailsType
             });
             return wrappedIdentity;
+        });
+    };
+
+    const clearIdentity = (): void => {
+        RootIdentityProvider.clearIdentityCookie();
+        setIdentityState({
+            identity: wrapRefresh(initialIdentity),
+            detailsConstructor: props.detailsType
         });
     };
 
@@ -62,7 +72,7 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
                 return new Promise<IIdentity>((resolve, reject) => {
                     originalRefresh().then(newIdentity => {
                         const wrappedIdentity = wrapRefresh(newIdentity);
-                        setContext({
+                        setIdentityState({
                             identity: wrappedIdentity,
                             detailsConstructor: props.detailsType
                         });
@@ -83,9 +93,9 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         refresh: () => fetchIdentity()
     };
 
-    const [context, setContext] = useState<IdentityContextValue>({
+    const [identityState, setIdentityState] = useState<{ identity: IIdentity; detailsConstructor?: Constructor }>({
         identity: wrapRefresh(initialIdentity),
-        detailsConstructor: props.detailsType
+        detailsConstructor: props.detailsType,
     });
 
     useEffect(() => {
@@ -97,8 +107,13 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         });
     }, []);
 
+    const contextValue: IdentityContextValue = {
+        ...identityState,
+        clearIdentity,
+    };
+
     return (
-        <IdentityProviderContext.Provider value={context}>
+        <IdentityProviderContext.Provider value={contextValue}>
             {props.children}
         </IdentityProviderContext.Provider>
     );

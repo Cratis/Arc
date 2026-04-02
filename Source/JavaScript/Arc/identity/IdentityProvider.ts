@@ -77,7 +77,7 @@ export class IdentityProvider extends IIdentityProvider {
     }
 
     static async refresh<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
-        IdentityProvider.clearCookie();
+        IdentityProvider.clearIdentityCookie();
         const origin = IdentityProvider.origin || Globals.origin || '';
         const apiBasePath = IdentityProvider.apiBasePath || Globals.apiBasePath || '';
         const route = joinPaths(apiBasePath, '/.cratis/me');
@@ -130,7 +130,12 @@ export class IdentityProvider extends IIdentityProvider {
         return [];
     }
 
-    private static clearCookie() {
+    /**
+     * Clears the identity cookie used by Arc to cache the current identity.
+     * Call this when the user logs out to ensure subsequent requests and WebSocket
+     * connections do not carry stale credentials.
+     */
+    static clearIdentityCookie(): void {
         if (typeof document === 'undefined') return;
         document.cookie = `${IdentityProvider.CookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT`;
     }
