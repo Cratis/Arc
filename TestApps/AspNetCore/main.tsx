@@ -56,6 +56,8 @@ const AuthBridge = ({ loggedIn, userId, userName, roles }: { loggedIn: boolean; 
 
         if (!loggedIn) {
             identity.clearIdentity();
+        } else {
+            identity.refresh();
         }
         prevLoggedIn.current = loggedIn;
         arc.reconnectQueries?.();

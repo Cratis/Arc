@@ -44,7 +44,13 @@ export interface IdentityProviderProps {
 
 export const IdentityProvider = (props: IdentityProviderProps) => {
     const arc = useContext(ArcContext);
-    
+
+    // Keep the root identity provider's settings in sync on every render
+    // so that identity.refresh() always uses the latest callback and paths.
+    RootIdentityProvider.setHttpHeadersCallback(props.httpHeadersCallback ?? (() => ({})));
+    RootIdentityProvider.setApiBasePath(arc.apiBasePath ?? '');
+    RootIdentityProvider.setOrigin(arc.origin ?? '');
+
     const fetchIdentity = (): Promise<IIdentity> => {
         return RootIdentityProvider.refresh(props.detailsType).then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
@@ -99,9 +105,6 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     });
 
     useEffect(() => {
-        RootIdentityProvider.setHttpHeadersCallback(props.httpHeadersCallback!);
-        RootIdentityProvider.setApiBasePath(arc.apiBasePath ?? '');
-        RootIdentityProvider.setOrigin(arc.origin ?? '');
         fetchIdentity().catch(error => {
             console.error('Failed to fetch initial identity:', error);
         });
