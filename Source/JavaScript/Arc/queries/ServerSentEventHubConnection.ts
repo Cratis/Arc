@@ -238,6 +238,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     break;
                 case HubMessageType.Unauthorized:
                     console.warn(`SSE hub: query '${message.queryId}' unauthorized`);
+                    this.handleUnauthorized(message);
                     break;
                 case HubMessageType.Error:
                     console.error(`SSE hub: query '${message.queryId}' error:`, message.payload);
@@ -270,6 +271,17 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
         const result = message.payload as QueryResult<any>;
         sub.callback(result);
+    }
+
+    private handleUnauthorized(message: HubMessage): void {
+        if (!message.queryId) return;
+
+        const sub = this._subscriptions.get(message.queryId);
+        if (!sub) return;
+
+        this._subscriptions.delete(message.queryId);
+        this._pendingSubscriptions.delete(message.queryId);
+        sub.callback(QueryResult.unauthorized());
     }
 
     private sendSubscribe(queryId: string, request: SubscriptionRequest): void {

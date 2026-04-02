@@ -60,6 +60,25 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         }, Object, false);
     }
 
+    static unauthorized<TDataType>(): QueryResult<TDataType> {
+        return new QueryResult({
+            data: null as unknown as object,
+            isSuccess: false,
+            isAuthorized: false,
+            isValid: true,
+            hasExceptions: false,
+            validationResults: [],
+            exceptionMessages: [],
+            exceptionStackTrace: '',
+            paging: {
+                totalItems: 0,
+                totalPages: 0,
+                page: 0,
+                size: 0
+            }
+        }, Object, false);
+    }
+
     static noSuccess: QueryResult = new QueryResult({
         data: {},
         isSuccess: false,

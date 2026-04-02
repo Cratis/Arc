@@ -257,6 +257,7 @@ export class WebSocketHubConnection {
                     break;
                 case HubMessageType.Unauthorized:
                     console.warn(`Hub: query '${message.queryId}' unauthorized`);
+                    this.handleUnauthorized(message);
                     break;
                 case HubMessageType.Error:
                     console.error(`Hub: query '${message.queryId}' error:`, message.payload);
@@ -275,6 +276,16 @@ export class WebSocketHubConnection {
 
         const result = message.payload as QueryResult<any>;
         sub.callback(result);
+    }
+
+    private handleUnauthorized(message: HubMessage): void {
+        if (!message.queryId) return;
+
+        const sub = this._subscriptions.get(message.queryId);
+        if (!sub) return;
+
+        this._subscriptions.delete(message.queryId);
+        sub.callback(QueryResult.unauthorized());
     }
 
     private handlePong(message: HubMessage): void {
