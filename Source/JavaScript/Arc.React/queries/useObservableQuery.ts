@@ -65,8 +65,12 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         listenerRef.current = (r: QueryResultWithState<TDataType>) => setResult(r);
     }
 
-    const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
     const hasAllRequiredArgumentsSet = hasAllRequiredArguments(queryInstance.requiredRequestParameters, args as object | undefined);
+
+    // Use all arg values (not just required ones) because the cache key includes every arg.
+    // Also include arc context values so the effect re-runs and cleans up the old subscription
+    // when the microservice, API base path, or origin changes.
+    const effectDeps = [...(args ? Object.values(args) : []), currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet, arc.microservice, arc.apiBasePath, arc.origin];
 
     useEffect(() => {
         const key = cacheKeyRef.current;
@@ -106,7 +110,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             queryCache.removeListener(key, listener);
             queryCache.release(key);
         };
-    }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet]]);
+    }, effectDeps);
 
     return [
         !isEnabled ? QueryResultWithState.empty(queryInstance.defaultValue) : result,
