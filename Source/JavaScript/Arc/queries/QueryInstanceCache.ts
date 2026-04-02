@@ -48,6 +48,13 @@ export interface QueryCacheEntry<TDataType> {
      * Whether an active subscription has been established for this entry.
      */
     subscribed: boolean;
+
+    /**
+     * Timer handle for deferred cleanup when running in development mode.
+     * Allows React StrictMode re-mounts to cancel the pending teardown
+     * so the connection is reused instead of torn down and recreated.
+     */
+    pendingCleanup?: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -60,6 +67,17 @@ export interface QueryCacheEntry<TDataType> {
  */
 export class QueryInstanceCache {
     private readonly _entries = new Map<QueryCacheKey, QueryCacheEntry<unknown>>();
+    private readonly _development: boolean;
+    private _pendingDispose?: ReturnType<typeof setTimeout>;
+
+    /**
+     * Initializes a new instance of {@link QueryInstanceCache}.
+     * @param development When true, teardown is deferred on release so React StrictMode
+     *   re-mounts can re-acquire the entry without an unnecessary disconnect/reconnect cycle.
+     */
+    constructor(development: boolean = false) {
+        this._development = development;
+    }
 
     /**
      * Builds the cache key for a query.
@@ -113,6 +131,8 @@ export class QueryInstanceCache {
 
     /**
      * Increments the active subscriber count for the given key.
+     * If a deferred cleanup was pending (from a recent {@link release} in development mode),
+     * it is cancelled so the existing subscription is reused.
      * Call from `useEffect` setup to pair with {@link release} in the cleanup.
      * @param key The cache key produced by {@link buildKey}.
      */
@@ -120,6 +140,11 @@ export class QueryInstanceCache {
         const entry = this._entries.get(key);
 
         if (entry) {
+            if (entry.pendingCleanup !== undefined) {
+                clearTimeout(entry.pendingCleanup);
+                entry.pendingCleanup = undefined;
+            }
+
             entry.subscriberCount++;
         }
     }
@@ -207,6 +232,11 @@ export class QueryInstanceCache {
     /**
      * Decrements the subscriber count for the given key. When the count reaches zero the teardown
      * function is called (if set) and the entry is evicted.
+     *
+     * In development mode, both teardown and eviction are deferred by one microtask so that
+     * React StrictMode re-mounts can re-acquire the entry and cancel the cleanup. This prevents
+     * an unnecessary disconnect/reconnect cycle during the synthetic unmount/remount that
+     * StrictMode performs in development builds.
      * @param key The cache key produced by {@link buildKey}.
      */
     release(key: QueryCacheKey): void {
@@ -216,18 +246,33 @@ export class QueryInstanceCache {
             entry.subscriberCount--;
 
             if (entry.subscriberCount <= 0) {
-                entry.subscribed = false;
-                entry.teardown?.();
-                entry.teardown = undefined;
+                if (this._development) {
+                    // Defer both teardown and deletion so StrictMode re-mounts can cancel.
+                    entry.pendingCleanup = setTimeout(() => {
+                        const current = this._entries.get(key);
 
-                // Defer deletion so React Strict Mode re-mounts can re-acquire the entry.
-                setTimeout(() => {
-                    const current = this._entries.get(key);
+                        if (current && current.subscriberCount <= 0) {
+                            current.subscribed = false;
+                            current.teardown?.();
+                            current.teardown = undefined;
+                            current.pendingCleanup = undefined;
+                            this._entries.delete(key);
+                        }
+                    }, 0);
+                } else {
+                    entry.subscribed = false;
+                    entry.teardown?.();
+                    entry.teardown = undefined;
 
-                    if (current && current.subscriberCount <= 0) {
-                        this._entries.delete(key);
-                    }
-                }, 0);
+                    // Defer deletion so React Strict Mode re-mounts can re-acquire the entry.
+                    setTimeout(() => {
+                        const current = this._entries.get(key);
+
+                        if (current && current.subscriberCount <= 0) {
+                            this._entries.delete(key);
+                        }
+                    }, 0);
+                }
             }
         }
     }
@@ -239,5 +284,58 @@ export class QueryInstanceCache {
      */
     has(key: QueryCacheKey): boolean {
         return this._entries.has(key);
+    }
+
+    /**
+     * Immediately tears down all subscriptions, cancels any pending deferred cleanups,
+     * and evicts all entries. Call when the owning component (e.g. the {@link Arc} provider)
+     * unmounts permanently so that all query connections are closed synchronously.
+     */
+    dispose(): void {
+        for (const [, entry] of this._entries) {
+            if (entry.pendingCleanup !== undefined) {
+                clearTimeout(entry.pendingCleanup);
+                entry.pendingCleanup = undefined;
+            }
+
+            entry.subscribed = false;
+            entry.teardown?.();
+            entry.teardown = undefined;
+        }
+
+        this._entries.clear();
+    }
+
+    /**
+     * Schedules a deferred {@link dispose} using {@code setTimeout(0)}.
+     *
+     * This allows React StrictMode re-mounts to call {@link cancelPendingDispose}
+     * before the dispose fires, avoiding the destruction of cache entries that child
+     * effects are about to re-acquire.
+     *
+     * If a deferred dispose is already pending, it is replaced.
+     */
+    deferDispose(): void {
+        if (this._pendingDispose !== undefined) {
+            clearTimeout(this._pendingDispose);
+        }
+
+        this._pendingDispose = setTimeout(() => {
+            this._pendingDispose = undefined;
+            this.dispose();
+        }, 0);
+    }
+
+    /**
+     * Cancels a pending deferred dispose scheduled by {@link deferDispose}.
+     *
+     * Call from the {@code useEffect} setup phase so that a StrictMode re-mount
+     * prevents the synthetic unmount's deferred dispose from firing.
+     */
+    cancelPendingDispose(): void {
+        if (this._pendingDispose !== undefined) {
+            clearTimeout(this._pendingDispose);
+            this._pendingDispose = undefined;
+        }
     }
 }
