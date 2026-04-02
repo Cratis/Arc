@@ -44,7 +44,7 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     const arc = useContext(ArcContext);
     
     const fetchIdentity = (): Promise<IIdentity> => {
-        return RootIdentityProvider.getCurrent(props.detailsType).then(identity => {
+        return RootIdentityProvider.refresh(props.detailsType).then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
             setContext({
                 identity: wrappedIdentity,

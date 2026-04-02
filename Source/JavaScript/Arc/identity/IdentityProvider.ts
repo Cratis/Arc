@@ -88,6 +88,10 @@ export class IdentityProvider extends IIdentityProvider {
             headers: IdentityProvider.httpHeadersCallback?.() ?? {}
         });
 
+        if (!response.ok) {
+            return IdentityProvider.notSet(type);
+        }
+
         const result = await response.json() as IdentityProviderResult;
         const details = type ? JsonSerializer.deserializeFromInstance(type, result.details) : result.details;
 
@@ -98,6 +102,18 @@ export class IdentityProvider extends IIdentityProvider {
             details: details as TDetails,
             isSet: true,
             isInRole: (role: string) => (result.roles || []).includes(role),
+            refresh: () => IdentityProvider.refresh(type)
+        };
+    }
+
+    private static notSet<TDetails extends object = object>(type?: Constructor<TDetails>): IIdentity<TDetails> {
+        return {
+            id: '',
+            name: '',
+            roles: [],
+            details: {} as TDetails,
+            isSet: false,
+            isInRole: () => false,
             refresh: () => IdentityProvider.refresh(type)
         };
     }
