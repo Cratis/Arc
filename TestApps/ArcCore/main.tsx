@@ -115,6 +115,7 @@ const Root = () => {
                 </label>
             </div>
             <Arc
+                development={true}
                 key={configKey}
                 queryTransportMethod={transport}
                 queryConnectionCount={connectionCount}

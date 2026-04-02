@@ -8,7 +8,7 @@ import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 
 /**
  * Properties for the Arc context component.
@@ -68,7 +68,21 @@ export const Arc = (props: ArcProps) => {
         configuration.queryDirectMode);
 
     // The cache is application-scoped — create once per Arc mount.
-    const queryInstanceCache = useRef(new QueryInstanceCache());
+    // In development mode, dispose is deferred so React StrictMode re-mounts
+    // can cancel it — preventing the synthetic unmount from destroying entries
+    // that child effects are about to re-acquire.
+    const queryInstanceCache = useRef(new QueryInstanceCache(configuration.development));
+    useEffect(() => {
+        const cache = queryInstanceCache.current;
+        cache.cancelPendingDispose();
+        return () => {
+            if (configuration.development) {
+                cache.deferDispose();
+            } else {
+                cache.dispose();
+            }
+        };
+    }, []);
 
     return (
         <ArcContext.Provider value={configuration}>
