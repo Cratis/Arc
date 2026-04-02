@@ -235,6 +235,35 @@ export const Home = () => {
 ## Default value
 
 You can also provide a default value for the `details` property in the identity context.
+
+### Clearing identity
+
+When a user logs out, you can clear the client-side identity state and remove the identity cookie using `clearIdentity()`. This is available on the object returned by `useIdentity()`:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
+
+export const LogoutButton = () => {
+    const identity = useIdentity();
+
+    const handleLogout = () => {
+        identity.clearIdentity();
+    };
+
+    return <button onClick={handleLogout}>Log out</button>;
+};
+```
+
+Calling `clearIdentity()` does two things:
+
+1. Removes the `.cratis-identity` cookie.
+2. Resets the identity context to its initial unset state (`isSet` becomes `false`, `details` is reset).
+
+> Note: If your application uses observable queries that require authentication, you should also call
+> `reconnectQueries()` from the [Arc context](./arc.md#reconnecting-queries) after clearing identity
+> so that transport connections are re-established without the old credentials.
+
+## Default value
 If you don't provide one, it will default to an empty object, `{}`.
 This is especially useful when working in local development and the cookie has not been provided
 

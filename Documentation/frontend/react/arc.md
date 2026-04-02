@@ -150,3 +150,79 @@ export const App = () => {
 ```
 
 The callback function should return a `HeadersInit` object (compatible with the Fetch API headers) that contains the additional headers to include with each request.
+
+## Reconnecting Queries
+
+When authentication state changes at runtime — for example when a user logs in or logs out — the existing WebSocket or Server-Sent Events connections may no longer carry the correct credentials. The `reconnectQueries()` method on the Arc context tears down all active observable query subscriptions, disposes the shared transport connections, and signals every `useObservableQuery` hook to re-subscribe through fresh connections that pick up the current cookies and headers.
+
+### Accessing reconnectQueries
+
+Use `useContext(ArcContext)` inside any component rendered within `<Arc>`:
+
+```tsx
+import { useContext } from 'react';
+import { ArcContext } from '@cratis/arc.react';
+
+export const LoginButton = () => {
+    const arc = useContext(ArcContext);
+
+    const handleLogin = () => {
+        // Set authentication cookie or token first
+        document.cookie = 'auth-token=abc123; path=/; SameSite=Lax';
+
+        // Then reconnect queries so new connections carry the credential
+        arc.reconnectQueries?.();
+    };
+
+    return <button onClick={handleLogin}>Log in</button>;
+};
+```
+
+### Login and logout flow
+
+A typical authentication transition follows this pattern:
+
+1. **Login**: Set the authentication cookie, then call `reconnectQueries()`. New transport connections are established with the cookie attached, and the identity provider picks up the authenticated user on refresh.
+2. **Logout**: Call `identity.clearIdentity()` to reset the client-side identity state and remove the identity cookie, then call `reconnectQueries()` so queries reconnect as anonymous.
+
+```tsx
+import { useContext } from 'react';
+import { ArcContext } from '@cratis/arc.react';
+import { useIdentity } from '@cratis/arc.react/identity';
+
+export const AuthControls = () => {
+    const arc = useContext(ArcContext);
+    const identity = useIdentity();
+
+    const login = () => {
+        // Set your auth cookie
+        document.cookie = 'auth=...; path=/; SameSite=Lax';
+        arc.reconnectQueries?.();
+    };
+
+    const logout = () => {
+        // Clear cookie
+        document.cookie = 'auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        // Clear client-side identity
+        identity.clearIdentity();
+        // Reconnect queries as anonymous
+        arc.reconnectQueries?.();
+    };
+
+    return (
+        <div>
+            {identity.isSet
+                ? <button onClick={logout}>Log out</button>
+                : <button onClick={login}>Log in</button>}
+        </div>
+    );
+};
+```
+
+### What happens internally
+
+Calling `reconnectQueries()` performs three steps in order:
+
+1. **Tear down subscriptions** — Every cached query entry has its subscription callback torn down without evicting the cache entry. This allows hooks to detect the unsubscribed state and re-subscribe.
+2. **Reset the shared multiplexer** — The module-level multiplexer singleton (WebSocket or SSE) is disposed, so the next subscription creates a fresh transport connection.
+3. **Bump the query version** — An internal version counter increments, which is included in the dependency array of every `useObservableQuery` effect. React re-runs the effects, each hook re-subscribes, and new connections are established with the current credentials.
