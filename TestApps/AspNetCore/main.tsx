@@ -1,9 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { StrictMode, useState } from 'react';
+import { StrictMode, useState, useContext, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Arc } from '@cratis/arc.react';
+import { Arc, ArcContext } from '@cratis/arc.react';
+import { useIdentity } from '@cratis/arc.react/identity';
 import { App, Page } from './App';
 import { QueryTransportMethod } from '../../Source/JavaScript/Arc/queries/QueryTransportMethod';
 
@@ -18,6 +19,49 @@ const encodeClientPrincipal = (userId: string, userName: string, roles: string):
     };
     const json = JSON.stringify(clientPrincipal);
     return btoa(json);
+};
+
+const setAuthCookie = (userId: string, userName: string, roles: string): void => {
+    const encoded = encodeClientPrincipal(userId, userName, roles);
+    document.cookie = `x-ms-client-principal=${encoded}; path=/; SameSite=Lax`;
+};
+
+const clearAuthCookie = (): void => {
+    document.cookie = 'x-ms-client-principal=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+};
+
+/**
+ * Bridges auth-state changes into the Arc context.
+ * When loggedIn or credential fields change, this component calls
+ * reconnectQueries() to re-establish transport connections with the
+ * current authentication cookies.
+ * On logout, it also calls identity.clearIdentity() to reset identity state.
+ */
+const AuthBridge = ({ loggedIn, userId, userName, roles }: { loggedIn: boolean; userId: string; userName: string; roles: string }) => {
+    const arc = useContext(ArcContext);
+    const identity = useIdentity();
+    const initialized = useRef(false);
+    const prevLoggedIn = useRef(loggedIn);
+
+    useEffect(() => {
+        if (!initialized.current) {
+            initialized.current = true;
+            return;
+        }
+
+        if (!loggedIn && !prevLoggedIn.current) {
+            prevLoggedIn.current = loggedIn;
+            return;
+        }
+
+        if (!loggedIn) {
+            identity.clearIdentity();
+        }
+        prevLoggedIn.current = loggedIn;
+        arc.reconnectQueries?.();
+    }, [loggedIn, userId, userName, roles]);
+
+    return null;
 };
 
 const Root = () => {
@@ -40,6 +84,8 @@ const Root = () => {
         newUserName: string,
         newRoles: string,
     ) => {
+        const configChanged = newTransport !== transport || newCount !== connectionCount || newDirect !== directMode;
+
         setTransport(newTransport);
         setConnectionCount(newCount);
         setDirectMode(newDirect);
@@ -47,7 +93,16 @@ const Root = () => {
         setUserId(newUserId);
         setUserName(newUserName);
         setRoles(newRoles);
-        setConfigKey(current => current + 1);
+
+        if (newLoggedIn) {
+            setAuthCookie(newUserId, newUserName, newRoles);
+        } else {
+            clearAuthCookie();
+        }
+
+        if (configChanged) {
+            setConfigKey(current => current + 1);
+        }
     };
 
     const httpHeadersCallback = (): Record<string, string> => {
@@ -100,12 +155,14 @@ const Root = () => {
                 </label>
             </div>
             <Arc
+                development={true}
                 key={configKey}
                 queryTransportMethod={transport}
                 queryConnectionCount={connectionCount}
                 queryDirectMode={directMode}
                 httpHeadersCallback={httpHeadersCallback}
             >
+                <AuthBridge loggedIn={loggedIn} userId={userId} userName={userName} roles={roles} />
                 <App page={page} onPageChange={setPage} />
             </Arc>
         </StrictMode>
