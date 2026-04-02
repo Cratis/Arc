@@ -287,6 +287,29 @@ export class QueryInstanceCache {
     }
 
     /**
+     * Tears down all active subscriptions and marks every entry as not subscribed,
+     * but preserves entries, subscriber counts, and listeners. This allows
+     * hooks whose effects re-run afterward to detect that the entry is no longer
+     * subscribed and re-establish a fresh connection.
+     *
+     * Use this when the underlying transport must be replaced (e.g. after an
+     * authentication change that requires new WebSocket connections with updated
+     * credentials).
+     */
+    teardownAllSubscriptions(): void {
+        for (const [, entry] of this._entries) {
+            if (entry.pendingCleanup !== undefined) {
+                clearTimeout(entry.pendingCleanup);
+                entry.pendingCleanup = undefined;
+            }
+
+            entry.subscribed = false;
+            entry.teardown?.();
+            entry.teardown = undefined;
+        }
+    }
+
+    /**
      * Immediately tears down all subscriptions, cancels any pending deferred cleanups,
      * and evicts all entries. Call when the owning component (e.g. the {@link Arc} provider)
      * unmounts permanently so that all query connections are closed synchronously.

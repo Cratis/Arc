@@ -70,7 +70,9 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     // Use all arg values (not just required ones) because the cache key includes every arg.
     // Also include arc context values so the effect re-runs and cleans up the old subscription
     // when the microservice, API base path, or origin changes.
-    const effectDeps = [...(args ? Object.values(args) : []), currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet, arc.microservice, arc.apiBasePath, arc.origin];
+    // Include queryVersion so that reconnectQueries() forces all hooks to re-subscribe
+    // through fresh transport connections.
+    const effectDeps = [...(args ? Object.values(args) : []), currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet, arc.microservice, arc.apiBasePath, arc.origin, arc.queryVersion];
 
     useEffect(() => {
         const key = cacheKeyRef.current;

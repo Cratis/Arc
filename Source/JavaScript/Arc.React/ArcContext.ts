@@ -26,6 +26,21 @@ export interface ArcConfiguration {
      * Defaults to false (use the centralized hub).
      */
     queryDirectMode?: boolean;
+    /**
+     * Monotonically increasing version counter that is bumped by {@link reconnectQueries}
+     * so that query hook effects re-run and re-establish subscriptions through fresh
+     * transport connections. Do not set this directly.
+     */
+    queryVersion?: number;
+    /**
+     * Tears down all active query subscriptions, disposes the shared multiplexer, and
+     * forces every observable query hook to re-subscribe through a fresh connection.
+     *
+     * Call this after an authentication state change (e.g. login or logout) so that
+     * new WebSocket or SSE connections are established with the updated credentials
+     * (cookies, headers).
+     */
+    reconnectQueries?: () => void;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
@@ -38,4 +53,6 @@ export const ArcContext = React.createContext<ArcConfiguration>({
     queryTransportMethod: QueryTransportMethod.ServerSentEvents,
     queryConnectionCount: 1,
     queryDirectMode: false,
+    queryVersion: 0,
+    reconnectQueries: () => { /* no-op until Arc provider initializes */ },
 });
