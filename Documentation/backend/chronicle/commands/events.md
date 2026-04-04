@@ -137,3 +137,79 @@ public record RegisterCustomer(EventSourceId CustomerId, string Email);
 ```
 
 These metadata attributes tag the appended events without affecting concurrency control. To additionally participate in [concurrency scoping](./concurrency.md), set `concurrency: true` on the attribute.
+
+## Events for Specific Event Sources
+
+Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.
+
+`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context.
+
+Return a single `EventForEventSourceId` when only one cross-source event is needed:
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Chronicle.Events;
+
+[Command]
+public record MigrateCustomerToNewId(EventSourceId OldCustomerId, EventSourceId NewCustomerId)
+{
+    public EventForEventSourceId Handle() =>
+        new(NewCustomerId, new CustomerMigrated(OldCustomerId, NewCustomerId));
+}
+
+[EventType]
+public record CustomerMigrated(EventSourceId OldCustomerId, EventSourceId NewCustomerId);
+```
+
+Return an `IEnumerable<EventForEventSourceId>` to append events to several different event sources in one command:
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Chronicle.Events;
+
+[Command]
+public record TransferFunds(EventSourceId FromAccountId, EventSourceId ToAccountId, decimal Amount)
+{
+    public IEnumerable<EventForEventSourceId> Handle() =>
+    [
+        new EventForEventSourceId(FromAccountId, new FundsDebited(Amount)),
+        new EventForEventSourceId(ToAccountId, new FundsCredited(Amount))
+    ];
+}
+
+[EventType]
+public record FundsDebited(decimal Amount);
+
+[EventType]
+public record FundsCredited(decimal Amount);
+```
+
+Chronicle appends each event individually, in order. If any append fails (constraint violation, concurrency conflict, or error), Chronicle stops immediately and returns the failure — earlier events in the sequence have already been appended.
+
+You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Chronicle.Events;
+
+[Command]
+public record AcceptOrder(EventSourceId OrderId, EventSourceId CustomerId)
+{
+    public (OrderAccepted, EventForEventSourceId) Handle() =>
+        (
+            new OrderAccepted(OrderId),
+            new EventForEventSourceId(CustomerId, new CustomerOrderAccepted(OrderId))
+        );
+}
+
+[EventType]
+public record OrderAccepted(EventSourceId OrderId);
+
+[EventType]
+public record CustomerOrderAccepted(EventSourceId OrderId);
+```
+
+> `EventForEventSourceId` does not inherit the concurrency scope from the command context. Each append uses the stream metadata from the command (stream id, stream type, event source type) but targets the event source id you supply explicitly.
