@@ -1,0 +1,40 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Commands;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.Events.Constraints;
+using Cratis.Chronicle.EventSequences;
+
+namespace Cratis.Arc.Chronicle.Commands.for_SingleEventForEventSourceIdCommandResponseValueHandler.when_handling;
+
+public class and_append_operation_fails : given.a_single_event_for_event_source_id_command_response_value_handler
+{
+    EventForEventSourceId _value;
+    CommandResult _result;
+    EventSourceId _eventSourceId;
+
+    void Establish()
+    {
+        _eventSourceId = EventSourceId.New();
+        _value = new EventForEventSourceId(_eventSourceId, new TestEvent("Test Event"));
+
+        var violation = new ConstraintViolation(
+            EventTypeId.Unknown,
+            EventSequenceNumber.Unavailable,
+            ConstraintType.Unknown,
+            new ConstraintName("TestConstraint"),
+            new ConstraintViolationMessage("Test violation"),
+            new ConstraintViolationDetails());
+
+        var failedResult = AppendResult.Failed(_correlationId, [violation]);
+        _eventLog.Append(Arg.Any<EventSourceId>(), Arg.Any<object>()).Returns(failedResult);
+        _eventTypes.HasFor(Arg.Any<Type>()).Returns(true);
+    }
+
+    async Task Because() => _result = await _handler.Handle(_commandContext, _value);
+
+    [Fact] void should_return_failed_command_result() => _result.IsSuccess.ShouldBeFalse();
+    [Fact] void should_include_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
+    [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual("Test violation");
+}
