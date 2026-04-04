@@ -4,8 +4,7 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using Cratis.Chronicle.Events;
-using NJsonSchema;
-using NJsonSchema.Generation;
+using Cratis.Chronicle.Schemas;
 
 namespace Cratis.Arc.Chronicle;
 
@@ -28,9 +27,7 @@ public class EventTypesForSpecifications : IEventTypes
 
         _eventTypes = types.ToDictionary(_ => _, _ => _.GetEventType());
         _clrTypesByEventType = _eventTypes.ToDictionary(_ => _.Value.Id, _ => _.Key);
-
-        var generator = new JsonSchemaGenerator(new SystemTextJsonSchemaGeneratorSettings());
-        _jsonSchemasByEventType = _eventTypes.ToDictionary(_ => _.Value.Id, _ => generator.Generate(_.Key));
+        _jsonSchemasByEventType = _eventTypes.ToDictionary(_ => _.Value.Id, _ => new JsonSchema());
 
         AllClrTypes = _clrTypesByEventType.Values.ToImmutableList();
     }

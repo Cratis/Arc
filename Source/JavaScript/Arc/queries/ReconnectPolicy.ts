@@ -45,6 +45,10 @@ export class ReconnectPolicy implements IReconnectPolicy {
             return false;
         }
 
+        // Cancel any pending reconnect timer so we don't fire multiple
+        // concurrent reconnect attempts when schedule() is called rapidly.
+        this.cancel();
+
         this._attempt++;
         const delay = Math.min(this._initialDelayMs + this._delayStepMs * this._attempt, this._maxDelayMs);
         console.log(`Reconnect: attempt ${this._attempt} in ${delay}ms for '${label}'`);

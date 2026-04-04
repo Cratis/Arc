@@ -62,13 +62,20 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     ) {
         // SSE is server→client only: the client cannot send pings. Instead we watch for
         // inactivity — if the server stops sending messages (including its own keep-alive
-        // pings) for the entire interval, the connection is stale and we reconnect.
+        // pings) for the entire idle threshold, the connection is stale and we reconnect.
+        //
+        // The idle threshold is set to 1.5× the check interval so the server's keep-alive
+        // ping (which fires on the same cadence) has time to arrive over the network before
+        // the client declares the connection dead. Without this tolerance the client's timer
+        // and the server's timer race — the client often fires first and reconnects
+        // unnecessarily.
+        const idleThresholdMs = Math.round(keepAliveIntervalMs * 1.5);
         this._keepAlive = new HubConnectionKeepAlive(keepAliveIntervalMs, () => {
             if (!this._disconnected && this._subscriptions.size > 0) {
-                console.warn(`SSE hub: no messages received for ${keepAliveIntervalMs}ms, reconnecting '${this._sseUrl}'`);
+                console.warn(`SSE hub: no messages received for ${idleThresholdMs}ms, reconnecting '${this._sseUrl}'`);
                 this.reconnect();
             }
-        });
+        }, idleThresholdMs);
     }
 
     /** @inheritdoc */
@@ -299,8 +306,14 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...customHeaders },
             body: JSON.stringify(body),
+        }).then(response => {
+            if (!response.ok) {
+                console.warn(`SSE hub: subscribe POST for '${queryId}' returned ${response.status}, reconnecting`);
+                this.reconnect();
+            }
         }).catch(error => {
-            console.error(`SSE hub: subscribe POST failed for '${queryId}'`, error);
+            console.error(`SSE hub: subscribe POST failed for '${queryId}', reconnecting`, error);
+            this.reconnect();
         });
     }
 
