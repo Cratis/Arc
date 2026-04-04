@@ -263,7 +263,8 @@ Calling `clearIdentity()` does two things:
 > `reconnectQueries()` from the [Arc context](./arc.md#reconnecting-queries) after clearing identity
 > so that transport connections are re-established without the old credentials.
 
-## Default value
+## Default details value
+
 If you don't provide one, it will default to an empty object, `{}`.
 This is especially useful when working in local development and the cookie has not been provided
 
