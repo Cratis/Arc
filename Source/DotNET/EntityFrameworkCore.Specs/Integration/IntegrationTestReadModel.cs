@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries.ModelBound;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Integration;
 /// <param name="Name">The entity name.</param>
 /// <param name="IsActive">Whether the entity is active.</param>
 [ReadModel]
+[AllowAnonymous]
 public record IntegrationTestReadModel(int Id, string Name, bool IsActive)
 {
     /// <summary>
