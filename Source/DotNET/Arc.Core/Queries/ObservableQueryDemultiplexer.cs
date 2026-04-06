@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
@@ -51,6 +52,7 @@ public class ObservableQueryDemultiplexer(
     const int WebSocketBufferSize = 1024 * 4;
 
     readonly ConcurrentDictionary<string, SSEConnectionState> _sseConnections = new();
+    readonly ChangeSetComputor _changeSetComputor = new(arcOptions.Value.JsonSerializerOptions);
 
     /// <inheritdoc/>
     public async Task HandleWebSocketConnection(IHttpRequestContext context)
@@ -519,12 +521,23 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, Task> onError,
         CancellationToken token)
     {
+        IEnumerable<object>? previousItems = null;
+
         return subject.Subscribe(
             data =>
             {
                 if (token.IsCancellationRequested)
                 {
                     return;
+                }
+
+                // Compute ChangeSet for enumerable results (excludes single-item and string results).
+                ChangeSet? changeSet = null;
+                if (data is IEnumerable enumerable && data is not string)
+                {
+                    var currentItems = enumerable.Cast<object>().ToArray();
+                    changeSet = _changeSetComputor.Compute(previousItems, currentItems);
+                    previousItems = currentItems;
                 }
 
                 var queryContext = queryContextManager.Current;
@@ -535,7 +548,8 @@ public class ObservableQueryDemultiplexer(
                     ValidationResults = [],
                     ExceptionMessages = [],
                     ExceptionStackTrace = string.Empty,
-                    Paging = paging
+                    Paging = paging,
+                    ChangeSet = changeSet
                 };
 
                 if (queryContext is not null)

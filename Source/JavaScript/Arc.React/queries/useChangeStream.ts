@@ -96,6 +96,16 @@ function useChangeStreamInternal<TDataType, TQuery extends IChangeStreamFor<TDat
         const current: TDataType[] = Array.isArray(result.data) ? result.data : [];
         const previous = previousDataRef.current;
 
+        // Use server-provided ChangeSet when available (delta transfer mode active on backend).
+        // This avoids the client-side recomputation and is more accurate since the server
+        // tracks individual operations (insert, replace, delete) in the data source.
+        if (result.changeSet) {
+            setChangeSet(result.changeSet as ChangeSet<TDataType>);
+            isFirstUpdateRef.current = false;
+            previousDataRef.current = current;
+            return;
+        }
+
         if (Globals.observableQueryTransferMode === ObservableQueryTransferMode.Full || isFirstUpdateRef.current) {
             // Full mode or first update: treat the whole collection as "added".
             setChangeSet({ added: current, replaced: [], removed: [] });

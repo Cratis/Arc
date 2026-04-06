@@ -12,6 +12,8 @@
   href: queries.md
 - name: Suspense Queries
   href: suspense-queries.md
+- name: Change Stream
+  href: change-stream.md
 - name: Observable Query Multiplexing
   href: observable-query-multiplexing.md
 - name: Query Instance Caching
