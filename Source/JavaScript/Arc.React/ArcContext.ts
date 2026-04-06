@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { GetHttpHeaders, Globals } from '@cratis/arc';
+import { GetHttpHeaders, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod } from '@cratis/arc/queries';
 import React from 'react';
 
@@ -27,6 +27,12 @@ export interface ArcConfiguration {
      */
     queryDirectMode?: boolean;
     /**
+     * Controls how observable query updates are transferred and exposed.
+     * {@link ObservableQueryTransferMode.Delta} (default) computes per-update deltas;
+     * {@link ObservableQueryTransferMode.Full} delivers the whole collection on every update.
+     */
+    observableQueryTransferMode?: ObservableQueryTransferMode;
+    /**
      * Monotonically increasing version counter that is bumped by {@link reconnectQueries}
      * so that query hook effects re-run and re-establish subscriptions through fresh
      * transport connections. Do not set this directly.
@@ -44,7 +50,7 @@ export interface ArcConfiguration {
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
-    microservice: Globals.microservice,
+    microservice: '',
     development: false,
     origin: '',
     basePath: '',
@@ -53,6 +59,7 @@ export const ArcContext = React.createContext<ArcConfiguration>({
     queryTransportMethod: QueryTransportMethod.ServerSentEvents,
     queryConnectionCount: 1,
     queryDirectMode: false,
+    observableQueryTransferMode: ObservableQueryTransferMode.Delta,
     queryVersion: 0,
     reconnectQueries: () => { /* no-op until Arc provider initializes */ },
 });

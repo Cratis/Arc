@@ -6,11 +6,11 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { ObservableQueryFor, QueryResultWithState, Sorting, SortingActions, SortingActionsForObservableQuery, Paging } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState, Sorting, SortingActions, SortingActionsForObservableQuery, Paging, ChangeSet } from '@cratis/arc/queries';
 {{else}}
-import { ObservableQueryFor, QueryResultWithState, Sorting, Paging } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
 {{/if}}
-import { useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging, SetSorting, SetPage, SetPageSize, ObservableQueryWhen } from '@cratis/arc.react/queries';
+import { useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging, useChangeStream, SetSorting, SetPage, SetPageSize, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{else}}
 import { ObservableQueryFor, QueryResultWithState } from '@cratis/arc/queries';
 import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';
@@ -160,6 +160,10 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
         return useSuspenseObservableQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), args, sorting);
     }
 
+    static useChangeStream(args?: {{Name}}Parameters, getKey?: (item: {{{Model}}}) => unknown, sorting?: Sorting): ChangeSet<{{{Model}}}> {
+        return useChangeStream<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args, getKey, sorting);
+    }
+
     static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters> {
         return new ObservableQueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters>({{Name}}, condition);
     }
@@ -194,6 +198,10 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 
     static useSuspenseWithPaging(pageSize: number, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, SetSorting, SetPage, SetPageSize] {
         return useSuspenseObservableQueryWithPaging<{{{Model}}}[], {{Name}}>({{Name}}, new Paging(0, pageSize), undefined, sorting);
+    }
+
+    static useChangeStream(getKey?: (item: {{{Model}}}) => unknown, sorting?: Sorting): ChangeSet<{{{Model}}}> {
+        return useChangeStream<{{{Model}}}, {{Name}}>({{Name}}, undefined, getKey, sorting);
     }
 
     static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}[]> {

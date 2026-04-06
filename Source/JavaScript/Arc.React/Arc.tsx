@@ -5,7 +5,7 @@ import { CommandScope } from './commands';
 import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
-import { GetHttpHeaders } from '@cratis/arc';
+import { GetHttpHeaders, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
@@ -40,6 +40,13 @@ export interface ArcProps {
      * Defaults to false (use the centralized hub).
      */
     queryDirectMode?: boolean;
+    /**
+     * Controls how observable query updates are transferred and exposed.
+     * {@link ObservableQueryTransferMode.Delta} (default) computes per-update deltas for
+     * use with the {@code useChangeStream} hook. {@link ObservableQueryTransferMode.Full}
+     * delivers the whole collection on every update.
+     */
+    observableQueryTransferMode?: ObservableQueryTransferMode;
 }
 
 /**
@@ -71,6 +78,7 @@ export const Arc = (props: ArcProps) => {
         queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
         queryConnectionCount: props.queryConnectionCount ?? 1,
         queryDirectMode: props.queryDirectMode ?? false,
+        observableQueryTransferMode: props.observableQueryTransferMode ?? ObservableQueryTransferMode.Delta,
         queryVersion,
         reconnectQueries,
     };
@@ -82,7 +90,8 @@ export const Arc = (props: ArcProps) => {
         configuration.httpHeadersCallback,
         configuration.queryTransportMethod,
         configuration.queryConnectionCount,
-        configuration.queryDirectMode);
+        configuration.queryDirectMode,
+        configuration.observableQueryTransferMode);
 
     useEffect(() => {
         const cache = queryInstanceCache.current;
