@@ -70,12 +70,22 @@ function useChangeStreamInternal<TDataType, TQuery extends IChangeStreamFor<TDat
     const previousDataRef = useRef<TDataType[]>([]);
     const isFirstUpdateRef = useRef(true);
 
+    // Keep a stable ref to `getKey` so the effect closure always sees the latest version
+    // without triggering unnecessary re-subscriptions.
+    const getKeyRef = useRef(getKey);
+    useEffect(() => {
+        getKeyRef.current = getKey;
+    });
+
+    // Cast once to avoid repeating the double-cast across branches.
+    const typedQuery = query as unknown as Constructor<TQuery>;
+
     // Subscribe via the standard observable query hook (handles caching, auth, lifecycle).
     let result: QueryResultWithState<TDataType[]>;
     if (paging) {
-        [result] = useObservableQueryWithPaging<TDataType[], TQuery, TArguments>(query as unknown as Constructor<TQuery>, paging, args, sorting, isEnabled);
+        [result] = useObservableQueryWithPaging<TDataType[], TQuery, TArguments>(typedQuery, paging, args, sorting, isEnabled);
     } else {
-        [result] = useObservableQuery<TDataType[], TQuery, TArguments>(query as unknown as Constructor<TQuery>, args, sorting, isEnabled);
+        [result] = useObservableQuery<TDataType[], TQuery, TArguments>(typedQuery, args, sorting, isEnabled);
     }
 
     useEffect(() => {
@@ -94,8 +104,8 @@ function useChangeStreamInternal<TDataType, TQuery extends IChangeStreamFor<TDat
             return;
         }
 
-        // Delta mode: compute what actually changed.
-        const computed = computeChangeSet(previous, current, getKey);
+        // Delta mode: compute what actually changed using the current key function.
+        const computed = computeChangeSet(previous, current, getKeyRef.current);
         if (computed.added.length > 0 || computed.replaced.length > 0 || computed.removed.length > 0) {
             setChangeSet(computed);
         }

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { GetHttpHeaders, ObservableQueryTransferMode } from '@cratis/arc';
+import { GetHttpHeaders, ObservableQueryTransferMode, Globals } from '@cratis/arc';
 import { QueryTransportMethod } from '@cratis/arc/queries';
 import React from 'react';
 
@@ -50,7 +50,7 @@ export interface ArcConfiguration {
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
-    microservice: '',
+    microservice: Globals.microservice,
     development: false,
     origin: '',
     basePath: '',
