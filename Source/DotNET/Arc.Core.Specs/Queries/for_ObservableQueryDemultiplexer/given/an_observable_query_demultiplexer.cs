@@ -35,4 +35,23 @@ public class an_observable_query_demultiplexer : Specification
             _arcOptions,
             _logger);
     }
+
+    /// <summary>
+    /// Polls the condition until it returns <see langword="true"/> or a 2-second timeout elapses.
+    /// </summary>
+    /// <param name="condition">The condition to poll.</param>
+    /// <returns>A <see cref="Task"/> that completes when the condition is met or the timeout expires.</returns>
+    protected static async Task WaitFor(Func<bool> condition)
+    {
+        var timeout = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (DateTimeOffset.UtcNow < timeout)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(25);
+        }
+    }
 }
