@@ -6,7 +6,7 @@
 /* eslint-disable sort-imports */
 // eslint-disable-next-line header/header
 import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
-import { useQuery, useSuspenseQuery, PerformQuery, QueryWhen } from '@cratis/arc.react/queries';
+import { useQuery, useSuspenseQuery, PerformQuery, SetSorting, QueryWhen } from '@cratis/arc.react/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 import { ShowcaseItem } from './ShowcaseItem';
 
@@ -45,14 +45,12 @@ export class ById extends QueryFor<ShowcaseItem, ByIdParameters> {
     id!: number;
 
 
-    static use(args?: ByIdParameters): [QueryResultWithState<ShowcaseItem>, PerformQuery<ByIdParameters>] {
-        const [result, perform] = useQuery<ShowcaseItem, ById, ByIdParameters>(ById, args);
-        return [result, perform];
+    static use(args?: ByIdParameters): [QueryResultWithState<ShowcaseItem>, PerformQuery<ByIdParameters>, SetSorting] {
+        return useQuery<ShowcaseItem, ById, ByIdParameters>(ById, args);
     }
 
-    static useSuspense(args?: ByIdParameters): [QueryResultWithState<ShowcaseItem>, PerformQuery<ByIdParameters>] {
-        const [result, perform] = useSuspenseQuery<ShowcaseItem, ById, ByIdParameters>(ById, args);
-        return [result, perform];
+    static useSuspense(args?: ByIdParameters): [QueryResultWithState<ShowcaseItem>, PerformQuery<ByIdParameters>, SetSorting] {
+        return useSuspenseQuery<ShowcaseItem, ById, ByIdParameters>(ById, args);
     }
 
     static when(condition: boolean): QueryWhen<ById, ShowcaseItem, ByIdParameters> {

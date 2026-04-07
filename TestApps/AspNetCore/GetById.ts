@@ -6,7 +6,7 @@
 /* eslint-disable sort-imports */
 // eslint-disable-next-line header/header
 import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
-import { useQuery, useSuspenseQuery, PerformQuery, QueryWhen } from '@cratis/arc.react/queries';
+import { useQuery, useSuspenseQuery, PerformQuery, SetSorting, QueryWhen } from '@cratis/arc.react/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 import { ModelBoundReadModel } from './ModelBoundReadModel';
 
@@ -45,14 +45,12 @@ export class GetById extends QueryFor<ModelBoundReadModel, GetByIdParameters> {
     id!: string;
 
 
-    static use(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>] {
-        const [result, perform] = useQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
-        return [result, perform];
+    static use(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>, SetSorting] {
+        return useQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
     }
 
-    static useSuspense(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>] {
-        const [result, perform] = useSuspenseQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
-        return [result, perform];
+    static useSuspense(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>, SetSorting] {
+        return useSuspenseQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
     }
 
     static when(condition: boolean): QueryWhen<GetById, ModelBoundReadModel, GetByIdParameters> {

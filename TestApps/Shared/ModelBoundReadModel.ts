@@ -43,14 +43,12 @@ export class GetById extends QueryFor<ModelBoundReadModel, GetByIdParameters> {
     id!: string;
 
 
-    static use(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>] {
-        const [result, perform] = useQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
-        return [result, perform];
+    static use(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>, SetSorting] {
+        return useQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
     }
 
-    static useSuspense(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>] {
-        const [result, perform] = useSuspenseQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
-        return [result, perform];
+    static useSuspense(args?: GetByIdParameters): [QueryResultWithState<ModelBoundReadModel>, PerformQuery<GetByIdParameters>, SetSorting] {
+        return useSuspenseQuery<ModelBoundReadModel, GetById, GetByIdParameters>(GetById, args);
     }
 
     static when(condition: boolean): QueryWhen<GetById, ModelBoundReadModel, GetByIdParameters> {

@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { Arc, ArcContext } from '@cratis/arc.react';
 import { useIdentity } from '@cratis/arc.react/identity';
 import { App, Page } from '../Shared/App';
-import { QueryTransportMethod } from '../../Source/JavaScript/Arc/queries/QueryTransportMethod';
+import { QueryTransportMethod } from '@cratis/arc/queries';
 
 const encodeClientPrincipal = (userId: string, userName: string, roles: string): string => {
     const rolesList = roles.split(',').filter(r => r.trim()).map(r => r.trim());
