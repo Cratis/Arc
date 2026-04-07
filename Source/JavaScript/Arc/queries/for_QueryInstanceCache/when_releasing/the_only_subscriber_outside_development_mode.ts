@@ -21,13 +21,16 @@ describe('when releasing the only subscriber outside development mode', () => {
         vi.useRealTimers();
     });
 
-    it('should call teardown synchronously', () => teardownCalled.should.be.true);
+    it('should not call teardown synchronously', () => teardownCalled.should.be.false);
+    it('should keep the entry before the timer fires', () => cache.has('MyQuery::').should.be.true);
+    it('should still report as subscribed before the timer fires', () => cache.isSubscribed('MyQuery::').should.be.true);
 
     describe('and the deferred timer fires', () => {
         beforeEach(() => {
             vi.advanceTimersByTime(0);
         });
 
+        it('should call teardown', () => teardownCalled.should.be.true);
         it('should evict the entry', () => cache.has('MyQuery::').should.be.false);
     });
 });
