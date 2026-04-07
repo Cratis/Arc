@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands.for_CommandPipeline.given;
 
@@ -14,6 +15,8 @@ public class a_command_pipeline : Specification
     protected ICommandContextModifier _commandContextModifier;
     protected ICommandContextValuesBuilder _commandContextValuesBuilder;
     protected IServiceProvider _serviceProvider;
+    protected IServiceScopeFactory _serviceScopeFactory;
+    protected IServiceScope _serviceScope;
     protected CommandPipeline _commandPipeline;
     protected CorrelationId _correlationId;
 
@@ -30,6 +33,10 @@ public class a_command_pipeline : Specification
         _commandContextValuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
         _commandContextValuesBuilder.Build(Arg.Any<object>()).Returns(new CommandContextValues());
         _serviceProvider = Substitute.For<IServiceProvider>();
+        _serviceScope = Substitute.For<IServiceScope>();
+        _serviceScope.ServiceProvider.Returns(_serviceProvider);
+        _serviceScopeFactory = Substitute.For<IServiceScopeFactory>();
+        _serviceScopeFactory.CreateScope().Returns(_serviceScope);
 
         _commandPipeline = new(
             _correlationIdAccessor,
@@ -37,6 +44,7 @@ public class a_command_pipeline : Specification
             _commandHandlerProviders,
             _commandResponseValueHandlers,
             _commandContextModifier,
-            _commandContextValuesBuilder);
+            _commandContextValuesBuilder,
+            _serviceScopeFactory);
     }
 }

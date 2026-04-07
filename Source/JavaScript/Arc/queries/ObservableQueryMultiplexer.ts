@@ -190,15 +190,16 @@ let _sharedMultiplexerKey = '';
  * configuration (connection count, origin, base path, microservice, transport) changes.
  * @param {() => IObservableQueryHubConnection} connectionFactory Factory to create individual connections.
  * @param {string} cacheKey A string that identifies the current configuration for invalidation.
+ * @param {number} size Number of physical connections to create. Defaults to {@link Globals.queryConnectionCount}.
  * @returns The shared multiplexer instance.
  */
-export function getOrCreateMultiplexer(connectionFactory: () => IObservableQueryHubConnection, cacheKey: string): ObservableQueryMultiplexer {
+export function getOrCreateMultiplexer(connectionFactory: () => IObservableQueryHubConnection, cacheKey: string, size: number = Globals.queryConnectionCount): ObservableQueryMultiplexer {
     if (_sharedMultiplexer && _sharedMultiplexerKey === cacheKey) {
         return _sharedMultiplexer;
     }
 
     _sharedMultiplexer?.dispose();
-    _sharedMultiplexer = new ObservableQueryMultiplexer(Globals.queryConnectionCount, connectionFactory);
+    _sharedMultiplexer = new ObservableQueryMultiplexer(size, connectionFactory);
     _sharedMultiplexerKey = cacheKey;
     return _sharedMultiplexer;
 }

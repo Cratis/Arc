@@ -50,9 +50,9 @@ export interface QueryCacheEntry<TDataType> {
     subscribed: boolean;
 
     /**
-     * Timer handle for deferred cleanup when running in development mode.
-     * Allows React StrictMode re-mounts to cancel the pending teardown
-     * so the connection is reused instead of torn down and recreated.
+     * Timer handle for deferred cleanup. Allows React StrictMode re-mounts (in any build
+     * environment) to cancel the pending teardown so the connection is reused instead of
+     * torn down and recreated.
      */
     pendingCleanup?: ReturnType<typeof setTimeout>;
 }
@@ -67,16 +67,17 @@ export interface QueryCacheEntry<TDataType> {
  */
 export class QueryInstanceCache {
     private readonly _entries = new Map<QueryCacheKey, QueryCacheEntry<unknown>>();
-    private readonly _development: boolean;
     private _pendingDispose?: ReturnType<typeof setTimeout>;
 
     /**
      * Initializes a new instance of {@link QueryInstanceCache}.
-     * @param development When true, teardown is deferred on release so React StrictMode
-     *   re-mounts can re-acquire the entry without an unnecessary disconnect/reconnect cycle.
+     * @param development Accepted for API compatibility. No longer changes teardown behavior —
+     *   teardown is always deferred to handle React StrictMode re-mounts in any environment.
      */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     constructor(development: boolean = false) {
-        this._development = development;
+        // The development parameter is kept for API compatibility only.
+        // Teardown is always deferred regardless of this flag.
     }
 
     /**
@@ -131,7 +132,7 @@ export class QueryInstanceCache {
 
     /**
      * Increments the active subscriber count for the given key.
-     * If a deferred cleanup was pending (from a recent {@link release} in development mode),
+     * If a deferred cleanup was pending (from a recent {@link release}),
      * it is cancelled so the existing subscription is reused.
      * Call from `useEffect` setup to pair with {@link release} in the cleanup.
      * @param key The cache key produced by {@link buildKey}.
@@ -230,13 +231,11 @@ export class QueryInstanceCache {
     }
 
     /**
-     * Decrements the subscriber count for the given key. When the count reaches zero the teardown
-     * function is called (if set) and the entry is evicted.
-     *
-     * In development mode, both teardown and eviction are deferred by one microtask so that
-     * React StrictMode re-mounts can re-acquire the entry and cancel the cleanup. This prevents
-     * an unnecessary disconnect/reconnect cycle during the synthetic unmount/remount that
-     * StrictMode performs in development builds.
+     * Decrements the subscriber count for the given key. When the count reaches zero, both teardown
+     * and eviction are deferred by one microtask so that React StrictMode re-mounts — in any build
+     * environment — can re-acquire the entry and cancel the cleanup before the timeout fires. This
+     * prevents an unnecessary disconnect/reconnect cycle during the synthetic unmount/remount that
+     * StrictMode performs.
      * @param key The cache key produced by {@link buildKey}.
      */
     release(key: QueryCacheKey): void {
@@ -246,33 +245,19 @@ export class QueryInstanceCache {
             entry.subscriberCount--;
 
             if (entry.subscriberCount <= 0) {
-                if (this._development) {
-                    // Defer both teardown and deletion so StrictMode re-mounts can cancel.
-                    entry.pendingCleanup = setTimeout(() => {
-                        const current = this._entries.get(key);
+                // Defer both teardown and deletion so React StrictMode re-mounts in any environment
+                // can cancel by calling acquire() before the timeout fires.
+                entry.pendingCleanup = setTimeout(() => {
+                    const current = this._entries.get(key);
 
-                        if (current && current.subscriberCount <= 0) {
-                            current.subscribed = false;
-                            current.teardown?.();
-                            current.teardown = undefined;
-                            current.pendingCleanup = undefined;
-                            this._entries.delete(key);
-                        }
-                    }, 0);
-                } else {
-                    entry.subscribed = false;
-                    entry.teardown?.();
-                    entry.teardown = undefined;
-
-                    // Defer deletion so React Strict Mode re-mounts can re-acquire the entry.
-                    setTimeout(() => {
-                        const current = this._entries.get(key);
-
-                        if (current && current.subscriberCount <= 0) {
-                            this._entries.delete(key);
-                        }
-                    }, 0);
-                }
+                    if (current && current.subscriberCount <= 0) {
+                        current.subscribed = false;
+                        current.teardown?.();
+                        current.teardown = undefined;
+                        current.pendingCleanup = undefined;
+                        this._entries.delete(key);
+                    }
+                }, 0);
             }
         }
     }

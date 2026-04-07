@@ -63,7 +63,7 @@
         "ci": "yarn g:ci",
         "up": "yarn g:up"
     },
-    "peerDependencies": {
-        "@cratis/fundamentals": "^7.7.1"
+    "dependencies": {
+        "@cratis/fundamentals": "^7.7.3"
     }
 }
