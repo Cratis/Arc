@@ -20,6 +20,20 @@ public interface ICommandPipeline
     Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default);
 
     /// <summary>
+    /// Executes the given command and returns a strongly-typed result.
+    /// </summary>
+    /// <typeparam name="TResult">The type of the response returned by the command handler.</typeparam>
+    /// <param name="command">The command to execute.</param>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> scoped to the current request, used to resolve handler dependencies.</param>
+    /// <param name="allowedSeverity">Optional maximum validation result severity level to allow.</param>
+    /// <returns>A <see cref="CommandResult{TResult}"/> representing the result of executing the command.</returns>
+    /// <remarks>
+    /// If the handler returns a response of a different type than <typeparamref name="TResult"/>, an <see cref="InvalidCastException"/> is thrown.
+    /// If the handler returns no response, or the command fails (authorization, validation, exception, no handler), the result is returned with <see cref="CommandResult{TResult}.Response"/> set to <see langword="default"/>.
+    /// </remarks>
+    Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default);
+
+    /// <summary>
     /// Validates the given command without executing it.
     /// </summary>
     /// <param name="command">The command to validate.</param>

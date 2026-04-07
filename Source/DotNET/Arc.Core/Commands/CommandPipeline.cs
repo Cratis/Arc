@@ -74,6 +74,31 @@ public class CommandPipeline(
     }
 
     /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
+    {
+        var result = await Execute(command, serviceProvider, allowedSeverity);
+        if (result is CommandResult<TResult> typed)
+        {
+            return typed;
+        }
+
+        if (result.GetType() == typeof(CommandResult))
+        {
+            return new CommandResult<TResult>
+            {
+                CorrelationId = result.CorrelationId,
+                IsAuthorized = result.IsAuthorized,
+                ValidationResults = result.ValidationResults,
+                ExceptionMessages = result.ExceptionMessages,
+                ExceptionStackTrace = result.ExceptionStackTrace,
+                AuthorizationFailureReason = result.AuthorizationFailureReason
+            };
+        }
+
+        return (CommandResult<TResult>)result;
+    }
+
+    /// <inheritdoc/>
     public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
     {
         var correlationId = GetCorrelationId();
