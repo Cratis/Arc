@@ -19,6 +19,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="valueHandlers">The <see cref="ICommandResponseValueHandlers"/> to use for handling response values.</param>
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
+/// <param name="scopeFactory">The <see cref="IServiceScopeFactory"/> used to create a dedicated service scope when no <see cref="IServiceProvider"/> is provided.</param>
 [Singleton]
 public class CommandPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
@@ -26,8 +27,30 @@ public class CommandPipeline(
     ICommandHandlerProviders handlerProviders,
     ICommandResponseValueHandlers valueHandlers,
     ICommandContextModifier contextModifier,
-    ICommandContextValuesBuilder contextValuesBuilder) : ICommandPipeline
+    ICommandContextValuesBuilder contextValuesBuilder,
+    IServiceScopeFactory scopeFactory) : ICommandPipeline
 {
+    /// <inheritdoc/>
+    public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await Execute(command, scope.ServiceProvider, allowedSeverity);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await Execute<TResult>(command, scope.ServiceProvider, allowedSeverity);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult> Validate(object command, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await Validate(command, scope.ServiceProvider, allowedSeverity);
+    }
+
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
     {
