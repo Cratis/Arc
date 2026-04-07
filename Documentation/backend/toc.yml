@@ -26,3 +26,5 @@
   href: entity-framework/toc.yml
 - name: OpenAPI
   href: open-api/toc.yml
+- name: Testing
+  href: testing/toc.yml
