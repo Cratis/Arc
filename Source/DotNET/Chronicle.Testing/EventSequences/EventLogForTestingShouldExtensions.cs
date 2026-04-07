@@ -90,13 +90,9 @@ public static class EventLogForTestingShouldExtensions
         EventSequenceNumber sequenceNumber,
         Action<TEvent> validator)
     {
-        var envelope = events.FirstOrDefault(e => e.Context.SequenceNumber == sequenceNumber);
-
-        if (envelope is null)
-        {
-            throw new EventLogAssertionException(
+        var envelope = events.FirstOrDefault(e => e.Context.SequenceNumber == sequenceNumber)
+            ?? throw new EventLogAssertionException(
                 $"Expected event of type '{typeof(TEvent).Name}' at sequence number {sequenceNumber}, but no event was found.");
-        }
 
         if (envelope.Content is not TEvent typedEvent)
         {

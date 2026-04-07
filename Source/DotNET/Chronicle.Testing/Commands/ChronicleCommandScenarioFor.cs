@@ -31,19 +31,17 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// <typeparam name="TCommand">The type of command under test.</typeparam>
 public abstract class ChronicleCommandScenarioFor<TCommand> : CommandScenarioFor<TCommand>
 {
-    readonly EventLogForTesting _eventLog;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="ChronicleCommandScenarioFor{TCommand}"/> class.
     /// </summary>
     protected ChronicleCommandScenarioFor()
     {
-        _eventLog = new EventLogForTesting(Defaults.Instance.EventTypes);
-        Given = new EventScenarioGivenBuilder(_eventLog);
+        EventLog = new EventLogForTesting(Defaults.Instance.EventTypes);
+        Given = new EventScenarioGivenBuilder(EventLog);
 
         Services.AddSingleton<IEventTypes>(Defaults.Instance.EventTypes);
-        Services.AddSingleton<IEventLog>(_eventLog);
-        Services.AddSingleton<IEventSequence>(_eventLog);
+        Services.AddSingleton<IEventLog>(EventLog);
+        Services.AddSingleton<IEventSequence>(EventLog);
     }
 
     /// <summary>
@@ -58,7 +56,7 @@ public abstract class ChronicleCommandScenarioFor<TCommand> : CommandScenarioFor
     /// Use this to assert on the tail sequence number and appended events after calling
     /// <see cref="CommandScenarioFor{TCommand}.Execute"/>.
     /// </remarks>
-    public EventLogForTesting EventLog => _eventLog;
+    public EventLogForTesting EventLog { get; }
 
     /// <summary>
     /// Gets the in-memory <see cref="IEventSequence"/> backed by <see cref="EventLog"/>.
@@ -67,5 +65,5 @@ public abstract class ChronicleCommandScenarioFor<TCommand> : CommandScenarioFor
     /// Provided as a convenience alias for test authors who prefer to work in terms of
     /// <see cref="IEventSequence"/>.
     /// </remarks>
-    public IEventSequence EventSequence => _eventLog;
+    public IEventSequence EventSequence => EventLog;
 }
