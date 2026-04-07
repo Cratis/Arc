@@ -50,9 +50,9 @@ export const Arc = (props: ArcProps) => {
     const [queryVersion, setQueryVersion] = useState(0);
 
     // The cache is application-scoped — create once per Arc mount.
-    // In development mode, dispose is deferred so React StrictMode re-mounts
-    // can cancel it — preventing the synthetic unmount from destroying entries
-    // that child effects are about to re-acquire.
+    // Dispose is always deferred so React StrictMode re-mounts in any build environment
+    // can cancel it — preventing the synthetic unmount from destroying entries that child
+    // effects are about to re-acquire.
     const queryInstanceCache = useRef(new QueryInstanceCache(props.development));
 
     const reconnectQueries = useCallback(() => {
@@ -88,11 +88,9 @@ export const Arc = (props: ArcProps) => {
         const cache = queryInstanceCache.current;
         cache.cancelPendingDispose();
         return () => {
-            if (configuration.development) {
-                cache.deferDispose();
-            } else {
-                cache.dispose();
-            }
+            // Always defer so React StrictMode re-mounts in any build environment can
+            // cancel the dispose before the timeout fires.
+            cache.deferDispose();
         };
     }, []);
 
