@@ -60,6 +60,10 @@ jobs:
     if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
     needs: [release]
+    permissions:
+      # Required for NuGet trusted publishing using OIDC tokens
+      id-token: write
+
 
     steps:
       - name: Checkout code
