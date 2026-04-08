@@ -30,20 +30,19 @@ Arc provides first-class testing support through three focused NuGet packages th
 
 ### 2. Write a spec
 
-Create a `CommandScenario<TCommand>` instance as a field in your test class, then implement `IAsyncLifetime` to run the command before each `[Fact]`:
+Create a `CommandScenario<TCommand>` instance as a field, then call `Execute` directly inside each `[Fact]`:
 
 ```csharp
-public class when_adding_item_to_cart : IAsyncLifetime
+public class when_adding_item_to_cart
 {
     readonly CommandScenario<AddItemToCart> _scenario = new();
-    CommandResult _result = null!;
 
-    public async Task InitializeAsync() =>
-        _result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
-
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+    [Fact]
+    public async Task should_succeed()
+    {
+        var result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
+        result.ShouldBeSuccessful();
+    }
 }
 ```
 

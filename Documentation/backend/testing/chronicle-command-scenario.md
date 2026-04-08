@@ -19,24 +19,26 @@ Or via the meta-package:
 
 ## Basic Usage
 
-Instantiate `ChronicleCommandScenario<TCommand>` as a field in your test class and implement `IAsyncLifetime` for xUnit lifecycle integration. Call `Execute` in `InitializeAsync`, then assert on `EventLog`:
+Instantiate `ChronicleCommandScenario<TCommand>` as a field in your test class. Call `Execute` inside each `[Fact]` and assert on `EventLog` afterwards:
 
 ```csharp
-public class when_registering_author : IAsyncLifetime
+public class when_registering_author
 {
     readonly ChronicleCommandScenario<RegisterAuthor> _scenario = new();
-    CommandResult _result = null!;
-
-    public async Task InitializeAsync() =>
-        _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
     [Fact]
-    async Task should_have_appended_registered_event() =>
+    public async Task should_succeed()
+    {
+        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
+        result.ShouldBeSuccessful();
+    }
+
+    [Fact]
+    public async Task should_have_appended_registered_event()
+    {
+        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
         await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
+    }
 }
 ```
 
@@ -45,24 +47,25 @@ public class when_registering_author : IAsyncLifetime
 Use the `Given` property to append events to the in-memory event log *before* the command runs. This is the primary way to set up the aggregate or read model state the command handler will see:
 
 ```csharp
-public class when_registering_author_with_same_name : IAsyncLifetime
+public class when_registering_author_with_same_name
 {
     readonly ChronicleCommandScenario<RegisterAuthor> _scenario = new();
-    CommandResult _result = null!;
-
-    public async Task InitializeAsync()
-    {
-        await _scenario.Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
-        _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-    }
-
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
 
     [Fact]
-    async Task should_not_have_appended_a_second_event() =>
+    public async Task should_not_succeed()
+    {
+        await _scenario.Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
+        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
+        result.ShouldNotBeSuccessful();
+    }
+
+    [Fact]
+    public async Task should_not_have_appended_a_second_event()
+    {
+        await _scenario.Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
+        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
         await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
+    }
 }
 ```
 
@@ -131,28 +134,33 @@ All helpers throw `EventLogAssertionException` with a descriptive message on fai
 When a command appends several events, assert each one by its sequence number:
 
 ```csharp
-public class when_completing_order : IAsyncLifetime
+public class when_completing_order
 {
     readonly ChronicleCommandScenario<CompleteOrder> _scenario = new();
-    CommandResult _result = null!;
 
-    public async Task InitializeAsync()
+    [Fact]
+    public async Task should_succeed()
     {
         await _scenario.Given.Event(OrderId.New(), new OrderPlaced("item-1", 3));
-        _result = await _scenario.Execute(new CompleteOrder());
+        var result = await _scenario.Execute(new CompleteOrder());
+        result.ShouldBeSuccessful();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
-
     [Fact]
-    async Task should_have_appended_two_events() =>
+    public async Task should_have_appended_two_events()
+    {
+        await _scenario.Given.Event(OrderId.New(), new OrderPlaced("item-1", 3));
+        await _scenario.Execute(new CompleteOrder());
         await _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
+    }
 
     [Fact]
-    async Task should_have_appended_completed_event() =>
+    public async Task should_have_appended_completed_event()
+    {
+        await _scenario.Given.Event(OrderId.New(), new OrderPlaced("item-1", 3));
+        await _scenario.Execute(new CompleteOrder());
         await _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
+    }
 }
 ```
 
