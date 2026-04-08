@@ -175,7 +175,18 @@ export class WebSocketHubConnection {
         this._disconnected = true;
         this._keepAlive.stop();
         this._policy.cancel();
-        this._socket?.close();
+        if (this._socket) {
+            // Detach all handlers BEFORE closing so that the async onclose event cannot
+            // fire after a new subscription has reset _disconnected to false and opened a
+            // fresh socket. Without this, the stale onclose triggers an unintended
+            // reconnect via the back-off policy, causing a 1-10 second delay before the
+            // new page's queries receive their first data.
+            this._socket.onopen = null;
+            this._socket.onclose = null;
+            this._socket.onerror = null;
+            this._socket.onmessage = null;
+            this._socket.close();
+        }
         this._socket = undefined;
     }
 
