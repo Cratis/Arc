@@ -3,7 +3,7 @@ uid: Arc.Testing.ChronicleCommandScenario
 ---
 # Chronicle Command Scenarios
 
-`ChronicleCommandScenarioFor<TCommand>` extends [`CommandScenarioFor<TCommand>`](./command-scenario.md) with an in-memory event log. Commands that append events through Chronicle — returning events from `Handle()` — can be tested entirely in-process: no external Chronicle server, no MongoDB instance.
+`ChronicleCommandScenario<TCommand>` extends [`CommandScenario<TCommand>`](./command-scenario.md) with an in-memory event log. Commands that append events through Chronicle — returning events from `Handle()` — can be tested entirely in-process: no external Chronicle server, no MongoDB instance.
 
 ## Package
 
@@ -19,25 +19,24 @@ Or via the meta-package:
 
 ## Basic Usage
 
-Like `CommandScenarioFor<TCommand>`, your test class inherits from the scenario class and also implements `IAsyncLifetime` for xUnit lifecycle integration. Override `InitializeAsync()` to set up state and execute the command, then assert on `EventLog`:
+Instantiate `ChronicleCommandScenario<TCommand>` as a field in your test class and implement `IAsyncLifetime` for xUnit lifecycle integration. Call `Execute` in `InitializeAsync`, then assert on `EventLog`:
 
 ```csharp
-public class when_registering_author
-    : ChronicleCommandScenarioFor<RegisterAuthor>, IAsyncLifetime
+public class when_registering_author : IAsyncLifetime
 {
+    readonly ChronicleCommandScenario<RegisterAuthor> _scenario = new();
     CommandResult _result = null!;
 
-    public override async Task InitializeAsync()
-    {
-        await base.InitializeAsync(); // builds the DI container and pipeline
-        _result = await Execute(new RegisterAuthor("Jane Austen"));
-    }
+    public async Task InitializeAsync() =>
+        _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
     [Fact]
     async Task should_have_appended_registered_event() =>
-        await EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
+        await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
 }
 ```
 
@@ -46,31 +45,32 @@ public class when_registering_author
 Use the `Given` property to append events to the in-memory event log *before* the command runs. This is the primary way to set up the aggregate or read model state the command handler will see:
 
 ```csharp
-public class when_registering_author_with_same_name
-    : ChronicleCommandScenarioFor<RegisterAuthor>, IAsyncLifetime
+public class when_registering_author_with_same_name : IAsyncLifetime
 {
+    readonly ChronicleCommandScenario<RegisterAuthor> _scenario = new();
     CommandResult _result = null!;
 
-    public override async Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        await Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
-        await base.InitializeAsync();
-        _result = await Execute(new RegisterAuthor("Jane Austen"));
+        await _scenario.Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
+        _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
 
     [Fact]
     async Task should_not_have_appended_a_second_event() =>
-        await EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
+        await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
 }
 ```
 
-Seed events before calling `base.InitializeAsync()` so they are present when the command handler executes.
+Seed events before calling `Execute` so they are present when the command handler runs.
 
 ## EventLog Assertion Helpers
 
-All helpers live on `EventLogForTesting` as extension methods. Use them after calling `Execute` to verify which events were appended and what their contents are.
+All helpers live on `EventLogForTesting` as extension methods in `EventLogForTestingShouldExtensions`. Use them after calling `Execute` to verify which events were appended and what their contents are.
 
 ### `ShouldHaveTailSequenceNumber`
 
@@ -80,7 +80,7 @@ Asserts the total number of events in the log by checking the tail sequence numb
 
 ```csharp
 // Assert exactly one event was appended total
-await EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
+await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
 ```
 
 ### `ShouldHaveAppendedEvent<TEvent>`
@@ -89,7 +89,7 @@ Asserts that the event at a given sequence number has the expected type.
 
 ```csharp
 // Assert the first event is an AuthorRegistered
-await EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
+await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
 ```
 
 ### `ShouldHaveAppendedEvent<TEvent>` with a validator
@@ -97,7 +97,7 @@ await EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.Fir
 Pass a validator action to inspect the event's content:
 
 ```csharp
-await EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
+await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
     EventSequenceNumber.First,
     e => e.Name.ShouldEqual("Jane Austen"));
 ```
@@ -109,7 +109,7 @@ When the command appends events for a known event source, you can scope the asse
 ```csharp
 var authorId = new AuthorId(Guid.Parse("..."));
 
-await EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
+await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
     EventSequenceNumber.First,
     authorId,
     e => e.Name.ShouldEqual("Jane Austen"));
@@ -131,35 +131,36 @@ All helpers throw `EventLogAssertionException` with a descriptive message on fai
 When a command appends several events, assert each one by its sequence number:
 
 ```csharp
-public class when_completing_order
-    : ChronicleCommandScenarioFor<CompleteOrder>, IAsyncLifetime
+public class when_completing_order : IAsyncLifetime
 {
+    readonly ChronicleCommandScenario<CompleteOrder> _scenario = new();
     CommandResult _result = null!;
 
-    public override async Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        await Given.Event(OrderId.New(), new OrderPlaced("item-1", 3));
-        await base.InitializeAsync();
-        _result = await Execute(new CompleteOrder());
+        await _scenario.Given.Event(OrderId.New(), new OrderPlaced("item-1", 3));
+        _result = await _scenario.Execute(new CompleteOrder());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
     [Fact]
     async Task should_have_appended_two_events() =>
-        await EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
+        await _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
 
     [Fact]
     async Task should_have_appended_completed_event() =>
-        await EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
+        await _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
 }
 ```
 
 > **Sequence numbering**: Sequence numbers are zero-based. `EventSequenceNumber.First` is `0`. The second event is `new EventSequenceNumber(1)`, the third `new EventSequenceNumber(2)`, and so on. `ShouldHaveTailSequenceNumber` reports the number of the *last* appended event — so two total events means a tail of `1`.
 
-## What the Base Class Provides
+## What the Scenario Provides
 
-`ChronicleCommandScenarioFor<TCommand>` registers the following additional services on top of what `CommandScenarioFor<TCommand>` provides:
+`ChronicleCommandScenario<TCommand>` registers the following services on top of what `CommandScenario<TCommand>` provides:
 
 - `IEventLog` → in-memory `EventLogForTesting`
 - `IEventSequence` → the same `EventLogForTesting` instance

@@ -12,29 +12,48 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
 /// <summary>
-/// Base class for command scenario specifications that run commands through the real Arc Chronicle command pipeline,
+/// Provides a self-contained command scenario that runs commands through the real Arc Chronicle command pipeline,
 /// backed by an in-process in-memory event log.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Builds on <see cref="CommandScenarioFor{TCommand}"/> and wires the real Arc Chronicle infrastructure
-/// (event-type discovery, response value handlers, context values providers) against an in-memory
-/// <see cref="EventLogForTesting"/> so that no external Chronicle server is required.
+/// Extends <see cref="CommandScenario{TCommand}"/> with an in-memory <see cref="EventLogForTesting"/>.
+/// No external Chronicle server or MongoDB instance is required.
 /// </para>
 /// <para>
 /// Use <see cref="Given"/> to seed pre-existing events before the command runs, then call
-/// <see cref="CommandScenarioFor{TCommand}.Execute"/> or <see cref="CommandScenarioFor{TCommand}.Validate"/>
-/// to drive the command.  After execution, inspect <see cref="EventLog"/> and <see cref="EventSequence"/>
-/// to assert on the events that were appended.
+/// <see cref="CommandScenario{TCommand}.Execute"/> or <see cref="CommandScenario{TCommand}.Validate"/>
+/// to drive the command. After execution, inspect <see cref="EventLog"/> to assert on the events
+/// that were appended.
+/// </para>
+/// <para>
+/// The typical pattern with xUnit:
+/// <code>
+/// public class when_registering_author : IAsyncLifetime
+/// {
+///     readonly ChronicleCommandScenario&lt;RegisterAuthor&gt; _scenario = new();
+///     CommandResult _result = null!;
+///
+///     public async Task InitializeAsync()
+///     {
+///         await _scenario.Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
+///         _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
+///     }
+///
+///     public Task DisposeAsync() => Task.CompletedTask;
+///
+///     [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+/// }
+/// </code>
 /// </para>
 /// </remarks>
 /// <typeparam name="TCommand">The type of command under test.</typeparam>
-public abstract class ChronicleCommandScenarioFor<TCommand> : CommandScenarioFor<TCommand>
+public class ChronicleCommandScenario<TCommand> : CommandScenario<TCommand>
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="ChronicleCommandScenarioFor{TCommand}"/> class.
+    /// Initializes a new instance of the <see cref="ChronicleCommandScenario{TCommand}"/> class.
     /// </summary>
-    protected ChronicleCommandScenarioFor()
+    public ChronicleCommandScenario()
     {
         EventLog = new EventLogForTesting(Defaults.Instance.EventTypes);
         Given = new EventScenarioGivenBuilder(EventLog);
@@ -54,7 +73,7 @@ public abstract class ChronicleCommandScenarioFor<TCommand> : CommandScenarioFor
     /// </summary>
     /// <remarks>
     /// Use this to assert on the tail sequence number and appended events after calling
-    /// <see cref="CommandScenarioFor{TCommand}.Execute"/>.
+    /// <see cref="CommandScenario{TCommand}.Execute"/>.
     /// </remarks>
     public EventLogForTesting EventLog { get; }
 
