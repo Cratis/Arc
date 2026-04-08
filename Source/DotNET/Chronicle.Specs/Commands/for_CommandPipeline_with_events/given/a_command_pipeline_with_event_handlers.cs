@@ -6,6 +6,7 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandPipeline_with_events.given;
 
@@ -18,6 +19,7 @@ public class a_command_pipeline_with_event_handlers : Specification
     protected ICommandContextModifier _commandContextModifier;
     protected ICommandContextValuesBuilder _commandContextValuesBuilder;
     protected IServiceProvider _serviceProvider;
+    protected IServiceScopeFactory _serviceScopeFactory;
     protected IEventLog _eventLog;
     protected IEventTypes _eventTypes;
     protected CommandPipeline _commandPipeline;
@@ -36,6 +38,11 @@ public class a_command_pipeline_with_event_handlers : Specification
         _commandContextModifier = Substitute.For<ICommandContextModifier>();
         _commandContextValuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
         _serviceProvider = Substitute.For<IServiceProvider>();
+
+        var serviceScope = Substitute.For<IServiceScope>();
+        serviceScope.ServiceProvider.Returns(_serviceProvider);
+        _serviceScopeFactory = Substitute.For<IServiceScopeFactory>();
+        _serviceScopeFactory.CreateScope().Returns(serviceScope);
 
         // Set up event handling infrastructure
         _eventLog = Substitute.For<IEventLog>();
@@ -98,7 +105,8 @@ public class a_command_pipeline_with_event_handlers : Specification
             _commandHandlerProviders,
             _commandResponseValueHandlers,
             _commandContextModifier,
-            _commandContextValuesBuilder);
+            _commandContextValuesBuilder,
+            _serviceScopeFactory);
     }
 
     protected record TestEvent(string Name);
