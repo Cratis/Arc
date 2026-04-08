@@ -5,8 +5,6 @@ uid: Arc.Testing.CommandScenario
 
 `CommandScenarioFor<TCommand>` is the base class for testing any Arc command through the **real** command pipeline — the same infrastructure used in production. Validation filters, authorization filters, and the command handler all execute; nothing is mocked by default.
 
-The class inherits from [`Specification`](https://github.com/Cratis/Specifications) (the Cratis BDD base class), so specs follow the familiar `Establish` / `Because` / `should_*` pattern.
-
 ## Package
 
 ```xml
@@ -19,62 +17,80 @@ Or via the meta-package:
 <PackageReference Include="Cratis.Testing" />
 ```
 
+## How It Works
+
+`CommandScenarioFor<TCommand>` is a plain base class with no test-framework dependency. It exposes two virtual methods that you override to set up and tear down the scenario:
+
+| Method | Purpose |
+| ------ | ------- |
+| `InitializeAsync()` | Builds the Arc DI container and pipeline. Override to add setup and run the command. |
+| `DisposeAsync()` | Cleans up after the scenario. Override if you need resource disposal. |
+
+To integrate with **xUnit**, your test class also implements `IAsyncLifetime`. xUnit automatically calls `InitializeAsync()` before each test method, and `DisposeAsync()` after. The base class virtual methods satisfy the interface so xUnit's lifecycle is wired up with a single declaration.
+
 ## Basic Usage
 
 ```csharp
-public class when_adding_item_to_cart : CommandScenarioFor<AddItemToCart>
+public class when_adding_item_to_cart
+    : CommandScenarioFor<AddItemToCart>, IAsyncLifetime
 {
-    CommandResult _result;
+    CommandResult _result = null!;
 
-    async Task Because() =>
+    public override async Task InitializeAsync()
+    {
+        await base.InitializeAsync(); // builds the DI container and pipeline
         _result = await Execute(new AddItemToCart("SKU-123", 2));
+    }
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
     [Fact] void should_be_valid() => _result.ShouldBeValid();
 }
 ```
 
-The `Execute` helper runs the command through the pipeline and returns a `CommandResult`. No HTTP, no infrastructure dependencies.
+`base.InitializeAsync()` must be called first — it wires up the service provider and the `ICommandPipeline`. After that, `Execute` and `Validate` are available.
 
 ## Registering Additional Services
 
-Inject mocks or stub implementations into the spec's constructor using the `Services` property before the pipeline is built:
+Register mocks or stub implementations in the class constructor using the `Services` property. Because xUnit creates a new instance of the test class for each `[Fact]`, the constructor runs before `InitializeAsync`, so all registrations are available when the pipeline is built:
 
 ```csharp
-public class when_adding_item_to_cart : CommandScenarioFor<AddItemToCart>
+public class when_adding_item_to_cart
+    : CommandScenarioFor<AddItemToCart>, IAsyncLifetime
 {
     readonly IInventoryService _inventory = Substitute.For<IInventoryService>();
-    CommandResult _result;
+    CommandResult _result = null!;
 
     public when_adding_item_to_cart()
     {
-        // Register the mock before Establish builds the service provider
         Services.AddSingleton(_inventory);
     }
 
-    void Establish() =>
+    public override async Task InitializeAsync()
+    {
         _inventory.IsInStock("SKU-123").Returns(true);
-
-    async Task Because() =>
+        await base.InitializeAsync();
         _result = await Execute(new AddItemToCart("SKU-123", 2));
+    }
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 }
 ```
-
-> **Order guarantee**: The base class `Establish` runs first (it builds the pipeline), then derived `Establish` methods, and finally `Because`. Services registered in the constructor are always available when the pipeline is built.
 
 ## Validating Without Executing
 
 Use `Validate` instead of `Execute` to run only the authorization and validation filters without invoking the command handler. This is useful for verifying validation rules in isolation:
 
 ```csharp
-public class when_adding_item_with_empty_sku : CommandScenarioFor<AddItemToCart>
+public class when_adding_item_with_empty_sku
+    : CommandScenarioFor<AddItemToCart>, IAsyncLifetime
 {
-    CommandResult _result;
+    CommandResult _result = null!;
 
-    async Task Because() =>
+    public override async Task InitializeAsync()
+    {
+        await base.InitializeAsync();
         _result = await Validate(new AddItemToCart(string.Empty, 2));
+    }
 
     [Fact] void should_not_be_valid() => _result.ShouldHaveValidationErrors();
     [Fact] void should_report_sku_error() => _result.ShouldHaveValidationErrorFor("Sku");
@@ -100,12 +116,16 @@ The `CommandResultShouldExtensions` class provides fluent BDD-style assertions f
 ### Example: Validation spec
 
 ```csharp
-public class when_adding_item_with_zero_quantity : CommandScenarioFor<AddItemToCart>
+public class when_adding_item_with_zero_quantity
+    : CommandScenarioFor<AddItemToCart>, IAsyncLifetime
 {
-    CommandResult _result;
+    CommandResult _result = null!;
 
-    async Task Because() =>
+    public override async Task InitializeAsync()
+    {
+        await base.InitializeAsync();
         _result = await Validate(new AddItemToCart("SKU-123", 0));
+    }
 
     [Fact] void should_not_be_valid() => _result.ShouldHaveValidationErrors();
     [Fact] void should_have_quantity_error() => _result.ShouldHaveValidationErrorFor("must be greater than zero");
@@ -115,18 +135,21 @@ public class when_adding_item_with_zero_quantity : CommandScenarioFor<AddItemToC
 ### Example: Authorization spec
 
 ```csharp
-public class when_admin_command_executed_by_regular_user : CommandScenarioFor<DeleteAllOrders>
+public class when_admin_command_executed_by_regular_user
+    : CommandScenarioFor<DeleteAllOrders>, IAsyncLifetime
 {
-    CommandResult _result;
+    CommandResult _result = null!;
 
     public when_admin_command_executed_by_regular_user()
     {
-        // Set up an identity context for a non-admin user
         Services.AddSingleton<IIdentityProvider>(new StubIdentityProvider(roles: []));
     }
 
-    async Task Because() =>
+    public override async Task InitializeAsync()
+    {
+        await base.InitializeAsync();
         _result = await Execute(new DeleteAllOrders());
+    }
 
     [Fact] void should_not_be_authorized() => _result.ShouldNotBeAuthorized();
 }
@@ -134,7 +157,7 @@ public class when_admin_command_executed_by_regular_user : CommandScenarioFor<De
 
 ## What the Base Class Provides
 
-`CommandScenarioFor<TCommand>` calls `Services.AddCratisArcCore()` in its internal `Establish`, which wires:
+`base.InitializeAsync()` calls `Services.AddCratisArcCore()`, which wires:
 
 - Type discovery for all handlers, validators, and filters
 - The real `ICommandPipeline`

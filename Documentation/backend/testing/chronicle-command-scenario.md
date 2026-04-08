@@ -19,13 +19,19 @@ Or via the meta-package:
 
 ## Basic Usage
 
-```csharp
-public class when_registering_author : ChronicleCommandScenarioFor<RegisterAuthor>
-{
-    CommandResult _result;
+Like `CommandScenarioFor<TCommand>`, your test class inherits from the scenario class and also implements `IAsyncLifetime` for xUnit lifecycle integration. Override `InitializeAsync()` to set up state and execute the command, then assert on `EventLog`:
 
-    async Task Because() =>
+```csharp
+public class when_registering_author
+    : ChronicleCommandScenarioFor<RegisterAuthor>, IAsyncLifetime
+{
+    CommandResult _result = null!;
+
+    public override async Task InitializeAsync()
+    {
+        await base.InitializeAsync(); // builds the DI container and pipeline
         _result = await Execute(new RegisterAuthor("Jane Austen"));
+    }
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
@@ -40,15 +46,17 @@ public class when_registering_author : ChronicleCommandScenarioFor<RegisterAutho
 Use the `Given` property to append events to the in-memory event log *before* the command runs. This is the primary way to set up the aggregate or read model state the command handler will see:
 
 ```csharp
-public class when_registering_author_with_same_name : ChronicleCommandScenarioFor<RegisterAuthor>
+public class when_registering_author_with_same_name
+    : ChronicleCommandScenarioFor<RegisterAuthor>, IAsyncLifetime
 {
-    CommandResult _result;
+    CommandResult _result = null!;
 
-    async Task Establish() =>
+    public override async Task InitializeAsync()
+    {
         await Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
-
-    async Task Because() =>
+        await base.InitializeAsync();
         _result = await Execute(new RegisterAuthor("Jane Austen"));
+    }
 
     [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
 
@@ -57,6 +65,8 @@ public class when_registering_author_with_same_name : ChronicleCommandScenarioFo
         await EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
 }
 ```
+
+Seed events before calling `base.InitializeAsync()` so they are present when the command handler executes.
 
 ## EventLog Assertion Helpers
 
@@ -121,15 +131,17 @@ All helpers throw `EventLogAssertionException` with a descriptive message on fai
 When a command appends several events, assert each one by its sequence number:
 
 ```csharp
-public class when_completing_order : ChronicleCommandScenarioFor<CompleteOrder>
+public class when_completing_order
+    : ChronicleCommandScenarioFor<CompleteOrder>, IAsyncLifetime
 {
-    CommandResult _result;
+    CommandResult _result = null!;
 
-    async Task Establish() =>
+    public override async Task InitializeAsync()
+    {
         await Given.Event(OrderId.New(), new OrderPlaced("item-1", 3));
-
-    async Task Because() =>
+        await base.InitializeAsync();
         _result = await Execute(new CompleteOrder());
+    }
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
