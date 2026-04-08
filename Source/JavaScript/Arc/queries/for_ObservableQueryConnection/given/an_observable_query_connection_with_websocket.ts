@@ -31,13 +31,13 @@ export class an_observable_query_connection_with_websocket {
             readyState: WebSocket.OPEN,
         };
 
-        const self = this;
+        const fakeWebSocket = this.fakeWebSocket;
         const FakeWebSocketClass = function (this: any) {
-            self.fakeWebSocket.onopen = null;
-            self.fakeWebSocket.onclose = null;
-            self.fakeWebSocket.onerror = null;
-            self.fakeWebSocket.onmessage = null;
-            return self.fakeWebSocket;
+            fakeWebSocket.onopen = null;
+            fakeWebSocket.onclose = null;
+            fakeWebSocket.onerror = null;
+            fakeWebSocket.onmessage = null;
+            return fakeWebSocket;
         };
         (globalThis as any)['WebSocket'] = FakeWebSocketClass;
 
