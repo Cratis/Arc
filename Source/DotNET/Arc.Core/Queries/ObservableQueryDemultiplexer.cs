@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
@@ -519,7 +520,7 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, Task> onError,
         CancellationToken token)
     {
-        return subject.Subscribe(
+        var rxSubscription = subject.Subscribe(
             data =>
             {
                 if (token.IsCancellationRequested)
@@ -562,6 +563,16 @@ public class ObservableQueryDemultiplexer(
                 logger.SubscriptionError(queryId, error);
                 _ = onError(queryId, error.Message);
             });
+
+        // Disposing the Rx subscription only removes this observer from the subject — it does NOT
+        // signal completion to the subject, so the backing MongoDB change stream Watch() task would
+        // keep running and leak a connection indefinitely. Calling OnCompleted() here ensures that
+        // the change stream CancellationTokenSource in Observe() is cancelled immediately.
+        return Disposable.Create(() =>
+        {
+            rxSubscription.Dispose();
+            subject.OnCompleted();
+        });
     }
 
     async Task StreamAsyncEnumerable(
