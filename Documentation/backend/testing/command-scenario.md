@@ -56,14 +56,11 @@ Register mocks or stub implementations in the test class constructor via `scenar
 public class when_adding_item_to_cart : IAsyncLifetime
 {
     readonly IInventoryService _inventory = Substitute.For<IInventoryService>();
-    readonly CommandScenario<AddItemToCart> _scenario;
+    readonly CommandScenario<AddItemToCart> _scenario = new();
     CommandResult _result = null!;
 
-    public when_adding_item_to_cart()
-    {
-        _scenario = new();
+    public when_adding_item_to_cart() =>
         _scenario.Services.AddSingleton(_inventory);
-    }
 
     public async Task InitializeAsync()
     {
@@ -136,14 +133,11 @@ public class when_adding_item_with_zero_quantity : IAsyncLifetime
 ```csharp
 public class when_admin_command_executed_by_regular_user : IAsyncLifetime
 {
-    readonly CommandScenario<DeleteAllOrders> _scenario;
+    readonly CommandScenario<DeleteAllOrders> _scenario = new();
     CommandResult _result = null!;
 
-    public when_admin_command_executed_by_regular_user()
-    {
-        _scenario = new();
+    public when_admin_command_executed_by_regular_user() =>
         _scenario.Services.AddSingleton<IIdentityProvider>(new StubIdentityProvider(roles: []));
-    }
 
     public async Task InitializeAsync() =>
         _result = await _scenario.Execute(new DeleteAllOrders());
