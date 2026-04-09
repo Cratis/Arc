@@ -16,6 +16,20 @@
         globalThis.__write_to_file('[ArcBootstrap] LOADING for the first time');
     }
 
+    // Console shim for environments where console is not natively available (e.g., ClearScript V8).
+    // Without this, bare console.log/error calls inside the module loader throw ReferenceError,
+    // which causes @cratis/fundamentals to be only partially cached — leaving exports like `field`
+    // missing, which in turn causes "TypeError: (0, fundamentals_1.field) is not a function".
+    if (!globalThis.console) {
+        globalThis.console = {
+            log: function() {},
+            warn: function() {},
+            error: function() {},
+            info: function() {},
+            debug: function() {}
+        };
+    }
+
     // Node.js process shim (required by some modules)
     if (!globalThis.process) {
         globalThis.process = {
@@ -572,4 +586,17 @@
         loadingModules: loadingModules,
         require: globalThis.require
     };
+
+    // Pre-load @cratis/fundamentals so the fully-populated module (including the `field`
+    // decorator export) is in the module cache before any generated TypeScript type code runs.
+    // TypeScript 6 emits separate require() calls for each import statement from the same
+    // module. The second call must hit a fully-populated cache entry — not a partial one that
+    // was interrupted by a missing console or other environment issue during the first load.
+    try {
+        loadModule('node_modules/@cratis/fundamentals/dist/cjs/index.js');
+    } catch (e) {
+        if (globalThis.__write_to_file) {
+            globalThis.__write_to_file('[ArcBootstrap] Failed to pre-load @cratis/fundamentals: ' + (e && e.message));
+        }
+    }
 })();
