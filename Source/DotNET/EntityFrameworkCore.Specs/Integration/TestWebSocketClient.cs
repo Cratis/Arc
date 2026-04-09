@@ -224,8 +224,7 @@ public class TestWebSocketClient : IDisposable
                     {
                         var message = JsonSerializer.Deserialize<WebSocketDataMessage>(json, _jsonOptions);
 
-                        // Type 0 = Data (the enum is serialized as integer by Cratis.Json EnumConverterFactory)
-                        if (message?.Type == 0 && message.Data is not null)
+                        if (message?.Type == Cratis.Arc.Queries.WebSocketMessageType.Data && message.Data is not null)
                         {
                             // Parse the nested data structure using JsonElement
                             var dataElement = message.Data.Value;
@@ -267,7 +266,7 @@ public class TestWebSocketClient : IDisposable
     /// </summary>
     class WebSocketDataMessage
     {
-        public int? Type { get; set; }
+        public Cratis.Arc.Queries.WebSocketMessageType? Type { get; set; }
         public JsonElement? Data { get; set; }
     }
 }
