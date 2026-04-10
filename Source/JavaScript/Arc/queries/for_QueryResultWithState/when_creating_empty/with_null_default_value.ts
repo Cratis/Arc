@@ -6,8 +6,7 @@ import { QueryResultWithState } from '../../QueryResultWithState';
 describe('when creating empty with null default value', () => {
     const result = QueryResultWithState.empty<string[]>(null as unknown as string[]);
 
-    it('should have data that is not undefined', () => (result.data !== undefined).should.be.true);
-    it('should have data that is not null', () => (result.data !== null).should.be.true);
+    it('should have null data since null defaultValue is passed through', () => (result.data === null).should.be.true);
     it('should not have data', () => result.hasData.should.be.false);
     it('should not be performing', () => result.isPerforming.should.be.false);
 });

@@ -12,17 +12,17 @@ import { QueryResult } from './QueryResult';
 
 /**
  * Message types matching the backend {@link ObservableQueryHubMessageType} enum.
- * Serialized as integers by the Cratis JSON configuration.
+ * Serialized as strings by the JsonStringEnumConverter on the server.
  */
 export enum HubMessageType {
-    Subscribe = 0,
-    Unsubscribe = 1,
-    QueryResult = 2,
-    Unauthorized = 3,
-    Error = 4,
-    Ping = 5,
-    Pong = 6,
-    Connected = 7,
+    Subscribe = 'Subscribe',
+    Unsubscribe = 'Unsubscribe',
+    QueryResult = 'QueryResult',
+    Unauthorized = 'Unauthorized',
+    Error = 'Error',
+    Ping = 'Ping',
+    Pong = 'Pong',
+    Connected = 'Connected',
 }
 
 /**

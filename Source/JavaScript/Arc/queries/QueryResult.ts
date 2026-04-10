@@ -130,7 +130,7 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
 
             this.data = data as TDataType;
         } else {
-            this.data = (enumerable ? [] : {}) as TDataType;
+            this.data = (enumerable ? [] : null) as TDataType;
         }
     }
 

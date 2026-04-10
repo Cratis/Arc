@@ -6,8 +6,7 @@ import { QueryResultWithState } from '../../QueryResultWithState';
 describe('when creating initial with undefined default value', () => {
     const result = QueryResultWithState.initial<string[]>(undefined as unknown as string[]);
 
-    it('should have data that is not undefined', () => (result.data !== undefined).should.be.true);
-    it('should have data that is not null', () => (result.data !== null).should.be.true);
+    it('should have undefined data since undefined defaultValue is passed through', () => (result.data === undefined).should.be.true);
     it('should not have data', () => result.hasData.should.be.false);
     it('should be performing', () => result.isPerforming.should.be.true);
 });
