@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Testing.Commands;
+using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing.EventSequences;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
@@ -28,5 +29,25 @@ public static class CommandScenarioChronicleExtensions
         /// </remarks>
         public EventScenario EventScenario =>
             (EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey];
+
+        /// <summary>
+        /// Gets the <see cref="IEventLog"/> from the in-process Chronicle event scenario.
+        /// </summary>
+        /// <remarks>
+        /// Use this to assert on events appended by the command under test, for example with
+        /// <c>ShouldHaveAppendedEvent</c> from Chronicle's <c>EventSequenceShouldExtensions</c>.
+        /// </remarks>
+        public IEventLog EventLog =>
+            ((EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey]).EventLog;
+
+        /// <summary>
+        /// Gets the <see cref="IEventSequence"/> from the in-process Chronicle event scenario.
+        /// </summary>
+        /// <remarks>
+        /// This is the same underlying instance as <see cref="EventLog"/> and can be used with
+        /// Chronicle's <c>EventSequenceShouldExtensions</c> assertion helpers directly.
+        /// </remarks>
+        public IEventSequence EventSequence =>
+            ((EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey]).EventSequence;
     }
 }

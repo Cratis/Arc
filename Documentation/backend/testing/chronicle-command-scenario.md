@@ -21,7 +21,13 @@ Or via the meta-package:
 
 ## Basic Usage
 
-Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, the `EventScenario` extension property is available. Access `EventScenario.EventLog` to assert on the event log after the command executes:
+Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, three extension properties are available directly on the scenario:
+
+| Property | Type | Purpose |
+| -------- | ---- | ------- |
+| `EventScenario` | `EventScenario` | The full scenario object — use for seeding via `Given` |
+| `EventLog` | `IEventLog` | The in-memory event log — use for appending and assertions |
+| `EventSequence` | `IEventSequence` | The same instance as `EventLog` — use with Chronicle's assertion helpers |
 
 ```csharp
 public class when_registering_author
@@ -39,7 +45,7 @@ public class when_registering_author
     public async Task should_have_appended_registered_event()
     {
         await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
+        await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
     }
 }
 ```
@@ -66,7 +72,7 @@ public class when_registering_author_with_same_name
     {
         await _scenario.EventScenario.Given.ForEventSource(AuthorId.New()).Events(new AuthorRegistered("Jane Austen"));
         await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventScenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
+        await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
     }
 }
 ```
@@ -75,7 +81,7 @@ Seed events before calling `Execute` so they are present when the command handle
 
 ## EventLog Assertion Helpers
 
-The assertion helpers extend `IEventSequence` directly — they are provided by Chronicle's `EventSequenceShouldExtensions` class in the `Cratis.Chronicle.Testing` package. Call them on `_scenario.EventScenario.EventLog` after `Execute`.
+The assertion helpers extend `IEventSequence` directly — they are provided by Chronicle's `EventSequenceShouldExtensions` class in the `Cratis.Chronicle.Testing` package. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`.
 
 ### `ShouldHaveTailSequenceNumber`
 
@@ -85,7 +91,7 @@ Asserts the total number of events in the log by checking the tail sequence numb
 
 ```csharp
 // Assert exactly one event was appended total
-await _scenario.EventScenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
+await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
 ```
 
 ### `ShouldHaveAppendedEvent<TEvent>`
@@ -94,7 +100,7 @@ Asserts that the event at a given sequence number has the expected type.
 
 ```csharp
 // Assert the first event is an AuthorRegistered
-await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
+await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
 ```
 
 ### `ShouldHaveAppendedEvent<TEvent>` with a validator
@@ -102,7 +108,7 @@ await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>
 Pass a validator action to inspect the event's content:
 
 ```csharp
-await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
+await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
     EventSequenceNumber.First,
     e => e.Name.ShouldEqual("Jane Austen"));
 ```
@@ -114,7 +120,7 @@ When the command appends events for a known event source, you can scope the asse
 ```csharp
 var authorId = new AuthorId(Guid.Parse("..."));
 
-await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
+await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
     EventSequenceNumber.First,
     authorId,
     e => e.Name.ShouldEqual("Jane Austen"));
@@ -153,7 +159,7 @@ public class when_completing_order
     {
         await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
         await _scenario.Execute(new CompleteOrder());
-        await _scenario.EventScenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
+        await _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
     }
 
     [Fact]
@@ -161,7 +167,7 @@ public class when_completing_order
     {
         await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
         await _scenario.Execute(new CompleteOrder());
-        await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
+        await _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
     }
 }
 ```
@@ -176,5 +182,9 @@ When `Cratis.Arc.Chronicle.Testing` is referenced, `ChronicleCommandScenarioExte
 - `IEventLog` → backed by the real in-process Chronicle kernel (no server required)
 - `IEventSequence` → the same in-process instance
 
-It also populates the scenario context with an `EventScenario` instance, which is exposed through the `EventScenario` extension property and provides both `EventLog` (for assertions) and `Given` (for event seeding).
+It also populates the scenario context with an `EventScenario` instance, which is exposed through three C# 14 extension properties:
+
+- `EventScenario` — the full scenario, including the `Given` builder for seeding events
+- `EventLog` — shortcut to `EventScenario.EventLog` for assertions
+- `EventSequence` — shortcut to `EventScenario.EventSequence` for assertion helpers
 
