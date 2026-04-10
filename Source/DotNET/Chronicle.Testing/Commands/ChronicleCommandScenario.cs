@@ -23,26 +23,24 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// <para>
 /// Use <see cref="Given"/> to seed pre-existing events before the command runs, then call
 /// <see cref="CommandScenario{TCommand}.Execute"/> or <see cref="CommandScenario{TCommand}.Validate"/>
-/// to drive the command. After execution, inspect <see cref="EventLog"/> to assert on the events
-/// that were appended.
+/// to drive the command. After execution, use <c>ShouldHaveTailSequenceNumber</c>
+/// or <c>ShouldHaveAppendedEvent&lt;TEvent&gt;</c> on <see cref="EventLog"/> to verify
+/// which events were appended (extension methods provided by Chronicle's testing package).
 /// </para>
 /// <para>
-/// The typical pattern with xUnit:
+/// The typical usage pattern:
 /// <code>
-/// public class when_registering_author : IAsyncLifetime
+/// public class when_registering_author_that_already_exists
 /// {
 ///     readonly ChronicleCommandScenario&lt;RegisterAuthor&gt; _scenario = new();
-///     CommandResult _result = null!;
 ///
-///     public async Task InitializeAsync()
+///     [Fact]
+///     public async Task should_not_succeed()
 ///     {
 ///         await _scenario.Given.Event(AuthorId.New(), new AuthorRegistered("Jane Austen"));
-///         _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
+///         var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
+///         result.ShouldNotBeSuccessful();
 ///     }
-///
-///     public Task DisposeAsync() => Task.CompletedTask;
-///
-///     [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
 /// }
 /// </code>
 /// </para>

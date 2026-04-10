@@ -73,7 +73,7 @@ Seed events before calling `Execute` so they are present when the command handle
 
 ## EventLog Assertion Helpers
 
-All helpers live on `EventLogForTesting` as extension methods in `EventLogForTestingShouldExtensions`. Use them after calling `Execute` to verify which events were appended and what their contents are.
+The assertion helpers extend `IEventSequence` directly — they are provided by Chronicle's `EventSequenceShouldExtensions` class, available in the `Cratis.Chronicle.Testing` package. Because `EventLogForTesting` implements `IEventSequence`, you can call them on `_scenario.EventLog` after `Execute`.
 
 ### `ShouldHaveTailSequenceNumber`
 
@@ -127,7 +127,7 @@ await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
 | `ShouldHaveAppendedEvent<TEvent>(seq, validator)` | Event at `seq` has type `TEvent` and passes `validator` |
 | `ShouldHaveAppendedEvent<TEvent>(seq, eventSourceId, validator)` | Event at `seq` for `eventSourceId` has type `TEvent` and passes `validator` |
 
-All helpers throw `EventLogAssertionException` with a descriptive message on failure.
+All helpers throw `EventSequenceAssertionException` with a descriptive message on failure.
 
 ## Multiple Events
 
