@@ -46,8 +46,7 @@ public class a_sql_server_observe_context(SqlServerFixture fixture) : Specificat
         // Set up service collection
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
-            .SetMinimumLevel(LogLevel.Warning)
-            .AddConsole());
+            .SetMinimumLevel(LogLevel.None));
         services.AddEntityFrameworkCoreObservation();
 
         // Use a mocked QueryContextManager that returns the _queryContext field

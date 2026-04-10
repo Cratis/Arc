@@ -43,8 +43,7 @@ public class a_sql_server_schema_observe_context(SqlServerFixture fixture) : Spe
 
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
-            .SetMinimumLevel(LogLevel.Warning)
-            .AddConsole());
+            .SetMinimumLevel(LogLevel.None));
         services.AddEntityFrameworkCoreObservation();
 
         _queryContextManager = Substitute.For<IQueryContextManager>();
