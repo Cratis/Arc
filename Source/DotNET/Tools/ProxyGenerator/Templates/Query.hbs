@@ -13,7 +13,7 @@ import { QueryFor, QueryResultWithState, QueryValidator, Sorting, Paging } from 
 import { useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize, QueryWhen } from '@cratis/arc.react/queries';
 {{else}}
 import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
-import { useQuery, useSuspenseQuery, PerformQuery, QueryWhen } from '@cratis/arc.react/queries';
+import { useQuery, useSuspenseQuery, PerformQuery, SetSorting, QueryWhen } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
@@ -187,14 +187,12 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
         return new QueryWhen<{{Name}}, {{{Model}}}[], {{Name}}Parameters>({{Name}}, condition);
     }
 {{else}}
-    static use(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>] {
-        const [result, perform] = useQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
-        return [result, perform];
+    static use(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>, SetSorting] {
+        return useQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
     }
 
-    static useSuspense(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>] {
-        const [result, perform] = useSuspenseQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
-        return [result, perform];
+    static useSuspense(args?: {{Name}}Parameters): [QueryResultWithState<{{{Model}}}>, PerformQuery<{{Name}}Parameters>, SetSorting] {
+        return useSuspenseQuery<{{{Model}}}, {{Name}}, {{Name}}Parameters>({{Name}}, args);
     }
 
     static when(condition: boolean): QueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters> {
@@ -223,14 +221,12 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
         return new QueryWhen<{{Name}}, {{{Model}}}[]>({{Name}}, condition);
     }
 {{else}}
-    static use(): [QueryResultWithState<{{{Model}}}>, PerformQuery] {
-        const [result, perform] = useQuery<{{{Model}}}, {{Name}}>({{Name}});
-        return [result, perform];
+    static use(): [QueryResultWithState<{{{Model}}}>, PerformQuery, SetSorting] {
+        return useQuery<{{{Model}}}, {{Name}}>({{Name}});
     }
 
-    static useSuspense(): [QueryResultWithState<{{{Model}}}>, PerformQuery] {
-        const [result, perform] = useSuspenseQuery<{{{Model}}}, {{Name}}>({{Name}});
-        return [result, perform];
+    static useSuspense(): [QueryResultWithState<{{{Model}}}>, PerformQuery, SetSorting] {
+        return useSuspenseQuery<{{{Model}}}, {{Name}}>({{Name}});
     }
 
     static when(condition: boolean): QueryWhen<{{Name}}, {{{Model}}}> {

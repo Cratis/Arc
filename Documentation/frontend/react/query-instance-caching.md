@@ -82,6 +82,22 @@ const [aliceAgain] = AccountsByOwner.use({ owner: 'alice' });
 
 Arguments are serialized by sorting the object keys alphabetically and stringifying, so `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` produce the same cache key.
 
+## React StrictMode Compatibility
+
+React 18 and later run effects twice in development — and, crucially, the same synthetic unmount/remount cycle can occur in production when React reconciles across Suspense boundaries or concurrent renders. This means a component's `useEffect` cleanup may fire even when the component immediately re-mounts.
+
+Arc handles this automatically using **deferred teardown**. When the last subscriber releases a cache entry, the teardown (server unsubscribe) is not called immediately. Instead, it is scheduled with `setTimeout(0)`. If the same query re-subscribes before the timer fires — which is exactly what React's remount cycle does — the pending teardown is cancelled and the existing connection is reused transparently.
+
+```text
+Component mounts            → acquire entry (refCount = 1)
+Component unmounts          → release entry (refCount = 0) → schedule deferred teardown
+  [setTimeout fires]
+    ← Component remounts    → acquire entry cancels teardown before timer fires
+                            → connection survives; last result still available
+```
+
+This behavior is unconditional — it applies in all environments, not just when React DevTools' "Strict Mode" is active. The `development` prop on `<Arc>` does not change teardown timing and is retained only for API compatibility.
+
 ## Relationship with the Conditional `when()` Hook
 
 The `when(condition)` pattern interacts with the cache correctly: when `isEnabled` is `false`, no cache lookup or creation occurs, and no server connection is established. The hook returns `QueryResultWithState.empty()` without touching the cache.

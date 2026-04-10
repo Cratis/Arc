@@ -99,7 +99,7 @@ const LatestView = () => {
     const [result] = Latest.use();
 
     if (result.isPerforming) return <p>Connecting…</p>;
-    if (!result.hasData) return <p>No data yet.</p>;
+    if (!result.hasData || result.data.id == null) return <p>No data yet.</p>;
 
     return (
         <ItemCard id={result.data.id} name={result.data.name} updatedAt={result.data.updatedAt} />
@@ -131,7 +131,7 @@ const ByIdView = ({ id }: ByIdViewProps) => {
     const [result] = ById.use({ id });
 
     if (result.isPerforming) return <p>Loading…</p>;
-    if (!result.hasData) return <p>No data.</p>;
+    if (!result.hasData || result.data.id == null) return <p>No data.</p>;
 
     return (
         <ItemCard id={result.data.id} name={result.data.name} updatedAt={result.data.updatedAt} />
@@ -161,12 +161,18 @@ interface ItemCardProps {
     updatedAt: Date;
 }
 
+const formatTime = (value: Date | undefined | null): string => {
+    if (value == null) return '—';
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? '—' : date.toLocaleTimeString();
+};
+
 const ItemCard = ({ id, name, updatedAt }: ItemCardProps) => (
     <div>
-        <span style={{ color: '#888', fontSize: 11, marginRight: 6 }}>#{id}</span>
-        <strong>{name}</strong>
+        <span style={{ color: '#888', fontSize: 11, marginRight: 6 }}>#{id ?? '?'}</span>
+        <strong>{name ?? '…'}</strong>
         <span style={{ color: '#aaa', fontSize: 11, marginLeft: 8 }}>
-            {new Date(updatedAt).toLocaleTimeString()}
+            {formatTime(updatedAt)}
         </span>
     </div>
 );

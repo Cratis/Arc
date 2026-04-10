@@ -5,12 +5,13 @@ using Cratis.Arc;
 
 var builder = ArcApplication.CreateBuilder(args);
 
-builder.AddCratisArc(configureOptions: options =>
-{
-    options.GeneratedApis.RoutePrefix = "api";
-    options.GeneratedApis.IncludeCommandNameInRoute = false;
-    options.GeneratedApis.SegmentsToSkipForRoute = 1;
-});
+builder
+    .AddCratisArc(configureOptions: options =>
+    {
+        options.GeneratedApis.RoutePrefix = "api";
+        options.GeneratedApis.IncludeCommandNameInRoute = false;
+        options.GeneratedApis.SegmentsToSkipForRoute = 1;
+    });
 
 var app = builder.Build();
 app.UseCratisArc();

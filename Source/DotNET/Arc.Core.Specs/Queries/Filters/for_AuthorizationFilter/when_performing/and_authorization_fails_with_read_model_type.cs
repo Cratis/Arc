@@ -25,11 +25,11 @@ public class and_authorization_fails_with_read_model_type : given.an_authorizati
 
     async Task Because() => _result = await _filter.OnPerform(_context);
 
-    [Fact] void should_call_authorization_evaluator_with_performer_type() => _authorizationEvaluator.Received(1).IsAuthorized(typeof(object));
+    [Fact] void should_not_call_type_level_authorization_evaluator() => _authorizationEvaluator.DidNotReceive().IsAuthorized(typeof(object));
     [Fact] void should_call_is_authorized_on_performer() => _queryPerformer.Received(1).IsAuthorized(_context);
-    [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
+    [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
-    [Fact] void should_not_be_authorized() => _result.IsAuthorized.ShouldBeFalse();
+    [Fact] void should_be_authorized() => _result.IsAuthorized.ShouldBeTrue();
     [Fact] void should_be_valid() => _result.IsValid.ShouldBeTrue();
     [Fact] void should_not_have_exceptions() => _result.HasExceptions.ShouldBeFalse();
 }

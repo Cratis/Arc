@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { container, DependencyContainer } from 'tsyringe';
-import { Constructor } from '@cratis/fundamentals';
+import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { FunctionComponent, ReactElement, useContext, useEffect, useRef, useState } from 'react';
 import { Observer } from 'mobx-react';
 import { makeAutoObservable } from 'mobx';
@@ -22,6 +22,8 @@ import { deepEqual } from '@cratis/arc';
 import { IHandleParams } from './IHandleParams';
 import { IHandleQueryParams } from './IHandleQueryParams';
 import { IHandleProps } from './IHandleProps';
+import { routeParamsTypeKey } from './params';
+import { queryParamsTypeKey } from './queryParams';
 import { ObservableQueryFor, QueryFor } from '@cratis/arc/queries';
 import { Command } from '@cratis/arc/commands';
 import { ICanBeConfigured } from '@cratis/arc/ICanBeConfigured';
@@ -99,6 +101,15 @@ export function withViewModel<TViewModel extends object, TProps extends object =
         const parentDialogMediator = useDialogMediator();
         const dialogContext = useDialogContext();
 
+        const routeParamsType = (viewModelType as unknown as Record<string, Constructor>)[routeParamsTypeKey] as Constructor | undefined;
+        const queryParamsType = (viewModelType as unknown as Record<string, Constructor>)[queryParamsTypeKey] as Constructor | undefined;
+
+        const deserializeRouteParams = (rawParams: object): object =>
+            routeParamsType ? JsonSerializer.deserializeFromInstance(routeParamsType, rawParams) as object : rawParams;
+
+        const deserializeQueryParams = (rawQueryParams: object): object =>
+            queryParamsType ? JsonSerializer.deserializeFromInstance(queryParamsType, rawQueryParams) as object : rawQueryParams;
+
         useEffect(() => {
             if (currentViewModel.current !== null) {
                 return () => {
@@ -110,8 +121,8 @@ export function withViewModel<TViewModel extends object, TProps extends object =
 
             const child = container.createChildContainer();
             child.registerInstance(WellKnownBindings.props, props);
-            child.registerInstance(WellKnownBindings.params, params);
-            child.registerInstance(WellKnownBindings.queryParams, queryParamsObject);
+            child.registerInstance(WellKnownBindings.params, deserializeRouteParams(params));
+            child.registerInstance(WellKnownBindings.queryParams, deserializeQueryParams(queryParamsObject));
             child.registerInstance(DialogContextContent, dialogContext as unknown);
             child.registerInstance(ICommandScope as Constructor<ICommandScope>, commandScope);
 
@@ -142,8 +153,8 @@ export function withViewModel<TViewModel extends object, TProps extends object =
 
             setInitialRender(false);
             handleProps(viewModel, props);
-            handleParams(viewModel, params);
-            handleQueryParams(viewModel, queryParamsObject);
+            handleParams(viewModel, deserializeRouteParams(params));
+            handleQueryParams(viewModel, deserializeQueryParams(queryParamsObject));
 
             return () => {
                 if (applicationContext.development === false) {
@@ -161,12 +172,12 @@ export function withViewModel<TViewModel extends object, TProps extends object =
 
         if (!deepEqual(params, previousParams)) {
             setPreviousParams(params);
-            handleParams(currentViewModel.current as IViewModel, params);
+            handleParams(currentViewModel.current as IViewModel, deserializeRouteParams(params));
         }
 
         if (!deepEqual(queryParams, previousQueryParams)) {
             setPreviousQueryParams(queryParams);
-            handleQueryParams(currentViewModel.current as IViewModel, queryParams);
+            handleQueryParams(currentViewModel.current as IViewModel, deserializeQueryParams(queryParamsObject));
         }
 
         const component = () => targetComponent({ viewModel: currentViewModel.current!, props }) as ReactElement<object, string>;

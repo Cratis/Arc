@@ -117,7 +117,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query, if any
  * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result.
- * @returns Tuple of {@link QueryResult} and a {@link PerformQuery} delegate.
+ * @returns Tuple of {@link QueryResultWithState}, a {@link PerformQuery} delegate, and a {@link SetSorting} delegate.
  */
 export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting] {

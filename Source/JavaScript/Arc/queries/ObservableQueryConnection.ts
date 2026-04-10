@@ -169,8 +169,9 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
             if (message.type === WebSocketMessageType.Pong) {
                 this.handlePong(message);
             } else if (message.type === WebSocketMessageType.Data || !message.type) {
-                // For backward compatibility, treat messages without a type as data messages
-                const data = message.data ?? message;
+                // For new-style messages (type === 'Data') the query result is wrapped in message.data.
+                // For legacy/backward-compatible messages (no type) the entire message IS the query result.
+                const data = message.type === WebSocketMessageType.Data ? message.data : message;
                 dataReceived(data as QueryResult<TDataType>);
             }
         } catch (error) {

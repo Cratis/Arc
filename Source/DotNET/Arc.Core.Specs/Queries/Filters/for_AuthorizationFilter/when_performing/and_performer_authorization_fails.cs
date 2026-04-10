@@ -25,7 +25,7 @@ public class and_performer_authorization_fails : given.an_authorization_filter
 
     async Task Because() => _result = await _filter.OnPerform(_context);
 
-    [Fact] void should_call_authorization_evaluator_with_performer_type() => _authorizationEvaluator.Received(1).IsAuthorized(typeof(object));
+    [Fact] void should_not_call_type_level_authorization_evaluator() => _authorizationEvaluator.DidNotReceive().IsAuthorized(typeof(object));
     [Fact] void should_call_is_authorized_on_performer() => _queryPerformer.Received(1).IsAuthorized(_context);
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);

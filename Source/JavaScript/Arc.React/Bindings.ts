@@ -15,6 +15,7 @@ export class Bindings {
         Globals.queryTransportMethod = queryTransportMethod ?? QueryTransportMethod.ServerSentEvents;
         Globals.queryConnectionCount = queryConnectionCount ?? 1;
         Globals.queryDirectMode = queryDirectMode ?? false;
+        Globals.httpHeadersCallback = httpHeadersCallback ?? (() => ({}));
         container.registerSingleton(WellKnownBindings.microservice, microservice);
         container.register(IQueryProvider as Constructor<IQueryProvider>, { useValue: new QueryProvider(microservice, apiBasePath ?? '', origin ?? '', httpHeadersCallback ?? (() => ({}))) });
     }

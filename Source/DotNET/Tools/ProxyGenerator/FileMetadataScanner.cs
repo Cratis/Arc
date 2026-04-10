@@ -113,7 +113,7 @@ public static class FileMetadataScanner
             .Where(f =>
             {
                 var ext = Path.GetExtension(f);
-                return (ext is ".ts" or ".tsx") && Path.GetFileName(f) != "index.ts";
+                return (string.Equals(ext, ".ts", StringComparison.Ordinal) || string.Equals(ext, ".tsx", StringComparison.Ordinal)) && Path.GetFileName(f) != "index.ts";
             })
             .ToList();
 

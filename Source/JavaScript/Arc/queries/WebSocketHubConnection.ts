@@ -12,17 +12,17 @@ import { QueryResult } from './QueryResult';
 
 /**
  * Message types matching the backend {@link ObservableQueryHubMessageType} enum.
- * Serialized as integers by the Cratis JSON configuration.
+ * Serialized as strings by the JsonStringEnumConverter on the server.
  */
 export enum HubMessageType {
-    Subscribe = 0,
-    Unsubscribe = 1,
-    QueryResult = 2,
-    Unauthorized = 3,
-    Error = 4,
-    Ping = 5,
-    Pong = 6,
-    Connected = 7,
+    Subscribe = 'Subscribe',
+    Unsubscribe = 'Unsubscribe',
+    QueryResult = 'QueryResult',
+    Unauthorized = 'Unauthorized',
+    Error = 'Error',
+    Ping = 'Ping',
+    Pong = 'Pong',
+    Connected = 'Connected',
 }
 
 /**
@@ -175,7 +175,18 @@ export class WebSocketHubConnection {
         this._disconnected = true;
         this._keepAlive.stop();
         this._policy.cancel();
-        this._socket?.close();
+        if (this._socket) {
+            // Detach all handlers BEFORE closing so that the async onclose event cannot
+            // fire after a new subscription has reset _disconnected to false and opened a
+            // fresh socket. Without this, the stale onclose triggers an unintended
+            // reconnect via the back-off policy, causing a 1-10 second delay before the
+            // new page's queries receive their first data.
+            this._socket.onopen = null;
+            this._socket.onclose = null;
+            this._socket.onerror = null;
+            this._socket.onmessage = null;
+            this._socket.close();
+        }
         this._socket = undefined;
     }
 
@@ -257,6 +268,7 @@ export class WebSocketHubConnection {
                     break;
                 case HubMessageType.Unauthorized:
                     console.warn(`Hub: query '${message.queryId}' unauthorized`);
+                    this.handleUnauthorized(message);
                     break;
                 case HubMessageType.Error:
                     console.error(`Hub: query '${message.queryId}' error:`, message.payload);
@@ -275,6 +287,16 @@ export class WebSocketHubConnection {
 
         const result = message.payload as QueryResult<any>;
         sub.callback(result);
+    }
+
+    private handleUnauthorized(message: HubMessage): void {
+        if (!message.queryId) return;
+
+        const sub = this._subscriptions.get(message.queryId);
+        if (!sub) return;
+
+        this._subscriptions.delete(message.queryId);
+        sub.callback(QueryResult.unauthorized());
     }
 
     private handlePong(message: HubMessage): void {

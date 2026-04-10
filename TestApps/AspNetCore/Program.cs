@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Uncomment the following line to configure the application to use invariant culture
 // builder.UseInvariantCulture();
 builder.AddCratisArc();
+builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
 builder.Services.AddControllers();
 builder.Services.AddMvc();
 
