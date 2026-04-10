@@ -23,7 +23,6 @@ describe('when asking has data and it is null for non-enumerable query', () => {
         data: null
     }, Object, false);
 
-    it('should consider to have data since empty object is truthy', () => queryResult.hasData.should.be.true);
-    it('should have data that is not null', () => (queryResult.data !== null).should.be.true);
-    it('should have data that is an empty object', () => queryResult.data.should.deep.equal({}));
+    it('should not have data since null data means no data', () => queryResult.hasData.should.be.false);
+    it('should have data that is null', () => (queryResult.data === null).should.be.true);
 });
