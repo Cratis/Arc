@@ -21,6 +21,8 @@ Or via the meta-package:
 
 `CommandScenario<TCommand>` is a concrete class that you **instantiate** in your test class. Create it as a field, register any additional services via `Services`, then call `Execute` or `Validate` directly inside each `[Fact]`. The service provider and pipeline are built lazily on the first `Execute` or `Validate` call so all services registered before that point are available.
 
+At construction time `CommandScenario<TCommand>` discovers all `ICommandScenarioExtender` implementations loaded in the test process and calls each one. Extension packages such as `Cratis.Arc.Chronicle.Testing` use this mechanism to register additional services and expose them through C# extension properties — without requiring any base class or explicit setup.
+
 ## Basic Usage
 
 ```csharp

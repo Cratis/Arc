@@ -21,19 +21,23 @@ namespace Cratis.Arc.Testing.Commands;
 /// <see cref="Validate"/>. Register all services in the test constructor before any pipeline call.
 /// </para>
 /// <para>
+/// Extension packages can contribute services and context values by implementing
+/// <see cref="ICommandScenarioExtender"/>. Implementations are discovered automatically at construction
+/// time via the type discovery system and invoked before any command is executed.
+/// </para>
+/// <para>
 /// The typical pattern with xUnit:
 /// <code>
-/// public class when_adding_item_to_cart : IAsyncLifetime
+/// public class when_adding_item_to_cart
 /// {
 ///     readonly CommandScenario&lt;AddItemToCart&gt; _scenario = new();
-///     CommandResult _result = null!;
 ///
-///     public async Task InitializeAsync() =>
-///         _result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
-///
-///     public Task DisposeAsync() => Task.CompletedTask;
-///
-///     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+///     [Fact]
+///     public async Task should_succeed()
+///     {
+///         var result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
+///         result.ShouldBeSuccessful();
+///     }
 /// }
 /// </code>
 /// </para>
@@ -47,12 +51,24 @@ public class CommandScenario<TCommand>
     /// <summary>
     /// Initializes a new instance of the <see cref="CommandScenario{TCommand}"/> class.
     /// </summary>
+    /// <remarks>
+    /// Discovers all <see cref="ICommandScenarioExtender"/> implementations in loaded assemblies and
+    /// invokes each one to allow them to register services and populate <see cref="Context"/>.
+    /// </remarks>
     public CommandScenario()
     {
         Services = new ServiceCollection();
         Services.AddOptions();
         Services.AddLogging(logging => logging.AddConsole());
         Services.Configure<ArcOptions>(_ => { });
+
+        Context = new Dictionary<Type, object>();
+
+        foreach (var extenderType in Cratis.Types.Types.Instance.FindMultiple<ICommandScenarioExtender>())
+        {
+            var extender = (ICommandScenarioExtender)Activator.CreateInstance(extenderType)!;
+            extender.Extend(Services, Context);
+        }
     }
 
     /// <summary>
@@ -63,6 +79,15 @@ public class CommandScenario<TCommand>
     /// <see cref="Execute"/> or <see cref="Validate"/> for the first time.
     /// </remarks>
     public IServiceCollection Services { get; }
+
+    /// <summary>
+    /// Gets the scenario context dictionary, keyed by <see cref="Type"/>.
+    /// </summary>
+    /// <remarks>
+    /// Populated by <see cref="ICommandScenarioExtender"/> implementations during construction.
+    /// Extension packages expose values from this dictionary through C# extension properties.
+    /// </remarks>
+    public IDictionary<Type, object> Context { get; }
 
     /// <summary>
     /// Executes the given <typeparamref name="TCommand"/> through the real Arc command pipeline.
