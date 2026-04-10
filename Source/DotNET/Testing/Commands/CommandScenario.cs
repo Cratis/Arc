@@ -66,7 +66,10 @@ public class CommandScenario<TCommand>
 
         foreach (var extenderType in Cratis.Types.Types.Instance.FindMultiple<ICommandScenarioExtender>())
         {
-            var extender = (ICommandScenarioExtender)Activator.CreateInstance(extenderType)!;
+            var extender = Activator.CreateInstance(extenderType) as ICommandScenarioExtender
+                ?? throw new InvalidOperationException(
+                    $"Failed to create an instance of command scenario extender '{extenderType.FullName}'. " +
+                    "Ensure it has a public parameterless constructor.");
             extender.Extend(Services, Context);
         }
     }
