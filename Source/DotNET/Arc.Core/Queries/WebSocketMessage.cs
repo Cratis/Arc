@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Serialization;
+
 namespace Cratis.Arc.Queries;
 
 /// <summary>
@@ -11,6 +13,7 @@ public class WebSocketMessage
     /// <summary>
     /// Gets or sets the type of message.
     /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<WebSocketMessageType>))]
     public WebSocketMessageType Type { get; set; }
 
     /// <summary>

@@ -2,24 +2,22 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, act } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { useObservableQuery } from '../useObservableQuery';
 import { FakeObservableQuery } from './FakeObservableQuery';
+import { FakeSingleObservableQuery } from './FakeSingleObservableQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { QueryResult, QueryInstanceCache } from '@cratis/arc/queries';
+import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-describe('when creating instance', () => {
-    let capturedIsPerformingInitial: boolean | null = null;
-    let capturedIsPerformingAfterResponse: boolean | null = null;
+describe('when initial data is never undefined or null', () => {
+    let capturedResult: QueryResultWithState<unknown> | undefined = undefined;
     let renderCount = 0;
 
     beforeEach(() => {
         FakeObservableQuery.reset();
-        capturedIsPerformingInitial = null;
-        capturedIsPerformingAfterResponse = null;
+        FakeSingleObservableQuery.reset();
+        capturedResult = undefined;
         renderCount = 0;
     });
 
@@ -29,13 +27,13 @@ describe('when creating instance', () => {
         origin: 'https://example.com',
     };
 
-    it('should have isPerforming true initially before receiving data', async () => {
+    it('should have defined data for enumerable query on first render', () => {
         const TestComponent = () => {
             const [result] = useObservableQuery(FakeObservableQuery);
             renderCount++;
 
             if (renderCount === 1) {
-                capturedIsPerformingInitial = result.isPerforming;
+                capturedResult = result as QueryResultWithState<unknown>;
             }
 
             return React.createElement('div', null, 'Test');
@@ -53,18 +51,17 @@ describe('when creating instance', () => {
             )
         );
 
-        capturedIsPerformingInitial!.should.be.true;
+        (capturedResult!.data !== undefined).should.be.true;
+        (capturedResult!.data !== null).should.be.true;
     });
 
-    it('should have isPerforming false after receiving data', async () => {
+    it('should have defined data for non-enumerable query on first render', () => {
         const TestComponent = () => {
-            const [result] = useObservableQuery(FakeObservableQuery);
+            const [result] = useObservableQuery(FakeSingleObservableQuery);
             renderCount++;
 
             if (renderCount === 1) {
-                capturedIsPerformingInitial = result.isPerforming;
-            } else if (renderCount === 2) {
-                capturedIsPerformingAfterResponse = result.isPerforming;
+                capturedResult = result as QueryResultWithState<unknown>;
             }
 
             return React.createElement('div', null, 'Test');
@@ -82,26 +79,7 @@ describe('when creating instance', () => {
             )
         );
 
-        // Simulate receiving data from WebSocket
-        const callback = FakeObservableQuery.subscribeCallbacks[0];
-        callback!.should.not.be.undefined;
-
-        await act(async () => {
-            callback(new QueryResult({
-                data: [{ id: '1', name: 'Test' }],
-                isSuccess: true,
-                isAuthorized: true,
-                isValid: true,
-                hasExceptions: false,
-                validationResults: [],
-                exceptionMessages: [],
-                exceptionStackTrace: '',
-                paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 }
-            }, Array, true));
-        });
-
-        capturedIsPerformingInitial!.should.be.true;
-        capturedIsPerformingAfterResponse!.should.be.false;
+        (capturedResult!.data !== undefined).should.be.true;
+        (capturedResult!.data !== null).should.be.true;
     });
 });
-
