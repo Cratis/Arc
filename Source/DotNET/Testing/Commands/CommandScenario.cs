@@ -4,6 +4,7 @@
 using Cratis.Arc.Commands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Cratis.Arc.Testing.Commands;
 
@@ -64,12 +65,12 @@ public class CommandScenario<TCommand>
 
         Context = new Dictionary<Type, object>();
 
-        foreach (var extenderType in Cratis.Types.Types.Instance.FindMultiple<ICommandScenarioExtender>())
+        foreach (var extender in Cratis.Types.Types.Instance.FindMultiple<ICommandScenarioExtender>()
+                     .Select(extenderType => Activator.CreateInstance(extenderType) as ICommandScenarioExtender
+                         ?? throw new InvalidOperationException(
+                             $"Failed to create an instance of command scenario extender '{extenderType.FullName}'. " +
+                             "Ensure it has a public parameterless constructor.")))
         {
-            var extender = Activator.CreateInstance(extenderType) as ICommandScenarioExtender
-                ?? throw new InvalidOperationException(
-                    $"Failed to create an instance of command scenario extender '{extenderType.FullName}'. " +
-                    "Ensure it has a public parameterless constructor.");
             extender.Extend(Services, Context);
         }
     }
