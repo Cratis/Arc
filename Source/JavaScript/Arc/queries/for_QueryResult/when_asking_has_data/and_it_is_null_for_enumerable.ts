@@ -23,7 +23,7 @@ describe('when asking has data and it is null for enumerable query', () => {
         data: null
     }, Object, true);
 
-    it('should considered to not having data', () => queryResult.hasData.should.be.false);
+    it('should consider it to not have data', () => queryResult.hasData.should.be.false);
     it('should have data that is not null', () => (queryResult.data !== null).should.be.true);
     it('should have data that is an empty array', () => queryResult.data.should.deep.equal([]));
 });
