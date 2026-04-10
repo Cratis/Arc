@@ -13,7 +13,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
 
     static empty<TDataType>(defaultValue: TDataType): QueryResultWithState<TDataType> {
         return new QueryResultWithState(
-            defaultValue,
+            defaultValue ?? ([] as unknown as TDataType),
             PagingInfo.noPaging,
             true,
             true,
@@ -27,7 +27,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
 
     static initial<TDataType>(defaultValue: TDataType): QueryResultWithState<TDataType> {
         return new QueryResultWithState(
-            defaultValue,
+            defaultValue ?? ([] as unknown as TDataType),
             PagingInfo.noPaging,
             true,
             true,
@@ -81,7 +81,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
      */
     static fromQueryResult<TDataType>(queryResult: QueryResult<TDataType>, isPerforming: boolean) {
         return new QueryResultWithState<TDataType>(
-            queryResult.data,
+            queryResult.data ?? ([] as unknown as TDataType),
             queryResult.paging,
             queryResult.isSuccess,
             queryResult.isAuthorized,
