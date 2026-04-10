@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Testing.Commands;
-using Cratis.Chronicle.Testing.Events;
 using Cratis.Chronicle.Testing.EventSequences;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
@@ -20,19 +19,14 @@ public static class CommandScenarioChronicleExtensions
     extension<TCommand>(CommandScenario<TCommand> scenario)
     {
         /// <summary>
-        /// Gets the in-memory <see cref="EventLogForTesting"/> that acts as the event log during the test.
+        /// Gets the <see cref="EventScenario"/> that provides the in-memory event log and
+        /// a fluent builder for seeding pre-existing events.
         /// </summary>
         /// <remarks>
-        /// Use this to assert on the tail sequence number and appended events after calling
-        /// <see cref="CommandScenario{TCommand}.Execute"/>.
+        /// Use <see cref="EventScenario.Given"/> to seed events before the command runs and
+        /// <see cref="EventScenario.EventLog"/> to assert on the appended events afterwards.
         /// </remarks>
-        public EventLogForTesting EventLog =>
-            (EventLogForTesting)scenario.Context[typeof(EventLogForTesting)];
-
-        /// <summary>
-        /// Gets the fluent builder for seeding pre-existing events into the in-memory event log before the command runs.
-        /// </summary>
-        public EventScenarioGivenBuilder Given =>
-            (EventScenarioGivenBuilder)scenario.Context[typeof(EventScenarioGivenBuilder)];
+        public EventScenario EventScenario =>
+            (EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey];
     }
 }

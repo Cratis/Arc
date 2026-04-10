@@ -52,7 +52,7 @@ public class when_adding_item_to_cart
 
 ### 3. Test Chronicle-backed commands
 
-When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is referenced, `CommandScenario<TCommand>` automatically gains `EventLog` and `Given` extension properties:
+When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is referenced, `CommandScenario<TCommand>` automatically gains an `EventScenario` extension property exposing `EventLog` (for assertions) and `Given` (for event seeding):
 
 ```csharp
 public class when_registering_author
@@ -70,7 +70,7 @@ public class when_registering_author
     public async Task should_have_appended_registered_event()
     {
         await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
+        await _scenario.EventScenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
     }
 }
 ```

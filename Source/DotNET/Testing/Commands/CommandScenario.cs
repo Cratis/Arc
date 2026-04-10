@@ -4,7 +4,6 @@
 using Cratis.Arc.Commands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Linq;
 
 namespace Cratis.Arc.Testing.Commands;
 
@@ -63,7 +62,7 @@ public class CommandScenario<TCommand>
         Services.AddLogging(logging => logging.AddConsole());
         Services.Configure<ArcOptions>(_ => { });
 
-        Context = new Dictionary<Type, object>();
+        Context = new Dictionary<string, object>();
 
         foreach (var extender in Cratis.Types.Types.Instance.FindMultiple<ICommandScenarioExtender>()
                      .Select(extenderType => Activator.CreateInstance(extenderType) as ICommandScenarioExtender
@@ -85,13 +84,13 @@ public class CommandScenario<TCommand>
     public IServiceCollection Services { get; }
 
     /// <summary>
-    /// Gets the scenario context dictionary, keyed by <see cref="Type"/>.
+    /// Gets the scenario context dictionary, keyed by <see cref="string"/>.
     /// </summary>
     /// <remarks>
     /// Populated by <see cref="ICommandScenarioExtender"/> implementations during construction.
     /// Extension packages expose values from this dictionary through C# extension properties.
     /// </remarks>
-    public IDictionary<Type, object> Context { get; }
+    public IDictionary<string, object> Context { get; }
 
     /// <summary>
     /// Executes the given <typeparamref name="TCommand"/> through the real Arc command pipeline.

@@ -17,7 +17,7 @@ namespace Cratis.Arc.Testing.Commands;
 /// </para>
 /// <para>
 /// Use this interface to register additional services into the test service collection and store
-/// objects in the typed context dictionary. Extension packages can then expose those objects through
+/// objects in the string-keyed context dictionary. Extension packages can then expose those objects through
 /// C# extension properties on <see cref="CommandScenario{TCommand}"/>.
 /// </para>
 /// </remarks>
@@ -27,6 +27,6 @@ public interface ICommandScenarioExtender
     /// Extends the scenario by registering services and populating the context.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> for the scenario.</param>
-    /// <param name="context">The scenario context dictionary, keyed by <see cref="Type"/>.</param>
-    void Extend(IServiceCollection services, IDictionary<Type, object> context);
+    /// <param name="context">The scenario context dictionary, keyed by <see cref="string"/>.</param>
+    void Extend(IServiceCollection services, IDictionary<string, object> context);
 }

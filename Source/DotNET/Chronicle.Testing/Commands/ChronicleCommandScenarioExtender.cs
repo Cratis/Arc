@@ -4,14 +4,13 @@
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing;
-using Cratis.Chronicle.Testing.Events;
 using Cratis.Chronicle.Testing.EventSequences;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
 /// <summary>
-/// Extends a <see cref="CommandScenario{TCommand}"/> with an in-memory Chronicle event log.
+/// Extends a <see cref="CommandScenario{TCommand}"/> with an in-memory Chronicle event scenario.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -20,23 +19,26 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// No explicit registration is required.
 /// </para>
 /// <para>
-/// After construction the scenario exposes <c>EventLog</c> and <c>Given</c> through
-/// C# extension properties defined in <see cref="CommandScenarioChronicleExtensions"/>.
+/// After construction the scenario exposes an <see cref="EventScenario"/> through
+/// the C# extension property defined in <see cref="CommandScenarioChronicleExtensions"/>.
 /// </para>
 /// </remarks>
 public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
 {
+    /// <summary>
+    /// The context key used to store the <see cref="EventScenario"/> in the scenario context dictionary.
+    /// </summary>
+    public const string ContextKey = "Chronicle.EventScenario";
+
     /// <inheritdoc/>
-    public void Extend(IServiceCollection services, IDictionary<Type, object> context)
+    public void Extend(IServiceCollection services, IDictionary<string, object> context)
     {
-        var eventLog = new EventLogForTesting(Defaults.Instance.EventTypes);
-        var given = new EventScenarioGivenBuilder(eventLog);
+        var eventScenario = new EventScenario();
 
         services.AddSingleton<Cratis.Chronicle.Events.IEventTypes>(Defaults.Instance.EventTypes);
-        services.AddSingleton<IEventLog>(eventLog);
-        services.AddSingleton<IEventSequence>(eventLog);
+        services.AddSingleton<IEventLog>(eventScenario.EventLog);
+        services.AddSingleton<IEventSequence>(eventScenario.EventSequence);
 
-        context[typeof(EventLogForTesting)] = eventLog;
-        context[typeof(EventScenarioGivenBuilder)] = given;
+        context[ContextKey] = eventScenario;
     }
 }
