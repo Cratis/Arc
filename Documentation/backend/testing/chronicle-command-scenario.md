@@ -1,7 +1,7 @@
 ---
 uid: Arc.Testing.ChronicleExtension
 ---
-# Chronicle Extension
+# Chronicle
 
 When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is referenced, `CommandScenario<TCommand>` is automatically extended with an in-memory event scenario. No separate class or base type is needed.
 
@@ -81,61 +81,7 @@ Seed events before calling `Execute` so they are present when the command handle
 
 ## EventLog Assertion Helpers
 
-The assertion helpers extend `IEventSequence` directly — they are provided by Chronicle's `EventSequenceShouldExtensions` class in the `Cratis.Chronicle.Testing` package. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`.
-
-### `ShouldHaveTailSequenceNumber`
-
-Asserts the total number of events in the log by checking the tail sequence number.
-
-`EventSequenceNumber.First` corresponds to sequence number `0`, meaning exactly one event has been appended.
-
-```csharp
-// Assert exactly one event was appended total
-await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
-```
-
-### `ShouldHaveAppendedEvent<TEvent>`
-
-Asserts that the event at a given sequence number has the expected type.
-
-```csharp
-// Assert the first event is an AuthorRegistered
-await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
-```
-
-### `ShouldHaveAppendedEvent<TEvent>` with a validator
-
-Pass a validator action to inspect the event's content:
-
-```csharp
-await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
-    EventSequenceNumber.First,
-    e => e.Name.ShouldEqual("Jane Austen"));
-```
-
-### `ShouldHaveAppendedEvent<TEvent>` with event source and validator
-
-When the command appends events for a known event source, you can scope the assertion to that source:
-
-```csharp
-var authorId = new AuthorId(Guid.Parse("..."));
-
-await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(
-    EventSequenceNumber.First,
-    authorId,
-    e => e.Name.ShouldEqual("Jane Austen"));
-```
-
-### Assertion helper reference
-
-| Method | Asserts that... |
-| ------ | --------------- |
-| `ShouldHaveTailSequenceNumber(expected)` | The event log tail equals `expected` |
-| `ShouldHaveAppendedEvent<TEvent>(seq)` | Event at `seq` has type `TEvent` |
-| `ShouldHaveAppendedEvent<TEvent>(seq, validator)` | Event at `seq` has type `TEvent` and passes `validator` |
-| `ShouldHaveAppendedEvent<TEvent>(seq, eventSourceId, validator)` | Event at `seq` for `eventSourceId` has type `TEvent` and passes `validator` |
-
-All helpers throw `EventSequenceAssertionException` with a descriptive message on failure.
+Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see <xref:Chronicle.Testing.Events.Assertions>.
 
 ## Multiple Events
 
