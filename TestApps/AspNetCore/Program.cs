@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 // builder.UseInvariantCulture();
 builder.AddCratisArc();
 builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
+builder.Services.AddCratisMongoDB();
 builder.Services.AddControllers();
 builder.Services.AddMvc();
 

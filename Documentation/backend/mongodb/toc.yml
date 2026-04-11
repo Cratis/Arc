@@ -12,5 +12,7 @@
   href: convention-packs.md
 - name: Observing Collections
   href: observing-collections.md
+- name: Watching Multiple Collections
+  href: change-stream-watcher.md
 - name: Tenancy
   href: tenancy.md

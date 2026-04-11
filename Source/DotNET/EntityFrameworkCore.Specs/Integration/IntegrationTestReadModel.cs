@@ -17,6 +17,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Integration;
 /// <param name="Name">The entity name.</param>
 /// <param name="IsActive">Whether the entity is active.</param>
 [ReadModel]
+[AllowAnonymous]
 public record IntegrationTestReadModel(int Id, string Name, bool IsActive)
 {
     /// <summary>

@@ -148,7 +148,7 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
 
         if (SortingIsEnabled())
         {
-            var sortingFieldProperty = typeof(TEntity).GetProperty(_queryContext.Sorting.Field.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public)
+            var sortingFieldProperty = typeof(TEntity).GetProperty(_queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public)
                 ?? throw new ArgumentException($"Sorting field could not be found on {typeof(TEntity)}", nameof(newQueryContext));
             _sortingFieldComparer = (typeof(Comparer<>)
                 .MakeGenericType(sortingFieldProperty.PropertyType)

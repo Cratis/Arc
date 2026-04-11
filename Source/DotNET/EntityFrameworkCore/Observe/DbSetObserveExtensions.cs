@@ -376,7 +376,7 @@ public static class DbSetObserveExtensions
     {
         if (queryContext.Sorting != Sorting.None)
         {
-            var property = typeof(TEntity).GetProperty(queryContext.Sorting.Field.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
+            var property = typeof(TEntity).GetProperty(queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
             if (property is not null)
             {
                 var parameter = Expression.Parameter(typeof(TEntity), "x");
