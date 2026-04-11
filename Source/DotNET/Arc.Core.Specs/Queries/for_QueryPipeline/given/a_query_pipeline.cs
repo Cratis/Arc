@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Queries.for_QueryPipeline.given;
@@ -16,6 +17,7 @@ public class a_query_pipeline : Specification
     protected IServiceProvider _serviceProvider;
     protected IQueryPerformer _queryPerformer;
     protected CorrelationId _correlationId;
+    protected IDiscoverableValidators _discoverableValidators;
 
     void Establish()
     {
@@ -30,12 +32,14 @@ public class a_query_pipeline : Specification
         _queryRenderers = Substitute.For<IQueryRenderers>();
         _serviceProvider = Substitute.For<IServiceProvider>();
         _queryPerformer = Substitute.For<IQueryPerformer>();
+        _discoverableValidators = Substitute.For<IDiscoverableValidators>();
 
         _pipeline = new QueryPipeline(
             _correlationIdAccessor,
             _queryContextManager,
             query_filters,
             _queryPerformerProviders,
-            _queryRenderers);
+            _queryRenderers,
+            _discoverableValidators);
     }
 }

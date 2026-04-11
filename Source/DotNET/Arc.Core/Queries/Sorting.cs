@@ -8,7 +8,7 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <param name="Field">Field to sort.</param>
 /// <param name="Direction">The <see cref="SortDirection"/>.</param>
-public record Sorting(string Field, SortDirection Direction)
+public record Sorting(SortField Field, SortDirection Direction)
 {
     /// <summary>
     /// Represents no sorting.
