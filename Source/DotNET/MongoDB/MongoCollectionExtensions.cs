@@ -42,7 +42,7 @@ public static class MongoCollectionExtensions
     public static async Task<T?> FindByIdAsync<T, TId>(this IMongoCollection<T> collection, TId id)
     {
         var result = await collection.FindAsync(Builders<T>.Filter.Eq(new StringFieldDefinition<T, TId>("_id"), id));
-        return result.SingleOrDefault();
+        return await result.SingleOrDefaultAsync();
     }
 
     /// <summary>

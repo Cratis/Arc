@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace TestApps.Features.QueryShowcase;
@@ -13,6 +14,7 @@ namespace TestApps.Features.QueryShowcase;
 /// <param name="Name">The item name.</param>
 /// <param name="UpdatedAt">When the item was last updated.</param>
 [ReadModel]
+[AllowAnonymous]
 public record ShowcaseItem(int Id, string Name, DateTimeOffset UpdatedAt)
 {
     static readonly BehaviorSubject<ShowcaseItem> _latest = new(new ShowcaseItem(1, "Initial", DateTimeOffset.UtcNow));

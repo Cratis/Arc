@@ -35,6 +35,7 @@ export class an_identity_provider {
     setupSuccessfulIdentityFetch(id: string, name: string, details: object = {}) {
         this.fetchStub = this.fetchHelper.stubFetch();
         this.fetchStub.resolves({
+            ok: true,
             json: async () => ({ id, name, details })
         } as Response);
     }

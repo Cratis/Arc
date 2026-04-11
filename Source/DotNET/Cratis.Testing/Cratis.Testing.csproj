@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Testing</AssemblyName>
+        <RootNamespace>Cratis.Testing</RootNamespace>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <Description>Unified testing package for Cratis Arc applications with Chronicle event sourcing. Combines Cratis.Arc.Testing and Cratis.Arc.Chronicle.Testing into a single dependency.</Description>
+        <PackageTags>cratis;arc;chronicle;testing;commands;event-sourcing;cqrs</PackageTags>
+        <NoWarn>$(NoWarn);IDE0005</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Chronicle.Testing/Chronicle.Testing.csproj" />
+        <ProjectReference Include="../Testing/Testing.csproj" />
+    </ItemGroup>
+</Project>

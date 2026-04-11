@@ -13,6 +13,9 @@ export * from './WellKnownBindings';
 export * from './IHandleProps';
 export * from './IHandleParams';
 export * from './IHandleQueryParams';
+export * from './params';
+export * from './queryParams';
+export * from './props';
 
 export {
     browser,

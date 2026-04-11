@@ -7,8 +7,9 @@ import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
+import { resetSharedMultiplexer } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
-import { useRef } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**
  * Properties for the Arc context component.
@@ -46,6 +47,20 @@ export interface ArcProps {
  * @param props Props for configuring Arc
  */
 export const Arc = (props: ArcProps) => {
+    const [queryVersion, setQueryVersion] = useState(0);
+
+    // The cache is application-scoped — create once per Arc mount.
+    // Dispose is always deferred so React StrictMode re-mounts in any build environment
+    // can cancel it — preventing the synthetic unmount from destroying entries that child
+    // effects are about to re-acquire.
+    const queryInstanceCache = useRef(new QueryInstanceCache(props.development));
+
+    const reconnectQueries = useCallback(() => {
+        queryInstanceCache.current.teardownAllSubscriptions();
+        resetSharedMultiplexer();
+        setQueryVersion(v => v + 1);
+    }, []);
+
     const configuration: ArcConfiguration = {
         microservice: props.microservice ?? '',
         development: props.development ?? false,
@@ -56,6 +71,8 @@ export const Arc = (props: ArcProps) => {
         queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
         queryConnectionCount: props.queryConnectionCount ?? 1,
         queryDirectMode: props.queryDirectMode ?? false,
+        queryVersion,
+        reconnectQueries,
     };
 
     Bindings.initialize(
@@ -67,8 +84,15 @@ export const Arc = (props: ArcProps) => {
         configuration.queryConnectionCount,
         configuration.queryDirectMode);
 
-    // The cache is application-scoped — create once per Arc mount.
-    const queryInstanceCache = useRef(new QueryInstanceCache());
+    useEffect(() => {
+        const cache = queryInstanceCache.current;
+        cache.cancelPendingDispose();
+        return () => {
+            // Always defer so React StrictMode re-mounts in any build environment can
+            // cancel the dispose before the timeout fires.
+            cache.deferDispose();
+        };
+    }, []);
 
     return (
         <ArcContext.Provider value={configuration}>

@@ -170,6 +170,11 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
+        // The subscribe POST carries the latest cookies and headers, which the middleware
+        // already authenticated. Transfer the principal to the SSE connection context so the
+        // authorization pipeline sees the current identity — not the one from when the SSE
+        // GET was originally established (which may have been anonymous).
+        state.Context.User = context.User;
         httpRequestContextAccessor.Current = state.Context;
 
         logger.ClientSubscribed(body.Request.QueryName, body.QueryId);
@@ -179,6 +184,8 @@ public class ObservableQueryDemultiplexer(
         {
             existing.Dispose();
         }
+
+        var wasUnauthorized = false;
 
         var subscription = await CreateSubscription(
             state.Context,
@@ -196,10 +203,17 @@ public class ObservableQueryDemultiplexer(
             },
             async id =>
             {
+                wasUnauthorized = true;
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
                 await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
             },
             state.CancellationTokenSource.Token);
+
+        if (wasUnauthorized)
+        {
+            context.SetStatusCode(401);
+            return;
+        }
 
         if (subscription is not null)
         {

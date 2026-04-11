@@ -25,6 +25,7 @@ public record IntegrationTestReadModel(int Id, string Name, bool IsActive)
     /// </summary>
     /// <param name="dbContext">The database context.</param>
     /// <returns>An observable subject of entities.</returns>
+    [AllowAnonymous]
     public static ISubject<IEnumerable<IntegrationTestReadModel>> AllEntities(IntegrationTestDbContext dbContext)
     {
         return dbContext.Entities
@@ -37,6 +38,7 @@ public record IntegrationTestReadModel(int Id, string Name, bool IsActive)
     /// </summary>
     /// <param name="dbContext">The database context.</param>
     /// <returns>An observable subject of active entities.</returns>
+    [AllowAnonymous]
     public static ISubject<IEnumerable<IntegrationTestReadModel>> ActiveEntities(IntegrationTestDbContext dbContext)
     {
         return dbContext.Entities

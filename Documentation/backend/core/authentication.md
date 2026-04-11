@@ -26,6 +26,83 @@ Authentication handlers return an `AuthenticationResult` with one of three possi
 | **Failed** | Authentication failed with a reason | Return `AuthenticationResult.Failed(reason)` with a failure reason |
 | **Anonymous** | Handler cannot authenticate this request | Return `AuthenticationResult.Anonymous` to let other handlers try |
 
+## Microsoft Identity Platform (Azure)
+
+When deploying to Azure — Static Web Apps, Container Apps, App Service, or any platform that injects the [EasyAuth](https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization) headers — the framework provides a ready-made handler so you do not need to write one yourself.
+
+### ASP.NET Core (Arc package)
+
+Call `AddMicrosoftIdentityPlatformIdentityAuthentication()` during service registration:
+
+```csharp
+builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
+```
+
+This registers `MicrosoftIDentityPlatformAuthHandler`, which reads the standard EasyAuth headers:
+
+| Header | Purpose |
+|--------|---------|
+| `x-ms-client-principal-id` | User ID |
+| `x-ms-client-principal-name` | Display name |
+| `x-ms-client-principal` | Base64-encoded JSON payload with roles and claims |
+
+See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for the full setup guide, including how to test locally with a generated principal.
+
+### Arc.Core (non-ASP.NET Core)
+
+The `AddMicrosoftIdentityPlatformIdentityAuthentication()` extension is only available in the Arc ASP.NET Core package. If you are using `ArcApplication` (the non-ASP.NET Core host), implement `IAuthenticationHandler` directly to read the same EasyAuth headers:
+
+```csharp
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using Cratis.Arc.Authentication;
+using Cratis.Arc.Http;
+using Cratis.Arc.Identity;
+
+public class MicrosoftIdentityPlatformAuthenticationHandler : IAuthenticationHandler
+{
+    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
+    {
+        if (!context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.ClientPrincipalId, out var userId))
+        {
+            return Task.FromResult(AuthenticationResult.Anonymous);
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId)
+        };
+
+        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.ClientPrincipalName, out var userName))
+        {
+            claims.Add(new Claim(ClaimTypes.Name, userName));
+        }
+
+        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.ClientPrincipal, out var encoded))
+        {
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+            var principal = JsonSerializer.Deserialize<ClientPrincipal>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (principal is not null)
+            {
+                foreach (var role in principal.UserRoles ?? [])
+                    claims.Add(new Claim(ClaimTypes.Role, role));
+
+                foreach (var claim in principal.Claims ?? [])
+                    claims.Add(new Claim(claim.Typ, claim.Val));
+            }
+        }
+
+        var identity = new ClaimsIdentity(claims, "MicrosoftIdentityPlatform");
+        return Task.FromResult(AuthenticationResult.Succeeded(new ClaimsPrincipal(identity)));
+    }
+}
+```
+
+The handler is discovered automatically — no explicit registration required.
+
 ## Implementing an Authentication Handler
 
 Here's a basic example of implementing a custom authentication handler:

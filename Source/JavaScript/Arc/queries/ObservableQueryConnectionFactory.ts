@@ -87,9 +87,30 @@ function createDirectSSEConnection<TDataType>(descriptor: QueryConnectionDescrip
 
 // ---- Multiplexed mode: centralized endpoint, multiple queries share connections ----
 
+/**
+ * Maximum number of SSE hub connections that fits safely within the HTTP/1.1 browser
+ * per-origin connection limit (typically 6 for Chrome/Firefox). Each SSE EventSource
+ * occupies one persistent connection slot indefinitely. Exceeding this cap blocks the
+ * subscribe/unsubscribe POST requests that share the same pool, causing queries to hang.
+ * Servers configured for HTTP/2 do not have this restriction.
+ */
+const MAX_SAFE_SSE_CONNECTIONS = 4;
+
 function createMultiplexedConnection<TDataType>(descriptor: QueryConnectionDescriptor, isSSE: boolean): IObservableQueryConnection<TDataType> {
     const transport = isSSE ? 'sse' : 'ws';
-    const cacheKey = `${Globals.queryConnectionCount}|${transport}|${descriptor.origin}|${descriptor.apiBasePath}|${descriptor.microservice}`;
+    const requestedCount = Globals.queryConnectionCount;
+    const effectiveCount = isSSE ? Math.min(requestedCount, MAX_SAFE_SSE_CONNECTIONS) : requestedCount;
+
+    if (isSSE && requestedCount > MAX_SAFE_SSE_CONNECTIONS) {
+        console.warn(
+            `[Arc] queryConnectionCount (${requestedCount}) exceeds the safe limit for SSE transport (${MAX_SAFE_SSE_CONNECTIONS}). ` +
+            `HTTP/1.1 browsers allow at most 6 concurrent connections per origin; ` +
+            `using more SSE connections blocks subscribe/unsubscribe requests, causing queries to hang. ` +
+            `Capping at ${MAX_SAFE_SSE_CONNECTIONS}. Enable HTTP/2 on your server to use a higher connection count.`
+        );
+    }
+
+    const cacheKey = `${requestedCount}|${transport}|${descriptor.origin}|${descriptor.apiBasePath}|${descriptor.microservice}`;
 
     const multiplexer = getOrCreateMultiplexer(() => {
         if (isSSE) {
@@ -112,7 +133,7 @@ function createMultiplexedConnection<TDataType>(descriptor: QueryConnectionDescr
             const wsUrl = `${secure ? 'wss' : 'ws'}://${hubUrl.host}${hubUrl.pathname}${hubUrl.search}`;
             return new WebSocketHubConnection(wsUrl, descriptor.microservice);
         }
-    }, cacheKey);
+    }, cacheKey, effectiveCount);
 
     return new MultiplexedObservableQueryConnection<TDataType>(multiplexer, descriptor.queryName);
 }

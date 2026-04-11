@@ -95,6 +95,29 @@ The `ObservableQueryConnectionPool` picks the least-loaded slot round-robin when
 |------|------|---------|-------------|
 | `queryConnectionCount` | `number` | `1` | Number of hub connection slots maintained for observable queries. |
 
+#### SSE connection limit (HTTP/1.1)
+
+HTTP/1.1 browsers enforce a hard limit of **six simultaneous connections per origin**. Each SSE `EventSource` occupies one of those slots for as long as the page is open because the connection is kept alive indefinitely to receive server pushes. If all six slots are taken by `EventSource` connections, subscribe and unsubscribe POST requests cannot get a connection and queue indefinitely — queries appear to hang and produce no data.
+
+Arc automatically caps the number of SSE hub connections at **4** regardless of what `queryConnectionCount` is set to. This leaves two slots free for the subscribe/unsubscribe POST calls and for ordinary `fetch` requests. A `console.warn` is emitted at startup when the configured count exceeds this limit.
+
+```tsx
+// This is capped at 4 automatically when using SSE — a warning is logged.
+<Arc
+    microservice="my-app"
+    queryTransportMethod={QueryTransportMethod.ServerSentEvents}
+    queryConnectionCount={10}
+/>
+```
+
+The cap only applies to SSE. WebSocket connections do not consume HTTP/1.1 connection slots after the initial upgrade handshake, so `queryConnectionCount` is respected in full when using WebSocket transport.
+
+> **Enable HTTP/2 to remove the limit.** HTTP/2 multiplexes all requests over a single TCP connection, making the per-origin slot limit irrelevant. When your server supports HTTP/2, `queryConnectionCount` may be set to any value without risk of connection starvation.
+>
+> References:
+> - [HTTP/1.x connection management — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x)
+> - [Server-Sent Events — HTML Living Standard](https://html.spec.whatwg.org/multipage/server-sent-events.html)
+
 ## Props Reference
 
 | Prop | Type | Default | Description |
@@ -108,3 +131,4 @@ The `ObservableQueryConnectionPool` picks the least-loaded slot round-robin when
 - [Observable Query Hub](../../backend/queries/observable-query-hub.md) — Protocol reference, authorization semantics, and keep-alive configuration on the backend.
 - [Query Instance Caching](./query-instance-caching.md) — How query instances are deduplicated and last-known results cached across components.
 - [Queries](./queries.md) — General query hooks and usage patterns.
+- [Vite Configuration](./vite-configuration.md) — Required Vite proxy settings for WebSocket transport in development.

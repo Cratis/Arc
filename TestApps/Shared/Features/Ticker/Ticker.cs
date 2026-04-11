@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace TestApps.Features.Ticker;
@@ -12,6 +13,7 @@ namespace TestApps.Features.Ticker;
 /// <param name="Count">The current count value.</param>
 /// <param name="LastUpdated">The timestamp of the last update.</param>
 [ReadModel]
+[AllowAnonymous]
 public record Ticker(int Count, DateTimeOffset LastUpdated)
 {
     static readonly BehaviorSubject<Ticker> _subject = new(new Ticker(0, DateTimeOffset.UtcNow));

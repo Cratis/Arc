@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands.ModelBound;
 
 namespace TestApps.Features.LiveFeed;
@@ -12,7 +13,9 @@ namespace TestApps.Features.LiveFeed;
 /// Demonstrates a model-bound command whose side effect is observed in real time through the
 /// centralized SSE hub (<c>/.cratis/queries/sse</c>) via the <see cref="LiveFeed"/> read model.
 /// </remarks>
-[Command]
+/// <param name="Author">The author of the message.</param>
+/// <param name="Text">The message text.</param>
+[Command, AllowAnonymous]
 public record PostToFeed(string Author, string Text)
 {
     /// <summary>
