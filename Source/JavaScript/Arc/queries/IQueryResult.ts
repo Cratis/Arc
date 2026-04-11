@@ -3,6 +3,7 @@
 
 import { ValidationResult } from '../validation/ValidationResult';
 import { PagingInfo } from './PagingInfo';
+import { ChangeSet } from './ChangeSet';
 
 /**
  * Defines the result from executing a query.
@@ -52,6 +53,13 @@ export interface IQueryResult<TDataType> {
      * Gets the stack trace if there was an exception.
      */
     readonly exceptionStackTrace: string;
+
+    /**
+     * Gets the optional change set describing what changed since the previous update.
+     * When present (server-side delta mode), clients apply the delta to local state instead
+     * of replacing the full dataset.
+     */
+    readonly changeSet?: ChangeSet<unknown>;
 
     /**
      * Gets whether or not the query has data.

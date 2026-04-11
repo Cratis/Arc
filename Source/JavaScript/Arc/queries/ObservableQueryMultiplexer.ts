@@ -107,6 +107,9 @@ export class ObservableQueryMultiplexer {
     private buildSubscriptionRequest(queryName: string, args?: object): SubscriptionRequest {
         const request: SubscriptionRequest = { queryName };
 
+        // Always include the transfer mode so the server knows which emission strategy to use.
+        request.transferMode = Globals.observableQueryTransferMode;
+
         if (!args) return request;
 
         const a = args as Record<string, any>;

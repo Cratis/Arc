@@ -5,6 +5,7 @@ import { ValidationResult } from '../validation/ValidationResult';
 import { IQueryResult } from './IQueryResult';
 import { PagingInfo } from './PagingInfo';
 import { QueryResult } from './QueryResult';
+import { ChangeSet } from './ChangeSet';
 
 /**
  * Represents a specialized {@link QueryResult<TDataType>} that holds state for its execution
@@ -51,6 +52,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
      * @param {string[]} exceptionMessages Any exception messages.
      * @param {string} exceptionStackTrace Exception stack trace, if any.
      * @param {boolean} isPerforming Whether or not the query is being performed. True if its performing, false if it is done.
+     * @param {ChangeSet<unknown> | undefined} changeSet Optional change set from the server describing the delta since the last update.
      */
     constructor(
         readonly data: TDataType,
@@ -62,7 +64,8 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
         readonly hasExceptions: boolean,
         readonly exceptionMessages: string[],
         readonly exceptionStackTrace: string,
-        readonly isPerforming: boolean) {
+        readonly isPerforming: boolean,
+        readonly changeSet?: ChangeSet<unknown>) {
     }
 
     /** @inheritdoc */
@@ -90,6 +93,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
             queryResult.hasExceptions,
             queryResult.exceptionMessages,
             queryResult.exceptionStackTrace,
-            isPerforming);
+            isPerforming,
+            queryResult.changeSet);
     }
 }

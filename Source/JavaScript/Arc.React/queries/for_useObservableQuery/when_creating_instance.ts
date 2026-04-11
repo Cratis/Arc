@@ -6,7 +6,7 @@ import { render, act } from '@testing-library/react';
 import { useObservableQuery } from '../useObservableQuery';
 import { FakeObservableQuery } from './FakeObservableQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { QueryResult, QueryInstanceCache } from '@cratis/arc/queries';
+import { QueryInstanceCache, QueryResult } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -15,12 +15,14 @@ describe('when creating instance', () => {
     let capturedIsPerformingInitial: boolean | null = null;
     let capturedIsPerformingAfterResponse: boolean | null = null;
     let renderCount = 0;
+    let cache: QueryInstanceCache;
 
     beforeEach(() => {
         FakeObservableQuery.reset();
         capturedIsPerformingInitial = null;
         capturedIsPerformingAfterResponse = null;
         renderCount = 0;
+        cache = new QueryInstanceCache();
     });
 
     const config: ArcConfiguration = {
@@ -44,7 +46,7 @@ describe('when creating instance', () => {
         render(
             React.createElement(
                 QueryInstanceCacheContext.Provider,
-                { value: new QueryInstanceCache() },
+                { value: cache },
                 React.createElement(
                     ArcContext.Provider,
                     { value: config },
@@ -73,7 +75,7 @@ describe('when creating instance', () => {
         render(
             React.createElement(
                 QueryInstanceCacheContext.Provider,
-                { value: new QueryInstanceCache() },
+                { value: cache },
                 React.createElement(
                     ArcContext.Provider,
                     { value: config },

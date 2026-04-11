@@ -4,6 +4,8 @@
   href: model-bound/toc.yml
 - name: Observable Query Demultiplexer
   href: observable-query-demultiplexer.md
+- name: Change Stream
+  href: change-stream.md
 - name: Query Pipeline
   href: query-pipeline.md
 - name: Validation

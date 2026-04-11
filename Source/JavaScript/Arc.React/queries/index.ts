@@ -14,6 +14,7 @@ export * from './QueryWhen';
 export * from './SetPage';
 export * from './SetPageSize';
 export * from './SetSorting';
+export * from './useChangeStream';
 export * from './useObservableQuery';
 export * from './useQuery';
 export * from './useSuspenseObservableQuery';

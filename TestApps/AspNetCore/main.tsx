@@ -7,6 +7,7 @@ import { Arc, ArcContext } from '@cratis/arc.react';
 import { useIdentity } from '@cratis/arc.react/identity';
 import { App, Page } from '../Shared/App';
 import { QueryTransportMethod } from '../../Source/JavaScript/Arc/queries/QueryTransportMethod';
+import { ObservableQueryTransferMode } from '../../Source/JavaScript/Arc/Globals';
 
 const encodeClientPrincipal = (userId: string, userName: string, roles: string): string => {
     const rolesList = roles.split(',').filter(r => r.trim()).map(r => r.trim());
@@ -70,6 +71,7 @@ const Root = () => {
     const [transport, setTransport] = useState<QueryTransportMethod>(QueryTransportMethod.WebSocket);
     const [connectionCount, setConnectionCount] = useState(1);
     const [directMode, setDirectMode] = useState(false);
+    const [transferMode, setTransferMode] = useState<ObservableQueryTransferMode>(ObservableQueryTransferMode.Delta);
     const [loggedIn, setLoggedIn] = useState(false);
     const [userId, setUserId] = useState('demo-user');
     const [userName, setUserName] = useState('Demo User');
@@ -85,12 +87,14 @@ const Root = () => {
         newUserId: string,
         newUserName: string,
         newRoles: string,
+        newTransferMode: ObservableQueryTransferMode = transferMode,
     ) => {
-        const configChanged = newTransport !== transport || newCount !== connectionCount || newDirect !== directMode;
+        const configChanged = newTransport !== transport || newCount !== connectionCount || newDirect !== directMode || newTransferMode !== transferMode;
 
         setTransport(newTransport);
         setConnectionCount(newCount);
         setDirectMode(newDirect);
+        setTransferMode(newTransferMode);
         setLoggedIn(newLoggedIn);
         setUserId(newUserId);
         setUserName(newUserName);
@@ -140,6 +144,13 @@ const Root = () => {
                     Direct mode
                 </label>
                 <label>
+                    Transfer mode{' '}
+                    <select value={transferMode} onChange={event => apply(transport, connectionCount, directMode, loggedIn, userId, userName, roles, event.target.value as ObservableQueryTransferMode)}>
+                        <option value={ObservableQueryTransferMode.Delta}>Delta</option>
+                        <option value={ObservableQueryTransferMode.Full}>Full</option>
+                    </select>
+                </label>
+                <label>
                     <input type="checkbox" checked={loggedIn} onChange={event => apply(transport, connectionCount, directMode, event.target.checked, userId, userName, roles)} />{' '}
                     Logged in
                 </label>
@@ -162,6 +173,7 @@ const Root = () => {
                 queryTransportMethod={transport}
                 queryConnectionCount={connectionCount}
                 queryDirectMode={directMode}
+                observableQueryTransferMode={transferMode}
                 httpHeadersCallback={httpHeadersCallback}
             >
                 <AuthBridge loggedIn={loggedIn} userId={userId} userName={userName} roles={roles} />

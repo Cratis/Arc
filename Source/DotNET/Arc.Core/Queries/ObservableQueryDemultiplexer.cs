@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
@@ -8,6 +9,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
+using Cratis.Execution;
 using Cratis.Reflection;
 using Cratis.Strings;
 using Microsoft.Extensions.Hosting;
@@ -51,6 +53,7 @@ public class ObservableQueryDemultiplexer(
     const int WebSocketBufferSize = 1024 * 4;
 
     readonly ConcurrentDictionary<string, SSEConnectionState> _sseConnections = new();
+    readonly ChangeSetComputor _changeSetComputor = new(arcOptions.Value.JsonSerializerOptions);
 
     /// <inheritdoc/>
     public async Task HandleWebSocketConnection(IHttpRequestContext context)
@@ -453,6 +456,7 @@ public class ObservableQueryDemultiplexer(
             // Non-streaming result — send current snapshot and return null (no long-lived subscription)
             var queryResultWithData = new QueryResult
             {
+                CorrelationId = queryResult.CorrelationId,
                 Data = queryResult.Data,
                 IsAuthorized = true,
                 ValidationResults = [],
@@ -465,13 +469,15 @@ public class ObservableQueryDemultiplexer(
             return null;
         }
 
-        return SubscribeToStreamingData(streamingData, queryId, queryResult.Paging, onNext, onError, token);
+        return SubscribeToStreamingData(streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, onNext, onError, token);
     }
 
     IDisposable? SubscribeToStreamingData(
         object streamingData,
         string queryId,
         PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
         CancellationToken token)
@@ -480,12 +486,12 @@ public class ObservableQueryDemultiplexer(
 
         if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
         {
-            return SubscribeToSubject(streamingData, type, queryId, paging, onNext, onError, token);
+            return SubscribeToSubject(streamingData, type, queryId, paging, transferMode, correlationId, onNext, onError, token);
         }
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
         {
-            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, onNext, onError, token);
+            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, correlationId, onNext, onError, token);
         }
 
         return null;
@@ -496,6 +502,8 @@ public class ObservableQueryDemultiplexer(
         Type subjectType,
         string queryId,
         PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
         CancellationToken token)
@@ -508,17 +516,23 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        return (IDisposable)method.Invoke(this, [subject, queryId, paging, onNext, onError, token])!;
+        return (IDisposable)method.Invoke(this, [subject, queryId, paging, transferMode, correlationId, onNext, onError, token])!;
     }
 
     IDisposable SubscribeToSubjectOfType<T>(
         ISubject<T> subject,
         string queryId,
         PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
         CancellationToken token)
     {
+        IEnumerable<object>? previousItems = null;
+        var isDeltaMode = string.Equals(transferMode, "delta", StringComparison.OrdinalIgnoreCase);
+        var isFullMode = string.Equals(transferMode, "full", StringComparison.OrdinalIgnoreCase);
+
         return subject.Subscribe(
             data =>
             {
@@ -527,15 +541,41 @@ public class ObservableQueryDemultiplexer(
                     return;
                 }
 
+                var isFirstEmission = previousItems is null;
+
+                // Compute ChangeSet for enumerable results (excludes single-item and string results).
+                // Delta mode: skip computation on first emission (full snapshot is sent instead).
+                // Full mode: skip computation entirely (client always receives the full snapshot).
+                ChangeSet? changeSet = null;
+                if (data is IEnumerable enumerable && data is not string)
+                {
+                    var currentItems = enumerable.Cast<object>().ToArray();
+                    if (!isFullMode && (!isDeltaMode || !isFirstEmission))
+                    {
+                        changeSet = _changeSetComputor.Compute(previousItems, currentItems);
+                    }
+
+                    previousItems = currentItems;
+                }
+
                 var queryContext = queryContextManager.Current;
                 var result = new QueryResult
                 {
-                    Data = data!,
+                    CorrelationId = correlationId,
+
+                    // Delta mode subsequent emissions omit Data; client reconstructs from ChangeSet.
+                    // First emission always includes the full snapshot regardless of mode.
+                    Data = isDeltaMode && !isFirstEmission ? null! : data!,
                     IsAuthorized = true,
                     ValidationResults = [],
                     ExceptionMessages = [],
                     ExceptionStackTrace = string.Empty,
-                    Paging = paging
+                    Paging = paging,
+
+                    // Delta mode first emission: no ChangeSet (full snapshot is the initial state).
+                    // Full mode: no ChangeSet (Data is always the complete current state).
+                    // Legacy/delta subsequent: include computed ChangeSet.
+                    ChangeSet = isFullMode || (isDeltaMode && isFirstEmission) ? null : changeSet
                 };
 
                 if (queryContext is not null)
@@ -569,6 +609,7 @@ public class ObservableQueryDemultiplexer(
         Type enumerableType,
         string queryId,
         PagingInfo paging,
+        CorrelationId correlationId,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
         CancellationToken token)
@@ -581,13 +622,14 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(StreamAsyncEnumerableOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        await (Task)method.Invoke(this, [enumerable, queryId, paging, onNext, onError, token])!;
+        await (Task)method.Invoke(this, [enumerable, queryId, paging, correlationId, onNext, onError, token])!;
     }
 
     async Task StreamAsyncEnumerableOfType<T>(
         IAsyncEnumerable<T> enumerable,
         string queryId,
         PagingInfo paging,
+        CorrelationId correlationId,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
         CancellationToken token)
@@ -603,6 +645,7 @@ public class ObservableQueryDemultiplexer(
 
                 var result = new QueryResult
                 {
+                    CorrelationId = correlationId,
                     Data = item!,
                     IsAuthorized = true,
                     ValidationResults = [],

@@ -5,6 +5,7 @@ import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { ValidationResult } from '../validation/ValidationResult';
 import { IQueryResult } from './IQueryResult';
 import { PagingInfo } from './PagingInfo';
+import { ChangeSet } from './ChangeSet';
 
 type ServerQueryResult = {
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -18,6 +19,16 @@ type ServerQueryResult = {
     exceptionMessages: string[];
     exceptionStackTrace: string;
     paging: ServerPagingInfo;
+    changeSet?: ServerChangeSet;
+}
+
+type ServerChangeSet = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    added: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    replaced: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    removed: any[];
 }
 
 type ServerValidationResult = {
@@ -132,6 +143,14 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         } else {
             this.data = (enumerable ? [] : null) as TDataType;
         }
+
+        if (enumerable && result.changeSet) {
+            this.changeSet = {
+                added: JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.added ?? []),
+                replaced: JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.replaced ?? []),
+                removed: JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.removed ?? []),
+            } as ChangeSet<unknown>;
+        }
     }
 
     /** @inheritdoc */
@@ -160,6 +179,14 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
 
     /** @inheritdoc */
     readonly exceptionStackTrace: string;
+
+    /**
+     * Gets the optional change set describing what changed since the previous update.
+     * Set by the server when the delta transfer mode is active.
+     * When present, clients can apply the delta to their local state rather than replacing
+     * the full dataset.
+     */
+    readonly changeSet?: ChangeSet<unknown>;
 
     /**
      * Gets whether or not the query has data.

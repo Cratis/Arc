@@ -4,6 +4,24 @@
 import { GetHttpHeaders } from './GetHttpHeaders';
 import { QueryTransportMethod } from './queries/QueryTransportMethod';
 
+/**
+ * Defines the transfer mode used for observable query subscriptions.
+ *
+ * - {@link ObservableQueryTransferMode.Delta} (default): Only the items that changed since
+ *   the previous update (added, replaced, removed) are exposed via {@code useChangeStream}.
+ *   The full collection state is still maintained internally by {@code useObservableQuery}.
+ *
+ * - {@link ObservableQueryTransferMode.Full}: Every update delivers the complete current
+ *   collection. The change set returned by {@code useChangeStream} treats the entire new
+ *   collection as {@code added} and the previous collection as {@code removed}.
+ */
+export enum ObservableQueryTransferMode {
+    /** Compute and expose only the items that changed since the previous update (default). */
+    Delta = 'delta',
+    /** Expose the full collection on every update. */
+    Full = 'full',
+}
+
 export interface IGlobals {
     microservice: string;
     apiBasePath: string;
@@ -25,6 +43,12 @@ export interface IGlobals {
      */
     queryDirectMode: boolean;
     /**
+     * Controls how observable query updates are transferred and exposed.
+     * {@link ObservableQueryTransferMode.Delta} (default) computes per-update deltas;
+     * {@link ObservableQueryTransferMode.Full} delivers the whole collection on every update.
+     */
+    observableQueryTransferMode: ObservableQueryTransferMode;
+    /**
      * Callback that returns custom HTTP headers to include in hub transport requests
      * (e.g. SSE subscribe/unsubscribe POST calls).
      */
@@ -40,5 +64,6 @@ export const Globals: IGlobals = {
     queryTransportMethod: QueryTransportMethod.WebSocket,
     queryConnectionCount: 1,
     queryDirectMode: false,
+    observableQueryTransferMode: ObservableQueryTransferMode.Delta,
     httpHeadersCallback: () => ({}),
 };

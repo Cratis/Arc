@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResultWithState, IObservableQueryFor, Sorting, Paging } from '@cratis/arc/queries';
+import { QueryResultWithState, IObservableQueryFor, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { SetSorting } from './SetSorting';
@@ -9,6 +9,38 @@ import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+
+/**
+ * Applies a server-provided {@link ChangeSet} to a snapshot array, producing the new state.
+ *
+ * Items are matched by the conventional `id` property when present (same strategy as the
+ * server-side {@code ChangeSetComputor}). Without an identity property, JSON-string equality
+ * is used as a fallback (additions and removals only — no replacements).
+ */
+function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
+    const getId = (item: unknown): unknown => (item as Record<string, unknown>)?.id;
+    const useIdentity = changeSet.removed.length > 0
+        ? getId(changeSet.removed[0]) !== undefined
+        : changeSet.replaced.length > 0;
+
+    let result: unknown[];
+
+    if (useIdentity) {
+        const removedIds = new Set(changeSet.removed.map(getId));
+        result = (previous as unknown[]).filter(item => !removedIds.has(getId(item)));
+
+        const replacedById = new Map(changeSet.replaced.map(item => [getId(item), item]));
+        result = result.map(item => {
+            const replacement = replacedById.get(getId(item));
+            return replacement !== undefined ? replacement : item;
+        });
+    } else {
+        const removedJsons = new Set(changeSet.removed.map(item => JSON.stringify(item)));
+        result = (previous as unknown[]).filter(item => !removedJsons.has(JSON.stringify(item)));
+    }
+
+    return [...result, ...changeSet.added] as T[];
+}
 
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
     if (requiredRequestParameters.length === 0) {
@@ -99,7 +131,34 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         // Only start a subscription if one does not already exist for this cache key.
         if (!queryCache.isSubscribed(key)) {
             const subscription = queryInstance.subscribe(response => {
-                const withState = QueryResultWithState.fromQueryResult(response, false);
+                let withState: QueryResultWithState<TDataType>;
+
+                if (response.changeSet && Array.isArray(response.data) && response.data.length === 0) {
+                    // Delta mode subsequent push: the server omits `data` (serialised as null → []).
+                    // Reconstruct the full collection by applying the ChangeSet to the previous state.
+                    const previousResult = queryCache.getLastResult<TDataType>(key);
+                    if (previousResult && Array.isArray(previousResult.data)) {
+                        const reconstructed = applyChangeSet(previousResult.data as unknown[], response.changeSet) as TDataType;
+                        withState = new QueryResultWithState<TDataType>(
+                            reconstructed,
+                            response.paging,
+                            response.isSuccess,
+                            response.isAuthorized,
+                            response.isValid,
+                            response.validationResults,
+                            response.hasExceptions,
+                            response.exceptionMessages,
+                            response.exceptionStackTrace,
+                            false,
+                            response.changeSet
+                        );
+                    } else {
+                        withState = QueryResultWithState.fromQueryResult(response, false);
+                    }
+                } else {
+                    withState = QueryResultWithState.fromQueryResult(response, false);
+                }
+
                 queryCache.setLastResult(key, withState);
             }, args as object);
 

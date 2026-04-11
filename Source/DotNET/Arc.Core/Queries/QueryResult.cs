@@ -62,6 +62,16 @@ public class QueryResult
     public string ExceptionStackTrace { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the optional change set describing what changed since the previous update.
+    /// </summary>
+    /// <remarks>
+    /// When set, the client may use this to apply delta updates to its local state instead of
+    /// replacing the full dataset. When <see langword="null"/>, the client must treat <see cref="Data"/>
+    /// as the complete current snapshot.
+    /// </remarks>
+    public ChangeSet? ChangeSet { get; set; }
+
+    /// <summary>
     /// Represents a successful command result.
     /// </summary>
     /// <param name="correlationId">The correlation ID.</param>

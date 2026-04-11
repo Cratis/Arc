@@ -31,6 +31,7 @@ The `<Arc />` component provides centralized configuration for all commands and 
 | basePath | String | Base path for the application |
 | apiBasePath | String | Base path prepended to all Command and Query requests |
 | httpHeadersCallback | Function | Optional callback function that returns additional HTTP headers to include with all commands, queries, and identity requests (e.g., for including cookies or authentication tokens) |
+| observableQueryTransferMode | `ObservableQueryTransferMode` | Controls how observable query updates are delivered to the `useChangeStream` hook. `Delta` (default) uses server-provided or client-computed deltas; `Full` treats every snapshot as a fresh batch of additions. |
 
 Example:
 
@@ -124,6 +125,28 @@ export const App = () => {
     );
 };
 ```
+
+## Observable Query Transfer Mode
+
+The `observableQueryTransferMode` prop controls how the `useChangeStream` hook processes incoming observable query updates. It sets a global default for all change-stream consumers in the application.
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+import { ObservableQueryTransferMode } from '@cratis/arc';
+
+export const App = () => (
+    <Arc observableQueryTransferMode={ObservableQueryTransferMode.Delta}>
+        {/* Your application */}
+    </Arc>
+);
+```
+
+| Value | Description |
+|-------|-------------|
+| `ObservableQueryTransferMode.Delta` | **(default)** Uses the server-provided `ChangeSet` when available. Falls back to client-side snapshot comparison when the server does not attach a change set. Only items that actually changed are reported as `added`, `replaced`, or `removed`. |
+| `ObservableQueryTransferMode.Full` | Treats every incoming snapshot as if all its items were just added. No diff is computed. Useful for debugging or for consumers that need the full collection on every tick. |
+
+See [Change Stream](./change-stream.md) for usage of `useChangeStream` and the generated `useChangeStream()` proxy method.
 
 ## HTTP Headers Callback
 

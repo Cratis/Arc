@@ -6,8 +6,9 @@ import { LiveFeedPage } from './Features/LiveFeed/LiveFeedPage';
 import { QueryShowcasePage } from './Features/QueryShowcase/QueryShowcasePage';
 import { ConditionalQueriesPage } from './Features/ConditionalQueries/ConditionalQueriesPage';
 import { AuthenticationQueriesPage } from './Features/AuthenticationQueries/AuthenticationQueriesPage';
+import { ChangeStreamPage } from './Features/ChangeStream/ChangeStreamPage';
 
-export type Page = 'authenticationqueries' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries';
+export type Page = 'authenticationqueries' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries' | 'changestream';
 
 interface AppProps {
     title: string;
@@ -53,12 +54,19 @@ export const App = ({ title, page, onPageChange: setPage }: AppProps) => {
                 >
                     Conditional Queries
                 </button>
+                <button
+                    onClick={() => setPage('changestream')}
+                    style={{ fontWeight: page === 'changestream' ? 'bold' : 'normal' }}
+                >
+                    Change Stream
+                </button>
             </nav>
             {page === 'authenticationqueries' && <AuthenticationQueriesPage />}
             {page === 'ticker' && <TickerPage />}
             {page === 'livefeed' && <LiveFeedPage />}
             {page === 'queryshowcase' && <QueryShowcasePage />}
             {page === 'conditionalqueries' && <ConditionalQueriesPage />}
+            {page === 'changestream' && <ChangeStreamPage />}
         </div>
     );
 };
