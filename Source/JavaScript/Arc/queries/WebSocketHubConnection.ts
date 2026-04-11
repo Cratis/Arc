@@ -45,6 +45,7 @@ export interface SubscriptionRequest {
     pageSize?: number;
     sortBy?: string;
     sortDirection?: string;
+    transferMode?: string;
 }
 
 interface ActiveSubscription {
