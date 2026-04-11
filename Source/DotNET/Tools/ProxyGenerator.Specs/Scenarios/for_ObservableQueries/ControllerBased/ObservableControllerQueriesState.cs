@@ -20,6 +20,10 @@ public class ObservableControllerQueriesState
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 }
     );
 
+    public BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> SingleItemCollectionSubject { get; } = new([
+        new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Controller Item", Value = 99 }
+    ]);
+
     public Dictionary<string, BehaviorSubject<IEnumerable<ObservableControllerQueryItem>>> CategorySubjects { get; } = [];
 
     public void Reset()
@@ -32,6 +36,10 @@ public class ObservableControllerQueriesState
 
         SingleItemSubject.OnNext(
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 });
+
+        SingleItemCollectionSubject.OnNext([
+            new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Controller Item", Value = 99 }
+        ]);
 
         CategorySubjects.Clear();
     }
