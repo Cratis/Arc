@@ -84,6 +84,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(typeof(IMongoServerResolver), mongoDBBuilder.ServerResolverType);
         services.AddSingleton(typeof(IMongoDatabaseNameResolver), mongoDBBuilder.DatabaseNameResolverType);
         services.AddSingleton<IMongoDBClientFactory, MongoDBClientFactory>();
+        services.AddSingleton<IMongoDBWatcher, MongoDBWatcher>();
         services.AddScoped(sp =>
         {
             // TODO: This will not work when multi tenant.
