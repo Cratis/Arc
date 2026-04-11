@@ -52,6 +52,15 @@ public class ObservableReadModel
     }
 
     /// <summary>
+    /// Gets a collection containing a single item as an observable stream.
+    /// </summary>
+    /// <returns>Observable collection with one read model.</returns>
+    public static ISubject<IEnumerable<ObservableReadModel>> ObserveSingleItemCollection() =>
+        new BehaviorSubject<IEnumerable<ObservableReadModel>>([
+            new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Observable Item", Value = 99 }
+        ]);
+
+    /// <summary>
     /// Gets a single item by ID as an observable stream.
     /// </summary>
     /// <param name="id">The ID to find.</param>

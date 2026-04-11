@@ -106,3 +106,4 @@ describe('when creating instance', () => {
         capturedIsPerformingAfterResponse!.should.be.false;
     });
 });
+

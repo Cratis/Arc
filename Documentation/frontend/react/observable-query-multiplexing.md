@@ -131,3 +131,4 @@ The cap only applies to SSE. WebSocket connections do not consume HTTP/1.1 conne
 - [Observable Query Hub](../../backend/queries/observable-query-hub.md) — Protocol reference, authorization semantics, and keep-alive configuration on the backend.
 - [Query Instance Caching](./query-instance-caching.md) — How query instances are deduplicated and last-known results cached across components.
 - [Queries](./queries.md) — General query hooks and usage patterns.
+- [Vite Configuration](./vite-configuration.md) — Required Vite proxy settings for WebSocket transport in development.

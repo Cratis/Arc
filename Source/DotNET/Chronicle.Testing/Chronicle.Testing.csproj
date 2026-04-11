@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Chronicle.Testing</AssemblyName>
+        <RootNamespace>Cratis.Arc.Chronicle.Testing</RootNamespace>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <Description>Testing utilities for Cratis Arc Chronicle applications, providing in-process event log infrastructure and Chronicle-specific assertion helpers for command scenarios.</Description>
+        <PackageTags>cratis;arc;chronicle;testing;commands;event-sourcing</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Chronicle/Chronicle.csproj" />
+        <ProjectReference Include="../Testing/Testing.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Cratis.Chronicle.Testing" />
+    </ItemGroup>
+</Project>

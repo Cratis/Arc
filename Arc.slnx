@@ -9,6 +9,9 @@
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
         <Project Path="Source\DotNET\Arc\Arc.csproj" />
         <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />
+        <Project Path="Source\DotNET\Testing\Testing.csproj" />
+        <Project Path="Source\DotNET\Chronicle.Testing\Chronicle.Testing.csproj" />
+        <Project Path="Source\DotNET\Cratis.Testing\Cratis.Testing.csproj" />
         <Project Path="Source\DotNET\Cratis\Cratis.csproj" />
         <Project Path="Source\DotNET\Chronicle\Chronicle.csproj" />
         <Project Path="Source\DotNET\Chronicle.Specs\Chronicle.Specs.csproj" />

@@ -34,6 +34,13 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     public ISubject<ObservableControllerQueryItem> ObserveSingle() => _state.SingleItemSubject;
 
     /// <summary>
+    /// Gets a collection containing a single item as an observable stream.
+    /// </summary>
+    /// <returns>Observable collection with one item.</returns>
+    [HttpGet("observe/single-item-collection")]
+    public ISubject<IEnumerable<ObservableControllerQueryItem>> ObserveSingleItemCollection() => _state.SingleItemCollectionSubject;
+
+    /// <summary>
     /// Gets a single item by ID as an observable stream.
     /// </summary>
     /// <param name="id">The item ID.</param>

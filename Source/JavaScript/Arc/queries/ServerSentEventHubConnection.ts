@@ -153,7 +153,16 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._policy.cancel();
         this._keepAlive.stop();
         this.clearConnectTimeout();
-        this._eventSource?.close();
+        if (this._eventSource) {
+            // Detach all handlers BEFORE closing so that the async onerror / onmessage
+            // events that fire after close() cannot observe the new _disconnected=false
+            // state set by an immediately following ensureConnected() call. Without this,
+            // a stale onerror triggers an unintended reconnect with exponential back-off.
+            this._eventSource.onopen = null;
+            this._eventSource.onmessage = null;
+            this._eventSource.onerror = null;
+            this._eventSource.close();
+        }
         this._eventSource = undefined;
         this._connectionId = undefined;
     }
