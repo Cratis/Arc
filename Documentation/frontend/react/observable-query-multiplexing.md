@@ -118,6 +118,31 @@ The cap only applies to SSE. WebSocket connections do not consume HTTP/1.1 conne
 > - [HTTP/1.x connection management — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x)
 > - [Server-Sent Events — HTML Living Standard](https://html.spec.whatwg.org/multipage/server-sent-events.html)
 
+### Controlling change-stream transfer mode
+
+The `observableQueryTransferMode` prop sets the global default for how the `useChangeStream` hook processes incoming updates.
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+import { ObservableQueryTransferMode } from '@cratis/arc';
+
+export const App = () => (
+    <Arc
+        microservice="my-app"
+        observableQueryTransferMode={ObservableQueryTransferMode.Delta}
+    >
+        <MyRoutes />
+    </Arc>
+);
+```
+
+| Value | Description |
+|-------|-------------|
+| `ObservableQueryTransferMode.Delta` | Default. Uses server-provided `ChangeSet` or falls back to client-side snapshot comparison. |
+| `ObservableQueryTransferMode.Full` | Treats every snapshot as a fresh batch of additions. |
+
+See [Change Stream](./change-stream.md) for a full explanation of the two modes.
+
 ## Props Reference
 
 | Prop | Type | Default | Description |
@@ -125,6 +150,7 @@ The cap only applies to SSE. WebSocket connections do not consume HTTP/1.1 conne
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for hub connections. |
 | `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub entirely. |
 | `queryConnectionCount` | `number` | `1` | Number of concurrent hub connections to maintain. |
+| `observableQueryTransferMode` | `ObservableQueryTransferMode` | `Delta` | Controls how `useChangeStream` processes incoming updates. |
 
 ## See also
 
