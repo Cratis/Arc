@@ -266,7 +266,7 @@ public class TestWebSocketClient : IDisposable
     /// </summary>
     class WebSocketDataMessage
     {
-        public Cratis.Arc.Queries.WebSocketMessageType? Type { get; set; }
+        public Queries.WebSocketMessageType? Type { get; set; }
         public JsonElement? Data { get; set; }
     }
 }
