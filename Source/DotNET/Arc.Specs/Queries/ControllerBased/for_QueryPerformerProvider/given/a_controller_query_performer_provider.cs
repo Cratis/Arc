@@ -43,7 +43,7 @@ public class a_controller_query_performer_provider : Specification
         _serviceProviderIsService.IsService(typeof(ITestEventStores)).Returns(true);
 
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
-        _authorizationEvaluator.IsAuthorized(Arg.Any<System.Reflection.MethodInfo>()).Returns(true);
+        _authorizationEvaluator.IsAuthorized(Arg.Any<MethodInfo>()).Returns(true);
 
         _provider = new QueryPerformerProvider(_actionDescriptorCollectionProvider, _serviceProviderIsService, _authorizationEvaluator);
     }

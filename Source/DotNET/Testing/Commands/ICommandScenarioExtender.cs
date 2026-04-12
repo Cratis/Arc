@@ -11,7 +11,7 @@ namespace Cratis.Arc.Testing.Commands;
 /// <remarks>
 /// <para>
 /// Implementations are discovered automatically by <see cref="CommandScenario{TCommand}"/> at construction time
-/// using the <see cref="Cratis.Types.ITypes"/> type discovery system. Any class in any loaded assembly
+/// using the <see cref="Types.ITypes"/> type discovery system. Any class in any loaded assembly
 /// that implements this interface will be instantiated (via a parameterless constructor) and its
 /// <see cref="Extend"/> method called before the first command is executed.
 /// </para>
