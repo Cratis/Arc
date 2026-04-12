@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Testing.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.EventSequences;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         services.AddSingleton(Defaults.Instance.EventTypes);
         services.AddSingleton(eventScenario.EventLog);
         services.AddSingleton(eventScenario.EventSequence);
+        services.AddSingleton<IEventStore>(_ => new EventStoreForScenario(eventScenario));
 
         context[ContextKey] = eventScenario;
     }
