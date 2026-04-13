@@ -34,7 +34,7 @@ public static class IdentityEndpointMapper
             endpointName,
             "Get current user identity details",
             ["Cratis Identity"],
-            AllowAnonymous: false);
+            AllowAnonymous: true);
 
         mapper.MapGet(
             "/.cratis/me",
