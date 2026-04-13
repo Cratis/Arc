@@ -179,7 +179,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
                   .Append(readModel.FullyQualifiedTypeName)
                   .Append('.')
                   .Append(method)
-                  .Append("\"] = typeof(")
+                  .Append("\"] = typeof(global::")
                   .Append(readModel.FullyQualifiedTypeName)
                   .AppendLine("),");
             }
