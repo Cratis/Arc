@@ -65,7 +65,6 @@ If none of these are present, Chronicle creates a new `EventSourceId` so the com
 
 ```csharp
 using Cratis.Arc.Commands;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Keys;
 
@@ -151,4 +150,3 @@ public record CustomerDisplayNameChanged(EventSourceId CustomerId, string Displa
 ```
 
 If no metadata has `concurrency: true`, Chronicle does not include a concurrency scope when appending events.
-

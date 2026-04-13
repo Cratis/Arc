@@ -64,7 +64,6 @@ If none of these are present, Chronicle creates a new `EventSourceId` so the com
 
 ```csharp
 using Cratis.Arc.Commands;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Keys;
 
@@ -91,7 +90,6 @@ Use `[EventStreamId]` to assign a specific event stream id to a command, or impl
 
 ```csharp
 using Cratis.Arc.Commands;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
 [Command]
