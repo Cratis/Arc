@@ -9,6 +9,7 @@ Queries are used for retrieving data and are a key component of CQRS (Command Qu
 | ------- | ----------- |
 | [Controller based](./controller-based/index.md) | How to implement queries using controller-based approach. |
 | [Model Bound](./model-bound/index.md) | How to work with model-bound queries for simplified parameter handling. |
+| [Use Observable Queries with cURL](./using-observable-queries-with-curl.md) | How to inspect snapshots, wait for the first payload, stream SSE updates, and emulate long polling from plain HTTP clients. |
 | [Observable Query Hub](./observable-query-hub.md) | Composite real-time streaming over a single fixed WebSocket or SSE endpoint. |
 | [Query Pipeline](./query-pipeline.md) | Understanding the query pipeline and how queries are processed. |
 | [Authorization](../core/authorization.md) | How to use authorization attributes for role-based and policy-based authorization. |
