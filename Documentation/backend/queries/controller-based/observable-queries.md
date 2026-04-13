@@ -399,6 +399,8 @@ curl "https://localhost:5001/api/observable-controller-queries/observe/delayed-s
 
 This makes it easy to debug observable controller actions with cURL without switching to WebSockets or SSE.
 
+See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md) for snapshot, SSE, and long-polling workflows.
+
 ## Frontend Integration
 
 Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries.md):

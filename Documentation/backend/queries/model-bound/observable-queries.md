@@ -515,6 +515,8 @@ curl "https://localhost:5001/api/debit-account/observe-single?waitForFirstResult
 
 This is useful when debugging observable queries with cURL or any other plain HTTP client and you want the request to block until the first result is available.
 
+See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md) for snapshot, SSE, and long-polling workflows.
+
 ## Connection Management
 
 Arc automatically handles WebSocket connections for observable queries:
