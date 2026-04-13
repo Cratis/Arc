@@ -21,19 +21,45 @@ public static class HttpContextCorrelationIdExtensions
     /// </remarks>
     public static CorrelationId GetCorrelationId(this HttpContext httpContext)
     {
-        if (httpContext.Items.TryGetValue(Constants.CorrelationIdItemKey, out var correlationId))
+        if (TryGetCorrelationId(httpContext.Items.TryGetValue(Constants.CorrelationIdItemKey, out var correlationIdFromItems) ? correlationIdFromItems : null, out var correlationId))
         {
-            if (correlationId is Guid guid)
-            {
-                return new CorrelationId(guid);
-            }
+            return correlationId;
+        }
 
-            if (Guid.TryParse(correlationId?.ToString(), out var parsedGuid))
-            {
-                return new CorrelationId(parsedGuid);
-            }
+        if (TryGetCorrelationId(httpContext.Request.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
+        {
+            return correlationId;
+        }
+
+        if (TryGetCorrelationId(httpContext.Response.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
+        {
+            return correlationId;
         }
 
         return new CorrelationId(Guid.Empty);
+    }
+
+    static bool TryGetCorrelationId(object? value, out CorrelationId correlationId)
+    {
+        if (value is CorrelationId existingCorrelationId)
+        {
+            correlationId = existingCorrelationId;
+            return true;
+        }
+
+        if (value is Guid guid)
+        {
+            correlationId = new CorrelationId(guid);
+            return true;
+        }
+
+        if (Guid.TryParse(value?.ToString(), out var parsedGuid))
+        {
+            correlationId = new CorrelationId(parsedGuid);
+            return true;
+        }
+
+        correlationId = CorrelationId.NotSet;
+        return false;
     }
 }
