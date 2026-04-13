@@ -10,6 +10,7 @@ public class when_initializing_with_generated_metadata : Specification
 {
     QueryPerformerProvider _provider;
     ITypes _types;
+    IQueryMetadataRegistry _registry;
     IServiceProviderIsService _serviceProviderIsService;
     IAuthorizationEvaluator _authorizationEvaluator;
 
@@ -19,17 +20,18 @@ public class when_initializing_with_generated_metadata : Specification
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
 
-        QueryMetadataRegistry.ClearForTesting();
-        QueryMetadataRegistry.Register(new StubQueryMetadata(
-            new Dictionary<string, Type>
-            {
-                [$"{typeof(PublicReadModelWithValidQuery).FullName}.{nameof(PublicReadModelWithValidQuery.GetById)}"] = typeof(PublicReadModelWithValidQuery)
-            }));
+        _registry = Substitute.For<IQueryMetadataRegistry>();
+        _registry.All.Returns(
+        [
+            new StubQueryMetadata(
+                new Dictionary<string, Type>
+                {
+                    [$"{typeof(PublicReadModelWithValidQuery).FullName}.{nameof(PublicReadModelWithValidQuery.GetById)}"] = typeof(PublicReadModelWithValidQuery)
+                })
+        ]);
     }
 
-    void Because() => _provider = new QueryPerformerProvider(_types, _serviceProviderIsService, _authorizationEvaluator);
-
-    void Destroy() => QueryMetadataRegistry.ClearForTesting();
+    void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
     [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
     [Fact] void should_not_use_reflection_types() => _ = _types.DidNotReceive().All;

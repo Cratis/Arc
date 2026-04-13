@@ -10,6 +10,7 @@ public class a_query_performer_provider_with_no_metadata : Specification
 {
     protected QueryPerformerProvider _provider;
     protected ITypes _types;
+    protected IQueryMetadataRegistry _registry;
     protected IServiceProviderIsService _serviceProviderIsService;
     protected IAuthorizationEvaluator _authorizationEvaluator;
 
@@ -19,6 +20,7 @@ public class a_query_performer_provider_with_no_metadata : Specification
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
 
-        QueryMetadataRegistry.ClearForTesting();
+        _registry = Substitute.For<IQueryMetadataRegistry>();
+        _registry.All.Returns([]);
     }
 }

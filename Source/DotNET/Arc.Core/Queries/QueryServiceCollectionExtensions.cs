@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Queries;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.Extensions.Hosting;
@@ -18,6 +19,7 @@ public static class QueryServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCratisQueries(this IServiceCollection services)
     {
+        services.AddSingleton<IQueryMetadataRegistry, QueryMetadataRegistry>();
         services.AddSingleton<IQueryContextManager, QueryContextManager>();
         services.AddSingleton<IQueryPipeline, QueryPipeline>();
         services.AddSingleton<IQueryFilters, QueryFilters>();
