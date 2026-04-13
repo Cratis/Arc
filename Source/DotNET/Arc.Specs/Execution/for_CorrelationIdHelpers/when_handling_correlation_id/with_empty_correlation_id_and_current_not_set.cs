@@ -23,4 +23,5 @@ public class with_empty_correlation_id_and_current_not_set : given.a_correlation
     [Fact] void should_set_current_correlation_id() => _correlationIdModifier.Received(1).Modify(_currentCorrelationId);
     [Fact] void should_set_correlation_id_in_http_context_items() => _httpContextItems[Constants.CorrelationIdItemKey].ShouldEqual(_currentCorrelationId);
     [Fact] void should_set_correlation_id_in_request_header() => _headers.Received()[Constants.DefaultCorrelationIdHeader] = _currentCorrelationId.ToString();
+    [Fact] void should_set_correlation_id_in_response_header() => _responseHeaders.Received()[Constants.DefaultCorrelationIdHeader] = _currentCorrelationId.ToString();
 }

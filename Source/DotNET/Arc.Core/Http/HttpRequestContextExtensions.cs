@@ -28,20 +28,20 @@ public static class HttpRequestContextExtensions
         ICorrelationIdAccessor correlationIdAccessor,
         CorrelationIdOptions options)
     {
-        CorrelationId correlationId;
-        if (context.Headers.TryGetValue(options.HttpHeader, out var correlationIdString) &&
-            Guid.TryParse(correlationIdString, out var correlationIdValue))
+        var correlationIdString = context.Headers.TryGetValue(options.HttpHeader, out var value)
+            ? value
+            : null;
+        var correlationId = CorrelationIdResolver.ResolveOrCreate(correlationIdString, correlationIdAccessor);
+
+        if (correlationIdAccessor is ICorrelationIdModifier correlationIdModifier)
         {
-            correlationId = new CorrelationId(correlationIdValue);
+            correlationIdModifier.Modify(correlationId);
         }
         else
         {
-            correlationId = correlationIdAccessor.Current != CorrelationId.NotSet
-                ? correlationIdAccessor.Current
-                : CorrelationId.New();
+            CorrelationIdAccessor.SetCurrent(correlationId);
         }
 
-        CorrelationIdAccessor.SetCurrent(correlationId);
         context.SetResponseHeader(options.HttpHeader, correlationId.Value.ToString());
     }
 

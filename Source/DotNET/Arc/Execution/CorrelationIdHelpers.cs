@@ -18,29 +18,18 @@ public static class CorrelationIdHelpers
     /// <param name="options">The options for the correlation ID.</param>
     public static void HandleCorrelationId(this HttpContext httpContext, ICorrelationIdAccessor correlationIdAccessor, CorrelationIdOptions options)
     {
-        var correlationIdAsString = httpContext.Request.Headers[options.HttpHeader].ToString() ?? Guid.Empty.ToString();
-        CorrelationId correlationId;
-        var setCurrent = false;
-        if (string.IsNullOrEmpty(correlationIdAsString) ||
-            correlationIdAsString == Guid.Empty.ToString() ||
-            !Guid.TryParse(correlationIdAsString, out _))
+        var correlationIdAsString = httpContext.Request.Headers[options.HttpHeader].ToString();
+        var setCurrent = CorrelationIdResolver.TryGet(correlationIdAsString, out var correlationId);
+        if (!setCurrent)
         {
-            correlationId = correlationIdAccessor.Current;
-            if (correlationId == CorrelationId.NotSet)
-            {
-                correlationId = CorrelationId.New();
-                setCurrent = true;
-            }
+            correlationId = CorrelationIdResolver.ResolveOrCreate(null, correlationIdAccessor);
+            setCurrent = correlationIdAccessor.Current == CorrelationId.NotSet;
 
             correlationIdAsString = correlationId.ToString();
-            httpContext.Request.Headers[Constants.DefaultCorrelationIdHeader] = correlationIdAsString;
-        }
-        else
-        {
-            setCurrent = true;
-            correlationId = Guid.Parse(correlationIdAsString);
+            httpContext.Request.Headers[options.HttpHeader] = correlationIdAsString;
         }
 
+        httpContext.Response.Headers[options.HttpHeader] = correlationIdAsString;
         httpContext.Items[Constants.CorrelationIdItemKey] = correlationId;
 
         if (setCurrent)

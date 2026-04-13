@@ -25,51 +25,21 @@ public static class HttpContextCorrelationIdExtensions
             ? correlationIdValue
             : null;
 
-        if (TryGetCorrelationId(correlationIdFromItems, out var correlationId))
+        if (CorrelationIdResolver.TryGet(correlationIdFromItems, out var correlationId))
         {
             return correlationId;
         }
 
-        if (TryGetCorrelationId(httpContext.Request.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
+        if (CorrelationIdResolver.TryGet(httpContext.Request.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
         {
             return correlationId;
         }
 
-        if (TryGetCorrelationId(httpContext.Response.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
+        if (CorrelationIdResolver.TryGet(httpContext.Response.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
         {
             return correlationId;
         }
 
-        return new CorrelationId(Guid.Empty);
-    }
-
-    /// <summary>
-    /// Tries to create a <see cref="CorrelationId"/> from the provided value.
-    /// </summary>
-    /// <param name="value">The value that might represent a correlation ID.</param>
-    /// <param name="correlationId">The parsed <see cref="CorrelationId"/> when successful.</param>
-    /// <returns><see langword="true"/> if the value could be converted to a <see cref="CorrelationId"/>; otherwise <see langword="false"/>.</returns>
-    static bool TryGetCorrelationId(object? value, out CorrelationId correlationId)
-    {
-        if (value is CorrelationId existingCorrelationId)
-        {
-            correlationId = existingCorrelationId;
-            return true;
-        }
-
-        if (value is Guid guid)
-        {
-            correlationId = new CorrelationId(guid);
-            return true;
-        }
-
-        if (Guid.TryParse(value?.ToString(), out var parsedGuid))
-        {
-            correlationId = new CorrelationId(parsedGuid);
-            return true;
-        }
-
-        correlationId = CorrelationId.NotSet;
-        return false;
+        return CorrelationId.NotSet;
     }
 }
