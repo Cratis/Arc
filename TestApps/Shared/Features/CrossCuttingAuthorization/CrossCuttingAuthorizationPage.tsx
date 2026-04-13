@@ -44,6 +44,10 @@ export const CrossCuttingAuthorizationPage = () => {
                 The filters protect all commands and queries in <code>TestApps.Features.CrossCuttingAuthorization</code> and require
                 the <code>CrossCuttingAuthorization</code> role.
             </p>
+            <p>
+                The filter implementations live in <code>TestApps/Shared/Features/CrossCuttingAuthorization</code> so both TestApps use
+                the same cross-cutting authorization behavior.
+            </p>
 
             <section style={{ border: '1px solid #ddd', borderRadius: 6, padding: 16, marginBottom: 16 }}>
                 <h3 style={{ marginTop: 0 }}>Secured Query</h3>

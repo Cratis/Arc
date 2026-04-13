@@ -402,6 +402,40 @@ public class QueryLoggingFilter : IQueryFilter
 }
 ```
 
+### Namespace-Based Authorization Filters
+
+For cross-cutting authorization, apply one `IQueryFilter` to an entire namespace:
+
+```csharp
+using Cratis.Arc.Http;
+using Cratis.Arc.Queries;
+
+namespace MyApp.Features.Security;
+
+public class NamespaceAuthorizationQueryFilter(IHttpRequestContextAccessor requestContextAccessor) : IQueryFilter
+{
+    const string ProtectedNamespace = "MyApp.Features.Payments";
+    const string RequiredRole = "Payments";
+
+    public Task<QueryResult> OnPerform(QueryContext context)
+    {
+        var isProtectedQuery = context.Name.Value.StartsWith(ProtectedNamespace, StringComparison.Ordinal);
+        if (!isProtectedQuery)
+        {
+            return Task.FromResult(QueryResult.Success(context.CorrelationId));
+        }
+
+        var hasRole = requestContextAccessor.Current?.User.IsInRole(RequiredRole) ?? false;
+        return Task.FromResult(
+            hasRole
+                ? QueryResult.Success(context.CorrelationId)
+                : QueryResult.Unauthorized(context.CorrelationId));
+    }
+}
+```
+
+This lets you keep query methods clean while still enforcing authorization consistently across an entire feature area.
+
 All filters are automatically discovered and executed by the query pipeline. They run in registration order, and if any filter returns an unsuccessful result, the query execution stops.
 
 ## Query Result Metadata
