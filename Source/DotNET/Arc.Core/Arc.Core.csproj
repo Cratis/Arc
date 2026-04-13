@@ -26,8 +26,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
-                          OutputItemType="Analyzer" 
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
+        <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
+                          OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false" />
     </ItemGroup>
 </Project>

@@ -19,6 +19,7 @@ public class when_initializing_with_internal_read_model : Specification
         _types.All.Returns([typeof(InternalReadModel)]);
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
+        QueryMetadataRegistry.ClearForTesting();
     }
 
     void Because() => _provider = new QueryPerformerProvider(_types, _serviceProviderIsService, _authorizationEvaluator);

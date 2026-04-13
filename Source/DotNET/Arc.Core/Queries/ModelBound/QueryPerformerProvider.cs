@@ -24,7 +24,20 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
     public QueryPerformerProvider(ITypes types, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
     {
-        var readModelTypes = types.All.Where(t => t.IsReadModel());
+        IEnumerable<Type> readModelTypes;
+
+        var generatedMetadata = QueryMetadataRegistry.All.ToList();
+        if (generatedMetadata.Count > 0)
+        {
+            readModelTypes = generatedMetadata
+                .SelectMany(m => m.Queries.Values)
+                .Distinct();
+        }
+        else
+        {
+            readModelTypes = types.All.Where(t => t.IsReadModel());
+        }
+
         _performers = readModelTypes
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .Where(m => m.IsValidQueryFor(t))

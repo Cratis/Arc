@@ -1,0 +1,17 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Generators.Specs.Testing;
+using Microsoft.CodeAnalysis;
+
+namespace Cratis.Arc.Generators.for_QueryMetadataGenerator.when_generating_without_read_models;
+
+public class and_no_types_exist : Specification
+{
+    GeneratorDriverRunResult _result;
+
+    void Because() => _result = GeneratorTestHelper.RunGenerator(string.Empty);
+
+    [Fact] void should_not_generate_any_source() => _result.GeneratedTrees.Length.ShouldEqual(0);
+    [Fact] void should_have_no_diagnostics() => _result.Diagnostics.Length.ShouldEqual(0);
+}
