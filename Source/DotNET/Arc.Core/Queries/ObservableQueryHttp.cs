@@ -88,6 +88,15 @@ public static class ObservableQueryHttp
             return new(CreateSuccessResult(queryContext, currentValue), HttpStatusCode.OK);
         }
 
+        if (!options.WaitForFirstResult)
+        {
+            return new(
+                QueryResult.Error(
+                    queryContext.CorrelationId,
+                    $"Observable query has not produced its first result yet. Add '{WaitForFirstResultQueryStringKey}=true' to wait for the first observable query result."),
+                HttpStatusCode.Accepted);
+        }
+
         try
         {
             var observable = (IObservable<T>)streamingData;
@@ -130,11 +139,6 @@ public static class ObservableQueryHttp
                 value => taskCompletionSource.TrySetResult(new(false, false, value)),
                 exception => taskCompletionSource.TrySetException(exception),
                 () => taskCompletionSource.TrySetResult(new(false, true, default!))));
-
-            if (!options.WaitForFirstResult)
-            {
-                return await taskCompletionSource.Task.WaitAsync(cancellationToken);
-            }
 
             return await taskCompletionSource.Task.WaitAsync(options.WaitForFirstResultTimeout, cancellationToken);
         }
