@@ -4,7 +4,7 @@
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries;
 
-namespace AspNetCore.Features.CrossCuttingAuthorization;
+namespace TestApps.Features.CrossCuttingAuthorization;
 
 /// <summary>
 /// Represents a query filter that applies cross-cutting authorization to a feature namespace.
