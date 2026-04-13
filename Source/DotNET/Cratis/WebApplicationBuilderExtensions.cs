@@ -37,6 +37,8 @@ public static class WebApplicationBuilderExtensions
                 arcBuilder.WithChronicle(configureChronicleOptions, configureChronicleBuilder);
             });
 
+        builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
+
         return builder;
     }
 }
