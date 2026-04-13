@@ -27,16 +27,11 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         IEnumerable<Type> readModelTypes;
 
         var generatedMetadata = QueryMetadataRegistry.All.ToList();
-        if (generatedMetadata.Count > 0)
-        {
-            readModelTypes = generatedMetadata
+        readModelTypes = generatedMetadata.Count > 0
+            ? generatedMetadata
                 .SelectMany(m => m.Queries.Values)
-                .Distinct();
-        }
-        else
-        {
-            readModelTypes = types.All.Where(t => t.IsReadModel());
-        }
+                .Distinct()
+            : types.All.Where(t => t.IsReadModel());
 
         _performers = readModelTypes
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static)
