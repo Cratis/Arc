@@ -21,7 +21,11 @@ public static class HttpContextCorrelationIdExtensions
     /// </remarks>
     public static CorrelationId GetCorrelationId(this HttpContext httpContext)
     {
-        if (TryGetCorrelationId(httpContext.Items.TryGetValue(Constants.CorrelationIdItemKey, out var correlationIdFromItems) ? correlationIdFromItems : null, out var correlationId))
+        var correlationIdFromItems = httpContext.Items.TryGetValue(Constants.CorrelationIdItemKey, out var correlationIdValue)
+            ? correlationIdValue
+            : null;
+
+        if (TryGetCorrelationId(correlationIdFromItems, out var correlationId))
         {
             return correlationId;
         }
@@ -39,6 +43,12 @@ public static class HttpContextCorrelationIdExtensions
         return new CorrelationId(Guid.Empty);
     }
 
+    /// <summary>
+    /// Tries to create a <see cref="CorrelationId"/> from the provided value.
+    /// </summary>
+    /// <param name="value">The value that might represent a correlation ID.</param>
+    /// <param name="correlationId">The parsed <see cref="CorrelationId"/> when successful.</param>
+    /// <returns><see langword="true"/> if the value could be converted to a <see cref="CorrelationId"/>; otherwise <see langword="false"/>.</returns>
     static bool TryGetCorrelationId(object? value, out CorrelationId correlationId)
     {
         if (value is CorrelationId existingCorrelationId)
