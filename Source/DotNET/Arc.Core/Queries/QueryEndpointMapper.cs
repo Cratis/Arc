@@ -132,7 +132,9 @@ public static class QueryEndpointMapper
             SortByQueryStringKey,
             SortDirectionQueryStringKey,
             PageQueryStringKey,
-            PageSizeQueryStringKey
+            PageSizeQueryStringKey,
+            ObservableQueryHttp.WaitForFirstResultQueryStringKey,
+            ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
         };
 
         foreach (var kvp in context.Query)

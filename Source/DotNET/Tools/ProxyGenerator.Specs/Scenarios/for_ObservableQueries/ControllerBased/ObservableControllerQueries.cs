@@ -34,6 +34,13 @@ public class ObservableControllerQueriesController(ObservableControllerQueriesSt
     public ISubject<ObservableControllerQueryItem> ObserveSingle() => _state.SingleItemSubject;
 
     /// <summary>
+    /// Gets a single item as an observable stream that does not emit until updated.
+    /// </summary>
+    /// <returns>Observable item.</returns>
+    [HttpGet("observe/delayed-single")]
+    public ISubject<ObservableControllerQueryItem> ObserveDelayedSingle() => _state.DelayedSingleItemSubject;
+
+    /// <summary>
     /// Gets a collection containing a single item as an observable stream.
     /// </summary>
     /// <returns>Observable collection with one item.</returns>
