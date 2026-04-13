@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -20,7 +21,7 @@ public class EventStreamTypeValuesProvider : ICommandContextValuesProvider
         {
             return new CommandContextValues
             {
-                { WellKnownCommandContextKeys.EventStreamType, attribute.Value }
+                { WellKnownCommandContextKeys.EventStreamType, attribute.EventStreamType }
             };
         }
 

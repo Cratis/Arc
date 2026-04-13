@@ -17,7 +17,6 @@ Scopes concurrency to a specific event stream id within a stream type. Use this 
 
 ```csharp
 using Cratis.Arc.Commands;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -37,7 +36,6 @@ Scopes concurrency to a named stream type. Stream types group related streams â€
 
 ```csharp
 using Cratis.Arc.Commands;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
 [Command]
