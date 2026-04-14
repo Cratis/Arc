@@ -20,11 +20,17 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     /// Initializes a new instance of the <see cref="QueryPerformerProvider"/> class.
     /// </summary>
     /// <param name="types">The types to scan for read models.</param>
+    /// <param name="queryMetadataRegistry">The registry of compile-time generated query metadata.</param>
     /// <param name="serviceProviderIsService">Service to determine if a type is registered as a service.</param>
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
-    public QueryPerformerProvider(ITypes types, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
+    public QueryPerformerProvider(ITypes types, IQueryMetadataRegistry queryMetadataRegistry, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
     {
-        var readModelTypes = types.All.Where(t => t.IsReadModel());
+        IEnumerable<Type> readModelTypes;
+
+        var generatedMetadata = queryMetadataRegistry.All;
+        readModelTypes = generatedMetadata.Count > 0
+            ? generatedMetadata.Values.Distinct()
+            : types.All.Where(t => t.IsReadModel());
         _performers = readModelTypes
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .Where(m => m.IsValidQueryFor(t))

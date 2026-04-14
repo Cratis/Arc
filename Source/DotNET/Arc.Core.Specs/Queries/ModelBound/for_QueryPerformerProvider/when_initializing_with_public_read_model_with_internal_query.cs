@@ -10,6 +10,7 @@ public class when_initializing_with_public_read_model_with_internal_query : Spec
 {
     QueryPerformerProvider _provider;
     ITypes _types;
+    IQueryMetadataRegistry _registry;
     IServiceProviderIsService _serviceProviderIsService;
     IAuthorizationEvaluator _authorizationEvaluator;
 
@@ -19,9 +20,12 @@ public class when_initializing_with_public_read_model_with_internal_query : Spec
         _types.All.Returns([typeof(PublicReadModelWithInternalQuery)]);
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
+
+        _registry = Substitute.For<IQueryMetadataRegistry>();
+        _registry.All.Returns(new Dictionary<string, Type>());
     }
 
-    void Because() => _provider = new QueryPerformerProvider(_types, _serviceProviderIsService, _authorizationEvaluator);
+    void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
     [Fact] void should_have_no_performers() => _provider.Performers.Count().ShouldEqual(0);
 }
