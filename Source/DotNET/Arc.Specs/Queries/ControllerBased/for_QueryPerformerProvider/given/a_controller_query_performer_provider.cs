@@ -12,6 +12,7 @@ namespace Cratis.Arc.Queries.ControllerBased.for_QueryPerformerProvider.given;
 public class a_controller_query_performer_provider : Specification
 {
     public const string QueryName = "Cratis.Arc.Queries.ControllerBased.for_QueryPerformerProvider.given.TestController.AllEventStores";
+    public const string ActionResultQueryName = "Cratis.Arc.Queries.ControllerBased.for_QueryPerformerProvider.given.TestController.EventStoresAsActionResult";
 
     protected IActionDescriptorCollectionProvider _actionDescriptorCollectionProvider;
     protected IServiceProviderIsService _serviceProviderIsService;
@@ -36,8 +37,16 @@ public class a_controller_query_performer_provider : Specification
             MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AnonymousEventStores))!
         };
 
+        var descriptor3 = new ControllerActionDescriptor
+        {
+            ActionName = nameof(TestController.EventStoresAsActionResult),
+            ControllerName = nameof(TestController),
+            ControllerTypeInfo = typeof(TestController).GetTypeInfo(),
+            MethodInfo = typeof(TestController).GetMethod(nameof(TestController.EventStoresAsActionResult))!
+        };
+
         _actionDescriptorCollectionProvider = Substitute.For<IActionDescriptorCollectionProvider>();
-        _actionDescriptorCollectionProvider.ActionDescriptors.Returns(new ActionDescriptorCollection([descriptor1, descriptor2], 1));
+        _actionDescriptorCollectionProvider.ActionDescriptors.Returns(new ActionDescriptorCollection([descriptor1, descriptor2, descriptor3], 1));
 
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _serviceProviderIsService.IsService(typeof(ITestEventStores)).Returns(true);
