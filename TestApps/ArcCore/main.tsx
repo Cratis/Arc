@@ -9,6 +9,65 @@ import { App, Page } from '../Shared/App';
 import { QueryTransportMethod } from '@cratis/arc/queries';
 import { ObservableQueryTransferMode } from '@cratis/arc';
 
+const storageKeys = {
+    transport: 'arccore.transport',
+    connectionCount: 'arccore.connectionCount',
+    directMode: 'arccore.directMode',
+    transferMode: 'arccore.transferMode',
+    loggedIn: 'arccore.loggedIn',
+    userId: 'arccore.userId',
+    userName: 'arccore.userName',
+    roles: 'arccore.roles',
+};
+
+const getString = (key: string, fallback: string): string => {
+    const value = localStorage.getItem(key);
+    return value ?? fallback;
+};
+
+const getNumber = (key: string, fallback: number): number => {
+    const value = Number.parseInt(localStorage.getItem(key) ?? '', 10);
+    return Number.isNaN(value) ? fallback : value;
+};
+
+const getBoolean = (key: string, fallback: boolean): boolean => {
+    const value = localStorage.getItem(key);
+    if (value === null) {
+        return fallback;
+    }
+    return value === 'true';
+};
+
+const getTransport = (): QueryTransportMethod => {
+    const value = getString(storageKeys.transport, QueryTransportMethod.WebSocket);
+    return value === QueryTransportMethod.ServerSentEvents ? QueryTransportMethod.ServerSentEvents : QueryTransportMethod.WebSocket;
+};
+
+const getTransferMode = (): ObservableQueryTransferMode => {
+    const value = getString(storageKeys.transferMode, ObservableQueryTransferMode.Delta);
+    return value === ObservableQueryTransferMode.Full ? ObservableQueryTransferMode.Full : ObservableQueryTransferMode.Delta;
+};
+
+const persistSettings = (
+    transport: QueryTransportMethod,
+    connectionCount: number,
+    directMode: boolean,
+    transferMode: ObservableQueryTransferMode,
+    loggedIn: boolean,
+    userId: string,
+    userName: string,
+    roles: string,
+) => {
+    localStorage.setItem(storageKeys.transport, transport);
+    localStorage.setItem(storageKeys.connectionCount, connectionCount.toString());
+    localStorage.setItem(storageKeys.directMode, directMode.toString());
+    localStorage.setItem(storageKeys.transferMode, transferMode);
+    localStorage.setItem(storageKeys.loggedIn, loggedIn.toString());
+    localStorage.setItem(storageKeys.userId, userId);
+    localStorage.setItem(storageKeys.userName, userName);
+    localStorage.setItem(storageKeys.roles, roles);
+};
+
 const encodeClientPrincipal = (userId: string, userName: string, roles: string): string => {
     const rolesList = roles.split(',').filter(r => r.trim()).map(r => r.trim());
     const clientPrincipal = {
@@ -68,16 +127,25 @@ const AuthBridge = ({ loggedIn, userId, userName, roles }: { loggedIn: boolean; 
 };
 
 const Root = () => {
-    const [transport, setTransport] = useState<QueryTransportMethod>(QueryTransportMethod.WebSocket);
-    const [connectionCount, setConnectionCount] = useState(1);
-    const [directMode, setDirectMode] = useState(false);
-    const [transferMode, setTransferMode] = useState<ObservableQueryTransferMode>(ObservableQueryTransferMode.Delta);
-    const [loggedIn, setLoggedIn] = useState(false);
-    const [userId, setUserId] = useState('demo-user');
-    const [userName, setUserName] = useState('Demo User');
-    const [roles, setRoles] = useState('User');
+    const [transport, setTransport] = useState<QueryTransportMethod>(() => getTransport());
+    const [connectionCount, setConnectionCount] = useState(() => Math.max(1, Math.min(10, getNumber(storageKeys.connectionCount, 1))));
+    const [directMode, setDirectMode] = useState(() => getBoolean(storageKeys.directMode, false));
+    const [transferMode, setTransferMode] = useState<ObservableQueryTransferMode>(() => getTransferMode());
+    const [loggedIn, setLoggedIn] = useState(() => getBoolean(storageKeys.loggedIn, false));
+    const [userId, setUserId] = useState(() => getString(storageKeys.userId, 'demo-user'));
+    const [userName, setUserName] = useState(() => getString(storageKeys.userName, 'Demo User'));
+    const [roles, setRoles] = useState(() => getString(storageKeys.roles, 'User'));
     const [configKey, setConfigKey] = useState(0);
     const [page, setPage] = useState<Page>('authenticationqueries');
+
+    useEffect(() => {
+        if (loggedIn) {
+            setAuthCookie(userId, userName, roles);
+        } else {
+            // Ensure browser auth state is deterministic on load and refresh.
+            clearAuthCookie();
+        }
+    }, []);
 
     const apply = (
         newTransport: QueryTransportMethod,
@@ -105,6 +173,8 @@ const Root = () => {
         } else {
             clearAuthCookie();
         }
+
+        persistSettings(newTransport, newCount, newDirect, newTransferMode, newLoggedIn, newUserId, newUserName, newRoles);
 
         if (configChanged) {
             setConfigKey(current => current + 1);
