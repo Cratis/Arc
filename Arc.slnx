@@ -7,6 +7,7 @@
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis\Arc.Core.CodeAnalysis.csproj" />
         <Project Path="Source/DotNET/Swagger.Specs/Swagger.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.Generators\Arc.Core.Generators.csproj" />
         <Project Path="Source\DotNET\Arc\Arc.csproj" />
         <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />
         <Project Path="Source\DotNET\Testing\Testing.csproj" />
