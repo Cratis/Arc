@@ -35,3 +35,18 @@ public class PublicReadModelWithInternalQuery
         return new PublicReadModelWithInternalQuery { Id = id, Value = "Internal query result" };
     }
 }
+
+/// <summary>
+/// Public read model with internal query method for testing.
+/// </summary>
+[ReadModel]
+public class PublicReadModelWithValidQuery
+{
+    public Guid Id { get; set; }
+    public string Value { get; set; } = string.Empty;
+
+    public static PublicReadModelWithValidQuery GetById(Guid id)
+    {
+        return new PublicReadModelWithValidQuery { Id = id, Value = "Valid query result" };
+    }
+}
