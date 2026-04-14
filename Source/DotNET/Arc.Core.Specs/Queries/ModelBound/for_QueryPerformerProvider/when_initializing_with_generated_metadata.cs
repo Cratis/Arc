@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries.ModelBound.for_QueryPerformerProvider;
 
-public class when_initializing_with_internal_read_model : Specification
+public class when_initializing_with_generated_metadata : Specification
 {
     QueryPerformerProvider _provider;
     ITypes _types;
@@ -17,15 +17,19 @@ public class when_initializing_with_internal_read_model : Specification
     void Establish()
     {
         _types = Substitute.For<ITypes>();
-        _types.All.Returns([typeof(InternalReadModel)]);
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
 
         _registry = Substitute.For<IQueryMetadataRegistry>();
-        _registry.All.Returns(new Dictionary<string, Type>());
+        _registry.All.Returns(
+            new Dictionary<string, Type>
+            {
+                [$"{typeof(PublicReadModelWithValidQuery).FullName}.{nameof(PublicReadModelWithValidQuery.GetById)}"] = typeof(PublicReadModelWithValidQuery)
+            });
     }
 
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
-    [Fact] void should_have_no_performers() => _provider.Performers.Count().ShouldEqual(0);
+    [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
+    [Fact] void should_not_use_reflection_types() => _ = _types.DidNotReceive().All;
 }

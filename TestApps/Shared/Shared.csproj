@@ -13,6 +13,8 @@
     <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
     <CratisProxiesSkipCommandNameInRoute>true</CratisProxiesSkipCommandNameInRoute>
     <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>obj/Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
