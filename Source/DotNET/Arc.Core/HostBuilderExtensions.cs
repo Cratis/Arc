@@ -73,6 +73,8 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
     public static IServiceCollection AddCratisArcCore(this IServiceCollection services)
     {
+        GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
+
         Internals.Types = Types.Types.Instance;
         Internals.Types.RegisterTypeConvertersForConcepts();
         Internals.DerivedTypes = DerivedTypes.Instance;

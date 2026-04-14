@@ -9,7 +9,7 @@ namespace Cratis.Arc.Queries.ModelBound;
 public interface IQueryMetadataRegistry
 {
     /// <summary>
-    /// Gets all registered <see cref="IQueryMetadata"/> instances.
+    /// Gets all registered query mappings from fully qualified query name to read model type.
     /// </summary>
-    IEnumerable<IQueryMetadata> All { get; }
+    IDictionary<string, Type> All { get; }
 }

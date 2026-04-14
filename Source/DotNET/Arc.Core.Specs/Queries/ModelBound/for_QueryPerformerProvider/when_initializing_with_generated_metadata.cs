@@ -22,13 +22,10 @@ public class when_initializing_with_generated_metadata : Specification
 
         _registry = Substitute.For<IQueryMetadataRegistry>();
         _registry.All.Returns(
-        [
-            new StubQueryMetadata(
-                new Dictionary<string, Type>
-                {
-                    [$"{typeof(PublicReadModelWithValidQuery).FullName}.{nameof(PublicReadModelWithValidQuery.GetById)}"] = typeof(PublicReadModelWithValidQuery)
-                })
-        ]);
+            new Dictionary<string, Type>
+            {
+                [$"{typeof(PublicReadModelWithValidQuery).FullName}.{nameof(PublicReadModelWithValidQuery.GetById)}"] = typeof(PublicReadModelWithValidQuery)
+            });
     }
 
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);

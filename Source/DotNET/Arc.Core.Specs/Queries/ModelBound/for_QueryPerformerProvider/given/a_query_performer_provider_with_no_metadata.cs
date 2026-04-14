@@ -21,6 +21,6 @@ public class a_query_performer_provider_with_no_metadata : Specification
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
 
         _registry = Substitute.For<IQueryMetadataRegistry>();
-        _registry.All.Returns([]);
+        _registry.All.Returns(new Dictionary<string, Type>());
     }
 }

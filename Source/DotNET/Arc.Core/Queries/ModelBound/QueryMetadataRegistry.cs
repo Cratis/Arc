@@ -15,15 +15,16 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// </remarks>
 public class QueryMetadataRegistry : IQueryMetadataRegistry
 {
-    static readonly ConcurrentBag<IQueryMetadata> _metadata = [];
+    static readonly ConcurrentDictionary<string, Type> _queries = [];
 
     /// <inheritdoc/>
-    public IEnumerable<IQueryMetadata> All => _metadata;
+    public IDictionary<string, Type> All => _queries;
 
     /// <summary>
-    /// Registers a <see cref="IQueryMetadata"/> instance.
+    /// Registers a query mapping if it has not already been registered.
     /// </summary>
-    /// <param name="metadata">The metadata to register.</param>
-    public static void Register(IQueryMetadata metadata) => _metadata.Add(metadata);
+    /// <param name="queryName">The fully qualified query name.</param>
+    /// <param name="readModelType">The read model type for the query.</param>
+    public static void Register(string queryName, Type readModelType) => _queries.TryAdd(queryName, readModelType);
 }
 
