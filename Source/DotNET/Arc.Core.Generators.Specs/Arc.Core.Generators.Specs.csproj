@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Core.Generators.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Generators</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <NoWarn>$(NoWarn);MA0101;RCS1266;MA0136</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Remove="../GlobalUsings.Specs.cs" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj" />
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>
