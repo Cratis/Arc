@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.201" />
     <!-- System -->
     <PackageVersion Include="System.Collections.Immutable" Version="10.0.5" />
-    <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.5" />
+    <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.6" />
     <PackageVersion Include="System.Text.Json" Version="10.0.6" />
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
     <!-- Third Party -->
