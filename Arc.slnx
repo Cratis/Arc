@@ -9,6 +9,7 @@
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Generators\Arc.Core.Generators.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Generators.Specs\Arc.Core.Generators.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.Generators.Integration\Specs\Specs.csproj" />
         <Project Path="Source\DotNET\Arc\Arc.csproj" />
         <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />
         <Project Path="Source\DotNET\Testing\Testing.csproj" />
