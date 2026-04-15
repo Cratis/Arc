@@ -32,7 +32,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
             ? generatedMetadata.Values.Distinct()
             : types.All.Where(t => t.IsReadModel());
         _performers = readModelTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                 .Where(m => m.IsValidQueryFor(t))
                 .Select(m => new ModelBoundQueryPerformer(t, m, serviceProviderIsService, authorizationEvaluator)))
             .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
