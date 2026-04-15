@@ -28,9 +28,18 @@
     <ItemGroup>
         <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
                           OutputItemType="Analyzer" 
-                          ReferenceOutputAssembly="false" />
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
         <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
                           OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false" />
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../Arc.Core.Generators/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.Generators.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
     </ItemGroup>
 </Project>
