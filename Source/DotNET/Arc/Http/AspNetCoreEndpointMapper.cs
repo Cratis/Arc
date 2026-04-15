@@ -26,6 +26,8 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         Delegate requestHandler = async (HttpContext httpContext) =>
         {
             var context = new AspNetCoreHttpRequestContext(httpContext);
+            var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+            accessor.Current = context;
             await handler(context);
         };
 
@@ -40,6 +42,8 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         Delegate requestHandler = async (HttpContext httpContext) =>
         {
             var context = new AspNetCoreHttpRequestContext(httpContext);
+            var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+            accessor.Current = context;
             await handler(context);
         };
 
