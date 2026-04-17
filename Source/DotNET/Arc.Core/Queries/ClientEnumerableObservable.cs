@@ -24,6 +24,7 @@ public class ClientEnumerableObservable<T>(
     {
         var webSocket = await context.WebSockets.AcceptWebSocket();
         using var cts = new CancellationTokenSource();
+        using var writeLock = new SemaphoreSlim(1, 1);
         var tsc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
 
@@ -40,7 +41,7 @@ public class ClientEnumerableObservable<T>(
                     }
 
                     queryResult.Data = item;
-                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
+                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                     if (error is null)
                     {
                         continue;
@@ -65,7 +66,7 @@ public class ClientEnumerableObservable<T>(
             }
         });
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
+        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, cts.Token);
         await cts.CancelAsync();
         await tsc.Task;
     }

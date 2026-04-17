@@ -21,7 +21,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
     const int BufferSize = 1024 * 4;
 
     /// <inheritdoc/>
-    public async Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token)
+    public async Task HandleIncomingMessages(IWebSocket webSocket, SemaphoreSlim writeLock, CancellationToken token)
     {
         try
         {
@@ -43,7 +43,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
                     // Handle ping messages
                     if (received.MessageType == System.Net.WebSockets.WebSocketMessageType.Text && !received.CloseStatus.HasValue)
                     {
-                        await HandlePotentialPingMessage(webSocket, buffer, received.Count, token);
+                        await HandlePotentialPingMessage(webSocket, buffer, received.Count, writeLock, token);
                     }
                 }
                 while (!received.CloseStatus.HasValue);
@@ -84,13 +84,23 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
     public async Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
+        SemaphoreSlim writeLock,
         CancellationToken token)
     {
+        var lockHeld = false;
         try
         {
             if (webSocket.State != WebSocketState.Open)
             {
                 handlerLogger.WebSocketNotOpen(webSocket.State);
+                return null;
+            }
+
+            await writeLock.WaitAsync(token);
+            lockHeld = true;
+
+            if (webSocket.State != WebSocketState.Open)
+            {
                 return null;
             }
 
@@ -100,14 +110,25 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
             message = null;
             return null;
         }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
         catch (Exception ex)
         {
             handlerLogger.ErrorSendingMessage(ex);
             return ex;
         }
+        finally
+        {
+            if (lockHeld)
+            {
+                writeLock.Release();
+            }
+        }
     }
 
-    async Task HandlePotentialPingMessage(IWebSocket webSocket, byte[] buffer, int count, CancellationToken token)
+    async Task HandlePotentialPingMessage(IWebSocket webSocket, byte[] buffer, int count, SemaphoreSlim writeLock, CancellationToken token)
     {
         try
         {
@@ -119,8 +140,24 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
                 handlerLogger.ReceivedPingMessage();
                 var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage, arcOptions.Value.JsonSerializerOptions);
-                await webSocket.Send(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
-                handlerLogger.SentPongMessage();
+                var lockHeld = false;
+                try
+                {
+                    await writeLock.WaitAsync(token);
+                    lockHeld = true;
+                    await webSocket.Send(pongBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
+                    handlerLogger.SentPongMessage();
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                finally
+                {
+                    if (lockHeld)
+                    {
+                        writeLock.Release();
+                    }
+                }
             }
         }
         catch (JsonException)

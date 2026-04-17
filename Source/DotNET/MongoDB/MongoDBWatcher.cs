@@ -89,42 +89,60 @@ public class MongoDBWatcher(
 
     async Task WatchDatabaseAsync()
     {
-        try
+        var databaseName = databaseNameResolver.Resolve();
+        var delay = TimeSpan.FromSeconds(1);
+
+        while (!_cts.IsCancellationRequested)
         {
-            var databaseName = databaseNameResolver.Resolve();
-            var database = GetDatabase();
-            var options = new ChangeStreamOptions
+            try
             {
-                FullDocument = ChangeStreamFullDocumentOption.UpdateLookup
-            };
-
-            var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
-            using var cursor = await database.WatchAsync(pipeline, options, _cts.Token);
-            logger.StartedWatchingDatabase(databaseName);
-
-            await cursor.ForEachAsync(
-                changeDocument =>
+                var database = GetDatabase();
+                var options = new ChangeStreamOptions
                 {
-                    try
-                    {
-                        _databaseChanges.OnNext(changeDocument);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.UnexpectedError(ex);
-                    }
-                },
-                _cts.Token);
+                    FullDocument = ChangeStreamFullDocumentOption.UpdateLookup
+                };
 
-            logger.DatabaseWatchCompleted(databaseName);
-        }
-        catch (OperationCanceledException)
-        {
-            logger.DatabaseWatchCancelled();
-        }
-        catch (Exception ex)
-        {
-            logger.UnexpectedError(ex);
+                var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
+                using var cursor = await database.WatchAsync(pipeline, options, _cts.Token);
+                logger.StartedWatchingDatabase(databaseName);
+                delay = TimeSpan.FromSeconds(1);
+
+                await cursor.ForEachAsync(
+                    changeDocument =>
+                    {
+                        try
+                        {
+                            _databaseChanges.OnNext(changeDocument);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.UnexpectedError(ex);
+                        }
+                    },
+                    _cts.Token);
+
+                logger.DatabaseWatchCompleted(databaseName);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.DatabaseWatchCancelled();
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.DatabaseWatchReconnecting(databaseName, delay.TotalSeconds);
+                logger.UnexpectedError(ex);
+                try
+                {
+                    await Task.Delay(delay, _cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
+            }
         }
     }
 }

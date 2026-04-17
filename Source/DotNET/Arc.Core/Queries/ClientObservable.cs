@@ -40,6 +40,7 @@ public class ClientObservable<T>(
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         using var cts = new CancellationTokenSource();
+        using var writeLock = new SemaphoreSlim(1, 1);
 
         using var subscription = Subject.Subscribe(Next, Error, Complete);
 
@@ -47,7 +48,7 @@ public class ClientObservable<T>(
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping);
         linkedTokenSource.Token.Register(Complete);
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, cts.Token);
+        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, cts.Token);
 
         // The client disconnected — clean up without completing the shared subject.
         if (!cts.IsCancellationRequested)
@@ -62,6 +63,11 @@ public class ClientObservable<T>(
 
         async void Next(T data)
         {
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
             try
             {
                 if (data is null)
@@ -73,34 +79,37 @@ public class ClientObservable<T>(
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
                 queryResult.Data = data;
 
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, cts.Token);
-                if (error is not null)
+                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
+                if (error is not null && !cts.IsCancellationRequested)
                 {
                     Subject.OnError(error);
                 }
             }
             catch (Exception ex)
             {
-                Subject.OnError(ex);
+                if (!cts.IsCancellationRequested)
+                {
+                    Subject.OnError(ex);
+                }
             }
         }
         void Error(Exception error)
         {
-            if (cts.IsCancellationRequested)
-            {
-                Subject.OnCompleted();
-            }
             logger.ObservableAnErrorOccurred(error);
+            if (!cts.IsCancellationRequested)
+            {
+                _ = cts.CancelAsync();
+                tcs.TrySetResult();
+            }
         }
         void Complete()
         {
-            if (cts.IsCancellationRequested)
+            if (!cts.IsCancellationRequested)
             {
-                return;
+                logger.ObservableCompleted();
+                _ = cts.CancelAsync();
             }
-            logger.ObservableCompleted();
-            cts.Cancel();
-            tcs.SetResult();
+            tcs.TrySetResult();
         }
     }
 }

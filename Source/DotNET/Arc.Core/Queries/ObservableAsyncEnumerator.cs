@@ -11,10 +11,12 @@ namespace Cratis.Arc.Queries;
 /// <typeparam name="T">Type the enumerator is for.</typeparam>
 public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
 {
+    readonly object _lock = new();
     readonly IDisposable _subscriber;
     readonly CancellationToken _cancellationToken;
     readonly ConcurrentQueue<T> _items = new();
     TaskCompletionSource _taskCompletionSource = new();
+    bool _completed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ObservableAsyncEnumerator{T}"/> class.
@@ -24,14 +26,20 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     public ObservableAsyncEnumerator(IObservable<T> observable, CancellationToken cancellationToken)
     {
         Current = default!;
-        _subscriber = observable.Subscribe(_ =>
-        {
-            _items.Enqueue(_);
-            if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+        _subscriber = observable.Subscribe(
+            onNext: _ =>
             {
-                _taskCompletionSource?.SetResult();
-            }
-        });
+                _items.Enqueue(_);
+                lock (_lock)
+                {
+                    if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+                    {
+                        _taskCompletionSource.SetResult();
+                    }
+                }
+            },
+            onError: _ => SignalCompletion(),
+            onCompleted: SignalCompletion);
         _cancellationToken = cancellationToken;
     }
 
@@ -42,6 +50,7 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     public ValueTask DisposeAsync()
     {
         _subscriber.Dispose();
+        SignalCompletion();
         return ValueTask.CompletedTask;
     }
 
@@ -50,14 +59,33 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     {
         if (_cancellationToken.IsCancellationRequested) return false;
         await _taskCompletionSource.Task;
-        _items.TryDequeue(out var item);
-        Current = item!;
-        _taskCompletionSource = new();
-        if (!_items.IsEmpty)
+
+        lock (_lock)
         {
-            _taskCompletionSource.SetResult();
+            if (_completed && _items.IsEmpty) return false;
+            _items.TryDequeue(out var item);
+            Current = item!;
+            _taskCompletionSource = new();
+
+            // Check if new items arrived while we were updating TCS
+            if (!_items.IsEmpty || _completed)
+            {
+                _taskCompletionSource.SetResult();
+            }
         }
 
         return true;
+    }
+
+    void SignalCompletion()
+    {
+        lock (_lock)
+        {
+            _completed = true;
+            if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+            {
+                _taskCompletionSource.SetResult();
+            }
+        }
     }
 }
