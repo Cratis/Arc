@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
-using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.Queries.for_ObservableAsyncEnumerator.when_enumerating;
 
@@ -19,7 +18,7 @@ public class and_concurrent_emissions_occur
         // Act: Emit items rapidly to create race conditions
         var emitTask = Task.Run(async () =>
         {
-            for (int i = 0; i < 50; i++)
+            for (var i = 0; i < 50; i++)
             {
                 subject.OnNext(i);
                 await Task.Yield();
@@ -30,16 +29,9 @@ public class and_concurrent_emissions_occur
 
         var consumeTask = Task.Run(async () =>
         {
-            while (true)
+            while (await enumerator.MoveNextAsync())
             {
-                if (await enumerator.MoveNextAsync())
-                {
-                    collectedItems.Add(enumerator.Current);
-                }
-                else
-                {
-                    break;
-                }
+                collectedItems.Add(enumerator.Current);
             }
         });
 

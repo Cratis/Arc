@@ -15,18 +15,21 @@ public interface IWebSocketConnectionHandler
     /// </summary>
     /// <param name="webSocket">The <see cref="IWebSocket"/> to send on.</param>
     /// <param name="queryResult">The <see cref="QueryResult"/> message to write.</param>
+    /// <param name="writeLock">A per-connection <see cref="SemaphoreSlim"/> that serializes all sends on this socket.</param>
     /// <param name="token">The <see cref="CancellationToken"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous action.</returns>
     Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
+        SemaphoreSlim writeLock,
         CancellationToken token);
 
     /// <summary>
     /// Handles all incoming web messages on the given <see cref="IWebSocket"/>.
     /// </summary>
     /// <param name="webSocket">The <see cref="IWebSocket"/> to listen to.</param>
+    /// <param name="writeLock">A per-connection <see cref="SemaphoreSlim"/> that serializes all sends on this socket.</param>
     /// <param name="token">The <see cref="CancellationToken"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous action.</returns>
-    Task HandleIncomingMessages(IWebSocket webSocket, CancellationToken token);
+    Task HandleIncomingMessages(IWebSocket webSocket, SemaphoreSlim writeLock, CancellationToken token);
 }

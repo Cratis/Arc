@@ -3,12 +3,10 @@
 
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
-using Cratis.Arc.Queries;
 using Cratis.Execution;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NSubstitute;
 
 namespace Cratis.Arc.Queries.for_ClientObservableSSE.when_streaming;
 
@@ -49,7 +47,7 @@ public class and_concurrent_emissions_and_disposal_occur
         var connectionTask = Task.Run(() => observable.HandleConnection(httpContext));
 
         // Emit several items rapidly
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             subject.OnNext(i);
             writeTaskSource.SetResult();

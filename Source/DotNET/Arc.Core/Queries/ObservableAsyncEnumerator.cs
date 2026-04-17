@@ -16,6 +16,7 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     readonly CancellationToken _cancellationToken;
     readonly ConcurrentQueue<T> _items = new();
     TaskCompletionSource _taskCompletionSource = new();
+    bool _completed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ObservableAsyncEnumerator{T}"/> class.
@@ -25,17 +26,20 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     public ObservableAsyncEnumerator(IObservable<T> observable, CancellationToken cancellationToken)
     {
         Current = default!;
-        _subscriber = observable.Subscribe(_ =>
-        {
-            _items.Enqueue(_);
-            lock (_lock)
+        _subscriber = observable.Subscribe(
+            onNext: _ =>
             {
-                if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+                _items.Enqueue(_);
+                lock (_lock)
                 {
-                    _taskCompletionSource?.SetResult();
+                    if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+                    {
+                        _taskCompletionSource.SetResult();
+                    }
                 }
-            }
-        });
+            },
+            onError: _ => SignalCompletion(),
+            onCompleted: SignalCompletion);
         _cancellationToken = cancellationToken;
     }
 
@@ -46,6 +50,7 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     public ValueTask DisposeAsync()
     {
         _subscriber.Dispose();
+        SignalCompletion();
         return ValueTask.CompletedTask;
     }
 
@@ -57,17 +62,30 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
 
         lock (_lock)
         {
+            if (_completed && _items.IsEmpty) return false;
             _items.TryDequeue(out var item);
             Current = item!;
             _taskCompletionSource = new();
 
             // Check if new items arrived while we were updating TCS
-            if (!_items.IsEmpty)
+            if (!_items.IsEmpty || _completed)
             {
                 _taskCompletionSource.SetResult();
             }
         }
 
         return true;
+    }
+
+    void SignalCompletion()
+    {
+        lock (_lock)
+        {
+            _completed = true;
+            if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+            {
+                _taskCompletionSource.SetResult();
+            }
+        }
     }
 }
