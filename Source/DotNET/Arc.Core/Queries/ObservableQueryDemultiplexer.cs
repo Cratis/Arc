@@ -64,6 +64,7 @@ public class ObservableQueryDemultiplexer(
 
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
         var subscriptions = new ConcurrentDictionary<string, IDisposable>();
+        var writeLock = new SemaphoreSlim(1, 1);
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
             context.RequestAborted,
@@ -75,9 +76,9 @@ public class ObservableQueryDemultiplexer(
         try
         {
 #pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
-            keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, linkedCts.Token);
+            keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, writeLock, linkedCts.Token);
 #pragma warning restore CA2025
-            await ReadWebSocketMessages(webSocket, subscriptions, context, keepAliveTracker, linkedCts.Token);
+            await ReadWebSocketMessages(webSocket, subscriptions, context, keepAliveTracker, writeLock, linkedCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -96,6 +97,8 @@ public class ObservableQueryDemultiplexer(
             {
                 subscription.Dispose();
             }
+
+            writeLock.Dispose();
 
             logger.WebSocketClientDisconnected();
         }
@@ -259,6 +262,7 @@ public class ObservableQueryDemultiplexer(
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
         KeepAliveTracker keepAliveTracker,
+        SemaphoreSlim writeLock,
         CancellationToken token)
     {
         var buffer = new byte[WebSocketBufferSize];
@@ -301,7 +305,7 @@ public class ObservableQueryDemultiplexer(
                     continue;
                 }
 
-                await ProcessWebSocketMessage(message, webSocket, subscriptions, context, keepAliveTracker, token);
+                await ProcessWebSocketMessage(message, webSocket, subscriptions, context, keepAliveTracker, writeLock, token);
             }
             catch (Exception ex)
             {
@@ -324,6 +328,7 @@ public class ObservableQueryDemultiplexer(
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
         KeepAliveTracker keepAliveTracker,
+        SemaphoreSlim writeLock,
         CancellationToken token)
     {
         // Any inbound message from the client counts as activity — no keep-alive needed.
@@ -332,7 +337,7 @@ public class ObservableQueryDemultiplexer(
         switch (message.Type)
         {
             case ObservableQueryHubMessageType.Subscribe:
-                await HandleWebSocketSubscribe(message, webSocket, subscriptions, context, keepAliveTracker, token);
+                await HandleWebSocketSubscribe(message, webSocket, subscriptions, context, keepAliveTracker, writeLock, token);
                 break;
 
             case ObservableQueryHubMessageType.Unsubscribe:
@@ -340,7 +345,7 @@ public class ObservableQueryDemultiplexer(
                 break;
 
             case ObservableQueryHubMessageType.Ping:
-                await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), keepAliveTracker, token);
+                await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), keepAliveTracker, writeLock, token);
                 break;
         }
     }
@@ -351,6 +356,7 @@ public class ObservableQueryDemultiplexer(
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
         KeepAliveTracker keepAliveTracker,
+        SemaphoreSlim writeLock,
         CancellationToken token)
     {
         var request = DeserializeSubscriptionRequest(message.Payload);
@@ -377,17 +383,17 @@ public class ObservableQueryDemultiplexer(
             async result =>
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
-                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, token);
+                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, token);
             },
             async (id, errorMsg) =>
             {
                 var msg = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, token);
+                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, token);
             },
             async id =>
             {
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
-                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, token);
+                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, token);
             },
             token);
 
@@ -672,10 +678,20 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
-    async Task SendWebSocketMessage(IWebSocket webSocket, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, CancellationToken token)
+    async Task SendWebSocketMessage(IWebSocket webSocket, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, SemaphoreSlim writeLock, CancellationToken token)
     {
+        var lockHeld = false;
+
         try
         {
+            if (webSocket.State != WebSocketState.Open)
+            {
+                return;
+            }
+
+            await writeLock.WaitAsync(token);
+            lockHeld = true;
+
             if (webSocket.State != WebSocketState.Open)
             {
                 return;
@@ -685,9 +701,20 @@ public class ObservableQueryDemultiplexer(
             await webSocket.Send(new ArraySegment<byte>(json), System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             keepAliveTracker.RecordMessageSent();
         }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown or token cancelled
+        }
         catch (Exception ex)
         {
             logger.ErrorSendingMessage(ex);
+        }
+        finally
+        {
+            if (lockHeld)
+            {
+                writeLock.Release();
+            }
         }
     }
 
@@ -742,7 +769,7 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
-    async Task RunWebSocketKeepAlive(IWebSocket webSocket, KeepAliveTracker keepAliveTracker, CancellationToken token)
+    async Task RunWebSocketKeepAlive(IWebSocket webSocket, KeepAliveTracker keepAliveTracker, SemaphoreSlim writeLock, CancellationToken token)
     {
         var interval = arcOptions.Value.Query.KeepAliveInterval;
 
@@ -759,7 +786,7 @@ public class ObservableQueryDemultiplexer(
 
                 if (!token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
                 {
-                    await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, token);
+                    await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, writeLock, token);
                 }
             }
         }
