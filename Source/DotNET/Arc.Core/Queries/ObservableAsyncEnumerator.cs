@@ -11,6 +11,7 @@ namespace Cratis.Arc.Queries;
 /// <typeparam name="T">Type the enumerator is for.</typeparam>
 public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
 {
+    readonly object _lock = new();
     readonly IDisposable _subscriber;
     readonly CancellationToken _cancellationToken;
     readonly ConcurrentQueue<T> _items = new();
@@ -27,9 +28,12 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
         _subscriber = observable.Subscribe(_ =>
         {
             _items.Enqueue(_);
-            if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+            lock (_lock)
             {
-                _taskCompletionSource?.SetResult();
+                if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
+                {
+                    _taskCompletionSource?.SetResult();
+                }
             }
         });
         _cancellationToken = cancellationToken;
@@ -50,12 +54,18 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
     {
         if (_cancellationToken.IsCancellationRequested) return false;
         await _taskCompletionSource.Task;
-        _items.TryDequeue(out var item);
-        Current = item!;
-        _taskCompletionSource = new();
-        if (!_items.IsEmpty)
+
+        lock (_lock)
         {
-            _taskCompletionSource.SetResult();
+            _items.TryDequeue(out var item);
+            Current = item!;
+            _taskCompletionSource = new();
+
+            // Check if new items arrived while we were updating TCS
+            if (!_items.IsEmpty)
+            {
+                _taskCompletionSource.SetResult();
+            }
         }
 
         return true;
