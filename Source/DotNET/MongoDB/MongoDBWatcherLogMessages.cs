@@ -20,4 +20,7 @@ internal static partial class MongoDBWatcherLogMessages
 
     [LoggerMessage(LogLevel.Warning, "Unexpected error occurred in database watcher")]
     internal static partial void UnexpectedError(this ILogger<MongoDBWatcher> logger, Exception ex);
+
+    [LoggerMessage(LogLevel.Warning, "Database watch for '{DatabaseName}' failed; reconnecting in {Delay}s")]
+    internal static partial void DatabaseWatchReconnecting(this ILogger<MongoDBWatcher> logger, string databaseName, double delay);
 }
