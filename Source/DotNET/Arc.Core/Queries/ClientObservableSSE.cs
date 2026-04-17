@@ -44,11 +44,28 @@ public class ClientObservableSSE<T>(
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
         linkedTokenSource.Token.Register(Complete);
 
-        await tcs.Task;
+        try
+        {
+            await tcs.Task;
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal cancellation
+        }
+        finally
+        {
+            await cts.CancelAsync();
+        }
+
         return;
 
         async void Next(T data)
         {
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
             try
             {
                 if (data is null)
@@ -69,12 +86,18 @@ public class ClientObservableSSE<T>(
                 }
                 catch (Exception ex)
                 {
-                    Subject.OnError(ex);
+                    if (!cts.IsCancellationRequested)
+                    {
+                        Subject.OnError(ex);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Subject.OnError(ex);
+                if (!cts.IsCancellationRequested)
+                {
+                    Subject.OnError(ex);
+                }
             }
         }
 
@@ -91,12 +114,11 @@ public class ClientObservableSSE<T>(
 
         void Complete()
         {
-            if (cts.IsCancellationRequested)
+            if (!cts.IsCancellationRequested)
             {
-                return;
+                logger.ObservableCompleted();
+                _ = cts.CancelAsync();
             }
-            logger.ObservableCompleted();
-            cts.Cancel();
             tcs.TrySetResult();
         }
     }
