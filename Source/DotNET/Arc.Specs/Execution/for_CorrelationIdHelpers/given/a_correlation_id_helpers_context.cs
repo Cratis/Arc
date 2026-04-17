@@ -10,7 +10,9 @@ public class a_correlation_id_helpers_context : Specification
 {
     protected HttpContext _httpContext;
     protected HttpRequest _httpRequest;
+    protected HttpResponse _httpResponse;
     protected IHeaderDictionary _headers;
+    protected IHeaderDictionary _responseHeaders;
     protected ICorrelationIdAccessor _correlationIdAccessor;
     protected ICorrelationIdModifier _correlationIdModifier;
     protected CorrelationIdOptions _correlationIdOptions;
@@ -34,11 +36,15 @@ public class a_correlation_id_helpers_context : Specification
 
         _httpContext = Substitute.For<HttpContext>();
         _httpRequest = Substitute.For<HttpRequest>();
+        _httpResponse = Substitute.For<HttpResponse>();
         _headers = Substitute.For<IHeaderDictionary>();
+        _responseHeaders = Substitute.For<IHeaderDictionary>();
         _httpContextItems = new Dictionary<object, object?>();
 
         _httpContext.Request.Returns(_httpRequest);
+        _httpContext.Response.Returns(_httpResponse);
         _httpRequest.Headers.Returns(_headers);
+        _httpResponse.Headers.Returns(_responseHeaders);
         _httpContext.Items.Returns(_httpContextItems);
     }
 }

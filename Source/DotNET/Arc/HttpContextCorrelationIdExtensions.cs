@@ -21,19 +21,25 @@ public static class HttpContextCorrelationIdExtensions
     /// </remarks>
     public static CorrelationId GetCorrelationId(this HttpContext httpContext)
     {
-        if (httpContext.Items.TryGetValue(Constants.CorrelationIdItemKey, out var correlationId))
-        {
-            if (correlationId is Guid guid)
-            {
-                return new CorrelationId(guid);
-            }
+        var correlationIdFromItems = httpContext.Items.TryGetValue(Constants.CorrelationIdItemKey, out var correlationIdValue)
+            ? correlationIdValue
+            : null;
 
-            if (Guid.TryParse(correlationId?.ToString(), out var parsedGuid))
-            {
-                return new CorrelationId(parsedGuid);
-            }
+        if (CorrelationIdResolver.TryGet(correlationIdFromItems, out var correlationId))
+        {
+            return correlationId;
         }
 
-        return new CorrelationId(Guid.Empty);
+        if (CorrelationIdResolver.TryGet(httpContext.Request.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
+        {
+            return correlationId;
+        }
+
+        if (CorrelationIdResolver.TryGet(httpContext.Response.Headers[Constants.DefaultCorrelationIdHeader].ToString(), out correlationId))
+        {
+            return correlationId;
+        }
+
+        return CorrelationId.NotSet;
     }
 }
