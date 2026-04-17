@@ -119,12 +119,12 @@ public class ObservableQueryDemultiplexer(
         var state = new SSEConnectionState(context, linkedCts);
         _sseConnections[connectionId] = state;
 
-        var keepAliveTask = RunSseKeepAlive(context, state.KeepAliveTracker, linkedCts);
+        var keepAliveTask = RunSseKeepAlive(context, state.KeepAliveTracker, linkedCts, state.WriteLock);
 
         try
         {
             // Send the Connected message so the client knows its connection ID for POST requests.
-            await SendSseMessage(context, ObservableQueryHubMessage.CreateConnected(connectionId), state.KeepAliveTracker, linkedCts);
+            await SendSseMessage(context, ObservableQueryHubMessage.CreateConnected(connectionId), state.KeepAliveTracker, linkedCts, state.WriteLock);
 
             // Block until the client disconnects or the server shuts down.
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -197,18 +197,18 @@ public class ObservableQueryDemultiplexer(
             async result =>
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
+                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock);
             },
             async (id, errorMsg) =>
             {
                 var msg = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
+                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock);
             },
             async id =>
             {
                 wasUnauthorized = true;
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource);
+                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock);
             },
             state.CancellationTokenSource.Token);
 
@@ -691,10 +691,20 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
-    async Task SendSseMessage(IHttpRequestContext context, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts)
+    async Task SendSseMessage(
+        IHttpRequestContext context,
+        ObservableQueryHubMessage message,
+        KeepAliveTracker keepAliveTracker,
+        CancellationTokenSource cts,
+        SemaphoreSlim writeLock)
     {
+        var writeLockHeld = false;
+
         try
         {
+            await writeLock.WaitAsync(cts.Token);
+            writeLockHeld = true;
+
             var json = JsonSerializer.Serialize(message, arcOptions.Value.JsonSerializerOptions);
             await context.Write($"data: {json}\n\n", cts.Token);
             keepAliveTracker.RecordMessageSent();
@@ -710,6 +720,11 @@ public class ObservableQueryDemultiplexer(
             // instead of HttpListenerException — treat identically.
             await cts.CancelAsync();
         }
+        catch (ArgumentNullException ex) when (ex.ParamName == "array")
+        {
+            // StreamPipeWriter can throw this during response teardown when writes race with transport shutdown.
+            await cts.CancelAsync();
+        }
         catch (OperationCanceledException)
         {
             // Normal shutdown — nothing to report.
@@ -717,6 +732,13 @@ public class ObservableQueryDemultiplexer(
         catch (Exception ex)
         {
             logger.ErrorSendingMessage(ex);
+        }
+        finally
+        {
+            if (writeLockHeld)
+            {
+                writeLock.Release();
+            }
         }
     }
 
@@ -747,7 +769,7 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
-    async Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts)
+    async Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts, SemaphoreSlim writeLock)
     {
         var interval = arcOptions.Value.Query.KeepAliveInterval;
 
@@ -764,7 +786,7 @@ public class ObservableQueryDemultiplexer(
 
                 if (!cts.Token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
                 {
-                    await SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, cts);
+                    await SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, cts, writeLock);
                 }
             }
         }
@@ -858,5 +880,6 @@ public class ObservableQueryDemultiplexer(
     {
         public ConcurrentDictionary<string, IDisposable> Subscriptions { get; } = new();
         public KeepAliveTracker KeepAliveTracker { get; } = new();
+        public SemaphoreSlim WriteLock { get; } = new(1, 1);
     }
 }
