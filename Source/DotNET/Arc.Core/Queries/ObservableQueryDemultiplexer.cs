@@ -692,10 +692,12 @@ public class ObservableQueryDemultiplexer(
             await writeLock.WaitAsync(token);
             lockHeld = true;
 
+#pragma warning disable CA1508 // Avoid dead conditional code
             if (webSocket.State != WebSocketState.Open)
             {
                 return;
             }
+#pragma warning restore CA1508 // Avoid dead conditional code
 
             var json = JsonSerializer.SerializeToUtf8Bytes(message, arcOptions.Value.JsonSerializerOptions);
             await webSocket.Send(new ArraySegment<byte>(json), System.Net.WebSockets.WebSocketMessageType.Text, true, token);
