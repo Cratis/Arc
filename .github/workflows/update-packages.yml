@@ -8,7 +8,5 @@ on:
 jobs:
   update:
     uses: Cratis/Workflows/.github/workflows/update-packages.yml@main
-    with:
-      package_types: 'NuGet, NPM'
     secrets:
       PAT_WORKFLOWS: ${{ secrets.PAT_WORKFLOWS }}
