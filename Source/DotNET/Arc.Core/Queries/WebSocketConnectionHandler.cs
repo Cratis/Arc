@@ -99,10 +99,12 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
             await writeLock.WaitAsync(token);
             lockHeld = true;
 
+#pragma warning disable CA1508 // Avoid dead conditional code
             if (webSocket.State != WebSocketState.Open)
             {
                 return null;
             }
+#pragma warning restore CA1508 // Avoid dead conditional code
 
             var envelope = WebSocketMessage.CreateData(queryResult);
             var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions);
