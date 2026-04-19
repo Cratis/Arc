@@ -5,7 +5,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <NoWarn>$(NoWarn);SA0001;SA1600</NoWarn>
+        <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005</NoWarn>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
     <ItemGroup>
