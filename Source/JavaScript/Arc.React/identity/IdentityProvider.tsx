@@ -52,7 +52,7 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     RootIdentityProvider.setOrigin(arc.origin ?? '');
 
     const fetchIdentity = (): Promise<IIdentity> => {
-        return RootIdentityProvider.refresh(props.detailsType).then(identity => {
+        return RootIdentityProvider.getCurrent(props.detailsType).then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
             setIdentityState({
                 identity: wrappedIdentity,
