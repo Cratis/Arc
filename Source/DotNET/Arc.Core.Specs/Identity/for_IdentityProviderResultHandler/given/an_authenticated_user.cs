@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-namespace Cratis.Arc.Identity.for_IdentityProviderResultHandler.given;
+namespace Cratis.Arc.Identity.for_IdentityProvider.given;
 
 public class an_authenticated_user : an_identity_provider_result_handler
 {

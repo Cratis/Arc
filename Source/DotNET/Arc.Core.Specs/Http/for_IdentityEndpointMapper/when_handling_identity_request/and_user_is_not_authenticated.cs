@@ -19,12 +19,12 @@ public class and_user_is_not_authenticated : given.an_identity_endpoint_handler
             Roles: [],
             string.Empty);
 
-        _identityProviderResultHandler.GenerateFromCurrentContext().Returns(Task.FromResult(_result));
+        _identityProviderResultHandler.Get().Returns(Task.FromResult(_result));
     }
 
     async Task Because() => await _capturedHandler(_httpRequestContext);
 
-    [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).GenerateFromCurrentContext();
-    [Fact] void should_not_call_write() => _identityProviderResultHandler.DidNotReceive().Write(Arg.Any<IdentityProviderResult>());
+    [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).Get();
+    [Fact] void should_not_call_write() => _identityProviderResultHandler.DidNotReceive().SetCookieForHttpResponse(Arg.Any<IdentityProviderResult>());
     [Fact] void should_set_status_code_to_unauthorized() => _httpRequestContext.Received().StatusCode = 401;
 }

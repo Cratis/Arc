@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-namespace Cratis.Arc.Identity.for_IdentityProviderResultHandler.when_generating_from_current_context;
+namespace Cratis.Arc.Identity.for_IdentityProvider.when_generating_from_current_context;
 
 public class and_user_is_not_authorized : given.an_identity_provider_result_handler
 {
@@ -26,7 +26,7 @@ public class and_user_is_not_authorized : given.an_identity_provider_result_hand
         _identityProvider.Provide(Arg.Any<IdentityProviderContext>()).Returns(identityDetails);
     }
 
-    async Task Because() => _result = await _handler.GenerateFromCurrentContext();
+    async Task Because() => _result = await _handler.Get();
 
     [Fact] void should_return_unauthorized_result() => _result.ShouldEqual(IdentityProviderResult.Unauthorized);
     [Fact] void should_call_identity_provider() => _identityProvider.Received(1).Provide(Arg.Any<IdentityProviderContext>());

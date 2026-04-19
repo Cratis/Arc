@@ -3,7 +3,7 @@
 
 using Cratis.Arc.Http;
 
-namespace Cratis.Arc.Identity.for_IdentityProviderResultHandler.when_modifying_details;
+namespace Cratis.Arc.Identity.for_IdentityProvider.when_modifying_details;
 
 public class and_details_type_does_not_match : given.an_identity_provider_result_handler
 {
