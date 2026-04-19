@@ -6,20 +6,27 @@ namespace Cratis.Arc.Identity;
 /// <summary>
 /// Defines the system that handles <see cref="IdentityProviderResult"/>.
 /// </summary>
-public interface IIdentityProviderResultHandler
+public interface IIdentityProvider
 {
     /// <summary>
     /// Generates an <see cref="IdentityProviderResult"/> from the current HTTP context.
     /// </summary>
     /// <returns>The <see cref="IdentityProviderResult"/>.</returns>
-    Task<IdentityProviderResult> GenerateFromCurrentContext();
+    Task<IdentityProviderResult> Get();
+
+    /// <summary>
+    /// Gets an <see cref="IdentityProviderResult{TDetails}"/> from the current HTTP context.
+    /// </summary>
+    /// <typeparam name="TDetails">Type of the details.</typeparam>
+    /// <returns>The <see cref="IdentityProviderResult{TDetails}"/>.</returns>
+    Task<IdentityProviderResult<TDetails>> Get<TDetails>();
 
     /// <summary>
     /// Writes the <see cref="IdentityProviderResult"/> to the response.
     /// </summary>
     /// <param name="result">The <see cref="IdentityProviderResult"/>.</param>
     /// <returns>Awaitable task.</returns>
-    Task Write(IdentityProviderResult result);
+    Task SetCookieForHttpResponse(IdentityProviderResult result);
 
     /// <summary>
     /// Modifies the details of the identity stored in the identity cookie.

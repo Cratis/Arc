@@ -97,15 +97,15 @@ Your provider will be exposed on a well known route: `/.cratis/me`.
 
 The identity system seamlessly integrates with the frontend by setting a cookie that can be automatically consumed by your client-side application. This eliminates the need for separate API calls to retrieve user details after authentication.
 
-## IdentityProviderResultHandler
+## IdentityProvider
 
-The `IIdentityProviderResultHandler` interface provides advanced control over how identity information is processed and modified during HTTP requests. This is particularly useful for stateless applications where you need to associate user-specific data with requests.
+The `IIdentityProvider` interface provides advanced control over how identity information is processed and modified during HTTP requests. This is particularly useful for stateless applications where you need to associate user-specific data with requests.
 
 ### Purpose
 
-The `IIdentityProviderResultHandler` allows you to:
+The `IIdentityProvider` allows you to:
 
-- Generate identity results from the current HTTP context
+- Get identity results from the identity cookie or current HTTP context
 - Write identity information to the response (as cookies and JSON)
 - **Modify identity details during a request** - perfect for stateless applications that need to associate selections or preferences with the current user
 
@@ -113,8 +113,9 @@ The `IIdentityProviderResultHandler` allows you to:
 
 | Method | Description |
 | ------ | ----------- |
-| `GenerateFromCurrentContext()` | Creates an `IdentityProviderResult` from the current HTTP context |
-| `Write(IdentityProviderResult)` | Writes the identity result to the response as both a cookie and JSON |
+| `Get()` | Gets an `IdentityProviderResult` from the identity cookie when available, otherwise from the current HTTP context |
+| `Get<TDetails>()` | Gets an `IdentityProviderResult<TDetails>` with strongly-typed details |
+| `SetCookieForHttpResponse(IdentityProviderResult)` | Writes the identity result to the response as both a cookie and JSON |
 | `ModifyDetails<TDetails>(Func<TDetails, TDetails>)` | Modifies the identity details stored in the identity cookie |
 
 ### Use Cases
@@ -126,9 +127,9 @@ In stateless applications, you often need to associate user selections or prefer
 ```csharp
 public class UserPreferencesController : ControllerBase
 {
-    private readonly IIdentityProviderResultHandler _identityHandler;
+    private readonly IIdentityProvider _identityHandler;
 
-    public UserPreferencesController(IIdentityProviderResultHandler identityHandler)
+    public UserPreferencesController(IIdentityProvider identityHandler)
     {
         _identityHandler = identityHandler;
     }

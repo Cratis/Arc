@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace Cratis.Arc.Identity.for_IdentityProviderResultHandler.when_writing;
+namespace Cratis.Arc.Identity.for_IdentityProvider.when_writing;
 
 public class with_authenticated_result : given.an_authenticated_user
 {
@@ -13,11 +13,11 @@ public class with_authenticated_result : given.an_authenticated_user
         _httpRequestContext.IsHttps.Returns(true);
     }
 
-    async Task Because() => await _handler.Write(_identityProviderResult);
+    async Task Because() => await _handler.SetCookieForHttpResponse(_identityProviderResult);
 
     [Fact] void should_set_content_type() => _httpRequestContext.ContentType.ShouldEqual("application/json; charset=utf-8");
     [Fact] void should_append_cookie() => _httpRequestContext.Received(1).AppendCookie(
-        IdentityProviderResultHandler.IdentityCookieName,
+        IdentityProvider.IdentityCookieName,
         Arg.Any<string>(),
         Arg.Is<Http.CookieOptions>(o =>
             !o.HttpOnly &&

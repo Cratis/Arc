@@ -40,8 +40,8 @@ public static class IdentityEndpointMapper
             "/.cratis/me",
             async context =>
             {
-                var identityProviderResultHandler = context.RequestServices.GetRequiredService<IIdentityProviderResultHandler>();
-                var result = await identityProviderResultHandler.GenerateFromCurrentContext();
+                var identityProvider = context.RequestServices.GetRequiredService<IIdentityProvider>();
+                var result = await identityProvider.Get();
 
                 if (!result.IsAuthenticated)
                 {
@@ -55,7 +55,7 @@ public static class IdentityEndpointMapper
                     return;
                 }
 
-                await identityProviderResultHandler.Write(result);
+                await identityProvider.SetCookieForHttpResponse(result);
             },
             metadata);
     }

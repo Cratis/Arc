@@ -11,7 +11,7 @@ public class an_identity_endpoint_handler : Specification
     protected IEndpointMapper _mapper;
     protected IServiceProvider _serviceProvider;
     protected IServiceProviderIsService _serviceProviderIsService;
-    protected IIdentityProviderResultHandler _identityProviderResultHandler;
+    protected IIdentityProvider _identityProviderResultHandler;
     protected IHttpRequestContext _httpRequestContext;
     protected Func<IHttpRequestContext, Task> _capturedHandler;
 
@@ -19,7 +19,7 @@ public class an_identity_endpoint_handler : Specification
     {
         _mapper = Substitute.For<IEndpointMapper>();
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
-        _identityProviderResultHandler = Substitute.For<IIdentityProviderResultHandler>();
+        _identityProviderResultHandler = Substitute.For<IIdentityProvider>();
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
 
         var services = new ServiceCollection();
@@ -28,7 +28,7 @@ public class an_identity_endpoint_handler : Specification
 
         var mockServiceProvider = Substitute.For<IServiceProvider>();
         mockServiceProvider.GetService(typeof(IServiceProviderIsService)).Returns(_serviceProviderIsService);
-        mockServiceProvider.GetService(typeof(IIdentityProviderResultHandler)).Returns(_identityProviderResultHandler);
+        mockServiceProvider.GetService(typeof(IIdentityProvider)).Returns(_identityProviderResultHandler);
 
         _httpRequestContext.RequestServices.Returns(_serviceProvider);
 

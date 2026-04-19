@@ -19,13 +19,13 @@ public class and_user_is_authenticated_and_authorized : given.an_identity_endpoi
             Roles: [],
             "Additional details");
 
-        _identityProviderResultHandler.GenerateFromCurrentContext().Returns(Task.FromResult(_result));
+        _identityProviderResultHandler.Get().Returns(Task.FromResult(_result));
     }
 
     async Task Because() => await _capturedHandler(_httpRequestContext);
 
-    [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).GenerateFromCurrentContext();
-    [Fact] void should_call_write_with_result() => _identityProviderResultHandler.Received(1).Write(_result);
+    [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).Get();
+    [Fact] void should_call_write_with_result() => _identityProviderResultHandler.Received(1).SetCookieForHttpResponse(_result);
     [Fact] void should_not_set_status_code_to_unauthorized() => _httpRequestContext.DidNotReceive().StatusCode = 401;
     [Fact] void should_not_set_status_code_to_forbidden() => _httpRequestContext.DidNotReceive().StatusCode = 403;
 }
