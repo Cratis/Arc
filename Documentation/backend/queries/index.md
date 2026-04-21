@@ -11,6 +11,7 @@ Queries are used for retrieving data and are a key component of CQRS (Command Qu
 | [Model Bound](./model-bound/index.md) | How to work with model-bound queries for simplified parameter handling. |
 | [Observable Query Hub](./observable-query-hub.md) | Composite real-time streaming over a single fixed WebSocket or SSE endpoint. |
 | [Query Pipeline](./query-pipeline.md) | Understanding the query pipeline and how queries are processed. |
+| [Read Model Interception](./read-model-interception.md) | Apply cross-cutting operations (decryption, masking, enrichment) to read models before they are served to clients. |
 | [Authorization](../core/authorization.md) | How to use authorization attributes for role-based and policy-based authorization. |
 | [Validation](./validation.md) | How to implement validation for query parameters. |
 
