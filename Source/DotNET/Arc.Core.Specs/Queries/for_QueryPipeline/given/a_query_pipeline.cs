@@ -14,6 +14,7 @@ public class a_query_pipeline : Specification
     protected IQueryFilters query_filters;
     protected IQueryPerformerProviders _queryPerformerProviders;
     protected IQueryRenderers _queryRenderers;
+    protected IReadModelInterceptors _readModelInterceptors;
     protected IServiceProvider _serviceProvider;
     protected IQueryPerformer _queryPerformer;
     protected CorrelationId _correlationId;
@@ -30,6 +31,7 @@ public class a_query_pipeline : Specification
         query_filters = Substitute.For<IQueryFilters>();
         _queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         _queryRenderers = Substitute.For<IQueryRenderers>();
+        _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
         _serviceProvider = Substitute.For<IServiceProvider>();
         _queryPerformer = Substitute.For<IQueryPerformer>();
         _discoverableValidators = Substitute.For<IDiscoverableValidators>();
@@ -40,6 +42,7 @@ public class a_query_pipeline : Specification
             query_filters,
             _queryPerformerProviders,
             _queryRenderers,
+            _readModelInterceptors,
             _discoverableValidators);
     }
 }
