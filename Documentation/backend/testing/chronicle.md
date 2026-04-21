@@ -83,6 +83,102 @@ Seed events before calling `Execute` so they are present when the command handle
 
 Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see <xref:Chronicle.Testing.Events.Assertions>.
 
+## Testing Commands That Use EventForEventSourceId
+
+When a command handler returns `EventForEventSourceId` or `IEnumerable<EventForEventSourceId>`, events are appended to different event sources than the command's own event source id. The standard `EventLog.ShouldHaveAppendedEvent<T>(sequenceNumber)` helpers work against a single sequence and cannot filter by event source id. For these cases use the `CommandScenario`-level assertion helpers, which capture events during execution via the client-side `AppendOperations` observable.
+
+| Method | Asserts that... |
+| ------ | --------------- |
+| `ShouldHaveAppendedEvent<TCommand, TEvent>(eventSourceId)` | At least one event of type `TEvent` was appended for the given `EventSourceId` |
+| `ShouldHaveAppendedEvent<TCommand, TEvent>(eventSourceId, predicate)` | Same, and the event also satisfies the predicate |
+| `ShouldHaveTailSequenceNumber<TCommand>(expected)` | The highest sequence number among all captured events equals `expected` |
+
+### Example: Single cross-source event
+
+```csharp
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Chronicle.Events;
+
+public class when_migrating_customer_to_new_id
+{
+    readonly CommandScenario<MigrateCustomerToNewId> _scenario = new();
+    readonly EventSourceId _oldId = EventSourceId.New();
+    readonly EventSourceId _newId = EventSourceId.New();
+
+    [Fact]
+    public async Task should_have_appended_migrated_event_for_new_id() =>
+        await _scenario.Execute(new MigrateCustomerToNewId(_oldId, _newId))
+            .ContinueWith(_ => _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(_newId));
+
+    [Fact]
+    public async Task should_reference_old_id_in_event() =>
+        await _scenario.Execute(new MigrateCustomerToNewId(_oldId, _newId))
+            .ContinueWith(_ => _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(
+                _newId,
+                e => e.OldCustomerId == _oldId));
+}
+```
+
+### Example: Multiple cross-source events (fund transfer)
+
+```csharp
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Chronicle.Events;
+
+public class when_transferring_funds
+{
+    readonly CommandScenario<TransferFunds> _scenario = new();
+    readonly EventSourceId _fromAccount = EventSourceId.New();
+    readonly EventSourceId _toAccount = EventSourceId.New();
+
+    async Task Execute() =>
+        await _scenario.Execute(new TransferFunds(_fromAccount, _toAccount, 250m));
+
+    [Fact]
+    public async Task should_have_debited_from_account()
+    {
+        await Execute();
+        await _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount);
+    }
+
+    [Fact]
+    public async Task should_have_credited_to_account()
+    {
+        await Execute();
+        await _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsCredited>(_toAccount);
+    }
+
+    [Fact]
+    public async Task should_have_debited_correct_amount()
+    {
+        await Execute();
+        await _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount, e => e.Amount == 250m);
+    }
+
+    [Fact]
+    public async Task should_have_appended_two_events()
+    {
+        await Execute();
+        await _scenario.ShouldHaveTailSequenceNumber<TransferFunds>(1ul);
+    }
+}
+```
+
+> **Sequence numbering applies here too**: `ShouldHaveTailSequenceNumber` checks the highest sequence number across all captured events. Two events means a tail of `1` (zero-based).
+
+The `AppendedEvents` extension property gives you the raw list if you need to write custom assertions:
+
+```csharp
+[Fact]
+public async Task should_have_exactly_two_events()
+{
+    await Execute();
+    _scenario.AppendedEvents.Count.ShouldEqual(2);
+}
+```
+
 ## Multiple Events
 
 When a command appends several events, assert each one by its sequence number:
@@ -128,9 +224,12 @@ When `Cratis.Arc.Chronicle.Testing` is referenced, `ChronicleCommandScenarioExte
 - `IEventLog` → backed by the real in-process Chronicle kernel (no server required)
 - `IEventSequence` → the same in-process instance
 
-It also populates the scenario context with an `EventScenario` instance, which is exposed through three C# 14 extension properties:
+It also populates the scenario context with an `EventScenario` instance, which is exposed through C# 14 extension properties:
 
-- `EventScenario` — the full scenario, including the `Given` builder for seeding events
-- `EventLog` — shortcut to `EventScenario.EventLog` for assertions
-- `EventSequence` — shortcut to `EventScenario.EventSequence` for assertion helpers
+| Property | Type | Purpose |
+| -------- | ---- | ------- |
+| `EventScenario` | `EventScenario` | The full scenario, including the `Given` builder for seeding events |
+| `EventLog` | `IEventLog` | Shortcut to `EventScenario.EventLog` for Chronicle's own assertion helpers |
+| `EventSequence` | `IEventSequence` | Shortcut to `EventScenario.EventSequence` for Chronicle's assertion helpers |
+| `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | All events captured during command execution, used by `ShouldHaveAppendedEvent` and `ShouldHaveTailSequenceNumber` |
 
