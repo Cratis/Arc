@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Generators.for_QueryMetadataGenerator.when_generating_with_read_models;
 
-public class and_read_model_has_non_public_query_method : Specification
+public class and_read_model_is_internal : Specification
 {
     GeneratorDriverRunResult _result;
     string _generatedSource;
@@ -19,11 +19,9 @@ public class and_read_model_has_non_public_query_method : Specification
             namespace TestApp;
 
             [ReadModel]
-            public class MyReadModel
+            internal class MyReadModel
             {
-                public static MyReadModel GetById(int id) => new();
-                internal static MyReadModel GetByName(string name) => new();
-                private static MyReadModel GetByValue(string value) => new();
+                internal static MyReadModel GetById(int id) => new();
             }
             """);
 
@@ -31,7 +29,6 @@ public class and_read_model_has_non_public_query_method : Specification
     }
 
     [Fact] void should_generate_two_source_files() => _result.GeneratedTrees.Length.ShouldEqual(2);
-    [Fact] void should_include_public_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
-    [Fact] void should_include_internal_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetByName");
-    [Fact] void should_not_include_private_query() => _generatedSource.ShouldNotContain("TestApp.MyReadModel.GetByValue");
+    [Fact] void should_include_internal_read_model_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
+    [Fact] void should_reference_internal_read_model_type() => _generatedSource.ShouldContain("typeof(global::TestApp.MyReadModel)");
 }
