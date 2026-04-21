@@ -26,6 +26,8 @@ public class a_command_pipeline_with_event_handlers : Specification
     protected CorrelationId _correlationId;
     protected SingleEventCommandResponseValueHandler _singleEventHandler;
     protected EventsCommandResponseValueHandler _eventsHandler;
+    protected SingleEventForEventSourceIdCommandResponseValueHandler _singleEventForEventSourceIdHandler;
+    protected EventsForEventSourceIdCommandResponseValueHandler _eventsForEventSourceIdHandler;
 
     void Establish()
     {
@@ -49,6 +51,8 @@ public class a_command_pipeline_with_event_handlers : Specification
         _eventTypes = Substitute.For<IEventTypes>();
         _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes);
         _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes);
+        _singleEventForEventSourceIdHandler = new SingleEventForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes);
+        _eventsForEventSourceIdHandler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes);
 
         // Set up successful append results
         var successfulAppendResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);
@@ -73,14 +77,17 @@ public class a_command_pipeline_with_event_handlers : Specification
             Arg.Any<IEnumerable<string>?>(),
             Arg.Any<ConcurrencyScope>()).Returns(successfulAppendManyResult);
 
-        // Create a command response value handlers that includes event handlers
+        // Create a command response value handlers that includes all event handlers
         _commandResponseValueHandlers = Substitute.For<ICommandResponseValueHandlers>();
         _commandResponseValueHandlers.CanHandle(Arg.Any<CommandContext>(), Arg.Any<object>())
             .Returns(callInfo =>
             {
                 var ctx = callInfo.ArgAt<CommandContext>(0);
                 var value = callInfo.ArgAt<object>(1);
-                return _singleEventHandler.CanHandle(ctx, value) || _eventsHandler.CanHandle(ctx, value);
+                return _singleEventHandler.CanHandle(ctx, value)
+                    || _eventsHandler.CanHandle(ctx, value)
+                    || _singleEventForEventSourceIdHandler.CanHandle(ctx, value)
+                    || _eventsForEventSourceIdHandler.CanHandle(ctx, value);
             });
 
         _commandResponseValueHandlers.Handle(Arg.Any<CommandContext>(), Arg.Any<object>())
@@ -95,6 +102,14 @@ public class a_command_pipeline_with_event_handlers : Specification
                 if (_eventsHandler.CanHandle(ctx, value))
                 {
                     return await _eventsHandler.Handle(ctx, value);
+                }
+                if (_singleEventForEventSourceIdHandler.CanHandle(ctx, value))
+                {
+                    return await _singleEventForEventSourceIdHandler.Handle(ctx, value);
+                }
+                if (_eventsForEventSourceIdHandler.CanHandle(ctx, value))
+                {
+                    return await _eventsForEventSourceIdHandler.Handle(ctx, value);
                 }
                 return CommandResult.Success(_correlationId);
             });
