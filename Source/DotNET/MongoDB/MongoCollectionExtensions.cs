@@ -171,7 +171,6 @@ public static class MongoCollectionExtensions
         Action<IEnumerable<TDocument>, ISubject<TResult>> onNext)
     {
         var completedCleanup = false;
-        var subject = createSubject([]);
         var logger = Internals.ServiceProvider.GetRequiredService<ILogger<MongoCollection>>();
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
         var queryContext = queryContextManager.Current;
@@ -197,22 +196,23 @@ public static class MongoCollectionExtensions
 
         var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<TDocument>>().Match(fullFilter);
 
-#pragma warning disable CA2000 // Dispose objects before losing scope
+    #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
-#pragma warning restore CA2000 // Dispose objects before losing scope
-
-        // When client unsubscribes, cancel the watch task
-        _ = subject.Subscribe(_ => { }, _ => { }, () =>
-        {
-            logger.ClientUnsubscribed();
-            cancellationTokenSource?.Cancel();
-        });
+    #pragma warning restore CA2000 // Dispose objects before losing scope
+        var subject = new LifetimeAwareSubject<TResult>(
+            createSubject([]),
+            () =>
+            {
+                logger.ClientUnsubscribed();
+                cancellationTokenSource?.Cancel();
+            });
+        ISubject<TResult> observable = subject;
 
         var cancellationToken = cancellationTokenSource.Token;
         cancellationToken.ThrowIfCancellationRequested();
 
         _ = Task.Run(Watch);
-        return subject;
+        return observable;
 
         async Task Watch()
         {
@@ -276,7 +276,8 @@ public static class MongoCollectionExtensions
             logger.CleaningUp();
             cancellationTokenSource?.Dispose();
             cancellationTokenSource = default;
-            subject?.OnCompleted();
+            subject.OnCompleted();
+            subject.Dispose();
         }
     }
 
