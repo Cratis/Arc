@@ -121,7 +121,7 @@ public static class ObservableQueryHttp
 
             return new(CreateSuccessResult(queryContext, waitResult.Value), HttpStatusCode.OK);
         }
-        catch (Exception exception)
+        catch (InvalidCastException exception)
         {
             return new(QueryResult.Error(queryContext.CorrelationId, exception), HttpStatusCode.InternalServerError);
         }
