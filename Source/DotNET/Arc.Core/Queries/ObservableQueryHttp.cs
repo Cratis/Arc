@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Linq;
 using System.Net;
 
 namespace Cratis.Arc.Queries;
@@ -189,13 +190,15 @@ public static class ObservableQueryHttp
             return true;
         }
 
-        foreach (var item in values)
+        var matchedValue = values
+            .Where(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Value)
+            .FirstOrDefault();
+
+        if (matchedValue is not null)
         {
-            if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                value = item.Value;
-                return true;
-            }
+            value = matchedValue;
+            return true;
         }
 
         value = string.Empty;
