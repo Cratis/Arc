@@ -32,6 +32,8 @@ public class a_query_pipeline : Specification
         _queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         _queryRenderers = Substitute.For<IQueryRenderers>();
         _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+            .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
         _serviceProvider = Substitute.For<IServiceProvider>();
         _queryPerformer = Substitute.For<IQueryPerformer>();
         _discoverableValidators = Substitute.For<IDiscoverableValidators>();

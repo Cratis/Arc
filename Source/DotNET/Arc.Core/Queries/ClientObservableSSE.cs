@@ -78,10 +78,10 @@ public class ClientObservableSSE<T>(
                     return;
                 }
 
-                await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
+                var intercepted = await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = data;
+                queryResult.Data = intercepted.First();
 
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";

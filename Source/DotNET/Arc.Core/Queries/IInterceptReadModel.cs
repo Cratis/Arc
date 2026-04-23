@@ -10,13 +10,15 @@ namespace Cratis.Arc.Queries;
 /// <remarks>
 /// Implement this interface to perform cross-cutting operations on read models,
 /// such as decryption or other transformations, both for regular and observable queries.
+/// Because read models are typically immutable records, interceptors receive the current instance
+/// and must return the (potentially replaced) instance — they must not mutate the original in place.
 /// </remarks>
 public interface IInterceptReadModel<TReadModel>
 {
     /// <summary>
-    /// Intercepts the given read model, allowing mutation before it is served to the client.
+    /// Intercepts the given read model and returns the intercepted result.
     /// </summary>
     /// <param name="readModel">The read model instance to intercept.</param>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    Task Intercept(TReadModel readModel);
+    /// <returns>A <see cref="Task{T}"/> that resolves to the intercepted read model, which may be a new instance.</returns>
+    Task<TReadModel> Intercept(TReadModel readModel);
 }

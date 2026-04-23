@@ -26,7 +26,7 @@ public class with_enumerable_result_and_interceptor : given.a_query_action_filte
             .Returns(_rendererResult);
 
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
-            .Returns(Task.CompletedTask);
+            .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
     }
 
     async Task Because()

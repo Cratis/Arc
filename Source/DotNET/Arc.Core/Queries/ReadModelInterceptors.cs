@@ -23,27 +23,35 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
     readonly Dictionary<Type, InterceptorEntry> _cache = BuildCache(types);
 
     /// <inheritdoc/>
-    public async Task Intercept(Type readModelType, IEnumerable<object> items, IServiceProvider serviceProvider)
+    public async Task<IEnumerable<object>> Intercept(Type readModelType, IEnumerable<object> items, IServiceProvider serviceProvider)
     {
         if (!_cache.TryGetValue(readModelType, out var entry))
         {
-            return;
+            return items;
         }
 
+        var result = new List<object>();
         foreach (var item in items)
         {
+            var current = item;
             foreach (var interceptorType in entry.InterceptorTypes)
             {
                 var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
-                await (Task)entry.InterceptMethod.Invoke(interceptor, [item])!;
+                var task = (Task)entry.InterceptMethod.Invoke(interceptor, [current])!;
+                await task;
+                current = entry.TaskResultProperty.GetValue(task)!;
             }
+
+            result.Add(current);
         }
+
+        return result;
     }
 
     static Dictionary<Type, InterceptorEntry> BuildCache(ITypes types)
     {
         var interceptorTypes = types.FindMultiple(typeof(IInterceptReadModel<>));
-        var map = new Dictionary<Type, (List<Type> Types, MethodInfo? Method)>();
+        var map = new Dictionary<Type, (List<Type> Types, MethodInfo? Method, PropertyInfo? ResultProperty)>();
 
         foreach (var interceptorType in interceptorTypes)
         {
@@ -59,7 +67,9 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
             var readModelType = interceptorInterface.GetGenericArguments()[0];
             if (!map.TryGetValue(readModelType, out var entry))
             {
-                entry = ([], interceptorInterface.GetMethod(nameof(IInterceptReadModel<object>.Intercept)));
+                var method = interceptorInterface.GetMethod(nameof(IInterceptReadModel<object>.Intercept));
+                var resultProperty = method!.ReturnType.GetProperty("Result");
+                entry = ([], method, resultProperty);
                 map[readModelType] = entry;
             }
 
@@ -68,8 +78,8 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
 
         return map.ToDictionary(
             kvp => kvp.Key,
-            kvp => new InterceptorEntry(kvp.Value.Types, kvp.Value.Method!));
+            kvp => new InterceptorEntry(kvp.Value.Types, kvp.Value.Method!, kvp.Value.ResultProperty!));
     }
 
-    readonly record struct InterceptorEntry(IReadOnlyList<Type> InterceptorTypes, MethodInfo InterceptMethod);
+    readonly record struct InterceptorEntry(IReadOnlyList<Type> InterceptorTypes, MethodInfo InterceptMethod, PropertyInfo TaskResultProperty);
 }

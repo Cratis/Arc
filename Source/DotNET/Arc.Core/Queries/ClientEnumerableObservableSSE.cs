@@ -48,9 +48,9 @@ public class ClientEnumerableObservableSSE<T>(
                     continue;
                 }
 
-                await readModelInterceptors.Intercept(typeof(T), [item], serviceProvider);
+                var intercepted = await readModelInterceptors.Intercept(typeof(T), [item], serviceProvider);
 
-                queryResult.Data = item;
+                queryResult.Data = intercepted.First();
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";
 

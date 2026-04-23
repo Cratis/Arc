@@ -80,10 +80,10 @@ public class ClientObservable<T>(
                     return;
                 }
 
-                await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
+                var intercepted = await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = data;
+                queryResult.Data = intercepted.First();
 
                 var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                 if (error is not null && !cts.IsCancellationRequested)

@@ -15,10 +15,10 @@ public class a_read_model_interceptors : Specification
     {
         public List<TestReadModel> InterceptedItems { get; } = [];
 
-        public Task Intercept(TestReadModel readModel)
+        public Task<TestReadModel> Intercept(TestReadModel readModel)
         {
             InterceptedItems.Add(readModel);
-            return Task.CompletedTask;
+            return Task.FromResult(readModel);
         }
     }
 
@@ -26,10 +26,10 @@ public class a_read_model_interceptors : Specification
     {
         public List<TestReadModel> InterceptedItems { get; } = [];
 
-        public Task Intercept(TestReadModel readModel)
+        public Task<TestReadModel> Intercept(TestReadModel readModel)
         {
             InterceptedItems.Add(readModel);
-            return Task.CompletedTask;
+            return Task.FromResult(readModel);
         }
     }
 
@@ -37,6 +37,6 @@ public class a_read_model_interceptors : Specification
 
     protected class OtherReadModelInterceptor : IInterceptReadModel<OtherReadModel>
     {
-        public Task Intercept(OtherReadModel readModel) => Task.CompletedTask;
+        public Task<OtherReadModel> Intercept(OtherReadModel readModel) => Task.FromResult(readModel);
     }
 }

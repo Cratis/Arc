@@ -157,10 +157,11 @@ public class QueryActionFilter(
     {
         var rendererResult = response is not null ? queryProviders.Render(queryName, response, serviceProvider) : new QueryRendererResult(0, default!);
 
+        var interceptedData = rendererResult.Data;
         if (rendererResult.Data is not null)
         {
             var readModelType = GetReadModelType(response);
-            await ApplyInterceptors(readModelType, rendererResult.Data, serviceProvider);
+            interceptedData = await ApplyInterceptors(readModelType, rendererResult.Data, serviceProvider);
         }
 
         var queryResult = new QueryResult
@@ -173,10 +174,10 @@ public class QueryActionFilter(
             ValidationResults = validationResults,
             ExceptionMessages = exceptionMessages,
             ExceptionStackTrace = exceptionStackTrace,
-            Data = rendererResult.Data!
+            Data = interceptedData!
         };
 
-        if (rendererResult.Data is null && queryResult.IsSuccess)
+        if (interceptedData is null && queryResult.IsSuccess)
         {
             queryResult.ExceptionMessages = ["Null data returned"];
         }
@@ -184,21 +185,20 @@ public class QueryActionFilter(
         return queryResult;
     }
 
-    async Task ApplyInterceptors(Type readModelType, object data, IServiceProvider serviceProvider)
+    async Task<object> ApplyInterceptors(Type readModelType, object data, IServiceProvider serviceProvider)
     {
         if (data is IQueryable queryable)
         {
-            await readModelInterceptors.Intercept(readModelType, queryable.Cast<object>(), serviceProvider);
-            return;
+            return await readModelInterceptors.Intercept(readModelType, queryable.Cast<object>(), serviceProvider);
         }
 
         if (data is IEnumerable<object> enumerable)
         {
-            await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
-            return;
+            return await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
         }
 
-        await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
+        var intercepted = await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
+        return intercepted.First();
     }
 
     async Task<(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response)> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)

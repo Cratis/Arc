@@ -8,6 +8,7 @@ public class with_no_interceptors_registered : Specification
     ReadModelInterceptors _interceptors;
     IServiceProvider _serviceProvider;
     bool _threw;
+    IEnumerable<object> _result;
 
     void Establish()
     {
@@ -22,7 +23,7 @@ public class with_no_interceptors_registered : Specification
         _threw = false;
         try
         {
-            await _interceptors.Intercept(typeof(object), [new object()], _serviceProvider);
+            _result = await _interceptors.Intercept(typeof(object), [new object()], _serviceProvider);
         }
         catch
         {
@@ -32,4 +33,5 @@ public class with_no_interceptors_registered : Specification
 
     [Fact] void should_not_throw() => _threw.ShouldBeFalse();
     [Fact] void should_not_call_service_provider() => _serviceProvider.DidNotReceive().GetService(Arg.Any<Type>());
+    [Fact] void should_return_original_items() => _result.ShouldNotBeNull();
 }

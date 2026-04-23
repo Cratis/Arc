@@ -36,7 +36,8 @@ public class with_read_model_interceptor : given.a_query_pipeline
         query_filters.OnPerform(Arg.Any<QueryContext>()).Returns(_filterResult);
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromResult<object?>(_renderedData));
         _queryRenderers.Render(_queryName, _renderedData, _serviceProvider).Returns(_rendererResult);
-        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>()).Returns(Task.CompletedTask);
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+            .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
     }
 
     async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);

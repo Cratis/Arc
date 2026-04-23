@@ -25,6 +25,8 @@ public class a_query_action_filter : Specification
         _queryContextManager = Substitute.For<IQueryContextManager>();
         _queryRenderers = Substitute.For<IQueryRenderers>();
         _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+            .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
         _logger = Substitute.For<ILogger<QueryActionFilter>>();
 
         var queryContextManager = Substitute.For<IQueryContextManager>();

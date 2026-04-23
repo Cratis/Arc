@@ -104,18 +104,16 @@ public class QueryPipeline(
         if (data is IQueryable queryable)
         {
             var items = queryable.Cast<object>().ToList();
-            await readModelInterceptors.Intercept(readModelType, items, serviceProvider);
-            return items;
+            return await readModelInterceptors.Intercept(readModelType, items, serviceProvider);
         }
 
         if (data is IEnumerable<object> enumerable)
         {
-            await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
-            return data;
+            return await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
         }
 
-        await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
-        return data;
+        var intercepted = await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
+        return intercepted.First();
     }
 
     async Task<QueryResult> ValidatePaging(Paging paging, CorrelationId correlationId)
