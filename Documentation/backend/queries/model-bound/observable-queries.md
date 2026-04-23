@@ -499,6 +499,24 @@ The `ISubject<T>` return type automatically establishes and manages WebSocket co
 > **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your observable queries,
 > making them strongly typed on the frontend as well.
 
+## Waiting for the First HTTP Result
+
+The generated HTTP `GET` endpoint for an observable query returns the current snapshot as JSON. If the observable does not have a current value yet, add `waitForFirstResult=true` to keep the HTTP request open until the first item is produced.
+
+Arc applies a timeout while waiting. By default the timeout is 30 seconds. You can override it with `waitForFirstResultTimeout`, expressed in seconds.
+
+```bash
+curl "https://localhost:5001/api/debit-account/observe-single?waitForFirstResult=true"
+```
+
+```bash
+curl "https://localhost:5001/api/debit-account/observe-single?waitForFirstResult=true&waitForFirstResultTimeout=10"
+```
+
+This is useful when debugging observable queries with cURL or any other plain HTTP client and you want the request to block until the first result is available.
+
+See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md) for snapshot, SSE, and long-polling workflows.
+
 ## Connection Management
 
 Arc automatically handles WebSocket connections for observable queries:
@@ -509,4 +527,3 @@ Arc automatically handles WebSocket connections for observable queries:
 - **Reconnection handling** - Clients can reconnect and resume subscriptions
 
 The same connection management applies whether using controller-based or model-bound approaches.
-
