@@ -188,25 +188,17 @@ public class QueryActionFilter(
     {
         if (data is IQueryable queryable)
         {
-            foreach (var item in queryable)
-            {
-                await readModelInterceptors.Intercept(readModelType, item, serviceProvider);
-            }
-
+            await readModelInterceptors.Intercept(readModelType, queryable.Cast<object>(), serviceProvider);
             return;
         }
 
         if (data is IEnumerable<object> enumerable)
         {
-            foreach (var item in enumerable)
-            {
-                await readModelInterceptors.Intercept(readModelType, item, serviceProvider);
-            }
-
+            await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
             return;
         }
 
-        await readModelInterceptors.Intercept(readModelType, data, serviceProvider);
+        await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
     }
 
     async Task<(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response)> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)

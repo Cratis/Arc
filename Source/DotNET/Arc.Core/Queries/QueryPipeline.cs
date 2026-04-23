@@ -104,25 +104,17 @@ public class QueryPipeline(
         if (data is IQueryable queryable)
         {
             var items = queryable.Cast<object>().ToList();
-            foreach (var item in items)
-            {
-                await readModelInterceptors.Intercept(readModelType, item, serviceProvider);
-            }
-
+            await readModelInterceptors.Intercept(readModelType, items, serviceProvider);
             return items;
         }
 
         if (data is IEnumerable<object> enumerable)
         {
-            foreach (var item in enumerable)
-            {
-                await readModelInterceptors.Intercept(readModelType, item, serviceProvider);
-            }
-
+            await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
             return data;
         }
 
-        await readModelInterceptors.Intercept(readModelType, data, serviceProvider);
+        await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
         return data;
     }
 

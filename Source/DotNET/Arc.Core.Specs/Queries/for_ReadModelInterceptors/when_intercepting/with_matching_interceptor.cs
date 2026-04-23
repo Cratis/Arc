@@ -21,7 +21,7 @@ public class with_matching_interceptor : given.a_read_model_interceptors
         _interceptors = new ReadModelInterceptors(types);
     }
 
-    async Task Because() => await _interceptors.Intercept(typeof(TestReadModel), _item, _serviceProvider);
+    async Task Because() => await _interceptors.Intercept(typeof(TestReadModel), [_item], _serviceProvider);
 
     [Fact] void should_call_interceptor_with_item() => _interceptorInstance.InterceptedItems.ShouldContain(_item);
     [Fact] void should_call_interceptor_once() => _interceptorInstance.InterceptedItems.Count.ShouldEqual(1);

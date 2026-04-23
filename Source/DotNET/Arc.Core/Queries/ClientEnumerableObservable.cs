@@ -44,7 +44,7 @@ public class ClientEnumerableObservable<T>(
                         continue;
                     }
 
-                    await readModelInterceptors.Intercept(typeof(T), item, serviceProvider);
+                    await readModelInterceptors.Intercept(typeof(T), [item], serviceProvider);
 
                     queryResult.Data = item;
                     var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);

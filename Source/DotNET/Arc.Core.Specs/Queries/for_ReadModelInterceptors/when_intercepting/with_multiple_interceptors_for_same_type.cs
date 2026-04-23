@@ -28,7 +28,7 @@ public class with_multiple_interceptors_for_same_type : given.a_read_model_inter
         _interceptors = new ReadModelInterceptors(types);
     }
 
-    async Task Because() => await _interceptors.Intercept(typeof(TestReadModel), _item, _serviceProvider);
+    async Task Because() => await _interceptors.Intercept(typeof(TestReadModel), [_item], _serviceProvider);
 
     [Fact] void should_call_first_interceptor() => _firstInterceptor.InterceptedItems.ShouldContain(_item);
     [Fact] void should_call_second_interceptor() => _secondInterceptor.InterceptedItems.ShouldContain(_item);

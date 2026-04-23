@@ -80,7 +80,7 @@ public class ClientObservable<T>(
                     return;
                 }
 
-                await readModelInterceptors.Intercept(typeof(T), data, serviceProvider);
+                await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
                 queryResult.Data = data;

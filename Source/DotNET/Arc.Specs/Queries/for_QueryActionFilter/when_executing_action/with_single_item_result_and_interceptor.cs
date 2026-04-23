@@ -25,7 +25,7 @@ public class with_single_item_result_and_interceptor : given.a_query_action_filt
             Arg.Any<IServiceProvider>())
             .Returns(_rendererResult);
 
-        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<object>(), Arg.Any<IServiceProvider>())
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(Task.CompletedTask);
     }
 
@@ -41,5 +41,5 @@ public class with_single_item_result_and_interceptor : given.a_query_action_filt
     }
 
     [Fact] void should_call_interceptor_for_the_item() =>
-        _readModelInterceptors.Received(1).Intercept(typeof(TestReadModel), _responseData, Arg.Any<IServiceProvider>());
+        _readModelInterceptors.Received(1).Intercept(typeof(TestReadModel), Arg.Is<IEnumerable<object>>(items => items.Contains(_responseData)), Arg.Any<IServiceProvider>());
 }

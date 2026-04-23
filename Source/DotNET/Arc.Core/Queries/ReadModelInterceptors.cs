@@ -23,17 +23,20 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
     readonly Dictionary<Type, InterceptorEntry> _cache = BuildCache(types);
 
     /// <inheritdoc/>
-    public async Task Intercept(Type readModelType, object item, IServiceProvider serviceProvider)
+    public async Task Intercept(Type readModelType, IEnumerable<object> items, IServiceProvider serviceProvider)
     {
         if (!_cache.TryGetValue(readModelType, out var entry))
         {
             return;
         }
 
-        foreach (var interceptorType in entry.InterceptorTypes)
+        foreach (var item in items)
         {
-            var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
-            await (Task)entry.InterceptMethod.Invoke(interceptor, [item])!;
+            foreach (var interceptorType in entry.InterceptorTypes)
+            {
+                var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
+                await (Task)entry.InterceptMethod.Invoke(interceptor, [item])!;
+            }
         }
     }
 

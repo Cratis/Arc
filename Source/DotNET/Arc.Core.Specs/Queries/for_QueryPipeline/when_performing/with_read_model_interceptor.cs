@@ -36,12 +36,12 @@ public class with_read_model_interceptor : given.a_query_pipeline
         query_filters.OnPerform(Arg.Any<QueryContext>()).Returns(_filterResult);
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromResult<object?>(_renderedData));
         _queryRenderers.Render(_queryName, _renderedData, _serviceProvider).Returns(_rendererResult);
-        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<object>(), Arg.Any<IServiceProvider>()).Returns(Task.CompletedTask);
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>()).Returns(Task.CompletedTask);
     }
 
     async Task Because() => _result = await _pipeline.Perform(_queryName, _parameters, _paging, _sorting, _serviceProvider);
 
     [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_call_interceptors_for_each_item() =>
-        _readModelInterceptors.Received(2).Intercept(typeof(object), Arg.Any<object>(), _serviceProvider);
+    [Fact] void should_call_interceptors_with_all_items() =>
+        _readModelInterceptors.Received(1).Intercept(typeof(object), Arg.Any<IEnumerable<object>>(), _serviceProvider);
 }

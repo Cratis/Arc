@@ -25,7 +25,7 @@ public class with_enumerable_result_and_interceptor : given.a_query_action_filte
             Arg.Any<IServiceProvider>())
             .Returns(_rendererResult);
 
-        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<object>(), Arg.Any<IServiceProvider>())
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(Task.CompletedTask);
     }
 
@@ -40,6 +40,6 @@ public class with_enumerable_result_and_interceptor : given.a_query_action_filte
         await _filter.OnActionExecutionAsync(_actionContext, next);
     }
 
-    [Fact] void should_call_interceptor_for_each_item() =>
-        _readModelInterceptors.Received(2).Intercept(typeof(TestReadModel), Arg.Any<object>(), Arg.Any<IServiceProvider>());
+    [Fact] void should_call_interceptor_for_all_items() =>
+        _readModelInterceptors.Received(1).Intercept(typeof(TestReadModel), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>());
 }

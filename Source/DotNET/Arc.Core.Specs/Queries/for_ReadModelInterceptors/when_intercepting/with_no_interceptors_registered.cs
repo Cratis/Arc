@@ -22,7 +22,7 @@ public class with_no_interceptors_registered : Specification
         _threw = false;
         try
         {
-            await _interceptors.Intercept(typeof(object), new object(), _serviceProvider);
+            await _interceptors.Intercept(typeof(object), [new object()], _serviceProvider);
         }
         catch
         {
