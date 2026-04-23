@@ -26,7 +26,7 @@ internal class InternalReadModel
     /// </summary>
     /// <param name="id">The identifier to query.</param>
     /// <returns>The read model result.</returns>
-    internal static InternalReadModel GetById(Guid id)
+    internal static InternalReadModel GetInternalById(Guid id)
     {
         return new InternalReadModel { Id = id, Data = "Internal data" };
     }
