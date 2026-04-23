@@ -133,10 +133,9 @@ public static class ObservableQueryHttp
         CancellationToken cancellationToken)
     {
         var taskCompletionSource = new TaskCompletionSource<ObservableWaitResult<T>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        IDisposable? subscription = null;
         try
         {
-            subscription = observable.Subscribe(System.Reactive.Observer.Create<T>(
+            using var subscription = observable.Subscribe(System.Reactive.Observer.Create<T>(
                 value => taskCompletionSource.TrySetResult(new(false, false, value)),
                 exception => taskCompletionSource.TrySetException(exception),
                 () => taskCompletionSource.TrySetResult(new(false, true, default!))));
@@ -146,10 +145,6 @@ public static class ObservableQueryHttp
         catch (TimeoutException)
         {
             return new(true, false, default!);
-        }
-        finally
-        {
-            subscription?.Dispose();
         }
     }
 
