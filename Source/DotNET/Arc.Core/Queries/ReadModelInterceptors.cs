@@ -30,22 +30,7 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
             return items;
         }
 
-        var result = new List<object>();
-        foreach (var item in items)
-        {
-            var current = item;
-            foreach (var interceptorType in entry.InterceptorTypes)
-            {
-                var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
-                var task = (Task)entry.InterceptMethod.Invoke(interceptor, [current])!;
-                await task;
-                current = entry.TaskResultProperty.GetValue(task)!;
-            }
-
-            result.Add(current);
-        }
-
-        return result;
+        return await Task.WhenAll(items.Select(item => InterceptItem(item, entry, serviceProvider)));
     }
 
     static Dictionary<Type, InterceptorEntry> BuildCache(ITypes types)
@@ -79,6 +64,20 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return map.ToDictionary(
             kvp => kvp.Key,
             kvp => new InterceptorEntry(kvp.Value.Types, kvp.Value.Method!, kvp.Value.ResultProperty!));
+    }
+
+    async Task<object> InterceptItem(object item, InterceptorEntry entry, IServiceProvider serviceProvider)
+    {
+        var current = item;
+        foreach (var interceptorType in entry.InterceptorTypes)
+        {
+            var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
+            var task = (Task)entry.InterceptMethod.Invoke(interceptor, [current])!;
+            await task;
+            current = entry.TaskResultProperty.GetValue(task)!;
+        }
+
+        return current;
     }
 
     readonly record struct InterceptorEntry(IReadOnlyList<Type> InterceptorTypes, MethodInfo InterceptMethod, PropertyInfo TaskResultProperty);
