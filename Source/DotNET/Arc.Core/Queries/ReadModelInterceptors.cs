@@ -4,6 +4,7 @@
 using System.Reflection;
 using Cratis.DependencyInjection;
 using Cratis.Types;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
 
@@ -11,8 +12,9 @@ namespace Cratis.Arc.Queries;
 /// Represents an implementation of <see cref="IReadModelInterceptors"/>.
 /// </summary>
 /// <remarks>
-/// Discovers all registered <see cref="IInterceptReadModel{TReadModel}"/> implementations at startup
-/// and applies them when interception is requested.
+/// Discovers all <see cref="IInterceptReadModel{TReadModel}"/> implementations via <see cref="ITypes"/> at startup.
+/// Interceptors do not need to be registered in the DI container — the framework creates them automatically,
+/// resolving any constructor dependencies from the provided <see cref="IServiceProvider"/>.
 /// </remarks>
 /// <param name="types"><see cref="ITypes"/> used to discover interceptor implementations.</param>
 [Singleton]
@@ -30,12 +32,7 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
 
         foreach (var interceptorType in entry.InterceptorTypes)
         {
-            var interceptor = serviceProvider.GetService(interceptorType);
-            if (interceptor is null)
-            {
-                continue;
-            }
-
+            var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
             await (Task)entry.InterceptMethod.Invoke(interceptor, [item])!;
         }
     }

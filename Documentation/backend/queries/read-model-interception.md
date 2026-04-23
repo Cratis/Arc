@@ -23,7 +23,7 @@ sequenceDiagram
 
 ## Implementing an Interceptor
 
-Implement `IInterceptReadModel<TReadModel>` and register it with the DI container. The framework discovers all implementations automatically.
+Implement `IInterceptReadModel<TReadModel>`. No DI registration is required — the framework discovers all implementations in your assemblies automatically via `ITypes` and creates instances on demand, resolving any constructor dependencies from the service provider.
 
 ```csharp
 public class DecryptAccountNumbers : IInterceptReadModel<AccountSummary>
@@ -44,16 +44,6 @@ public class DecryptAccountNumbers : IInterceptReadModel<AccountSummary>
 ```
 
 > **Note:** The `Intercept` method mutates the read model in place — it does not return a value. Arc captures and applies your changes automatically.
-
-### Registration
-
-Register your interceptor in the service collection. Any lifetime (singleton, scoped, or transient) works:
-
-```csharp
-services.AddTransient<DecryptAccountNumbers>();
-```
-
-If you use `AddSelfBindings()` (the default for Arc applications), no registration is needed — the framework discovers and wires up all `IInterceptReadModel<T>` implementations from your assemblies automatically.
 
 ## Multiple Interceptors
 
