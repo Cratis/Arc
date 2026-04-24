@@ -32,6 +32,8 @@ describe('when child scope has exception and parent checks aggregate state', asy
     it('should report has exceptions on the child scope', () => childScope.hasExceptions.should.be.true);
     it('should report has exceptions on the parent scope', () => parentScope.hasExceptions.should.be.true);
     it('should not have exceptions on the parent scope directly', () => parentScope.exceptions.has(childCommand).should.be.false);
+    it('should aggregate child exceptions on the parent scope', () => parentScope.aggregatedExceptions.should.deep.equal(['Something went wrong']));
+    it('should expose child exceptions on the child scope aggregate', () => childScope.aggregatedExceptions.should.deep.equal(['Something went wrong']));
     it('should not have validation failures on the child scope', () => childScope.hasValidationFailures.should.be.false);
     it('should not have validation failures on the parent scope', () => parentScope.hasValidationFailures.should.be.false);
 });

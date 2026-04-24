@@ -34,4 +34,5 @@ describe('when executing command again after validation failure', async () => {
 
     it('should not have validation failures after successful re-execution', () => scope.hasValidationFailures.should.be.false);
     it('should not track validation failures for the command', () => scope.validationFailures.has(command).should.be.false);
+    it('should not expose aggregated validation failures after successful re-execution', () => scope.aggregatedValidationFailures.length.should.equal(0));
 });

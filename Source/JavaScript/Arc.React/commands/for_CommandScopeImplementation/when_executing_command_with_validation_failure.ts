@@ -32,4 +32,6 @@ describe('when executing command with validation failure', async () => {
     it('should track validation failures for the command', () => scope.validationFailures.has(command).should.be.true);
     it('should store the correct number of validation results', () => scope.validationFailures.get(command)!.length.should.equal(1));
     it('should store the validation result message', () => scope.validationFailures.get(command)![0].message.should.equal('Name is required'));
+    it('should expose one aggregated validation failure', () => scope.aggregatedValidationFailures.length.should.equal(1));
+    it('should expose the validation failure in aggregated validation failures', () => scope.aggregatedValidationFailures[0].message.should.equal('Name is required'));
 });
