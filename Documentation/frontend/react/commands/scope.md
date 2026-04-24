@@ -94,6 +94,9 @@ export const Toolbar = () => {
 When you need to know exactly which command had a problem and what the errors were, use the
 `validationFailures` and `exceptions` maps. Both are `ReadonlyMap<ICommand, ...>`.
 
+If you only need a flattened aggregate view (across the current scope and all nested child scopes),
+use `aggregatedValidationFailures` and `aggregatedExceptions`.
+
 ```typescript
 const scope = useCommandScope();
 
@@ -106,6 +109,10 @@ for (const [command, failures] of scope.validationFailures) {
 for (const [command, messages] of scope.exceptions) {
     messages.forEach(m => console.log(m));
 }
+
+// Flattened aggregates across this scope and child scopes
+scope.aggregatedValidationFailures.forEach(f => console.log(f.message));
+scope.aggregatedExceptions.forEach(m => console.log(m));
 ```
 
 Only the **own commands** of a scope appear in its `validationFailures` and `exceptions` maps.
@@ -194,6 +201,8 @@ The command scope provides the following properties and methods:
 | hasExceptions | Boolean | Whether any commands in this scope or child scopes produced exceptions in the last execution |
 | validationFailures | ReadonlyMap\<ICommand, ValidationResult[]\> | Validation failures per command for this scope's own commands |
 | exceptions | ReadonlyMap\<ICommand, string[]\> | Exception messages per command for this scope's own commands |
+| aggregatedValidationFailures | ReadonlyArray\<ValidationResult\> | Flattened validation failures across this scope and all child scopes |
+| aggregatedExceptions | ReadonlyArray\<string\> | Flattened exception messages across this scope and all child scopes |
 | parent | ICommandScope \| undefined | The parent scope, if this scope is nested |
 | execute() | Promise\<CommandResults\> | Execute all commands with changes within the scope |
 | revertChanges() | void | Revert any changes to commands within the scope |

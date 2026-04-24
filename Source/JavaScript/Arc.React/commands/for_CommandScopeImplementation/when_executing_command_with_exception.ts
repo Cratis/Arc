@@ -31,4 +31,5 @@ describe('when executing command with exception', async () => {
     it('should store the correct number of exception messages', () => scope.exceptions.get(command)!.length.should.equal(2));
     it('should store the first exception message', () => scope.exceptions.get(command)![0].should.equal('Something went wrong'));
     it('should store the second exception message', () => scope.exceptions.get(command)![1].should.equal('Another error'));
+    it('should expose aggregated exceptions', () => scope.aggregatedExceptions.should.deep.equal(['Something went wrong', 'Another error']));
 });
