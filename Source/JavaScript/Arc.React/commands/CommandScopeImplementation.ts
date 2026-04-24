@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { ICommand, CommandResult, CommandResults } from '@cratis/arc/commands';
+import { ValidationResult } from '@cratis/arc/validation';
 import { IQueryFor } from '@cratis/arc/queries';
 import { ICommandScope } from './ICommandScope';
 
@@ -57,9 +58,12 @@ export interface CommandScopeCallbacks {
 export class CommandScopeImplementation extends ICommandScope {
     private _commands: ICommand[] = [];
     private _queries: IQueryFor<unknown, unknown>[] = [];
+    private _childScopes: ICommandScope[] = [];
     private _hasChanges = false;
     private _isPerforming = false;
     private _parent?: ICommandScope;
+    private _validationFailures: Map<ICommand, ValidationResult[]> = new Map();
+    private _exceptions: Map<ICommand, string[]> = new Map();
 
     constructor(
         private readonly _setHasChanges: (value: boolean) => void,
@@ -69,6 +73,7 @@ export class CommandScopeImplementation extends ICommandScope {
     ) {
         super();
         this._parent = parent;
+        parent?.addChildScope(this);
     }
 
     /** @inheritdoc */
@@ -84,6 +89,34 @@ export class CommandScopeImplementation extends ICommandScope {
     /** @inheritdoc */
     get isPerforming(): boolean {
         return this._isPerforming;
+    }
+
+    /** @inheritdoc */
+    get hasValidationFailures(): boolean {
+        return this._validationFailures.size > 0 || this._childScopes.some(_ => _.hasValidationFailures);
+    }
+
+    /** @inheritdoc */
+    get hasExceptions(): boolean {
+        return this._exceptions.size > 0 || this._childScopes.some(_ => _.hasExceptions);
+    }
+
+    /** @inheritdoc */
+    get validationFailures(): ReadonlyMap<ICommand, ValidationResult[]> {
+        return this._validationFailures;
+    }
+
+    /** @inheritdoc */
+    get exceptions(): ReadonlyMap<ICommand, string[]> {
+        return this._exceptions;
+    }
+
+    /** @inheritdoc */
+    addChildScope(scope: ICommandScope): void {
+        if (this._childScopes.some(_ => _ === scope)) {
+            return;
+        }
+        this._childScopes.push(scope);
     }
 
     /** @inheritdoc */
@@ -113,6 +146,9 @@ export class CommandScopeImplementation extends ICommandScope {
 
         try {
             for (const command of this._commands.filter(_ => _.hasChanges === true)) {
+                this._validationFailures.delete(command);
+                this._exceptions.delete(command);
+
                 const callbacks = this._getCallbacks?.();
                 callbacks?.onBeforeExecute?.(command);
                 const commandResult = await command.execute();
@@ -126,9 +162,11 @@ export class CommandScopeImplementation extends ICommandScope {
                         callbacks?.onUnauthorized?.(command, commandResult);
                     }
                     if (!commandResult.isValid) {
+                        this._validationFailures.set(command, commandResult.validationResults);
                         callbacks?.onValidationFailure?.(command, commandResult);
                     }
                     if (commandResult.hasExceptions) {
+                        this._exceptions.set(command, commandResult.exceptionMessages);
                         callbacks?.onException?.(command, commandResult);
                     }
                 }

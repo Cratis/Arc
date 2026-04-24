@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { ICommand, CommandResults } from '@cratis/arc/commands';
+import { ValidationResult } from '@cratis/arc/validation';
 import { IQueryFor } from '@cratis/arc/queries';
 
 /**
@@ -25,6 +26,26 @@ export abstract class ICommandScope {
     abstract get isPerforming(): boolean;
 
     /**
+     * Gets whether or not any commands in this scope or any child scopes have validation failures from the last execution.
+     */
+    abstract get hasValidationFailures(): boolean;
+
+    /**
+     * Gets whether or not any commands in this scope or any child scopes have exceptions from the last execution.
+     */
+    abstract get hasExceptions(): boolean;
+
+    /**
+     * Gets the validation failures per command for this scope's commands.
+     */
+    abstract get validationFailures(): ReadonlyMap<ICommand, ValidationResult[]>;
+
+    /**
+     * Gets the exception messages per command for this scope's commands.
+     */
+    abstract get exceptions(): ReadonlyMap<ICommand, string[]>;
+
+    /**
      * Add a command for tracking in the scope.
      * @param {ICommand} command Command to add.
      */
@@ -35,6 +56,12 @@ export abstract class ICommandScope {
      * @param {IQueryFor<unknown, unknown>} query Query to add.
      */
     abstract addQuery(query: IQueryFor<unknown, unknown>): void;
+
+    /**
+     * Add a child scope to this scope for aggregate state tracking.
+     * @param {ICommandScope} scope Child scope to add.
+     */
+    abstract addChildScope(scope: ICommandScope): void;
 
     /**
      * Execute all commands with changes.
