@@ -12,7 +12,7 @@ This guide walks you through building your first Arc.Core application from scrat
 Add the Arc.Core package to your project:
 
 ```bash
-dotnet add package Cratis.Applications
+dotnet add package Cratis.Arc
 ```
 
 ## Basic Setup
