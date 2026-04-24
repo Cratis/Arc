@@ -34,4 +34,5 @@ describe('when executing command again after exception', async () => {
 
     it('should not have exceptions after successful re-execution', () => scope.hasExceptions.should.be.false);
     it('should not track exceptions for the command', () => scope.exceptions.has(command).should.be.false);
+    it('should not expose aggregated exceptions after successful re-execution', () => scope.aggregatedExceptions.length.should.equal(0));
 });
