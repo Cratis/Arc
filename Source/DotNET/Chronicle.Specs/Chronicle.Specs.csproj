@@ -9,5 +9,6 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
+        <ProjectReference Include="../Chronicle.Testing/Chronicle.Testing.csproj" />
     </ItemGroup>
 </Project>
