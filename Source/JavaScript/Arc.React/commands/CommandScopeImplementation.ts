@@ -107,8 +107,24 @@ export class CommandScopeImplementation extends ICommandScope {
     }
 
     /** @inheritdoc */
+    get aggregatedValidationFailures(): ReadonlyArray<ValidationResult> {
+        return [
+            ...Array.from(this._validationFailures.values()).flat(),
+            ...this._childScopes.flatMap(_ => _.aggregatedValidationFailures)
+        ];
+    }
+
+    /** @inheritdoc */
     get exceptions(): ReadonlyMap<ICommand, string[]> {
         return this._exceptions;
+    }
+
+    /** @inheritdoc */
+    get aggregatedExceptions(): ReadonlyArray<string> {
+        return [
+            ...Array.from(this._exceptions.values()).flat(),
+            ...this._childScopes.flatMap(_ => _.aggregatedExceptions)
+        ];
     }
 
     /** @inheritdoc */

@@ -41,9 +41,19 @@ export abstract class ICommandScope {
     abstract get validationFailures(): ReadonlyMap<ICommand, ValidationResult[]>;
 
     /**
+     * Gets aggregated validation failures for this scope and all child scopes.
+     */
+    abstract get aggregatedValidationFailures(): ReadonlyArray<ValidationResult>;
+
+    /**
      * Gets the exception messages per command for this scope's commands.
      */
     abstract get exceptions(): ReadonlyMap<ICommand, string[]>;
+
+    /**
+     * Gets aggregated exception messages for this scope and all child scopes.
+     */
+    abstract get aggregatedExceptions(): ReadonlyArray<string>;
 
     /**
      * Add a command for tracking in the scope.
