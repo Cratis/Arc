@@ -12,8 +12,13 @@ const defaultCommandScopeContext: ICommandScope = new class extends ICommandScop
     get parent() { return undefined; }
     get hasChanges() { return false; }
     get isPerforming() { return false; }
+    get hasValidationFailures() { return false; }
+    get hasExceptions() { return false; }
+    get validationFailures() { return new Map(); }
+    get exceptions() { return new Map(); }
     addCommand() { }
     addQuery() { }
+    addChildScope() { }
     async execute() { return new CommandResults(new Map()); }
     revertChanges() { }
 }();
