@@ -1,6 +1,6 @@
 # Command Scope
 
-If you want to track commands and queries and create an aggregation of their status at a compositional
+If you want to track commands and create an aggregation of their status at a compositional
 level, the command scope provides a React context for this.
 This is typically useful when having something like a top level toolbar with a **Save** button that
 you want to enable or disable depending on whether or not there are changes within any components
