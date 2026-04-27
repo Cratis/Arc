@@ -37,7 +37,7 @@ public static class QueryEndpointMapper
 
         // Register public performers first so they win over internal performers when URLs conflict.
         var orderedPerformers = queryPerformerProviders.Performers
-            .OrderByDescending(p => p.Type.IsPublic || p.Type.IsNestedPublic);
+            .OrderByDescending(p => p.ReadModelType is { IsPublic: true } or { IsNestedPublic: true });
         var registeredUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var performer in orderedPerformers)
