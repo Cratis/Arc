@@ -265,6 +265,71 @@ public class UserService
 
 ## Error Handling
 
+### Reporting Errors from Aggregate Root Methods
+
+Aggregate root methods can report structured validation failures using the `Failed` method. Failures are accumulated and included in the `AggregateRootCommitResult` when `Commit` is called.
+
+```csharp
+public class Order : AggregateRoot
+{
+    int _quantity;
+
+    public async Task AddItem(Guid productId, int quantity)
+    {
+        if (quantity <= 0)
+        {
+            Failed("Quantity must be greater than zero.");
+            return;
+        }
+
+        if (_quantity + quantity > 100)
+        {
+            Failed("Adding this item would exceed the maximum order quantity.", ValidationResultSeverity.Warning);
+        }
+
+        await Apply(new ItemAdded(productId, quantity));
+    }
+}
+```
+
+`Failed` accepts:
+- A **message** — the human-readable description of the problem.
+- An optional **severity** (`ValidationResultSeverity.Error`, `Warning`, or `Information`). Defaults to `Error`.
+
+**Error** severity failures **prevent the commit** — `Commit()` returns without persisting any events and `IsSuccess` is `false`.
+
+**Warning** and **Information** severity failures are informational only — they are included in the result but do not block the commit.
+
+### Handling the Commit Result
+
+```csharp
+var result = await order.Commit();
+
+if (!result.IsSuccess)
+{
+    foreach (var validation in result.ValidationResults)
+    {
+        Console.WriteLine($"[{validation.Severity}] {validation.Message}");
+    }
+}
+```
+
+### Model-Bound Commands
+
+When using the model-bound command pattern, return the `AggregateRootCommitResult` from the `Handle` method. The `AggregateRootCommitResultCommandResponseValueHandler` will automatically convert it to a `CommandResult`, propagating all validation results, constraint violations, and errors back to the API caller.
+
+```csharp
+[Command]
+public record AddItemToOrder([Key] Guid OrderId, Guid ProductId, int Quantity)
+{
+    public async Task<AggregateRootCommitResult> Handle(Order order)
+    {
+        await order.AddItem(ProductId, Quantity);
+        return await order.Commit();
+    }
+}
+```
+
 Chronicle provides built-in support for handling validation errors and constraint violations during event application and commit operations. The `AggregateRootCommitResult` contains information about any errors that occurred during the commit process.
 
 ```csharp
