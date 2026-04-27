@@ -35,7 +35,12 @@ public static class QueryEndpointMapper
             p => p.Location,
             options.SegmentsToSkipForRoute);
 
-        foreach (var performer in queryPerformerProviders.Performers)
+        // Register public performers first so they win over internal performers when URLs conflict.
+        var orderedPerformers = queryPerformerProviders.Performers
+            .OrderByDescending(p => p.ReadModelType is { IsPublic: true } or { IsNestedPublic: true });
+        var registeredUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var performer in orderedPerformers)
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
             var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
@@ -43,6 +48,8 @@ public static class QueryEndpointMapper
                 location,
                 performersByNamespace);
             var url = EndpointRouteHelper.BuildRouteUrl(options, location, performer.Name.ToString(), includeQueryName);
+
+            if (!registeredUrls.Add(url)) continue;
 
             var executeEndpointName = $"Execute{performer.FullyQualifiedName}";
             if (!mapper.EndpointExists(executeEndpointName))

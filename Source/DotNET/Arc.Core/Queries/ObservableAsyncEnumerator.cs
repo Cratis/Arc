@@ -29,9 +29,9 @@ public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
         _subscriber = observable.Subscribe(
             onNext: _ =>
             {
-                _items.Enqueue(_);
                 lock (_lock)
                 {
+                    _items.Enqueue(_);
                     if (!_taskCompletionSource.Task.IsCompletedSuccessfully)
                     {
                         _taskCompletionSource.SetResult();

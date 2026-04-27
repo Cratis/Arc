@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc;
-
 namespace Microsoft.AspNetCore.Builder;
 
 /// <summary>
@@ -26,9 +24,10 @@ public static class ApplicationBuilderExtensions
         }
         app.Properties[CratisArcInitializedKey] = true;
 
-        Internals.ServiceProvider = app.ApplicationServices;
+        Cratis.Arc.Internals.ServiceProvider = app.ApplicationServices;
 
         app.MapIdentityProvider();
+        app.MapIntrospectionEndpoints();
         app.UseCommandEndpoints();
         app.UseQueryEndpoints();
         app.UseObservableQueryDemultiplexer();
