@@ -126,7 +126,8 @@ export class ObservableQueryMultiplexer {
 
         for (const [key, value] of Object.entries(a)) {
             if (pagingAndSortingKeys.has(key)) continue;
-            remaining[key] = value !== undefined && value !== null ? String(value) : null;
+            if (value === undefined || value === null) continue;
+            remaining[key] = String(value);
             hasRemaining = true;
         }
 

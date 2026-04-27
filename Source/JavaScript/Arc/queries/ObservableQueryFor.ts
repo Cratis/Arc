@@ -103,11 +103,13 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             });
         }
 
-        // Build query arguments including unused args parameters, parameter descriptor values, and paging/sorting
+        // For multiplexed mode, include route arguments as plain arguments in the subscribe payload.
+        // In direct mode, route arguments are already part of the URL path and should not be duplicated.
         const parameterValues = ParametersHelper.collectParameterValues(this);
         const { unusedParameters } = UrlHelpers.replaceRouteParameters(this.route, args as object);
+        const routeAndQueryArguments = (args as object) || {};
         const connectionQueryArguments: any = {
-            ...unusedParameters,
+            ...(Globals.queryDirectMode ? unusedParameters : routeAndQueryArguments),
             ...parameterValues,
             ...this.buildQueryArguments()
         };
