@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { QueryScopeImplementation } from './QueryScopeImplementation';
 import { IQueryScope } from './IQueryScope';
 import { useQueryScope } from './useQueryScope';
@@ -28,11 +28,18 @@ export const QueryScope = (props: IQueryScopeProps) => {
     const [, setIsPerforming] = useState(false);
     const [queryScope, setQueryScope] = useState<IQueryScope>(defaultQueryScopeContext);
 
+    // Use ref to capture latest prop value without triggering re-creation of the scope
+    const setIsPerformingRef = useRef(props.setIsPerforming);
+
+    useEffect(() => {
+        setIsPerformingRef.current = props.setIsPerforming;
+    }, [props.setIsPerforming]);
+
     useEffect(() => {
         const queryScopeImplementation = new QueryScopeImplementation(
             (value) => {
                 setIsPerforming(value);
-                props.setIsPerforming?.(value);
+                setIsPerformingRef.current?.(value);
             },
             parentScope !== defaultQueryScopeContext ? parentScope : undefined
         );
