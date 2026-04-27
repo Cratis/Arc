@@ -9,7 +9,7 @@
 - name: CommandForm
   href: command-form/toc.yml
 - name: Queries
-  href: queries.md
+  href: queries/toc.yml
 - name: Suspense Queries
   href: suspense-queries.md
 - name: Change Stream
