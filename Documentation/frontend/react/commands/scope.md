@@ -1,6 +1,6 @@
 # Command Scope
 
-If you want to track commands and queries and create an aggregation of their status at a compositional
+If you want to track commands and create an aggregation of their status at a compositional
 level, the command scope provides a React context for this.
 This is typically useful when having something like a top level toolbar with a **Save** button that
 you want to enable or disable depending on whether or not there are changes within any components
@@ -31,16 +31,24 @@ export const MyComposition = () => {
 
 ## Hierarchical Scopes
 
-Command scopes can be nested to create a hierarchy. Child scopes automatically recognize their parent scope,
-allowing you to track state at different levels of your component tree.
+Command scopes can be nested to create a hierarchy. When you add a `<CommandScope>` inside another
+one, the inner scope automatically registers itself with the nearest outer scope. Commands always
+bind to the **nearest** enclosing scope, so each part of the component tree only tracks the commands
+directly beneath it. The outer scope aggregates state across all inner scopes, giving you both
+local and global views of changes, performing state, validation failures, and exceptions.
 
 ```typescript
 export const MyPage = () => {
+    const [hasChanges, setHasChanges] = useState(false);
+    const [hasValidationFailures, setHasValidationFailures] = useState(false);
+
     return (
-        <CommandScope>
-            <PageToolbar/>
+        <CommandScope setHasChanges={setHasChanges}>
+            {/* PageToolbar sees aggregate state for the whole page */}
+            <PageToolbar hasChanges={hasChanges} hasValidationFailures={hasValidationFailures}/>
             <Section1>
                 <CommandScope>
+                    {/* SectionToolbar only sees state for Section1's commands */}
                     <SectionToolbar/>
                     <SectionContent/>
                 </CommandScope>
@@ -50,9 +58,84 @@ export const MyPage = () => {
 };
 ```
 
-In this example, the inner `CommandScope` has access to its parent scope through the `parent` property.
+In this example:
+- Commands inside `<Section1>` bind to the inner `<CommandScope>`.
+- The outer `<CommandScope>` sees their state through the nested scope link.
+- `pageScope.hasValidationFailures` is `true` whenever any inner scope has failures.
 
-## Callbacks
+## Validation Failures and Exceptions
+
+The `CommandScope` tracks which commands produced validation failures or exceptions after execution.
+These are cleared automatically when a command executes again — you never need to reset them manually.
+
+### Checking aggregate state
+
+```typescript
+import { useCommandScope } from '@cratis/arc/commands';
+
+export const Toolbar = () => {
+    const scope = useCommandScope();
+
+    return (
+        <div>
+            {scope.hasValidationFailures && (
+                <span className="error">Some inputs have validation errors.</span>
+            )}
+            {scope.hasExceptions && (
+                <span className="error">An unexpected error occurred.</span>
+            )}
+        </div>
+    );
+};
+```
+
+### Inspecting per-command detail
+
+When you need to know exactly which command had a problem and what the errors were, use the
+`validationFailures` and `exceptions` maps. Both are `ReadonlyMap<ICommand, ...>`.
+
+If you only need a flattened aggregate view (across the current scope and all nested child scopes),
+use `aggregatedValidationFailures` and `aggregatedExceptions`.
+
+```typescript
+const scope = useCommandScope();
+
+// Validation failures — map of command → ValidationResult[]
+for (const [command, failures] of scope.validationFailures) {
+    failures.forEach(f => console.log(f.message, f.members));
+}
+
+// Exceptions — map of command → string[]
+for (const [command, messages] of scope.exceptions) {
+    messages.forEach(m => console.log(m));
+}
+
+// Flattened aggregates across this scope and child scopes
+scope.aggregatedValidationFailures.forEach(f => console.log(f.message));
+scope.aggregatedExceptions.forEach(m => console.log(m));
+```
+
+Only the **own commands** of a scope appear in its `validationFailures` and `exceptions` maps.
+Commands from nested child scopes appear in those child scopes' maps, but bubble up to the parent
+via `hasValidationFailures` and `hasExceptions`.
+
+### Automatic clearing on re-execution
+
+When a command executes again, its previous failures and exceptions are cleared **before** the new
+execution begins. This means a scope's `hasValidationFailures` and `hasExceptions` always reflect
+the result of the most recent execution, not a stale prior result.
+
+```typescript
+// First execute — validation fails
+await scope.execute();
+console.log(scope.hasValidationFailures); // true
+
+// User fixes the input; execute again — succeeds
+await scope.execute();
+console.log(scope.hasValidationFailures); // false — automatically cleared
+```
+
+
 
 You can provide callbacks to the `<CommandScope>` component to react to command execution results.
 These callbacks are invoked for any command tracked within the scope, and each receives the specific
@@ -114,11 +197,18 @@ The command scope provides the following properties and methods:
 | ---- | ---- | ----------- |
 | hasChanges | Boolean | Whether or not there are changes in any commands within the scope |
 | isPerforming | Boolean | Whether or not any commands or queries are currently being performed |
+| hasValidationFailures | Boolean | Whether any commands in this scope or child scopes have validation failures from the last execution |
+| hasExceptions | Boolean | Whether any commands in this scope or child scopes produced exceptions in the last execution |
+| validationFailures | ReadonlyMap\<ICommand, ValidationResult[]\> | Validation failures per command for this scope's own commands |
+| exceptions | ReadonlyMap\<ICommand, string[]\> | Exception messages per command for this scope's own commands |
+| aggregatedValidationFailures | ReadonlyArray\<ValidationResult\> | Flattened validation failures across this scope and all child scopes |
+| aggregatedExceptions | ReadonlyArray\<string\> | Flattened exception messages across this scope and all child scopes |
 | parent | ICommandScope \| undefined | The parent scope, if this scope is nested |
 | execute() | Promise\<CommandResults\> | Execute all commands with changes within the scope |
 | revertChanges() | void | Revert any changes to commands within the scope |
 | addCommand(command) | void | Manually add a command for tracking (usually done automatically) |
 | addQuery(query) | void | Manually add a query for tracking (usually done automatically) |
+| addChildScope(scope) | void | Register a child scope for aggregate state propagation (done automatically) |
 
 ## Using Command Scope in React
 

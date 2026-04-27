@@ -78,7 +78,7 @@ builder.AddCratis(
 By default, the Cratis package doesn't include MongoDB support. To use MongoDB with your application, add the MongoDB package separately:
 
 ```bash
-dotnet add package Cratis.Applications.MongoDB
+dotnet add package Cratis.Arc.MongoDB
 ```
 
 Then configure MongoDB using the `WithMongoDB` extension method:

@@ -7,8 +7,9 @@ import { QueryShowcasePage } from './Features/QueryShowcase/QueryShowcasePage';
 import { ConditionalQueriesPage } from './Features/ConditionalQueries/ConditionalQueriesPage';
 import { AuthenticationQueriesPage } from './Features/AuthenticationQueries/AuthenticationQueriesPage';
 import { ChangeStreamPage } from './Features/ChangeStream/ChangeStreamPage';
+import { CrossCuttingAuthorizationPage } from './Features/CrossCuttingAuthorization/CrossCuttingAuthorizationPage';
 
-export type Page = 'authenticationqueries' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries' | 'changestream';
+export type Page = 'authenticationqueries' | 'crosscuttingauthorization' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries' | 'changestream';
 
 interface AppProps {
     title: string;
@@ -29,6 +30,12 @@ export const App = ({ title, page, onPageChange: setPage }: AppProps) => {
                     style={{ fontWeight: page === 'authenticationqueries' ? 'bold' : 'normal' }}
                 >
                     Authentication Queries
+                </button>
+                <button
+                    onClick={() => setPage('crosscuttingauthorization')}
+                    style={{ fontWeight: page === 'crosscuttingauthorization' ? 'bold' : 'normal' }}
+                >
+                    Cross-Cutting Authorization
                 </button>
                 <button
                     onClick={() => setPage('ticker')}
@@ -62,6 +69,7 @@ export const App = ({ title, page, onPageChange: setPage }: AppProps) => {
                 </button>
             </nav>
             {page === 'authenticationqueries' && <AuthenticationQueriesPage />}
+            {page === 'crosscuttingauthorization' && <CrossCuttingAuthorizationPage />}
             {page === 'ticker' && <TickerPage />}
             {page === 'livefeed' && <LiveFeedPage />}
             {page === 'queryshowcase' && <QueryShowcasePage />}
