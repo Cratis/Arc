@@ -77,7 +77,7 @@ public class AggregateRoot : IAggregateRoot
     /// Defaults to <see cref="ValidationResultSeverity.Error"/>, which blocks the commit.
     /// </param>
     protected void Failed(string message, ValidationResultSeverity severity = ValidationResultSeverity.Error) =>
-        _validationResults.Add(new ValidationResult(severity, message, [], new object()));
+        _validationResults.Add(new ValidationResult(severity, message, [], null!));
 
     /// <summary>
     /// Called when the aggregate root is ready to be activated.
