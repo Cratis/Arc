@@ -269,6 +269,18 @@ public static class QueryExtensions
     /// <returns>True if it is optional, false if not.</returns>
     static bool IsOptional(this ParameterInfo parameter)
     {
-        return parameter.ParameterType.IsNullable() || parameter.HasDefaultValue;
+        if (parameter.HasDefaultValue)
+        {
+            return true;
+        }
+
+        if (parameter.ParameterType.IsValueType)
+        {
+            return parameter.ParameterType.IsNullable();
+        }
+
+        var context = new NullabilityInfoContext();
+        var nullabilityInfo = context.Create(parameter);
+        return nullabilityInfo.WriteState == NullabilityState.Nullable;
     }
 }

@@ -108,6 +108,22 @@ public class ParameterizedReadModel
     [
         new ParameterizedReadModel { Id = Guid.NewGuid(), Name = name, Category = category }
     ];
+
+    /// <summary>
+    /// Searches by category with an optional observer ID.
+    /// </summary>
+    /// <param name="category">The category filter.</param>
+    /// <param name="observerId">Optional observer ID.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<ParameterizedReadModel> SearchByCategoryWithOptionalObserverId(string category, string? observerId) =>
+    [
+        new ParameterizedReadModel
+        {
+            Id = Guid.NewGuid(),
+            Name = observerId ?? "No Observer",
+            Category = category
+        }
+    ];
 }
 
 /// <summary>
