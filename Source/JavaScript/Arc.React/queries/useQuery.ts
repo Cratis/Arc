@@ -10,6 +10,7 @@ import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { useCommandScope } from '../commands/useCommandScope';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+import { useQueryScope } from './useQueryScope';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -24,6 +25,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
     const commandScope = useCommandScope();
+    const queryScope = useQueryScope();
     const queryCache = useContext(QueryInstanceCacheContext);
     const cacheKeyRef = useRef<string>('');
 
@@ -63,6 +65,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
+            queryScope.notifyPerformingStarted();
             try {
                 const queryResult = await performer(queryInstance, args);
                 const withState = QueryResultWithState.fromQueryResult(queryResult, false);
@@ -70,6 +73,8 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 setResult(withState);
             } catch {
                 // Ignore
+            } finally {
+                queryScope.notifyPerformingCompleted();
             }
         }
     });
