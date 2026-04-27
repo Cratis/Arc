@@ -3,21 +3,21 @@
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Http.Discovery;
+namespace Cratis.Arc.Http.Introspection;
 
 /// <summary>
-/// Maps endpoint discovery routes.
+/// Maps endpoint introspection routes.
 /// </summary>
-public static class DiscoveryEndpointMapper
+public static class IntrospectionEndpointMapper
 {
-    const string CommandsEndpointName = "DiscoverCommands";
-    const string QueriesEndpointName = "DiscoverQueries";
+    const string CommandsEndpointName = "IntrospectCommands";
+    const string QueriesEndpointName = "IntrospectQueries";
 
     /// <summary>
-    /// Maps discovery endpoints for commands and queries.
+    /// Maps introspection endpoints for commands and queries.
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
-    public static void MapDiscoveryEndpoints(this IEndpointMapper mapper)
+    public static void MapIntrospectionEndpoints(this IEndpointMapper mapper)
     {
         if (!mapper.EndpointExists(CommandsEndpointName))
         {
@@ -25,16 +25,16 @@ public static class DiscoveryEndpointMapper
                 "/.cratis/commands",
                 async context =>
                 {
-                    var discoveryService = context.RequestServices.GetRequiredService<IDiscoveryService>();
-                    var (commands, _) = discoveryService.DiscoverAllEndpoints();
-                    await context.WriteResponseAsJson(commands, typeof(List<CommandDiscoveryMetadata>), context.RequestAborted);
+                    var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
+                    var (commands, _) = introspectionService.IntrospectAllEndpoints();
+                    await context.WriteResponseAsJson(commands, typeof(List<CommandIntrospectionMetadata>), context.RequestAborted);
                 },
                 new EndpointMetadata(
                     CommandsEndpointName,
-                    "Discover available command endpoints",
-                    ["Cratis Discovery"],
+                    "Introspect available command endpoints",
+                    ["Cratis Introspection"],
                     AllowAnonymous: true,
-                    ResponseType: typeof(List<CommandDiscoveryMetadata>)));
+                    ResponseType: typeof(List<CommandIntrospectionMetadata>)));
         }
 
         if (!mapper.EndpointExists(QueriesEndpointName))
@@ -43,16 +43,16 @@ public static class DiscoveryEndpointMapper
                 "/.cratis/queries",
                 async context =>
                 {
-                    var discoveryService = context.RequestServices.GetRequiredService<IDiscoveryService>();
-                    var (_, queries) = discoveryService.DiscoverAllEndpoints();
-                    await context.WriteResponseAsJson(queries, typeof(List<QueryDiscoveryMetadata>), context.RequestAborted);
+                    var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
+                    var (_, queries) = introspectionService.IntrospectAllEndpoints();
+                    await context.WriteResponseAsJson(queries, typeof(List<QueryIntrospectionMetadata>), context.RequestAborted);
                 },
                 new EndpointMetadata(
                     QueriesEndpointName,
-                    "Discover available query endpoints",
-                    ["Cratis Discovery"],
+                    "Introspect available query endpoints",
+                    ["Cratis Introspection"],
                     AllowAnonymous: true,
-                    ResponseType: typeof(List<QueryDiscoveryMetadata>)));
+                    ResponseType: typeof(List<QueryIntrospectionMetadata>)));
         }
     }
 }

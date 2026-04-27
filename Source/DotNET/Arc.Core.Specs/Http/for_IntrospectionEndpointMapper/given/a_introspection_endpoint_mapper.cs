@@ -1,27 +1,27 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Http.Discovery;
+using Cratis.Arc.Http.Introspection;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Http.for_DiscoveryEndpointMapper.given;
+namespace Cratis.Arc.Http.for_IntrospectionEndpointMapper.given;
 
-public class a_discovery_endpoint_mapper : Specification
+public class a_introspection_endpoint_mapper : Specification
 {
     protected IEndpointMapper _mapper;
-    protected IDiscoveryService _discoveryService;
+    protected IIntrospectionService _introspectionService;
     protected IHttpRequestContext _httpRequestContext;
     protected Dictionary<string, Func<IHttpRequestContext, Task>> _mappedHandlers;
 
     void Establish()
     {
         _mapper = Substitute.For<IEndpointMapper>();
-        _discoveryService = Substitute.For<IDiscoveryService>();
+        _introspectionService = Substitute.For<IIntrospectionService>();
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
         _mappedHandlers = [];
 
         var services = new ServiceCollection();
-        services.AddSingleton(_discoveryService);
+        services.AddSingleton(_introspectionService);
         _httpRequestContext.RequestServices.Returns(services.BuildServiceProvider());
         _httpRequestContext.RequestAborted.Returns(CancellationToken.None);
 

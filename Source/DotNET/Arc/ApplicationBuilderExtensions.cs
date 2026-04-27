@@ -27,7 +27,7 @@ public static class ApplicationBuilderExtensions
         Cratis.Arc.Internals.ServiceProvider = app.ApplicationServices;
 
         app.MapIdentityProvider();
-        app.MapDiscoveryEndpoints();
+        app.MapIntrospectionEndpoints();
         app.UseCommandEndpoints();
         app.UseQueryEndpoints();
         app.UseObservableQueryDemultiplexer();

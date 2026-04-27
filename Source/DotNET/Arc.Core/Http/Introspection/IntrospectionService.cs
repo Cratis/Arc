@@ -8,33 +8,33 @@ using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Cratis.Arc.Http.Discovery;
+namespace Cratis.Arc.Http.Introspection;
 
 /// <summary>
-/// Represents an implementation of <see cref="IDiscoveryService"/> that uses reflection to discover command handlers and query performers, mapping their endpoints and extracting XML documentation summaries.
+/// Represents an implementation of <see cref="IIntrospectionService"/> that uses reflection to discover command handlers and query performers, mapping their endpoints and extracting XML documentation summaries.
 /// </summary>
 /// <param name="serviceProvider">The service provider for accessing service implementations.</param>
 /// <param name="options">Configuration options for routing.</param>
-public class DiscoveryService(IServiceProvider serviceProvider, IOptions<ApiEndpointOptions> options) : IDiscoveryService
+public class IntrospectionService(IServiceProvider serviceProvider, IOptions<ApiEndpointOptions> options) : IIntrospectionService
 {
     private readonly IServiceProvider _serviceProvider = serviceProvider;
     private readonly ApiEndpointOptions _options = options.Value;
 
     /// <summary>
-    /// Discovers all registered commands and queries, mapping their endpoints and retrieving associated documentation.
+    /// Introspects all registered commands and queries, mapping their endpoints and retrieving associated documentation.
     /// </summary>
     /// <returns>A tuple containing lists of discovered commands and queries metadata.</returns>
-    public (List<CommandDiscoveryMetadata> Commands, List<QueryDiscoveryMetadata> Queries) DiscoverAllEndpoints()
+    public (List<CommandIntrospectionMetadata> Commands, List<QueryIntrospectionMetadata> Queries) IntrospectAllEndpoints()
     {
         var commandHandlers = _serviceProvider.GetRequiredService<ICommandHandlerProviders>().Handlers;
-        var discoveredCommands = new List<CommandDiscoveryMetadata>();
+        var discoveredCommands = new List<CommandIntrospectionMetadata>();
 
         foreach (var handler in commandHandlers)
         {
             var location = handler.Location.Skip(_options.SegmentsToSkipForRoute);
             var routePath = EndpointRouteHelper.BuildRouteUrl(_options, location, handler.CommandType.Name, true);
 
-            var commandMeta = new CommandDiscoveryMetadata(
+            var commandMeta = new CommandIntrospectionMetadata(
                 handler.CommandType.Name,
                 string.Join('.', location),
                 routePath,
@@ -45,14 +45,14 @@ public class DiscoveryService(IServiceProvider serviceProvider, IOptions<ApiEndp
         }
 
         var queryPerformers = _serviceProvider.GetRequiredService<IQueryPerformerProviders>().Performers;
-        var discoveredQueries = new List<QueryDiscoveryMetadata>();
+        var discoveredQueries = new List<QueryIntrospectionMetadata>();
 
         foreach (var performer in queryPerformers)
         {
             var location = performer.Location.Skip(_options.SegmentsToSkipForRoute);
             var routePath = EndpointRouteHelper.BuildRouteUrl(_options, location, performer.Name, true);
 
-            var queryMeta = new QueryDiscoveryMetadata(
+            var queryMeta = new QueryIntrospectionMetadata(
                 performer.Name,
                 string.Join('.', location),
                 routePath,

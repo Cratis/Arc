@@ -3,7 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
-using Cratis.Arc.Http.Discovery;
+using Cratis.Arc.Http.Introspection;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +29,7 @@ public static class ArcApplicationExtensions
         }
 
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
-        app.EndpointMapper.MapDiscoveryEndpoints();
+        app.EndpointMapper.MapIntrospectionEndpoints();
         app.EndpointMapper.MapCommandEndpoints(app.Services);
         app.EndpointMapper.MapQueryEndpoints(app.Services);
         app.EndpointMapper.MapObservableQueryDemultiplexerEndpoints(app.Services);
