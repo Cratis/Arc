@@ -6,6 +6,7 @@ using System.Dynamic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using System.Text.RegularExpressions;
 using Cratis.Arc.ProxyGenerator.Templates;
 using Microsoft.Extensions.DependencyModel;
 
@@ -271,6 +272,32 @@ public static class TypeExtensions
         type.GetInterfaces().Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
 
     /// <summary>
+    /// Get the key type of a dictionary type.
+    /// </summary>
+    /// <param name="type">Dictionary type to get key type from.</param>
+    /// <returns>The key <see cref="Type"/>.</returns>
+    public static Type GetDictionaryKeyType(this Type type)
+    {
+        var dictionaryInterface = type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType
+            ? type
+            : type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+        return dictionaryInterface.GetGenericArguments()[0];
+    }
+
+    /// <summary>
+    /// Get the value type of a dictionary type.
+    /// </summary>
+    /// <param name="type">Dictionary type to get value type from.</param>
+    /// <returns>The value <see cref="Type"/>.</returns>
+    public static Type GetDictionaryValueType(this Type type)
+    {
+        var dictionaryInterface = type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType
+            ? type
+            : type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+        return dictionaryInterface.GetGenericArguments()[1];
+    }
+
+    /// <summary>
     /// Get property descriptors for a type.
     /// </summary>
     /// <param name="type">Type to get for.</param>
@@ -296,7 +323,24 @@ public static class TypeExtensions
 
         if (type.IsDictionary())
         {
-            return ObjectTypeFinal;
+            var keyType = type.GetDictionaryKeyType();
+            var valueType = type.GetDictionaryValueType();
+
+            var resolvedKeyType = keyType.IsConcept() ? keyType.GetConceptValueType() : keyType;
+            var keyTargetType = resolvedKeyType.IsEnum
+                ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
+                : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var primitiveKeyType)
+                    ? primitiveKeyType
+                    : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
+
+            var valueTargetType = valueType.GetTargetType();
+
+            if (keyTargetType.Type == "string")
+            {
+                return new(type, $"Record<string, {valueTargetType.Type}>", "Object", Final: true);
+            }
+
+            return new(type, $"Map<{keyTargetType.Type}, {valueTargetType.Type}>", "Map", Final: true);
         }
 
         if (type.IsConcept())
@@ -340,6 +384,20 @@ public static class TypeExtensions
             {
                 property.CollectTypesInvolved(typesInvolved);
             }
+            if (property.OriginalType.IsDictionary())
+            {
+                var keyType = property.OriginalType.GetDictionaryKeyType();
+                var valueType = property.OriginalType.GetDictionaryValueType();
+                var resolvedKeyType = keyType.IsConcept() ? keyType.GetConceptValueType() : keyType;
+                if (!resolvedKeyType.IsAPrimitiveType() && !resolvedKeyType.IsEnum)
+                {
+                    resolvedKeyType.CollectTypesInvolved(typesInvolved);
+                }
+                if (!valueType.IsAPrimitiveType() && !valueType.IsConcept())
+                {
+                    valueType.CollectTypesInvolved(typesInvolved);
+                }
+            }
             if (!string.IsNullOrEmpty(property.Module))
             {
                 imports.Add(new ImportStatement(property.OriginalType, property.Type, property.Module));
@@ -349,7 +407,7 @@ public static class TypeExtensions
         imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
         imports = [.. imports
                     .DistinctBy(_ => _.Type)
-                    .Where(_ => propertyDescriptors.Exists(pd => pd.Type == _.Type) && _.OriginalType != type)];
+                    .Where(_ => propertyDescriptors.Exists(pd => TypeNameIsReferenced(pd.Type, _.Type)) && _.OriginalType != type)];
 
         var documentation = type.GetDocumentation();
 
@@ -838,6 +896,12 @@ public static class TypeExtensions
 
         return type;
     }
+
+#pragma warning disable MA0009 // Add regex evaluation timeout
+    static bool TypeNameIsReferenced(string propertyType, string importTypeName) =>
+        propertyType == importTypeName ||
+        Regex.IsMatch(propertyType, $@"\b{Regex.Escape(importTypeName)}\b");
+#pragma warning restore MA0009 // Add regex evaluation timeout
 
     static void InitializeWellKnownTypes()
     {
