@@ -50,6 +50,15 @@ function deserializeChangeSet(changeSet: ChangeSet<unknown>, modelType: Construc
     };
 }
 
+function deserializeResponseData<TDataType>(data: unknown, modelType: Constructor | null): TDataType {
+    // If data is an array and we have a model type, deserialize each item
+    if (Array.isArray(data) && modelType && modelType !== Object) {
+        return JsonSerializer.deserializeArrayFromInstance(modelType, data) as TDataType;
+    }
+    // Otherwise return data as-is (could be null, undefined, or non-array type)
+    return data as TDataType;
+}
+
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
     if (requiredRequestParameters.length === 0) {
         return true;
@@ -140,14 +149,14 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         if (!queryCache.isSubscribed(key)) {
             const subscription = queryInstance.subscribe(response => {
                 let withState: QueryResultWithState<TDataType>;
+                const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? null;
 
                 if (response.changeSet && Array.isArray(response.data) && response.data.length === 0) {
                     // Delta mode subsequent push: the server omits `data` (serialised as null → []).
                     // Reconstruct the full collection by applying the ChangeSet to the previous state.
                     const previousResult = queryCache.getLastResult<TDataType>(key);
                     if (previousResult && Array.isArray(previousResult.data)) {
-                        const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? Object;
-                        const deserializedChangeSet = deserializeChangeSet(response.changeSet, modelType);
+                        const deserializedChangeSet = deserializeChangeSet(response.changeSet, modelType ?? Object);
                         const reconstructed = applyChangeSet(previousResult.data as unknown[], deserializedChangeSet) as TDataType;
                         withState = new QueryResultWithState<TDataType>(
                             reconstructed,
@@ -163,10 +172,36 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
                             deserializedChangeSet
                         );
                     } else {
-                        withState = QueryResultWithState.fromQueryResult(response, false);
+                        // Fallback if there's no previous result
+                        const deserializedData = deserializeResponseData<TDataType>(response.data, modelType);
+                        withState = new QueryResultWithState<TDataType>(
+                            deserializedData,
+                            response.paging,
+                            response.isSuccess,
+                            response.isAuthorized,
+                            response.isValid,
+                            response.validationResults,
+                            response.hasExceptions,
+                            response.exceptionMessages,
+                            response.exceptionStackTrace,
+                            false,
+                            response.changeSet);
                     }
                 } else {
-                    withState = QueryResultWithState.fromQueryResult(response, false);
+                    // Initial response or full-data responses (non-delta mode)
+                    const deserializedData = deserializeResponseData<TDataType>(response.data, modelType);
+                    withState = new QueryResultWithState<TDataType>(
+                        deserializedData,
+                        response.paging,
+                        response.isSuccess,
+                        response.isAuthorized,
+                        response.isValid,
+                        response.validationResults,
+                        response.hasExceptions,
+                        response.exceptionMessages,
+                        response.exceptionStackTrace,
+                        false,
+                        response.changeSet);
                 }
 
                 queryCache.setLastResult(key, withState);
