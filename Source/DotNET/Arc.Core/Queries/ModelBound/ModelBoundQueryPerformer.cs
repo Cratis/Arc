@@ -23,15 +23,16 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     /// Initializes a new instance of the <see cref="ModelBoundQueryPerformer"/> class.
     /// </summary>
     /// <param name="readModelType">The type of the read model.</param>
+    /// <param name="readModelTypeName">The read model type name to use for fully qualified query naming.</param>
     /// <param name="performMethod">The method info of the perform method.</param>
     /// <param name="serviceProviderIsService">Service to determine if a type is registered as a service.</param>
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
-    public ModelBoundQueryPerformer(Type readModelType, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
+    public ModelBoundQueryPerformer(Type readModelType, string readModelTypeName, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
     {
         Type = readModelType;
         ReadModelType = readModelType;
         Name = performMethod.Name;
-        FullyQualifiedName = $"{readModelType.FullName}.{performMethod.Name}";
+        FullyQualifiedName = $"{readModelTypeName}.{performMethod.Name}";
         Location = readModelType.Namespace?.Split('.') ?? [];
 
         _dependencies = performMethod.GetParameters().Where(p => serviceProviderIsService.IsService(p.ParameterType));
