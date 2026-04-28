@@ -23,7 +23,7 @@ public class and_first_filter_returns_null : Specification
         _filter1.OnExecution(_context).Returns(Task.FromResult<CommandResult>(null!));
         _filter2.OnExecution(_context).Returns(Task.FromResult(_filterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
-        _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters));
+        _commandFilters = new CommandFilters(filters);
     }
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);

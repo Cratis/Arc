@@ -22,7 +22,7 @@ public class with_duplicate_performers : given.two_query_performers
         _secondProvider.Performers.Returns([_secondPerformer]);
     }
 
-    void Because() => _exception = Catch.Exception(() => _ = new QueryPerformerProviders(new KnownInstancesOf<IQueryPerformerProvider>([_firstProvider, _secondProvider])));
+    void Because() => _exception = Catch.Exception(() => _ = new QueryPerformerProviders([_firstProvider, _secondProvider]));
 
     [Fact] void should_throw_multiple_query_performers_for_same_read_model() => _exception.ShouldBeOfExactType<MultipleQueryPerformersForSameReadModel>();
 }

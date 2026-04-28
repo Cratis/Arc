@@ -12,7 +12,7 @@ public class with_single_filter_returning_null : given.a_query_filters
     {
         _filter = Substitute.For<IQueryFilter>();
         _filter.OnPerform(_queryContext).Returns(Task.FromResult<QueryResult>(null!));
-        _queryFilters = new QueryFilters(new KnownInstancesOf<IQueryFilter>([_filter]));
+        _queryFilters = new QueryFilters([_filter]);
     }
 
     async Task Because() => _result = await _queryFilters.OnPerform(_queryContext);

@@ -23,6 +23,6 @@ public class two_providers_with_one_command_handler_each : Specification
         _secondProvider = Substitute.For<ICommandHandlerProvider>();
         _secondProvider.Handlers.Returns([_handlerSecondProvider]);
 
-        _providers = new CommandHandlerProviders(new KnownInstancesOf<ICommandHandlerProvider>([_firstProvider, _secondProvider]));
+        _providers = new CommandHandlerProviders([_firstProvider, _secondProvider]);
     }
 }

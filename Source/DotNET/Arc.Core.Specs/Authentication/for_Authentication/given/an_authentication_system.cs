@@ -7,13 +7,13 @@ namespace Cratis.Arc.Authentication.for_Authentication.given;
 
 public class an_authentication_system : Specification
 {
-    protected IInstancesOf<IAuthenticationHandler> _handlers;
+    protected IEnumerable<IAuthenticationHandler> _handlers;
     protected IHttpRequestContext _context;
     protected Authentication _authentication;
 
     void Establish()
     {
-        _handlers = Substitute.For<IInstancesOf<IAuthenticationHandler>>();
+        _handlers = Substitute.For<IEnumerable<IAuthenticationHandler>>();
         _context = Substitute.For<IHttpRequestContext>();
         _authentication = new Authentication(_handlers);
     }

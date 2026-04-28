@@ -24,7 +24,7 @@ public class when_creating_with_two_providers_providing_commands_for_same_comman
         _secondProvider.Handlers.Returns([_handlerSecondProvider]);
     }
 
-    void Because() => _result = Catch.Exception(() => _ = new CommandHandlerProviders(new KnownInstancesOf<ICommandHandlerProvider>([_firstProvider, _secondProvider])));
+    void Because() => _result = Catch.Exception(() => _ = new CommandHandlerProviders([_firstProvider, _secondProvider]));
 
     [Fact] void should_throw_exception_indicating_there_are_multiple_handlers() => _result.ShouldBeOfExactType<MultipleCommandHandlersForSameCommandType>();
 }

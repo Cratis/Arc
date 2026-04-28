@@ -6,12 +6,12 @@ namespace Cratis.Arc.Commands.for_CommandContextValuesBuilder.given;
 public class a_command_context_values_builder : Specification
 {
     protected CommandContextValuesBuilder _builder;
-    protected IInstancesOf<ICommandContextValuesProvider> _providers;
+    protected IEnumerable<ICommandContextValuesProvider> _providers;
     protected object _command;
 
     void Establish()
     {
-        _providers = Substitute.For<IInstancesOf<ICommandContextValuesProvider>>();
+        _providers = Substitute.For<IEnumerable<ICommandContextValuesProvider>>();
         _builder = new CommandContextValuesBuilder(_providers);
         _command = new { Name = "TestCommand", Value = 42 };
     }

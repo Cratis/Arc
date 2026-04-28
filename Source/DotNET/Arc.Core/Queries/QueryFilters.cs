@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.DependencyInjection;
-using Cratis.Types;
 
 namespace Cratis.Arc.Queries;
 
@@ -11,7 +10,7 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <param name="filters">The collection of <see cref="IQueryFilter"/> to use for filtering queries.</param>
 [Singleton]
-public class QueryFilters(IInstancesOf<IQueryFilter> filters) : IQueryFilters
+public class QueryFilters(IEnumerable<IQueryFilter> filters) : IQueryFilters
 {
     /// <inheritdoc/>
     public async Task<QueryResult> OnPerform(QueryContext context)

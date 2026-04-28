@@ -7,7 +7,7 @@ public class with_no_filters : given.a_query_filters
 {
     QueryResult _result;
 
-    void Establish() => _queryFilters = new QueryFilters(new KnownInstancesOf<IQueryFilter>([]));
+    void Establish() => _queryFilters = new QueryFilters([]);
 
     async Task Because() => _result = await _queryFilters.OnPerform(_queryContext);
 

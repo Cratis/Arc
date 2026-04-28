@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Http;
-using Cratis.Types;
 
 namespace Cratis.Arc.Authorization;
 
@@ -15,8 +14,8 @@ namespace Cratis.Arc.Authorization;
 /// <param name="authorizationAttributeEvaluators">The collection of <see cref="IAuthorizationAttributeEvaluator"/> instances.</param>
 public class AuthorizationEvaluator(
     IHttpRequestContextAccessor httpRequestContextAccessor,
-    IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
-    IInstancesOf<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators) : IAuthorizationEvaluator
+    IEnumerable<IAnonymousEvaluator> anonymousEvaluators,
+    IEnumerable<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators) : IAuthorizationEvaluator
 {
     /// <inheritdoc/>
     public bool IsAuthorized(Type type)

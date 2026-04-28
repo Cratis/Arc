@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using Cratis.Types;
 
 namespace Cratis.Arc.Queries;
 
@@ -17,7 +16,7 @@ public class QueryPerformerProviders : IQueryPerformerProviders
     /// Initializes a new instance of the <see cref="QueryPerformerProviders"/> class.
     /// </summary>
     /// <param name="providers">Instances of <see cref="IQueryPerformerProvider"/> to use for providing query performers.</param>
-    public QueryPerformerProviders(IInstancesOf<IQueryPerformerProvider> providers)
+    public QueryPerformerProviders(IEnumerable<IQueryPerformerProvider> providers)
     {
         var performers = providers.SelectMany(p => p.Performers);
         MultipleQueryPerformersForSameReadModel.ThrowIfDuplicates(performers);
