@@ -2,7 +2,7 @@
 
 Observable queries provide real-time data streaming using WebSockets, enabling reactive user experiences where data changes are pushed to clients as they occur. You achieve this by returning `ISubject<T>` from your controller actions.
 
-The `ISubject<T>` return type automatically establishes a WebSocket connection between the server and client, enabling real-time data updates. This integrates seamlessly with the [ObservableQuery construct in the frontend](../../../frontend/react/queries.md) through the proxy generator, creating strongly-typed reactive data flows.
+The `ISubject<T>` return type automatically establishes a WebSocket connection between the server and client, enabling real-time data updates. This integrates seamlessly with the [ObservableQuery construct in the frontend](../../../frontend/react/queries/index.md) through the proxy generator, creating strongly-typed reactive data flows.
 
 ## Basic Observable Query
 
@@ -403,7 +403,7 @@ See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md)
 
 ## Frontend Integration
 
-Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries.md):
+Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries/index.md):
 
 ```typescript
 // Generated TypeScript proxy automatically handles WebSocket connections

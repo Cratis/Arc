@@ -90,7 +90,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 
 ## Frontend integration
 
-The generated TypeScript proxy includes a `useWithPaging` method when the backend query supports paging. See [Queries](../../../frontend/react/queries.md) for details on using paging in React components.
+The generated TypeScript proxy includes a `useWithPaging` method when the backend query supports paging. See [Queries](../../../frontend/react/queries/index.md) for details on using paging in React components.
 
 ```tsx
 const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(25);

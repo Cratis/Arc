@@ -9,6 +9,7 @@ import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+import { useQueryScope } from './useQueryScope';
 
 /**
  * Applies a server-provided {@link ChangeSet} to a snapshot array, producing the new state.
@@ -60,6 +61,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
     const queryCache = useContext(QueryInstanceCacheContext);
+    const queryScope = useQueryScope();
     const cacheKeyRef = useRef<string>('');
 
     const queryInstance = useMemo(() => {
@@ -130,6 +132,9 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
 
         // Only start a subscription if one does not already exist for this cache key.
         if (!queryCache.isSubscribed(key)) {
+            let receivedFirstResult = false;
+            queryScope.notifyPerformingStarted();
+
             const subscription = queryInstance.subscribe(response => {
                 let withState: QueryResultWithState<TDataType>;
 
@@ -159,11 +164,20 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
                     withState = QueryResultWithState.fromQueryResult(response, false);
                 }
 
+                if (!receivedFirstResult) {
+                    receivedFirstResult = true;
+                    queryScope.notifyPerformingCompleted();
+                }
+
                 queryCache.setLastResult(key, withState);
             }, args as object);
 
             queryCache.setTeardown(key, () => {
                 subscription.unsubscribe();
+                if (!receivedFirstResult) {
+                    receivedFirstResult = true;
+                    queryScope.notifyPerformingCompleted();
+                }
             });
         }
 

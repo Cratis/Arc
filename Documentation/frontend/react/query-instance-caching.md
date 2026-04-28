@@ -112,5 +112,5 @@ Once the condition becomes `true`, the cache is looked up or populated on the ne
 ## See also
 
 - [Observable Query Multiplexing](./observable-query-multiplexing.md) — How hub connections are managed and configured.
-- [Queries](./queries.md) — General query hooks and the `when()` conditional pattern.
+- [Queries](./queries/index.md) — General query hooks and the `when()` conditional pattern.
 - [Observable Query Hub](../../backend/queries/observable-query-hub.md) — Server-side protocol and authorization.

@@ -120,4 +120,4 @@ function MyComponent<T, TQuery extends IChangeStreamFor<T>>({
 
 - [Change Stream — Backend](../../backend/queries/change-stream.md) — `ChangeSetComputor`, identity property discovery, and wire format.
 - [Observable Query Multiplexing](./observable-query-multiplexing.md) — Transport configuration (WebSocket vs SSE, connection count, direct mode).
-- [Queries](./queries.md) — General query hooks and usage patterns.
+- [Queries](./queries/index.md) — General query hooks and usage patterns.
