@@ -8,6 +8,7 @@
         <PublishAot>true</PublishAot>
         <OptimizationPreference>Speed</OptimizationPreference>
         <IlcGenerateMangledNames>true</IlcGenerateMangledNames>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
         <!-- Suppress AOT/trim analysis warnings from Arc.Core (library not yet fully AOT-annotated).
              These codes go to the C# compiler (SYSLIB0020) only; IL codes are passed to ILC via IlcArg. -->
         <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005;SYSLIB0020;IL2104</NoWarn>

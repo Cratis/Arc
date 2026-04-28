@@ -1,11 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc;
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Http.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Arc.Validation;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using TestApps.Authentication;
@@ -21,6 +24,7 @@ using TestApps.Features.Ticker;
 var builder = ArcApplication.CreateBuilder(args);
 
 _ = typeof(ShowcaseItem);
+PreserveAotQueryReflectionTargets();
 RegisterGeneratedQueryMetadata();
 
 builder
@@ -48,6 +52,8 @@ builder.Services.AddSingleton<IAuthorizationEvaluator>(serviceProvider =>
         ])));
 
 builder.Services.AddSingleton<IObservableQueryDemultiplexer, ObservableQueryDemultiplexer>();
+builder.Services.AddSingleton<IIntrospectionService, IntrospectionService>();
+builder.Services.AddSingleton<IDiscoverableValidators, DiscoverableValidators>();
 
 builder.Services.AddSingleton<IQueryPerformerProviders>(serviceProvider =>
 {
@@ -82,4 +88,29 @@ static void RegisterGeneratedQueryMetadata()
     QueryMetadataRegistry.Register("TestApps.Features.Ticker.Ticker.Observe", typeof(Ticker));
     QueryMetadataRegistry.Register("TestApps.ModelBoundReadModel.GetAll", typeof(TestApps.ModelBoundReadModel));
     QueryMetadataRegistry.Register("TestApps.ModelBoundReadModel.GetById", typeof(TestApps.ModelBoundReadModel));
+}
+
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(AuthenticationQueryItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(AuthenticationQueryItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(ChangeStreamItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(ChangeStreamItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(CrossCuttingAuthorizationStatus))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(CrossCuttingAuthorizationStatus))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(LiveFeed))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(LiveFeed))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(ObservableCollectionItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(ObservableCollectionItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(ObservableCollectionWithGuidItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(ObservableCollectionWithGuidItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(ShowcaseItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(ShowcaseItem))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(Ticker))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(Ticker))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(TestApps.ModelBoundReadModel))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(TestApps.ModelBoundReadModel))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(QueryIntrospectionMetadata))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(CommandIntrospectionMetadata))]
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(QueryResult))]
+static void PreserveAotQueryReflectionTargets()
+{
 }
