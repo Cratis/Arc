@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Http.Introspection;
@@ -18,9 +17,6 @@ public static class IntrospectionEndpointMapper
     /// Maps introspection endpoints for commands and queries.
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(CommandIntrospectionMetadata))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(QueryIntrospectionMetadata))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(global::Cratis.Arc.Queries.QueryResult))]
     public static void MapIntrospectionEndpoints(this IEndpointMapper mapper)
     {
         if (!mapper.EndpointExists(CommandsEndpointName))

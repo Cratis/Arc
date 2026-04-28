@@ -2,11 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.Metrics;
-using Cratis.Arc.Authentication;
-using Cratis.Arc.Authorization;
-using Cratis.Arc.Http.Introspection;
 using Cratis.Arc.Tenancy;
-using Cratis.Arc.Validation;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -105,14 +101,6 @@ public static class HostBuilderExtensions
             .AddSingleton(Internals.DerivedTypes)
             .AddBindingsByConvention()
             .AddSelfBindings();
-
-        services.TryAddSingleton<IAuthentication, Authentication.Authentication>();
-        services.TryAddSingleton<IAuthorizationEvaluator, AuthorizationEvaluator>();
-        services.AddSingleton<IAnonymousEvaluator, AnonymousEvaluator>();
-        services.AddSingleton<IAuthorizationAttributeEvaluator, AuthorizationAttributeEvaluator>();
-        services.TryAddSingleton<IDiscoverableValidators, DiscoverableValidators>();
-        services.TryAddSingleton<IIntrospectionService, IntrospectionService>();
-        services.TryAddSingleton<ITenantIdAccessor, TenantIdAccessor>();
 
         services.AddCratisCommands();
         services.AddCratisQueries();

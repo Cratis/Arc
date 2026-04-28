@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.DependencyInjection;
+using Cratis.Types;
 
 namespace Cratis.Arc.Commands;
 
@@ -10,7 +11,7 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <param name="handlers">The available <see cref="ICommandResponseValueHandler"/>.</param>
 [Singleton]
-public class CommandResponseValueHandlers(IEnumerable<ICommandResponseValueHandler> handlers) : ICommandResponseValueHandlers
+public class CommandResponseValueHandlers(IInstancesOf<ICommandResponseValueHandler> handlers) : ICommandResponseValueHandlers
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext context, object value) =>

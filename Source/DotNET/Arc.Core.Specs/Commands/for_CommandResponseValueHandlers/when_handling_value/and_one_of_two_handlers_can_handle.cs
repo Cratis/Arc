@@ -22,7 +22,7 @@ public class and_one_of_two_handlers_can_handle : Specification
         _secondHandler.CanHandle(Arg.Any<CommandContext>(), Arg.Any<object>()).Returns(true);
         _secondHandler.Handle(Arg.Any<CommandContext>(), Arg.Any<object>()).Returns(CommandResult.Success(CorrelationId.New()));
 
-        _handlers = new([_firstHandler, _secondHandler]);
+        _handlers = new(new KnownInstancesOf<ICommandResponseValueHandler>([_firstHandler, _secondHandler]));
 
         _context = new(CorrelationId.New(), typeof(string), "Something", [], new());
         _value = "Forty two";

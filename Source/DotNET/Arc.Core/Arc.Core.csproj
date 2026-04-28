@@ -29,13 +29,11 @@
         <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
                           OutputItemType="Analyzer" 
                           ReferenceOutputAssembly="false"
-                          PrivateAssets="all"
-                          GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;PublishTrimmed;UseCurrentRuntimeIdentifier" />
+                          PrivateAssets="all" />
         <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"
-                          PrivateAssets="all"
-                          GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;PublishTrimmed;UseCurrentRuntimeIdentifier" />
+                          PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>

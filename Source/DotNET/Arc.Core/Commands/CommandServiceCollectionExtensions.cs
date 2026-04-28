@@ -2,11 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
-using Cratis.Arc.Commands.Filters;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Commands.ResponseValueHandlers;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -30,14 +26,6 @@ public static class CommandServiceCollectionExtensions
         services.AddSingleton<ICommandHandlerProviders, CommandHandlerProviders>();
         services.AddSingleton<ICommandResponseValueHandlers, CommandResponseValueHandlers>();
         services.AddTransient(sp => sp.GetRequiredService<ICommandContextAccessor>().Current);
-
-        services.TryAddSingleton<ICommandHandlerProvider, CommandHandlerProvider>();
-        services.TryAddSingleton<ICommandContextValuesBuilder, CommandContextValuesBuilder>();
-        services.AddSingleton<ICommandFilter, FluentValidationFilter>();
-        services.AddSingleton<ICommandFilter, DataAnnotationValidationFilter>();
-        services.AddSingleton<ICommandFilter, AuthorizationFilter>();
-        services.AddSingleton<ICommandResponseValueHandler, ValidationResultResponseValueHandler>();
-        services.AddSingleton<ICommandResponseValueHandler, AuthorizationResultResponseValueHandler>();
 
         return services;
     }
