@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { QueryResultWithState, IObservableQueryFor, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
-import { Constructor } from '@cratis/fundamentals';
+import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { SetSorting } from './SetSorting';
 import { SetPage } from './SetPage';
@@ -40,6 +40,14 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     }
 
     return [...result, ...changeSet.added] as T[];
+}
+
+function deserializeChangeSet(changeSet: ChangeSet<unknown>, modelType: Constructor): ChangeSet<unknown> {
+    return {
+        added: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.added ?? []),
+        replaced: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.replaced ?? []),
+        removed: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.removed ?? []),
+    };
 }
 
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
@@ -138,7 +146,9 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
                     // Reconstruct the full collection by applying the ChangeSet to the previous state.
                     const previousResult = queryCache.getLastResult<TDataType>(key);
                     if (previousResult && Array.isArray(previousResult.data)) {
-                        const reconstructed = applyChangeSet(previousResult.data as unknown[], response.changeSet) as TDataType;
+                        const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? Object;
+                        const deserializedChangeSet = deserializeChangeSet(response.changeSet, modelType);
+                        const reconstructed = applyChangeSet(previousResult.data as unknown[], deserializedChangeSet) as TDataType;
                         withState = new QueryResultWithState<TDataType>(
                             reconstructed,
                             response.paging,
@@ -150,7 +160,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
                             response.exceptionMessages,
                             response.exceptionStackTrace,
                             false,
-                            response.changeSet
+                            deserializedChangeSet
                         );
                     } else {
                         withState = QueryResultWithState.fromQueryResult(response, false);
