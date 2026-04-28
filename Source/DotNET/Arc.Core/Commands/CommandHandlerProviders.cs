@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Cratis.DependencyInjection;
+using Cratis.Types;
 
 namespace Cratis.Arc.Commands;
 
@@ -18,7 +19,7 @@ public class CommandHandlerProviders : ICommandHandlerProviders
     /// Initializes a new instance of the <see cref="CommandHandlerProviders"/> class.
     /// </summary>
     /// <param name="providers">The collection of <see cref="ICommandHandlerProvider"/> to use for providing command handlers.</param>
-    public CommandHandlerProviders(IEnumerable<ICommandHandlerProvider> providers)
+    public CommandHandlerProviders(IInstancesOf<ICommandHandlerProvider> providers)
     {
         var handlers = providers.SelectMany(p => p.Handlers);
         MultipleCommandHandlersForSameCommandType.ThrowIfDuplicates(handlers);

@@ -18,7 +18,7 @@ public class and_no_handler_can_handle : Specification
         _handler = Substitute.For<ICommandResponseValueHandler>();
         _handler.CanHandle(Arg.Any<CommandContext>(), Arg.Any<object>()).Returns(false);
 
-        _handlers = new([_handler]);
+        _handlers = new(new KnownInstancesOf<ICommandResponseValueHandler>([_handler]));
 
         _context = new(CorrelationId.New(), typeof(string), "Something", [], new());
         _value = "Forty two";

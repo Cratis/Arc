@@ -5,5 +5,5 @@ namespace Cratis.Arc.Queries.for_QueryPerformerProviders.when_trying_to_get_perf
 
 public class an_initialized_query_performer_providers : for_QueryPerformerProviders.given.two_query_performers
 {
-    void Establish() => _queryPerformerProviders = new([_firstProvider, _secondProvider]);
+    void Establish() => _queryPerformerProviders = new(new KnownInstancesOf<IQueryPerformerProvider>([_firstProvider, _secondProvider]));
 }

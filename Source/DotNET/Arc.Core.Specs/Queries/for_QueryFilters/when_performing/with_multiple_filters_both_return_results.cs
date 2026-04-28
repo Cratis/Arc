@@ -35,7 +35,7 @@ public class with_multiple_filters_both_return_results : given.a_query_filters
         _firstFilter.OnPerform(_queryContext).Returns(Task.FromResult(_firstFilterResult));
         _secondFilter.OnPerform(_queryContext).Returns(Task.FromResult(_secondFilterResult));
 
-        _queryFilters = new QueryFilters([_firstFilter, _secondFilter]);
+        _queryFilters = new QueryFilters(new KnownInstancesOf<IQueryFilter>([_firstFilter, _secondFilter]));
     }
 
     async Task Because() => _result = await _queryFilters.OnPerform(_queryContext);

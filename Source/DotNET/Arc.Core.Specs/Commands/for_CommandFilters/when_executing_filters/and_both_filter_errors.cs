@@ -34,7 +34,7 @@ public class and_both_filter_errors : Specification
         _filter1.OnExecution(_context).Returns(Task.FromResult(_firstFilterResult));
         _filter2.OnExecution(_context).Returns(Task.FromResult(_secondFilterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
-        _commandFilters = new CommandFilters(filters);
+        _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters));
     }
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);
