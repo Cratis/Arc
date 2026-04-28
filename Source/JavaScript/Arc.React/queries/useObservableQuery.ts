@@ -19,6 +19,44 @@ import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
  */
 function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     const getId = (item: unknown): unknown => (item as Record<string, unknown>)?.id;
+    const toIdentityValue = (id: unknown): unknown => {
+        if (id === null || id === undefined) {
+            return id;
+        }
+
+        if (typeof id === 'object') {
+            const stringValue = id.toString();
+            if (stringValue !== '[object Object]') {
+                return stringValue;
+            }
+            return JSON.stringify(id);
+        }
+
+        return id;
+    };
+
+    const idsEqual = (left: unknown, right: unknown): boolean => {
+        if (left === right) {
+            return true;
+        }
+
+        if (left === null || left === undefined || right === null || right === undefined) {
+            return false;
+        }
+
+        const leftWithEquals = left as { equals?: (other: unknown) => boolean };
+        if (typeof leftWithEquals.equals === 'function') {
+            return leftWithEquals.equals(right);
+        }
+
+        const rightWithEquals = right as { equals?: (other: unknown) => boolean };
+        if (typeof rightWithEquals.equals === 'function') {
+            return rightWithEquals.equals(left);
+        }
+
+        return toIdentityValue(left) === toIdentityValue(right);
+    };
+
     const useIdentity = changeSet.removed.length > 0
         ? getId(changeSet.removed[0]) !== undefined
         : changeSet.replaced.length > 0;
@@ -26,12 +64,11 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     let result: unknown[];
 
     if (useIdentity) {
-        const removedIds = new Set(changeSet.removed.map(getId));
-        result = (previous as unknown[]).filter(item => !removedIds.has(getId(item)));
+        const removedIds = changeSet.removed.map(getId);
+        result = (previous as unknown[]).filter(item => !removedIds.some(removedId => idsEqual(getId(item), removedId)));
 
-        const replacedById = new Map(changeSet.replaced.map(item => [getId(item), item]));
         result = result.map(item => {
-            const replacement = replacedById.get(getId(item));
+            const replacement = changeSet.replaced.find(candidate => idsEqual(getId(candidate), getId(item)));
             return replacement !== undefined ? replacement : item;
         });
     } else {

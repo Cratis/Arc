@@ -3,14 +3,14 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { useObservableQuery } from '../useObservableQuery';
-import { FakeGuidObservableQuery, FakeGuidItem } from './FakeGuidObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useObservableQuery } from '../../useObservableQuery';
+import { FakeGuidObservableQuery, FakeGuidItem } from '../FakeGuidObservableQuery';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext';
 import { QueryResult, QueryResultWithState, QueryInstanceCache } from '@cratis/arc/queries';
 import { Guid } from '@cratis/fundamentals';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
 
-describe('when reconstructing delta state with guid fields', () => {
+describe('when items are removed as delta and item is identified by a guid', () => {
     let capturedResult: QueryResultWithState<FakeGuidItem[]> | undefined;
 
     beforeEach(() => {
@@ -24,7 +24,7 @@ describe('when reconstructing delta state with guid fields', () => {
         origin: 'https://example.com',
     };
 
-    it('should keep Guid methods on items added through change set', async () => {
+    it('should remove the matching item', async () => {
         const firstId = Guid.create();
         const secondId = Guid.create();
 
@@ -49,8 +49,11 @@ describe('when reconstructing delta state with guid fields', () => {
         const callback = FakeGuidObservableQuery.subscribeCallbacks[0];
 
         await act(async () => {
-            callback(new QueryResult({
-                data: [{ id: firstId.toString(), name: 'First' }],
+            callback({
+                data: [
+                    { id: firstId.toString(), name: 'First' },
+                    { id: secondId.toString(), name: 'Second' },
+                ],
                 isSuccess: true,
                 isAuthorized: true,
                 isValid: true,
@@ -58,9 +61,13 @@ describe('when reconstructing delta state with guid fields', () => {
                 validationResults: [],
                 exceptionMessages: [],
                 exceptionStackTrace: '',
-                paging: { page: 0, size: 0, totalItems: 1, totalPages: 1 }
-            }, FakeGuidItem, true));
+                paging: { page: 0, size: 0, totalItems: 2, totalPages: 1 }
+            } as unknown as QueryResult<FakeGuidItem[]>);
         });
+
+        capturedResult!.data.length.should.equal(2);
+        capturedResult!.data[0].id.equals(firstId).should.be.true;
+        capturedResult!.data[1].id.equals(secondId).should.be.true;
 
         await act(async () => {
             callback({
@@ -72,16 +79,16 @@ describe('when reconstructing delta state with guid fields', () => {
                 validationResults: [],
                 exceptionMessages: [],
                 exceptionStackTrace: '',
-                paging: { page: 0, size: 0, totalItems: 2, totalPages: 1 },
+                paging: { page: 0, size: 0, totalItems: 1, totalPages: 1 },
                 changeSet: {
-                    added: [{ id: secondId.toString(), name: 'Second' }],
+                    added: [],
                     replaced: [],
-                    removed: [],
+                    removed: [{ id: firstId.toString(), name: 'First' }],
                 }
             } as unknown as QueryResult<FakeGuidItem[]>);
         });
 
-        capturedResult!.data.length.should.equal(2);
-        capturedResult!.data[1].id.equals(secondId).should.be.true;
+        capturedResult!.data.length.should.equal(1);
+        capturedResult!.data[0].id.equals(secondId).should.be.true;
     });
 });
