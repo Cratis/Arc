@@ -5,46 +5,15 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <PublishAot>true</PublishAot>
-        <OptimizationPreference>Speed</OptimizationPreference>
-        <IlcGenerateMangledNames>true</IlcGenerateMangledNames>
-        <!-- Suppress AOT/trim analysis warnings from Arc.Core (library not yet fully AOT-annotated).
-             These codes go to the C# compiler (SYSLIB0020) only; IL codes are passed to ILC via IlcArg. -->
-        <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005;SYSLIB0020;IL2104</NoWarn>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+        <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005</NoWarn>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
-    <!-- Pass nowarn flags to the ILC process for all IL-level AOT analysis warnings from Arc.Core.
-         These warnings indicate that Arc.Core uses reflection-based patterns not yet annotated for
-         NativeAOT. The code runs correctly for the features used in this test app. -->
     <ItemGroup>
-        <IlcArg Include="--nowarn:IL2026" />
-        <IlcArg Include="--nowarn:IL2060" />
-        <IlcArg Include="--nowarn:IL2067" />
-        <IlcArg Include="--nowarn:IL2070" />
-        <IlcArg Include="--nowarn:IL2072" />
-        <IlcArg Include="--nowarn:IL2075" />
-        <IlcArg Include="--nowarn:IL3002" />
-        <IlcArg Include="--nowarn:IL3050" />
-    </ItemGroup>
-    <ItemGroup>
-        <!-- Arc.Core is not yet fully annotated for NativeAOT. When publishing with PublishAot=true,
-             the SDK propagates that global to all project references, activating the Roslyn AOT/trim/
-             single-file analyzers and the ConfigurationBindingGenerator — none of which Arc.Core's code
-             satisfies (it uses reflection-based patterns throughout). The resulting SYSLIB1100/IL2026/etc.
-             are errors because Arc repo's Directory.Build.props sets TreatWarningsAsErrors/
-             CodeAnalysisTreatWarningsAsErrors for Release builds.
-
-             These are suppressed by passing /p:EnableAotAnalyzer=false /p:EnableTrimAnalyzer=false
-             /p:EnableSingleFileAnalyzer=false /p:EnableConfigurationBindingGenerator=false on the
-             dotnet publish command line (see publish:aot:mangled script in package.json). Command-line
-             globals propagate to ALL inner builds in the publish pipeline, whereas AdditionalProperties
-             and GlobalPropertiesToRemove on ProjectReference only affect the explicit build-phase
-             invocation. Any remaining ILC-level IL warnings are suppressed via the IlcArg items above. -->
         <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../../Source/DotNET/Arc.Core.Generators/Arc.Core.Generators.csproj"
                           OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false"
-                          GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;PublishTrimmed;UseCurrentRuntimeIdentifier" />
+                          ReferenceOutputAssembly="false" />
         <ProjectReference Include="../Shared/Shared.csproj" />
     </ItemGroup>
 </Project>

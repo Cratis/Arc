@@ -25,6 +25,7 @@ public static class QueryServiceCollectionExtensions
         services.AddSingleton<IQueryMetadataRegistry, QueryMetadataRegistry>();
         services.AddSingleton<IQueryPerformerProviders, QueryPerformerProviders>();
         services.AddSingleton<IQueryRenderers, QueryRenderers>();
+
         return services;
     }
 }
