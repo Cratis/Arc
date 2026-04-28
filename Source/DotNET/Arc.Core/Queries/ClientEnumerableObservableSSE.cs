@@ -16,10 +16,14 @@ namespace Cratis.Arc.Queries;
 /// Initializes a new instance of the <see cref="ClientEnumerableObservableSSE{T}"/> class.
 /// </remarks>
 /// <param name="enumerable">The <see cref="IAsyncEnumerable{T}"/> to use for streaming.</param>
+/// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientEnumerableObservableSSE<T>(
     IAsyncEnumerable<T> enumerable,
+    IReadModelInterceptors readModelInterceptors,
+    IServiceProvider serviceProvider,
     IOptions<ArcOptions> arcOptions,
     ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
@@ -44,7 +48,9 @@ public class ClientEnumerableObservableSSE<T>(
                     continue;
                 }
 
-                queryResult.Data = item;
+                var intercepted = await readModelInterceptors.Intercept(typeof(T), [item], serviceProvider);
+
+                queryResult.Data = intercepted.First();
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";
 

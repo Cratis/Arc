@@ -19,12 +19,16 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContext">The <see cref="QueryContext"/> the observable is for.</param>
 /// <param name="subject">The <see cref="ISubject{T}"/> the observable wraps.</param>
+/// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservableSSE<T>(
     QueryContext queryContext,
     ISubject<T> subject,
+    IReadModelInterceptors readModelInterceptors,
+    IServiceProvider serviceProvider,
     IOptions<ArcOptions> arcOptions,
     IHostApplicationLifetime hostApplicationLifetime,
     ILogger<ClientObservableSSE<T>> logger) : ClientObservableBase<T>(subject)
@@ -74,8 +78,10 @@ public class ClientObservableSSE<T>(
                     return;
                 }
 
+                var intercepted = await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
+
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = data;
+                queryResult.Data = intercepted.First();
 
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";

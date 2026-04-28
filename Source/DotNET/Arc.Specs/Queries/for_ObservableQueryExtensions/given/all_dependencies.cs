@@ -21,6 +21,7 @@ public class all_dependencies : Specification
         services.AddSingleton(_webSocketConnectionHandler);
         services.AddSingleton(_logger);
         services.AddSingleton(Substitute.For<Microsoft.Extensions.Hosting.IHostApplicationLifetime>());
+        services.AddSingleton(Substitute.For<IReadModelInterceptors>());
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();

@@ -17,6 +17,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryFilters">The query filters.</param>
 /// <param name="queryPerformerProviders">The query performer providers.</param>
 /// <param name="queryRenderers">The query renderers.</param>
+/// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
 /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> for validating paging and sorting.</param>
 public class QueryPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
@@ -24,6 +25,7 @@ public class QueryPipeline(
     IQueryFilters queryFilters,
     IQueryPerformerProviders queryPerformerProviders,
     IQueryRenderers queryRenderers,
+    IReadModelInterceptors readModelInterceptors,
     IDiscoverableValidators discoverableValidators) : IQueryPipeline
 {
     /// <inheritdoc/>
@@ -66,7 +68,7 @@ public class QueryPipeline(
             {
                 return QueryResult.Error(correlationId, "No renderer result");
             }
-            result.Data = rendererResult.Data;
+            result.Data = await ApplyInterceptors(queryPerformer.ReadModelType, rendererResult.Data, serviceProvider);
             result.Paging = context.Paging == Paging.NotPaged ? PagingInfo.NotPaged : new PagingInfo(
                         context.Paging.Page,
                         context.Paging.Size,
@@ -95,6 +97,23 @@ public class QueryPipeline(
         }
 
         return correlationId;
+    }
+
+    async Task<object> ApplyInterceptors(Type readModelType, object data, IServiceProvider serviceProvider)
+    {
+        if (data is IQueryable queryable)
+        {
+            var items = queryable.Cast<object>().ToList();
+            return await readModelInterceptors.Intercept(readModelType, items, serviceProvider);
+        }
+
+        if (data is IEnumerable<object> enumerable)
+        {
+            return await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
+        }
+
+        var intercepted = await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
+        return intercepted.First();
     }
 
     async Task<QueryResult> ValidatePaging(Paging paging, CorrelationId correlationId)

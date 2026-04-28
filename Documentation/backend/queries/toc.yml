@@ -10,5 +10,7 @@
   href: change-stream.md
 - name: Query Pipeline
   href: query-pipeline.md
+- name: Read Model Interception
+  href: read-model-interception.md
 - name: Validation
   href: validation.md
