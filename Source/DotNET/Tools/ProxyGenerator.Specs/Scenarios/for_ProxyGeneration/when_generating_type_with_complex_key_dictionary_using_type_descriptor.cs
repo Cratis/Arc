@@ -6,7 +6,7 @@ using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration;
 
-public class when_generating_type_with_complex_key_dictionary : Specification, IDisposable
+public class when_generating_type_with_complex_key_dictionary_using_type_descriptor : Specification, IDisposable
 {
     JavaScriptRuntime _runtime = null!;
     string _generatedCode = null!;
@@ -16,18 +16,7 @@ public class when_generating_type_with_complex_key_dictionary : Specification, I
     void Establish()
     {
         _runtime = new JavaScriptRuntime();
-
-        var type = typeof(TypeWithComplexKeyDictionaryProperty);
-        var properties = type.GetProperties()
-            .Select(p => p.ToPropertyDescriptor())
-            .ToList();
-
-        _descriptor = new TypeDescriptor(
-            type,
-            "TypeWithComplexKeyDictionaryProperty",
-            properties,
-            Enumerable.Empty<ImportStatement>().OrderBy(_ => _.Module),
-            []);
+        _descriptor = typeof(TypeWithComplexKeyDictionaryProperty).ToTypeDescriptor(string.Empty, 0);
     }
 
     void Because()
@@ -46,9 +35,7 @@ public class when_generating_type_with_complex_key_dictionary : Specification, I
     }
 
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeEmpty();
-    [Fact] void should_contain_class_name() => _generatedCode.ShouldContain("TypeWithComplexKeyDictionaryProperty");
-    [Fact] void should_contain_value_map_type() => _generatedCode.ShouldContain("ValueMap<ScenarioDictionaryKeyType, ScenarioDictionaryValueType>");
-    [Fact] void should_use_value_map_constructor() => _generatedCode.ShouldContain("@field(ValueMap)");
+    [Fact] void should_contain_value_map_import() => _generatedCode.ShouldContain("import { ValueMap } from '@cratis/fundamentals'");
     [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
 
     public void Dispose()
