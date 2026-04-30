@@ -11,10 +11,14 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <typeparam name="T">Type of data being observed.</typeparam>
 /// <param name="enumerable">The <see cref="IAsyncEnumerable{T}"/> to use for streaming.</param>
+/// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientEnumerableObservable<T>(
     IAsyncEnumerable<T> enumerable,
+    IReadModelInterceptors readModelInterceptors,
+    IServiceProvider serviceProvider,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
@@ -40,7 +44,9 @@ public class ClientEnumerableObservable<T>(
                         continue;
                     }
 
-                    queryResult.Data = item;
+                    var intercepted = await readModelInterceptors.Intercept(typeof(T), [item], serviceProvider);
+
+                    queryResult.Data = intercepted.First();
                     var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                     if (error is null)
                     {
