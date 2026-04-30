@@ -118,7 +118,7 @@ query.setApiBasePath('/api/v1');
 
 By default, observable queries route through the centralized hub endpoints. Set `Globals.queryDirectMode = true` to connect each observable query directly to its own WebSocket URL, bypassing the hub.
 
-This setting is typically managed via the `<Arc>` React component prop `queryDirectMode` (see [React query integration](../react/queries.md)), but can also be set directly on `Globals` for non-React environments:
+This setting is typically managed via the `<Arc>` React component prop `queryDirectMode` (see [React query integration](../react/queries/index.md)), but can also be set directly on `Globals` for non-React environments:
 
 ```typescript
 import { Globals } from '@cratis/arc';
@@ -159,7 +159,7 @@ The system provides comprehensive error handling for queries:
 
 ## Next Steps
 
-- Learn about [React query integration](../react/queries.md) for React-specific query patterns
+- Learn about [React query integration](../react/queries/index.md) for React-specific query patterns
 - Explore [Commands](./commands.md) for state modification operations
 - Understand [MVVM patterns](../react.mvvm/index.md) for more sophisticated frontend architectures
 - Set up [Proxy Generation](../../backend/proxy-generation/index.md) to automatically generate your query proxies

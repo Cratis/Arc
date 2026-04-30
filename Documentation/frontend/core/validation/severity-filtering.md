@@ -307,7 +307,7 @@ The backend also filters validation results:
 3. Validation results are filtered based on the allowed severity
 4. Only validation results with severity > `allowedSeverity` block execution
 
-For backend implementation details, see [Backend Validation Severity Filtering](../../backend/commands/validation-severity-filtering.md).
+For backend implementation details, see [Backend Validation Severity Filtering](../../../backend/commands/validation-severity-filtering.md).
 
 ## API Reference
 
@@ -411,5 +411,5 @@ Results with severity **greater than** the `allowedSeverity` will block executio
 
 - [Command Validation](./command-validation.md) - Pre-flight validation without execution
 - [Validation](./validation/index.md) - Client-side validation rules
-- [Backend Validation Severity Filtering](../../backend/commands/validation-severity-filtering.md) - Server implementation
+- [Backend Validation Severity Filtering](../../../backend/commands/validation-severity-filtering.md) - Server implementation
 - [Command Filters](../../backend/commands/command-filters.md) - Backend validation pipeline

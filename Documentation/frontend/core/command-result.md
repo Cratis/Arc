@@ -287,6 +287,6 @@ This is especially useful for debugging and support scenarios.
 
 ## Related Topics
 
-- [Commands](./commands.md) - Core command concepts and usage
+- [Commands](./commands/index.md) - Core command concepts and usage
 - [React Commands](../react/commands/index.md) - Using commands in React components
 - [Validation](../../backend/commands/validation.md) - Understanding validation rules

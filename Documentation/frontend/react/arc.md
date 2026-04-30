@@ -146,7 +146,7 @@ export const App = () => (
 | `ObservableQueryTransferMode.Delta` | **(default)** Uses the server-provided `ChangeSet` when available. Falls back to client-side snapshot comparison when the server does not attach a change set. Only items that actually changed are reported as `added`, `replaced`, or `removed`. |
 | `ObservableQueryTransferMode.Full` | Treats every incoming snapshot as if all its items were just added. No diff is computed. Useful for debugging or for consumers that need the full collection on every tick. |
 
-See [Change Stream](./change-stream.md) for usage of `useChangeStream` and the generated `useChangeStream()` proxy method.
+See [Change Stream](./queries/change-stream.md) for usage of `useChangeStream` and the generated `useChangeStream()` proxy method.
 
 ## HTTP Headers Callback
 

@@ -1,2 +1,10 @@
 - name: Overview
   href: index.md
+- name: Rules And Fluent API
+  href: rules.md
+- name: Command And Query Integration
+  href: integration.md
+- name: Validation Results
+  href: results.md
+- name: Severity Filtering
+  href: severity-filtering.md

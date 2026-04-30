@@ -489,4 +489,4 @@ RuleFor(c => c.Quantity)
 - [Command Validation](./command-validation.md) - Pre-flight validation
 - [Validation](./validation.md) - Validation configuration
 - [Command Filters](./command-filters.md) - Validation pipeline
-- [Frontend Validation Severity Filtering](../../frontend/core/validation-severity-filtering.md) - Client usage
+- [Frontend Validation Severity Filtering](../../frontend/core/validation/severity-filtering.md) - Client usage
