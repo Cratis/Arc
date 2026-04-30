@@ -47,8 +47,8 @@ public class when_generating_type_with_complex_key_dictionary : Specification, I
 
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeEmpty();
     [Fact] void should_contain_class_name() => _generatedCode.ShouldContain("TypeWithComplexKeyDictionaryProperty");
-    [Fact] void should_contain_map_type() => _generatedCode.ShouldContain("Map<ScenarioDictionaryKeyType, ScenarioDictionaryValueType>");
-    [Fact] void should_use_map_constructor() => _generatedCode.ShouldContain("@field(Map)");
+    [Fact] void should_contain_value_map_type() => _generatedCode.ShouldContain("ValueMap<ScenarioDictionaryKeyType, ScenarioDictionaryValueType>");
+    [Fact] void should_use_value_map_constructor() => _generatedCode.ShouldContain("@field(ValueMap)");
     [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
 
     public void Dispose()

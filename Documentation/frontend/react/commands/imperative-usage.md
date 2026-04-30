@@ -326,4 +326,4 @@ Avoid imperative usage when:
 - [Data Binding](./data-binding.md)
 - [Validation](./validation.md)
 - [CommandForm](./command-form/index.md)
-- [Core Commands](../../core/commands.md) - Lower-level command concepts
+- [Core Commands](../../core/commands/index.md) - Lower-level command concepts

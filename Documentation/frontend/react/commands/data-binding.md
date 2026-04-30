@@ -7,7 +7,7 @@ Commands act as the data model for your forms and UI components. Understanding h
 The command holds properties that represent the payload of what you want to have happen. These properties are:
 - Subject to validation rules
 - Subject to business rules
-- Often sourced from read models coming from [queries](../queries.md)
+- Often sourced from read models coming from [queries](../queries/index.md)
 - Used for operations that are typically updates to existing data
 
 ## Binding to Command Properties
@@ -385,4 +385,4 @@ export const UserProfileEditor = ({ userId }: { userId: string }) => {
 - [React Hook Usage](./react-usage.md)
 - [Command Scope](./scope.md)
 - [Validation](./validation.md)
-- [Queries](../queries.md)
+- [Queries](../queries/index.md)

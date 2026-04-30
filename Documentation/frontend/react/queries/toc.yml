@@ -1,0 +1,20 @@
+- name: Overview
+  href: index.md
+- name: Configuration
+  href: configuration.md
+- name: Core Query Usage
+  href: usage.md
+- name: Paging
+  href: paging.md
+- name: Observable Queries
+  href: observable-queries.md
+- name: Suspense Queries
+  href: suspense-queries.md
+- name: Conditional Queries
+  href: conditional-queries.md
+- name: Change Stream
+  href: change-stream.md
+- name: Observable Query Multiplexing
+  href: observable-query-multiplexing.md
+- name: Query Instance Caching
+  href: query-instance-caching.md

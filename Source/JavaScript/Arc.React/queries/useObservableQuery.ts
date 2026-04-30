@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { QueryResultWithState, IObservableQueryFor, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
-import { Constructor } from '@cratis/fundamentals';
+import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { SetSorting } from './SetSorting';
 import { SetPage } from './SetPage';
@@ -19,6 +19,44 @@ import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
  */
 function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     const getId = (item: unknown): unknown => (item as Record<string, unknown>)?.id;
+    const toIdentityValue = (id: unknown): unknown => {
+        if (id === null || id === undefined) {
+            return id;
+        }
+
+        if (typeof id === 'object') {
+            const stringValue = id.toString();
+            if (stringValue !== '[object Object]') {
+                return stringValue;
+            }
+            return JSON.stringify(id);
+        }
+
+        return id;
+    };
+
+    const idsEqual = (left: unknown, right: unknown): boolean => {
+        if (left === right) {
+            return true;
+        }
+
+        if (left === null || left === undefined || right === null || right === undefined) {
+            return false;
+        }
+
+        const leftWithEquals = left as { equals?: (other: unknown) => boolean };
+        if (typeof leftWithEquals.equals === 'function') {
+            return leftWithEquals.equals(right);
+        }
+
+        const rightWithEquals = right as { equals?: (other: unknown) => boolean };
+        if (typeof rightWithEquals.equals === 'function') {
+            return rightWithEquals.equals(left);
+        }
+
+        return toIdentityValue(left) === toIdentityValue(right);
+    };
+
     const useIdentity = changeSet.removed.length > 0
         ? getId(changeSet.removed[0]) !== undefined
         : changeSet.replaced.length > 0;
@@ -26,12 +64,11 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     let result: unknown[];
 
     if (useIdentity) {
-        const removedIds = new Set(changeSet.removed.map(getId));
-        result = (previous as unknown[]).filter(item => !removedIds.has(getId(item)));
+        const removedIds = changeSet.removed.map(getId);
+        result = (previous as unknown[]).filter(item => !removedIds.some(removedId => idsEqual(getId(item), removedId)));
 
-        const replacedById = new Map(changeSet.replaced.map(item => [getId(item), item]));
         result = result.map(item => {
-            const replacement = replacedById.get(getId(item));
+            const replacement = changeSet.replaced.find(candidate => idsEqual(getId(candidate), getId(item)));
             return replacement !== undefined ? replacement : item;
         });
     } else {
@@ -40,6 +77,23 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     }
 
     return [...result, ...changeSet.added] as T[];
+}
+
+function deserializeChangeSet(changeSet: ChangeSet<unknown>, modelType: Constructor): ChangeSet<unknown> {
+    return {
+        added: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.added ?? []),
+        replaced: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.replaced ?? []),
+        removed: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.removed ?? []),
+    };
+}
+
+function deserializeResponseData<TDataType>(data: unknown, modelType: Constructor | null): TDataType {
+    // If data is an array and we have a model type, deserialize each item
+    if (Array.isArray(data) && modelType && modelType !== Object) {
+        return JsonSerializer.deserializeArrayFromInstance(modelType, data) as TDataType;
+    }
+    // Otherwise return data as-is (could be null, undefined, or non-array type)
+    return data as TDataType;
 }
 
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
@@ -132,13 +186,15 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         if (!queryCache.isSubscribed(key)) {
             const subscription = queryInstance.subscribe(response => {
                 let withState: QueryResultWithState<TDataType>;
+                const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? null;
 
                 if (response.changeSet && Array.isArray(response.data) && response.data.length === 0) {
                     // Delta mode subsequent push: the server omits `data` (serialised as null → []).
                     // Reconstruct the full collection by applying the ChangeSet to the previous state.
                     const previousResult = queryCache.getLastResult<TDataType>(key);
                     if (previousResult && Array.isArray(previousResult.data)) {
-                        const reconstructed = applyChangeSet(previousResult.data as unknown[], response.changeSet) as TDataType;
+                        const deserializedChangeSet = deserializeChangeSet(response.changeSet, modelType ?? Object);
+                        const reconstructed = applyChangeSet(previousResult.data as unknown[], deserializedChangeSet) as TDataType;
                         withState = new QueryResultWithState<TDataType>(
                             reconstructed,
                             response.paging,
@@ -150,13 +206,39 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
                             response.exceptionMessages,
                             response.exceptionStackTrace,
                             false,
-                            response.changeSet
+                            deserializedChangeSet
                         );
                     } else {
-                        withState = QueryResultWithState.fromQueryResult(response, false);
+                        // Fallback if there's no previous result
+                        const deserializedData = deserializeResponseData<TDataType>(response.data, modelType);
+                        withState = new QueryResultWithState<TDataType>(
+                            deserializedData,
+                            response.paging,
+                            response.isSuccess,
+                            response.isAuthorized,
+                            response.isValid,
+                            response.validationResults,
+                            response.hasExceptions,
+                            response.exceptionMessages,
+                            response.exceptionStackTrace,
+                            false,
+                            response.changeSet);
                     }
                 } else {
-                    withState = QueryResultWithState.fromQueryResult(response, false);
+                    // Initial response or full-data responses (non-delta mode)
+                    const deserializedData = deserializeResponseData<TDataType>(response.data, modelType);
+                    withState = new QueryResultWithState<TDataType>(
+                        deserializedData,
+                        response.paging,
+                        response.isSuccess,
+                        response.isAuthorized,
+                        response.isValid,
+                        response.validationResults,
+                        response.hasExceptions,
+                        response.exceptionMessages,
+                        response.exceptionStackTrace,
+                        false,
+                        response.changeSet);
                 }
 
                 queryCache.setLastResult(key, withState);
