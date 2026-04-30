@@ -1,5 +1,7 @@
 - name: Overview
   href: index.md
+- name: Configuration
+  href: configuration.md
 - name: Core Query Usage
   href: usage.md
 - name: Paging
