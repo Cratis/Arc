@@ -409,7 +409,7 @@ Results with severity **greater than** the `allowedSeverity` will block executio
 
 ## Related Documentation
 
-- [Command Validation](./command-validation.md) - Pre-flight validation without execution
+- [Validation](../commands/validation.md) - Pre-flight validation without execution
 - [Validation](./validation/index.md) - Client-side validation rules
 - [Backend Validation Severity Filtering](../../../backend/commands/validation-severity-filtering.md) - Server implementation
 - [Command Filters](../../backend/commands/command-filters.md) - Backend validation pipeline

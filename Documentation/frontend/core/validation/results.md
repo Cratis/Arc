@@ -35,5 +35,5 @@ For command execution filtering by severity, see [Severity Filtering](./severity
 
 ## Related
 
-- [CommandResult](../command-result.md)
-- [Command Validation](../command-validation.md)
+- [Command Result](../commands/command-result.md)
+- [Validation](../commands/validation.md)

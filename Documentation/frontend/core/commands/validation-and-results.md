@@ -16,7 +16,7 @@ const result = await command.execute();
 // result.validationResults contains validation errors
 ```
 
-For deeper validation behavior, see [Validation](../validation/index.md) and [Command Validation](../command-validation.md).
+For deeper validation behavior, see [Validation](../validation/index.md) and [Validation](./validation.md).
 
 ## Result Shape
 
@@ -27,7 +27,7 @@ A command result includes status and diagnostics such as:
 - Response payload (when present)
 - Exception details
 
-For full `CommandResult` details, see [CommandResult](../command-result.md).
+For full `CommandResult` details, see [Command Result](./command-result.md).
 
 ## Error Categories
 
@@ -40,6 +40,6 @@ Typical failure categories include:
 
 ## See Also
 
-- [CommandResult](../command-result.md)
-- [Command Validation](../command-validation.md)
+- [Command Result](./command-result.md)
+- [Validation](./validation.md)
 - [React Commands](../../react/commands/index.md)

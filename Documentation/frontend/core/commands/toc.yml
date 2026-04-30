@@ -1,5 +1,9 @@
 - name: Overview
   href: index.md
+- name: Command Result
+  href: command-result.md
+- name: Validation
+  href: validation.md
 - name: Command Contracts
   href: contracts.md
 - name: Configuration

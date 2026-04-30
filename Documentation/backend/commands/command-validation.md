@@ -13,7 +13,7 @@ Command validation allows you to check authorization and validation rules withou
 
 For frontend usage of command validation, see:
 
-- [Core Command Validation](../../frontend/core/command-validation.md) - TypeScript/JavaScript API
+- [Core Validation](../../frontend/core/commands/validation.md) - TypeScript/JavaScript API
 - [React Command Validation](../../frontend/react/commands/validation.md) - React-specific patterns and hooks
 
 ## Backend Support

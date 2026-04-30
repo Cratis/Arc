@@ -68,7 +68,7 @@ if (result.isSuccess) {
 }
 ```
 
-For comprehensive details, see [CommandResult documentation](../../core/command-result.md).
+For comprehensive details, see [Command Result documentation](../../core/commands/command-result.md).
 
 ## Topics
 
