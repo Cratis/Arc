@@ -10,3 +10,4 @@ Chronicle is Arc's event sourcing infrastructure. It provides the foundation for
 - [Read Models](read-models.md) - How read models are hooked up
 - [Tenancy](tenancy.md) - Tenant-aware namespaces for event stores and projections
 - [Validation](validation.md) - Validation with read models and identity resolution conventions
+- [Compliance](compliance.md) - Automatic decryption of PII properties on read models
