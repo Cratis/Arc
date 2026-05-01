@@ -5,9 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.18.20" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.18.20" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.18.20" />
+    <PackageVersion Include="Cratis.Chronicle" Version="15.20.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.20.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.20.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.8.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.8.0" />
     <!-- Microsoft -->
@@ -54,7 +54,7 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.58" />
     <!-- Specifications -->
-    <PackageVersion Include="Cratis.Specifications.XUnit" Version="3.0.4" />
+    <PackageVersion Include="Cratis.Specifications.XUnit" Version="3.0.5" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
