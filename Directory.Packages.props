@@ -5,9 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.20.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.20.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.20.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="15.22.2" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.22.2" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.22.2" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.8.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.8.0" />
     <!-- Microsoft -->
