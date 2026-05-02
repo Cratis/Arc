@@ -206,7 +206,26 @@ public class a_scenario_web_application : Specification, IDisposable
 
     void LoadTypesAndEnumsPass(IEnumerable<Type> types, string? saveBasePath = null)
     {
-        var typesList = types.Distinct().Where(t => !_loadedTypes.Contains(t)).ToList();
+        // Ensure types are loaded in dependency order so @field decorators receive fully-populated
+        // globalThis references. Types whose properties have derived-type annotations must come last
+        // because they reference both the base type (e.g. IShape) and the derivatives. Types that
+        // are themselves derived (carry [DerivedType]) should come first so they are in globalThis
+        // when parent types load. All others keep their original alphabetical order.
+        static bool HasPropertiesWithDerivatives(Type t) =>
+            !t.IsEnum &&
+            t.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+             .Any(p => p.PropertyType.GetDerivativeTypes().Any());
+
+        var typesList = types
+            .Distinct()
+            .Where(t => !_loadedTypes.Contains(t))
+            .OrderBy(t => t switch
+            {
+                _ when t.GetDerivedTypeId() is not null => 0,
+                _ when HasPropertiesWithDerivatives(t) => 2,
+                _ => 1
+            })
+            .ToList();
         var enums = typesList.Where(_ => _.IsEnum).ToList();
         var nonEnums = typesList.Where(_ => !_.IsEnum).ToList();
 
