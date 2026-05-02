@@ -5,7 +5,11 @@
 /* eslint-disable sort-imports */
 // eslint-disable-next-line header/header
 {{#if Properties}}
-import { field } from '@cratis/fundamentals';
+import { field{{#if DerivedTypeId}}, derivedType{{/if}} } from '@cratis/fundamentals';
+{{else}}
+{{#if DerivedTypeId}}
+import { derivedType } from '@cratis/fundamentals';
+{{/if}}
 {{/if}}
 {{#Imports}}
 import { {{{Type}}} } from '{{Module}}';
@@ -16,6 +20,9 @@ import { {{{Type}}} } from '{{Module}}';
  * {{Documentation}}
  */
 {{/if}}
+{{#if DerivedTypeId}}
+@derivedType('{{DerivedTypeId}}')
+{{/if}}
 export class {{Name}} {
     {{#Properties}}
     {{#if Documentation}}
@@ -25,14 +32,22 @@ export class {{Name}} {
      */
     {{/if}}
     {{#if IsEnumerable}}
+    {{#if Derivatives}}
+    @field({{Constructor}}, true, [{{Derivatives}}])
+    {{else}}
     @field({{Constructor}}, true)
+    {{/if}}
     {{#if IsNullable}}
     {{camelcase Name}}?: {{{Type}}}[];
     {{else}}
     {{camelcase Name}}!: {{{Type}}}[];
     {{/if}}
     {{else}}
+    {{#if Derivatives}}
+    @field({{Constructor}}, false, [{{Derivatives}}])
+    {{else}}
     @field({{Constructor}})
+    {{/if}}
     {{#if IsNullable}}
     {{camelcase Name}}?: {{{Type}}};
     {{else}}
