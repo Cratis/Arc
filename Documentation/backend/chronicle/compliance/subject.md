@@ -7,9 +7,6 @@ The `Subject` is Chronicle's compliance identity — the value used to key per-s
 
 When no explicit subject is supplied, Chronicle defaults to the `EventSourceId`. Setting a subject on the command is only necessary when the compliance identity differs from the aggregate identity — for example, when a command mutates an _order_ aggregate but the PII belongs to the _customer_.
 
-> [!NOTE]
-> Subject resolution applies only to the `Append` call for single events. When appending multiple events via a collection return, Chronicle uses the `EventSourceId` as the subject for each event.
-
 ## Resolution Order
 
 Arc resolves the subject from the command in this order:
