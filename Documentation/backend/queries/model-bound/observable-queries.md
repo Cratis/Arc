@@ -3,6 +3,7 @@
 Observable queries in model-bound scenarios provide the same real-time data streaming capabilities as controller-based queries, but implemented as static methods directly on your read model records. You achieve this by returning `ISubject<T>` from static methods on your `[ReadModel]` decorated record.
 
 The `ISubject<T>` return type automatically establishes a WebSocket connection between the server and client, enabling real-time data updates. This integrates seamlessly with the [ObservableQuery construct in the frontend](../../../frontend/react/queries/observable-queries.md) through the proxy generator, creating strongly-typed reactive data flows.
+
 ## Basic Observable Query
 
 Define an observable query as a static method on your read model:
@@ -475,9 +476,8 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 ## Frontend Integration
 
 Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries/observable-queries.md):
+
 ```typescript
-// Generated TypeScript proxy automatically handles WebSocket connections
-const accountsObservable = await DebitAccount.getAllAccountsObservable();
 
 accountsObservable.subscribe(accounts => {
     // Handle real-time account updates
