@@ -28,18 +28,43 @@ public class EventsCommandResponseValueHandler(IEventLog eventLog, IEventTypes e
         if (events.Any())
         {
             var concurrencyScope = ConcurrencyScopeBuilder.BuildFromCommandContext(commandContext);
-            var result = await eventLog.AppendMany(
-                eventSourceId,
-                events,
-                commandContext.GetEventStreamType(),
-                commandContext.GetEventStreamId(),
-                commandContext.GetEventSourceType(),
-                correlationId: default,
-                concurrencyScope: concurrencyScope);
+            var subject = commandContext.GetSubject();
 
-            if (!result.IsSuccess)
+            if (subject is not null)
             {
-                return result.ToCommandResult();
+                foreach (var @event in events)
+                {
+                    var appendResult = await eventLog.Append(
+                        eventSourceId,
+                        @event,
+                        commandContext.GetEventStreamType(),
+                        commandContext.GetEventStreamId(),
+                        commandContext.GetEventSourceType(),
+                        correlationId: default,
+                        concurrencyScope: concurrencyScope,
+                        subject: subject);
+
+                    if (!appendResult.IsSuccess)
+                    {
+                        return appendResult.ToCommandResult();
+                    }
+                }
+            }
+            else
+            {
+                var result = await eventLog.AppendMany(
+                    eventSourceId,
+                    events,
+                    commandContext.GetEventStreamType(),
+                    commandContext.GetEventStreamId(),
+                    commandContext.GetEventSourceType(),
+                    correlationId: default,
+                    concurrencyScope: concurrencyScope);
+
+                if (!result.IsSuccess)
+                {
+                    return result.ToCommandResult();
+                }
             }
         }
 

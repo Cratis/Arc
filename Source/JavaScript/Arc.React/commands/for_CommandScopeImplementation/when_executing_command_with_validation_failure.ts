@@ -2,12 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { CommandResult } from '@cratis/arc/commands';
-import { ValidationResult } from '@cratis/arc/validation';
 import { CommandScopeImplementation } from '../CommandScopeImplementation';
 import { FakeCommand } from './FakeCommand';
 
 describe('when executing command with validation failure', async () => {
-    const validationResult = new ValidationResult(0, 'Name is required', ['name'], {});
     const failedResult = new CommandResult({
         correlationId: '00000000-0000-0000-0000-000000000000',
         isSuccess: false,

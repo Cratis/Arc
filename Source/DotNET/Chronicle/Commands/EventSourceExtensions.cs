@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Keys;
@@ -13,6 +14,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </summary>
 public static class EventSourceExtensions
 {
+    static readonly Type _genericEventSourceIdDefinition = typeof(EventSourceId<>);
+
     /// <summary>
     /// Determines whether the command has an event source ID associated with it.
     /// </summary>
@@ -21,6 +24,7 @@ public static class EventSourceExtensions
     public static bool HasEventSourceId(this object command) =>
         command.GetType().GetProperties().Any(p =>
             p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
+            IsGenericEventSourceIdType(p.PropertyType) ||
             p.HasAttribute<KeyAttribute>()) ||
             ((command is ITuple tuple) && tuple.HasEventSourceId());
 
@@ -37,7 +41,7 @@ public static class EventSourceExtensions
             values.Add(tuple[i]);
         }
 
-        return values.Exists(v => v is EventSourceId);
+        return values.Exists(IsEventSourceIdValue);
     }
 
     /// <summary>
@@ -57,35 +61,55 @@ public static class EventSourceExtensions
                 values.Add(tuple[i]);
             }
 
-            var id = values.Find(v => v is EventSourceId);
+            var id = values.Find(IsEventSourceIdValue);
             if (id is not null)
             {
-                eventSourceId = (EventSourceId)id;
+                eventSourceId = ToEventSourceId(id);
             }
         }
         else
         {
             var property = command.GetType().GetProperties()
-                .FirstOrDefault(p => p.PropertyType.IsAssignableTo(typeof(EventSourceId)) || p.HasAttribute<KeyAttribute>());
+                .FirstOrDefault(p =>
+                    p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
+                    IsGenericEventSourceIdType(p.PropertyType) ||
+                    p.HasAttribute<KeyAttribute>());
 
             if (property is not null)
             {
                 var value = property.GetValue(command);
                 if (value is not null)
                 {
-                    if (value is EventSourceId esId)
-                    {
-                        eventSourceId = esId;
-                    }
-                    else
-                    {
-                        // Handle properties marked with [Key] attribute that are not EventSourceId type
-                        eventSourceId = value.ToString()!;
-                    }
+                    eventSourceId = ToEventSourceId(value);
                 }
             }
         }
 
         return eventSourceId;
+    }
+
+    static bool IsGenericEventSourceIdType(Type type) =>
+        type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition;
+
+    static bool IsEventSourceIdValue(object? value) =>
+        value is EventSourceId || (value is not null && IsGenericEventSourceIdType(value.GetType()));
+
+    static EventSourceId ToEventSourceId(object value)
+    {
+        if (value is EventSourceId esId)
+        {
+            return esId;
+        }
+
+        if (IsGenericEventSourceIdType(value.GetType()))
+        {
+            var op = value.GetType()
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .First(m => m.Name == "op_Implicit" && m.ReturnType == typeof(EventSourceId));
+
+            return (EventSourceId)op.Invoke(null, [value])!;
+        }
+
+        return value.ToString()!;
     }
 }

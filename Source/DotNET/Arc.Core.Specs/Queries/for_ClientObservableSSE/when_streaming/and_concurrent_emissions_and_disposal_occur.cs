@@ -39,6 +39,8 @@ public class and_concurrent_emissions_and_disposal_occur
         var observable = new ClientObservableSSE<int>(
             queryContext,
             subject,
+            Substitute.For<IReadModelInterceptors>(),
+            Substitute.For<IServiceProvider>(),
             arcOptions,
             hostLifetime,
             logger);
@@ -98,6 +100,8 @@ public class and_concurrent_emissions_and_disposal_occur
         var observable = new ClientObservableSSE<int>(
             queryContext,
             subject,
+            Substitute.For<IReadModelInterceptors>(),
+            Substitute.For<IServiceProvider>(),
             arcOptions,
             hostLifetime,
             logger);

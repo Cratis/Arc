@@ -16,7 +16,7 @@ public class with_dictionary_with_complex_key : Specification
     void Because() => _result = _property.ToPropertyDescriptor();
 
     [Fact] void should_have_correct_name() => _result.Name.ShouldEqual("Items");
-    [Fact] void should_have_map_type() => _result.Type.ShouldEqual("Map<DictionaryKeyType, DictionaryValueType>");
-    [Fact] void should_have_map_constructor() => _result.Constructor.ShouldEqual("Map");
+    [Fact] void should_have_value_map_type() => _result.Type.ShouldEqual("ValueMap<DictionaryKeyType, DictionaryValueType>");
+    [Fact] void should_have_value_map_constructor() => _result.Constructor.ShouldEqual("ValueMap");
     [Fact] void should_not_be_enumerable() => _result.IsEnumerable.ShouldBeFalse();
 }

@@ -55,6 +55,8 @@ public class and_complete_and_next_race
         var observable = new ClientObservable<int>(
             queryContext,
             subject,
+            Substitute.For<IReadModelInterceptors>(),
+            Substitute.For<IServiceProvider>(),
             webSocketConnectionHandler,
             hostLifetime,
             logger);
@@ -127,6 +129,8 @@ public class and_complete_and_next_race
         var observable = new ClientObservable<int>(
             queryContext,
             subject,
+            Substitute.For<IReadModelInterceptors>(),
+            Substitute.For<IServiceProvider>(),
             webSocketConnectionHandler,
             hostLifetime,
             logger);

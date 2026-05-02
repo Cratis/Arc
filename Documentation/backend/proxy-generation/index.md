@@ -1,3 +1,6 @@
+---
+uid: Arc.Chronicle.ProxyGeneration
+---
 # Proxy Generation
 
 Cratis Arc includes a powerful proxy generation tool that automatically creates TypeScript proxies for your commands and queries during the build process. This eliminates the need to manually write frontend integration code or consult Swagger documentation, as the proxies provide compile-time type safety and intellisense support.

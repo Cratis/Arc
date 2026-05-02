@@ -24,7 +24,7 @@ public class a_model_bound_query_performer : Specification
     protected void EstablishPerformer<T>(string methodName, object[]? dependencies = null, QueryArguments? parameters = null)
     {
         var method = typeof(T).GetMethod(methodName);
-        _performer = new ModelBoundQueryPerformer(typeof(T), method!, _serviceProviderIsService, _authorizationEvaluator);
+        _performer = new ModelBoundQueryPerformer(typeof(T), typeof(T).FullName ?? typeof(T).Name, method!, _serviceProviderIsService, _authorizationEvaluator);
 
         parameters ??= new QueryArguments();
         dependencies ??= [];
