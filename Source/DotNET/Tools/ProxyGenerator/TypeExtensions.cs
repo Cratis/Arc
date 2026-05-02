@@ -870,7 +870,17 @@ public static class TypeExtensions
             : AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic);
 
         return assembliesToSearch
-            .SelectMany(a => { try { return a.GetTypes(); } catch { return []; } })
+            .SelectMany(a =>
+            {
+                try
+                {
+                    return a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    return ex.Types.Where(t => t is not null).Cast<Type>();
+                }
+            })
             .Where(t => t != baseType &&
                         !t.IsAbstract &&
                         !t.IsInterface &&
