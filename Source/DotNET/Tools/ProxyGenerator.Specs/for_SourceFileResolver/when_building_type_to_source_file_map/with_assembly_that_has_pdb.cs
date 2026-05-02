@@ -9,6 +9,6 @@ public class with_assembly_that_has_pdb : Specification
 
     void Because() => _result = SourceFileResolver.BuildTypeToSourceFileMap(typeof(SourceFileResolver).Assembly.Location);
 
-    [Fact] void should_resolve_source_file_for_source_file_resolver() => _result.ContainsKey(typeof(SourceFileResolver).FullName!).ShouldBeTrue();
-    [Fact] void should_map_source_file_resolver_to_its_file_name() => _result[typeof(SourceFileResolver).FullName!].ShouldEqual("SourceFileResolver");
+    [Fact] void should_resolve_source_file_for_source_file_resolver() => _result.ContainsKey(typeof(SourceFileResolver).FullName).ShouldBeTrue();
+    [Fact] void should_map_source_file_resolver_to_its_file_name() => _result[typeof(SourceFileResolver).FullName].ShouldEqual("SourceFileResolver");
 }

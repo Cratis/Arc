@@ -10,10 +10,10 @@ public class for_property : Specification
     PropertyInfo _property;
     string? _documentation;
 
-    void Establish() => _property = typeof(SampleTypeWithDocumentation).GetProperty(nameof(SampleTypeWithDocumentation.Name))!;
+    void Establish() => _property = typeof(SampleTypeWithDocumentation).GetProperty(nameof(SampleTypeWithDocumentation.Name));
 
     void Because() => _documentation = _property.GetDocumentation();
 
     [Fact] void should_return_documentation() => _documentation.ShouldNotBeNull();
-    [Fact] void should_contain_summary() => _documentation!.ShouldContain("A property with documentation");
+    [Fact] void should_contain_summary() => _documentation.ShouldContain("A property with documentation");
 }

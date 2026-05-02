@@ -9,7 +9,7 @@ public class and_resolver_returns_null : given.a_tenant_id_accessor
 
     void Establish()
     {
-        _tenantIdResolver.Resolve().Returns((string)null!);
+        _tenantIdResolver.Resolve().Returns((string)null);
     }
 
     void Because() => _result = _accessor.Current;

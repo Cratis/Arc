@@ -11,7 +11,7 @@ public class with_method_with_authorization_and_authenticated_user : given.an_au
 
     void Establish()
     {
-        _method = typeof(given.TypeWithMethodAuthorization).GetMethod(nameof(given.TypeWithMethodAuthorization.MethodWithAuthorization))!;
+        _method = typeof(given.TypeWithMethodAuthorization).GetMethod(nameof(given.TypeWithMethodAuthorization.MethodWithAuthorization));
         SetupAuthenticatedUser();
     }
 

@@ -20,11 +20,11 @@ public class with_json_properties : given.a_base_db_context
     void Because()
     {
         _model = GetModel(_dbContext);
-        _companyEntityType = _model.FindEntityType(typeof(Company))!;
-        _metadataProperty = _companyEntityType.FindProperty(nameof(Company.Metadata))!;
+        _companyEntityType = _model.FindEntityType(typeof(Company));
+        _metadataProperty = _companyEntityType.FindProperty(nameof(Company.Metadata));
     }
 
-    [Fact] void should_apply_conversion_to_company_id_guid() => _companyEntityType.FindProperty(nameof(Company.Id))!.GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_apply_conversion_to_company_id_guid() => _companyEntityType.FindProperty(nameof(Company.Id)).GetValueConverter().ShouldNotBeNull();
     [Fact] void should_apply_json_conversion_to_metadata_property() => _metadataProperty.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_serialize_metadata_as_json() => _metadataProperty.GetValueConverter()!.ProviderClrType.ShouldEqual(typeof(string));
+    [Fact] void should_serialize_metadata_as_json() => _metadataProperty.GetValueConverter().ProviderClrType.ShouldEqual(typeof(string));
 }

@@ -18,6 +18,6 @@ public class with_valid_comment : Specification
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
     [Fact] void should_have_metadata() => _metadata.ShouldNotBeNull();
-    [Fact] void should_have_correct_source_type_name() => _metadata!.SourceTypeName.ShouldEqual("MyNamespace.MyClass");
-    [Fact] void should_have_parsed_time() => _metadata!.GeneratedTime.Year.ShouldEqual(2024);
+    [Fact] void should_have_correct_source_type_name() => _metadata.SourceTypeName.ShouldEqual("MyNamespace.MyClass");
+    [Fact] void should_have_parsed_time() => _metadata.GeneratedTime.Year.ShouldEqual(2024);
 }

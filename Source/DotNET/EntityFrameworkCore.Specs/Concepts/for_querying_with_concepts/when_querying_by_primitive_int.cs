@@ -30,6 +30,6 @@ public class when_querying_by_primitive_int : given.a_test_database
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(222);
-    [Fact] void should_have_correct_name() => _result!.Name.Value.ShouldEqual("Int Test");
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(222);
+    [Fact] void should_have_correct_name() => _result.Name.Value.ShouldEqual("Int Test");
 }

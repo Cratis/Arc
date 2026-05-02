@@ -22,15 +22,15 @@ public class with_types_in_both_json_and_regular_properties : given.a_base_db_co
     void Because()
     {
         _model = GetModel(_dbContext);
-        _organizationEntityType = _model.FindEntityType(typeof(Organization))!;
-        _locationIdProperty = _organizationEntityType.FindProperty(nameof(Organization.LocationId))!;
-        _referenceIdProperty = _organizationEntityType.FindProperty(nameof(Organization.ReferenceId))!;
-        _metadataProperty = _organizationEntityType.FindProperty(nameof(Organization.Metadata))!;
+        _organizationEntityType = _model.FindEntityType(typeof(Organization));
+        _locationIdProperty = _organizationEntityType.FindProperty(nameof(Organization.LocationId));
+        _referenceIdProperty = _organizationEntityType.FindProperty(nameof(Organization.ReferenceId));
+        _metadataProperty = _organizationEntityType.FindProperty(nameof(Organization.Metadata));
     }
 
     [Fact] void should_apply_concept_conversion_to_location_id() => _locationIdProperty.GetValueConverter().ShouldNotBeNull();
     [Fact] void should_apply_guid_conversion_to_reference_id() => _referenceIdProperty.GetValueConverter().ShouldNotBeNull();
     [Fact] void should_apply_json_conversion_to_metadata() => _metadataProperty.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_serialize_metadata_as_json() => _metadataProperty.GetValueConverter()!.ProviderClrType.ShouldEqual(typeof(string));
-    [Fact] void should_apply_conversion_to_organization_id_guid() => _organizationEntityType.FindProperty(nameof(Organization.Id))!.GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_serialize_metadata_as_json() => _metadataProperty.GetValueConverter().ProviderClrType.ShouldEqual(typeof(string));
+    [Fact] void should_apply_conversion_to_organization_id_guid() => _organizationEntityType.FindProperty(nameof(Organization.Id)).GetValueConverter().ShouldNotBeNull();
 }

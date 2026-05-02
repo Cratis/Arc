@@ -27,7 +27,7 @@ public class when_querying_by_guid_concept_id : given.a_test_database
         await _context.SaveChangesAsync();
     }
 
-    async Task Because() => _result = (await _context.Products.Where(p => p.Id == _productId).FirstOrDefaultAsync())!;
+    async Task Because() => _result = (await _context.Products.Where(p => p.Id == _productId).FirstOrDefaultAsync());
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
     [Fact] void should_have_correct_id() => _result.Id.Value.ShouldEqual(_primitiveId);

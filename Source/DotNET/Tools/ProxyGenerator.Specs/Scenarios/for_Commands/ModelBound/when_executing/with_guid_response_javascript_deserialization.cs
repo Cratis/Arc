@@ -24,7 +24,7 @@ public class with_guid_response_javascript_deserialization : given.a_scenario_we
     {
         // Create a raw object with Guid strings (simulating server response)
         // and deserialize it using JsonSerializer.deserializeFromInstance
-        Runtime!.Execute(
+        Runtime.Execute(
             "var __rawData = { userId: '12345678-1234-1234-1234-123456789abc', name: 'TestUser', sessionId: '87654321-4321-4321-4321-cba987654321' };" +
             "var __deserialized = globalThis.JsonSerializer.deserializeFromInstance(globalThis.GuidResponseData, __rawData);" +
             "var __fieldsForType = globalThis.Fields.getFieldsForType(globalThis.GuidResponseData);");

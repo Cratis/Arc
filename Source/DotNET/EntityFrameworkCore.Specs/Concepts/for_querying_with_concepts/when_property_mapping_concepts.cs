@@ -35,8 +35,8 @@ public class when_property_mapping_concepts : given.a_test_database
     async Task Because() => _result = await _context.Products
         .FirstOrDefaultAsync(p => p.Id == new ProductId(_guidValue));
 
-    [Fact] void should_correctly_map_guid_concept_property() => _result!.Id.Value.ShouldEqual(_guidValue);
-    [Fact] void should_correctly_map_int_concept_property() => _result!.Code.Value.ShouldEqual(_codeValue);
-    [Fact] void should_correctly_map_string_concept_property() => _result!.Name.Value.ShouldEqual(_nameValue);
+    [Fact] void should_correctly_map_guid_concept_property() => _result.Id.Value.ShouldEqual(_guidValue);
+    [Fact] void should_correctly_map_int_concept_property() => _result.Code.Value.ShouldEqual(_codeValue);
+    [Fact] void should_correctly_map_string_concept_property() => _result.Name.Value.ShouldEqual(_nameValue);
     [Fact] void should_correctly_map_all_properties_together() => _result.ShouldNotBeNull();
 }

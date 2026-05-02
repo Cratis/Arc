@@ -13,7 +13,7 @@ public class with_int_value : given.a_concept_as_value_converter
         _value = 42;
     }
 
-    void Because() => _result = (TestIntConcept)_intConverter.ConvertFromProvider(_value)!;
+    void Because() => _result = (TestIntConcept)_intConverter.ConvertFromProvider(_value);
 
     [Fact] void should_create_concept_with_the_value() => _result.Value.ShouldEqual(42);
 }

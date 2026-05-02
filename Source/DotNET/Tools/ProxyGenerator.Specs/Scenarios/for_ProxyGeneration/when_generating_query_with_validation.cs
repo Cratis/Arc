@@ -18,7 +18,7 @@ public class when_generating_query_with_validation : Specification, IDisposable
         _runtime = new JavaScriptRuntime();
 
         var queryType = typeof(QueryWithValidation);
-        var method = queryType.GetMethod("Handle") ?? typeof(object).GetMethod("GetHashCode")!;
+        var method = queryType.GetMethod("Handle") ?? typeof(object).GetMethod("GetHashCode");
         var properties = queryType.GetProperties()
             .Select(p => p.ToPropertyDescriptor())
             .ToList();

@@ -10,10 +10,10 @@ public class for_method : Specification
     MethodInfo _method;
     string? _documentation;
 
-    void Establish() => _method = typeof(SampleTypeWithDocumentation).GetMethod(nameof(SampleTypeWithDocumentation.GetValue))!;
+    void Establish() => _method = typeof(SampleTypeWithDocumentation).GetMethod(nameof(SampleTypeWithDocumentation.GetValue));
 
     void Because() => _documentation = _method.GetDocumentation();
 
     [Fact] void should_return_documentation() => _documentation.ShouldNotBeNull();
-    [Fact] void should_contain_summary() => _documentation!.ShouldContain("A method with documentation");
+    [Fact] void should_contain_summary() => _documentation.ShouldContain("A method with documentation");
 }

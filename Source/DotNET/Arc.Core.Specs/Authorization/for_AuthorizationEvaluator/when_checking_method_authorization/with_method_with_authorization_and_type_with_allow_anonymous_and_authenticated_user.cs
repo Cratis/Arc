@@ -8,7 +8,7 @@ public class with_method_with_authorization_and_type_with_allow_anonymous_and_au
 
     void Establish() => SetupAuthenticatedUser();
 
-    void Because() => _result = _authorizationHelper.IsAuthorized(typeof(given.TypeWithAllowAnonymousAndMethodWithAuthorization).GetMethod(nameof(given.TypeWithAllowAnonymousAndMethodWithAuthorization.Method))!);
+    void Because() => _result = _authorizationHelper.IsAuthorized(typeof(given.TypeWithAllowAnonymousAndMethodWithAuthorization).GetMethod(nameof(given.TypeWithAllowAnonymousAndMethodWithAuthorization.Method)));
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
 }

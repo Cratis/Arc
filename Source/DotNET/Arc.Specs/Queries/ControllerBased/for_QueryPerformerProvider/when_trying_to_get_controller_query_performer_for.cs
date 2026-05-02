@@ -12,5 +12,5 @@ public class when_trying_to_get_controller_query_performer_for : given.a_control
 
     [Fact] void should_find_performer() => _found.ShouldBeTrue();
     [Fact] void should_return_performer() => _performer.ShouldNotBeNull();
-    [Fact] void should_have_expected_fully_qualified_name() => _performer!.FullyQualifiedName.Value.ShouldEqual(QueryName);
+    [Fact] void should_have_expected_fully_qualified_name() => _performer.FullyQualifiedName.Value.ShouldEqual(QueryName);
 }

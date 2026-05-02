@@ -32,6 +32,6 @@ public class when_querying_with_multiple_concept_conditions : given.a_test_datab
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(999);
-    [Fact] void should_have_correct_name() => _result!.Name.Value.ShouldEqual("Multi Condition Test");
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(999);
+    [Fact] void should_have_correct_name() => _result.Name.Value.ShouldEqual("Multi Condition Test");
 }

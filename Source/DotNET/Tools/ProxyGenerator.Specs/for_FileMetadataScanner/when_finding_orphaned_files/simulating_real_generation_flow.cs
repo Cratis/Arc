@@ -22,7 +22,7 @@ public class simulating_real_generation_flow : Specification
 
         var fullPath = Path.Join(targetPath, path, fileName);
         var normalizedFullPath = Path.GetFullPath(fullPath);
-        var directory = Path.GetDirectoryName(normalizedFullPath)!;
+        var directory = Path.GetDirectoryName(normalizedFullPath);
         Directory.CreateDirectory(directory);
 
         var metadata = new GeneratedFileMetadata("MyApp.Commands.CreateOrder", DateTime.UtcNow);

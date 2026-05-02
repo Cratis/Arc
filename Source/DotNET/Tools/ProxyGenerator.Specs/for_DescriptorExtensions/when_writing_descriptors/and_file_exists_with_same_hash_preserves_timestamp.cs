@@ -36,7 +36,7 @@ public class and_file_exists_with_same_hash_preserves_timestamp : Specification,
 
         var path = testType.ResolveTargetPath(0);
         _filePath = Path.Join(_tempDir, path, "TimestampTestType.ts");
-        var directory = Path.GetDirectoryName(_filePath)!;
+        var directory = Path.GetDirectoryName(_filePath);
         Directory.CreateDirectory(directory);
 
 #pragma warning disable MA0136 // Raw String contains an implicit end of line character

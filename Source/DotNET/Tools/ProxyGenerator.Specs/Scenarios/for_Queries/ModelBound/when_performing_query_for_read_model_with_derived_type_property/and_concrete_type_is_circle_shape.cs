@@ -16,12 +16,12 @@ public class and_concrete_type_is_circle_shape : given.a_scenario_web_applicatio
 
     async Task Because()
     {
-        _executionResult = await Bridge!.PerformQueryViaProxyAsync<DerivedTypeReadModel>("GetWithCircleShape");
-        _shapeConstructorName = Runtime!.Evaluate<string>("__queryResult?.data?.shape?.constructor?.name");
-        _radius = Convert.ToDouble(Runtime!.Evaluate<object>("__queryResult?.data?.shape?.radius ?? 0"));
+        _executionResult = await Bridge.PerformQueryViaProxyAsync<DerivedTypeReadModel>("GetWithCircleShape");
+        _shapeConstructorName = Runtime.Evaluate<string>("__queryResult?.data?.shape?.constructor?.name");
+        _radius = Convert.ToDouble(Runtime.Evaluate<object>("__queryResult?.data?.shape?.radius ?? 0"));
     }
 
-    [Fact] void should_return_successful_result() => _executionResult!.Result!.IsSuccess.ShouldBeTrue();
+    [Fact] void should_return_successful_result() => _executionResult.Result.IsSuccess.ShouldBeTrue();
     [Fact] void should_deserialize_shape_as_circle_shape() => _shapeConstructorName.ShouldEqual("CircleShape");
     [Fact] void should_have_correct_radius() => _radius.ShouldEqual(5.0);
 }

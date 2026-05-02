@@ -24,8 +24,8 @@ public class with_sqlite_database : given.a_json_conversion_context
     {
         var entityTypeBuilder = _modelBuilder.Entity<EntityWithJsonProperties>();
         entityTypeBuilder.ApplyJsonConversion(DatabaseType.Sqlite);
-        _nameProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Name))!;
-        _addressProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Address))!;
+        _nameProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Name));
+        _addressProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Address));
     }
 
     [Fact] void should_set_name_column_type_to_text() => _nameProperty.GetColumnType().ShouldEqual("TEXT");

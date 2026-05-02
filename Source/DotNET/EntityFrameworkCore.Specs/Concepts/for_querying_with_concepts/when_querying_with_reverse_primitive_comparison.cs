@@ -30,6 +30,6 @@ public class when_querying_with_reverse_primitive_comparison : given.a_test_data
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(777);
-    [Fact] void should_have_correct_name() => _result!.Name.Value.ShouldEqual("Reverse Comparison Test");
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(777);
+    [Fact] void should_have_correct_name() => _result.Name.Value.ShouldEqual("Reverse Comparison Test");
 }
