@@ -10,5 +10,7 @@
   href: tenancy.md
 - name: Validation
   href: validation.md
+- name: Compliance
+  href: compliance/toc.yml
 - name: Code Analysis
   href: code-analysis/toc.yml

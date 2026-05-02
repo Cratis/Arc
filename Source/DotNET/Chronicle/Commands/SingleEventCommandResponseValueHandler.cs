@@ -32,7 +32,8 @@ public class SingleEventCommandResponseValueHandler(IEventLog eventLog, IEventTy
             commandContext.GetEventStreamId(),
             commandContext.GetEventSourceType(),
             correlationId: default,
-            concurrencyScope: concurrencyScope);
+            concurrencyScope: concurrencyScope,
+            subject: commandContext.GetSubject());
 
         if (!result.IsSuccess)
         {

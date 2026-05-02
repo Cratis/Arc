@@ -10,16 +10,6 @@
   href: command-form/toc.yml
 - name: Queries
   href: queries/toc.yml
-- name: Suspense Queries
-  href: suspense-queries.md
-- name: Change Stream
-  href: change-stream.md
-- name: Observable Query Multiplexing
-  href: observable-query-multiplexing.md
-- name: Query Instance Caching
-  href: query-instance-caching.md
-- name: Conditional Queries
-  href: conditional-queries.md
 - name: Vite Configuration
   href: vite-configuration.md
 - name: Proxy Generation

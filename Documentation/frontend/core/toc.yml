@@ -1,14 +1,8 @@
 - name: Commands
-  href: commands.md
-- name: CommandResult
-  href: command-result.md
-- name: Command Validation
-  href: command-validation.md
-- name: Validation Severity Filtering
-  href: validation-severity-filtering.md
+  href: commands/toc.yml
 - name: Validation
   href: validation/toc.yml
 - name: Queries
-  href: queries.md
+  href: queries/toc.yml
 - name: Identity
   href: identity.md

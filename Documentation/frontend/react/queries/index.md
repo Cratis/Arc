@@ -1,90 +1,32 @@
 # Queries
 
-Queries retrieve data from the backend. They are generated from C# controller actions and provide
-type-safe, strongly-typed access to your backend data.
+React queries in Arc provide strongly typed data-access patterns for request/response reads, paged views, and live observable streams.
 
-## Overview
+This page is an overview of capabilities. Detailed behavior is documented on the dedicated pages below.
 
-Queries come in two flavors:
+## Capabilities
 
-- **Regular queries** — Request/response HTTP GET calls. Use these when you want to fetch data once or on demand.
-- **Observable queries** — Server-push subscriptions that keep your UI in sync with backend state in real time.
+| Capability | What It Covers | Learn More |
+| ---------- | -------------- | ---------- |
+| Arc-level configuration | Query-related `<Arc />` props for transport, headers, and stream transfer mode | [Configuration](./configuration.md) |
+| Core query usage | `use()` patterns, arguments, and `QueryResultWithState` | [Core Query Usage](./usage.md) |
+| Paging and sorting | `useWithPaging`, page/sort callbacks, and paging metadata | [Paging](./paging.md) |
+| Observable streams | Real-time subscriptions, transport selection, and direct mode | [Observable Queries](./observable-queries.md) |
+| Suspense integration | `useSuspense()` with query boundaries and error boundaries | [Suspense Queries](./suspense-queries.md) |
+| Conditional execution | `when(condition)` patterns for safe query activation | [Conditional Queries](./conditional-queries.md) |
+| Change deltas | `useChangeStream()` and transfer-mode behavior | [Change Stream](./change-stream.md) |
+| Connection behavior | Multiplexing, connection count, and hub routing | [Observable Query Multiplexing](./observable-query-multiplexing.md) |
+| Instance lifecycle | Shared query instances and cache behavior | [Query Instance Caching](./query-instance-caching.md) |
+| Performing state | Track in-flight queries across components and ViewModels | [Query Scope](./scope.md) |
 
-Both are generated automatically from your C# backend by the [proxy generator](../../../backend/proxy-generation/index.md).
+## Frontend Layering
 
-## HTTP Headers
+For low-level query contracts and non-React runtime behavior, see [Frontend Core Queries](../../core/queries/index.md).
 
-Queries automatically include HTTP headers provided by the `httpHeadersCallback` configured in [Arc](../arc.md).
-This enables authentication cookies, authorization tokens, or other custom headers to be sent with every
-query request without per-query configuration.
+## Backend References
 
-## Proxy Generation
-
-The [proxy generator](../../../backend/proxy-generation/index.md) scans your backend HTTP GET controller actions
-and produces TypeScript classes that:
-
-- Match your backend query structure
-- Provide type-safe result types
-- Offer static `.use()` and `.useWithPaging()` methods for React integration
-- Support the `when(condition)` conditional pattern
-
-See [Proxy Generation](../proxy-generation.md) for setup details.
-
-## Quick Start
-
-**Backend query (C#):**
-
-```csharp
-[HttpGet]
-public IEnumerable<DebitAccount> AllAccounts() => _collection.Find(FilterDefinition<DebitAccount>.Empty).ToList();
-```
-
-**Generated TypeScript:**
-
-```typescript
-import { AllAccounts } from './generated/queries';
-
-export const AccountList = () => {
-    const [result] = AllAccounts.use();
-
-    return (
-        <ul>
-            {result.data.map(account => <li key={account.id}>{account.name}</li>)}
-        </ul>
-    );
-};
-```
-
-## Query Result
-
-All query hooks return a `QueryResultWithState<T>` which extends `QueryResult` with React-specific state:
-
-| Property | Description |
-| -------- | ----------- |
-| `data` | The actual data returned, strongly typed. |
-| `isSuccess` | Whether the query succeeded. |
-| `isAuthorized` | Whether the caller was authorized. |
-| `isValid` | Whether the request was valid. |
-| `validationResults` | Any validation errors. |
-| `hasExceptions` | Whether the server threw an exception. |
-| `exceptionMessages` | Exception messages if any. |
-| `exceptionStackTrace` | Exception stack trace if any. |
-| `paging` | Paging metadata (current page, page size, total items, total pages). |
-| `hasData` | Shorthand — `true` when `data` is non-empty. |
-| `isPerforming` | `true` while the query is in-flight. |
-
-## Topics
-
-| Topic | Description |
-|-------|-------------|
-| [React Usage](./react-usage.md) | Using the `.use()` hook, paging, sorting, and observable query transport in React. |
-| [Query Scope](./scope.md) | Tracking performing state across multiple queries in composite UIs and ViewModels. |
-
-## Related Documentation
-
-- [Suspense Queries](../suspense-queries.md) — Suspense and ErrorBoundary integration.
-- [Conditional Queries](../conditional-queries.md) — The `when(condition)` pattern for optional queries.
-- [Observable Query Multiplexing](../observable-query-multiplexing.md) — Transport selection and connection pooling.
-- [Query Instance Caching](../query-instance-caching.md) — Shared query instances across components.
-- [Change Stream](../change-stream.md) — Fine-grained delta streaming.
-- [Commands](../commands/index.md) — Sending data back to the backend.
+- [Backend Queries Overview](../../../backend/queries/index.md)
+- [Controller-based Queries](../../../backend/queries/controller-based/index.md)
+- [Model-bound Queries](../../../backend/queries/model-bound/index.md)
+- [Query Pipeline](../../../backend/queries/query-pipeline.md)
+- [Backend Proxy Generation](../../../backend/proxy-generation/index.md)

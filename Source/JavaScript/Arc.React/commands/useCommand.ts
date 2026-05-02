@@ -2,9 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Constructor } from '@cratis/fundamentals';
-import { useState, useCallback, useContext, useRef, useMemo } from 'react';
+import { useState, useCallback, useContext, useRef, useMemo, useEffect } from 'react';
 import { Command } from '@cratis/arc/commands';
-import React from 'react';
 import { CommandScopeContext } from './CommandScope';
 import { ArcContext } from '../ArcContext';
 
@@ -49,8 +48,11 @@ export function useCommand<
         return instance;
     }, []);
 
-    const context = React.useContext(CommandScopeContext);
-    context.addCommand?.(command.current! as Command<object, object>);
+    const context = useContext(CommandScopeContext);
+
+    useEffect(() => {
+        context.addCommand?.(command.current! as Command<object, object>);
+    }, [context]);
 
     const setCommandValues = useCallback((values: TCommandContent) => {
         const valuesRecord = values as Record<string, unknown>;

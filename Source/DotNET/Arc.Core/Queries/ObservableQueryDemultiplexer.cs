@@ -553,7 +553,7 @@ public class ObservableQueryDemultiplexer(
                 // Delta mode: skip computation on first emission (full snapshot is sent instead).
                 // Full mode: skip computation entirely (client always receives the full snapshot).
                 ChangeSet? changeSet = null;
-                if (data is IEnumerable enumerable && data is not string)
+                if (!(data is not IEnumerable enumerable || data is string))
                 {
                     var currentItems = enumerable.Cast<object>().ToArray();
                     if (!isFullMode && (!isDeltaMode || !isFirstEmission))

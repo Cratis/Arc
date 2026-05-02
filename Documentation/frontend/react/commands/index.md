@@ -68,7 +68,7 @@ if (result.isSuccess) {
 }
 ```
 
-For comprehensive details, see [CommandResult documentation](../../core/command-result.md).
+For comprehensive details, see [Command Result documentation](../../core/commands/command-result.md).
 
 ## Topics
 
@@ -84,6 +84,5 @@ For comprehensive details, see [CommandResult documentation](../../core/command-
 
 - [CommandForm](./command-form/index.md) - Declarative form component for commands
 - [Queries](../queries/index.md) - Data retrieval operations
-- [Core Commands](../../core/commands.md) - Lower-level command concepts
-- [Proxy Generation](../../../backend/proxy-generation.md) - Setting up command generation
+- [Core Commands](../../core/commands/index.md) - Lower-level command concepts- [Proxy Generation](../../../backend/proxy-generation.md) - Setting up command generation
 

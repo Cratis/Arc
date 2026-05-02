@@ -18,11 +18,13 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContextManager"><see cref="IQueryContextManager"/>.</param>
 /// <param name="queryProviders"><see cref="IQueryRenderers"/>.</param>
+/// <param name="readModelInterceptors"><see cref="IReadModelInterceptors"/> for intercepting read models.</param>
 /// <param name="controllerAdapter"><see cref="ControllerObservableQueryAdapter"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
 public class QueryActionFilter(
     IQueryContextManager queryContextManager,
     IQueryRenderers queryProviders,
+    IReadModelInterceptors readModelInterceptors,
     ControllerObservableQueryAdapter controllerAdapter,
     ILogger<QueryActionFilter> logger) : IAsyncActionFilter
 {
@@ -49,7 +51,7 @@ public class QueryActionFilter(
             logger.NonClientObservableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
             var validationResults = context.ModelState.SelectMany(_ => _.Value!.Errors.Select(p => p.ToValidationResult(_.Key.ToCamelCase()))).ToList();
             var filteredValidationResults = FilterValidationResults(validationResults, treatWarningsAsErrors, ignoreWarnings);
-            var queryResult = CreateQueryResult(
+            var queryResult = await CreateQueryResult(
                 callResult.Response,
                 queryContext.Name,
                 queryContext,
@@ -102,6 +104,36 @@ public class QueryActionFilter(
         return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
     }
 
+    static Type GetReadModelType(object? response)
+    {
+        if (response is null)
+        {
+            return typeof(object);
+        }
+
+        var responseType = response.GetType();
+
+        var enumerableInterface = responseType
+            .GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+
+        if (enumerableInterface is not null)
+        {
+            return enumerableInterface.GetGenericArguments()[0];
+        }
+
+        var queryableInterface = responseType
+            .GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQueryable<>));
+
+        if (queryableInterface is not null)
+        {
+            return queryableInterface.GetGenericArguments()[0];
+        }
+
+        return responseType;
+    }
+
     QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, IQueryContextManager queryContextManager)
     {
         var sorting = httpContext.GetSortingInfo();
@@ -113,7 +145,7 @@ public class QueryActionFilter(
         return queryContext;
     }
 
-    QueryResult CreateQueryResult(
+    async Task<QueryResult> CreateQueryResult(
         object? response,
         FullyQualifiedQueryName queryName,
         QueryContext queryContext,
@@ -125,6 +157,13 @@ public class QueryActionFilter(
     {
         var rendererResult = response is not null ? queryProviders.Render(queryName, response, serviceProvider) : new QueryRendererResult(0, default!);
 
+        var interceptedData = rendererResult.Data;
+        if (rendererResult.Data is not null)
+        {
+            var readModelType = GetReadModelType(response);
+            interceptedData = await ApplyInterceptors(readModelType, rendererResult.Data, serviceProvider);
+        }
+
         var queryResult = new QueryResult
         {
             Paging = queryContext.Paging == Paging.NotPaged ? PagingInfo.NotPaged : new PagingInfo(
@@ -135,15 +174,31 @@ public class QueryActionFilter(
             ValidationResults = validationResults,
             ExceptionMessages = exceptionMessages,
             ExceptionStackTrace = exceptionStackTrace,
-            Data = rendererResult.Data
+            Data = interceptedData!
         };
 
-        if (rendererResult.Data is null && queryResult.IsSuccess)
+        if (interceptedData is null && queryResult.IsSuccess)
         {
             queryResult.ExceptionMessages = ["Null data returned"];
         }
 
         return queryResult;
+    }
+
+    async Task<object> ApplyInterceptors(Type readModelType, object data, IServiceProvider serviceProvider)
+    {
+        if (data is IQueryable queryable)
+        {
+            return await readModelInterceptors.Intercept(readModelType, queryable.Cast<object>(), serviceProvider);
+        }
+
+        if (data is IEnumerable<object> enumerable)
+        {
+            return await readModelInterceptors.Intercept(readModelType, enumerable, serviceProvider);
+        }
+
+        var intercepted = await readModelInterceptors.Intercept(readModelType, [data], serviceProvider);
+        return intercepted.First();
     }
 
     async Task<(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response)> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)

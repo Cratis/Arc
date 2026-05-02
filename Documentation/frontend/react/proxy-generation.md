@@ -31,6 +31,11 @@ npm install @cratis/arc
 
 Commands represent actions you want to perform and correspond to **HttpPost** operations on your backend controllers. The generated proxies inherit from the `Command` type found in `@cratis/arc/commands` and provide type-safe access to all command parameters.
 
+Arc supports both backend command styles and generates equivalent TypeScript proxies for each:
+
+- [Controller-based commands](../../backend/commands/controller-based.md)
+- [Model-bound commands](../../backend/commands/model-bound/index.md)
+
 ### Example Generated Command
 
 For a backend controller action like this:
@@ -56,6 +61,30 @@ const command = new OpenDebitAccount();
 // Set properties and execute
 ```
 
+For a model-bound command like this:
+
+```csharp
+[Command]
+public record OpenDebitAccount(string Name, decimal InitialBalance)
+{
+    public Task Handle(IEventLog eventLog)
+    {
+        // Implementation...
+        return Task.CompletedTask;
+    }
+}
+```
+
+You'll get a generated TypeScript command with the same command name and strongly typed properties:
+
+```typescript
+import { OpenDebitAccount } from './generated/commands';
+
+const command = new OpenDebitAccount();
+command.name = 'Primary account';
+command.initialBalance = 500;
+```
+
 The generated command automatically handles route parameters, query string arguments, and request body serialization.
 
 For detailed information on using commands in React, see the [Commands documentation](./commands/index.md).
@@ -63,6 +92,11 @@ For detailed information on using commands in React, see the [Commands documenta
 ## Queries
 
 Queries represent data retrieval operations that correspond to **HttpGet** operations on your backend controllers. They can return either single items or collections and support parameters from routes or query strings.
+
+Arc supports both backend query styles and generates equivalent TypeScript query proxies for each:
+
+- [Controller-based queries](../../backend/queries/controller-based/index.md)
+- [Model-bound queries](../../backend/queries/model-bound/index.md)
 
 ### Example Generated Query
 
@@ -83,10 +117,38 @@ import { AllAccounts } from './generated/queries';
 
 const MyComponent = () => {
     const [result, perform] = AllAccounts.use();
-    
-    // result is of type QueryResultWithState<DebitAccount[]>
+
+    // result is of type `QueryResultWithState<DebitAccount[]>`
     // Contains: data, isPerforming, error, etc.
-    
+
+    return (
+        <div>
+            {result.isPerforming && <span>Loading...</span>}
+            {result.data?.map(account => <div key={account.id}>{account.name}</div>)}
+        </div>
+    );
+};
+```
+
+For a model-bound query like this:
+
+```csharp
+[ReadModel]
+public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+{
+    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection)
+        => collection.Find(_ => true).ToList();
+}
+```
+
+You'll get a generated TypeScript query proxy with the same ergonomic hook pattern:
+
+```typescript
+import { GetAllAccounts } from './generated/queries';
+
+const MyComponent = () => {
+    const [result, perform] = GetAllAccounts.use();
+
     return (
         <div>
             {result.isPerforming && <span>Loading...</span>}
@@ -117,13 +179,13 @@ function AccountList() {
 }
 ```
 
-See [Suspense Queries](./suspense-queries.md) for full documentation and error handling patterns.
+See [Suspense Queries](./queries/suspense-queries.md) for full documentation and error handling patterns.
 
 ### Observable Queries
 
 Observable queries provide real-time updates to your React components, typically using WebSockets for live data synchronization.
 
-> **Backend Setup**: To learn how to implement observable queries on the backend, see the [Observable Queries section](../../backend/queries/controller-based/observable-queries.md) in the backend documentation.
+> **Backend Setup**: To learn how to implement observable queries on the backend, see [Controller-based Observable Queries](../../backend/queries/controller-based/observable-queries.md) and [Model-bound Observable Queries](../../backend/queries/model-bound/observable-queries.md).
 
 Observable queries are generated the same way as regular queries, but they don't provide a manual `perform` method in the returned tuple. Instead, they automatically subscribe to updates and re-render your React components when the underlying data changes, providing a transparent and seamless real-time experience.
 

@@ -340,7 +340,7 @@ public static class TypeExtensions
                 return new(type, $"Record<string, {valueTargetType.Type}>", "Object", Final: true);
             }
 
-            return new(type, $"Map<{keyTargetType.Type}, {valueTargetType.Type}>", "Map", Final: true);
+            return new(type, $"ValueMap<{keyTargetType.Type}, {valueTargetType.Type}>", "ValueMap", Final: true);
         }
 
         if (type.IsConcept())
@@ -396,6 +396,16 @@ public static class TypeExtensions
                 if (!valueType.IsAPrimitiveType() && !valueType.IsConcept())
                 {
                     valueType.CollectTypesInvolved(typesInvolved);
+                }
+
+                var resolvedKeyTargetType = resolvedKeyType.IsEnum
+                    ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
+                    : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var keyPrimitiveType)
+                        ? keyPrimitiveType
+                        : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
+                if (resolvedKeyTargetType.Type != "string")
+                {
+                    imports.Add(new ImportStatement(property.OriginalType, "ValueMap", "@cratis/fundamentals"));
                 }
             }
             if (!string.IsNullOrEmpty(property.Module))

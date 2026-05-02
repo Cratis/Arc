@@ -103,12 +103,19 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             });
         }
 
-        // Build query arguments including unused args parameters, parameter descriptor values, and paging/sorting
+        // Descriptor-backed instance properties provide defaults; fresh args passed to subscribe()
+        // must take precedence over any stale instance property values. Spread parameterValues
+        // first so that the caller-supplied args can override them.
+        //
+        // In direct mode the route arguments are already embedded in the URL path, so only
+        // the unused (non-route) parameters are appended as additional query arguments.
+        // In multiplexed mode ALL arguments — including route-derived ones — must be included
+        // in the subscribe payload so the server can execute the query correctly.
         const parameterValues = ParametersHelper.collectParameterValues(this);
         const { unusedParameters } = UrlHelpers.replaceRouteParameters(this.route, args as object);
         const connectionQueryArguments: any = {
-            ...unusedParameters,
             ...parameterValues,
+            ...(Globals.queryDirectMode ? unusedParameters : (args as object) || {}),
             ...this.buildQueryArguments()
         };
 
