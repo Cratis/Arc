@@ -88,8 +88,12 @@ public static class EventSourceExtensions
         return eventSourceId;
     }
 
-    static bool IsGenericEventSourceIdType(Type type) =>
-        type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition;
+    static bool IsGenericEventSourceIdType(Type? type)
+    {
+        if (type is null) return false;
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition) return true;
+        return IsGenericEventSourceIdType(type.BaseType);
+    }
 
     static bool IsEventSourceIdValue(object? value) =>
         value is EventSourceId || (value is not null && IsGenericEventSourceIdType(value.GetType()));
@@ -103,11 +107,21 @@ public static class EventSourceExtensions
 
         if (IsGenericEventSourceIdType(value.GetType()))
         {
-            var op = value.GetType()
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .First(m => m.Name == "op_Implicit" && m.ReturnType == typeof(EventSourceId));
+            var type = value.GetType();
+            while (type is not null)
+            {
+                if (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition)
+                {
+                    var op = type.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                        .FirstOrDefault(m => m.Name == "op_Implicit" && m.ReturnType == typeof(EventSourceId));
+                    if (op is not null)
+                    {
+                        return (EventSourceId)op.Invoke(null, [value])!;
+                    }
+                }
 
-            return (EventSourceId)op.Invoke(null, [value])!;
+                type = type.BaseType;
+            }
         }
 
         return value.ToString()!;
