@@ -107,6 +107,14 @@ public static class TypeExtensions
         type.Assembly.GetName().Name is { } name && _assemblyPackageMappings.ContainsKey(name);
 
     /// <summary>
+    /// Check if a type is a flags enum. Uses <see cref="CustomAttributeData"/> to support types loaded via <see cref="MetadataLoadContext"/>.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if the type has the <see cref="FlagsAttribute"/>, false otherwise.</returns>
+    public static bool IsFlagsEnum(this Type type) =>
+        type.GetCustomAttributesData().Any(attr => attr.AttributeType.FullName == typeof(FlagsAttribute).FullName);
+
+    /// <summary>
     /// Initialize the project assemblies.
     /// </summary>
     /// <param name="assemblyFile">Assembly file to start from.</param>
@@ -520,7 +528,7 @@ public static class TypeExtensions
         var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
-        var isFlags = Attribute.IsDefined(type, typeof(FlagsAttribute));
+        var isFlags = type.IsFlagsEnum();
         var documentation = type.GetDocumentation();
         return new EnumDescriptor(type, type.Name, members, [], isFlags, documentation);
     }

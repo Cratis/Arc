@@ -114,13 +114,13 @@ public static class Generator
         await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var regularEnumDescriptors = enums
-            .Where(_ => !_.IsFromMappedAssembly() && !Attribute.IsDefined(_, typeof(FlagsAttribute)))
+            .Where(_ => !_.IsFromMappedAssembly() && !_.IsFlagsEnum())
             .ToList()
             .ConvertAll(_ => _.ToEnumDescriptor());
         await regularEnumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var flagsEnumDescriptors = enums
-            .Where(_ => !_.IsFromMappedAssembly() && Attribute.IsDefined(_, typeof(FlagsAttribute)))
+            .Where(_ => !_.IsFromMappedAssembly() && _.IsFlagsEnum())
             .ToList()
             .ConvertAll(_ => _.ToEnumDescriptor());
         await flagsEnumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.FlagsEnum, directories, segmentsToSkip, "flags enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
