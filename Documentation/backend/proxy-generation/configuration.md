@@ -212,7 +212,7 @@ When your project depends on types from an external assembly that already has a 
 
 A common scenario in larger .NET solutions is to have a shared class library used by multiple applications. Consider this solution structure:
 
-```
+```text
 MyCompany.Shared/           ← Shared class library (NuGet + npm package)
 MyCompany.Inventory/        ← Application referencing Shared
 MyCompany.Purchasing/       ← Application referencing Shared
