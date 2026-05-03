@@ -79,6 +79,8 @@ public static class TypeExtensions
         "Cratis.Arc.Authorization.AuthorizationResult"
     ];
 
+    static Dictionary<string, string> _assemblyPackageMappings = [];
+
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
 
@@ -86,6 +88,23 @@ public static class TypeExtensions
     /// Gets all assemblies gathered from the <see cref="InitializeProjectAssemblies(string, Action{string}, Action{string})"/> method.
     /// </summary>
     public static IEnumerable<Assembly> Assemblies { get; private set; } = [];
+
+    /// <summary>
+    /// Sets the assembly-to-package mappings used to map types from specific assemblies to external TypeScript packages.
+    /// </summary>
+    /// <param name="mappings">Dictionary mapping assembly names to package names.</param>
+    public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
+    {
+        _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Check if a type is from a mapped assembly and should be imported from a configured package rather than generated locally.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if the type is from a mapped assembly, false otherwise.</returns>
+    public static bool IsFromMappedAssembly(this Type type) =>
+        type.Assembly.GetName().Name is { } name && _assemblyPackageMappings.ContainsKey(name);
 
     /// <summary>
     /// Initialize the project assemblies.
@@ -360,6 +379,11 @@ public static class TypeExtensions
             typeName = typeName[..backtickIndex];
         }
 
+        if (_assemblyPackageMappings.TryGetValue(type.Assembly.GetName().Name!, out var packageName))
+        {
+            return new TargetType(type, typeName, typeName, packageName, FromPackage: true);
+        }
+
         return new TargetType(type, typeName, typeName);
     }
 
@@ -555,7 +579,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType()) return;
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly()) return;
         typesInvolved.Add(property.OriginalType);
         foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -571,7 +595,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType()) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly()) return;
         typesInvolved.Add(parameter.OriginalType);
         foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -587,7 +611,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType()) return;
+        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly()) return;
         typesInvolved.Add(type);
         foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {

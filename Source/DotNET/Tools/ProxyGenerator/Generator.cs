@@ -27,6 +27,7 @@ public static class Generator
     /// <param name="apiPrefix">The API prefix to use in the route.</param>
     /// <param name="skipIndexGeneration">True to skip index.ts file generation, false to enable it.</param>
     /// <param name="useSourceFileAsOutputFile">True to group all TypeScript types from the same C# source file into a single .ts file named after the source file, false to generate one file per type.</param>
+    /// <param name="assemblyPackageMappings">Optional dictionary mapping assembly names to TypeScript package names. Types from these assemblies will be imported from the package instead of being generated locally.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -39,7 +40,8 @@ public static class Generator
         bool skipQueryNameInRoute = false,
         string apiPrefix = "api",
         bool skipIndexGeneration = false,
-        bool useSourceFileAsOutputFile = false)
+        bool useSourceFileAsOutputFile = false,
+        IReadOnlyDictionary<string, string>? assemblyPackageMappings = null)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -55,6 +57,7 @@ public static class Generator
 
         var overallStopwatch = Stopwatch.StartNew();
 
+        TypeExtensions.SetAssemblyPackageMappings(assemblyPackageMappings ?? new Dictionary<string, string>());
         TypeExtensions.InitializeProjectAssemblies(assemblyFile, message, errorMessage);
 
         var commands = new List<CommandDescriptor>();
@@ -107,10 +110,10 @@ public static class Generator
         typesInvolved = [.. typesInvolved.Distinct()];
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
-        var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_)).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
+        var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
         await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
-        var enumDescriptors = enums.ConvertAll(_ => _.ToEnumDescriptor());
+        var enumDescriptors = enums.Where(_ => !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToEnumDescriptor());
         await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         // Flush deferred content to disk, comparing final merged hashes against original files
