@@ -204,6 +204,77 @@ When using the proxy generator CLI directly:
 proxygenerator assembly.dll output-path --use-source-file-as-output-file
 ```
 
+## Assembly-to-Package Mappings
+
+When your project depends on types from an external assembly that already has a corresponding TypeScript package, you can configure the proxy generator to import those types from the npm package instead of generating local TypeScript files for them.
+
+### Use Case
+
+Consider a solution with two C# projects:
+
+- **Core** — your main application project
+- **Scene** — a shared library project with its own npm package `@cratis/scene`
+
+If `Core` references `Scene` and uses `Scene.UIElement` in a command:
+
+```csharp
+// In the Core project
+public class UpdateUIElements(IEnumerable<UIElement> Elements);
+```
+
+By default, the proxy generator would create a local `UIElement.ts` file. With an assembly-to-package mapping, it instead imports `UIElement` from `@cratis/scene`:
+
+```typescript
+import { UIElement } from '@cratis/scene';
+```
+
+### MSBuild Configuration
+
+Use the `AssemblyToPageMapping` item group in your `.csproj` file:
+
+```xml
+<ItemGroup>
+    <AssemblyToPageMapping Assembly="Scene" Package="@cratis/scene" />
+</ItemGroup>
+```
+
+Multiple mappings are supported:
+
+```xml
+<ItemGroup>
+    <AssemblyToPageMapping Assembly="Scene" Package="@cratis/scene" />
+    <AssemblyToPageMapping Assembly="Shared" Package="@myorg/shared" />
+</ItemGroup>
+```
+
+Where:
+- `Assembly` — the name of the C# assembly (without `.dll` extension) whose types should be mapped
+- `Package` — the npm package name to import from
+
+### CLI Usage
+
+When using the proxy generator CLI directly, pass one or more `--assembly-to-package` flags:
+
+```bash
+proxygenerator assembly.dll output-path --assembly-to-package=Scene=@cratis/scene
+```
+
+Multiple mappings:
+
+```bash
+proxygenerator assembly.dll output-path \
+  --assembly-to-package=Scene=@cratis/scene \
+  --assembly-to-package=Shared=@myorg/shared
+```
+
+### Behavior
+
+When an assembly mapping is configured:
+
+- Types from that assembly are **not** generated as local TypeScript files
+- Any command, query, or type that references a mapped type will instead `import` it from the configured npm package
+- The mapping applies to all types in the assembly, including enums and complex types
+
 ## Advanced Configuration
 
 For more complex scenarios, you can combine multiple configuration options:

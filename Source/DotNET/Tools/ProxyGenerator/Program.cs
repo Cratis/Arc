@@ -9,7 +9,7 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file]");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--assembly-to-package=<Assembly>=<Package>]...");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -23,6 +23,17 @@ var apiPrefix = apiPrefixArg is null ? "api" : apiPrefixArg.Split('=')[^1];
 var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
 
+var assemblyPackageMappings = new Dictionary<string, string>();
+foreach (var arg in args.Where(_ => _.StartsWith("--assembly-to-package=")))
+{
+    var mapping = arg["--assembly-to-package=".Length..];
+    var separatorIndex = mapping.IndexOf('=');
+    if (separatorIndex > 0)
+    {
+        assemblyPackageMappings[mapping[..separatorIndex]] = mapping[(separatorIndex + 1)..];
+    }
+}
+
 Console.WriteLine("\nParameters:");
 Console.WriteLine($"Assembly: '{assemblyFile}'");
 Console.WriteLine($"Output path: '{outputPath}'");
@@ -33,6 +44,14 @@ Console.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
 Console.WriteLine($"API prefix: {apiPrefix}");
 Console.WriteLine($"Skip index generation: {skipIndexGeneration}");
 Console.WriteLine($"Use source file as output file: {useSourceFileAsOutputFile}");
+if (assemblyPackageMappings.Count > 0)
+{
+    Console.WriteLine("Assembly-to-package mappings:");
+    foreach (var (assembly, package) in assemblyPackageMappings)
+    {
+        Console.WriteLine($"  {assembly} -> {package}");
+    }
+}
 Console.WriteLine();
 
 var result = await Generator.Generate(
@@ -46,5 +65,6 @@ var result = await Generator.Generate(
     skipQueryNameInRoute,
     apiPrefix,
     skipIndexGeneration,
-    useSourceFileAsOutputFile);
+    useSourceFileAsOutputFile,
+    assemblyPackageMappings);
 return result ? 0 : 1;
