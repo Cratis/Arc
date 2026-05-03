@@ -110,8 +110,17 @@ public static class Generator
         var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_)).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
         await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
-        var enumDescriptors = enums.ConvertAll(_ => _.ToEnumDescriptor());
-        await enumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        var regularEnumDescriptors = enums
+            .Where(_ => !Attribute.IsDefined(_, typeof(FlagsAttribute)))
+            .ToList()
+            .ConvertAll(_ => _.ToEnumDescriptor());
+        await regularEnumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+
+        var flagsEnumDescriptors = enums
+            .Where(_ => Attribute.IsDefined(_, typeof(FlagsAttribute)))
+            .ToList()
+            .ConvertAll(_ => _.ToEnumDescriptor());
+        await flagsEnumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.FlagsEnum, directories, segmentsToSkip, "flags enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         // Flush deferred content to disk, comparing final merged hashes against original files
         if (pendingContent is { Count: > 0 })

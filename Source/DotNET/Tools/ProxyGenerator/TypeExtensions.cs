@@ -496,8 +496,9 @@ public static class TypeExtensions
         var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
+        var isFlags = Attribute.IsDefined(type, typeof(FlagsAttribute));
         var documentation = type.GetDocumentation();
-        return new EnumDescriptor(type, type.Name, members, [], documentation);
+        return new EnumDescriptor(type, type.Name, members, [], isFlags, documentation);
     }
 
     /// <summary>
