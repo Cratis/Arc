@@ -80,6 +80,9 @@ public static class TypeExtensions
     ];
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
+    static HashSet<string> _excludedTypeNames = [];
+    static List<string> _excludedNamespacePatterns = [];
+    static List<(string Namespace, string Folder)> _namespaceRoots = [];
 
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
@@ -96,6 +99,41 @@ public static class TypeExtensions
     public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
     {
         _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Sets the types and namespace patterns to exclude from proxy generation.
+    /// </summary>
+    /// <param name="typeNames">Fully qualified type names to exclude.</param>
+    /// <param name="namespacePatterns">Namespace glob patterns (supports <c>*</c> as wildcard) to exclude.</param>
+    public static void SetExcludedTypes(IReadOnlyCollection<string> typeNames, IReadOnlyCollection<string> namespacePatterns)
+    {
+        _excludedTypeNames = [.. typeNames];
+        _excludedNamespacePatterns = [.. namespacePatterns];
+    }
+
+    /// <summary>
+    /// Sets the namespace roots used to determine the output folder structure.
+    /// When a type's namespace begins with a configured root, that root prefix is stripped
+    /// and the remainder is appended under the specified base folder.
+    /// </summary>
+    /// <param name="roots">Pairs of (namespace, base folder), e.g. <c>("MyApp.Features", "features")</c>.</param>
+    public static void SetNamespaceRoots(IReadOnlyCollection<(string Namespace, string Folder)> roots)
+    {
+        _namespaceRoots = [.. roots];
+    }
+
+    /// <summary>
+    /// Check whether a type is excluded from proxy generation by an exact type name match or a namespace glob pattern.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns><see langword="true"/> if the type is excluded; otherwise <see langword="false"/>.</returns>
+    public static bool IsExcluded(this Type type)
+    {
+        if (type.FullName is null) return false;
+        if (_excludedTypeNames.Contains(type.FullName)) return true;
+        var ns = type.Namespace ?? string.Empty;
+        return _excludedNamespacePatterns.Exists(pattern => MatchesGlobPattern(ns, pattern));
     }
 
     /// <summary>
@@ -535,14 +573,41 @@ public static class TypeExtensions
 
     /// <summary>
     /// Resolve the relative path for a type.
+    /// Namespace roots (configured via <see cref="SetNamespaceRoots"/>) take priority over
+    /// <paramref name="segmentsToSkip"/>: when the type's namespace begins with a root the root
+    /// prefix is stripped and the remainder becomes the folder path.
     /// </summary>
     /// <param name="type">Type to resolve for.</param>
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <returns>Resolved path.</returns>
     public static string ResolveTargetPath(this Type type, int segmentsToSkip)
     {
-        var ns = type.Namespace!.Replace(Globals.NamespacePrefix, string.Empty);
-        var path = string.Join(Path.DirectorySeparatorChar, ns.Split('.').Skip(segmentsToSkip));
+        var ns = type.Namespace ?? string.Empty;
+
+        var matchingRoot = _namespaceRoots
+            .Where(root => ns == root.Namespace || ns.StartsWith(root.Namespace + ".", StringComparison.Ordinal))
+            .OrderByDescending(r => r.Namespace.Length)
+            .Cast<(string Namespace, string Folder)?>()
+            .FirstOrDefault();
+
+        if (matchingRoot is not null)
+        {
+            var (rootNs, folder) = matchingRoot.Value;
+            var remainder = ns == rootNs ? string.Empty : ns[(rootNs.Length + 1)..];
+            var subPath = string.IsNullOrEmpty(remainder)
+                ? string.Empty
+                : string.Join(Path.DirectorySeparatorChar, remainder.Split('.'));
+
+            if (string.IsNullOrEmpty(folder))
+            {
+                return string.IsNullOrEmpty(subPath) ? $"{Path.DirectorySeparatorChar}" : subPath;
+            }
+
+            return string.IsNullOrEmpty(subPath) ? folder : Path.Join(folder, subPath);
+        }
+
+        var stripped = ns.Replace(Globals.NamespacePrefix, string.Empty);
+        var path = string.Join(Path.DirectorySeparatorChar, stripped.Split('.').Skip(segmentsToSkip));
         if (string.IsNullOrEmpty(path))
         {
             path = $"{Path.DirectorySeparatorChar}";
@@ -599,7 +664,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly()) return;
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly() || property.OriginalType.IsExcluded()) return;
         typesInvolved.Add(property.OriginalType);
         foreach (var derivativeType in property.OriginalType.GetDerivativeTypes())
         {
@@ -620,7 +685,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly()) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly() || parameter.OriginalType.IsExcluded()) return;
         typesInvolved.Add(parameter.OriginalType);
         foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -636,7 +701,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly()) return;
+        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly() || type.IsExcluded()) return;
         typesInvolved.Add(type);
         foreach (var derivativeType in type.GetDerivativeTypes())
         {
@@ -1044,6 +1109,36 @@ public static class TypeExtensions
 
         var aspNetCore = _metadataLoadContext.LoadFromAssemblyName("Microsoft.AspNetCore.Mvc.Core");
         _controllerBaseType = aspNetCore.GetType("Microsoft.AspNetCore.Mvc.ControllerBase")!;
+    }
+
+    /// <summary>
+    /// Match a namespace string against a glob pattern where <c>*</c> matches any sequence of characters.
+    /// </summary>
+    /// <param name="ns">Namespace to test.</param>
+    /// <param name="pattern">Glob pattern (may contain one or more <c>*</c> wildcards).</param>
+    /// <returns><see langword="true"/> if the namespace matches the pattern.</returns>
+    static bool MatchesGlobPattern(string ns, string pattern)
+    {
+        if (!pattern.Contains('*')) return ns == pattern;
+
+        var parts = pattern.Split('*');
+        var index = 0;
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i];
+            if (part.Length == 0) continue;
+
+            var found = ns.IndexOf(part, index, StringComparison.Ordinal);
+            if (found < 0) return false;
+
+            // First segment must match at position 0 (pattern must start from the beginning unless leading *)
+            if (i == 0 && found != 0) return false;
+
+            index = found + part.Length;
+        }
+
+        // If the pattern does not end with *, the namespace must be fully consumed
+        return pattern.EndsWith('*') || index == ns.Length;
     }
 
     static bool IsAssignableToBaseType(this Type type, Type baseType)

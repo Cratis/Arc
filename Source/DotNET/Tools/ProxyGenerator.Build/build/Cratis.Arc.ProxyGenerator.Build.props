@@ -3,6 +3,7 @@
         <CratisProxiesInputAssembly></CratisProxiesInputAssembly>
         <CratisProxiesOutputPath></CratisProxiesOutputPath>
         <CratisProxiesSegmentsToSkip></CratisProxiesSegmentsToSkip>
+        <CratisProxiesLibraryMode>false</CratisProxiesLibraryMode>
         <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
         <CratisProxiesSkipCommandNameInRoute>false</CratisProxiesSkipCommandNameInRoute>
         <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>

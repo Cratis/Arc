@@ -9,12 +9,13 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--assembly-to-package=<Assembly>=<Package>]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]...");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
 var outputPath = Normalize(Path.GetFullPath(args[1]));
 var segmentsToSkip = args.Length > 2 && !args[2].StartsWith("--") && int.TryParse(args[2], out var segments) ? segments : 0;
+var libraryMode = args.Any(_ => _ == "--library-mode");
 var skipOutputDeletion = args.Any(_ => _ == "--skip-output-deletion");
 var skipCommandNameInRoute = args.Any(_ => _ == "--skip-command-name-in-route");
 var skipQueryNameInRoute = args.Any(_ => _ == "--skip-query-name-in-route");
@@ -33,10 +34,31 @@ foreach (var mapping in args.Where(_ => _.StartsWith("--assembly-to-package=")).
     }
 }
 
+var excludedTypeNames = args
+    .Where(_ => _.StartsWith("--exclude-type="))
+    .Select(_ => _["--exclude-type=".Length..])
+    .ToList();
+
+var excludedNamespacePatterns = args
+    .Where(_ => _.StartsWith("--exclude-namespace="))
+    .Select(_ => _["--exclude-namespace=".Length..])
+    .ToList();
+
+var namespaceRoots = new List<(string Namespace, string Folder)>();
+foreach (var entry in args.Where(_ => _.StartsWith("--namespace-root=")).Select(_ => _["--namespace-root=".Length..]))
+{
+    var separatorIndex = entry.IndexOf('=');
+    if (separatorIndex > 0)
+    {
+        namespaceRoots.Add((entry[..separatorIndex], entry[(separatorIndex + 1)..]));
+    }
+}
+
 Console.WriteLine("\nParameters:");
 Console.WriteLine($"Assembly: '{assemblyFile}'");
 Console.WriteLine($"Output path: '{outputPath}'");
 Console.WriteLine($"Segments to skip: {segmentsToSkip}");
+Console.WriteLine($"Library mode: {libraryMode}");
 Console.WriteLine($"Skip output deletion: {skipOutputDeletion}");
 Console.WriteLine($"Skip command name in route: {skipCommandNameInRoute}");
 Console.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
@@ -51,6 +73,30 @@ if (assemblyPackageMappings.Count > 0)
         Console.WriteLine($"  {assembly} -> {package}");
     }
 }
+if (excludedTypeNames.Count > 0)
+{
+    Console.WriteLine("Excluded types:");
+    foreach (var typeName in excludedTypeNames)
+    {
+        Console.WriteLine($"  {typeName}");
+    }
+}
+if (excludedNamespacePatterns.Count > 0)
+{
+    Console.WriteLine("Excluded namespace patterns:");
+    foreach (var pattern in excludedNamespacePatterns)
+    {
+        Console.WriteLine($"  {pattern}");
+    }
+}
+if (namespaceRoots.Count > 0)
+{
+    Console.WriteLine("Namespace roots:");
+    foreach (var (ns, folder) in namespaceRoots)
+    {
+        Console.WriteLine($"  {ns} -> {folder}");
+    }
+}
 Console.WriteLine();
 
 var result = await Generator.Generate(
@@ -59,11 +105,15 @@ var result = await Generator.Generate(
     segmentsToSkip,
     Console.WriteLine,
     Console.Error.WriteLine,
+    libraryMode,
     skipOutputDeletion,
     skipCommandNameInRoute,
     skipQueryNameInRoute,
     apiPrefix,
     skipIndexGeneration,
     useSourceFileAsOutputFile,
-    assemblyPackageMappings);
+    assemblyPackageMappings,
+    excludedTypeNames,
+    excludedNamespacePatterns,
+    namespaceRoots);
 return result ? 0 : 1;
