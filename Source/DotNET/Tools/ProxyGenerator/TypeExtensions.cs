@@ -103,11 +103,8 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if the type is from a mapped assembly, false otherwise.</returns>
-    public static bool IsFromMappedAssembly(this Type type)
-    {
-        var assemblyName = type.Assembly.GetName().Name;
-        return assemblyName is not null && _assemblyPackageMappings.ContainsKey(assemblyName);
-    }
+    public static bool IsFromMappedAssembly(this Type type) =>
+        type.Assembly.GetName().Name is { } name && _assemblyPackageMappings.ContainsKey(name);
 
     /// <summary>
     /// Initialize the project assemblies.

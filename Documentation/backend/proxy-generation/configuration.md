@@ -230,11 +230,11 @@ import { UIElement } from '@cratis/scene';
 
 ### MSBuild Configuration
 
-Use the `AssemblyToPageMapping` item group in your `.csproj` file:
+Use the `AssemblyToPackageMapping` item group in your `.csproj` file:
 
 ```xml
 <ItemGroup>
-    <AssemblyToPageMapping Assembly="Scene" Package="@cratis/scene" />
+    <AssemblyToPackageMapping Assembly="Scene" Package="@cratis/scene" />
 </ItemGroup>
 ```
 
@@ -242,8 +242,8 @@ Multiple mappings are supported:
 
 ```xml
 <ItemGroup>
-    <AssemblyToPageMapping Assembly="Scene" Package="@cratis/scene" />
-    <AssemblyToPageMapping Assembly="Shared" Package="@myorg/shared" />
+    <AssemblyToPackageMapping Assembly="Scene" Package="@cratis/scene" />
+    <AssemblyToPackageMapping Assembly="Shared" Package="@myorg/shared" />
 </ItemGroup>
 ```
 

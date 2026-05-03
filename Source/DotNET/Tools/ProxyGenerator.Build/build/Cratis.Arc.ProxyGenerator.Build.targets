@@ -32,7 +32,7 @@
             <SkipFileIndexTracking Condition=" '$(CratisProxiesSkipFileIndexTracking)' == 'true' ">--skip-file-index-tracking</SkipFileIndexTracking>
             <SkipIndexGeneration Condition=" '$(CratisProxiesSkipIndexGeneration)' == 'true' ">--skip-index-generation</SkipIndexGeneration>
             <UseSourceFileAsOutputFile Condition=" '$(CratisProxiesUseSourceFileAsOutputFile)' == 'true' ">--use-source-file-as-output-file</UseSourceFileAsOutputFile>
-            <AssemblyPackageMappings>@(AssemblyToPageMapping -> '--assembly-to-package=%(Assembly)=%(Package)', ' ')</AssemblyPackageMappings>
+            <AssemblyPackageMappings>@(AssemblyToPackageMapping -> '--assembly-to-package=%(Assembly)=%(Package)', ' ')</AssemblyPackageMappings>
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true" 
