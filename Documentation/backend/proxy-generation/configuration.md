@@ -204,6 +204,94 @@ When using the proxy generator CLI directly:
 proxygenerator assembly.dll output-path --use-source-file-as-output-file
 ```
 
+## Assembly-to-Package Mappings
+
+When your project depends on types from an external assembly that already has a corresponding TypeScript package, you can configure the proxy generator to import those types from the npm package instead of generating local TypeScript files for them.
+
+### Use Case
+
+A common scenario in larger .NET solutions is to have a shared class library used by multiple applications. Consider this solution structure:
+
+```text
+MyCompany.Shared/           ← Shared class library (NuGet + npm package)
+MyCompany.Inventory/        ← Application referencing Shared
+MyCompany.Purchasing/       ← Application referencing Shared
+```
+
+The `Shared` library contains reusable domain types and ships with an npm package (`@mycompany/shared`) that already exports the corresponding TypeScript types.
+
+For example, `Shared` contains:
+
+```csharp
+// MyCompany.Shared
+public record Money(decimal Amount, string Currency);
+public record ProductId(Guid Value);
+```
+
+And `Inventory` uses these types in commands:
+
+```csharp
+// MyCompany.Inventory
+public class AdjustProductPrice(ProductId Product, Money NewPrice);
+```
+
+Without a mapping, the proxy generator would regenerate `Money.ts` and `ProductId.ts` locally in the `Inventory` frontend — duplicating types that are already in `@mycompany/shared`. With an assembly-to-package mapping, the generator imports them from the published package instead:
+
+```typescript
+import { Money, ProductId } from '@mycompany/shared';
+```
+
+The same mapping works for any number of applications (`Inventory`, `Purchasing`, …) that reference `Shared`, keeping all TypeScript types in sync with a single source of truth.
+
+### MSBuild Configuration
+
+Add the `AssemblyToPackageMapping` item group to the `.csproj` of each application that references the shared library:
+
+```xml
+<!-- MyCompany.Inventory.csproj -->
+<ItemGroup>
+    <AssemblyToPackageMapping Assembly="MyCompany.Shared" Package="@mycompany/shared" />
+</ItemGroup>
+```
+
+Multiple shared libraries are supported:
+
+```xml
+<ItemGroup>
+    <AssemblyToPackageMapping Assembly="MyCompany.Shared"   Package="@mycompany/shared" />
+    <AssemblyToPackageMapping Assembly="MyCompany.UiModels" Package="@mycompany/ui-models" />
+</ItemGroup>
+```
+
+Where:
+- `Assembly` — the name of the C# assembly (without `.dll` extension) whose types should be mapped
+- `Package` — the npm package name to import from
+
+### CLI Usage
+
+When using the proxy generator CLI directly, pass one or more `--assembly-to-package` flags:
+
+```bash
+proxygenerator MyCompany.Inventory.dll output-path \
+  --assembly-to-package=MyCompany.Shared=@mycompany/shared
+```
+
+Multiple mappings:
+
+```bash
+proxygenerator MyCompany.Inventory.dll output-path \
+  --assembly-to-package=MyCompany.Shared=@mycompany/shared \
+  --assembly-to-package=MyCompany.UiModels=@mycompany/ui-models
+```
+
+### Behavior
+
+When an assembly mapping is configured:
+
+- Types from that assembly are **not** generated as local TypeScript files
+- Any command, query, or type that references a mapped type will instead `import` it from the configured npm package
+- The mapping applies to all types in the assembly, including enums and complex types
+
 ## Advanced Configuration
 
 For more complex scenarios, you can combine multiple configuration options:
