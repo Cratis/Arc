@@ -24,9 +24,8 @@ var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
 
 var assemblyPackageMappings = new Dictionary<string, string>();
-foreach (var arg in args.Where(_ => _.StartsWith("--assembly-to-package=")))
+foreach (var mapping in args.Where(_ => _.StartsWith("--assembly-to-package=")).Select(_ => _["--assembly-to-package=".Length..]))
 {
-    var mapping = arg["--assembly-to-package=".Length..];
     var separatorIndex = mapping.IndexOf('=');
     if (separatorIndex > 0)
     {
