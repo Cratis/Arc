@@ -210,40 +210,56 @@ When your project depends on types from an external assembly that already has a 
 
 ### Use Case
 
-Consider a solution with two C# projects:
+A common scenario in larger .NET solutions is to have a shared class library used by multiple applications. Consider this solution structure:
 
-- **Core** — your main application project
-- **Scene** — a shared library project with its own npm package `@cratis/scene`
+```
+MyCompany.Shared/           ← Shared class library (NuGet + npm package)
+MyCompany.Inventory/        ← Application referencing Shared
+MyCompany.Purchasing/       ← Application referencing Shared
+```
 
-If `Core` references `Scene` and uses `Scene.UIElement` in a command:
+The `Shared` library contains reusable domain types and ships with an npm package (`@mycompany/shared`) that already exports the corresponding TypeScript types.
+
+For example, `Shared` contains:
 
 ```csharp
-// In the Core project
-public class UpdateUIElements(IEnumerable<UIElement> Elements);
+// MyCompany.Shared
+public record Money(decimal Amount, string Currency);
+public record ProductId(Guid Value);
 ```
 
-By default, the proxy generator would create a local `UIElement.ts` file. With an assembly-to-package mapping, it instead imports `UIElement` from `@cratis/scene`:
+And `Inventory` uses these types in commands:
+
+```csharp
+// MyCompany.Inventory
+public class AdjustProductPrice(ProductId Product, Money NewPrice);
+```
+
+Without a mapping, the proxy generator would regenerate `Money.ts` and `ProductId.ts` locally in the `Inventory` frontend — duplicating types that are already in `@mycompany/shared`. With an assembly-to-package mapping, the generator imports them from the published package instead:
 
 ```typescript
-import { UIElement } from '@cratis/scene';
+import { Money, ProductId } from '@mycompany/shared';
 ```
+
+The same mapping works for any number of applications (`Inventory`, `Purchasing`, …) that reference `Shared`, keeping all TypeScript types in sync with a single source of truth.
 
 ### MSBuild Configuration
 
-Use the `AssemblyToPackageMapping` item group in your `.csproj` file:
+Add the `AssemblyToPackageMapping` item group to the `.csproj` of each application that references the shared library:
 
 ```xml
+<!-- MyCompany.Inventory.csproj -->
 <ItemGroup>
-    <AssemblyToPackageMapping Assembly="Scene" Package="@cratis/scene" />
+    <AssemblyToPackageMapping Assembly="MyCompany.Shared" Package="@mycompany/shared" />
 </ItemGroup>
 ```
 
-Multiple mappings are supported:
+Multiple shared libraries are supported:
 
 ```xml
 <ItemGroup>
-    <AssemblyToPackageMapping Assembly="Scene" Package="@cratis/scene" />
-    <AssemblyToPackageMapping Assembly="Shared" Package="@myorg/shared" />
+    <AssemblyToPackageMapping Assembly="MyCompany.Shared"   Package="@mycompany/shared" />
+    <AssemblyToPackageMapping Assembly="MyCompany.UiModels" Package="@mycompany/ui-models" />
 </ItemGroup>
 ```
 
@@ -256,15 +272,16 @@ Where:
 When using the proxy generator CLI directly, pass one or more `--assembly-to-package` flags:
 
 ```bash
-proxygenerator assembly.dll output-path --assembly-to-package=Scene=@cratis/scene
+proxygenerator MyCompany.Inventory.dll output-path \
+  --assembly-to-package=MyCompany.Shared=@mycompany/shared
 ```
 
 Multiple mappings:
 
 ```bash
-proxygenerator assembly.dll output-path \
-  --assembly-to-package=Scene=@cratis/scene \
-  --assembly-to-package=Shared=@myorg/shared
+proxygenerator MyCompany.Inventory.dll output-path \
+  --assembly-to-package=MyCompany.Shared=@mycompany/shared \
+  --assembly-to-package=MyCompany.UiModels=@mycompany/ui-models
 ```
 
 ### Behavior
