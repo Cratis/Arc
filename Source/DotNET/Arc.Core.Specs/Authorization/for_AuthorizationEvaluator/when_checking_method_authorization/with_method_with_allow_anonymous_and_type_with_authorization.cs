@@ -6,7 +6,7 @@ public class with_method_with_allow_anonymous_and_type_with_authorization : give
 {
     bool _result;
 
-    void Because() => _result = _authorizationHelper.IsAuthorized(typeof(given.TypeWithAuthorizationAndMethodAllowAnonymous).GetMethod(nameof(given.TypeWithAuthorizationAndMethodAllowAnonymous.Method))!);
+    void Because() => _result = _authorizationHelper.IsAuthorized(typeof(given.TypeWithAuthorizationAndMethodAllowAnonymous).GetMethod(nameof(given.TypeWithAuthorizationAndMethodAllowAnonymous.Method)));
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
 }

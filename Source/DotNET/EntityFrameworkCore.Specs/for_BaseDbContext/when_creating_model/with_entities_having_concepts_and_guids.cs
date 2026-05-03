@@ -20,13 +20,13 @@ public class with_entities_having_concepts_and_guids : given.a_base_db_context
     void Because()
     {
         _model = GetModel(_dbContext);
-        _personEntityType = _model.FindEntityType(typeof(Person))!;
-        _companyEntityType = _model.FindEntityType(typeof(Company))!;
+        _personEntityType = _model.FindEntityType(typeof(Person));
+        _companyEntityType = _model.FindEntityType(typeof(Company));
     }
 
-    [Fact] void should_apply_conversion_to_person_id_concept() => _personEntityType.FindProperty(nameof(Person.Id))!.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_apply_conversion_to_person_name_concept() => _personEntityType.FindProperty(nameof(Person.Name))!.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_apply_conversion_to_age_concept() => _personEntityType.FindProperty(nameof(Person.Age))!.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_apply_conversion_to_person_external_id_guid() => _personEntityType.FindProperty(nameof(Person.ExternalId))!.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_apply_conversion_to_company_id_guid() => _companyEntityType.FindProperty(nameof(Company.Id))!.GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_apply_conversion_to_person_id_concept() => _personEntityType.FindProperty(nameof(Person.Id)).GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_apply_conversion_to_person_name_concept() => _personEntityType.FindProperty(nameof(Person.Name)).GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_apply_conversion_to_age_concept() => _personEntityType.FindProperty(nameof(Person.Age)).GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_apply_conversion_to_person_external_id_guid() => _personEntityType.FindProperty(nameof(Person.ExternalId)).GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_apply_conversion_to_company_id_guid() => _companyEntityType.FindProperty(nameof(Company.Id)).GetValueConverter().ShouldNotBeNull();
 }

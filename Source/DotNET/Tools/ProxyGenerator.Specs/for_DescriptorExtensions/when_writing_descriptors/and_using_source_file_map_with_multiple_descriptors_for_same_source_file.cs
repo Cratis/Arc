@@ -44,8 +44,8 @@ public class and_using_source_file_map_with_multiple_descriptors_for_same_source
 
         _sourceFileMap = new Dictionary<string, string>
         {
-            [firstType.FullName!] = "SharedSourceFile",
-            [secondType.FullName!] = "SharedSourceFile"
+            [firstType.FullName] = "SharedSourceFile",
+            [secondType.FullName] = "SharedSourceFile"
         };
 
         var path = firstType.ResolveTargetPath(0);

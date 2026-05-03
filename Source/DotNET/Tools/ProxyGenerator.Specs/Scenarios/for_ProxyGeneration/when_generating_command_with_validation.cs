@@ -18,7 +18,7 @@ public class when_generating_command_with_validation : Specification, IDisposabl
         _runtime = new JavaScriptRuntime();
 
         var commandType = typeof(CommandWithValidation);
-        var method = commandType.GetMethod("Handle") ?? typeof(object).GetMethod("GetHashCode")!;
+        var method = commandType.GetMethod("Handle") ?? typeof(object).GetMethod("GetHashCode");
         var properties = commandType.GetProperties()
             .Select(p => p.ToPropertyDescriptor())
             .ToList();

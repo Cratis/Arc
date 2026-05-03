@@ -27,7 +27,7 @@ public class and_handler_returns_value_task_without_value : Specification
         _context = new(CorrelationId.New(), typeof(Command), new Command(), _dependencies, new());
         _handler = new ModelBoundCommandHandler(
             typeof(Command),
-            typeof(Command).GetMethod(nameof(Command.Handle))!);
+            typeof(Command).GetMethod(nameof(Command.Handle)));
     }
 
     async Task Because() => _result = await _handler.Handle(_context);

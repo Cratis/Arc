@@ -12,5 +12,5 @@ public class and_type_has_id_property : Specification
     void Because() => _result = ChangeSetComputor.FindIdentityProperty(typeof(given.ItemWithId));
 
     [Fact] void should_find_the_property() => _result.ShouldNotBeNull();
-    [Fact] void should_find_property_named_id() => _result!.Name.ShouldEqual("Id");
+    [Fact] void should_find_property_named_id() => _result.Name.ShouldEqual("Id");
 }

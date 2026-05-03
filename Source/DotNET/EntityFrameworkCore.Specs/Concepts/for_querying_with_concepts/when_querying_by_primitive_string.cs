@@ -30,6 +30,6 @@ public class when_querying_by_primitive_string : given.a_test_database
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(333);
-    [Fact] void should_have_correct_name() => _result!.Name.Value.ShouldEqual("String Test Product");
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(333);
+    [Fact] void should_have_correct_name() => _result.Name.Value.ShouldEqual("String Test Product");
 }

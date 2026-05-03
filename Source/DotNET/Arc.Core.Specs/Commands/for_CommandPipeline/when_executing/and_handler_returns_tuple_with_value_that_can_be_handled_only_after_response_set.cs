@@ -38,7 +38,7 @@ public class and_handler_returns_tuple_with_value_that_can_be_handled_only_after
 
     [Fact]
     void should_call_value_handler_for_value_that_can_be_handled() =>
-        _commandResponseValueHandlers.Received(1).Handle(Arg.Is<CommandContext>(ctx => ctx.Response!.Equals(_tuple.Item1)), _tuple.Item2);
+        _commandResponseValueHandlers.Received(1).Handle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_tuple.Item1)), _tuple.Item2);
 
     [Fact]
     void should_not_call_value_handler_for_unhandled_value() =>
@@ -46,5 +46,5 @@ public class and_handler_returns_tuple_with_value_that_can_be_handled_only_after
 
     [Fact]
     void should_set_unhandled_value_as_response_in_context_when_checking_if_it_can_be_handled() =>
-        _commandResponseValueHandlers.Received().CanHandle(Arg.Is<CommandContext>(ctx => ctx.Response!.Equals(_tuple.Item1)), _tuple.Item2);
+        _commandResponseValueHandlers.Received().CanHandle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_tuple.Item1)), _tuple.Item2);
 }

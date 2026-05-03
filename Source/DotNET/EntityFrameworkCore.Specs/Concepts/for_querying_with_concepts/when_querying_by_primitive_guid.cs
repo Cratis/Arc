@@ -30,6 +30,6 @@ public class when_querying_by_primitive_guid : given.a_test_database
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_id() => _result!.Id.Value.ShouldEqual(_guidValue);
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(100);
+    [Fact] void should_have_correct_id() => _result.Id.Value.ShouldEqual(_guidValue);
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(100);
 }

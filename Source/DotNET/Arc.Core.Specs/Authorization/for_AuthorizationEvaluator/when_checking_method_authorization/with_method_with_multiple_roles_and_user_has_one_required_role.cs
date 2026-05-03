@@ -11,7 +11,7 @@ public class with_method_with_multiple_roles_and_user_has_one_required_role : gi
 
     void Establish()
     {
-        _method = typeof(given.TypeWithMethodMultipleRoles).GetMethod(nameof(given.TypeWithMethodMultipleRoles.MethodWithMultipleRoles))!;
+        _method = typeof(given.TypeWithMethodMultipleRoles).GetMethod(nameof(given.TypeWithMethodMultipleRoles.MethodWithMultipleRoles));
         SetupAuthenticatedUser("Admin");
     }
 

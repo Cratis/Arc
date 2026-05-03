@@ -79,6 +79,8 @@ public static class TypeExtensions
         "Cratis.Arc.Authorization.AuthorizationResult"
     ];
 
+    static Dictionary<string, string> _assemblyPackageMappings = [];
+
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
 
@@ -86,6 +88,23 @@ public static class TypeExtensions
     /// Gets all assemblies gathered from the <see cref="InitializeProjectAssemblies(string, Action{string}, Action{string})"/> method.
     /// </summary>
     public static IEnumerable<Assembly> Assemblies { get; private set; } = [];
+
+    /// <summary>
+    /// Sets the assembly-to-package mappings used to map types from specific assemblies to external TypeScript packages.
+    /// </summary>
+    /// <param name="mappings">Dictionary mapping assembly names to package names.</param>
+    public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
+    {
+        _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Check if a type is from a mapped assembly and should be imported from a configured package rather than generated locally.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if the type is from a mapped assembly, false otherwise.</returns>
+    public static bool IsFromMappedAssembly(this Type type) =>
+        type.Assembly.GetName().Name is { } name && _assemblyPackageMappings.ContainsKey(name);
 
     /// <summary>
     /// Initialize the project assemblies.
@@ -360,6 +379,11 @@ public static class TypeExtensions
             typeName = typeName[..backtickIndex];
         }
 
+        if (_assemblyPackageMappings.TryGetValue(type.Assembly.GetName().Name!, out var packageName))
+        {
+            return new TargetType(type, typeName, typeName, packageName, FromPackage: true);
+        }
+
         return new TargetType(type, typeName, typeName);
     }
 
@@ -415,11 +439,21 @@ public static class TypeExtensions
         }
 
         imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+
+        var derivativeConstructorNames = new HashSet<string>(
+            propertyDescriptors
+                .Where(pd => !string.IsNullOrEmpty(pd.Derivatives))
+                .SelectMany(pd => pd.Derivatives.Split(", ")));
+
         imports = [.. imports
                     .DistinctBy(_ => _.Type)
-                    .Where(_ => propertyDescriptors.Exists(pd => TypeNameIsReferenced(pd.Type, _.Type)) && _.OriginalType != type)];
+                    .Where(_ =>
+                        (propertyDescriptors.Exists(pd => TypeNameIsReferenced(pd.Type, _.Type)) ||
+                         derivativeConstructorNames.Contains(_.Type))
+                        && _.OriginalType != type)];
 
         var documentation = type.GetDocumentation();
+        var derivedTypeId = type.GetDerivedTypeId();
 
         return new TypeDescriptor(
             type,
@@ -427,7 +461,8 @@ public static class TypeExtensions
             propertyDescriptors,
             imports.ToOrderedImports(),
             typesInvolved,
-            documentation);
+            documentation,
+            derivedTypeId);
     }
 
     /// <summary>
@@ -485,8 +520,9 @@ public static class TypeExtensions
         var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
+        var isFlags = Attribute.IsDefined(type, typeof(FlagsAttribute));
         var documentation = type.GetDocumentation();
-        return new EnumDescriptor(type, type.Name, members, [], documentation);
+        return new EnumDescriptor(type, type.Name, members, [], isFlags, documentation);
     }
 
     /// <summary>
@@ -555,8 +591,13 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType()) return;
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly()) return;
         typesInvolved.Add(property.OriginalType);
+        foreach (var derivativeType in property.OriginalType.GetDerivativeTypes())
+        {
+            derivativeType.CollectTypesInvolved(typesInvolved);
+        }
+
         foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
@@ -571,7 +612,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType()) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly()) return;
         typesInvolved.Add(parameter.OriginalType);
         foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -587,8 +628,13 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType()) return;
+        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly()) return;
         typesInvolved.Add(type);
+        foreach (var derivativeType in type.GetDerivativeTypes())
+        {
+            derivativeType.CollectTypesInvolved(typesInvolved);
+        }
+
         foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
@@ -816,6 +862,58 @@ public static class TypeExtensions
     }
 
     /// <summary>
+    /// Get the derived type identifier for a type if it has a <c>DerivedTypeAttribute</c>.
+    /// </summary>
+    /// <param name="type"><see cref="Type"/> to check.</param>
+    /// <returns>The derived type identifier string, or null if the type is not decorated.</returns>
+    public static string? GetDerivedTypeId(this Type type)
+    {
+        var attr = type.GetCustomAttributesData()
+            .FirstOrDefault(a => a.AttributeType.FullName == "Cratis.Serialization.DerivedTypeAttribute");
+
+        if (attr is null) return null;
+
+        return attr.ConstructorArguments.Count > 0
+            ? attr.ConstructorArguments[0].Value?.ToString()
+            : null;
+    }
+
+    /// <summary>
+    /// Get all non-abstract types that derive from or implement the given type and carry a <c>DerivedTypeAttribute</c>.
+    /// </summary>
+    /// <param name="baseType">Base type to find derivatives of.</param>
+    /// <returns>Collection of derivative types.</returns>
+    public static IEnumerable<Type> GetDerivativeTypes(this Type baseType)
+    {
+        if (baseType.IsAPrimitiveType() || baseType.IsConcept() || baseType.IsEnum)
+        {
+            return [];
+        }
+
+        var assembliesToSearch = Assemblies.Any()
+            ? Assemblies
+            : AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic);
+
+        return assembliesToSearch
+            .SelectMany(a =>
+            {
+                try
+                {
+                    return a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    return ex.Types.Where(t => t is not null).Cast<Type>();
+                }
+            })
+            .Where(t => t != baseType &&
+                        !t.IsAbstract &&
+                        !t.IsInterface &&
+                        t.GetDerivedTypeId() is not null &&
+                        t.IsAssignableToBaseType(baseType));
+    }
+
+    /// <summary>
     /// Check if a type is a well-known type that should be ignored as a response type.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
@@ -938,6 +1036,23 @@ public static class TypeExtensions
 
         var aspNetCore = _metadataLoadContext.LoadFromAssemblyName("Microsoft.AspNetCore.Mvc.Core");
         _controllerBaseType = aspNetCore.GetType("Microsoft.AspNetCore.Mvc.ControllerBase")!;
+    }
+
+    static bool IsAssignableToBaseType(this Type type, Type baseType)
+    {
+        var baseFullName = baseType.FullName;
+        if (string.IsNullOrEmpty(baseFullName)) return false;
+
+        if (type.GetInterfaces().Any(i => i.FullName == baseFullName)) return true;
+
+        var current = type.BaseType;
+        while (current is not null && current.FullName != typeof(object).FullName)
+        {
+            if (current.FullName == baseFullName) return true;
+            current = current.BaseType;
+        }
+
+        return false;
     }
 
     /// <summary>

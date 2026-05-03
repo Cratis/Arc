@@ -24,8 +24,8 @@ public class with_postgre_sql_database : given.a_json_conversion_context
     {
         var entityTypeBuilder = _modelBuilder.Entity<EntityWithJsonProperties>();
         entityTypeBuilder.ApplyJsonConversion(DatabaseType.PostgreSql);
-        _nameProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Name))!;
-        _addressProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Address))!;
+        _nameProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Name));
+        _addressProperty = entityTypeBuilder.Metadata.FindProperty(nameof(EntityWithJsonProperties.Address));
     }
 
     [Fact] void should_set_name_column_type_to_jsonb() => _nameProperty.GetColumnType().ShouldEqual("jsonb");

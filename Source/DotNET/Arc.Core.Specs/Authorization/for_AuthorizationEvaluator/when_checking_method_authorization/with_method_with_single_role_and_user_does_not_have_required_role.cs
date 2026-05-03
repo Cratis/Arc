@@ -11,7 +11,7 @@ public class with_method_with_single_role_and_user_does_not_have_required_role :
 
     void Establish()
     {
-        _method = typeof(given.TypeWithMethodSingleRole).GetMethod(nameof(given.TypeWithMethodSingleRole.MethodWithSingleRole))!;
+        _method = typeof(given.TypeWithMethodSingleRole).GetMethod(nameof(given.TypeWithMethodSingleRole.MethodWithSingleRole));
         SetupAuthenticatedUser("User");
     }
 

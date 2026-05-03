@@ -60,7 +60,7 @@ public static class GeneratorTestHelper
             MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(ImmutableArray).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location),
-            MetadataReference.CreateFromFile(systemRuntime!.Location),
+            MetadataReference.CreateFromFile(systemRuntime.Location),
             MetadataReference.CreateFromFile(typeof(Cratis.Arc.Queries.ModelBound.ReadModelAttribute).Assembly.Location),
         ];
     }

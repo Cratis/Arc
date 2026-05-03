@@ -36,7 +36,7 @@ public class setting_current_http_request_context : given.an_endpoint_mapper
         };
     }
 
-    async Task Because() => await _endpoint.RequestDelegate!(_httpContext);
+    async Task Because() => await _endpoint.RequestDelegate(_httpContext);
 
     [Fact] void should_set_current_on_the_accessor() => _accessor.Current.ShouldNotBeNull();
     [Fact] void should_set_current_to_the_same_context_passed_to_the_handler() => _accessor.Current.ShouldEqual(_contextReceivedByHandler);

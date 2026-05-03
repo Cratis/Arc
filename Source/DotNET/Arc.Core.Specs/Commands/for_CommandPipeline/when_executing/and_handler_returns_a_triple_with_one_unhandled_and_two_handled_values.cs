@@ -41,5 +41,5 @@ public class and_handler_returns_a_triple_with_one_unhandled_and_two_handled_val
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
     [Fact]
     void should_set_response_on_command_context() =>
-        _commandResponseValueHandlers.Received().Handle(Arg.Is<CommandContext>(ctx => ctx.Response!.Equals(_tuple.Item2)), Arg.Any<object>());
+        _commandResponseValueHandlers.Received().Handle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_tuple.Item2)), Arg.Any<object>());
 }

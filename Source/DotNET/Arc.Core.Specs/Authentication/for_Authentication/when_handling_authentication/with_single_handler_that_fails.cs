@@ -21,5 +21,5 @@ public class with_single_handler_that_fails : given.an_authentication_system
 
     [Fact] void should_return_unauthenticated_result() => _result.IsAuthenticated.ShouldBeFalse();
     [Fact] void should_return_failure() => _result.Failure.ShouldNotBeNull();
-    [Fact] void should_return_failure_with_invalid_credentials_reason() => _result.Failure!.Reason.Value.ShouldEqual("Invalid credentials");
+    [Fact] void should_return_failure_with_invalid_credentials_reason() => _result.Failure.Reason.Value.ShouldEqual("Invalid credentials");
 }

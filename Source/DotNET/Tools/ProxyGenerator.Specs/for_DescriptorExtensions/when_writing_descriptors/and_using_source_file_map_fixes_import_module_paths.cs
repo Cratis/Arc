@@ -44,8 +44,8 @@ public class and_using_source_file_map_fixes_import_module_paths : Specification
 
         _sourceFileMap = new Dictionary<string, string>
         {
-            [descriptorType.FullName!] = "ImportingType",
-            [importedType.FullName!] = "SharedSlice"
+            [descriptorType.FullName] = "ImportingType",
+            [importedType.FullName] = "SharedSlice"
         };
 
         var path = descriptorType.ResolveTargetPath(0);

@@ -1,48 +1,78 @@
-// Deserialize query result data using type fields
+// Deserialize query result data using field metadata, with derived type support.
+// This approach keeps raw primitive/special-type values (TimeSpan, Guid, etc.) so that
+// JSON.stringify produces JSON that System.Text.Json can re-deserialize correctly on the C# side.
+// For properties with derivatives (e.g. IShape → CircleShape/RectangleShape), the correct
+// derived class is instantiated so that constructor.name reflects the real type.
 try {
     var response = JSON.parse('{{ESCAPED_JSON}}');
-    
+
     if (response.data && __query.modelType && globalThis.Fields) {
-        // Helper function to deserialize an object using its type's fields
+
+        function getDerivedTypeId(cls) {
+            try {
+                return Reflect && Reflect.getOwnMetadata ? Reflect.getOwnMetadata('derivedType', cls) : undefined;
+            } catch(e) { return undefined; }
+        }
+
+        function resolveType(field, value) {
+            if (field.derivatives && field.derivatives.length > 0 && value._derivedTypeId) {
+                var id = value._derivedTypeId;
+                for (var i = 0; i < field.derivatives.length; i++) {
+                    var d = field.derivatives[i];
+                    if (d && getDerivedTypeId(d) === id) {
+                        return d;
+                    }
+                }
+            }
+            return null;
+        }
+
         function deserializeObject(data, type) {
             if (!data || !type || !globalThis.Fields) return data;
-            
+
             var fields = globalThis.Fields.getFieldsForType(type);
             if (!fields || fields.length === 0) {
+                // Type has no @field decorators (e.g. TimeSpan, Guid) — keep raw value
                 return data;
             }
-            
-            var deserialized = {};
+
+            var deserialized;
+            try { deserialized = new type(); } catch(e) { deserialized = {}; }
+
             for (var i = 0; i < fields.length; i++) {
                 var field = fields[i];
-                if (data.hasOwnProperty(field.name)) {
-                    var value = data[field.name];
-                    
-                    // Handle null/undefined
-                    if (value === null || value === undefined) {
+                if (!data.hasOwnProperty(field.name)) continue;
+                var value = data[field.name];
+
+                if (value === null || value === undefined) {
+                    deserialized[field.name] = value;
+                } else if (Array.isArray(value) && field.enumerable) {
+                    deserialized[field.name] = value.map(function(item) {
+                        if (typeof item !== 'object' || item === null) return item;
+                        var itemType = resolveType(field, item) || field.type;
+                        return itemType ? deserializeObject(item, itemType) : item;
+                    });
+                } else if (typeof value === 'object' && !Array.isArray(value)) {
+                    var resolvedType = resolveType(field, value);
+                    if (resolvedType) {
+                        deserialized[field.name] = deserializeObject(value, resolvedType);
+                    } else if (field.type) {
+                        var nestedFields = globalThis.Fields.getFieldsForType(field.type);
+                        if (nestedFields && nestedFields.length > 0) {
+                            deserialized[field.name] = deserializeObject(value, field.type);
+                        } else {
+                            deserialized[field.name] = value;
+                        }
+                    } else {
                         deserialized[field.name] = value;
                     }
-                    // Handle arrays
-                    else if (Array.isArray(value) && field.type && globalThis[field.type.name]) {
-                        deserialized[field.name] = value.map(item => 
-                            typeof item === 'object' && item !== null 
-                                ? deserializeObject(item, field.type) 
-                                : item
-                        );
-                    }
-                    // Handle nested objects
-                    else if (typeof value === 'object' && !Array.isArray(value) && field.type && globalThis[field.type.name]) {
-                        deserialized[field.name] = deserializeObject(value, field.type);
-                    }
-                    // Handle primitives
-                    else {
-                        deserialized[field.name] = value;
-                    }
+                } else {
+                    deserialized[field.name] = value;
                 }
             }
             return deserialized;
         }
-        
+
         __queryResult.data = deserializeObject(response.data, __query.modelType);
     }
 } catch(e) {

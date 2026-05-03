@@ -25,7 +25,7 @@ public class a_controller_query_performer_provider : Specification
             ActionName = nameof(TestController.AllEventStores),
             ControllerName = nameof(TestController),
             ControllerTypeInfo = typeof(TestController).GetTypeInfo(),
-            MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AllEventStores))!
+            MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AllEventStores))
         };
 
         var descriptor2 = new ControllerActionDescriptor
@@ -33,7 +33,7 @@ public class a_controller_query_performer_provider : Specification
             ActionName = nameof(TestController.AnonymousEventStores),
             ControllerName = nameof(TestController),
             ControllerTypeInfo = typeof(TestController).GetTypeInfo(),
-            MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AnonymousEventStores))!
+            MethodInfo = typeof(TestController).GetMethod(nameof(TestController.AnonymousEventStores))
         };
 
         _actionDescriptorCollectionProvider = Substitute.For<IActionDescriptorCollectionProvider>();

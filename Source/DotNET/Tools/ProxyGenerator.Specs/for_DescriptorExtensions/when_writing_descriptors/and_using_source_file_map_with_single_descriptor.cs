@@ -35,7 +35,7 @@ public class and_using_source_file_map_with_single_descriptor : Specification, I
 
         _sourceFileMap = new Dictionary<string, string>
         {
-            [testType.FullName!] = "MySourceFile"
+            [testType.FullName] = "MySourceFile"
         };
 
         var path = testType.ResolveTargetPath(0);
