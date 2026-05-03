@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
 using Cratis.Chronicle.EventSequences;
@@ -38,12 +39,21 @@ public class AggregateRootCommitResult
     /// <summary>
     /// Gets a value indicating whether the commit was successful.
     /// </summary>
-    public bool IsSuccess => !ConstraintViolations.Any() && !ConcurrencyViolations.Any() && !Errors.Any();
+    public bool IsSuccess =>
+        !ConstraintViolations.Any() &&
+        !ConcurrencyViolations.Any() &&
+        !Errors.Any() &&
+        !ValidationResults.Any(v => v.Severity == ValidationResultSeverity.Error);
 
     /// <summary>
     /// Gets any exception messages that might have occurred.
     /// </summary>
     public IEnumerable<AppendError> Errors { get; init; } = [];
+
+    /// <summary>
+    /// Gets the validation results reported by the aggregate root during processing.
+    /// </summary>
+    public IEnumerable<ValidationResult> ValidationResults { get; init; } = [];
 
     /// <summary>
     /// Implicitly convert from <see cref="AggregateRootCommitResult"/> to <see cref="bool"/>.
@@ -56,12 +66,28 @@ public class AggregateRootCommitResult
     /// </summary>
     /// <param name="events">Collection of events.</param>
     /// <param name="sequenceNumbers">Optional collection of <see cref="EventSequenceNumber"/> assigned to each event.</param>
+    /// <param name="validationResults">Optional collection of <see cref="ValidationResult"/> reported during processing.</param>
     /// <returns><see cref="AggregateRootCommitResult"/>.</returns>
-    public static AggregateRootCommitResult Successful(IImmutableList<object>? events = default, IEnumerable<EventSequenceNumber>? sequenceNumbers = default) =>
+    public static AggregateRootCommitResult Successful(
+        IImmutableList<object>? events = default,
+        IEnumerable<EventSequenceNumber>? sequenceNumbers = default,
+        IEnumerable<ValidationResult>? validationResults = default) =>
         new()
         {
             Events = events ?? ImmutableList<object>.Empty,
-            SequenceNumbers = sequenceNumbers ?? []
+            SequenceNumbers = sequenceNumbers ?? [],
+            ValidationResults = validationResults ?? []
+        };
+
+    /// <summary>
+    /// Create an <see cref="AggregateRootCommitResult"/> representing a failed commit due to validation errors.
+    /// </summary>
+    /// <param name="validationResults">The <see cref="ValidationResult"/> instances that caused the failure.</param>
+    /// <returns>A new failed <see cref="AggregateRootCommitResult"/>.</returns>
+    public static AggregateRootCommitResult WithErrors(IEnumerable<ValidationResult> validationResults) =>
+        new()
+        {
+            ValidationResults = validationResults.ToArray()
         };
 
     /// <summary>
@@ -69,14 +95,19 @@ public class AggregateRootCommitResult
     /// </summary>
     /// <param name="unitOfWork"><see cref="IUnitOfWork"/> to create from.</param>
     /// <param name="sequenceNumbers">The <see cref="EventSequenceNumber"/> values assigned to each committed event, in order.</param>
+    /// <param name="validationResults">Optional collection of <see cref="ValidationResult"/> reported during processing.</param>
     /// <returns>A new instance of <see cref="AggregateRootCommitResult"/>.</returns>
-    public static AggregateRootCommitResult CreateFrom(IUnitOfWork unitOfWork, IEnumerable<EventSequenceNumber> sequenceNumbers) =>
+    public static AggregateRootCommitResult CreateFrom(
+        IUnitOfWork unitOfWork,
+        IEnumerable<EventSequenceNumber> sequenceNumbers,
+        IEnumerable<ValidationResult>? validationResults = default) =>
         new()
         {
             Events = unitOfWork.GetEvents().ToArray(),
             SequenceNumbers = sequenceNumbers.ToArray(),
             ConstraintViolations = unitOfWork.GetConstraintViolations().ToArray(),
             ConcurrencyViolations = unitOfWork.GetConcurrencyViolations().ToArray(),
-            Errors = unitOfWork.GetAppendErrors().ToArray()
+            Errors = unitOfWork.GetAppendErrors().ToArray(),
+            ValidationResults = validationResults ?? []
         };
 }

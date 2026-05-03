@@ -7,8 +7,11 @@ import { QueryShowcasePage } from './Features/QueryShowcase/QueryShowcasePage';
 import { ConditionalQueriesPage } from './Features/ConditionalQueries/ConditionalQueriesPage';
 import { AuthenticationQueriesPage } from './Features/AuthenticationQueries/AuthenticationQueriesPage';
 import { ChangeStreamPage } from './Features/ChangeStream/ChangeStreamPage';
+import { CrossCuttingAuthorizationPage } from './Features/CrossCuttingAuthorization/CrossCuttingAuthorizationPage';
+import { ObservableCollectionPage } from './Features/ObservableCollection/ObservableCollectionPage';
+import { ObservableCollectionWithGuidPage } from './Features/ObservableCollectionWithGuid/ObservableCollectionWithGuidPage';
 
-export type Page = 'authenticationqueries' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries' | 'changestream';
+export type Page = 'authenticationqueries' | 'crosscuttingauthorization' | 'ticker' | 'livefeed' | 'queryshowcase' | 'conditionalqueries' | 'changestream' | 'observablecollection' | 'observablecollectionwithguid';
 
 interface AppProps {
     title: string;
@@ -29,6 +32,12 @@ export const App = ({ title, page, onPageChange: setPage }: AppProps) => {
                     style={{ fontWeight: page === 'authenticationqueries' ? 'bold' : 'normal' }}
                 >
                     Authentication Queries
+                </button>
+                <button
+                    onClick={() => setPage('crosscuttingauthorization')}
+                    style={{ fontWeight: page === 'crosscuttingauthorization' ? 'bold' : 'normal' }}
+                >
+                    Cross-Cutting Authorization
                 </button>
                 <button
                     onClick={() => setPage('ticker')}
@@ -60,13 +69,28 @@ export const App = ({ title, page, onPageChange: setPage }: AppProps) => {
                 >
                     Change Stream
                 </button>
+                <button
+                    onClick={() => setPage('observablecollection')}
+                    style={{ fontWeight: page === 'observablecollection' ? 'bold' : 'normal' }}
+                >
+                    Observable Collection
+                </button>
+                <button
+                    onClick={() => setPage('observablecollectionwithguid')}
+                    style={{ fontWeight: page === 'observablecollectionwithguid' ? 'bold' : 'normal' }}
+                >
+                    Observable Collection With Guid
+                </button>
             </nav>
             {page === 'authenticationqueries' && <AuthenticationQueriesPage />}
+            {page === 'crosscuttingauthorization' && <CrossCuttingAuthorizationPage />}
             {page === 'ticker' && <TickerPage />}
             {page === 'livefeed' && <LiveFeedPage />}
             {page === 'queryshowcase' && <QueryShowcasePage />}
             {page === 'conditionalqueries' && <ConditionalQueriesPage />}
             {page === 'changestream' && <ChangeStreamPage />}
+            {page === 'observablecollection' && <ObservableCollectionPage />}
+            {page === 'observablecollectionwithguid' && <ObservableCollectionWithGuidPage />}
         </div>
     );
 };

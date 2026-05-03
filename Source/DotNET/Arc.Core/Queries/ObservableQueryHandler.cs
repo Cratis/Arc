@@ -155,11 +155,10 @@ public class ObservableQueryHandler(
     async Task HandleSubjectViaHttp(IHttpRequestContext context, object streamingData)
 #pragma warning restore IDE0060
     {
-        // For HTTP, serialize the current state from BehaviorSubject if available
-        // This allows HTTP clients to get a snapshot of the observable's current value
-        var queryResult = await GetCurrentValueAsQueryResult(streamingData);
-        context.SetStatusCode(HttpStatusCode.OK);
-        await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
+        var options = ObservableQueryHttp.GetOptions(context.Query);
+        var response = await ObservableQueryHttp.CreateResponse(queryContextManager.Current, streamingData, options, context.RequestAborted);
+        context.SetStatusCode((int)response.StatusCode);
+        await context.WriteResponseAsJson(response.Result, typeof(QueryResult), context.RequestAborted);
     }
 
     async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
@@ -205,71 +204,5 @@ public class ObservableQueryHandler(
         // For HTTP, we need to serialize the enumerable
         context.SetStatusCode(HttpStatusCode.BadRequest);
         await context.WriteResponseAsJson(new { message = "AsyncEnumerable queries require WebSocket connection" }, typeof(object), context.RequestAborted);
-    }
-
-    async Task<QueryResult> GetCurrentValueAsQueryResult(object streamingData)
-    {
-        var type = streamingData.GetType();
-        var subjectType = type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>)) ??
-                          type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IObservable<>));
-
-        if (subjectType is null)
-        {
-            return new QueryResult { Data = streamingData };
-        }
-
-        // For Subjects/Observables, get the first emitted value using System.Reactive
-        var dataType = subjectType.GetGenericArguments()[0];
-
-        // Call Observable.FirstAsync<T>(observable).ToTask() using reflection
-        var firstAsyncMethod = typeof(System.Reactive.Linq.Observable).GetMethods()
-            .FirstOrDefault(m => m.Name == "FirstAsync" &&
-                                  m.GetParameters().Length == 1 &&
-                                  m.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(IObservable<>));
-
-        if (firstAsyncMethod is null)
-        {
-            return new QueryResult { Data = null! };
-        }
-
-        var genericFirstAsync = firstAsyncMethod.MakeGenericMethod(dataType);
-        var observableResult = genericFirstAsync.Invoke(null, [streamingData]);
-
-        if (observableResult is null)
-        {
-            return new QueryResult { Data = null! };
-        }
-
-        // Convert to Task using ToTask()
-        var toTaskMethod = typeof(System.Reactive.Threading.Tasks.TaskObservableExtensions).GetMethods()
-            .FirstOrDefault(m => m.Name == "ToTask" &&
-                                 m.GetParameters().Length == 1 &&
-                                 m.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(IObservable<>));
-
-        if (toTaskMethod is null)
-        {
-            return new QueryResult { Data = null! };
-        }
-
-        var genericToTask = toTaskMethod.MakeGenericMethod(dataType);
-        var task = genericToTask.Invoke(null, [observableResult]);
-
-        if (task is null)
-        {
-            return new QueryResult { Data = null! };
-        }
-
-        await (Task)task;
-        var currentValue = ((dynamic)task).Result;
-
-        return new QueryResult
-        {
-            Data = currentValue!,
-            IsAuthorized = true,
-            ValidationResults = [],
-            ExceptionMessages = [],
-            ExceptionStackTrace = string.Empty,
-            Paging = new(queryContextManager.Current.Paging.Page, queryContextManager.Current.Paging.Size, queryContextManager.Current.TotalItems)
-        };
     }
 }

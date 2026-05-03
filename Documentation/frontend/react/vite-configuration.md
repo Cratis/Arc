@@ -4,7 +4,7 @@ When you use Vite's built-in dev server to proxy API requests to a backend runni
 
 ## WebSocket proxy for the observable query hub
 
-Vite's proxy is built on [http-proxy](https://github.com/http-party/node-http-proxy). By default it only proxies regular HTTP requests. To also forward the WebSocket upgrade handshake that the [observable query hub](./observable-query-multiplexing.md) requires, you must set `ws: true` on every proxy rule whose target serves WebSocket connections.
+Vite's proxy is built on [http-proxy](https://github.com/http-party/node-http-proxy). By default it only proxies regular HTTP requests. To also forward the WebSocket upgrade handshake that the [observable query hub](./queries/observable-query-multiplexing.md) requires, you must set `ws: true` on every proxy rule whose target serves WebSocket connections.
 
 The hub endpoint is `/.cratis/queries/ws`. Without `ws: true` on the `/.cratis` proxy rule, the browser issues a WebSocket upgrade to the Vite dev server, but Vite returns a plain HTTP response and the connection fails. Observable queries silently receive no data and repeatedly attempt to reconnect.
 

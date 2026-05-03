@@ -31,7 +31,7 @@ public class and_command_handler_throws : Specification
         _context = new(CorrelationId.New(), typeof(Command), new Command(), [], new());
         _handler = new ModelBoundCommandHandler(
             typeof(Command),
-            typeof(Command).GetMethod(nameof(Command.Handle))!);
+            typeof(Command).GetMethod(nameof(Command.Handle)));
     }
 
     async Task Because() => _thrownException = await Catch.Exception(async () => await _handler.Handle(_context));

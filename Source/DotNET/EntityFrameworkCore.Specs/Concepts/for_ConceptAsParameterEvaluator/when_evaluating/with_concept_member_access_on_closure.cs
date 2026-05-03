@@ -27,5 +27,5 @@ public class with_concept_member_access_on_closure : Specification
     [Fact] void should_evaluate_to_constant() => _result.ShouldBeOfExactType<ConstantExpression>();
     [Fact] void should_keep_concept_type() => _result.Type.ShouldEqual(typeof(TestIdConcept));
     [Fact] void should_have_concept_value() => ((ConstantExpression)_result).Value.ShouldBeOfExactType<TestIdConcept>();
-    [Fact] void should_have_correct_underlying_value() => ((TestIdConcept)((ConstantExpression)_result).Value!).Value.ShouldEqual(_expectedId);
+    [Fact] void should_have_correct_underlying_value() => ((TestIdConcept)((ConstantExpression)_result).Value).Value.ShouldEqual(_expectedId);
 }

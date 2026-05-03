@@ -13,9 +13,9 @@ public class when_using_concept_as_key_with_lambda_syntax : given.a_test_databas
 
     void Because()
     {
-        _entityType = _context.Model.FindEntityType(typeof(EntityWithConceptKey))!;
-        _idProperty = _entityType.FindProperty(nameof(EntityWithConceptKey.Id))!;
-        _key = _entityType.FindPrimaryKey()!;
+        _entityType = _context.Model.FindEntityType(typeof(EntityWithConceptKey));
+        _idProperty = _entityType.FindProperty(nameof(EntityWithConceptKey.Id));
+        _key = _entityType.FindPrimaryKey();
     }
 
     [Fact] void should_have_entity_type_configured() => _entityType.ShouldNotBeNull();

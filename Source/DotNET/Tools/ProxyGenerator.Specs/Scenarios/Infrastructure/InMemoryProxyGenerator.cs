@@ -51,4 +51,14 @@ public static class InMemoryProxyGenerator
     {
         return TemplateTypes.Enum(descriptor);
     }
+
+    /// <summary>
+    /// Generates a TypeScript flags enum from a descriptor, including an <c>allXxx</c> constant.
+    /// </summary>
+    /// <param name="descriptor">The flags enum descriptor.</param>
+    /// <returns>The generated TypeScript code.</returns>
+    public static string GenerateFlagsEnum(EnumDescriptor descriptor)
+    {
+        return TemplateTypes.FlagsEnum(descriptor);
+    }
 }

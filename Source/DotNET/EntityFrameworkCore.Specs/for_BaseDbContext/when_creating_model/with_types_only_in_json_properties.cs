@@ -20,8 +20,8 @@ public class with_types_only_in_json_properties : given.a_base_db_context
     void Because()
     {
         _model = GetModel(_dbContext);
-        _departmentEntityType = _model.FindEntityType(typeof(Department))!;
-        _settingsProperty = _departmentEntityType.FindProperty(nameof(Department.Settings))!;
+        _departmentEntityType = _model.FindEntityType(typeof(Department));
+        _settingsProperty = _departmentEntityType.FindProperty(nameof(Department.Settings));
     }
 
     [Fact]
@@ -41,6 +41,6 @@ public class with_types_only_in_json_properties : given.a_base_db_context
     }
 
     [Fact] void should_apply_json_conversion_to_settings_property() => _settingsProperty.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_serialize_settings_as_json() => _settingsProperty.GetValueConverter()!.ProviderClrType.ShouldEqual(typeof(string));
-    [Fact] void should_apply_conversion_to_department_id_guid() => _departmentEntityType.FindProperty(nameof(Department.Id))!.GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_serialize_settings_as_json() => _settingsProperty.GetValueConverter().ProviderClrType.ShouldEqual(typeof(string));
+    [Fact] void should_apply_conversion_to_department_id_guid() => _departmentEntityType.FindProperty(nameof(Department.Id)).GetValueConverter().ShouldNotBeNull();
 }

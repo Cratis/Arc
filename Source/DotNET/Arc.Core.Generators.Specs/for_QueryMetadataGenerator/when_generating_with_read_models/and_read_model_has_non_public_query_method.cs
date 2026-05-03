@@ -23,6 +23,7 @@ public class and_read_model_has_non_public_query_method : Specification
             {
                 public static MyReadModel GetById(int id) => new();
                 internal static MyReadModel GetByName(string name) => new();
+                private static MyReadModel GetByValue(string value) => new();
             }
             """);
 
@@ -31,5 +32,6 @@ public class and_read_model_has_non_public_query_method : Specification
 
     [Fact] void should_generate_two_source_files() => _result.GeneratedTrees.Length.ShouldEqual(2);
     [Fact] void should_include_public_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
-    [Fact] void should_not_include_internal_query() => _generatedSource.ShouldNotContain("TestApp.MyReadModel.GetByName");
+    [Fact] void should_include_internal_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetByName");
+    [Fact] void should_not_include_private_query() => _generatedSource.ShouldNotContain("TestApp.MyReadModel.GetByValue");
 }

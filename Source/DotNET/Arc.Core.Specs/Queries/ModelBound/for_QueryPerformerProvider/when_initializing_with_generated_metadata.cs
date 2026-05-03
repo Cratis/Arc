@@ -8,6 +8,9 @@ namespace Cratis.Arc.Queries.ModelBound.for_QueryPerformerProvider;
 
 public class when_initializing_with_generated_metadata : Specification
 {
+    const string MetadataReadModelTypeName = "Generated.Metadata.PublicReadModel";
+    const string MetadataQueryName = $"{MetadataReadModelTypeName}.{nameof(PublicReadModelWithValidQuery.GetById)}";
+
     QueryPerformerProvider _provider;
     ITypes _types;
     IQueryMetadataRegistry _registry;
@@ -24,12 +27,14 @@ public class when_initializing_with_generated_metadata : Specification
         _registry.All.Returns(
             new Dictionary<string, Type>
             {
-                [$"{typeof(PublicReadModelWithValidQuery).FullName}.{nameof(PublicReadModelWithValidQuery.GetById)}"] = typeof(PublicReadModelWithValidQuery)
+                [MetadataQueryName] = typeof(PublicReadModelWithValidQuery)
             });
     }
 
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
     [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
+    [Fact] void should_use_the_generated_metadata_type_name_for_the_fully_qualified_name() => _provider.Performers.Single().FullyQualifiedName.Value.ShouldEqual(MetadataQueryName);
+    [Fact] void should_make_the_performer_addressable_by_the_generated_metadata_name() => _provider.TryGetPerformerFor(MetadataQueryName, out _).ShouldBeTrue();
     [Fact] void should_not_use_reflection_types() => _ = _types.DidNotReceive().All;
 }

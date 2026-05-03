@@ -30,6 +30,6 @@ public class when_querying_by_string_concept_name : given.a_test_database
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(789);
-    [Fact] void should_have_correct_name() => _result!.Name.Value.ShouldEqual("Unique Product Name");
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(789);
+    [Fact] void should_have_correct_name() => _result.Name.Value.ShouldEqual("Unique Product Name");
 }

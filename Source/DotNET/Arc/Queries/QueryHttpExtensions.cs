@@ -32,6 +32,14 @@ public static class QueryHttpExtensions
     public const string PageSizeQueryStringKey = "pageSize";
 
     /// <summary>
+    /// Gets the observable query HTTP options from the HTTP request query string.
+    /// </summary>
+    /// <param name="httpContext">The HTTP context.</param>
+    /// <returns>The <see cref="ObservableQueryHttpOptions"/>.</returns>
+    public static ObservableQueryHttpOptions GetObservableQueryHttpOptions(this HttpContext httpContext) =>
+        ObservableQueryHttp.GetOptions(httpContext.Request.Query.ToDictionary(_ => _.Key, _ => _.Value.ToString(), StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Extracts paging information from the HTTP request query string.
     /// </summary>
     /// <param name="httpContext">The HTTP context.</param>
@@ -93,7 +101,9 @@ public static class QueryHttpExtensions
             SortByQueryStringKey,
             SortDirectionQueryStringKey,
             PageQueryStringKey,
-            PageSizeQueryStringKey
+            PageSizeQueryStringKey,
+            ObservableQueryHttp.WaitForFirstResultQueryStringKey,
+            ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
         };
 
         foreach (var kvp in httpContext.Request.Query)

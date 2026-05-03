@@ -4,9 +4,13 @@
   href: model-bound/toc.yml
 - name: Observable Query Demultiplexer
   href: observable-query-demultiplexer.md
+- name: Use Observable Queries with cURL
+  href: using-observable-queries-with-curl.md
 - name: Change Stream
   href: change-stream.md
 - name: Query Pipeline
   href: query-pipeline.md
+- name: Read Model Interception
+  href: read-model-interception.md
 - name: Validation
   href: validation.md

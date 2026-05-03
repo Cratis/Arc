@@ -19,7 +19,7 @@ public sealed class JavaScriptRuntime : IDisposable
     /// </summary>
     public JavaScriptRuntime()
     {
-        var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location)!;
+        var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location);
 
         // Find workspace root by looking for directory containing node_modules
         _workspaceRoot = FindDirectoryInHierarchy(assemblyDir, "node_modules")

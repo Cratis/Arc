@@ -97,7 +97,7 @@ public class and_connection_is_known_and_query_streams_results : given.an_observ
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
                      .Where(_ => _ is not null)
-                     .Select(_ => _!))
+                     .Select(_ => _))
         {
             if (hubMessage.Type != ObservableQueryHubMessageType.Connected || hubMessage.Payload is not JsonElement payload)
             {
@@ -116,7 +116,7 @@ public class and_connection_is_known_and_query_streams_results : given.an_observ
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
                      .Where(_ => _ is not null)
-                     .Select(_ => _!))
+                     .Select(_ => _))
         {
             if (hubMessage.Type != ObservableQueryHubMessageType.QueryResult ||
                 hubMessage.QueryId != QueryId ||

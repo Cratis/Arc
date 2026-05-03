@@ -14,5 +14,5 @@ public class without_hash : Specification
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
     [Fact] void should_have_metadata() => _metadata.ShouldNotBeNull();
-    [Fact] void should_have_empty_hash() => _metadata!.ContentHash.ShouldEqual(string.Empty);
+    [Fact] void should_have_empty_hash() => _metadata.ContentHash.ShouldEqual(string.Empty);
 }

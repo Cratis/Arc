@@ -13,7 +13,7 @@ public class with_string_value : given.a_concept_as_value_converter
         _value = "test value";
     }
 
-    void Because() => _result = (TestStringConcept)_stringConverter.ConvertFromProvider(_value)!;
+    void Because() => _result = (TestStringConcept)_stringConverter.ConvertFromProvider(_value);
 
     [Fact] void should_create_concept_with_the_value() => _result.Value.ShouldEqual("test value");
 }

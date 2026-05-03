@@ -12,7 +12,7 @@ public class when_checking_is_authorized : given.a_model_bound_query_performer
 
     void Establish()
     {
-        _method = typeof(TestQuery).GetMethod(nameof(TestQuery.SimpleQuery))!;
+        _method = typeof(TestQuery).GetMethod(nameof(TestQuery.SimpleQuery));
         EstablishPerformer<TestQuery>(nameof(TestQuery.SimpleQuery));
         _authorizationEvaluator.IsAuthorized(_method).Returns(true);
     }

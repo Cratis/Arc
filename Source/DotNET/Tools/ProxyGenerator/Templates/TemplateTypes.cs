@@ -26,6 +26,12 @@ public static class TemplateTypes
     public static readonly HandlebarsTemplate<object, object> Enum = Handlebars.Compile(GetTemplate("Enum"));
 
     /// <summary>
+    /// The template for a flags enum — an enum decorated with <see cref="FlagsAttribute"/>.
+    /// Includes an <c>allXxx</c> constant that combines all non-zero member values with bitwise OR.
+    /// </summary>
+    public static readonly HandlebarsTemplate<object, object> FlagsEnum = Handlebars.Compile(GetTemplate("FlagsEnum"));
+
+    /// <summary>
     /// The template for a command.
     /// </summary>
     public static readonly HandlebarsTemplate<object, object> Command = Handlebars.Compile(GetTemplate("Command"));

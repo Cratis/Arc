@@ -54,7 +54,7 @@ public static class TestProject
             MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(Compilation).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(CSharpCompilation).Assembly.Location),
-            MetadataReference.CreateFromFile(systemRuntime!.Location),
+            MetadataReference.CreateFromFile(systemRuntime.Location),
             MetadataReference.CreateFromFile(typeof(Commands.ModelBound.CommandAttribute).Assembly.Location)
         ];
     }

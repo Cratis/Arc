@@ -6,6 +6,7 @@ using System.Dynamic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using System.Text.RegularExpressions;
 using Cratis.Arc.ProxyGenerator.Templates;
 using Microsoft.Extensions.DependencyModel;
 
@@ -78,6 +79,8 @@ public static class TypeExtensions
         "Cratis.Arc.Authorization.AuthorizationResult"
     ];
 
+    static Dictionary<string, string> _assemblyPackageMappings = [];
+
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
 
@@ -85,6 +88,31 @@ public static class TypeExtensions
     /// Gets all assemblies gathered from the <see cref="InitializeProjectAssemblies(string, Action{string}, Action{string})"/> method.
     /// </summary>
     public static IEnumerable<Assembly> Assemblies { get; private set; } = [];
+
+    /// <summary>
+    /// Sets the assembly-to-package mappings used to map types from specific assemblies to external TypeScript packages.
+    /// </summary>
+    /// <param name="mappings">Dictionary mapping assembly names to package names.</param>
+    public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
+    {
+        _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Check if a type is from a mapped assembly and should be imported from a configured package rather than generated locally.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if the type is from a mapped assembly, false otherwise.</returns>
+    public static bool IsFromMappedAssembly(this Type type) =>
+        type.Assembly.GetName().Name is { } name && _assemblyPackageMappings.ContainsKey(name);
+
+    /// <summary>
+    /// Check if a type is a flags enum. Uses <see cref="CustomAttributeData"/> to support types loaded via <see cref="MetadataLoadContext"/>.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if the type has the <see cref="FlagsAttribute"/>, false otherwise.</returns>
+    public static bool IsFlagsEnum(this Type type) =>
+        type.GetCustomAttributesData().Any(attr => attr.AttributeType.FullName == typeof(FlagsAttribute).FullName);
 
     /// <summary>
     /// Initialize the project assemblies.
@@ -271,6 +299,32 @@ public static class TypeExtensions
         type.GetInterfaces().Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
 
     /// <summary>
+    /// Get the key type of a dictionary type.
+    /// </summary>
+    /// <param name="type">Dictionary type to get key type from.</param>
+    /// <returns>The key <see cref="Type"/>.</returns>
+    public static Type GetDictionaryKeyType(this Type type)
+    {
+        var dictionaryInterface = type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType
+            ? type
+            : type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+        return dictionaryInterface.GetGenericArguments()[0];
+    }
+
+    /// <summary>
+    /// Get the value type of a dictionary type.
+    /// </summary>
+    /// <param name="type">Dictionary type to get value type from.</param>
+    /// <returns>The value <see cref="Type"/>.</returns>
+    public static Type GetDictionaryValueType(this Type type)
+    {
+        var dictionaryInterface = type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType
+            ? type
+            : type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+        return dictionaryInterface.GetGenericArguments()[1];
+    }
+
+    /// <summary>
     /// Get property descriptors for a type.
     /// </summary>
     /// <param name="type">Type to get for.</param>
@@ -296,7 +350,24 @@ public static class TypeExtensions
 
         if (type.IsDictionary())
         {
-            return ObjectTypeFinal;
+            var keyType = type.GetDictionaryKeyType();
+            var valueType = type.GetDictionaryValueType();
+
+            var resolvedKeyType = keyType.IsConcept() ? keyType.GetConceptValueType() : keyType;
+            var keyTargetType = resolvedKeyType.IsEnum
+                ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
+                : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var primitiveKeyType)
+                    ? primitiveKeyType
+                    : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
+
+            var valueTargetType = valueType.GetTargetType();
+
+            if (keyTargetType.Type == "string")
+            {
+                return new(type, $"Record<string, {valueTargetType.Type}>", "Object", Final: true);
+            }
+
+            return new(type, $"ValueMap<{keyTargetType.Type}, {valueTargetType.Type}>", "ValueMap", Final: true);
         }
 
         if (type.IsConcept())
@@ -314,6 +385,11 @@ public static class TypeExtensions
         if (backtickIndex >= 0)
         {
             typeName = typeName[..backtickIndex];
+        }
+
+        if (_assemblyPackageMappings.TryGetValue(type.Assembly.GetName().Name!, out var packageName))
+        {
+            return new TargetType(type, typeName, typeName, packageName, FromPackage: true);
         }
 
         return new TargetType(type, typeName, typeName);
@@ -340,6 +416,30 @@ public static class TypeExtensions
             {
                 property.CollectTypesInvolved(typesInvolved);
             }
+            if (property.OriginalType.IsDictionary())
+            {
+                var keyType = property.OriginalType.GetDictionaryKeyType();
+                var valueType = property.OriginalType.GetDictionaryValueType();
+                var resolvedKeyType = keyType.IsConcept() ? keyType.GetConceptValueType() : keyType;
+                if (!resolvedKeyType.IsAPrimitiveType() && !resolvedKeyType.IsEnum)
+                {
+                    resolvedKeyType.CollectTypesInvolved(typesInvolved);
+                }
+                if (!valueType.IsAPrimitiveType() && !valueType.IsConcept())
+                {
+                    valueType.CollectTypesInvolved(typesInvolved);
+                }
+
+                var resolvedKeyTargetType = resolvedKeyType.IsEnum
+                    ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
+                    : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var keyPrimitiveType)
+                        ? keyPrimitiveType
+                        : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
+                if (resolvedKeyTargetType.Type != "string")
+                {
+                    imports.Add(new ImportStatement(property.OriginalType, "ValueMap", "@cratis/fundamentals"));
+                }
+            }
             if (!string.IsNullOrEmpty(property.Module))
             {
                 imports.Add(new ImportStatement(property.OriginalType, property.Type, property.Module));
@@ -347,11 +447,21 @@ public static class TypeExtensions
         }
 
         imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+
+        var derivativeConstructorNames = new HashSet<string>(
+            propertyDescriptors
+                .Where(pd => !string.IsNullOrEmpty(pd.Derivatives))
+                .SelectMany(pd => pd.Derivatives.Split(", ")));
+
         imports = [.. imports
                     .DistinctBy(_ => _.Type)
-                    .Where(_ => propertyDescriptors.Exists(pd => pd.Type == _.Type) && _.OriginalType != type)];
+                    .Where(_ =>
+                        (propertyDescriptors.Exists(pd => TypeNameIsReferenced(pd.Type, _.Type)) ||
+                         derivativeConstructorNames.Contains(_.Type))
+                        && _.OriginalType != type)];
 
         var documentation = type.GetDocumentation();
+        var derivedTypeId = type.GetDerivedTypeId();
 
         return new TypeDescriptor(
             type,
@@ -359,7 +469,8 @@ public static class TypeExtensions
             propertyDescriptors,
             imports.ToOrderedImports(),
             typesInvolved,
-            documentation);
+            documentation,
+            derivedTypeId);
     }
 
     /// <summary>
@@ -417,8 +528,9 @@ public static class TypeExtensions
         var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
+        var isFlags = type.IsFlagsEnum();
         var documentation = type.GetDocumentation();
-        return new EnumDescriptor(type, type.Name, members, [], documentation);
+        return new EnumDescriptor(type, type.Name, members, [], isFlags, documentation);
     }
 
     /// <summary>
@@ -487,8 +599,13 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType()) return;
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly()) return;
         typesInvolved.Add(property.OriginalType);
+        foreach (var derivativeType in property.OriginalType.GetDerivativeTypes())
+        {
+            derivativeType.CollectTypesInvolved(typesInvolved);
+        }
+
         foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
@@ -503,7 +620,7 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType()) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly()) return;
         typesInvolved.Add(parameter.OriginalType);
         foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
@@ -519,8 +636,13 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType()) return;
+        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly()) return;
         typesInvolved.Add(type);
+        foreach (var derivativeType in type.GetDerivativeTypes())
+        {
+            derivativeType.CollectTypesInvolved(typesInvolved);
+        }
+
         foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
@@ -748,6 +870,58 @@ public static class TypeExtensions
     }
 
     /// <summary>
+    /// Get the derived type identifier for a type if it has a <c>DerivedTypeAttribute</c>.
+    /// </summary>
+    /// <param name="type"><see cref="Type"/> to check.</param>
+    /// <returns>The derived type identifier string, or null if the type is not decorated.</returns>
+    public static string? GetDerivedTypeId(this Type type)
+    {
+        var attr = type.GetCustomAttributesData()
+            .FirstOrDefault(a => a.AttributeType.FullName == "Cratis.Serialization.DerivedTypeAttribute");
+
+        if (attr is null) return null;
+
+        return attr.ConstructorArguments.Count > 0
+            ? attr.ConstructorArguments[0].Value?.ToString()
+            : null;
+    }
+
+    /// <summary>
+    /// Get all non-abstract types that derive from or implement the given type and carry a <c>DerivedTypeAttribute</c>.
+    /// </summary>
+    /// <param name="baseType">Base type to find derivatives of.</param>
+    /// <returns>Collection of derivative types.</returns>
+    public static IEnumerable<Type> GetDerivativeTypes(this Type baseType)
+    {
+        if (baseType.IsAPrimitiveType() || baseType.IsConcept() || baseType.IsEnum)
+        {
+            return [];
+        }
+
+        var assembliesToSearch = Assemblies.Any()
+            ? Assemblies
+            : AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic);
+
+        return assembliesToSearch
+            .SelectMany(a =>
+            {
+                try
+                {
+                    return a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    return ex.Types.Where(t => t is not null).Cast<Type>();
+                }
+            })
+            .Where(t => t != baseType &&
+                        !t.IsAbstract &&
+                        !t.IsInterface &&
+                        t.GetDerivedTypeId() is not null &&
+                        t.IsAssignableToBaseType(baseType));
+    }
+
+    /// <summary>
     /// Check if a type is a well-known type that should be ignored as a response type.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
@@ -839,6 +1013,12 @@ public static class TypeExtensions
         return type;
     }
 
+#pragma warning disable MA0009 // Add regex evaluation timeout
+    static bool TypeNameIsReferenced(string propertyType, string importTypeName) =>
+        propertyType == importTypeName ||
+        Regex.IsMatch(propertyType, $@"\b{Regex.Escape(importTypeName)}\b");
+#pragma warning restore MA0009 // Add regex evaluation timeout
+
     static void InitializeWellKnownTypes()
     {
         var assembly = _metadataLoadContext!.CoreAssembly!;
@@ -864,6 +1044,23 @@ public static class TypeExtensions
 
         var aspNetCore = _metadataLoadContext.LoadFromAssemblyName("Microsoft.AspNetCore.Mvc.Core");
         _controllerBaseType = aspNetCore.GetType("Microsoft.AspNetCore.Mvc.ControllerBase")!;
+    }
+
+    static bool IsAssignableToBaseType(this Type type, Type baseType)
+    {
+        var baseFullName = baseType.FullName;
+        if (string.IsNullOrEmpty(baseFullName)) return false;
+
+        if (type.GetInterfaces().Any(i => i.FullName == baseFullName)) return true;
+
+        var current = type.BaseType;
+        while (current is not null && current.FullName != typeof(object).FullName)
+        {
+            if (current.FullName == baseFullName) return true;
+            current = current.BaseType;
+        }
+
+        return false;
     }
 
     /// <summary>

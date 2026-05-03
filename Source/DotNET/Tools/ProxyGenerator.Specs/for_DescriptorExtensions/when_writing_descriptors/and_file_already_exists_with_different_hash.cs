@@ -37,7 +37,7 @@ public class and_file_already_exists_with_different_hash : Specification, IDispo
 
         var path = testType.ResolveTargetPath(0);
         _filePath = Path.Join(_tempDir, path, "ModifiedType.ts");
-        var directory = Path.GetDirectoryName(_filePath)!;
+        var directory = Path.GetDirectoryName(_filePath);
         Directory.CreateDirectory(directory);
 
         const string oldProxyContent = "export class ModifiedType { oldProperty: string; }";

@@ -17,7 +17,7 @@ public static class Scripts
     static Scripts()
     {
         // Get the directory containing the compiled assembly
-        var assemblyDir = Path.GetDirectoryName(typeof(Scripts).Assembly.Location)!;
+        var assemblyDir = Path.GetDirectoryName(typeof(Scripts).Assembly.Location);
 
         // Try to find the Scripts directory relative to the assembly location
         // In debug builds: bin/Debug/net10.0 -> go up 3 levels, then to Scenarios/Infrastructure/Scripts

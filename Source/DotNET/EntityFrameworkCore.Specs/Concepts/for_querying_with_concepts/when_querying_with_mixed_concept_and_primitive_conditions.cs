@@ -32,6 +32,6 @@ public class when_querying_with_mixed_concept_and_primitive_conditions : given.a
         .FirstOrDefaultAsync();
 
     [Fact] void should_find_the_product() => _result.ShouldNotBeNull();
-    [Fact] void should_have_correct_code() => _result!.Code.Value.ShouldEqual(555);
-    [Fact] void should_have_correct_name() => _result!.Name.Value.ShouldEqual("Mixed Condition Test");
+    [Fact] void should_have_correct_code() => _result.Code.Value.ShouldEqual(555);
+    [Fact] void should_have_correct_name() => _result.Name.Value.ShouldEqual("Mixed Condition Test");
 }

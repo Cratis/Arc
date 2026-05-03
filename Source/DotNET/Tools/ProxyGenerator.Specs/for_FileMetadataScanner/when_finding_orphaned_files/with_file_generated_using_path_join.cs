@@ -17,7 +17,7 @@ public class with_file_generated_using_path_join : Specification
 
         const string subDir = "commands";
         _generatedFilePath = Path.Join(_tempDir, subDir, "CreateOrder.ts");
-        var directory = Path.GetDirectoryName(_generatedFilePath)!;
+        var directory = Path.GetDirectoryName(_generatedFilePath);
         Directory.CreateDirectory(directory);
 
         var metadata = new GeneratedFileMetadata("MyApp.Commands.CreateOrder", DateTime.UtcNow);

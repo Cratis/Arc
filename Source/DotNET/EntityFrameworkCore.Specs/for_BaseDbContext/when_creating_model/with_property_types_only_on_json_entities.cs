@@ -20,8 +20,8 @@ public class with_property_types_only_on_json_entities : given.a_base_db_context
     void Because()
     {
         _model = GetModel(_dbContext);
-        _storeEntityType = _model.FindEntityType(typeof(Store))!;
-        _configurationProperty = _storeEntityType.FindProperty(nameof(Store.Configuration))!;
+        _storeEntityType = _model.FindEntityType(typeof(Store));
+        _configurationProperty = _storeEntityType.FindProperty(nameof(Store.Configuration));
     }
 
     [Fact]
@@ -48,6 +48,6 @@ public class with_property_types_only_on_json_entities : given.a_base_db_context
     }
 
     [Fact] void should_apply_json_conversion_to_configuration_property() => _configurationProperty.GetValueConverter().ShouldNotBeNull();
-    [Fact] void should_serialize_configuration_as_json() => _configurationProperty.GetValueConverter()!.ProviderClrType.ShouldEqual(typeof(string));
-    [Fact] void should_apply_conversion_to_store_id_guid() => _storeEntityType.FindProperty(nameof(Store.Id))!.GetValueConverter().ShouldNotBeNull();
+    [Fact] void should_serialize_configuration_as_json() => _configurationProperty.GetValueConverter().ProviderClrType.ShouldEqual(typeof(string));
+    [Fact] void should_apply_conversion_to_store_id_guid() => _storeEntityType.FindProperty(nameof(Store.Id)).GetValueConverter().ShouldNotBeNull();
 }

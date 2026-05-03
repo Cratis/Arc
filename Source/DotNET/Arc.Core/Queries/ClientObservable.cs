@@ -17,12 +17,16 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="queryContext">The <see cref="QueryContext"/> the observable is for.</param>
 /// <param name="subject">The <see cref="ISubject{T}"/> the observable wraps.</param>
+/// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservable<T>(
     QueryContext queryContext,
     ISubject<T> subject,
+    IReadModelInterceptors readModelInterceptors,
+    IServiceProvider serviceProvider,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     IHostApplicationLifetime hostApplicationLifetime,
     ILogger<ClientObservable<T>> logger) : ClientObservableBase<T>(subject)
@@ -76,8 +80,10 @@ public class ClientObservable<T>(
                     return;
                 }
 
+                var intercepted = await readModelInterceptors.Intercept(typeof(T), [data], serviceProvider);
+
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = data;
+                queryResult.Data = intercepted.First();
 
                 var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                 if (error is not null && !cts.IsCancellationRequested)

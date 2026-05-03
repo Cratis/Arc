@@ -11,7 +11,7 @@ public class with_method_without_authorization : given.an_authorization_helper
 
     void Establish()
     {
-        _method = typeof(given.TypeWithMethodAuthorization).GetMethod(nameof(given.TypeWithMethodAuthorization.MethodWithoutAuthorization))!;
+        _method = typeof(given.TypeWithMethodAuthorization).GetMethod(nameof(given.TypeWithMethodAuthorization.MethodWithoutAuthorization));
     }
 
     void Because() => _result = _authorizationHelper.IsAuthorized(_method);

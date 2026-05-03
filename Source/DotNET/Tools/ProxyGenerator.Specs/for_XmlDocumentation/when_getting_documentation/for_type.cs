@@ -13,5 +13,5 @@ public class for_type : Specification
     void Because() => _documentation = _type.GetDocumentation();
 
     [Fact] void should_return_documentation() => _documentation.ShouldNotBeNull();
-    [Fact] void should_contain_summary() => _documentation!.ShouldContain("A sample type for testing XML documentation extraction");
+    [Fact] void should_contain_summary() => _documentation.ShouldContain("A sample type for testing XML documentation extraction");
 }

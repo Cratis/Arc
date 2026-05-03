@@ -27,4 +27,9 @@ public static class WellKnownCommandContextKeys
     /// The key for the event stream id in the command context values.
     /// </summary>
     public const string EventStreamId = "eventStreamId";
+
+    /// <summary>
+    /// The key for the subject in the command context values.
+    /// </summary>
+    public const string Subject = "subject";
 }

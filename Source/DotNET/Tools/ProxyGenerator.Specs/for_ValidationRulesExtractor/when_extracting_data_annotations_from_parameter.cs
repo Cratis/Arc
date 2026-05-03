@@ -33,7 +33,7 @@ public class when_extracting_data_annotations_from_parameter : Specification
 
     void Establish()
     {
-        var method = typeof(TestClass).GetMethod(nameof(TestClass.TestMethod), BindingFlags.Public | BindingFlags.Static)!;
+        var method = typeof(TestClass).GetMethod(nameof(TestClass.TestMethod), BindingFlags.Public | BindingFlags.Static);
         var parameters = method.GetParameters();
 
         _emailRules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(parameters[0]);

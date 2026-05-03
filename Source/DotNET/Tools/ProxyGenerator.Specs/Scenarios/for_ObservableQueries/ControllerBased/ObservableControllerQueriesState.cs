@@ -20,6 +20,8 @@ public class ObservableControllerQueriesState
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 }
     );
 
+    public Subject<ObservableControllerQueryItem> DelayedSingleItemSubject { get; private set; } = new();
+
     public BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> SingleItemCollectionSubject { get; } = new([
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Controller Item", Value = 99 }
     ]);
@@ -28,6 +30,8 @@ public class ObservableControllerQueriesState
 
     public void Reset()
     {
+        var oldDelayedSingleItemSubject = DelayedSingleItemSubject;
+
         AllItemsSubject.OnNext([
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Controller Item 1", Value = 1 },
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), Name = "Controller Item 2", Value = 2 },
@@ -41,6 +45,8 @@ public class ObservableControllerQueriesState
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Controller Item", Value = 99 }
         ]);
 
+        DelayedSingleItemSubject = new Subject<ObservableControllerQueryItem>();
+        oldDelayedSingleItemSubject.OnCompleted();
         CategorySubjects.Clear();
     }
 }

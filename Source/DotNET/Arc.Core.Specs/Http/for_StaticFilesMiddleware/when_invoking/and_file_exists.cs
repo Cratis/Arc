@@ -46,9 +46,9 @@ public class and_file_exists : given.a_static_files_middleware
     }
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
-    [Fact] void should_return_success_status() => _response!.IsSuccessStatusCode.ShouldBeTrue();
+    [Fact] void should_return_success_status() => _response.IsSuccessStatusCode.ShouldBeTrue();
     [Fact] void should_return_file_content() => _content.ShouldEqual(ExpectedContent);
-    [Fact] void should_set_correct_content_type() => _response!.Content.Headers.ContentType?.MediaType.ShouldEqual("text/html");
+    [Fact] void should_set_correct_content_type() => _response.Content.Headers.ContentType?.MediaType.ShouldEqual("text/html");
 
     void Destroy()
     {

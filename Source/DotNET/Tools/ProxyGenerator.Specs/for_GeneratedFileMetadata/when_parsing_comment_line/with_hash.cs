@@ -20,5 +20,5 @@ public class with_hash : Specification
 
     [Fact] void should_return_true() => _result.ShouldBeTrue();
     [Fact] void should_have_metadata() => _metadata.ShouldNotBeNull();
-    [Fact] void should_have_correct_hash() => _metadata!.ContentHash.ShouldEqual(_expectedHash);
+    [Fact] void should_have_correct_hash() => _metadata.ContentHash.ShouldEqual(_expectedHash);
 }

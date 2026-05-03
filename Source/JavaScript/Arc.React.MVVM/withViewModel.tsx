@@ -29,6 +29,7 @@ import { Command } from '@cratis/arc/commands';
 import { ICanBeConfigured } from '@cratis/arc/ICanBeConfigured';
 import { DialogComponentsContext, DialogContextContent, IDialogComponents, useDialogContext } from '@cratis/arc.react/dialogs';
 import { ICommandScope, useCommandScope } from '@cratis/arc.react/commands';
+import { IQueryScope, useQueryScope } from '@cratis/arc.react/queries';
 
 interface IViewModel extends IViewModelDetached {
     __childContainer: DependencyContainer;
@@ -89,6 +90,7 @@ export function withViewModel<TViewModel extends object, TProps extends object =
         const applicationContext = useContext(ArcContext);
         const dialogComponentsContext = useContext<IDialogComponents>(DialogComponentsContext);
         const commandScope = useCommandScope();
+        const queryScope = useQueryScope();
         const params = useParams();
         const [currentProps, setCurrentProps] = useState(props);
         const [previousParams, setPreviousParams] = useState(params);
@@ -125,6 +127,7 @@ export function withViewModel<TViewModel extends object, TProps extends object =
             child.registerInstance(WellKnownBindings.queryParams, deserializeQueryParams(queryParamsObject));
             child.registerInstance(DialogContextContent, dialogContext as unknown);
             child.registerInstance(ICommandScope as Constructor<ICommandScope>, commandScope);
+            child.registerInstance(IQueryScope as Constructor<IQueryScope>, queryScope);
 
             const originalResolve = child.resolve;
 

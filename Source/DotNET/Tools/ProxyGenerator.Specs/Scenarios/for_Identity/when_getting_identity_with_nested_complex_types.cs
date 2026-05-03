@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Identity;
@@ -9,6 +10,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Identity;
 /// Specification for verifying that identity details types with nested complex types
 /// generate correct TypeScript code with proper imports and field decorators.
 /// </summary>
+[Collection(AssemblyPackageMappingCollectionDefinition.Name)]
 public class when_generating_types_for_identity_details_with_nested_complex_types : Specification
 {
     string _addressTypeScript;

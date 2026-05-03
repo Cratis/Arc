@@ -41,7 +41,7 @@ public class and_details_are_available : given.an_identity_provider_result_handl
         var cookieValue = calls[0].GetArguments()[1] as string;
         cookieValue.ShouldNotBeNull();
 
-        var decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(cookieValue!));
+        var decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(cookieValue));
 
         var serializerOptions = new JsonSerializerOptions().ConfigureArcDefaults();
 

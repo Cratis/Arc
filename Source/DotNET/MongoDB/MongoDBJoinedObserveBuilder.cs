@@ -49,19 +49,15 @@ internal sealed class MongoDBJoinedObserveBuilder<T1, T2>(
     public ISubject<TResult> Select<TResult>(
         Func<IEnumerable<T1>, IEnumerable<T2>, TResult> selector)
     {
-#pragma warning disable CA2000 // Dispose objects before losing scope
+    #pragma warning disable CA2000 // Dispose objects before losing scope
         // The CancellationTokenSource is disposed in the finally block of the background Task.Run below.
         var cts = new CancellationTokenSource();
-#pragma warning restore CA2000 // Dispose objects before losing scope
-        var subject = new Subject<TResult>();
+    #pragma warning restore CA2000 // Dispose objects before losing scope
+        var subject = LifetimeAwareSubject<TResult>.Create(cts.Cancel);
+        ISubject<TResult> observable = subject;
         var collectionName1 = collection1.CollectionNamespace.CollectionName;
         var collectionName2 = collection2.CollectionNamespace.CollectionName;
         var relevantCollections = new HashSet<string> { collectionName1, collectionName2 };
-
-        _ = subject.Subscribe(
-            _ => { },
-            _ => cts.Cancel(),
-            cts.Cancel);
 
         _ = Task.Run(async () =>
         {
@@ -118,11 +114,12 @@ internal sealed class MongoDBJoinedObserveBuilder<T1, T2>(
                 subscription.Dispose();
                 channel.Writer.TryComplete();
                 subject.OnCompleted();
+                subject.Dispose();
                 cts.Dispose();
             }
         });
 
-        return subject;
+        return observable;
     }
 }
 
@@ -153,20 +150,16 @@ internal sealed class MongoDBJoinedObserveBuilder<T1, T2, T3>(
     public ISubject<TResult> Select<TResult>(
         Func<IEnumerable<T1>, IEnumerable<T2>, IEnumerable<T3>, TResult> selector)
     {
-#pragma warning disable CA2000 // Dispose objects before losing scope
+    #pragma warning disable CA2000 // Dispose objects before losing scope
         // The CancellationTokenSource is disposed in the finally block of the background Task.Run below.
         var cts = new CancellationTokenSource();
-#pragma warning restore CA2000 // Dispose objects before losing scope
-        var subject = new Subject<TResult>();
+    #pragma warning restore CA2000 // Dispose objects before losing scope
+        var subject = LifetimeAwareSubject<TResult>.Create(cts.Cancel);
+        ISubject<TResult> observable = subject;
         var collectionName1 = collection1.CollectionNamespace.CollectionName;
         var collectionName2 = collection2.CollectionNamespace.CollectionName;
         var collectionName3 = collection3.CollectionNamespace.CollectionName;
         var relevantCollections = new HashSet<string> { collectionName1, collectionName2, collectionName3 };
-
-        _ = subject.Subscribe(
-            _ => { },
-            _ => cts.Cancel(),
-            cts.Cancel);
 
         _ = Task.Run(async () =>
         {
@@ -229,10 +222,11 @@ internal sealed class MongoDBJoinedObserveBuilder<T1, T2, T3>(
                 subscription.Dispose();
                 channel.Writer.TryComplete();
                 subject.OnCompleted();
+                subject.Dispose();
                 cts.Dispose();
             }
         });
 
-        return subject;
+        return observable;
     }
 }

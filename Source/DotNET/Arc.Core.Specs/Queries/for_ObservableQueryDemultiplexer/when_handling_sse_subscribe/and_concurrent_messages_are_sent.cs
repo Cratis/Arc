@@ -128,7 +128,7 @@ public class and_concurrent_messages_are_sent : given.an_observable_query_demult
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
                      .Where(_ => _ is not null)
-                     .Select(_ => _!))
+                     .Select(_ => _))
         {
             if (hubMessage.Type != ObservableQueryHubMessageType.Connected ||
                 hubMessage.Payload is not JsonElement payload)
@@ -150,7 +150,7 @@ public class and_concurrent_messages_are_sent : given.an_observable_query_demult
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
                      .Where(_ => _ is not null)
-                     .Select(_ => _!))
+                     .Select(_ => _))
         {
             if (hubMessage.Type != ObservableQueryHubMessageType.QueryResult ||
                 hubMessage.QueryId != QueryId ||

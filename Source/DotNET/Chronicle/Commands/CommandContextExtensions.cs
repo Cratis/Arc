@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Commands;
@@ -70,4 +71,25 @@ public static class CommandContextExtensions
         commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventStreamId, out var value) && value is EventStreamId eventStreamId
             ? eventStreamId
             : null;
+
+    /// <summary>
+    /// Gets the subject from the command context, if present.
+    /// </summary>
+    /// <remarks>
+    /// The subject is first looked up in the command response (when a handler returns a <see cref="Subject"/> directly),
+    /// then in the context values (when resolved via <see cref="SubjectValuesProvider"/>).
+    /// </remarks>
+    /// <param name="commandContext">The command context to get the subject from.</param>
+    /// <returns>The <see cref="Subject"/>, or null if not present.</returns>
+    public static Subject? GetSubject(this CommandContext commandContext)
+    {
+        if (commandContext.Response is Subject subjectResponse)
+        {
+            return subjectResponse;
+        }
+
+        return commandContext.Values.TryGetValue(WellKnownCommandContextKeys.Subject, out var value) && value is Subject subject
+            ? subject
+            : null;
+    }
 }

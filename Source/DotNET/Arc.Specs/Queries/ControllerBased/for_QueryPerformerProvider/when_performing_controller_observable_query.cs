@@ -40,7 +40,7 @@ public class when_performing_controller_observable_query : a_controller_query_pe
             [serviceProvider]);
     }
 
-    async Task Because() => _result = await _performer!.Perform(_queryContext);
+    async Task Because() => _result = await _performer.Perform(_queryContext);
 
     [Fact] void should_call_controller_query_method_with_argument() => _eventStores.Received(1).ObserveFor("north");
     [Fact] void should_return_subject_from_controller_query() => _result.ShouldEqual(_expectedSubject);

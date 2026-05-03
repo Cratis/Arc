@@ -203,5 +203,5 @@ Set `KeepAliveInterval` to `TimeSpan.Zero` or a negative value to disable keep-a
 - [Observable Queries (model-bound)](./model-bound/observable-queries.md) — How to expose observable queries in the backend.
 - [Query Pipeline](./query-pipeline.md) — How the query pipeline works, including filter hooks.
 - [Authorization](../core/authorization.md) — Role-based authorization for queries and commands.
-- [Frontend: Observable Query Multiplexing](../../frontend/react/observable-query-multiplexing.md) — How to configure the frontend to use the hub.
+- [Frontend: Observable Query Multiplexing](../../frontend/react/queries/observable-query-multiplexing.md) — How to configure the frontend to use the hub.
 

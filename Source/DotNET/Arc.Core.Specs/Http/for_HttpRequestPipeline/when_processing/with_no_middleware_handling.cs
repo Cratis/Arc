@@ -33,7 +33,7 @@ public class with_no_middleware_handling : given.an_http_request_pipeline
     }
 
     [Fact] void should_call_middleware() => _middleware.WasCalled.ShouldBeTrue();
-    [Fact] void should_return_404() => _response!.StatusCode.ShouldEqual(System.Net.HttpStatusCode.NotFound);
+    [Fact] void should_return_404() => _response.StatusCode.ShouldEqual(System.Net.HttpStatusCode.NotFound);
 
     void Destroy()
     {

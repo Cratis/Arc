@@ -61,7 +61,7 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
             .Returns(callInfo =>
             {
                 var data = callInfo.Arg<ArraySegment<byte>>();
-                var json = Encoding.UTF8.GetString(data.Array!, data.Offset, data.Count);
+                var json = Encoding.UTF8.GetString(data.Array, data.Offset, data.Count);
                 var hubMessage = JsonSerializer.Deserialize<ObservableQueryHubMessage>(json, _arcOptions.Value.JsonSerializerOptions);
                 if (hubMessage is not null)
                 {
@@ -118,7 +118,7 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
 
     static WebSocketReceiveResult CopyToReceiveBuffer(byte[] data, ArraySegment<byte> buffer)
     {
-        Array.Copy(data, 0, buffer.Array!, buffer.Offset, data.Length);
+        Array.Copy(data, 0, buffer.Array, buffer.Offset, data.Length);
         return new WebSocketReceiveResult(data.Length, System.Net.WebSockets.WebSocketMessageType.Text, true);
     }
 

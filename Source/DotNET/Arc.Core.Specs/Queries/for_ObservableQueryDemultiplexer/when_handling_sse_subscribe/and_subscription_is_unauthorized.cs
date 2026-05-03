@@ -77,7 +77,7 @@ public class and_subscription_is_unauthorized : given.an_observable_query_demult
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
                      .Where(m => m is not null)
-                     .Select(m => m!))
+                     .Select(m => m))
         {
             if (hubMessage.Type != ObservableQueryHubMessageType.Connected ||
                 hubMessage.Payload is not JsonElement payload)
@@ -97,7 +97,7 @@ public class and_subscription_is_unauthorized : given.an_observable_query_demult
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
                      .Where(m => m is not null)
-                     .Select(m => m!))
+                     .Select(m => m))
         {
             if (hubMessage.Type == ObservableQueryHubMessageType.Unauthorized &&
                 hubMessage.QueryId == QueryId)

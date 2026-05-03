@@ -21,6 +21,7 @@ public class ObservableReadModel
     static BehaviorSubject<ObservableReadModel> _singleItemSubject = new(
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
     );
+    static Subject<ObservableReadModel> _delayedSingleItemSubject = new();
 
     static readonly List<IDisposable> _subscriptions = [];
 
@@ -82,6 +83,12 @@ public class ObservableReadModel
     }
 
     /// <summary>
+    /// Gets a single item as an observable stream that does not emit until updated.
+    /// </summary>
+    /// <returns>Observable read model.</returns>
+    public static ISubject<ObservableReadModel> ObserveDelayedSingle() => _delayedSingleItemSubject;
+
+    /// <summary>
     /// Updates all items - for testing data changes.
     /// </summary>
     /// <param name="items">The new items.</param>
@@ -92,6 +99,12 @@ public class ObservableReadModel
     /// </summary>
     /// <param name="item">The new item.</param>
     public static void UpdateSingleItem(ObservableReadModel item) => _singleItemSubject.OnNext(item);
+
+    /// <summary>
+    /// Updates the delayed single item - for testing the first HTTP result wait behavior.
+    /// </summary>
+    /// <param name="item">The new item.</param>
+    public static void UpdateDelayedSingleItem(ObservableReadModel item) => _delayedSingleItemSubject.OnNext(item);
 
     /// <summary>
     /// Resets all static subjects to their initial values - for test isolation.
@@ -110,6 +123,7 @@ public class ObservableReadModel
         // This ensures new subscribers don't try to subscribe to completed subjects
         var oldAllItems = _allItemsSubject;
         var oldSingleItem = _singleItemSubject;
+        var oldDelayedSingleItem = _delayedSingleItemSubject;
 
         _allItemsSubject = new BehaviorSubject<IEnumerable<ObservableReadModel>>([
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), Name = "Observable Item 1", Value = 1 },
@@ -119,10 +133,12 @@ public class ObservableReadModel
 
         _singleItemSubject = new BehaviorSubject<ObservableReadModel>(
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 });
+        _delayedSingleItemSubject = new Subject<ObservableReadModel>();
 
         // Complete old subjects to disconnect all subscribers (including old WebSocket connections)
         oldAllItems.OnCompleted();
         oldSingleItem.OnCompleted();
+        oldDelayedSingleItem.OnCompleted();
     }
 }
 

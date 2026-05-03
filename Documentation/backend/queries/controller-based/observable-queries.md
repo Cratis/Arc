@@ -2,7 +2,7 @@
 
 Observable queries provide real-time data streaming using WebSockets, enabling reactive user experiences where data changes are pushed to clients as they occur. You achieve this by returning `ISubject<T>` from your controller actions.
 
-The `ISubject<T>` return type automatically establishes a WebSocket connection between the server and client, enabling real-time data updates. This integrates seamlessly with the [ObservableQuery construct in the frontend](../../../frontend/react/queries.md) through the proxy generator, creating strongly-typed reactive data flows.
+The `ISubject<T>` return type automatically establishes a WebSocket connection between the server and client, enabling real-time data updates. This integrates seamlessly with the [ObservableQuery construct in the frontend](../../../frontend/react/queries/observable-queries.md) through the proxy generator, creating strongly-typed reactive data flows.
 
 ## Basic Observable Query
 
@@ -383,13 +383,29 @@ Arc automatically handles WebSocket connections for observable queries:
 - **Connection cleanup** - Proper disposal of resources when clients disconnect
 - **Reconnection handling** - Clients can reconnect and resume subscriptions
 
+## Waiting for the First HTTP Result
+
+The regular HTTP `GET` endpoint for a controller-based observable query returns the current snapshot as JSON. If the observable has not produced a value yet, add `waitForFirstResult=true` to keep the HTTP request open until the first item arrives.
+
+Arc applies a timeout while waiting. By default the timeout is 30 seconds. You can override it with `waitForFirstResultTimeout`, expressed in seconds.
+
+```bash
+curl "https://localhost:5001/api/observable-controller-queries/observe/delayed-single?waitForFirstResult=true"
+```
+
+```bash
+curl "https://localhost:5001/api/observable-controller-queries/observe/delayed-single?waitForFirstResult=true&waitForFirstResultTimeout=10"
+```
+
+This makes it easy to debug observable controller actions with cURL without switching to WebSockets or SSE.
+
+See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md) for snapshot, SSE, and long-polling workflows.
+
 ## Frontend Integration
 
-Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries.md):
+Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries/observable-queries.md):
 
 ```typescript
-// Generated TypeScript proxy automatically handles WebSocket connections
-const accountsObservable = await accountsProxy.getAllAccountsObservable();
 
 accountsObservable.subscribe(accounts => {
     // Handle real-time account updates

@@ -76,6 +76,11 @@ public static class PropertyExtensions
 
         var targetType = propertyType.GetTargetType();
 
+        var derivativeTypes = propertyType.GetDerivativeTypes().ToList();
+        var derivatives = derivativeTypes.Count > 0
+            ? string.Join(", ", derivativeTypes.Select(t => t.GetTargetType().Constructor))
+            : string.Empty;
+
         return new(
             propertyType,
             name,
@@ -85,6 +90,7 @@ public static class PropertyExtensions
             isEnumerable,
             isNullable,
             propertyType.IsAPrimitiveType(),
-            documentation);
+            documentation,
+            derivatives);
     }
 }

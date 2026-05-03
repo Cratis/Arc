@@ -36,16 +36,16 @@ public class when_using_invariant_culture : Specification
         CultureInfo.DefaultThreadCurrentUICulture.ShouldEqual(CultureInfo.InvariantCulture);
 
     [Fact] void should_configure_request_localization_default_culture_to_invariant() =>
-        _options!.DefaultRequestCulture.Culture.ShouldEqual(CultureInfo.InvariantCulture);
+        _options.DefaultRequestCulture.Culture.ShouldEqual(CultureInfo.InvariantCulture);
 
     [Fact] void should_configure_supported_cultures_to_contain_only_invariant() =>
-        _options!.SupportedCultures.ShouldContainOnly(CultureInfo.InvariantCulture);
+        _options.SupportedCultures.ShouldContainOnly(CultureInfo.InvariantCulture);
 
     [Fact] void should_configure_supported_ui_cultures_to_contain_only_invariant() =>
-        _options!.SupportedUICultures.ShouldContainOnly(CultureInfo.InvariantCulture);
+        _options.SupportedUICultures.ShouldContainOnly(CultureInfo.InvariantCulture);
 
     [Fact] void should_clear_request_culture_providers() =>
-        _options!.RequestCultureProviders.ShouldBeEmpty();
+        _options.RequestCultureProviders.ShouldBeEmpty();
 
     [Fact] void should_return_web_application_builder_for_continuation() =>
         _builder.ShouldNotBeNull();

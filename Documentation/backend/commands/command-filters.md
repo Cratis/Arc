@@ -47,6 +47,40 @@ The `CommandContext` provides access to:
 
 Command filters are automatically discovered and registered through the dependency injection container. Simply ensure your filter class implements `ICommandFilter` and it will be included in the command pipeline.
 
+## Cross-Cutting Authorization by Namespace
+
+You can implement a command filter that applies authorization rules to all commands in a namespace instead of adding `[Authorize]` or `[Roles]` attributes to each command type.
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Http;
+
+namespace MyApp.Features.Security;
+
+public class NamespaceAuthorizationCommandFilter(IHttpRequestContextAccessor requestContextAccessor) : ICommandFilter
+{
+    const string ProtectedNamespace = "MyApp.Features.Payments";
+    const string RequiredRole = "Payments";
+
+    public Task<CommandResult> OnExecution(CommandContext context)
+    {
+        var isProtectedCommand = context.Type.Namespace?.StartsWith(ProtectedNamespace, StringComparison.Ordinal) ?? false;
+        if (!isProtectedCommand)
+        {
+            return Task.FromResult(CommandResult.Success(context.CorrelationId));
+        }
+
+        var hasRole = requestContextAccessor.Current?.User.IsInRole(RequiredRole) ?? false;
+        return Task.FromResult(
+            hasRole
+                ? CommandResult.Success(context.CorrelationId)
+                : CommandResult.Unauthorized(context.CorrelationId, $"Role '{RequiredRole}' is required."));
+    }
+}
+```
+
+This pattern is useful when you want one place to enforce authorization for a full slice or feature area.
+
 ## Built-in Filters
 
 The following filters are provided out of the box in the `Cratis.Arc.Commands.Filters` namespace:
