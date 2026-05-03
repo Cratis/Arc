@@ -3,7 +3,7 @@
 - name: Getting Started
   href: getting-started.md
 - name: Configuration
-  href: configuration.md
+  href: Configuration/toc.yml
 - name: Commands
   href: commands.md
 - name: Queries
