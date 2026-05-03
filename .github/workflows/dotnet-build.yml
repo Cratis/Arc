@@ -29,6 +29,7 @@ on:
     paths:
       - "Source/DotNET/**"
       - "Specifications/**"
+      - ".github/workflows/dotnet-build.yml"
 
 jobs:
   dotnet-build:
@@ -108,9 +109,6 @@ jobs:
       - name: Yarn install
         run: yarn
 
-      - name: Build JavaScript
-        run: yarn build
-
       - name: Cache JavaScript dist output
         uses: actions/cache@v4
         with:
@@ -164,6 +162,16 @@ jobs:
             ${{ env.DOTNET8_VERSION }}
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
+
+      - name: Restore node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            **/node_modules
+            **/.eslintcache
+            **/yarn.lock
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
 
       - name: Restore JavaScript dist output
         uses: actions/cache@v4
