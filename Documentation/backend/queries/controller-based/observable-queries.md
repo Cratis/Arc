@@ -406,8 +406,6 @@ See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md)
 Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries/observable-queries.md):
 
 ```typescript
-// Generated TypeScript proxy automatically handles WebSocket connections
-const accountsObservable = await accountsProxy.getAllAccountsObservable();
 
 accountsObservable.subscribe(accounts => {
     // Handle real-time account updates

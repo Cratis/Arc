@@ -18,3 +18,5 @@
   href: observable-query-multiplexing.md
 - name: Query Instance Caching
   href: query-instance-caching.md
+- name: Scope
+  href: scope.md

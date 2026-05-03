@@ -84,6 +84,5 @@ For comprehensive details, see [Command Result documentation](../../core/command
 
 - [CommandForm](./command-form/index.md) - Declarative form component for commands
 - [Queries](../queries/index.md) - Data retrieval operations
-- [Core Commands](../../core/commands/index.md) - Lower-level command concepts
-- [Proxy Generation](../../../backend/proxy-generation.md) - Setting up command generation
+- [Core Commands](../../core/commands/index.md) - Lower-level command concepts- [Proxy Generation](../../../backend/proxy-generation.md) - Setting up command generation
 

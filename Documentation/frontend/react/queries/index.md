@@ -17,6 +17,7 @@ This page is an overview of capabilities. Detailed behavior is documented on the
 | Change deltas | `useChangeStream()` and transfer-mode behavior | [Change Stream](./change-stream.md) |
 | Connection behavior | Multiplexing, connection count, and hub routing | [Observable Query Multiplexing](./observable-query-multiplexing.md) |
 | Instance lifecycle | Shared query instances and cache behavior | [Query Instance Caching](./query-instance-caching.md) |
+| Performing state | Track in-flight queries across components and ViewModels | [Query Scope](./scope.md) |
 
 ## Frontend Layering
 

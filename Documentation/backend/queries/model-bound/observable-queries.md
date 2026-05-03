@@ -478,8 +478,6 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries/observable-queries.md):
 
 ```typescript
-// Generated TypeScript proxy automatically handles WebSocket connections
-const accountsObservable = await DebitAccount.getAllAccountsObservable();
 
 accountsObservable.subscribe(accounts => {
     // Handle real-time account updates
