@@ -9,6 +9,7 @@ env:
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
   DOTNET_BIN_CACHE: "dotnet-bin-${{ github.sha }}"
+  JS_DIST_CACHE: "js-dist-${{ github.sha }}"
 
 on:
   workflow_dispatch:
@@ -107,6 +108,15 @@ jobs:
       - name: Yarn install
         run: yarn
 
+      - name: Build JavaScript
+        run: yarn build
+
+      - name: Cache JavaScript dist output
+        uses: actions/cache@v4
+        with:
+          path: Source/JavaScript/**/dist
+          key: ${{ env.JS_DIST_CACHE }}
+
       - name: Build
         run: dotnet build --configuration Release
 
@@ -155,27 +165,11 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Setup node
-        uses: actions/setup-node@v4
+      - name: Restore JavaScript dist output
+        uses: actions/cache@v4
         with:
-          node-version: 23.x
-          registry-url: "https://registry.npmjs.org"
-
-      - uses: actions/cache@v4
-        id: yarn-cache
-        with:
-          path: |
-            .yarn/cache
-            **/node_modules
-            **/.eslintcache
-            **/yarn.lock
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
-
-      - name: Yarn install
-        run: yarn
-
-      - name: Build JavaScript
-        run: yarn build
+          path: Source/JavaScript/**/dist
+          key: ${{ env.JS_DIST_CACHE }}
 
       - name: Restore build output
         uses: actions/cache@v4
