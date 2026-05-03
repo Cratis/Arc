@@ -151,14 +151,26 @@ public static partial class TypeScriptContentCombiner
 
         var header = string.Join('\n', lines.Take(3));
 
-        // Walk backwards from the code start to include any preceding JSDoc block in the body,
-        // so that per-type documentation is not mixed into the shared preamble section.
+        // Walk backwards from the code start to include decorator lines and any preceding JSDoc block
+        // in the body, so that per-type documentation and @derivedType decorators are not mixed into
+        // the shared preamble section.
         var bodyStartIndex = codeStartIndex;
         var checkIndex = codeStartIndex - 1;
 
         while (checkIndex >= 0 && string.IsNullOrWhiteSpace(lines[checkIndex]))
         {
             checkIndex--;
+        }
+
+        // Include any decorator lines (e.g. @derivedType('...')) in the body.
+        while (checkIndex >= 0 && lines[checkIndex].TrimStart().StartsWith('@'))
+        {
+            bodyStartIndex = checkIndex;
+            checkIndex--;
+            while (checkIndex >= 0 && string.IsNullOrWhiteSpace(lines[checkIndex]))
+            {
+                checkIndex--;
+            }
         }
 
         if (checkIndex >= 0 && lines[checkIndex].TrimStart().StartsWith("*/", StringComparison.Ordinal))
