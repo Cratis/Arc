@@ -292,18 +292,16 @@ public static partial class TypeScriptContentCombiner
             }
 
             var dependencies = new HashSet<string>(StringComparer.Ordinal);
-            foreach (Match match in fieldPattern.Matches(body))
+            foreach (var typeName in fieldPattern.Matches(body).Select(match => match.Groups["type"].Value))
             {
-                var typeName = match.Groups["type"].Value;
                 if (!builtInTypes.Contains(typeName) && !exports.Contains(typeName))
                 {
                     dependencies.Add(typeName);
                 }
             }
 
-            foreach (Match match in annotationPattern.Matches(body))
+            foreach (var typeName in annotationPattern.Matches(body).Select(match => match.Groups["type"].Value))
             {
-                var typeName = match.Groups["type"].Value;
                 if (!builtInTypes.Contains(typeName) && !exports.Contains(typeName))
                 {
                     dependencies.Add(typeName);
