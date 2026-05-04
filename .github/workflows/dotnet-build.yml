@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       proxy-namespaces: ${{ steps.discover-namespaces.outputs.namespaces }}
+      spec-projects: ${{ steps.discover-specs.outputs.projects }}
 
     steps:
       - name: Checkout code
@@ -59,6 +60,16 @@ jobs:
             | jq -Rc '.' \
             | jq -sc '.')
           echo "namespaces=$namespaces" >> "$GITHUB_OUTPUT"
+
+      - name: Discover spec projects
+        id: discover-specs
+        run: |
+          projects=$(find Source/DotNET -name "*.Specs.csproj" ! -name "ProxyGenerator.Specs.csproj" \
+            | sed 's|/[^/]*\.csproj$||' \
+            | sort \
+            | jq -Rc '.' \
+            | jq -sc '.')
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -121,6 +132,10 @@ jobs:
   specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJson(needs.dotnet-build.outputs.spec-projects) }}
 
     steps:
       - name: Checkout code
@@ -140,8 +155,8 @@ jobs:
           path: ./**/bin
           key: ${{ env.DOTNET_BIN_CACHE }}
 
-      - name: Test
-        run: dotnet test --no-build --configuration Release --framework net10.0 --filter "FullyQualifiedName!~Cratis.Arc.ProxyGenerator"
+      - name: Test (${{ matrix.project }})
+        run: dotnet test ${{ matrix.project }} --no-build --configuration Release --framework net10.0
 
   proxy-specs:
     needs: [dotnet-build]
