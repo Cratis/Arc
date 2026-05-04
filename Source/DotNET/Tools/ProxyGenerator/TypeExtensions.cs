@@ -664,6 +664,17 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
+        if (property.OriginalType.IsDictionary())
+        {
+            var valueType = property.OriginalType.GetDictionaryValueType();
+            if (!valueType.IsAPrimitiveType() && !valueType.IsConcept())
+            {
+                valueType.CollectTypesInvolved(typesInvolved);
+            }
+
+            return;
+        }
+
         if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly() || property.OriginalType.IsExcluded()) return;
         typesInvolved.Add(property.OriginalType);
         foreach (var derivativeType in property.OriginalType.GetDerivativeTypes())
@@ -671,7 +682,7 @@ public static class TypeExtensions
             derivativeType.CollectTypesInvolved(typesInvolved);
         }
 
-        foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType() || _.OriginalType.IsDictionary()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
         }
@@ -687,7 +698,7 @@ public static class TypeExtensions
     {
         if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly() || parameter.OriginalType.IsExcluded()) return;
         typesInvolved.Add(parameter.OriginalType);
-        foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType() || _.OriginalType.IsDictionary()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
         }
@@ -708,7 +719,7 @@ public static class TypeExtensions
             derivativeType.CollectTypesInvolved(typesInvolved);
         }
 
-        foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType() || _.OriginalType.IsDictionary()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
         }
