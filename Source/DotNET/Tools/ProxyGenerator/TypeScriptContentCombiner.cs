@@ -254,6 +254,9 @@ public static partial class TypeScriptContentCombiner
     [GeneratedRegex(@"@field\(\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
     private static partial Regex FieldDecoratorReferenceRegex();
 
+    [GeneratedRegex(@"[!?]\s*:\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
+    private static partial Regex PropertyTypeAnnotationRegex();
+
     /// <summary>
     /// Topologically sorts body sections so that types referenced by <c>@field</c> decorators
     /// in other bodies appear before the bodies that reference them. This prevents forward
@@ -278,6 +281,7 @@ public static partial class TypeScriptContentCombiner
         // Map each body to its exported type names and the custom types it references via @field.
         var bodyExports = new List<HashSet<string>>();
         var bodyDependencies = new List<HashSet<string>>();
+        var annotationPattern = PropertyTypeAnnotationRegex();
 
         foreach (var body in bodies)
         {
@@ -289,6 +293,15 @@ public static partial class TypeScriptContentCombiner
 
             var dependencies = new HashSet<string>(StringComparer.Ordinal);
             foreach (Match match in fieldPattern.Matches(body))
+            {
+                var typeName = match.Groups["type"].Value;
+                if (!builtInTypes.Contains(typeName) && !exports.Contains(typeName))
+                {
+                    dependencies.Add(typeName);
+                }
+            }
+
+            foreach (Match match in annotationPattern.Matches(body))
             {
                 var typeName = match.Groups["type"].Value;
                 if (!builtInTypes.Contains(typeName) && !exports.Contains(typeName))
