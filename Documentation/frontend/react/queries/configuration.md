@@ -13,6 +13,7 @@ Configure query behavior centrally through the `<Arc />` component instead of pe
 | `queryDirectMode` | `boolean` | `false` | Bypasses centralized hubs and connects observable queries directly per query URL. |
 | `queryConnectionCount` | `number` | `1` | Number of observable query hub connection slots. |
 | `observableQueryTransferMode` | `ObservableQueryTransferMode` | `Delta` | Controls how `useChangeStream()` processes incoming snapshots and deltas. |
+| `queryCacheRetentionMs` | `number` | `30000` | How long to keep cached query data alive after the last subscriber unmounts. |
 
 ## Example
 
@@ -35,6 +36,39 @@ export const App = () => (
     </Arc>
 );
 ```
+
+## Query Cache Retention
+
+When a component that uses `useObservableQuery` unmounts — for example, when the user navigates to a different page — Arc holds the cached query data and the active server subscription alive for `queryCacheRetentionMs` milliseconds (default: 30 seconds) before evicting them.
+
+This has two practical effects:
+
+- **Instant navigation**: If the user returns to the same page within the retention window, cached data renders immediately instead of showing a loading state while the subscription re-establishes.
+- **Bounded memory**: After the window expires, the cache entry and the underlying connection are released automatically, so long-lived single-page applications do not accumulate stale subscriptions.
+
+```tsx
+<Arc queryCacheRetentionMs={60_000}>
+    {/* data survives for 60 s after the last subscriber unmounts */}
+</Arc>
+```
+
+Set the value to `0` to restore the previous behavior of evicting the subscription as soon as the last subscriber unmounts:
+
+```tsx
+<Arc queryCacheRetentionMs={0}>
+    {/* immediate eviction — original behavior */}
+</Arc>
+```
+
+The default can also be adjusted globally without the React component:
+
+```typescript
+import { Globals } from '@cratis/arc';
+
+Globals.queryCacheRetentionMs = 60_000;
+```
+
+> **Note:** The retention window applies per cache entry, not globally. Each query type and argument combination has its own independent timer.
 
 ## Observable Query Transport
 
