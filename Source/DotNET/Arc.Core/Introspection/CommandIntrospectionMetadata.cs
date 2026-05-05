@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace Cratis.Arc.Http.Introspection;
+namespace Cratis.Arc.Introspection;
 
 /// <summary>
-/// Contains metadata for an introspected Command endpoint, including route information and associated documentation.
+/// Contains metadata for an introspected command endpoint, including route information and associated documentation.
 /// </summary>
 /// <param name="Name">The unique name of the command.</param>
 /// <param name="Namespace">The full namespace of the command type.</param>
