@@ -300,16 +300,29 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         sub.callback(QueryResult.unauthorized());
     }
 
-    private sendSubscribe(queryId: string, request: SubscriptionRequest): void {
-        if (!this._connectionId) return;
+    private sendSubscribe(queryId: string, request: SubscriptionRequest, attempt: number = 0): void {
+        if (!this._connectionId || this._disconnected) return;
+
+        // Capture the connection ID so retries can detect if a reconnect has already fired
+        // for a different reason and made this retry obsolete.
+        const connectionId = this._connectionId;
 
         const body = {
-            connectionId: this._connectionId,
+            connectionId,
             queryId,
             request,
         };
 
         const customHeaders = Globals.httpHeadersCallback?.() ?? {};
+
+        // Maximum number of subscribe retries before falling back to a full SSE reconnect.
+        // In a round-robin load-balanced deployment the subscribe POST may land on a different
+        // backend instance than the one holding the SSE connection.  Retrying gives the load
+        // balancer the chance to route a subsequent attempt to the correct instance without
+        // tearing down the SSE connection unnecessarily.  With N backend instances at most
+        // N-1 retries are needed, so 3 retries covers deployments with up to 4 replicas.
+        const maxRetries = 3;
+        const retryDelayMs = 200;
 
         fetch(this._subscribeUrl, {
             method: 'POST',
@@ -317,12 +330,20 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             body: JSON.stringify(body),
         }).then(response => {
             if (!response.ok) {
-                console.warn(`SSE hub: subscribe POST for '${queryId}' returned ${response.status}, reconnecting`);
-                this.reconnect();
+                if (attempt < maxRetries && this._connectionId === connectionId && !this._disconnected) {
+                    setTimeout(() => this.sendSubscribe(queryId, request, attempt + 1), retryDelayMs * (attempt + 1));
+                } else if (this._connectionId === connectionId && !this._disconnected) {
+                    console.warn(`SSE hub: subscribe POST for '${queryId}' returned ${response.status} after ${attempt + 1} attempt(s), reconnecting`);
+                    this.reconnect();
+                }
             }
         }).catch(error => {
-            console.error(`SSE hub: subscribe POST failed for '${queryId}', reconnecting`, error);
-            this.reconnect();
+            if (attempt < maxRetries && this._connectionId === connectionId && !this._disconnected) {
+                setTimeout(() => this.sendSubscribe(queryId, request, attempt + 1), retryDelayMs * (attempt + 1));
+            } else if (this._connectionId === connectionId && !this._disconnected) {
+                console.error(`SSE hub: subscribe POST failed for '${queryId}' after ${attempt + 1} attempt(s), reconnecting`, error);
+                this.reconnect();
+            }
         });
     }
 

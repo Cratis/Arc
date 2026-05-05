@@ -5,7 +5,7 @@ import { CommandScope } from './commands';
 import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
-import { GetHttpHeaders, ObservableQueryTransferMode } from '@cratis/arc';
+import { GetHttpHeaders, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
@@ -47,6 +47,16 @@ export interface ArcProps {
      * delivers the whole collection on every update.
      */
     observableQueryTransferMode?: ObservableQueryTransferMode;
+    /**
+     * How long in milliseconds to retain a query cache entry after the last subscriber
+     * releases it before evicting the subscription and cached data.
+     *
+     * A non-zero value lets users navigate away and back quickly without seeing a loading
+     * flash — cached data is shown immediately while the fresh subscription re-establishes
+     * in the background.  Defaults to {@link Globals.queryCacheRetentionMs} (30 000 ms).
+     * Set to 0 to restore immediate eviction.
+     */
+    queryCacheRetentionMs?: number;
 }
 
 /**
@@ -60,7 +70,7 @@ export const Arc = (props: ArcProps) => {
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
     // can cancel it — preventing the synthetic unmount from destroying entries that child
     // effects are about to re-acquire.
-    const queryInstanceCache = useRef(new QueryInstanceCache(props.development));
+    const queryInstanceCache = useRef(new QueryInstanceCache(props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs));
 
     const reconnectQueries = useCallback(() => {
         queryInstanceCache.current.teardownAllSubscriptions();
@@ -79,6 +89,7 @@ export const Arc = (props: ArcProps) => {
         queryConnectionCount: props.queryConnectionCount ?? 1,
         queryDirectMode: props.queryDirectMode ?? false,
         observableQueryTransferMode: props.observableQueryTransferMode ?? ObservableQueryTransferMode.Delta,
+        queryCacheRetentionMs: props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs,
         queryVersion,
         reconnectQueries,
     };

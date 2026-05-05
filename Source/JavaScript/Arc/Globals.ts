@@ -53,6 +53,18 @@ export interface IGlobals {
      * (e.g. SSE subscribe/unsubscribe POST calls).
      */
     httpHeadersCallback: GetHttpHeaders;
+    /**
+     * How long in milliseconds to retain a query cache entry after the last subscriber
+     * releases it before evicting the subscription and the cached data.
+     *
+     * A non-zero value allows a user navigating away and back quickly to see cached
+     * data immediately instead of waiting for a fresh server round-trip.  The entry is
+     * still evicted once the window expires, so memory is eventually reclaimed.
+     *
+     * Defaults to 30 000 ms (30 seconds).  Set to 0 to restore the previous
+     * immediate-eviction behaviour.
+     */
+    queryCacheRetentionMs: number;
 }
 
 export const Globals: IGlobals = {
@@ -66,4 +78,5 @@ export const Globals: IGlobals = {
     queryDirectMode: false,
     observableQueryTransferMode: ObservableQueryTransferMode.Delta,
     httpHeadersCallback: () => ({}),
+    queryCacheRetentionMs: 30_000,
 };
