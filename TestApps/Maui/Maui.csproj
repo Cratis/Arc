@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- Directory.Build.props sets TargetFramework=net10.0 when no framework is specified.
+             Clear it so only the MAUI-specific platform targets below apply. -->
+        <TargetFramework></TargetFramework>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-maccatalyst</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">net10.0-windows10.0.19041.0</TargetFrameworks>
+
+        <OutputType>Exe</OutputType>
+        <RootNamespace>TestApps.Maui</RootNamespace>
+        <UseMaui>true</UseMaui>
+        <SingleProject>true</SingleProject>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+
+        <ApplicationId>com.cratis.testapps.maui</ApplicationId>
+        <ApplicationIdGuid>A7C3E1B2-D4F5-4890-ABCD-EF1234560001</ApplicationIdGuid>
+        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationTitle>Maui</ApplicationTitle>
+
+        <!-- Generate deps.json so DependencyContext assembly discovery works (Arc type scanning) -->
+        <GenerateDependencyFile>true</GenerateDependencyFile>
+
+        <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005;IL2026;IL3050;RCS1102;MA0036</NoWarn>
+        <IsPackable>false</IsPackable>
+
+        <!-- Cross-platform yarn command -->
+        <YarnCmd Condition="$([MSBuild]::IsOSPlatform('windows'))">yarn.cmd</YarnCmd>
+        <YarnCmd Condition="!$([MSBuild]::IsOSPlatform('windows'))">yarn</YarnCmd>
+        <ArcCoreFrontendDir>$(MSBuildProjectDirectory)/../ArcCore</ArcCoreFrontendDir>
+    </PropertyGroup>
+
+    <!-- Mac Catalyst settings -->
+    <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+        <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+        <!-- Enable Mono interpreter for reflection-based type discovery (required for Arc) -->
+        <UseInterpreter>true</UseInterpreter>
+        <MtouchInterpreter>all</MtouchInterpreter>
+    </PropertyGroup>
+
+    <!-- Windows settings -->
+    <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+        <OutputType>WinExe</OutputType>
+        <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+        <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+        <!-- No MSIX packaging in Debug — run directly from bin/ -->
+        <WindowsPackageType Condition="'$(Configuration)' == 'Debug'">None</WindowsPackageType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#512BD4" />
+        <MauiSplashScreen Include="Resources\AppIcon\appicon.svg" Color="#512BD4" BaseSize="128,128" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Maui.Controls" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    </ItemGroup>
+
+    <!-- Bundle ArcCore's built wwwroot so Arc can serve the frontend from the same origin as the API -->
+    <ItemGroup>
+        <Content Include="$(ArcCoreFrontendDir)/wwwroot/**" Condition="Exists('$(ArcCoreFrontendDir)/wwwroot')"
+                 Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)"
+                 CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />
+        <ProjectReference Include="../../Source/DotNET/Arc.Core.Generators/Arc.Core.Generators.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
+        <ProjectReference Include="../Shared/Shared.csproj" />
+    </ItemGroup>
+
+    <!-- Build the ArcCore React frontend before the .NET build so wwwroot is ready.
+         Runs yarn install (no-op when node_modules is current) then yarn build.
+         SkipUnchangedFiles would be ideal but vite always rewrites assets, so we
+         unconditionally rebuild; the tsc incremental cache keeps it fast on reruns. -->
+    <Target Name="BuildFrontend" BeforeTargets="Build">
+        <Message Text="[Maui] Installing frontend dependencies in ArcCore..." Importance="high" />
+        <Exec Command="$(YarnCmd) install"
+              WorkingDirectory="$(ArcCoreFrontendDir)" />
+        <Message Text="[Maui] Building ArcCore frontend..." Importance="high" />
+        <Exec Command="$(YarnCmd) build"
+              WorkingDirectory="$(ArcCoreFrontendDir)" />
+    </Target>
+
+    <!-- Mac Catalyst: copy deps.json into Contents/MonoBundle/ inside the app bundle.
+         DependencyContext.Default reads the deps.json from the same directory as the
+         main assembly (AppContext.BaseDirectory → Contents/MonoBundle/).
+         Without this file Arc's GeneratedMetadataRegistration returns early, finding no
+         project assemblies, so no commands/queries are registered and every API request
+         falls through to the SPA fallback returning index.html. -->
+    <Target Name="IncludeDepsJsonInBundle"
+            AfterTargets="_CreateAppBundle"
+            Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+        <PropertyGroup>
+            <_MonoBundleDir>$(OutputPath)$(AssemblyName).app/Contents/MonoBundle/</_MonoBundleDir>
+            <_DepsJsonSource>$(OutputPath)$(AssemblyName).deps.json</_DepsJsonSource>
+            <_DepsJsonDest>$(_MonoBundleDir)$(AssemblyName).deps.json</_DepsJsonDest>
+        </PropertyGroup>
+        <Copy SourceFiles="$(_DepsJsonSource)"
+              DestinationFiles="$(_DepsJsonDest)"
+              Condition="Exists('$(_DepsJsonSource)')" />
+        <Message Text="[Maui] Copied deps.json into app bundle (DependencyContext support)" Importance="high"
+                 Condition="Exists('$(_DepsJsonSource)')" />
+        <Warning Text="[Maui] $(AssemblyName).deps.json not found at $(_DepsJsonSource) — DependencyContext.Default will be null at runtime."
+                 Condition="!Exists('$(_DepsJsonSource)')" />
+    </Target>
+
+    <!-- Mac Catalyst: strip build-tool artifacts that the Xamarin SDK can't classify.
+         ProxyGenerator.Build outputs apphost and runtimeconfig.json for its own use
+         as a dotnet tool; they must not be bundled into the Mac Catalyst app bundle. -->
+    <Target Name="ExcludeBuildToolArtifactsFromBundle"
+            AfterTargets="ComputeResolvedFilesToPublishList"
+            BeforeTargets="_CategorizeResolvedFilesToPublish"
+            Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+        <ItemGroup>
+            <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'apphost'" />
+            <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').EndsWith('.runtimeconfig'))" />
+        </ItemGroup>
+    </Target>
+</Project>

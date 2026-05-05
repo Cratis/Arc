@@ -193,6 +193,12 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
                 let withState: QueryResultWithState<TDataType>;
                 const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? null;
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const isDataArray = Array.isArray(response.data);
+                if (!isDataArray && response.data !== null && response.data !== undefined && (response.data as unknown as object) !== null) {
+                    console.error(`[useObservableQuery] NON-ARRAY data received for key="${key}" queryName="${(queryInstance as unknown as {queryName?: string}).queryName}" data type=${typeof response.data} constructor=${(response.data as unknown as {constructor?: {name?: string}})?.constructor?.name}`, response.data);
+                }
+
                 if (response.changeSet && Array.isArray(response.data) && response.data.length === 0) {
                     // Delta mode subsequent push: the server omits `data` (serialised as null → []).
                     // Reconstruct the full collection by applying the ChangeSet to the previous state.
