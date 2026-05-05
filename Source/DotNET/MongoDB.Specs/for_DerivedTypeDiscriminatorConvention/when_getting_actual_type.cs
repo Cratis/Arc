@@ -20,7 +20,7 @@ public class when_getting_actual_type : given.a_derived_type_discriminator_conve
 
     void Because()
     {
-        var document = new BsonDocument { { DerivedTypeDiscriminatorConvention.PropertyName, _derivedTypeIdentifier.ToString() } };
+        var document = new BsonDocument { { DerivedTypeDiscriminatorConvention.PropertyName, _derivedTypeIdentifier } };
         using var reader = new BsonDocumentReader(document);
         _result = _convention.GetActualType(reader, typeof(BaseType));
     }
