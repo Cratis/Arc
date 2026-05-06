@@ -81,7 +81,9 @@ export class QueryInstanceCache {
 
     /**
      * Builds the cache key for a query.
-     * @param queryTypeName The name of the query constructor (i.e. `constructor.name`).
+     * @param queryTypeName The stable type name for the query. Use the instance's {@link queryName}
+     *   (a hardcoded fully-qualified string in generated proxies) rather than {@link Function.name},
+     *   which is unstable under minification.
      * @param args Optional arguments supplied to the query.
      * @returns A stable string key.
      */
