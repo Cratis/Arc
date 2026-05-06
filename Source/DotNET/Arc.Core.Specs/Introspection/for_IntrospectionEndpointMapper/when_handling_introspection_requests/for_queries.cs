@@ -13,7 +13,7 @@ public class for_queries : given.a_introspection_endpoint_mapper
         _mapper.EndpointExists("IntrospectQueries").Returns(false);
 
         _discoveredQueries = [
-            new("AllOrders", "Features.Orders", "/api/features/orders/all-orders", "Features.Orders.AllOrders", "")
+            new("AllOrders", "Features.Orders", "/api/features/orders/all-orders", "Features.Orders.AllOrders", "Features.Orders.AllOrders", "")
         ];
 
         _introspectionService.Commands.Returns([]);
