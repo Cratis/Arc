@@ -365,19 +365,27 @@ public static class TypeExtensions
     /// <summary>
     /// Get the TypeScript type string for the value type of a dictionary, handling collection value types
     /// by converting them to TypeScript array syntax (e.g., <c>IList&lt;T&gt;</c> becomes <c>T[]</c>).
+    /// Non-collection, non-dictionary value types are resolved directly via <see cref="GetTargetType"/>.
     /// </summary>
     /// <param name="valueType">The dictionary value type.</param>
-    /// <returns>The TypeScript type string.</returns>
-    public static string GetDictionaryValueTypeString(this Type valueType)
-    {
-        if (valueType.IsEnumerable() && !valueType.IsDictionary())
-        {
-            var elementType = valueType.GetEnumerableElementType();
-            return $"{elementType.GetTargetType().Type}[]";
-        }
+    /// <returns>
+    /// The TypeScript type string: <c>T[]</c> when the value type is an enumerable collection,
+    /// or the plain target type name when the value type is a scalar.
+    /// </returns>
+    public static string GetDictionaryValueTypeString(this Type valueType) =>
+        valueType.GetDictionaryEffectiveValueType().GetTargetType().Type + (valueType.IsEnumerable() && !valueType.IsDictionary() ? "[]" : string.Empty);
 
-        return valueType.GetTargetType().Type;
-    }
+    /// <summary>
+    /// Resolve the effective element type for the value of a dictionary, unwrapping one level of collection
+    /// when the value type is an enumerable (e.g., <c>IList&lt;T&gt;</c> → <c>T</c>).
+    /// Non-collection value types are returned unchanged.
+    /// </summary>
+    /// <param name="valueType">The dictionary value type.</param>
+    /// <returns>The effective element type to use for proxy generation and type collection.</returns>
+    public static Type GetDictionaryEffectiveValueType(this Type valueType) =>
+        valueType.IsEnumerable() && !valueType.IsDictionary()
+            ? valueType.GetEnumerableElementType()
+            : valueType;
 
     /// <summary>
     /// Check if a type is a System type (i.e., its namespace is "System" or starts with "System.").
@@ -387,6 +395,17 @@ public static class TypeExtensions
     public static bool IsSystemType(this Type type) =>
         type.Namespace is not null &&
         (type.Namespace == "System" || type.Namespace.StartsWith("System.", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Check whether a type is a valid user-defined base type for TypeScript inheritance.
+    /// Returns <see langword="true"/> when the base type should produce an <c>extends</c> clause
+    /// in the generated TypeScript class. System.* types, primitives, excluded types, and types
+    /// from mapped assemblies are all excluded.
+    /// </summary>
+    /// <param name="type">The candidate base type to evaluate.</param>
+    /// <returns>True if the type should be used as a TypeScript base class, false otherwise.</returns>
+    public static bool IsValidInheritanceBaseType(this Type type) =>
+        !type.IsAPrimitiveType() && !type.IsSystemType() && !type.IsExcluded() && !type.IsFromMappedAssembly();
 
     /// <summary>
     /// Get property descriptors for a type, only including properties declared directly on the type.
@@ -491,9 +510,7 @@ public static class TypeExtensions
                 }
 
                 // If value type is a collection, collect the element type instead of the collection itself
-                var effectiveValueType = valueType.IsEnumerable() && !valueType.IsDictionary()
-                    ? valueType.GetEnumerableElementType()
-                    : valueType;
+                var effectiveValueType = valueType.GetDictionaryEffectiveValueType();
                 if (!effectiveValueType.IsAPrimitiveType() && !effectiveValueType.IsConcept())
                 {
                     effectiveValueType.CollectTypesInvolved(typesInvolved);
@@ -517,7 +534,7 @@ public static class TypeExtensions
 
         // Detect base type for TypeScript inheritance (skip system types and object)
         string? baseTypeName = null;
-        if (type.BaseType is { } baseType && !baseType.IsAPrimitiveType() && !baseType.IsSystemType() && !baseType.IsExcluded() && !baseType.IsFromMappedAssembly())
+        if (type.BaseType is { } baseType && baseType.IsValidInheritanceBaseType())
         {
             baseTypeName = baseType.GetTargetType().Type;
             baseType.CollectTypesInvolved(typesInvolved);
@@ -710,9 +727,7 @@ public static class TypeExtensions
             var valueType = property.OriginalType.GetDictionaryValueType();
 
             // If value type is a collection, collect the element type instead of the collection itself
-            var effectiveValueType = valueType.IsEnumerable() && !valueType.IsDictionary()
-                ? valueType.GetEnumerableElementType()
-                : valueType;
+            var effectiveValueType = valueType.GetDictionaryEffectiveValueType();
             if (!effectiveValueType.IsAPrimitiveType() && !effectiveValueType.IsConcept())
             {
                 effectiveValueType.CollectTypesInvolved(typesInvolved);
@@ -762,7 +777,7 @@ public static class TypeExtensions
         typesInvolved.Add(type);
 
         // Collect base type for TypeScript inheritance support (skip system types and object)
-        if (type.BaseType is { } baseType && !baseType.IsAPrimitiveType() && !baseType.IsSystemType() && !baseType.IsExcluded() && !baseType.IsFromMappedAssembly())
+        if (type.BaseType is { } baseType && baseType.IsValidInheritanceBaseType())
         {
             baseType.CollectTypesInvolved(typesInvolved);
         }
