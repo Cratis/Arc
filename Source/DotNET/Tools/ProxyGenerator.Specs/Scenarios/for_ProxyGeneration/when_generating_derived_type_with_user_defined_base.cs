@@ -37,6 +37,7 @@ public class when_generating_derived_type_with_user_defined_base : Specification
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeEmpty();
     [Fact] void should_contain_class_name() => _generatedCode.ShouldContain("ScenarioDerivedType");
     [Fact] void should_extend_base_type() => _generatedCode.ShouldContain("extends ScenarioBaseType");
+    [Fact] void should_import_base_type() => _generatedCode.ShouldContain("import { ScenarioBaseType }");
     [Fact] void should_only_contain_declared_property() => _generatedCode.ShouldContain("derivedProperty");
     [Fact] void should_not_contain_inherited_property() => _generatedCode.ShouldNotContain("sharedProperty");
 
