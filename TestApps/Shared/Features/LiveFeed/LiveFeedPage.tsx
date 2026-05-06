@@ -102,6 +102,10 @@ interface MessageListProps {
 }
 
 const MessageList = ({ messages }: MessageListProps) => {
+    if (!Array.isArray(messages)) {
+        console.error('[MessageList] messages is not an array:', messages, 'type:', typeof messages, 'constructor:', (messages as unknown as object)?.constructor?.name);
+        return <p style={{ color: 'red' }}>Error: messages data is not an array (type: {typeof messages})</p>;
+    }
     if (messages.length === 0) {
         return <p style={{ color: '#888' }}>No messages yet.</p>;
     }

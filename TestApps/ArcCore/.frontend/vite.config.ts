@@ -16,6 +16,13 @@ export default defineConfig({
     },
     plugins: [react()],
     resolve: {
+        // Force a single copy of @cratis/fundamentals so that the Guid class reference
+        // used as a key in JsonSerializer's typeConverters map is identical to the one
+        // instantiated by command proxies. Without this, the Arc source node_modules
+        // (7.7.3) and the workspace root node_modules (7.8.2) each produce a distinct
+        // Guid class, causing Map.has() to always return false and Guid values to be
+        // serialized as { bytes: [...], _stringVersion: "..." } instead of a string.
+        dedupe: ['@cratis/fundamentals'],
         alias: [
             { find: '@cratis/arc/commands', replacement: arc('commands/index.ts') },
             { find: '@cratis/arc/identity', replacement: arc('identity/index.ts') },

@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Http.Introspection;
+using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Http.for_IntrospectionEndpointMapper.given;
+namespace Cratis.Arc.Introspection.for_IntrospectionEndpointMapper.given;
 
 public class a_introspection_endpoint_mapper : Specification
 {

@@ -26,6 +26,8 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
     private _origin: string;
     private _httpHeadersCallback: GetHttpHeaders;
     abstract readonly route: string;
+    /** Backend fully-qualified query name used as cache key. Overridden in generated proxies. */
+    readonly queryName?: string;
     /* eslint-disable @typescript-eslint/no-explicit-any */
     readonly validation?: QueryValidator<any>;
     /* eslint-enable @typescript-eslint/no-explicit-any */

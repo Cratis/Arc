@@ -306,3 +306,4 @@ vite.*.js
 vite*.map
 
 .playwright-mcp
+dist-minified

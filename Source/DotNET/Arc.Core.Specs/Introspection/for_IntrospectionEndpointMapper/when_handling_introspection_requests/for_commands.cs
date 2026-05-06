@@ -1,9 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Http.Introspection;
-
-namespace Cratis.Arc.Http.for_IntrospectionEndpointMapper.when_handling_introspection_requests;
+namespace Cratis.Arc.Introspection.for_IntrospectionEndpointMapper.when_handling_introspection_requests;
 
 public class for_commands : given.a_introspection_endpoint_mapper
 {
@@ -18,7 +16,8 @@ public class for_commands : given.a_introspection_endpoint_mapper
             new("RegisterOrder", "Features.Orders", "/api/features/orders/register-order", "Features.Orders.RegisterOrder", "")
         ];
 
-        _introspectionService.IntrospectAllEndpoints().Returns((_discoveredCommands, []));
+        _introspectionService.Commands.Returns(_discoveredCommands);
+        _introspectionService.Queries.Returns([]);
         _mapper.MapIntrospectionEndpoints();
     }
 

@@ -119,18 +119,21 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     const cacheKeyRef = useRef<string>('');
 
     const queryInstance = useMemo(() => {
-        const key = queryCache.buildKey(query.name, args as object | undefined);
+        // Create the instance first to read queryName, which is a hardcoded fully-qualified
+        // string in generated proxies and survives minification. constructor.name is unstable
+        // under minification and must not be used as a cache key.
+        const freshInstance = new query() as TQuery;
+        freshInstance.paging = currentPaging;
+        freshInstance.sorting = currentSorting;
+        freshInstance.setMicroservice(arc.microservice);
+        freshInstance.setApiBasePath(arc.apiBasePath ?? '');
+        freshInstance.setOrigin(arc.origin ?? '');
+
+        const typeName = (freshInstance as { queryName?: string }).queryName ?? query.name;
+        const key = queryCache.buildKey(typeName, args as object | undefined);
         cacheKeyRef.current = key;
 
-        const { instance, isNew } = queryCache.getOrCreate(key, () => {
-            const instance = new query() as TQuery;
-            instance.paging = currentPaging;
-            instance.sorting = currentSorting;
-            instance.setMicroservice(arc.microservice);
-            instance.setApiBasePath(arc.apiBasePath ?? '');
-            instance.setOrigin(arc.origin ?? '');
-            return instance;
-        });
+        const { instance, isNew } = queryCache.getOrCreate(key, () => freshInstance);
 
         if (!isNew) {
             // Update mutable settings on the shared instance
@@ -192,6 +195,13 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             const subscription = queryInstance.subscribe(response => {
                 let withState: QueryResultWithState<TDataType>;
                 const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? null;
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const isDataArray = Array.isArray(response.data);
+                const isEnumerable = (queryInstance as unknown as { enumerable: boolean }).enumerable;
+                if (isEnumerable && !isDataArray && response.data !== null && response.data !== undefined && (response.data as unknown as object) !== null) {
+                    console.error(`[useObservableQuery] NON-ARRAY data received for key="${key}" queryName="${(queryInstance as unknown as {queryName?: string}).queryName}" data type=${typeof response.data} constructor=${(response.data as unknown as {constructor?: {name?: string}})?.constructor?.name}`, response.data);
+                }
 
                 if (response.changeSet && Array.isArray(response.data) && response.data.length === 0) {
                     // Delta mode subsequent push: the server omits `data` (serialised as null → []).
