@@ -30,19 +30,22 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const cacheKeyRef = useRef<string>('');
 
     const queryInstance = useMemo(() => {
-        const key = queryCache.buildKey(query.name, args as object | undefined);
+        // Create the instance first to read queryName, which is a hardcoded fully-qualified
+        // string in generated proxies and survives minification. constructor.name is unstable
+        // under minification and must not be used as a cache key.
+        const freshInstance = new query() as TQuery;
+        freshInstance.paging = currentPaging;
+        freshInstance.sorting = currentSorting;
+        freshInstance.setMicroservice(arc.microservice);
+        freshInstance.setApiBasePath(arc.apiBasePath ?? '');
+        freshInstance.setOrigin(arc.origin ?? '');
+        freshInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+
+        const typeName = (freshInstance as { queryName?: string }).queryName ?? query.name;
+        const key = queryCache.buildKey(typeName, args as object | undefined);
         cacheKeyRef.current = key;
 
-        const { instance, isNew } = queryCache.getOrCreate(key, () => {
-            const instance = new query() as TQuery;
-            instance.paging = currentPaging;
-            instance.sorting = currentSorting;
-            instance.setMicroservice(arc.microservice);
-            instance.setApiBasePath(arc.apiBasePath ?? '');
-            instance.setOrigin(arc.origin ?? '');
-            instance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-            return instance;
-        });
+        const { instance, isNew } = queryCache.getOrCreate(key, () => freshInstance);
 
         if (!isNew) {
             (instance as TQuery).paging = currentPaging;
