@@ -1,9 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Http.Introspection;
+namespace Cratis.Arc.Introspection;
 
 /// <summary>
 /// Maps endpoint introspection routes.
@@ -26,8 +27,7 @@ public static class IntrospectionEndpointMapper
                 async context =>
                 {
                     var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
-                    var (commands, _) = introspectionService.IntrospectAllEndpoints();
-                    await context.WriteResponseAsJson(commands, typeof(List<CommandIntrospectionMetadata>), context.RequestAborted);
+                    await context.WriteResponseAsJson(introspectionService.Commands, typeof(List<CommandIntrospectionMetadata>), context.RequestAborted);
                 },
                 new EndpointMetadata(
                     CommandsEndpointName,
@@ -44,8 +44,7 @@ public static class IntrospectionEndpointMapper
                 async context =>
                 {
                     var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
-                    var (_, queries) = introspectionService.IntrospectAllEndpoints();
-                    await context.WriteResponseAsJson(queries, typeof(List<QueryIntrospectionMetadata>), context.RequestAborted);
+                    await context.WriteResponseAsJson(introspectionService.Queries, typeof(List<QueryIntrospectionMetadata>), context.RequestAborted);
                 },
                 new EndpointMetadata(
                     QueriesEndpointName,

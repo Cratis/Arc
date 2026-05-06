@@ -3,8 +3,8 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
-using Cratis.Arc.Http.Introspection;
 using Cratis.Arc.Identity;
+using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
