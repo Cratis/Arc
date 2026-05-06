@@ -21,7 +21,7 @@ export default defineConfig({
         // instantiated by command proxies. Without this, the Arc source node_modules
         // (7.7.3) and the workspace root node_modules (7.8.2) each produce a distinct
         // Guid class, causing Map.has() to always return false and Guid values to be
-        // serialised as { bytes: [...], _stringVersion: "..." } instead of a string.
+        // serialized as { bytes: [...], _stringVersion: "..." } instead of a string.
         dedupe: ['@cratis/fundamentals'],
         alias: [
             { find: '@cratis/arc/commands', replacement: arc('commands/index.ts') },
