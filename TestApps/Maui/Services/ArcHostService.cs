@@ -6,7 +6,6 @@ using Cratis.Arc.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TestApps.Authentication;
-using TestApps.Features.QueryShowcase;
 
 namespace TestApps.Maui.Services;
 
@@ -49,8 +48,9 @@ public class ArcHostService(ILogger<ArcHostService> logger) : IAsyncDisposable
 
         var builder = ArcApplication.CreateBuilder([]);
 
-        // Force the Shared assembly types to be discovered by Arc.
-        _ = typeof(ShowcaseItem);
+        // Force the Shared assembly to load before Arc scans assemblies so that all
+        // commands, queries, and read models are discovered by IImplementationsOf<T>.
+        _ = typeof(CookieAuthenticationHandler).Assembly;
 
         builder.AddCratisArc(configureOptions: options =>
         {

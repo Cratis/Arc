@@ -80,9 +80,33 @@ dotnet run --project TestApps/Maui/Maui.csproj
 
 The embedded Arc backend starts on `http://localhost:5001`. While the app is running you can also open that URL in a regular browser to interact with the frontend directly.
 
+## Testing with NativeAOT and Full Trimming
+
+The project has `<IsAotCompatible>true</IsAotCompatible>` set globally, which enables AOT and trim analyzers during every `dotnet build`. Analyzer warnings (`IL2026`, `IL3050`) are currently suppressed in `<NoWarn>` — remove those entries from the project file when you want to see every incompatibility Arc and its dependencies have with trimming.
+
+`dotnet build` always uses Mono for fast iteration. Only `dotnet publish` produces a NativeAOT binary with full trimming applied. You must target a single architecture — publishing without `-r` produces a universal binary (x64 + arm64) that fails because the `deps.json` differs between the two slices:
+
+```bash
+# macOS — publish with NativeAOT + full trimming (Apple Silicon)
+dotnet publish TestApps/Maui/Maui.csproj -f net10.0-maccatalyst -r maccatalyst-arm64
+
+# macOS — publish with NativeAOT + full trimming (Intel)
+dotnet publish TestApps/Maui/Maui.csproj -f net10.0-maccatalyst -r maccatalyst-x64
+```
+
+After publishing, run the `.app` bundle from the `bin/Release/net10.0-maccatalyst/<rid>/publish/` directory and open `http://localhost:5001/.cratis/queries` to observe which Arc features survive full trimming and NativeAOT compilation.
+
+### Known incompatibility: `ProjectReferencedAssemblies` requires `DependencyContext`
+
+Under NativeAOT, `/.cratis/queries` returns `[]` and every API request falls through to the SPA fallback, because no commands or queries are ever registered.
+
+**Root cause:** `Cratis.Fundamentals.Types.ProjectReferencedAssemblies.Initialize()` calls `DependencyContext.Load(Assembly.GetEntryAssembly())` to enumerate project assemblies. Under NativeAOT the entire app is compiled into a single native binary — there is no `deps.json` file in the bundle, so `DependencyContext.Load` returns `null`. The whole discovery block is skipped, `_assemblies` stays empty, and every `IInstancesOf<T>` / `FindMultiple<T>` call returns nothing.
+
+**Where to fix:** `Cratis.Fundamentals` → `ProjectReferencedAssemblies.Initialize()`. When `DependencyContext.Load` returns `null`, fall back to `AppDomain.CurrentDomain.GetAssemblies()` filtered to non-system assemblies and collect their `DefinedTypes`. This makes type discovery work in both Mono and NativeAOT contexts.
+
 ## Architecture
 
-```
+```text
 Maui.app
 ├── ArcHostService          — Starts Arc.Core HTTP backend on localhost:5001
 │   ├── Serves REST/WebSocket API at /api/...
@@ -97,9 +121,11 @@ The ArcCore React frontend (`TestApps/ArcCore`) is built by the `BuildFrontend` 
 
 ### Mac Catalyst Notes
 
-The Mac Catalyst build uses the Mono interpreter (`UseInterpreter=true`) to preserve reflection-based type discovery that Arc relies on for scanning assemblies and registering routes. Without this, trimming removes the metadata Arc needs.
+`dotnet build` uses the Mono runtime for fast iteration. `dotnet publish` produces a NativeAOT binary where the trimmer removes all statically unreachable code and the AOT compiler compiles everything ahead-of-time to native arm64 or x64.
 
-The build also copies `Maui.deps.json` into the app bundle's `Contents/MonoBundle/` directory. `DependencyContext.Default` reads this file to discover project assemblies. Without it, no commands or queries are registered and every API request falls through to the SPA fallback.
+**Mono builds (`dotnet build`):** The `IncludeDepsJsonInBundle` MSBuild target copies `Maui.deps.json` into the app bundle's `Contents/MonoBundle/` directory. `DependencyContext.Default` reads this file to discover project assemblies — without it Arc finds no commands or queries and every API request falls through to the SPA fallback.
+
+**NativeAOT builds (`dotnet publish`):** There is no separate `Maui.deps.json` in the bundle; all assemblies are compiled into a single native binary. Arc's reflection-based type scanning (`IImplementationsOf<T>`, `DependencyContext`) does not work in this mode without additional `[DynamicDependency]` annotations or trimmer root descriptors — surfacing exactly the incompatibilities this test app exists to investigate.
 
 ## Troubleshooting
 

@@ -24,6 +24,9 @@
         <!-- Generate deps.json so DependencyContext assembly discovery works (Arc type scanning) -->
         <GenerateDependencyFile>true</GenerateDependencyFile>
 
+        <!-- Enable AOT and trim analyzers on all platforms so incompatibilities surface during build. -->
+        <IsAotCompatible>true</IsAotCompatible>
+
         <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005;IL2026;IL3050;RCS1102;MA0036</NoWarn>
         <IsPackable>false</IsPackable>
 
@@ -36,9 +39,9 @@
     <!-- Mac Catalyst settings -->
     <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
         <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
-        <!-- Enable Mono interpreter for reflection-based type discovery (required for Arc) -->
-        <UseInterpreter>true</UseInterpreter>
-        <MtouchInterpreter>all</MtouchInterpreter>
+        <!-- Enable NativeAOT for publish. dotnet build still uses Mono for fast iteration;
+             only dotnet publish produces a NativeAOT binary with full trimming. -->
+        <PublishAot>true</PublishAot>
     </PropertyGroup>
 
     <!-- Windows settings -->
@@ -123,4 +126,5 @@
             <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').EndsWith('.runtimeconfig'))" />
         </ItemGroup>
     </Target>
+
 </Project>
