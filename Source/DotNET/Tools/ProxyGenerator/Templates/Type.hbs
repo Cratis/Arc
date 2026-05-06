@@ -23,7 +23,7 @@ import { {{{Type}}} } from '{{Module}}';
 {{#if DerivedTypeId}}
 @derivedType('{{DerivedTypeId}}')
 {{/if}}
-export class {{Name}} {
+export class {{Name}}{{#if BaseTypeName}} extends {{BaseTypeName}}{{/if}} {
     {{#Properties}}
     {{#if Documentation}}
 

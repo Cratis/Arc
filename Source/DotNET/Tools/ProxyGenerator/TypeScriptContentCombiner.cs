@@ -257,6 +257,9 @@ public static partial class TypeScriptContentCombiner
     [GeneratedRegex(@"[!?]\s*:\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
     private static partial Regex PropertyTypeAnnotationRegex();
 
+    [GeneratedRegex(@"\bextends\s+(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
+    private static partial Regex ExtendsClauseRegex();
+
     /// <summary>
     /// Topologically sorts body sections so that types referenced by <c>@field</c> decorators
     /// in other bodies appear before the bodies that reference them. This prevents forward
@@ -273,6 +276,7 @@ public static partial class TypeScriptContentCombiner
 
         var exportPattern = ExportDeclarationRegex();
         var fieldPattern = FieldDecoratorReferenceRegex();
+        var extendsPattern = ExtendsClauseRegex();
         var builtInTypes = new HashSet<string>(StringComparer.Ordinal)
         {
             "String", "Number", "Boolean", "Date", "Object"
@@ -298,6 +302,13 @@ public static partial class TypeScriptContentCombiner
             }
 
             foreach (var typeName in annotationPattern.Matches(body).Select(match => match.Groups["type"].Value).Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName)))
+            {
+                dependencies.Add(typeName);
+            }
+
+            // Treat `extends BaseType` as a dependency so that the base class body is ordered
+            // before the derived class body when both are combined into the same file.
+            foreach (var typeName in extendsPattern.Matches(body).Select(match => match.Groups["type"].Value).Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName)))
             {
                 dependencies.Add(typeName);
             }
