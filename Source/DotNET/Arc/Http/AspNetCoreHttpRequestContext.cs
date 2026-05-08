@@ -32,6 +32,9 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
         kvp => kvp.Value);
 
     /// <inheritdoc/>
+    public string Host => httpContext.Request.Host.Host;
+
+    /// <inheritdoc/>
     public string Path => httpContext.Request.Path;
 
     /// <inheritdoc/>
