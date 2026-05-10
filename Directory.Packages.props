@@ -35,6 +35,7 @@
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="MongoDB.Driver" Version="3.8.0" />
+    <PackageVersion Include="SharpCompress" Version="0.48.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageVersion Include="handlebars.net" Version="2.1.6" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
