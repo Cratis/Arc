@@ -490,7 +490,18 @@ public static class TypeExtensions
         var typesInvolved = new List<Type>();
 
         var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly).ToList();
-        var propertyDescriptors = properties.ConvertAll(_ => _.ToPropertyDescriptor());
+        var propertyDescriptors = properties
+            .ConvertAll(_ => _.ToPropertyDescriptor())
+            .ConvertAll(pd =>
+            {
+                // Strip derivatives that descend from the type being generated — importing them would create a circular dependency.
+                if (string.IsNullOrEmpty(pd.Derivatives)) return pd;
+                var filtered = string.Join(", ", pd.OriginalType
+                    .GetDerivativeTypes()
+                    .Where(t => !t.IsAssignableToBaseType(type))
+                    .Select(t => t.GetTargetType().Constructor));
+                return pd with { Derivatives = filtered };
+            });
         List<ImportStatement> imports = [];
 
         foreach (var property in propertyDescriptors)
@@ -553,7 +564,8 @@ public static class TypeExtensions
                         (propertyDescriptors.Exists(pd => TypeNameIsReferenced(pd.Type, _.Type)) ||
                          derivativeConstructorNames.Contains(_.Type) ||
                          (!string.IsNullOrEmpty(baseTypeName) && _.Type == baseTypeName))
-                        && _.OriginalType != type)];
+                        && _.OriginalType != type
+                        && !_.OriginalType.IsAssignableToBaseType(type))];
 
         var documentation = type.GetDocumentation();
         var derivedTypeId = type.GetDerivedTypeId();
