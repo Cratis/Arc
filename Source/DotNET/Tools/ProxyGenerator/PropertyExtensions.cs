@@ -76,11 +76,11 @@ public static class PropertyExtensions
 
         var targetType = propertyType.GetTargetType();
 
-        var derivativeTypes = propertyType.GetDerivativeTypes().ToList();
-        var derivatives = derivativeTypes.Count > 0
-            ? string.Join(", ", derivativeTypes.Select(t => t.GetTargetType().Constructor))
-            : string.Empty;
-
+        // Derivatives are intentionally omitted here. The @derivedType decorator registers each
+        // subtype with all ancestors at decoration time, so JsonSerializer discovers them via
+        // DerivedType.getDerivedTypesFor() without any explicit imports. Emitting a derivatives
+        // list would require the parent type to import each subtype, creating circular dependencies
+        // when those subtypes extend the parent type.
         return new(
             propertyType,
             name,
@@ -90,7 +90,6 @@ public static class PropertyExtensions
             isEnumerable,
             isNullable,
             propertyType.IsAPrimitiveType(),
-            documentation,
-            derivatives);
+            documentation);
     }
 }
