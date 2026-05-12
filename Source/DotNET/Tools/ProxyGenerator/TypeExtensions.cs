@@ -490,18 +490,7 @@ public static class TypeExtensions
         var typesInvolved = new List<Type>();
 
         var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly).ToList();
-        var propertyDescriptors = properties
-            .ConvertAll(_ => _.ToPropertyDescriptor())
-            .ConvertAll(pd =>
-            {
-                // Strip derivatives that descend from the type being generated — importing them would create a circular dependency.
-                if (string.IsNullOrEmpty(pd.Derivatives)) return pd;
-                var filtered = string.Join(", ", pd.OriginalType
-                    .GetDerivativeTypes()
-                    .Where(t => !t.IsAssignableToBaseType(type))
-                    .Select(t => t.GetTargetType().Constructor));
-                return pd with { Derivatives = filtered };
-            });
+        var propertyDescriptors = properties.ConvertAll(_ => _.ToPropertyDescriptor());
         List<ImportStatement> imports = [];
 
         foreach (var property in propertyDescriptors)
