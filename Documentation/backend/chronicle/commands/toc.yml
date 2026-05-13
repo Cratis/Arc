@@ -2,5 +2,9 @@
   href: index.md
 - name: Events
   href: events.md
+- name: Setting Subject
+  href: subject.md
+- name: Returning EventSourceId
+  href: returning-event-source-id.md
 - name: Concurrency
   href: concurrency.md

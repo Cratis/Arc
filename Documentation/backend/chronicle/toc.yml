@@ -4,8 +4,8 @@
   href: read-models.md
 - name: Commands
   href: commands/toc.yml
-- name: Event Source Values Provider
-  href: event-source-values-provider.md
+- name: Resolving EventSourceId
+  href: resolving-event-source-id.md
 - name: Tenancy
   href: tenancy.md
 - name: Validation

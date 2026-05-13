@@ -3,7 +3,7 @@ uid: Arc.Chronicle.ReadModels
 ---
 # Read Models
 
-Read Models in Arc provide automatic dependency injection and seamless integration with Chronicle's projection system. The client automatically resolves read models based on the identity/key extracted from the command using flexible resolution strategies, with values provided through the [Command Context](../../commands/command-context.md) by the [Event Source Values Provider](../event-source-values-provider.md).
+Read Models in Arc provide automatic dependency injection and seamless integration with Chronicle's projection system. The client automatically resolves read models based on the identity/key extracted from the command using flexible resolution strategies, with values provided through the [Command Context](../../commands/command-context.md) by [Resolving EventSourceId](./resolving-event-source-id.md).
 
 ## Overview
 
@@ -49,7 +49,7 @@ public record UpdateUserProfileCommand([Key] Guid UserId, string DisplayName, st
 
 ## Id/Key Resolution
 
-The read model resolution works exactly the same way as [Aggregate Root](../aggregates/aggregate-roots.md) resolution. It depends on identifying which read model instance to load from the projection store. The system supports multiple strategies for resolving this identity, with the [Event Source Values Provider](../event-source-values-provider.md) supplying the resolved value through the [Command Context Values](../../commands/command-context.md#command-context-values) pipeline. The resolution process works as follows:
+The read model resolution works exactly the same way as [Aggregate Root](../aggregates/aggregate-roots.md) resolution. It depends on identifying which read model instance to load from the projection store. The system supports multiple strategies for resolving this identity, with [Resolving EventSourceId](./resolving-event-source-id.md) supplying the resolved value through the [Command Context Values](../../commands/command-context.md#command-context-values) pipeline. The resolution process works as follows:
 
 1. **Identity Strategy Resolution**: The system inspects the command to determine the identity using one of the available strategies
 2. **Command Context Lookup**: The resolved identity is retrieved from the current `CommandContext`
