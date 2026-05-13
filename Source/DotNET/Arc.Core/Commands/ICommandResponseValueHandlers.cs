@@ -9,6 +9,13 @@ namespace Cratis.Arc.Commands;
 public interface ICommandResponseValueHandlers
 {
     /// <summary>
+    /// Updates the <see cref="CommandContext"/> based on the given value before it is handled.
+    /// </summary>
+    /// <param name="context">The <see cref="CommandContext"/> for the command that produced the value.</param>
+    /// <param name="value">Value to inspect for context updates.</param>
+    void UpdateContext(CommandContext context, object value);
+
+    /// <summary>
     /// Determines whether any handler can handle the given value.
     /// </summary>
     /// <param name="context">The <see cref="CommandContext"/> for the command that produced the value.</param>

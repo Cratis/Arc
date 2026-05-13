@@ -11,9 +11,10 @@ When no explicit subject is supplied, Chronicle defaults to the `EventSourceId`.
 
 Arc resolves the subject from the command in this order:
 
-1. **Return a `Subject`** directly from `Handle()`.
+1. **Return a `Subject`** from `Handle()` as part of the response tuple.
 2. **Implement `ICanProvideSubject`** on the command record and return the subject from `GetSubject()`.
-3. **Decorate a property with `[Subject]`** from `Cratis.Chronicle` — Arc reads its value and converts it to a `Subject`.
+3. **Add a property of type `Subject`** to the command.
+4. **Decorate a property with `[Subject]`** from `Cratis.Chronicle` — Arc reads its value and converts it to a `Subject`.
 
 If none of these are present, no subject is passed to Chronicle and it falls back to using the `EventSourceId`.
 
@@ -37,7 +38,7 @@ public record PlaceOrder(EventSourceId OrderId, CustomerId CustomerId, decimal A
 public record OrderPlaced(EventSourceId OrderId, CustomerId CustomerId, decimal Amount);
 ```
 
-Arc detects the `Subject` in the tuple response and passes it to `Append` automatically.
+Arc detects the `Subject` in the tuple response and passes it to `Append` automatically. The `Subject` is treated as append metadata, so it does not become the command response even when you also return another response value in the same tuple.
 
 ## ICanProvideSubject Interface
 
@@ -75,7 +76,7 @@ public record PlaceOrder(EventSourceId OrderId, [Subject] CustomerId CustomerId,
 }
 ```
 
-If the property is already of type `Subject`, it is used directly. Any other type is converted via its `ToString()` representation.
+If the property is already of type `Subject`, Arc uses it directly even without `[Subject]`. Any other `[Subject]`-annotated type is converted via its `ToString()` representation.
 
 ## Relationship to PII Decryption
 
