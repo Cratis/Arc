@@ -31,6 +31,41 @@ public class when_resolving_read_model
     }
 
     [Fact]
+    public void should_release_read_model_when_subject_is_in_response()
+    {
+        var eventSourceId = EventSourceId.New();
+        var subject = new Subject("customer-response");
+        var readModel = new TestReadModel("encrypted");
+        var releasedReadModel = new TestReadModel("decrypted");
+        var commandContext = CreateCommandContext(eventSourceId) with { Response = subject };
+        var readModels = Substitute.For<IReadModels>();
+        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).ReturnsForAnyArgs(Task.FromResult<object>(readModel));
+        readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
+
+        var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
+
+        result.ShouldEqual(releasedReadModel);
+        readModels.Received(1).Release(subject, readModel);
+    }
+
+    [Fact]
+    public void should_resolve_read_model_when_event_source_id_is_in_response()
+    {
+        var eventSourceId = EventSourceId.New();
+        var subject = new Subject("customer-84");
+        var readModel = new TestReadModel("encrypted");
+        var releasedReadModel = new TestReadModel("decrypted");
+        var commandContext = CreateCommandContext(EventSourceId.Unspecified, subject) with { Response = eventSourceId };
+        var readModels = Substitute.For<IReadModels>();
+        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).ReturnsForAnyArgs(Task.FromResult<object>(readModel));
+        readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
+
+        var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
+
+        result.ShouldEqual(releasedReadModel);
+    }
+
+    [Fact]
     public void should_return_loaded_read_model_when_subject_is_missing()
     {
         var eventSourceId = EventSourceId.New();
@@ -42,6 +77,18 @@ public class when_resolving_read_model
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
         result.ShouldEqual(readModel);
+        readModels.DidNotReceive().Release(Arg.Any<Subject>(), Arg.Any<TestReadModel>());
+    }
+
+    [Fact]
+    public void should_throw_when_event_source_id_is_unspecified()
+    {
+        var commandContext = CreateCommandContext(EventSourceId.Unspecified);
+        var readModels = Substitute.For<IReadModels>();
+
+        var exception = Catch.Exception(() => Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels));
+
+        exception.ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();
         readModels.DidNotReceive().Release(Arg.Any<Subject>(), Arg.Any<TestReadModel>());
     }
 
