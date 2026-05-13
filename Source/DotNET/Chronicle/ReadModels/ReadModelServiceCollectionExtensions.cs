@@ -21,7 +21,15 @@ public static class ReadModelServiceCollectionExtensions
 {
     static readonly MethodInfo _releaseWithSubjectMethod = typeof(IReadModels)
         .GetMethods()
-        .Single(_ => _.Name == nameof(IReadModels.Release) && _.GetParameters() is [{ ParameterType: not null }, { ParameterType: not null }]);
+        .Single(_ =>
+        {
+            var parameters = _.GetParameters();
+            return _.Name == nameof(IReadModels.Release) &&
+                   _.IsGenericMethodDefinition &&
+                   parameters.Length == 2 &&
+                   parameters[0].ParameterType == typeof(Subject) &&
+                   parameters[1].ParameterType.IsGenericParameter;
+        });
     static bool _initialized;
 
     /// <summary>
@@ -92,12 +100,19 @@ public static class ReadModelServiceCollectionExtensions
 
     static object ReleaseReadModel(IReadModels readModels, Type readModelType, Subject subject, object readModel)
     {
-        var task = (Task)_releaseWithSubjectMethod
-            .MakeGenericMethod(readModelType)
-            .Invoke(readModels, [subject, readModel])!;
+        try
+        {
+            var task = (Task)_releaseWithSubjectMethod
+                .MakeGenericMethod(readModelType)
+                .Invoke(readModels, [subject, readModel])!;
 
-        task.GetAwaiter().GetResult();
+            task.GetAwaiter().GetResult();
 
-        return task.GetType().GetProperty(nameof(Task<object>.Result))!.GetValue(task)!;
+            return task.GetType().GetProperty("Result")!.GetValue(task)!;
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}' with subject '{subject.Value}'.", exception);
+        }
     }
 }
