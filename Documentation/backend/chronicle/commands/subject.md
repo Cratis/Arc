@@ -3,7 +3,7 @@ uid: Arc.Chronicle.Commands.Subject
 ---
 # Setting Subject on commands
 
-Use `Subject` on a Chronicle command when the compliance identity for appended events is different from the event source id. Chronicle passes the resolved subject to the EventStore when it appends events automatically.
+Use `Subject` on a Chronicle command when the compliance identity for appended events is different from the event source id. Chronicle passes the resolved subject to the EventStore when it appends events automatically, and Arc uses the same resolved subject when it releases dependent read models injected into the command handler or validator.
 
 If you do not provide a subject, Chronicle does not send one explicitly and the EventStore falls back to its normal event source id behavior.
 
@@ -95,4 +95,4 @@ The `Subject` value is append metadata. Chronicle does not treat it as the comma
 
 ## When to use this page
 
-This page focuses on how to set subject values on command appends. For the compliance background and how subject affects PII encryption and decryption, see [Subject](../compliance/subject.md).
+This page focuses on how to set subject values on command appends and command-side read model dependencies. For the compliance background and how subject affects PII encryption and decryption, see [Subject](../compliance/subject.md).

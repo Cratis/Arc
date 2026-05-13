@@ -80,4 +80,9 @@ If the property is already of type `Subject`, Arc uses it directly even without 
 
 ## Relationship to PII Decryption
 
-Chronicle uses the subject as the lookup key for PII encryption keys. When a read model contains `[PII]`-annotated properties, Arc's [PII](./pii.md) interceptor calls `Release()` with the subject to decrypt those values before they are served to the client. The subject set here at append time must therefore match the subject used on the read model's `[Subject]`-marked property.
+Chronicle uses the subject as the lookup key for PII encryption keys. When a read model contains `[PII]`-annotated properties, Arc uses the same subject in two places:
+
+- query responses, where Arc's [PII](./pii.md) interceptor calls `Release()` before the read model is served to the client
+- command-side read model dependencies, where Arc resolves the subject from the current command context and releases the injected read model before your handler or validator uses it
+
+The subject set here at append time must therefore match the subject used on the read model's `[Subject]`-marked property.

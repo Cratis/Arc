@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
@@ -17,6 +19,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ReadModelServiceCollectionExtensions
 {
+    static readonly MethodInfo _releaseWithSubjectMethod = typeof(IReadModels)
+        .GetMethods()
+        .Single(_ => _.Name == nameof(IReadModels.Release) && _.GetParameters() is [{ ParameterType: not null }, { ParameterType: not null }]);
     static bool _initialized;
 
     /// <summary>
@@ -52,21 +57,47 @@ public static class ReadModelServiceCollectionExtensions
         foreach (var readModelType in readModelTypes)
         {
             services.RemoveAll(readModelType);
-            services.AddScoped(readModelType, serviceProvider =>
-            {
-                var commandContext = serviceProvider.GetRequiredService<CommandContext>();
-                var readModels = serviceProvider.GetRequiredService<IReadModels>();
-
-                var eventSourceId = commandContext.GetEventSourceId();
-                if (eventSourceId == EventSourceId.Unspecified)
-                {
-                    throw new UnableToResolveReadModelFromCommandContext(readModelType);
-                }
-
-                return readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
-            });
+            services.AddScoped(readModelType, serviceProvider => ResolveReadModel(
+                readModelType,
+                serviceProvider.GetRequiredService<CommandContext>(),
+                serviceProvider.GetRequiredService<IReadModels>()));
         }
 
         return services;
+    }
+
+    /// <summary>
+    /// Resolves a read model for the current command context.
+    /// </summary>
+    /// <param name="readModelType">Type of read model to resolve.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
+    /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
+    /// <returns>The resolved read model instance.</returns>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context does not contain a usable event source id.</exception>
+    internal static object ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
+    {
+        var eventSourceId = commandContext.GetEventSourceId();
+        if (eventSourceId == EventSourceId.Unspecified)
+        {
+            throw new UnableToResolveReadModelFromCommandContext(readModelType);
+        }
+
+        var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
+        var subject = commandContext.GetSubject();
+
+        return subject is null
+            ? readModel
+            : ReleaseReadModel(readModels, readModelType, subject, readModel);
+    }
+
+    static object ReleaseReadModel(IReadModels readModels, Type readModelType, Subject subject, object readModel)
+    {
+        var task = (Task)_releaseWithSubjectMethod
+            .MakeGenericMethod(readModelType)
+            .Invoke(readModels, [subject, readModel])!;
+
+        task.GetAwaiter().GetResult();
+
+        return task.GetType().GetProperty(nameof(Task<object>.Result))!.GetValue(task)!;
     }
 }
