@@ -21,7 +21,7 @@ public class when_resolving_read_model
         var releasedReadModel = new TestReadModel("decrypted");
         var commandContext = CreateCommandContext(eventSourceId, subject);
         var readModels = Substitute.For<IReadModels>();
-        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).ReturnsForAnyArgs(Task.FromResult<object>(readModel));
+        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
         readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
@@ -39,7 +39,7 @@ public class when_resolving_read_model
         var releasedReadModel = new TestReadModel("decrypted");
         var commandContext = CreateCommandContext(eventSourceId) with { Response = subject };
         var readModels = Substitute.For<IReadModels>();
-        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).ReturnsForAnyArgs(Task.FromResult<object>(readModel));
+        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
         readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
@@ -57,7 +57,7 @@ public class when_resolving_read_model
         var releasedReadModel = new TestReadModel("decrypted");
         var commandContext = CreateCommandContext(EventSourceId.Unspecified, subject) with { Response = eventSourceId };
         var readModels = Substitute.For<IReadModels>();
-        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).ReturnsForAnyArgs(Task.FromResult<object>(readModel));
+        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
         readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
@@ -77,7 +77,7 @@ public class when_resolving_read_model
         var readModel = new TestReadModel("loaded");
         var commandContext = CreateCommandContext(eventSourceId);
         var readModels = Substitute.For<IReadModels>();
-        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).ReturnsForAnyArgs(Task.FromResult<object>(readModel));
+        readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
