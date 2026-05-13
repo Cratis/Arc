@@ -1,5 +1,2 @@
 <Project>
-    <ItemGroup>
-        <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="5.3.0" PrivateAssets="All" />
-    </ItemGroup>
 </Project>

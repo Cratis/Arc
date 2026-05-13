@@ -20,7 +20,7 @@ Without this package, Arc and Chronicle are independent. With it:
 | ----- | ----------- |
 | [Aggregates](aggregates/index.md) | Working with aggregate roots and event sourcing. |
 | [Commands](commands/index.md) | Returning events from commands, event source id resolution, and concurrency scoping. |
-| [Event Source Values Provider](event-source-values-provider.md) | Command context values for event source resolution. |
+| [Resolving EventSourceId](resolving-event-source-id.md) | How Chronicle resolves aggregate and read model identity from commands and query arguments. |
 | [Read Models](read-models.md) | How read models are hooked up to Chronicle projections. |
 | [Tenancy](tenancy.md) | Tenant-aware namespaces for event stores and projections. |
 | [Validation](validation.md) | Validation with read models and identity resolution conventions. |

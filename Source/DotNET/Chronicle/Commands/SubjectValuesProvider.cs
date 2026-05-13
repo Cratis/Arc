@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
-using Cratis.Chronicle;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -22,50 +21,18 @@ public class SubjectValuesProvider : ICommandContextValuesProvider
             };
         }
 
-        var commandType = command.GetType();
-
-        // Check properties first, then constructor parameters (record primary constructor shorthand).
-        var subjectProperty =
-            commandType.GetProperties().FirstOrDefault(p => Attribute.IsDefined(p, typeof(SubjectAttribute))) ??
-            ResolvePropertyFromConstructorParameter(commandType);
-
-        if (subjectProperty is not null)
+        if (command.HasSubject())
         {
-            var value = subjectProperty.GetValue(command);
-
-            if (value is Subject subject)
+            var subject = command.GetSubject();
+            if (subject is not null)
             {
                 return new CommandContextValues
                 {
                     { WellKnownCommandContextKeys.Subject, subject }
                 };
             }
-
-            if (value is not null)
-            {
-                return new CommandContextValues
-                {
-                    { WellKnownCommandContextKeys.Subject, new Subject(value.ToString()!) }
-                };
-            }
         }
 
         return [];
-    }
-
-    static System.Reflection.PropertyInfo? ResolvePropertyFromConstructorParameter(Type type)
-    {
-        var constructor = type.GetConstructors().FirstOrDefault();
-        if (constructor is null)
-        {
-            return null;
-        }
-
-        var parameter = constructor.GetParameters()
-            .FirstOrDefault(p => Attribute.IsDefined(p, typeof(SubjectAttribute)));
-
-        return parameter is not null
-            ? type.GetProperty(parameter.Name!, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            : null;
     }
 }

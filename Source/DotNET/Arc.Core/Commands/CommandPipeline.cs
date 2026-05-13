@@ -226,6 +226,11 @@ public class CommandPipeline(
     {
         var values = ExtractValuesFromTupleInOrder(tuple).ToList();
 
+        foreach (var value in values)
+        {
+            valueHandlers.UpdateContext(commandContext, value);
+        }
+
         // First pass: identify and set the response value
         // Handlers may check commandContext.Response, so we need to set it before checking possibility to handle
         var valuesToProcess = new List<object>();

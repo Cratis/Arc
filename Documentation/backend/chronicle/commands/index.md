@@ -15,5 +15,7 @@ Chronicle also resolves the event source identity, event stream metadata, and co
 
 | Topic | Description |
 | ------- | ----------- |
-| [Events](./events.md) | Returning events from commands and how Chronicle appends them automatically, including event source id resolution and stream metadata. |
+| [Events](./events.md) | Returning events from commands and how Chronicle appends them automatically, including stream metadata. |
+| [Setting Subject](./subject.md) | Supplying a compliance subject on the command or by returning it from `Handle()`. |
+| [Returning EventSourceId](./returning-event-source-id.md) | Explicitly deciding the event source id by returning it from a command tuple. |
 | [Concurrency](./concurrency.md) | Declaring a concurrency scope on commands using metadata attributes and interfaces. |

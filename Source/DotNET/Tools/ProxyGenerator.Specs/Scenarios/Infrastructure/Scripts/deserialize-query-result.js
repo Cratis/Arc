@@ -5,20 +5,29 @@
 // derived class is instantiated so that constructor.name reflects the real type.
 try {
     var response = JSON.parse('{{ESCAPED_JSON}}');
+    var Fundamentals = require('@cratis/fundamentals');
+    var DerivedType = Fundamentals && Fundamentals.DerivedType;
 
     if (response.data && __query.modelType && globalThis.Fields) {
 
         function getDerivedTypeId(cls) {
             try {
-                return Reflect && Reflect.getOwnMetadata ? Reflect.getOwnMetadata('derivedType', cls) : undefined;
+                return DerivedType && DerivedType.get ? DerivedType.get(cls) : undefined;
             } catch(e) { return undefined; }
         }
 
         function resolveType(field, value) {
-            if (field.derivatives && field.derivatives.length > 0 && value._derivedTypeId) {
+            if (value._derivedTypeId) {
                 var id = value._derivedTypeId;
-                for (var i = 0; i < field.derivatives.length; i++) {
-                    var d = field.derivatives[i];
+                var candidates = [];
+                if (field.derivatives && field.derivatives.length > 0) {
+                    candidates = candidates.concat(field.derivatives);
+                }
+                if (DerivedType && DerivedType.getDerivedTypesFor && field.type) {
+                    candidates = candidates.concat(DerivedType.getDerivedTypesFor(field.type));
+                }
+                for (var i = 0; i < candidates.length; i++) {
+                    var d = candidates[i];
                     if (d && getDerivedTypeId(d) === id) {
                         return d;
                     }
