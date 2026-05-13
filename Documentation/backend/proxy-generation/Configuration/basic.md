@@ -24,7 +24,7 @@
 
 Without skipping:
 
-```
+```text
 Api/MyFeature/
 Domain/MyFeature/
 Read/MyFeature/
@@ -32,7 +32,7 @@ Read/MyFeature/
 
 With skipping:
 
-```
+```text
 MyFeature/
 ```
 
@@ -52,7 +52,7 @@ By default, one TypeScript file is generated per C# type. When `CratisProxiesUse
 
 Default:
 
-```
+```text
 AccountCommands/
 ├── CreateAccount.ts
 ├── UpdateAccount.ts
@@ -61,7 +61,7 @@ AccountCommands/
 
 With `CratisProxiesUseSourceFileAsOutputFile=true`:
 
-```
+```text
 AccountCommands/
 └── AccountCommands.ts
 ```
