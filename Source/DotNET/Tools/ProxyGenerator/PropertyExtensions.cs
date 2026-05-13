@@ -75,12 +75,14 @@ public static class PropertyExtensions
         }
 
         var targetType = propertyType.GetTargetType();
+        var derivatives = propertyType.IsInterface
+            ? string.Join(", ", propertyType.GetDerivativeTypes().Select(_ => _.GetTargetType().Constructor))
+            : string.Empty;
 
-        // Derivatives are intentionally omitted here. The @derivedType decorator registers each
-        // subtype with all ancestors at decoration time, so JsonSerializer discovers them via
-        // DerivedType.getDerivedTypesFor() without any explicit imports. Emitting a derivatives
-        // list would require the parent type to import each subtype, creating circular dependencies
-        // when those subtypes extend the parent type.
+        // For interface-typed properties we must emit derivative constructors explicitly, because
+        // @derivedType auto-registers along the runtime prototype chain only and cannot discover
+        // classes that merely implement an interface. For class inheritance hierarchies we still
+        // omit derivatives to avoid circular dependencies and rely on the registry instead.
         return new(
             propertyType,
             name,
@@ -90,6 +92,7 @@ public static class PropertyExtensions
             isEnumerable,
             isNullable,
             propertyType.IsAPrimitiveType(),
-            documentation);
+            documentation,
+            derivatives);
     }
 }
