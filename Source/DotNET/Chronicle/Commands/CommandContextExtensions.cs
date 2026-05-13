@@ -18,7 +18,7 @@ public static class CommandContextExtensions
     /// <param name="commandContext">The command context to check.</param>
     /// <returns>True if the command context has an event source id, false otherwise.</returns>
     public static bool HasEventSourceId(this CommandContext commandContext) =>
-        commandContext.Response is EventSourceId ||
+        (commandContext.Response is not null && EventSourceExtensions.IsEventSourceIdValue(commandContext.Response)) ||
         (commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventSourceId, out var value) && value is EventSourceId);
 
     /// <summary>
@@ -29,9 +29,9 @@ public static class CommandContextExtensions
     /// <exception cref="MissingEventSourceIdInCommandContext">Thrown when the event source id is missing in the command context.</exception>
     public static EventSourceId GetEventSourceId(this CommandContext commandContext)
     {
-        if (commandContext.Response is EventSourceId eventSourceIdResponse)
+        if (commandContext.Response is not null && EventSourceExtensions.IsEventSourceIdValue(commandContext.Response))
         {
-            return eventSourceIdResponse;
+            return EventSourceExtensions.ToEventSourceId(commandContext.Response);
         }
 
         if (commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventSourceId, out var value) && value is EventSourceId eventSourceId)

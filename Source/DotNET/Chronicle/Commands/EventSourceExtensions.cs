@@ -88,17 +88,20 @@ public static class EventSourceExtensions
         return eventSourceId;
     }
 
-    static bool IsGenericEventSourceIdType(Type? type)
-    {
-        if (type is null) return false;
-        if (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition) return true;
-        return IsGenericEventSourceIdType(type.BaseType);
-    }
-
-    static bool IsEventSourceIdValue(object? value) =>
+    /// <summary>
+    /// Determines whether the given value is an <see cref="EventSourceId"/> or a generic <see cref="EventSourceId{T}"/> subtype.
+    /// </summary>
+    /// <param name="value">The value to check.</param>
+    /// <returns>True if the value is an event source ID; otherwise, false.</returns>
+    internal static bool IsEventSourceIdValue(object? value) =>
         value is EventSourceId || (value is not null && IsGenericEventSourceIdType(value.GetType()));
 
-    static EventSourceId ToEventSourceId(object value)
+    /// <summary>
+    /// Converts a value to an <see cref="EventSourceId"/>, handling direct instances, generic <see cref="EventSourceId{T}"/> subtypes via their implicit operator, and falling back to <see cref="object.ToString"/>.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /// <returns>The corresponding <see cref="EventSourceId"/>.</returns>
+    internal static EventSourceId ToEventSourceId(object value)
     {
         if (value is EventSourceId esId)
         {
@@ -125,5 +128,12 @@ public static class EventSourceExtensions
         }
 
         return value.ToString()!;
+    }
+
+    static bool IsGenericEventSourceIdType(Type? type)
+    {
+        if (type is null) return false;
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition) return true;
+        return IsGenericEventSourceIdType(type.BaseType);
     }
 }
