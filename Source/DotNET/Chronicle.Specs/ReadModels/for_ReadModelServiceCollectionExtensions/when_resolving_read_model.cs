@@ -31,7 +31,7 @@ public class when_resolving_read_model
     }
 
     [Fact]
-    public void should_release_read_model_when_subject_is_in_response()
+    public void should_return_released_read_model_when_subject_is_in_response()
     {
         var eventSourceId = EventSourceId.New();
         var subject = new Subject("customer-response");
@@ -63,6 +63,11 @@ public class when_resolving_read_model
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
         result.ShouldEqual(releasedReadModel);
+        readModels.ReceivedCalls().Any(_ =>
+            _.GetMethodInfo().Name == nameof(IReadModels.GetInstanceById) &&
+            _.GetArguments() is [Type readModelType, ReadModelKey actualReadModelKey, _] &&
+            readModelType == typeof(TestReadModel) &&
+            actualReadModelKey.Value == eventSourceId.Value).ShouldBeTrue();
     }
 
     [Fact]
