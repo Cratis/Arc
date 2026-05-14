@@ -55,16 +55,25 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
             instanceType != typeof(DateTime) &&
             instanceType != typeof(DateTimeOffset) &&
             instanceType != typeof(Guid) &&
-            instanceType != typeof(decimal) &&
-            !instanceType.IsArray &&
-            !typeof(System.Collections.IEnumerable).IsAssignableFrom(instanceType))
+            instanceType != typeof(decimal))
         {
-            foreach (var property in instanceType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            if (instanceType.IsArray || typeof(System.Collections.IEnumerable).IsAssignableFrom(instanceType))
             {
-                var propertyValue = property.GetValue(instance);
-                if (propertyValue is not null)
+                foreach (var element in (System.Collections.IEnumerable)instance)
                 {
-                    commandResult.MergeWith(await Validate(context, propertyValue));
+                    if (element is null) continue;
+                    commandResult.MergeWith(await Validate(context, element));
+                }
+            }
+            else
+            {
+                foreach (var property in instanceType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    var propertyValue = property.GetValue(instance);
+                    if (propertyValue is not null)
+                    {
+                        commandResult.MergeWith(await Validate(context, propertyValue));
+                    }
                 }
             }
         }
