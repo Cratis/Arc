@@ -542,6 +542,18 @@ public static class TypeExtensions
 
         imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
 
+        // For interface-typed properties, derivative types must be imported explicitly.
+        // They are from mapped assemblies and are excluded from typesInvolved collection,
+        // so they never reach GetImports(). Without this, derivative constructor names are
+        // emitted in @field(...) but have no corresponding import statements.
+        foreach (var pd in propertyDescriptors.Where(pd => !string.IsNullOrEmpty(pd.Derivatives)))
+        {
+            foreach (var derivativeType in pd.OriginalType.GetDerivativeTypes())
+            {
+                imports.Add(derivativeType.GetImportStatement(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+            }
+        }
+
         var derivativeConstructorNames = new HashSet<string>(
             propertyDescriptors
                 .Where(pd => !string.IsNullOrEmpty(pd.Derivatives))
