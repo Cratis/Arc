@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
 using FluentValidation;
 using FluentValidation.Results;
 using ValidationResult = FluentValidation.Results.ValidationResult;
@@ -22,12 +23,12 @@ public class with_multiple_validation_errors_at_different_levels : given.a_fluen
         _command = new ComplexCommand("", nestedObject);
         _context = new CommandContext(_correlationId, typeof(ComplexCommand), _command, [], new());
 
-        _commandValidator = Substitute.For<IValidator>();
+        _commandValidator = Substitute.For<IValidator, IObjectValidator>();
         _commandValidationResult = new ValidationResult([
             new ValidationFailure("Name", "Name is required")
         ]);
 
-        _nestedValidator = Substitute.For<IValidator>();
+        _nestedValidator = Substitute.For<IValidator, IObjectValidator>();
         _nestedValidationResult = new ValidationResult([
             new ValidationFailure("Value", "Nested value is invalid")
         ]);
@@ -46,8 +47,8 @@ public class with_multiple_validation_errors_at_different_levels : given.a_fluen
                 return true;
             });
 
-        _commandValidator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>()).Returns(_commandValidationResult);
-        _nestedValidator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>()).Returns(_nestedValidationResult);
+        ((IObjectValidator)_commandValidator).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>()).Returns(_commandValidationResult);
+        ((IObjectValidator)_nestedValidator).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>()).Returns(_nestedValidationResult);
     }
 
     async Task Because() => _result = await _filter.OnExecution(_context);
@@ -60,8 +61,8 @@ public class with_multiple_validation_errors_at_different_levels : given.a_fluen
     [Fact] void should_have_two_validation_results() => _result.ValidationResults.Count().ShouldEqual(2);
     [Fact] void should_have_command_validation_error() => _result.ValidationResults.Any(vr => vr.Message == "Name is required").ShouldBeTrue();
     [Fact] void should_have_nested_validation_error() => _result.ValidationResults.Any(vr => vr.Message == "Nested value is invalid").ShouldBeTrue();
-    [Fact] void should_call_command_validator() => _commandValidator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
-    [Fact] void should_call_nested_validator() => _nestedValidator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
+    [Fact] void should_call_command_validator() => ((IObjectValidator)_commandValidator).Received(1).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>());
+    [Fact] void should_call_nested_validator() => ((IObjectValidator)_nestedValidator).Received(1).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>());
 
     record ComplexCommand(string Name, NestedObject Nested);
     record NestedObject(string Value);

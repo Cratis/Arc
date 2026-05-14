@@ -20,7 +20,7 @@ public class with_validator_found_and_validation_fails : given.a_fluent_validati
         _command = new TestCommand("InvalidName");
         _context = new CommandContext(_correlationId, typeof(TestCommand), _command, [], new());
 
-        _validator = Substitute.For<IValidator>();
+        _validator = Substitute.For<IValidator, IObjectValidator>();
         _validationResult = new FluentValidationResult([
             new ValidationFailure("Name", "Name is required")
         ]);
@@ -32,7 +32,7 @@ public class with_validator_found_and_validation_fails : given.a_fluent_validati
                 return true;
             });
 
-        _validator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>()).Returns(_validationResult);
+        ((IObjectValidator)_validator).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>()).Returns(_validationResult);
     }
 
     async Task Because() => _result = await _filter.OnExecution(_context);
@@ -46,7 +46,7 @@ public class with_validator_found_and_validation_fails : given.a_fluent_validati
     [Fact] void should_have_validation_result_with_error_severity() => _result.ValidationResults.First().Severity.ShouldEqual(ValidationResultSeverity.Error);
     [Fact] void should_have_validation_result_with_correct_message() => _result.ValidationResults.First().Message.ShouldEqual("Name is required");
     [Fact] void should_have_validation_result_with_correct_member() => _result.ValidationResults.First().Members.ShouldContain("Name");
-    [Fact] void should_call_validator() => _validator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
+    [Fact] void should_call_validator() => ((IObjectValidator)_validator).Received(1).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>());
 
     record TestCommand(string Name);
 }

@@ -28,7 +28,10 @@ public class DiscoverableValidators : IDiscoverableValidators
             var interfaces = _.GetInterfaces();
             var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
             var modelType = validatorType.GetGenericArguments()[0];
-            return !_.IsAssignableTo(typeof(AbstractValidator<>).MakeGenericType(modelType));
+            return !interfaces.Any(i =>
+                i.IsGenericType &&
+                i.GetGenericTypeDefinition() == typeof(IValidator<>) &&
+                i.GetGenericArguments()[0] == modelType);
         }).ToArray();
 
         if (invalidValidators.Length > 0)

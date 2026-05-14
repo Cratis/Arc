@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Validation;
-using FluentValidation;
 
 namespace Cratis.Arc.Queries.Filters;
 
@@ -48,11 +47,9 @@ public class FluentValidationFilter(IQueryPerformerProviders queryPerformerProvi
         }
 
         var parameterType = parameter.Type;
-        if (discoverableValidators.TryGet(parameterType, out var validator))
+        if (discoverableValidators.TryGet(parameterType, out var validator) && validator is IObjectValidator objectValidator)
         {
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(parameterType);
-            var validationContext = Activator.CreateInstance(validationContextType, value) as IValidationContext;
-            var validationResult = await validator.ValidateAsync(validationContext);
+            var validationResult = await objectValidator.ValidateObjectAsync(value);
             if (!validationResult.IsValid)
             {
                 queryResult.MergeWith(new QueryResult

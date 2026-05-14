@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
 using FluentValidation;
 using FluentValidationResult = FluentValidation.Results.ValidationResult;
 
@@ -17,7 +18,7 @@ public class with_primitive_command : given.a_fluent_validation_filter
         const int command = 42;
         _context = new CommandContext(_correlationId, typeof(int), command, [], new());
 
-        _validator = Substitute.For<IValidator>();
+        _validator = Substitute.For<IValidator, IObjectValidator>();
         _validationResult = new FluentValidationResult();
 
         _discoverableValidators.TryGet(typeof(int), out Arg.Any<IValidator>())
@@ -27,7 +28,7 @@ public class with_primitive_command : given.a_fluent_validation_filter
                 return true;
             });
 
-        _validator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>()).Returns(_validationResult);
+        ((IObjectValidator)_validator).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>()).Returns(_validationResult);
     }
 
     async Task Because() => _result = await _filter.OnExecution(_context);
@@ -38,5 +39,5 @@ public class with_primitive_command : given.a_fluent_validation_filter
     [Fact] void should_be_valid() => _result.IsValid.ShouldBeTrue();
     [Fact] void should_not_have_exceptions() => _result.HasExceptions.ShouldBeFalse();
     [Fact] void should_not_have_validation_results() => _result.ValidationResults.ShouldBeEmpty();
-    [Fact] void should_call_validator_once() => _validator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
+    [Fact] void should_call_validator_once() => ((IObjectValidator)_validator).Received(1).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>());
 }

@@ -19,7 +19,7 @@ public class with_object_containing_null_property : given.a_fluent_validation_fi
         _command = new CommandWithNullProperty("ValidName", null);
         _context = new CommandContext(_correlationId, typeof(CommandWithNullProperty), _command, [], new());
 
-        _validator = Substitute.For<IValidator>();
+        _validator = Substitute.For<IValidator, IObjectValidator>();
         _validationResult = new FluentValidation.Results.ValidationResult([
             new ValidationFailure("NullProperty", "Property cannot be null")
         ]);
@@ -31,7 +31,7 @@ public class with_object_containing_null_property : given.a_fluent_validation_fi
                 return true;
             });
 
-        _validator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>()).Returns(_validationResult);
+        ((IObjectValidator)_validator).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>()).Returns(_validationResult);
     }
 
     async Task Because() => _result = await _filter.OnExecution(_context);
@@ -45,7 +45,7 @@ public class with_object_containing_null_property : given.a_fluent_validation_fi
     [Fact] void should_have_validation_result_with_error_severity() => _result.ValidationResults.First().Severity.ShouldEqual(ValidationResultSeverity.Error);
     [Fact] void should_have_validation_result_with_correct_message() => _result.ValidationResults.First().Message.ShouldEqual("Property cannot be null");
     [Fact] void should_have_validation_result_with_correct_member() => _result.ValidationResults.First().Members.ShouldContain("NullProperty");
-    [Fact] void should_call_validator() => _validator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
+    [Fact] void should_call_validator() => ((IObjectValidator)_validator).Received(1).ValidateObjectAsync(Arg.Any<object>(), Arg.Any<CancellationToken>());
     [Fact] void should_not_attempt_to_validate_null_property() => _discoverableValidators.DidNotReceive().TryGet(typeof(NestedObject), out Arg.Any<IValidator>());
 
     record CommandWithNullProperty(string Name, NestedObject? NullProperty);

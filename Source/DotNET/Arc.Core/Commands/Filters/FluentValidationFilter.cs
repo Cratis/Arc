@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Validation;
-using FluentValidation;
 
 namespace Cratis.Arc.Commands.Filters;
 
@@ -26,11 +25,9 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
         var commandResult = CommandResult.Success(context.CorrelationId);
 
         var instanceType = instance.GetType();
-        if (discoverableValidators.TryGet(instanceType, out var validator))
+        if (discoverableValidators.TryGet(instanceType, out var validator) && validator is IObjectValidator objectValidator)
         {
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
-            var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
-            var validationResult = await validator.ValidateAsync(validationContext, CancellationToken.None);
+            var validationResult = await objectValidator.ValidateObjectAsync(instance, CancellationToken.None);
             if (!validationResult.IsValid)
             {
                 commandResult.MergeWith(new CommandResult
