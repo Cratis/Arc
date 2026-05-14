@@ -80,6 +80,6 @@
              The IL warning codes suppressed below correspond to remaining work items tracked in
              https://github.com/Cratis/Arc/issues/1044 and should be removed as each item is completed. -->
         <IsAotCompatible>true</IsAotCompatible>
-        <NoWarn>$(NoWarn);IL2026;IL2060;IL2067;IL2070;IL2072;IL2075;IL2090;IL3000;IL3002;IL3050</NoWarn>
+        <NoWarn>$(NoWarn);IL2026;IL2057;IL2060;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL3000;IL3002;IL3050</NoWarn>
     </PropertyGroup>
 </Project>
