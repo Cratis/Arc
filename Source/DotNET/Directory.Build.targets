@@ -8,6 +8,6 @@
          - Test projects are never shipped as trimmed or AOT-compiled binaries.
          - Production code already suppresses each violation at the call site with [UnconditionalSuppressMessage]. -->
     <PropertyGroup Condition="'$(IsTestProject)'=='true'">
-        <NoWarn>$(NoWarn);IL2026;IL3050;IL3000;IL2090;IL2067;IL2072;IL2075;IL2070;IL2060;IL2111;IL2063;IL2002</NoWarn>
+        <NoWarn>$(NoWarn);IL2026;IL3050;IL3000;IL2090;IL2067;IL2072;IL2075;IL2070;IL2060;IL2111;IL2063;IL2002;IL2087</NoWarn>
     </PropertyGroup>
 </Project>

@@ -4,6 +4,7 @@
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Cratis.Arc.Queries;

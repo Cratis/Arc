@@ -2,6 +2,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc</AssemblyName>
         <RootNamespace>Cratis.Arc</RootNamespace>
+        <NoWarn>$(NoWarn);IL2026;IL3050;IL2111;IL2075</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Specs" />

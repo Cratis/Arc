@@ -3,6 +3,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Chronicle</AssemblyName>
         <RootNamespace>Cratis.Arc.Chronicle</RootNamespace>
+        <NoWarn>$(NoWarn);IL2075;IL2072</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
