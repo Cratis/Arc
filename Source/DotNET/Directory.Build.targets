@@ -1,13 +1,4 @@
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 <Project>
-    <!-- Directory.Build.targets is evaluated AFTER the project file, so IsTestProject is available here.
-         Suppress AOT/trimming IL warning codes in test projects because:
-         - Test code deliberately calls production APIs that carry [RequiresUnreferencedCode] / [RequiresDynamicCode]
-           (e.g. JsonSerializer in assertions, Queryable.AsQueryable in LINQ specs).
-         - Test projects are never shipped as trimmed or AOT-compiled binaries.
-         - Production code already suppresses each violation at the call site with [UnconditionalSuppressMessage]. -->
-    <PropertyGroup Condition="'$(IsTestProject)'=='true'">
-        <NoWarn>$(NoWarn);IL2026;IL3050;IL3000;IL2090;IL2067;IL2072;IL2075;IL2070;IL2060;IL2111;IL2063;IL2002;IL2087</NoWarn>
-    </PropertyGroup>
 </Project>

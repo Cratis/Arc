@@ -2,7 +2,6 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Swagger</AssemblyName>
         <RootNamespace>Cratis.Arc.Swagger</RootNamespace>
-        <NoWarn>$(NoWarn);IL3050;IL2075</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals"/>

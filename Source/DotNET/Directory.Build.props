@@ -70,11 +70,7 @@
     </ItemGroup>
 
     <PropertyGroup Condition="'$(IsTestProject)'=='true'">
-        <!-- Suppress AOT/trimming analysis warnings in test projects: test code is not expected to be AOT-safe.
-             IL2026/IL3050/IL3000 can be raised even without IsAotCompatible when calling methods annotated
-             with [RequiresUnreferencedCode] or [RequiresDynamicCode], which occur in test helpers that
-             exercise the production code (e.g. JsonSerializer calls in assertions). -->
-        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031;IL2026;IL3050;IL3000;IL2090;IL2067;IL2072;IL2075;IL2070</NoWarn>
+        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031</NoWarn>
     </PropertyGroup>
 
     <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">

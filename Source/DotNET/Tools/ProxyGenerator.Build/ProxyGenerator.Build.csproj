@@ -4,7 +4,8 @@
         <OutputType>Exe</OutputType>
         <NoPackageAnalysis>true</NoPackageAnalysis>
         <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
-        <NoWarn>$(NoWarn);NU5118;IL2026;IL3000;IL3002;IL2067;IL2070;IL2072;IL2075</NoWarn>
+        <NoWarn>$(NoWarn);NU5118</NoWarn>
+        <IsAotCompatible>false</IsAotCompatible>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     </PropertyGroup>
 

@@ -2,7 +2,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.EntityFrameworkCore</AssemblyName>
         <RootNamespace>Cratis.Arc.EntityFrameworkCore</RootNamespace>
-        <NoWarn>$(NoWarn);NU5104;IL2026;IL3050;IL2091;IL2090;IL2087;IL2075;IL2072;IL2070;IL2060</NoWarn>
+        <NoWarn>$(NoWarn);NU5104</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals" />

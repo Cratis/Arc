@@ -3,9 +3,9 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Testing</AssemblyName>
         <RootNamespace>Cratis.Arc.Testing</RootNamespace>
+        <IsAotCompatible>false</IsAotCompatible>
         <Description>Testing utilities for Cratis Arc applications, providing command scenario infrastructure and assertion helpers.</Description>
         <PackageTags>cratis;arc;testing;commands;cqrs</PackageTags>
-        <NoWarn>$(NoWarn);IL2067</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
