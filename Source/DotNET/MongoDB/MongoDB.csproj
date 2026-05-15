@@ -2,6 +2,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.MongoDB</AssemblyName>
         <RootNamespace>Cratis.Arc.MongoDB</RootNamespace>
+        <NoWarn>$(NoWarn);IL2026;IL3050;IL2090;IL2075;IL2072;IL2067;IL2060;IL2057</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
