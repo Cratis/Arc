@@ -80,6 +80,8 @@ public record RenameAccount(EventSourceId AccountId, string NewName);
 public record CloseAccount([Key] Guid AccountId);
 ```
 
+For the full reference, including how Chronicle uses the same identity conventions for query arguments and how you can override the command value by returning `EventSourceId` from `Handle()`, see [Resolving EventSourceId](../resolving-event-source-id.md) and [Returning EventSourceId](./returning-event-source-id.md).
+
 ## Event Stream Metadata
 
 Chronicle supports additional metadata that can be attached to commands and used when appending events. This metadata tags the appended events with the specified stream identity, making them easier to query and react to.

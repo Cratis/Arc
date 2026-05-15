@@ -10,7 +10,7 @@ describe('when canceling deferred dispose before timeout fires', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         teardownCalled = false;
-        cache = new QueryInstanceCache(true);
+        cache = new QueryInstanceCache(0);
         cache.getOrCreate('MyQuery::', () => ({}));
         cache.acquire('MyQuery::');
         cache.setTeardown('MyQuery::', () => { teardownCalled = true; });

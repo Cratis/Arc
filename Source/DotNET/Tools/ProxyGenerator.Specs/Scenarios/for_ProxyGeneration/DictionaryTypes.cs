@@ -14,6 +14,11 @@ public class ScenarioDictionaryValueType
     public int Count { get; set; }
 }
 
+public class ScenarioDictionaryCollectionElementType
+{
+    public string Label { get; set; } = string.Empty;
+}
+
 public class TypeWithStringKeyDictionaryProperty
 {
     public IDictionary<string, ScenarioDictionaryValueType> Items { get; set; } = new Dictionary<string, ScenarioDictionaryValueType>();
@@ -22,4 +27,9 @@ public class TypeWithStringKeyDictionaryProperty
 public class TypeWithComplexKeyDictionaryProperty
 {
     public IDictionary<ScenarioDictionaryKeyType, ScenarioDictionaryValueType> Items { get; set; } = new Dictionary<ScenarioDictionaryKeyType, ScenarioDictionaryValueType>();
+}
+
+public class TypeWithStringKeyCollectionValueDictionaryProperty
+{
+    public IDictionary<string, IList<ScenarioDictionaryCollectionElementType>> Slots { get; } = new Dictionary<string, IList<ScenarioDictionaryCollectionElementType>>(StringComparer.Ordinal);
 }

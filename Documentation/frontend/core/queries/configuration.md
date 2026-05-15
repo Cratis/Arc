@@ -39,6 +39,22 @@ Globals.queryDirectMode = true;
 
 In React, this is usually configured through `<Arc queryDirectMode={...} />`. See [React query integration](../../react/queries/index.md).
 
+## Query Cache Retention (`queryCacheRetentionMs`)
+
+Controls how long (in milliseconds) the query cache keeps an entry alive after the last subscriber releases it. The default is `30 000` ms (30 seconds).
+
+```typescript
+import { Globals } from '@cratis/arc';
+
+// Keep cached data for 60 seconds after the last subscriber unmounts.
+Globals.queryCacheRetentionMs = 60_000;
+
+// Restore immediate eviction.
+Globals.queryCacheRetentionMs = 0;
+```
+
+In React applications, set this through `<Arc queryCacheRetentionMs={...} />` instead of modifying `Globals` directly. See [React query configuration](../../react/queries/configuration.md).
+
 ## See Also
 
 - [Observable Queries](../../react/queries/observable-queries.md)

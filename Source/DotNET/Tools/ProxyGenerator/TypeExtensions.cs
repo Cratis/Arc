@@ -80,6 +80,9 @@ public static class TypeExtensions
     ];
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
+    static HashSet<string> _excludedTypeNames = [];
+    static List<string> _excludedNamespacePatterns = [];
+    static List<(string Namespace, string Folder)> _namespaceRoots = [];
 
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
@@ -96,6 +99,41 @@ public static class TypeExtensions
     public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
     {
         _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Sets the types and namespace patterns to exclude from proxy generation.
+    /// </summary>
+    /// <param name="typeNames">Fully qualified type names to exclude.</param>
+    /// <param name="namespacePatterns">Namespace glob patterns (supports <c>*</c> as wildcard) to exclude.</param>
+    public static void SetExcludedTypes(IReadOnlyCollection<string> typeNames, IReadOnlyCollection<string> namespacePatterns)
+    {
+        _excludedTypeNames = [.. typeNames];
+        _excludedNamespacePatterns = [.. namespacePatterns];
+    }
+
+    /// <summary>
+    /// Sets the namespace roots used to determine the output folder structure.
+    /// When a type's namespace begins with a configured root, that root prefix is stripped
+    /// and the remainder is appended under the specified base folder.
+    /// </summary>
+    /// <param name="roots">Pairs of (namespace, base folder), e.g. <c>("MyApp.Features", "features")</c>.</param>
+    public static void SetNamespaceRoots(IReadOnlyCollection<(string Namespace, string Folder)> roots)
+    {
+        _namespaceRoots = [.. roots];
+    }
+
+    /// <summary>
+    /// Check whether a type is excluded from proxy generation by an exact type name match or a namespace glob pattern.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns><see langword="true"/> if the type is excluded; otherwise <see langword="false"/>.</returns>
+    public static bool IsExcluded(this Type type)
+    {
+        if (type.FullName is null) return false;
+        if (_excludedTypeNames.Contains(type.FullName)) return true;
+        var ns = type.Namespace ?? string.Empty;
+        return _excludedNamespacePatterns.Exists(pattern => MatchesGlobPattern(ns, pattern));
     }
 
     /// <summary>
@@ -325,7 +363,52 @@ public static class TypeExtensions
     }
 
     /// <summary>
-    /// Get property descriptors for a type.
+    /// Get the TypeScript type string for the value type of a dictionary, handling collection value types
+    /// by converting them to TypeScript array syntax (e.g., <c>IList&lt;T&gt;</c> becomes <c>T[]</c>).
+    /// Non-collection, non-dictionary value types are resolved directly via <see cref="GetTargetType"/>.
+    /// </summary>
+    /// <param name="valueType">The dictionary value type.</param>
+    /// <returns>
+    /// The TypeScript type string: <c>T[]</c> when the value type is an enumerable collection,
+    /// or the plain target type name when the value type is a scalar.
+    /// </returns>
+    public static string GetDictionaryValueTypeString(this Type valueType) =>
+        valueType.GetDictionaryEffectiveValueType().GetTargetType().Type + (valueType.IsEnumerable() && !valueType.IsDictionary() ? "[]" : string.Empty);
+
+    /// <summary>
+    /// Resolve the effective element type for the value of a dictionary, unwrapping one level of collection
+    /// when the value type is an enumerable (e.g., <c>IList&lt;T&gt;</c> → <c>T</c>).
+    /// Non-collection value types are returned unchanged.
+    /// </summary>
+    /// <param name="valueType">The dictionary value type.</param>
+    /// <returns>The effective element type to use for proxy generation and type collection.</returns>
+    public static Type GetDictionaryEffectiveValueType(this Type valueType) =>
+        valueType.IsEnumerable() && !valueType.IsDictionary()
+            ? valueType.GetEnumerableElementType()
+            : valueType;
+
+    /// <summary>
+    /// Check if a type is a System type (i.e., its namespace is "System" or starts with "System.").
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if it is a System type, false if not.</returns>
+    public static bool IsSystemType(this Type type) =>
+        type.Namespace is not null &&
+        (type.Namespace == "System" || type.Namespace.StartsWith("System.", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Check whether a type is a valid user-defined base type for TypeScript inheritance.
+    /// Returns <see langword="true"/> when the base type should produce an <c>extends</c> clause
+    /// in the generated TypeScript class. System.* types, primitives, excluded types, and types
+    /// from mapped assemblies are all excluded.
+    /// </summary>
+    /// <param name="type">The candidate base type to evaluate.</param>
+    /// <returns>True if the type should be used as a TypeScript base class, false otherwise.</returns>
+    public static bool IsValidInheritanceBaseType(this Type type) =>
+        !type.IsAPrimitiveType() && !type.IsSystemType() && !type.IsExcluded() && !type.IsFromMappedAssembly();
+
+    /// <summary>
+    /// Get property descriptors for a type, only including properties declared directly on the type.
     /// </summary>
     /// <param name="type">Type to get for.</param>
     /// <returns>Collection of <see cref="PropertyDescriptor"/>.</returns>
@@ -333,7 +416,7 @@ public static class TypeExtensions
     {
         if (type.IsAPrimitiveType()) return [];
 
-        return type.GetProperties(BindingFlags.Instance | BindingFlags.Public).ToList().ConvertAll(_ => _.ToPropertyDescriptor());
+        return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly).ToList().ConvertAll(_ => _.ToPropertyDescriptor());
     }
 
     /// <summary>
@@ -360,14 +443,14 @@ public static class TypeExtensions
                     ? primitiveKeyType
                     : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
 
-            var valueTargetType = valueType.GetTargetType();
+            var valueTypeStr = GetDictionaryValueTypeString(valueType);
 
             if (keyTargetType.Type == "string")
             {
-                return new(type, $"Record<string, {valueTargetType.Type}>", "Object", Final: true);
+                return new(type, $"Record<string, {valueTypeStr}>", "Object", Final: true);
             }
 
-            return new(type, $"ValueMap<{keyTargetType.Type}, {valueTargetType.Type}>", "ValueMap", Final: true);
+            return new(type, $"ValueMap<{keyTargetType.Type}, {valueTypeStr}>", "ValueMap", Final: true);
         }
 
         if (type.IsConcept())
@@ -406,7 +489,7 @@ public static class TypeExtensions
     {
         var typesInvolved = new List<Type>();
 
-        var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public).ToList();
+        var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly).ToList();
         var propertyDescriptors = properties.ConvertAll(_ => _.ToPropertyDescriptor());
         List<ImportStatement> imports = [];
 
@@ -425,9 +508,12 @@ public static class TypeExtensions
                 {
                     resolvedKeyType.CollectTypesInvolved(typesInvolved);
                 }
-                if (!valueType.IsAPrimitiveType() && !valueType.IsConcept())
+
+                // If value type is a collection, collect the element type instead of the collection itself
+                var effectiveValueType = valueType.GetDictionaryEffectiveValueType();
+                if (!effectiveValueType.IsAPrimitiveType() && !effectiveValueType.IsConcept())
                 {
-                    valueType.CollectTypesInvolved(typesInvolved);
+                    effectiveValueType.CollectTypesInvolved(typesInvolved);
                 }
 
                 var resolvedKeyTargetType = resolvedKeyType.IsEnum
@@ -446,7 +532,27 @@ public static class TypeExtensions
             }
         }
 
+        // Detect base type for TypeScript inheritance (skip system types and object)
+        string? baseTypeName = null;
+        if (type.BaseType is { } baseType && baseType.IsValidInheritanceBaseType())
+        {
+            baseTypeName = baseType.GetTargetType().Type;
+            baseType.CollectTypesInvolved(typesInvolved);
+        }
+
         imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+
+        // For interface-typed properties, derivative types must be imported explicitly.
+        // They are from mapped assemblies and are excluded from typesInvolved collection,
+        // so they never reach GetImports(). Without this, derivative constructor names are
+        // emitted in @field(...) but have no corresponding import statements.
+        foreach (var pd in propertyDescriptors.Where(pd => !string.IsNullOrEmpty(pd.Derivatives)))
+        {
+            foreach (var derivativeType in pd.OriginalType.GetDerivativeTypes())
+            {
+                imports.Add(derivativeType.GetImportStatement(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+            }
+        }
 
         var derivativeConstructorNames = new HashSet<string>(
             propertyDescriptors
@@ -457,8 +563,10 @@ public static class TypeExtensions
                     .DistinctBy(_ => _.Type)
                     .Where(_ =>
                         (propertyDescriptors.Exists(pd => TypeNameIsReferenced(pd.Type, _.Type)) ||
-                         derivativeConstructorNames.Contains(_.Type))
-                        && _.OriginalType != type)];
+                         derivativeConstructorNames.Contains(_.Type) ||
+                         (!string.IsNullOrEmpty(baseTypeName) && _.Type == baseTypeName))
+                        && _.OriginalType != type
+                        && !_.OriginalType.IsAssignableToBaseType(type))];
 
         var documentation = type.GetDocumentation();
         var derivedTypeId = type.GetDerivedTypeId();
@@ -470,7 +578,8 @@ public static class TypeExtensions
             imports.ToOrderedImports(),
             typesInvolved,
             documentation,
-            derivedTypeId);
+            derivedTypeId,
+            baseTypeName);
     }
 
     /// <summary>
@@ -535,14 +644,41 @@ public static class TypeExtensions
 
     /// <summary>
     /// Resolve the relative path for a type.
+    /// Namespace roots (configured via <see cref="SetNamespaceRoots"/>) take priority over
+    /// <paramref name="segmentsToSkip"/>: when the type's namespace begins with a root the root
+    /// prefix is stripped and the remainder becomes the folder path.
     /// </summary>
     /// <param name="type">Type to resolve for.</param>
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <returns>Resolved path.</returns>
     public static string ResolveTargetPath(this Type type, int segmentsToSkip)
     {
-        var ns = type.Namespace!.Replace(Globals.NamespacePrefix, string.Empty);
-        var path = string.Join(Path.DirectorySeparatorChar, ns.Split('.').Skip(segmentsToSkip));
+        var ns = type.Namespace ?? string.Empty;
+
+        var matchingRoot = _namespaceRoots
+            .Where(root => ns == root.Namespace || ns.StartsWith(root.Namespace + ".", StringComparison.Ordinal))
+            .OrderByDescending(r => r.Namespace.Length)
+            .Cast<(string Namespace, string Folder)?>()
+            .FirstOrDefault();
+
+        if (matchingRoot is not null)
+        {
+            var (rootNs, folder) = matchingRoot.Value;
+            var remainder = ns == rootNs ? string.Empty : ns[(rootNs.Length + 1)..];
+            var subPath = string.IsNullOrEmpty(remainder)
+                ? string.Empty
+                : string.Join(Path.DirectorySeparatorChar, remainder.Split('.'));
+
+            if (string.IsNullOrEmpty(folder))
+            {
+                return string.IsNullOrEmpty(subPath) ? $"{Path.DirectorySeparatorChar}" : subPath;
+            }
+
+            return string.IsNullOrEmpty(subPath) ? folder : Path.Join(folder, subPath);
+        }
+
+        var stripped = ns.Replace(Globals.NamespacePrefix, string.Empty);
+        var path = string.Join(Path.DirectorySeparatorChar, stripped.Split('.').Skip(segmentsToSkip));
         if (string.IsNullOrEmpty(path))
         {
             path = $"{Path.DirectorySeparatorChar}";
@@ -599,14 +735,28 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this PropertyDescriptor property, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly()) return;
+        if (property.OriginalType.IsDictionary())
+        {
+            var valueType = property.OriginalType.GetDictionaryValueType();
+
+            // If value type is a collection, collect the element type instead of the collection itself
+            var effectiveValueType = valueType.GetDictionaryEffectiveValueType();
+            if (!effectiveValueType.IsAPrimitiveType() && !effectiveValueType.IsConcept())
+            {
+                effectiveValueType.CollectTypesInvolved(typesInvolved);
+            }
+
+            return;
+        }
+
+        if (typesInvolved.Contains(property.OriginalType) || property.OriginalType.IsAPrimitiveType() || property.OriginalType.IsConcept() || property.OriginalType.IsKnownType() || property.OriginalType.IsFromMappedAssembly() || property.OriginalType.IsExcluded()) return;
         typesInvolved.Add(property.OriginalType);
         foreach (var derivativeType in property.OriginalType.GetDerivativeTypes())
         {
             derivativeType.CollectTypesInvolved(typesInvolved);
         }
 
-        foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        foreach (var subProperty in property.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType() || _.OriginalType.IsDictionary()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
         }
@@ -620,9 +770,9 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this RequestParameterDescriptor parameter, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly()) return;
+        if (typesInvolved.Contains(parameter.OriginalType) || parameter.OriginalType.IsKnownType() || parameter.OriginalType.IsFromMappedAssembly() || parameter.OriginalType.IsExcluded()) return;
         typesInvolved.Add(parameter.OriginalType);
-        foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        foreach (var subProperty in parameter.OriginalType.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType() || _.OriginalType.IsDictionary()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
         }
@@ -636,14 +786,21 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
-        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly()) return;
+        if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly() || type.IsExcluded()) return;
         typesInvolved.Add(type);
+
+        // Collect base type for TypeScript inheritance support (skip system types and object)
+        if (type.BaseType is { } baseType && baseType.IsValidInheritanceBaseType())
+        {
+            baseType.CollectTypesInvolved(typesInvolved);
+        }
+
         foreach (var derivativeType in type.GetDerivativeTypes())
         {
             derivativeType.CollectTypesInvolved(typesInvolved);
         }
 
-        foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType()))
+        foreach (var subProperty in type.GetPropertyDescriptors().Where(_ => !_.OriginalType.IsKnownType() || _.OriginalType.IsDictionary()))
         {
             CollectTypesInvolved(subProperty, typesInvolved);
         }
@@ -1044,6 +1201,36 @@ public static class TypeExtensions
 
         var aspNetCore = _metadataLoadContext.LoadFromAssemblyName("Microsoft.AspNetCore.Mvc.Core");
         _controllerBaseType = aspNetCore.GetType("Microsoft.AspNetCore.Mvc.ControllerBase")!;
+    }
+
+    /// <summary>
+    /// Match a namespace string against a glob pattern where <c>*</c> matches any sequence of characters.
+    /// </summary>
+    /// <param name="ns">Namespace to test.</param>
+    /// <param name="pattern">Glob pattern (may contain one or more <c>*</c> wildcards).</param>
+    /// <returns><see langword="true"/> if the namespace matches the pattern.</returns>
+    static bool MatchesGlobPattern(string ns, string pattern)
+    {
+        if (!pattern.Contains('*')) return ns == pattern;
+
+        var parts = pattern.Split('*');
+        var index = 0;
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i];
+            if (part.Length == 0) continue;
+
+            var found = ns.IndexOf(part, index, StringComparison.Ordinal);
+            if (found < 0) return false;
+
+            // First segment must match at position 0 (pattern must start from the beginning unless leading *)
+            if (i == 0 && found != 0) return false;
+
+            index = found + part.Length;
+        }
+
+        // If the pattern does not end with *, the namespace must be fully consumed
+        return pattern.EndsWith('*') || index == ns.Length;
     }
 
     static bool IsAssignableToBaseType(this Type type, Type baseType)

@@ -41,7 +41,7 @@ public class DerivedTypeDiscriminatorConvention(IDerivedTypes derivedTypes) : ID
         bsonReader.ReturnToBookmark(bookmark);
         return type is null
             ? nominalType
-            : derivedTypes.GetDerivedTypeFor(nominalType, new DerivedTypeId(Guid.Parse(type)));
+            : derivedTypes.GetDerivedTypeFor(nominalType, type);
     }
 
     /// <inheritdoc/>

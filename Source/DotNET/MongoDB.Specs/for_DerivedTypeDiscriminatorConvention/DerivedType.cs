@@ -5,5 +5,5 @@ using Cratis.Serialization;
 
 namespace Cratis.Arc.MongoDB.for_DerivedTypeDiscriminatorConvention;
 
-[DerivedType("b91c21cd-56db-4edc-805b-b1d1ff9aa772", typeof(BaseType))]
+[DerivedType("cf759496-8e30-4d1c-92a5-51c6b1dca299", typeof(BaseType))]
 public class DerivedType : BaseType;

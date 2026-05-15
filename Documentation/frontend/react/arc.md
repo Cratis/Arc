@@ -35,6 +35,7 @@ The `<Arc />` component provides centralized configuration for all commands and 
 | queryDirectMode | Boolean | Whether observable queries bypass the central hub and connect directly per-query |
 | queryConnectionCount | Number | Number of observable query hub connection slots |
 | observableQueryTransferMode | `ObservableQueryTransferMode` | Transfer mode used by `useChangeStream` |
+| queryCacheRetentionMs | Number | How long (ms) to keep query data in cache after the last subscriber unmounts — defaults to `30000` |
 
 Example:
 

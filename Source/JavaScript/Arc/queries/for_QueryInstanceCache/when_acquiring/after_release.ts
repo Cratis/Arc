@@ -10,7 +10,7 @@ describe('when acquiring after release', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         teardownCalled = false;
-        cache = new QueryInstanceCache();
+        cache = new QueryInstanceCache(0);
         cache.getOrCreate('MyQuery::', () => ({}));
         cache.acquire('MyQuery::');
         cache.setTeardown('MyQuery::', () => { teardownCalled = true; });

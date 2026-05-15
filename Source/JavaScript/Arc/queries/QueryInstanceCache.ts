@@ -71,18 +71,19 @@ export class QueryInstanceCache {
 
     /**
      * Initializes a new instance of {@link QueryInstanceCache}.
-     * @param development Accepted for API compatibility. No longer changes teardown behavior —
-     *   teardown is always deferred to handle React StrictMode re-mounts in any environment.
+     * @param retentionMs How long in milliseconds to keep a cache entry alive after the last
+     *   subscriber releases it before evicting the subscription and cached data.  A non-zero
+     *   value lets users navigate away and back without losing cached data.  Defaults to
+     *   30 000 ms.  Pass 0 for immediate eviction.
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    constructor(development: boolean = false) {
-        // The development parameter is kept for API compatibility only.
-        // Teardown is always deferred regardless of this flag.
+    constructor(private readonly _retentionMs: number = 30_000) {
     }
 
     /**
      * Builds the cache key for a query.
-     * @param queryTypeName The name of the query constructor (i.e. `constructor.name`).
+     * @param queryTypeName The stable type name for the query. Use the instance's {@link queryName}
+     *   (a hardcoded fully-qualified string in generated proxies) rather than {@link Function.name},
+     *   which is unstable under minification.
      * @param args Optional arguments supplied to the query.
      * @returns A stable string key.
      */
@@ -170,7 +171,19 @@ export class QueryInstanceCache {
         const entry = this._entries.get(key);
 
         if (entry) {
+            const previousResult = entry.lastResult as QueryResultWithState<TDataType> | undefined;
             entry.lastResult = result as QueryResultWithState<unknown>;
+
+            // Suppress re-renders when the server re-sends identical data after a reconnect.
+            // We only compare `data` and `isSuccess` — other fields (e.g. changeSet) are
+            // ephemeral and do not affect what the user sees.
+            if (
+                previousResult !== undefined &&
+                previousResult.isSuccess === result.isSuccess &&
+                JSON.stringify(previousResult.data) === JSON.stringify(result.data)
+            ) {
+                return;
+            }
 
             for (const listener of entry.listeners) {
                 (listener as QueryCacheListener<TDataType>)(result);
@@ -245,8 +258,9 @@ export class QueryInstanceCache {
             entry.subscriberCount--;
 
             if (entry.subscriberCount <= 0) {
-                // Defer both teardown and deletion so React StrictMode re-mounts in any environment
-                // can cancel by calling acquire() before the timeout fires.
+                // Defer both teardown and eviction.  React StrictMode re-mounts can cancel by
+                // calling acquire() before the timeout fires.  A non-zero _retentionMs keeps the
+                // entry alive so users navigating back quickly see cached data immediately.
                 entry.pendingCleanup = setTimeout(() => {
                     const current = this._entries.get(key);
 
@@ -257,7 +271,7 @@ export class QueryInstanceCache {
                         current.pendingCleanup = undefined;
                         this._entries.delete(key);
                     }
-                }, 0);
+                }, this._retentionMs);
             }
         }
     }

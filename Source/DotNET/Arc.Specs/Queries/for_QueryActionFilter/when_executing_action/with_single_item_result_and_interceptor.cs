@@ -31,11 +31,11 @@ public class with_single_item_result_and_interceptor : given.a_query_action_filt
 
     async Task Because()
     {
-        async Task<ActionExecutedContext> next() =>
-            new(_actionContext, [], null!)
+        Task<ActionExecutedContext> next() =>
+            Task.FromResult(new ActionExecutedContext(_actionContext, [], null!)
             {
                 Result = new ObjectResult(_responseData)
-            };
+            });
 
         await _filter.OnActionExecutionAsync(_actionContext, next);
     }

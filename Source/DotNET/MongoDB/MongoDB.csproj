@@ -15,6 +15,8 @@
         <PackageReference Include="MongoDB.Driver" />
         <PackageReference Include="Microsoft.Extensions.Logging" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Snappier" />
+        <PackageReference Include="SharpCompress" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />

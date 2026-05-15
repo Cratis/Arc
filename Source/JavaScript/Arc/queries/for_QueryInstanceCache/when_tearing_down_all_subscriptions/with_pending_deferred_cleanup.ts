@@ -10,7 +10,7 @@ describe('when tearing down all subscriptions with pending deferred cleanup', ()
     beforeEach(() => {
         vi.useFakeTimers();
         teardownCalled = false;
-        cache = new QueryInstanceCache(true);
+        cache = new QueryInstanceCache(0);
         cache.getOrCreate('MyQuery::', () => ({}));
         cache.acquire('MyQuery::');
         cache.setTeardown('MyQuery::', () => { teardownCalled = true; });

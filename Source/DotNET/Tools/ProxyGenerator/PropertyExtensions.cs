@@ -75,12 +75,14 @@ public static class PropertyExtensions
         }
 
         var targetType = propertyType.GetTargetType();
-
-        var derivativeTypes = propertyType.GetDerivativeTypes().ToList();
-        var derivatives = derivativeTypes.Count > 0
-            ? string.Join(", ", derivativeTypes.Select(t => t.GetTargetType().Constructor))
+        var derivatives = propertyType.IsInterface
+            ? string.Join(", ", propertyType.GetDerivativeTypes().Select(_ => _.GetTargetType().Constructor))
             : string.Empty;
 
+        // For interface-typed properties we must emit derivative constructors explicitly, because
+        // @derivedType auto-registers along the runtime prototype chain only and cannot discover
+        // classes that merely implement an interface. For class inheritance hierarchies we still
+        // omit derivatives to avoid circular dependencies and rely on the registry instead.
         return new(
             propertyType,
             name,

@@ -26,5 +26,10 @@ public enum TenantResolverType
     /// <summary>
     /// Use a fixed tenant ID for development purposes.
     /// </summary>
-    Development = 3
+    Development = 3,
+
+    /// <summary>
+    /// Resolve tenant ID from the request subdomain, with HTTP header as fallback.
+    /// </summary>
+    Subdomain = 4
 }

@@ -33,6 +33,11 @@ export interface ArcConfiguration {
      */
     observableQueryTransferMode?: ObservableQueryTransferMode;
     /**
+     * How long in milliseconds to retain a query cache entry after the last subscriber
+     * releases it.  Mirrors {@link Globals.queryCacheRetentionMs}.  Defaults to 30 000 ms.
+     */
+    queryCacheRetentionMs?: number;
+    /**
      * Monotonically increasing version counter that is bumped by {@link reconnectQueries}
      * so that query hook effects re-run and re-establish subscriptions through fresh
      * transport connections. Do not set this directly.
@@ -60,6 +65,7 @@ export const ArcContext = React.createContext<ArcConfiguration>({
     queryConnectionCount: 1,
     queryDirectMode: false,
     observableQueryTransferMode: ObservableQueryTransferMode.Delta,
+    queryCacheRetentionMs: 30_000,
     queryVersion: 0,
     reconnectQueries: () => { /* no-op until Arc provider initializes */ },
 });

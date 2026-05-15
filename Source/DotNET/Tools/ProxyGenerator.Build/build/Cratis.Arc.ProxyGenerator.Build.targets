@@ -25,6 +25,7 @@
         <Message Text="Full path to assembly : $(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll" Importance="high" />
         
         <PropertyGroup>
+            <LibraryMode Condition=" '$(CratisProxiesLibraryMode)' == 'true' ">--library-mode</LibraryMode>
             <SkipOutputDeletion Condition=" '$(CratisProxiesSkipOutputDeletion)' == 'true' ">--skip-output-deletion</SkipOutputDeletion>
             <SkipCommandNameInRoute Condition=" '$(CratisProxiesSkipCommandNameInRoute)' == 'true' ">--skip-command-name-in-route</SkipCommandNameInRoute>
             <SkipQueryNameInRoute Condition=" '$(CratisProxiesSkipQueryNameInRoute)' == 'true' ">--skip-query-name-in-route</SkipQueryNameInRoute>
@@ -33,10 +34,13 @@
             <SkipIndexGeneration Condition=" '$(CratisProxiesSkipIndexGeneration)' == 'true' ">--skip-index-generation</SkipIndexGeneration>
             <UseSourceFileAsOutputFile Condition=" '$(CratisProxiesUseSourceFileAsOutputFile)' == 'true' ">--use-source-file-as-output-file</UseSourceFileAsOutputFile>
             <AssemblyPackageMappings>@(AssemblyToPackageMapping -> '--assembly-to-package=%(Assembly)=%(Package)', ' ')</AssemblyPackageMappings>
+            <ExcludeTypes>@(ExcludeType -> '--exclude-type=%(TypeName)', ' ')</ExcludeTypes>
+            <ExcludeNamespaces>@(ExcludeNamespace -> '--exclude-namespace=%(Namespace)', ' ')</ExcludeNamespaces>
+            <NamespaceRoots>@(NamespaceRoot -> '--namespace-root=%(Namespace)=%(Folder)', ' ')</NamespaceRoots>
         </PropertyGroup>
 
-        <Exec ConsoleToMsBuild="true" 
-            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(AssemblyPackageMappings)"
+        <Exec ConsoleToMsBuild="true"
+            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots)"
             WorkingDirectory="$(CratisProxyGeneratorAssemblyDirectory)" />
     </Target>
 </Project>

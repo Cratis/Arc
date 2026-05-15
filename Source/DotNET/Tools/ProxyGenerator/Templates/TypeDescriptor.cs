@@ -13,6 +13,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="TypesInvolved">Collection of types involved in the command.</param>
 /// <param name="Documentation">JSDoc documentation for the type.</param>
 /// <param name="DerivedTypeId">The derived type identifier GUID string if this type carries a <c>DerivedTypeAttribute</c>, otherwise null.</param>
+/// <param name="BaseTypeName">The TypeScript name of the base type to extend, or null if there is no applicable base type.</param>
 public record TypeDescriptor(
     Type Type,
     string Name,
@@ -20,4 +21,5 @@ public record TypeDescriptor(
     IOrderedEnumerable<ImportStatement> Imports,
     IEnumerable<Type> TypesInvolved,
     string? Documentation = null,
-    string? DerivedTypeId = null) : IDescriptor;
+    string? DerivedTypeId = null,
+    string? BaseTypeName = null) : IDescriptor;

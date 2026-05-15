@@ -26,6 +26,11 @@ public interface IHttpRequestContext
     IReadOnlyDictionary<string, string> Cookies { get; }
 
     /// <summary>
+    /// Gets the request host (without port).
+    /// </summary>
+    string Host { get; }
+
+    /// <summary>
     /// Gets the request path.
     /// </summary>
     string Path { get; }

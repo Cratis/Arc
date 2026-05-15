@@ -6,7 +6,9 @@
     "scripts": {
         "dev": "vite --config .frontend/vite.config.ts",
         "build": "tsc -b && vite build --config .frontend/vite.config.ts",
-        "preview": "vite preview --config .frontend/vite.config.ts"
+        "preview": "vite preview --config .frontend/vite.config.ts",
+        "build:minified": "tsc -b && vite build --config .frontend/vite.config.minified.ts",
+        "serve:minified": "yarn build:minified && vite preview --config .frontend/vite.config.minified.ts"
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",

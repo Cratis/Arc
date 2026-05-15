@@ -21,6 +21,7 @@ public static class Generator
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="errorMessage">Logger to use for outputting error messages.</param>
+    /// <param name="libraryMode">When <see langword="true"/>, generates TypeScript proxies for every public type in the assembly, not just commands and queries.</param>
     /// <param name="skipOutputDeletion">True if the output path should be deleted before generating, false if not.</param>
     /// <param name="skipCommandNameInRoute">True if the command name should be skipped in the route, false if not.</param>
     /// <param name="skipQueryNameInRoute">True if the query name should be skipped in the route, false if not.</param>
@@ -28,6 +29,9 @@ public static class Generator
     /// <param name="skipIndexGeneration">True to skip index.ts file generation, false to enable it.</param>
     /// <param name="useSourceFileAsOutputFile">True to group all TypeScript types from the same C# source file into a single .ts file named after the source file, false to generate one file per type.</param>
     /// <param name="assemblyPackageMappings">Optional dictionary mapping assembly names to TypeScript package names. Types from these assemblies will be imported from the package instead of being generated locally.</param>
+    /// <param name="excludedTypeNames">Fully qualified type names that should be excluded from proxy generation.</param>
+    /// <param name="excludedNamespacePatterns">Namespace glob patterns (supports <c>*</c> as wildcard) whose matching types are excluded from generation.</param>
+    /// <param name="namespaceRoots">Pairs of (namespace, base folder) used as roots. When a type's namespace begins with a root the root is stripped and the remainder is placed under the base folder.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -35,13 +39,17 @@ public static class Generator
         int segmentsToSkip,
         Action<string> message,
         Action<string> errorMessage,
+        bool libraryMode = false,
         bool skipOutputDeletion = true,
         bool skipCommandNameInRoute = false,
         bool skipQueryNameInRoute = false,
         string apiPrefix = "api",
         bool skipIndexGeneration = false,
         bool useSourceFileAsOutputFile = false,
-        IReadOnlyDictionary<string, string>? assemblyPackageMappings = null)
+        IReadOnlyDictionary<string, string>? assemblyPackageMappings = null,
+        IReadOnlyCollection<string>? excludedTypeNames = null,
+        IReadOnlyCollection<string>? excludedNamespacePatterns = null,
+        IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -58,6 +66,8 @@ public static class Generator
         var overallStopwatch = Stopwatch.StartNew();
 
         TypeExtensions.SetAssemblyPackageMappings(assemblyPackageMappings ?? new Dictionary<string, string>());
+        TypeExtensions.SetExcludedTypes(excludedTypeNames ?? [], excludedNamespacePatterns ?? []);
+        TypeExtensions.SetNamespaceRoots(namespaceRoots ?? []);
         TypeExtensions.InitializeProjectAssemblies(assemblyFile, message, errorMessage);
 
         var commands = new List<CommandDescriptor>();
@@ -72,6 +82,9 @@ public static class Generator
         queries.AddRange(modelBoundArtifactsProvider.Queries);
 
         var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
+
+        commands = commands.Where(c => !c.Type.IsExcluded()).ToList();
+        queries = queries.Where(q => !q.Type.IsExcluded()).ToList();
 
         message($"  Found {commands.Count} commands and {queries.Count} queries");
 
@@ -105,6 +118,29 @@ public static class Generator
         foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
         {
             identityDetailsType.CollectTypesInvolved(typesInvolved);
+        }
+
+        if (libraryMode)
+        {
+            var allPublicTypes = TypeExtensions.Assemblies
+                .SelectMany(a =>
+                {
+                    try
+                    {
+                        return a.DefinedTypes.Where(t => (t.IsPublic && !t.IsAbstract) || t.IsEnum || t.IsInterface);
+                    }
+                    catch
+                    {
+                        return (IEnumerable<Type>)[];
+                    }
+                });
+
+            foreach (var type in allPublicTypes)
+            {
+                type.CollectTypesInvolved(typesInvolved);
+            }
+
+            message($"  Library mode: {typesInvolved.Count} types collected");
         }
 
         typesInvolved = [.. typesInvolved.Distinct()];

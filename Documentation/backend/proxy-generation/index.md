@@ -44,7 +44,7 @@ The proxy generator maintains the folder structure based on your C# namespaces (
 ## Topics
 
 - [Getting Started](getting-started.md) - Installation and setup
-- [Configuration](configuration.md) - All configuration options
+- [Configuration](Configuration/index.md) - All configuration options
 - [Commands](commands.md) - Command proxy generation
 - [Queries](queries.md) - Query proxy generation
 - [Identity Details](identity-details.md) - Identity details type generation

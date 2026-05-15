@@ -11,5 +11,5 @@ public class when_getting_discriminator : given.a_derived_type_discriminator_con
 
     void Because() => _result = _convention.GetDiscriminator(typeof(BaseType), typeof(DerivedType));
 
-    [Fact] void should_return_the_derived_type_identifier() => _result.AsString.ShouldEqual(_derivedTypeIdentifier.ToString());
+    [Fact] void should_return_the_derived_type_identifier() => _result.AsString.ShouldEqual(_derivedTypeIdentifier);
 }

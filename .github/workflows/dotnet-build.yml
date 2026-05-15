@@ -9,6 +9,7 @@ env:
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
   DOTNET_BIN_CACHE: "dotnet-bin-${{ github.sha }}"
+  JS_DIST_CACHE: "js-dist-${{ github.sha }}"
 
 on:
   workflow_dispatch:
@@ -22,18 +23,20 @@ on:
         - info
         - warning
         - debug
-  pull_request:
+  pull_request_target:
     branches:
       - "**"
     paths:
       - "Source/DotNET/**"
       - "Specifications/**"
+      - ".github/workflows/dotnet-build.yml"
 
 jobs:
   dotnet-build:
     runs-on: ubuntu-latest
     outputs:
       proxy-namespaces: ${{ steps.discover-namespaces.outputs.namespaces }}
+      spec-projects: ${{ steps.discover-specs.outputs.projects }}
 
     steps:
       - name: Checkout code
@@ -57,6 +60,16 @@ jobs:
             | jq -Rc '.' \
             | jq -sc '.')
           echo "namespaces=$namespaces" >> "$GITHUB_OUTPUT"
+
+      - name: Discover spec projects
+        id: discover-specs
+        run: |
+          projects=$(find Source/DotNET -name "*.Specs.csproj" ! -name "ProxyGenerator.Specs.csproj" \
+            | sed 's|/[^/]*\.csproj$||' \
+            | sort \
+            | jq -Rc '.' \
+            | jq -sc '.')
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -107,12 +120,22 @@ jobs:
       - name: Yarn install
         run: yarn
 
+      - name: Cache JavaScript dist output
+        uses: actions/cache@v4
+        with:
+          path: Source/JavaScript/**/dist
+          key: ${{ env.JS_DIST_CACHE }}
+
       - name: Build
         run: dotnet build --configuration Release
 
   specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJson(needs.dotnet-build.outputs.spec-projects) }}
 
     steps:
       - name: Checkout code
@@ -132,8 +155,8 @@ jobs:
           path: ./**/bin
           key: ${{ env.DOTNET_BIN_CACHE }}
 
-      - name: Test
-        run: dotnet test --no-build --configuration Release --framework net10.0 --filter "FullyQualifiedName!~Cratis.Arc.ProxyGenerator"
+      - name: Test (${{ matrix.project }})
+        run: dotnet test ${{ matrix.project }} --no-build --configuration Release --framework net10.0
 
   proxy-specs:
     needs: [dotnet-build]
@@ -155,14 +178,8 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 23.x
-          registry-url: "https://registry.npmjs.org"
-
-      - uses: actions/cache@v4
-        id: yarn-cache
+      - name: Restore node modules
+        uses: actions/cache@v4
         with:
           path: |
             .yarn/cache
@@ -171,8 +188,11 @@ jobs:
             **/yarn.lock
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
 
-      - name: Yarn install
-        run: yarn
+      - name: Restore JavaScript dist output
+        uses: actions/cache@v4
+        with:
+          path: Source/JavaScript/**/dist
+          key: ${{ env.JS_DIST_CACHE }}
 
       - name: Restore build output
         uses: actions/cache@v4

@@ -10,7 +10,7 @@ describe('when disposing with pending deferred cleanup', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         teardownCalled = 0;
-        cache = new QueryInstanceCache(true);
+        cache = new QueryInstanceCache(0);
         cache.getOrCreate('MyQuery::', () => ({}));
         cache.acquire('MyQuery::');
         cache.setTeardown('MyQuery::', () => { teardownCalled++; });

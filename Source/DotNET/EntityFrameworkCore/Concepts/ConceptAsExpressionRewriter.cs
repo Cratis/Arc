@@ -109,7 +109,17 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
 
         if (visitedOperand != node.Operand)
         {
-            return Expression.MakeUnary(node.NodeType, visitedOperand, node.Type, node.Method);
+            var method = node.Method;
+            if (method is not null)
+            {
+                var parameters = method.GetParameters();
+                if (parameters.Length > 0 && parameters[0].ParameterType != visitedOperand.Type)
+                {
+                    method = null;
+                }
+            }
+
+            return Expression.MakeUnary(node.NodeType, visitedOperand, node.Type, method);
         }
 
         return base.VisitUnary(node);

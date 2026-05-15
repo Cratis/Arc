@@ -1,0 +1,16 @@
+- name: Overview
+  href: index.md
+- name: Basic Options
+  href: basic.md
+- name: Library Mode
+  href: library-mode.md
+- name: Type Exclusions
+  href: type-exclusions.md
+- name: Namespace Roots
+  href: namespace-roots.md
+- name: Assembly-to-Package Mappings
+  href: assembly-package-mappings.md
+- name: Routing
+  href: routing.md
+- name: Output Behavior
+  href: output-behavior.md

@@ -14,6 +14,15 @@ namespace Cratis.Arc.Commands;
 public class CommandResponseValueHandlers(IInstancesOf<ICommandResponseValueHandler> handlers) : ICommandResponseValueHandlers
 {
     /// <inheritdoc/>
+    public void UpdateContext(CommandContext context, object value)
+    {
+        foreach (var handler in handlers.OfType<ICommandResponseValueContextUpdater>().Where(_ => _.CanHandle(context, value)))
+        {
+            handler.UpdateContext(context, value);
+        }
+    }
+
+    /// <inheritdoc/>
     public bool CanHandle(CommandContext context, object value) =>
         handlers.Any(handler => handler.CanHandle(context, value));
 

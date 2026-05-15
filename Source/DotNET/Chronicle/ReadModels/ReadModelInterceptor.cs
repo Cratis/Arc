@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Queries;
 using Cratis.Chronicle.ReadModels;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
@@ -11,8 +12,18 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// </summary>
 /// <typeparam name="TReadModel">Type of read model to intercept.</typeparam>
 /// <param name="readModels">The <see cref="IReadModels"/> used to release (decrypt) encrypted PII properties.</param>
-public class ReadModelInterceptor<TReadModel>(IReadModels readModels) : IInterceptReadModel<TReadModel>
+/// <param name="logger">The <see cref="ILogger"/> used for diagnostics.</param>
+public class ReadModelInterceptor<TReadModel>(IReadModels readModels, ILogger<ReadModelInterceptor<TReadModel>> logger) : IInterceptReadModel<TReadModel>
 {
     /// <inheritdoc/>
-    public Task<TReadModel> Intercept(TReadModel readModel) => readModels.Release(readModel);
+    public async Task<TReadModel> Intercept(TReadModel readModel)
+    {
+        logger.InterceptingReadModel(typeof(TReadModel).FullName ?? typeof(TReadModel).Name);
+
+        var releasedReadModel = await readModels.Release(readModel);
+
+        logger.InterceptedReadModel(typeof(TReadModel).FullName ?? typeof(TReadModel).Name);
+
+        return releasedReadModel;
+    }
 }

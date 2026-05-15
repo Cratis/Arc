@@ -1,19 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.ControllerBased;
 using Cratis.Arc.ProxyGenerator.ModelBound;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.given;
 
@@ -49,50 +42,21 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     protected string? ServerUrl { get; set; }
 
-    async Task Establish()
+    void Establish()
     {
-        // Reset static test data for test isolation - must happen BEFORE test runs
+        // Reset static test data for test isolation — must happen before each test class runs
         for_ObservableQueries.ModelBound.ObservableReadModel.Reset();
         for_ObservableQueries.ModelBound.ParameterizedObservableReadModel.Reset();
         for_ObservableQueries.ModelBound.ComplexObservableReadModel.Reset();
 
-        var builder = WebApplication.CreateBuilder();
+        // Reset the observable controller state singleton that persists across test classes
+        SharedScenarioWebHostFixture.Current.Host.Services
+            .GetRequiredService<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>()
+            .Reset();
 
-        // Use Kestrel instead of TestServer to support real WebSocket connections
-        builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0, listenOptions => listenOptions.Protocols = HttpProtocols.Http1AndHttp2));
-
-        // Enable logging for debugging
-        builder.Logging.ClearProviders();
-
-        builder.Services.AddControllers()
-            .AddApplicationPart(typeof(a_scenario_web_application).Assembly);
-
-        builder.Services.AddRouting();
-        builder.AddCratisArc(_ => { });
-
-        // Register controller state as singleton for test isolation
-        builder.Services.AddSingleton<for_ObservableQueries.ControllerBased.ObservableControllerQueriesState>();
-
-        var app = builder.Build();
-
-        // Add exception handling for better error visibility
-        app.UseDeveloperExceptionPage();
-
-        app.UseWebSockets();
-        app.UseRouting();
-        app.UseCratisArc();
-        app.MapControllers();
-
-        // Start the application
-        Host = app;
-        await app.StartAsync();
-
-        // Get the actual server address
-        var server = app.Services.GetRequiredService<IServer>();
-        var addresses = server.Features.Get<IServerAddressesFeature>();
-        ServerUrl = addresses?.Addresses.FirstOrDefault() ?? "http://localhost:5000";
-
-        // Create HTTP client pointing to the real server
+        // Reuse the shared Kestrel host started once for the entire collection
+        Host = SharedScenarioWebHostFixture.Current.Host;
+        ServerUrl = SharedScenarioWebHostFixture.Current.ServerUrl;
         HttpClient = new HttpClient { BaseAddress = new Uri(ServerUrl) };
 
         Runtime = new JavaScriptRuntime();
@@ -310,7 +274,8 @@ public class a_scenario_web_application : Specification, IDisposable
         {
             Bridge?.Dispose();
             HttpClient?.Dispose();
-            Host?.Dispose();
+
+            // Host is owned by SharedScenarioWebHostFixture — do not dispose here
         }
     }
 }
