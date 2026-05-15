@@ -7,6 +7,7 @@ using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -70,7 +71,7 @@ public class ControllerQueryPerformer(
             var args = GetMethodArguments(_performMethod.GetParameters(), context.Arguments ?? QueryArguments.Empty, serviceProvider);
             var invocationResult = _performMethod.Invoke(controller, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-            return result;
+            return UnwrapMvcResult(result);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {
@@ -249,6 +250,38 @@ public class ControllerQueryPerformer(
         }
 
         return true;
+    }
+
+    static object? UnwrapMvcResult(object? result)
+    {
+        if (result is null)
+        {
+            return null;
+        }
+
+        if (result is ObjectResult objectResult)
+        {
+            return objectResult.Value;
+        }
+
+        if (result is JsonResult jsonResult)
+        {
+            return jsonResult.Value;
+        }
+
+        var resultType = result.GetType();
+        if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(ActionResult<>))
+        {
+            var nestedResult = resultType.GetProperty("Result")?.GetValue(result);
+            if (nestedResult is not null)
+            {
+                return UnwrapMvcResult(nestedResult);
+            }
+
+            return resultType.GetProperty("Value")?.GetValue(result);
+        }
+
+        return result;
     }
 #pragma warning restore SA1204 // Static members should appear before non-static members
 }
