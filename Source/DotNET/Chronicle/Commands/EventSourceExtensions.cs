@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Chronicle.Events;
@@ -21,6 +22,7 @@ public static class EventSourceExtensions
     /// </summary>
     /// <param name="command">The command to check for an event source ID.</param>
     /// <returns>True if the command has an event source ID; otherwise, false.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "command.GetType().GetProperties() on runtime command objects; their public properties are preserved. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     public static bool HasEventSourceId(this object command) =>
         command.GetType().GetProperties().Any(p =>
             p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
@@ -49,6 +51,7 @@ public static class EventSourceExtensions
     /// </summary>
     /// <param name="command">The command to get the event source ID from.</param>
     /// <returns>The event source ID.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "command.GetType().GetProperties() on runtime command objects; command types are user-defined and their public properties are preserved. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     public static EventSourceId GetEventSourceId(this object command)
     {
         var eventSourceId = EventSourceId.Unspecified;
@@ -101,6 +104,7 @@ public static class EventSourceExtensions
     /// </summary>
     /// <param name="value">The value to convert.</param>
     /// <returns>The corresponding <see cref="EventSourceId"/>.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "value.GetType().GetMethods() on runtime EventSourceId subtypes; these types are user-defined and their public static methods are preserved. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     internal static EventSourceId ToEventSourceId(object value)
     {
         if (value is EventSourceId esId)
@@ -110,24 +114,35 @@ public static class EventSourceExtensions
 
         if (IsGenericEventSourceIdType(value.GetType()))
         {
-            var type = value.GetType();
-            while (type is not null)
+            var op = FindImplicitEventSourceIdOperator(value.GetType());
+            if (op is not null)
             {
-                if (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition)
-                {
-                    var op = type.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                        .FirstOrDefault(m => m.Name == "op_Implicit" && m.ReturnType == typeof(EventSourceId));
-                    if (op is not null)
-                    {
-                        return (EventSourceId)op.Invoke(null, [value])!;
-                    }
-                }
-
-                type = type.BaseType;
+                return (EventSourceId)op.Invoke(null, [value])!;
             }
         }
 
         return value.ToString()!;
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "GetMethods on EventSourceId<T> subtypes discovered at runtime; these types are framework-defined and their public methods are preserved. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
+    static MethodInfo? FindImplicitEventSourceIdOperator(Type type)
+    {
+        while (type is not null)
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEventSourceIdDefinition)
+            {
+                var op = type.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .FirstOrDefault(m => m.Name == "op_Implicit" && m.ReturnType == typeof(EventSourceId));
+                if (op is not null)
+                {
+                    return op;
+                }
+            }
+
+            type = type.BaseType!;
+        }
+
+        return null;
     }
 
     static bool IsGenericEventSourceIdType(Type? type)

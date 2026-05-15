@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Subjects;
 using System.Reflection;
 using Cratis.Reflection;
@@ -68,6 +69,7 @@ public static class ReadModelExtensions
         return false;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "MakeGenericType for IEnumerable<T> at startup during query registration. Source-generated type checking is the long-term fix (tracked in GitHub issue #2204).")]
     static bool IsCollectionOfType(Type type, Type elementType)
     {
         if (type.IsArray && type.GetElementType() == elementType)

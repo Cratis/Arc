@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Validation;
 
@@ -37,6 +38,7 @@ public class FluentValidationFilter(IQueryPerformerProviders queryPerformerProvi
         return queryResult;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "parameter.Type comes from the query performer and reflects user-registered parameter types. GetProperties is AOT-unsafe for runtime types; source-generated validation is the long-term fix (tracked in GitHub issue #2204).")]
     async Task<QueryResult> ValidateParameter(QueryParameter parameter, object? value)
     {
         var queryResult = QueryResult.Success(Cratis.Execution.CorrelationId.NotSet);

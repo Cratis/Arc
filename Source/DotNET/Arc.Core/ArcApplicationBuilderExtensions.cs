@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,9 @@ public static class ArcApplicationBuilderExtensions
     /// <param name="configureBuilder">Optional callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns>The <see cref="ArcApplicationBuilder"/> for continuation.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "IServiceCollection.Configure<ArcOptions> uses reflection-based configuration binding. Source-generated configuration binders are the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IServiceCollection.Configure<ArcOptions> uses reflection-based configuration binding. Source-generated configuration binders are the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2111", Justification = "ArcOptions.IdentityDetailsProvider setter has DynamicallyAccessedMembers but is accessed via reflection in Configure<ArcOptions>. Source-generated configuration binders are the long-term fix (tracked in GitHub issue #2204).")]
     public static ArcApplicationBuilder AddCratisArc(
         this ArcApplicationBuilder builder,
         Action<ArcOptions>? configureOptions = null,

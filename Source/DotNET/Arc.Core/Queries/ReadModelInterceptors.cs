@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.DependencyInjection;
 using Cratis.Types;
@@ -33,6 +34,8 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return await Task.WhenAll(items.Select(item => InterceptItem(item, entry, serviceProvider)));
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Interceptor types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The returned MethodInfo/PropertyInfo are for interface members which are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     static Dictionary<Type, InterceptorEntry> BuildCache(ITypes types)
     {
         var interceptorTypes = types.FindMultiple(typeof(IInterceptReadModel<>));
@@ -66,6 +69,7 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
             kvp => new InterceptorEntry(kvp.Value.Types, kvp.Value.Method!, kvp.Value.ResultProperty!));
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2072", Justification = "Interceptor types from ITypes.FindMultiple have their constructors preserved by the type system. Source-generated registration is the long-term fix (tracked in GitHub issue #2204).")]
     async Task<object> InterceptItem(object item, InterceptorEntry entry, IServiceProvider serviceProvider)
     {
         var current = item;

@@ -70,11 +70,22 @@ public class BaseValidator<T> : AbstractValidator<T>, IObjectValidator
         // Check if concept is null, and if so return default (null for reference types)
         // This prevents NullReferenceException when accessing .Value on a null concept
         var nullCheck = Expression.NotEqual(body, Expression.Constant(null, body.Type));
-        var valueProperty = Expression.Property(body, nameof(ConceptAs<TProperty>.Value));
+        var valueProperty = Expression.Property(body, GetConceptValuePropertyInfo<TProperty>());
         var defaultValue = Expression.Default(typeof(TProperty));
         var conditional = Expression.Condition(nullCheck, valueProperty, defaultValue);
 
         return Expression.Lambda<Func<T, TProperty>>(conditional, parameter);
+    }
+
+    /// <summary>Obtain PropertyInfo from a compile-time-known expression tree to avoid the IL2026-flagged string-based Expression.Property(Expression, string) overload.</summary>
+    /// <typeparam name="TProperty">The property type.</typeparam>
+    /// <returns>The <see cref="System.Reflection.PropertyInfo"/> for the Value property.</returns>
+    static System.Reflection.PropertyInfo GetConceptValuePropertyInfo<TProperty>()
+        where TProperty : IComparable
+    {
+        var expr = (Expression<Func<ConceptAs<TProperty>, TProperty>>)(x => x.Value);
+        var body = (System.Linq.Expressions.MemberExpression)expr.Body;
+        return (System.Reflection.PropertyInfo)body.Member;
     }
 
     static string GetPropertyName<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)

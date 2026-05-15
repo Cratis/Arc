@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Reactors;
@@ -20,7 +21,7 @@ public class AggregateRootEventHandlers : IAggregateRootEventHandlers
     /// </summary>
     /// <param name="eventTypes"><see cref="IEventTypes"/> for mapping types.</param>
     /// <param name="aggregateRootType">Type of <see cref="IAggregateRoot"/>.</param>
-    public AggregateRootEventHandlers(IEventTypes eventTypes, Type aggregateRootType)
+    public AggregateRootEventHandlers(IEventTypes eventTypes, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] Type aggregateRootType)
     {
         _methodsByEventType = aggregateRootType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                                         .Where(_ => _.IsEventHandlerMethod(eventTypes.AllClrTypes))

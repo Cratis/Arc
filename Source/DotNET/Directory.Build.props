@@ -70,15 +70,20 @@
     </ItemGroup>
 
     <PropertyGroup Condition="'$(IsTestProject)'=='true'">
-        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031</NoWarn>
+        <!-- Suppress AOT/trimming analysis warnings in test projects: test code is not expected to be AOT-safe.
+             IL2026/IL3050/IL3000 can be raised even without IsAotCompatible when calling methods annotated
+             with [RequiresUnreferencedCode] or [RequiresDynamicCode], which occur in test helpers that
+             exercise the production code (e.g. JsonSerializer calls in assertions). -->
+        <NoWarn>$(NoWarn);IDE1006;IDE0005;MA0101;RCS1266;xUnit1031;IL2026;IL3050;IL3000;IL2090;IL2067;IL2072;IL2075;IL2070</NoWarn>
     </PropertyGroup>
 
     <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
         <!-- Enable compile-time AOT, trimming, and single-file analysis.
              Since TreatWarningsAsErrors=true in Release configuration, violations become build errors in CI,
              preventing AOT-unsafe patterns from being introduced silently.
-             The IL warning codes suppressed below correspond to remaining work items tracked in
-             https://github.com/Cratis/Arc/issues/1044 and should be removed as each item is completed. -->
+             See https://github.com/Cratis/Arc/issues/2204 for the full AOT compatibility roadmap.
+             Note: test projects suppress IL codes via the IsTestProject NoWarn block below, since
+             test helpers deliberately exercise production APIs that carry AOT-unsafe annotations. -->
         <IsAotCompatible>true</IsAotCompatible>
         <NoWarn>$(NoWarn);</NoWarn>
     </PropertyGroup>

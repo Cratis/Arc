@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Cratis.Arc.Execution;
 using Cratis.Arc.Queries;
@@ -39,6 +40,7 @@ public class ArcOptions
     /// <summary>
     /// Gets or sets what type of identity details provider to use. If none is specified it will use type discovery to try to find one.
     /// </summary>
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type? IdentityDetailsProvider { get; set; }
 
     /// <summary>

@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.WebSockets;
 using System.Reactive.Subjects;
@@ -298,7 +299,9 @@ public class ObservableQueryDemultiplexer(
             try
             {
                 var json = System.Text.Encoding.UTF8.GetString(buffer, 0, received.Count);
+#pragma warning disable IL2026, IL3050 // JsonSerializer with custom options requires source-generated JsonSerializerContext (tracked in GitHub issue #2204 item 5)
                 var message = JsonSerializer.Deserialize<ObservableQueryHubMessage>(json, arcOptions.Value.JsonSerializerOptions);
+#pragma warning restore IL2026, IL3050
 
                 if (message is null)
                 {
@@ -503,6 +506,8 @@ public class ObservableQueryDemultiplexer(
         return null;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "subjectType implements ISubject<T>; its interfaces are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericMethod for SubscribeToSubjectOfType<T>. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     IDisposable SubscribeToSubject(
         object subject,
         Type subjectType,
@@ -610,6 +615,8 @@ public class ObservableQueryDemultiplexer(
             });
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "enumerableType implements IAsyncEnumerable<T>; its interfaces are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericMethod for StreamAsyncEnumerableOfType<T>. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     async Task StreamAsyncEnumerable(
         object enumerable,
         Type enumerableType,
@@ -678,6 +685,8 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     async Task SendWebSocketMessage(IWebSocket webSocket, ObservableQueryHubMessage message, KeepAliveTracker keepAliveTracker, SemaphoreSlim writeLock, CancellationToken token)
     {
         var lockHeld = false;
@@ -720,6 +729,8 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     async Task SendSseMessage(
         IHttpRequestContext context,
         ObservableQueryHubMessage message,
@@ -873,6 +884,8 @@ public class ObservableQueryDemultiplexer(
         return result;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     ObservableQuerySubscriptionRequest? DeserializeSubscriptionRequest(object? payload)
     {
         if (payload is null)

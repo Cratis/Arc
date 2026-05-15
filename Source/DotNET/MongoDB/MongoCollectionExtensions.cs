@@ -163,6 +163,7 @@ public static class MongoCollectionExtensions
             });
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2090", Justification = "typeof(TDocument).GetProperty uses the generic type parameter; TDocument is a MongoDB document type with preserved public properties. Source-generated Id mapping is the long-term fix (tracked in GitHub issue #2204).")]
     static ISubject<TResult> Observe<TDocument, TResult>(
         this IMongoCollection<TDocument> collection,
         Func<IFindFluent<TDocument, TDocument>> findCall,
