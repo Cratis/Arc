@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Xml.Linq;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
@@ -86,6 +87,7 @@ public class IntrospectionService(
         }).ToList();
     }
 
+    [UnconditionalSuppressMessage("SingleFile", "IL3000", Justification = "Assembly.Location is used only for XML documentation discovery; returns empty string in single-file mode, handled gracefully by File.Exists check (tracked in GitHub issue #2204).")]
     static string GetDocumentationSummary(Type type)
     {
         var xmlFile = Path.ChangeExtension(type.Assembly.Location, ".xml");

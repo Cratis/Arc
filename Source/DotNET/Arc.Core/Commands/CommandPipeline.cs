@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
@@ -381,6 +382,7 @@ public class CommandPipeline(
         return result;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "MakeGenericType for CommandResult<T> where T is the command handler response type. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3c).")]
     CommandResult CreateCommandResultWithResponse(CorrelationId correlationId, object response)
     {
         var commandResultType = typeof(CommandResult<>).MakeGenericType(response.GetType());

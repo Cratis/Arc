@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authentication;
@@ -22,6 +23,8 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
     readonly ILogger<MicrosoftIdentityPlatformAuthenticationHandler> _logger = loggerFactory.CreateLogger<MicrosoftIdentityPlatformAuthenticationHandler>();
 
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
         var headers = context.Headers;

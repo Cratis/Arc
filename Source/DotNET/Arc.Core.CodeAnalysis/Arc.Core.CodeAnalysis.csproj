@@ -11,6 +11,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
+        <IsAotCompatible>false</IsAotCompatible>
         <NoWarn>$(NoWarn);NU5128;NU1507</NoWarn>
     </PropertyGroup>
 

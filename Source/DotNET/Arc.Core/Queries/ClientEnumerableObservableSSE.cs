@@ -51,7 +51,9 @@ public class ClientEnumerableObservableSSE<T>(
                 var intercepted = await readModelInterceptors.Intercept(typeof(T), [item], serviceProvider);
 
                 queryResult.Data = intercepted.First();
+#pragma warning disable IL2026, IL3050 // JsonSerializer with custom options requires source-generated JsonSerializerContext (tracked in GitHub issue #2204 item 5)
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
+#pragma warning restore IL2026, IL3050
                 var sseMessage = $"data: {json}\n\n";
 
                 try

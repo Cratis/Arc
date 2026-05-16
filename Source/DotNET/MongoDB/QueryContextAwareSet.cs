@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
@@ -142,6 +143,8 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+    [UnconditionalSuppressMessage("AOT", "IL2090", Justification = "typeof(TDocument).GetProperty uses the generic type parameter; TDocument is a MongoDB document type with preserved public properties. Source-generated query sorting is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Comparer<T>.MakeGenericType at startup for document property types. Source-generated comparers are the long-term fix (tracked in GitHub issue #2204).")]
     void Initialize(QueryContext newQueryContext)
     {
         var oldQueryContext = _queryContext;

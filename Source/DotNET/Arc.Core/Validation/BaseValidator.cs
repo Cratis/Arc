@@ -7,15 +7,19 @@ using FluentValidation;
 
 namespace Cratis.Arc.Validation;
 
-#pragma warning disable CS0618 // Type or member is obsolete (Related to FluentValidation and the Transform method)
 #pragma warning disable IDE0004 // Remove unnecessary cast (We need to do this to access the correct RuleFor())
+#pragma warning disable CA1033 // IObjectValidator.ValidateObjectAsync is intentionally explicit to keep the public API of BaseValidator<T> clean
 
 /// <summary>
 /// Represents a base validator that we use for discovery.
 /// </summary>
 /// <typeparam name="T">Type of object the validator is for.</typeparam>
-public class BaseValidator<T> : AbstractValidator<T>
+public class BaseValidator<T> : AbstractValidator<T>, IObjectValidator
 {
+    /// <inheritdoc/>
+    Task<FluentValidation.Results.ValidationResult> IObjectValidator.ValidateObjectAsync(object instance, CancellationToken cancellationToken) =>
+        ValidateAsync((T)instance, cancellationToken);
+
     /// <summary>
     /// Define a condition for when the context is a command.
     /// </summary>
@@ -47,15 +51,14 @@ public class BaseValidator<T> : AbstractValidator<T>
     public IRuleBuilderInitial<T, TValue> RuleFor<TValue>(Expression<Func<T, ConceptAs<TValue>>> expression)
         where TValue : IComparable
     {
-        if (expression.Body is ParameterExpression)
+        var valueExpression = CreateValueExpression(expression);
+        if (expression.Body is not ParameterExpression)
         {
-            var transformExpression = CreateTransformExpression(expression);
-            return ((AbstractValidator<T>)this).RuleFor(transformExpression);
+            var propertyName = GetPropertyName(expression);
+            return ((AbstractValidator<T>)this).RuleFor(valueExpression).OverridePropertyName(propertyName);
         }
 
-        var propertyName = GetPropertyName(expression);
-        var valueExpression = CreateValueExpression(expression);
-        return ((AbstractValidator<T>)this).RuleFor(valueExpression).OverridePropertyName(propertyName);
+        return ((AbstractValidator<T>)this).RuleFor(valueExpression);
     }
 
     static Expression<Func<T, TProperty>> CreateValueExpression<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)
@@ -67,27 +70,22 @@ public class BaseValidator<T> : AbstractValidator<T>
         // Check if concept is null, and if so return default (null for reference types)
         // This prevents NullReferenceException when accessing .Value on a null concept
         var nullCheck = Expression.NotEqual(body, Expression.Constant(null, body.Type));
-        var valueProperty = Expression.Property(body, nameof(ConceptAs<TProperty>.Value));
+        var valueProperty = Expression.Property(body, GetConceptValuePropertyInfo<TProperty>());
         var defaultValue = Expression.Default(typeof(TProperty));
         var conditional = Expression.Condition(nullCheck, valueProperty, defaultValue);
 
         return Expression.Lambda<Func<T, TProperty>>(conditional, parameter);
     }
 
-    static Expression<Func<T, TProperty>> CreateTransformExpression<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)
+    /// <summary>Obtain PropertyInfo from a compile-time-known expression tree to avoid the IL2026-flagged string-based Expression.Property(Expression, string) overload.</summary>
+    /// <typeparam name="TProperty">The property type.</typeparam>
+    /// <returns>The <see cref="System.Reflection.PropertyInfo"/> for the Value property.</returns>
+    static System.Reflection.PropertyInfo GetConceptValuePropertyInfo<TProperty>()
         where TProperty : IComparable
     {
-        var parameter = expression.Parameters[0];
-
-        // Create: arg => expression.Compile().Invoke(arg) != null ? expression.Compile().Invoke(arg).Value : default
-        var compiled = expression.Compile();
-        var invokeExpression = Expression.Invoke(Expression.Constant(compiled), parameter);
-        var nullCheck = Expression.NotEqual(invokeExpression, Expression.Constant(null, invokeExpression.Type));
-        var valueProperty = Expression.Property(invokeExpression, nameof(ConceptAs<TProperty>.Value));
-        var defaultValue = Expression.Default(typeof(TProperty));
-        var conditional = Expression.Condition(nullCheck, valueProperty, defaultValue);
-
-        return Expression.Lambda<Func<T, TProperty>>(conditional, parameter);
+        var expr = (Expression<Func<ConceptAs<TProperty>, TProperty>>)(x => x.Value);
+        var body = (System.Linq.Expressions.MemberExpression)expr.Body;
+        return (System.Reflection.PropertyInfo)body.Member;
     }
 
     static string GetPropertyName<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)
@@ -102,5 +100,5 @@ public class BaseValidator<T> : AbstractValidator<T>
     }
 }
 
-#pragma warning restore CS0618 // Type or member is obsolete
 #pragma warning restore IDE0004 // Remove unnecessary cast (We need to do this to access the correct RuleFor())
+#pragma warning restore CA1033 // IObjectValidator.ValidateObjectAsync is intentionally explicit

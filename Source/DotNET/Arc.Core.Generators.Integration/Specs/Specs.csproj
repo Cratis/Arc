@@ -4,6 +4,7 @@
         <RootNamespace>Cratis.Arc.Core.Generators.Integration.Specs</RootNamespace>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <IsAotCompatible>false</IsAotCompatible>
         <NoWarn>$(NoWarn);MA0101;RCS1266;MA0136</NoWarn>
     </PropertyGroup>
 

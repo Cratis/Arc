@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc;
 using Cratis.Arc.Identity;
 using Cratis.Types;
@@ -50,7 +51,7 @@ public static class IdentityProviderServiceCollectionExtensions
     /// <typeparam name="TProvider">The <see cref="Type"/> of the <see cref="IProvideIdentityDetails"/> implementation to add.</typeparam>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
-    public static IServiceCollection AddIdentityProvider<TProvider>(this IServiceCollection services)
+    public static IServiceCollection AddIdentityProvider<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(this IServiceCollection services)
         where TProvider : class, IProvideIdentityDetails =>
         services.AddIdentityProvider(typeof(TProvider));
 
@@ -60,12 +61,14 @@ public static class IdentityProviderServiceCollectionExtensions
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="type">The <see cref="Type"/> of the <see cref="IProvideIdentityDetails"/> implementation to add.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
-    public static IServiceCollection AddIdentityProvider(this IServiceCollection services, Type type)
+    public static IServiceCollection AddIdentityProvider(this IServiceCollection services, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type)
     {
         TypeIsNotAnIdentityDetailsProvider.ThrowIfNotAnIdentityDetailsProvider(type);
         return services.AddScoped(typeof(IProvideIdentityDetails), type);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2063", Justification = "providerTypes[0] comes from ITypes.FindMultiple which preserves the types discovered; the [return: DynamicallyAccessedMembers] ensures callers preserve constructors. Source-generated discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     static Type ResolveIdentityDetailsProviderType(ITypes types)
     {
         var defaultImplementationType = typeof(DefaultIdentityDetailsProvider);

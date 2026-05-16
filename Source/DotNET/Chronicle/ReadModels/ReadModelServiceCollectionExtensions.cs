@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Cratis.Arc.Chronicle.Commands;
@@ -47,12 +48,7 @@ public static class ReadModelServiceCollectionExtensions
         _initialized = true;
 
         var readModelTypesFromProjections = clientArtifactsProvider.Projections
-            .Select(projectionType =>
-            {
-                var projectionInterface = projectionType.GetInterfaces()
-                    .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionFor<>));
-                return projectionInterface?.GetGenericArguments()[0];
-            })
+            .Select(GetReadModelTypeFromProjection)
             .Where(type => type?.IsClass == true && !type.IsAbstract)
             .Cast<Type>();
 
@@ -98,6 +94,8 @@ public static class ReadModelServiceCollectionExtensions
             : ReleaseReadModel(readModels, readModelType, subject, readModel);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2060", Justification = "IReadModels.Release<T> has no non-generic overload. The read model types are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IReadModels.Release<T> has no non-generic overload. The read model types are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     static object ReleaseReadModel(IReadModels readModels, Type readModelType, Subject subject, object readModel)
     {
         try
@@ -114,5 +112,13 @@ public static class ReadModelServiceCollectionExtensions
         {
             throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}' with subject '{subject.Value}'.", exception);
         }
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "The projection types from IClientArtifactsProvider are discovered at startup and their interfaces are preserved. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    static Type? GetReadModelTypeFromProjection(Type projectionType)
+    {
+        var projectionInterface = projectionType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionFor<>));
+        return projectionInterface?.GetGenericArguments()[0];
     }
 }

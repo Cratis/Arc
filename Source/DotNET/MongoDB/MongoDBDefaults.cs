@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -102,6 +103,9 @@ public static class MongoDBDefaults
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2072", Justification = "classMapType is from builder.ClassMaps which are user-registered types; Activator.CreateInstance is safe here. Source-generated class map registration is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "classMapType.GetInterfaces() on user-registered MongoDB class map types; these types' interfaces are preserved. Source-generated class map registration is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IBsonClassMapFor<T> MakeGenericType at startup for class map types registered by the user. Source-generated class map registration is the long-term fix (tracked in GitHub issue #2204).")]
     static void RegisterClassMaps(IMongoDBBuilder builder)
     {
         foreach (var classMapType in builder.ClassMaps)

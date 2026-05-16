@@ -23,13 +23,7 @@ public class DiscoverableValidators : IDiscoverableValidators
     public DiscoverableValidators(ITypes types)
     {
         var candidates = types.FindMultiple(typeof(IDiscoverableValidator<>));
-        var invalidValidators = candidates.Where(_ =>
-        {
-            var interfaces = _.GetInterfaces();
-            var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
-            var modelType = validatorType.GetGenericArguments()[0];
-            return !_.IsAssignableTo(typeof(AbstractValidator<>).MakeGenericType(modelType));
-        }).ToArray();
+        var invalidValidators = candidates.Where(IsInvalidDiscoverableValidator).ToArray();
 
         if (invalidValidators.Length > 0)
         {
@@ -37,17 +31,7 @@ public class DiscoverableValidators : IDiscoverableValidators
         }
 
         _validatorTypesByModelType = candidates
-            .ToDictionary(
-                _ =>
-                {
-                    var current = _.BaseType!;
-                    while (!current.IsDerivedFromOpenGeneric(typeof(AbstractValidator<>)))
-                    {
-                        current = current.BaseType!;
-                    }
-                    return current.GetGenericArguments()[0];
-                },
-                _ => _);
+            .ToDictionary(GetModelTypeFromValidator, _ => _);
     }
 
     /// <inheritdoc/>
@@ -61,5 +45,27 @@ public class DiscoverableValidators : IDiscoverableValidators
 
         validator = null;
         return false;
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Candidate types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    static bool IsInvalidDiscoverableValidator(Type candidateType)
+    {
+        var interfaces = candidateType.GetInterfaces();
+        var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
+        var modelType = validatorType.GetGenericArguments()[0];
+        return !interfaces.Any(i =>
+            i.IsGenericType &&
+            i.GetGenericTypeDefinition() == typeof(IValidator<>) &&
+            i.GetGenericArguments()[0] == modelType);
+    }
+
+    static Type GetModelTypeFromValidator(Type candidateType)
+    {
+        var current = candidateType.BaseType!;
+        while (!current.IsDerivedFromOpenGeneric(typeof(AbstractValidator<>)))
+        {
+            current = current.BaseType!;
+        }
+        return current.GetGenericArguments()[0];
     }
 }

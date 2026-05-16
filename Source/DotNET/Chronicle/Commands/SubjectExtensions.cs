@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Chronicle;
@@ -78,6 +79,7 @@ public static class SubjectExtensions
         property.PropertyType == typeof(Subject) ||
         Attribute.IsDefined(property, typeof(SubjectAttribute));
 
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "GetConstructors/GetProperty on user command types; their public members are preserved. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     static PropertyInfo? ResolvePropertyFromConstructorParameter(Type type)
     {
         var constructor = type.GetConstructors().FirstOrDefault();

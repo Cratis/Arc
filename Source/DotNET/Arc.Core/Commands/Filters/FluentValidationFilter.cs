@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Validation;
-using FluentValidation;
 
 namespace Cratis.Arc.Commands.Filters;
 
@@ -21,16 +21,15 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
         return commandResult;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "instance.GetType() properties are preserved by the type system for command types. Source-generated validation dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     async Task<CommandResult> Validate(CommandContext context, object instance)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
 
         var instanceType = instance.GetType();
-        if (discoverableValidators.TryGet(instanceType, out var validator))
+        if (discoverableValidators.TryGet(instanceType, out var validator) && validator is IObjectValidator objectValidator)
         {
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
-            var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
-            var validationResult = await validator.ValidateAsync(validationContext, CancellationToken.None);
+            var validationResult = await objectValidator.ValidateObjectAsync(instance, CancellationToken.None);
             if (!validationResult.IsValid)
             {
                 commandResult.MergeWith(new CommandResult

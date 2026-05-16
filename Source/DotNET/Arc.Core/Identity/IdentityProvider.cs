@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -75,6 +76,8 @@ public class IdentityProvider(
     }
 
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public async Task SetCookieForHttpResponse(IdentityProviderResult result)
     {
         var context = httpRequestContextAccessor.Current;
@@ -123,6 +126,8 @@ public class IdentityProvider(
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     bool TryGetFromCookie(IHttpRequestContext context, out IdentityProviderResult result)
     {
         result = IdentityProviderResult.Anonymous;
@@ -145,6 +150,8 @@ public class IdentityProvider(
         return true;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     bool TryGetFromCookie<TDetails>(IHttpRequestContext context, out IdentityProviderResult<TDetails> result)
     {
         result = new IdentityProviderResult<TDetails>(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
@@ -193,6 +200,8 @@ public class IdentityProvider(
         return IdentityProviderResult.Unauthorized;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     TDetails ConvertDetails<TDetails>(object details)
     {
         if (details is TDetails typedDetails)

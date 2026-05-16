@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
-using Castle.DynamicProxy;
-using Cratis.Arc.MongoDB.Resilience;
 using Cratis.DependencyInjection;
 using Cratis.Metrics;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,8 +11,6 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Events;
-using Polly;
-using Polly.Retry;
 
 namespace Cratis.Arc.MongoDB;
 
@@ -55,32 +51,17 @@ public class MongoDBClientFactory(
     /// <inheritdoc/>
     public IMongoClient Create(string connectionString) => Create(MongoClientSettings.FromConnectionString(connectionString));
 
-    IMongoClient CreateImplementation(MongoClientSettings settings)
+    MongoClient CreateImplementation(MongoClientSettings settings)
     {
         settings.DirectConnection = options.Value.DirectConnection;
+        settings.RetryReads = true;
+        settings.RetryWrites = true;
         settings.ClusterConfigurator = builder => ClusterConfigurator(settings, builder);
 
         logger.CreateClient(settings.Server.ToString());
 #pragma warning disable CA2000 // Dispose objects before losing scope - we're returning the client
-        var client = new MongoClient(settings);
+        return new MongoClient(settings);
 #pragma warning restore CA2000 // Dispose objects before losing scope
-
-        var resiliencePipeline = new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                ShouldHandle = args => args.Outcome.Exception is not null ? PredicateResult.True() : PredicateResult.False(),
-                UseJitter = true,
-                MaxRetryAttempts = 5,
-                Delay = TimeSpan.FromMilliseconds(500)
-            }).Build();
-
-        var proxyGenerator = new ProxyGenerator();
-        var proxyGeneratorOptions = new ProxyGenerationOptions
-        {
-            Selector = new MongoClientInterceptorSelector(proxyGenerator, resiliencePipeline, client)
-        };
-
-        return proxyGenerator.CreateInterfaceProxyWithTarget<IMongoClient>(client, proxyGeneratorOptions);
     }
 
     void ClusterConfigurator(MongoClientSettings settings, ClusterBuilder builder)

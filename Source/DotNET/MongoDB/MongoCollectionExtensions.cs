@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
@@ -163,6 +164,7 @@ public static class MongoCollectionExtensions
             });
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2090", Justification = "typeof(TDocument).GetProperty uses the generic type parameter; TDocument is a MongoDB document type with preserved public properties. Source-generated Id mapping is the long-term fix (tracked in GitHub issue #2204).")]
     static ISubject<TResult> Observe<TDocument, TResult>(
         this IMongoCollection<TDocument> collection,
         Func<IFindFluent<TDocument, TDocument>> findCall,

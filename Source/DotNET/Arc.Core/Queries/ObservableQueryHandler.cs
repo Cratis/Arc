@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
@@ -111,6 +112,8 @@ public class ObservableQueryHandler(
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The observable query return types implement ISubject<T>/IAsyncEnumerable<T>; their interfaces are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericType for ClientObservable<T>/ClientEnumerableObservable<T> wrappers. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     async Task HandleSubjectViaWebSocket(IHttpRequestContext context, object streamingData)
     {
         var type = streamingData.GetType();
@@ -131,6 +134,8 @@ public class ObservableQueryHandler(
         await clientObservable!.HandleConnection(context);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The observable query return types implement ISubject<T>/IAsyncEnumerable<T>; their interfaces are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericType for ClientObservable<T>/ClientEnumerableObservable<T> wrappers. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     async Task HandleSubjectViaSSE(IHttpRequestContext context, object streamingData)
     {
         var type = streamingData.GetType();
@@ -161,6 +166,8 @@ public class ObservableQueryHandler(
         await context.WriteResponseAsJson(response.Result, typeof(QueryResult), context.RequestAborted);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The observable query return types implement ISubject<T>/IAsyncEnumerable<T>; their interfaces are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericType for ClientObservable<T>/ClientEnumerableObservable<T> wrappers. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
     {
         var type = streamingData.GetType();
@@ -181,6 +188,8 @@ public class ObservableQueryHandler(
         await clientEnumerableObservable!.HandleConnection(context);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The observable query return types implement ISubject<T>/IAsyncEnumerable<T>; their interfaces are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericType for ClientObservable<T>/ClientEnumerableObservable<T> wrappers. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     async Task HandleAsyncEnumerableViaSSE(IHttpRequestContext context, object streamingData)
     {
         var type = streamingData.GetType();
