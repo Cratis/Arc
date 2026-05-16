@@ -2,6 +2,9 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.MongoDB</AssemblyName>
         <RootNamespace>Cratis.Arc.MongoDB</RootNamespace>
+        <!-- CS0436: OneOf.SourceGenerator generates GenerateOneOfAttribute here, but it is also compiled
+             into Cratis.Arc.Core (via Cratis.Fundamentals). Suppress the false-positive type conflict. -->
+        <NoWarn>$(NoWarn);CS0436</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
