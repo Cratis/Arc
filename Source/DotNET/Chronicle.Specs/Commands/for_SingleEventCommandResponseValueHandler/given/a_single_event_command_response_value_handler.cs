@@ -44,12 +44,12 @@ public class a_single_event_command_response_value_handler : Specification
             Arg.Any<ConcurrencyScope>()).Returns(successfulResult);
     }
 
-    protected class TestCommand
+    public class TestCommand
     {
         public EventSourceId EventSourceId { get; set; } = EventSourceId.Unspecified;
     }
 
-    protected record TestEvent(string Name);
-    protected record AnotherTestEvent(int Value);
-    protected record UnknownEvent(string Data);
+    public record TestEvent(string Name);
+    public record AnotherTestEvent(int Value);
+    public record UnknownEvent(string Data);
 }

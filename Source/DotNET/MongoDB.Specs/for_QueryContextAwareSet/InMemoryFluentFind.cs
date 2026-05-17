@@ -1,10 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.DependencyInjection;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 namespace Cratis.Arc.MongoDB.for_QueryContextAwareSet;
 
+[IgnoreConvention]
 public class InMemoryFluentFind<TDocument>(IEnumerable<TDocument> collection, int? limit = null) : FindFluentBase<TDocument, TDocument>
 {
     public override FilterDefinition<TDocument> Filter { get; set; }
@@ -25,7 +27,8 @@ public class InMemoryFluentFind<TDocument>(IEnumerable<TDocument> collection, in
     public override Task<IAsyncCursor<TDocument>> ToCursorAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IAsyncCursor<TDocument>>(new Cursor(collection.GetEnumerator(), limit));
 
-    public class Cursor(IEnumerator<TDocument> enumerator, int? limit) : IAsyncCursor<TDocument>
+    [IgnoreConvention]
+    private class Cursor(IEnumerator<TDocument> enumerator, int? limit) : IAsyncCursor<TDocument>
     {
         public void Dispose() { }
         public bool MoveNext(CancellationToken cancellationToken = default) => enumerator.MoveNext();

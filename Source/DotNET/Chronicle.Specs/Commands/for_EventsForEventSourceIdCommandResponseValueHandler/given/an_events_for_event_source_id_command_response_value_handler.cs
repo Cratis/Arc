@@ -39,9 +39,9 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
             Arg.Any<ConcurrencyScope>()).Returns(successfulResult);
     }
 
-    protected class TestCommand;
+    public class TestCommand;
 
-    protected record TestEvent(string Name);
-    protected record AnotherTestEvent(int Value);
-    protected record UnknownEvent(string Data);
+    public record TestEvent(string Name);
+    public record AnotherTestEvent(int Value);
+    public record UnknownEvent(string Data);
 }
