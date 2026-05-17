@@ -1,10 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.DependencyInjection;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 namespace Cratis.Arc.MongoDB.for_QueryContextAwareSet;
 
+[IgnoreConvention]
 public class InMemoryFluentFind<TDocument>(IEnumerable<TDocument> collection, int? limit = null) : FindFluentBase<TDocument, TDocument>
 {
     public override FilterDefinition<TDocument> Filter { get; set; }
