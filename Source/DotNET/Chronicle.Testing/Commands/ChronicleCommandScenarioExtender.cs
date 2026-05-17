@@ -4,6 +4,7 @@
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.EventSequences;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,6 +51,8 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         services.AddSingleton(Defaults.Instance.EventTypes);
         services.AddSingleton(eventScenario.EventLog);
         services.AddSingleton(eventScenario.EventSequence);
+        services.AddSingleton<IReadModels>(_ => Defaults.Instance.EventStore.ReadModels);
+        services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
         services.AddSingleton<IEventStore>(_ => new EventStoreForScenario(eventScenario));
 
         context[ContextKey] = eventScenario;

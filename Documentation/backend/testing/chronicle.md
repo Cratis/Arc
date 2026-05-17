@@ -179,6 +179,23 @@ public async Task should_have_exactly_two_events()
 }
 ```
 
+## Testing Commands That Take Read Model Dependencies
+
+`CommandScenario<TCommand>` also supports direct read model dependencies in command handlers and validators, using the same convention-based registration as runtime (`IProjectionFor<T>` and model-bound projections).
+
+In tests, you can keep things deterministic by overriding `IReadModels` and returning the instance you want for the current event source id:
+
+```csharp
+var scenario = new CommandScenario<UseReadModelDependencyCommand>();
+var readModels = Substitute.For<IReadModels>();
+
+readModels
+    .GetInstanceById(typeof(AccountBalanceReadModel), Arg.Any<ReadModelKey>(), default)
+    .Returns(Task.FromResult<object>(new AccountBalanceReadModel(42m)));
+
+scenario.Services.AddSingleton(readModels);
+```
+
 ## Multiple Events
 
 When a command appends several events, assert each one by its sequence number:
@@ -223,6 +240,7 @@ When `Cratis.Arc.Chronicle.Testing` is referenced, `ChronicleCommandScenarioExte
 - `IEventTypes` → discovered from the assemblies loaded in the test process (same convention used in production)
 - `IEventLog` → backed by the real in-process Chronicle kernel (no server required)
 - `IEventSequence` → the same in-process instance
+- `IReadModels` and convention-registered read model services → enabling direct read model dependencies in handlers and validators
 
 It also populates the scenario context with an `EventScenario` instance, which is exposed through C# 14 extension properties:
 
@@ -232,4 +250,3 @@ It also populates the scenario context with an `EventScenario` instance, which i
 | `EventLog` | `IEventLog` | Shortcut to `EventScenario.EventLog` for Chronicle's own assertion helpers |
 | `EventSequence` | `IEventSequence` | Shortcut to `EventScenario.EventSequence` for Chronicle's assertion helpers |
 | `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | All events captured during command execution, used by `ShouldHaveAppendedEvent` and `ShouldHaveTailSequenceNumber` |
-
