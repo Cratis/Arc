@@ -137,7 +137,7 @@ arcBuilder.WithMongoDB(
 To use Entity Framework Core with your application, add the Entity Framework Core package:
 
 ```bash
-dotnet add package Cratis.Applications.EntityFrameworkCore
+dotnet add package Cratis.Arc.EntityFrameworkCore
 ```
 
 Once added, you can define and configure your `DbContext` classes as you normally would in Entity Framework Core. Arc automatically discovers and configures registered DbContexts with enhanced features like:

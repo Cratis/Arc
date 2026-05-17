@@ -24,8 +24,7 @@ public static class CommandScenarioChronicleExtensions
         /// a fluent builder for seeding pre-existing events.
         /// </summary>
         /// <remarks>
-        /// Use <see cref="EventScenario.Given"/> to seed events before the command runs and
-        /// <see cref="EventScenario.EventLog"/> to assert on the appended events afterwards.
+        /// Use <see cref="EventScenario.Given"/> to seed events before the command runs.
         /// </remarks>
         public EventScenario EventScenario =>
             (EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey];
@@ -33,21 +32,24 @@ public static class CommandScenarioChronicleExtensions
         /// <summary>
         /// Gets the <see cref="IEventLog"/> from the in-process Chronicle event scenario.
         /// </summary>
-        /// <remarks>
-        /// Use this to assert on events appended by the command under test, for example with
-        /// <c>ShouldHaveAppendedEvent</c> from Chronicle's <c>EventSequenceShouldExtensions</c>.
-        /// </remarks>
         public IEventLog EventLog =>
             ((EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey]).EventLog;
 
         /// <summary>
         /// Gets the <see cref="IEventSequence"/> from the in-process Chronicle event scenario.
         /// </summary>
-        /// <remarks>
-        /// This is the same underlying instance as <see cref="EventLog"/> and can be used with
-        /// Chronicle's <c>EventSequenceShouldExtensions</c> assertion helpers directly.
-        /// </remarks>
         public IEventSequence EventSequence =>
             ((EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey]).EventSequence;
+
+        /// <summary>
+        /// Gets the events appended to the event log during command execution, captured via the
+        /// <c>AppendOperations</c> observable on the client-side event log.
+        /// </summary>
+        /// <remarks>
+        /// Use the assertion helpers in <see cref="CommandScenarioChronicleAssertionExtensions"/>
+        /// to assert on these captured events.
+        /// </remarks>
+        public IReadOnlyList<AppendedEventWithResult> AppendedEvents =>
+            (List<AppendedEventWithResult>)scenario.Context[ChronicleCommandScenarioExtender.AppendedEventsKey];
     }
 }
