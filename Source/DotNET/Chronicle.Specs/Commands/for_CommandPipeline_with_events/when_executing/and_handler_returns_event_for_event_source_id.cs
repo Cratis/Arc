@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
 
