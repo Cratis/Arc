@@ -65,5 +65,5 @@ public class a_query_action_filter : Specification
             _logger);
     }
 
-    protected record TestReadModel(string Value);
+    public record TestReadModel(string Value);
 }

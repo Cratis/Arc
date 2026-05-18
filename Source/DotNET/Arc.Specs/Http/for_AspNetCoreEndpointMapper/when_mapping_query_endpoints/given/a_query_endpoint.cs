@@ -16,7 +16,7 @@ public class a_query_endpoint : Specification
     protected IEndpointRouteBuilder _routeBuilder;
     protected IQueryPerformerProviders _queryPerformerProviders;
 
-    protected record TestReadModel(string Name);
+    public record TestReadModel(string Name);
 
     void Establish()
     {

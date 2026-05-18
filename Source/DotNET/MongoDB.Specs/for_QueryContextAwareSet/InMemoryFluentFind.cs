@@ -25,7 +25,7 @@ public class InMemoryFluentFind<TDocument>(IEnumerable<TDocument> collection, in
     public override Task<IAsyncCursor<TDocument>> ToCursorAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IAsyncCursor<TDocument>>(new Cursor(collection.GetEnumerator(), limit));
 
-    public class Cursor(IEnumerator<TDocument> enumerator, int? limit) : IAsyncCursor<TDocument>
+    sealed class Cursor(IEnumerator<TDocument> enumerator, int? limit) : IAsyncCursor<TDocument>
     {
         public void Dispose() { }
         public bool MoveNext(CancellationToken cancellationToken = default) => enumerator.MoveNext();

@@ -9,9 +9,9 @@ public class a_read_model_interceptors : Specification
     protected ITypes _types;
     protected IServiceProvider _serviceProvider;
 
-    protected record TestReadModel(string Value);
+    public record TestReadModel(string Value);
 
-    protected class TestReadModelInterceptor : IInterceptReadModel<TestReadModel>
+    public class TestReadModelInterceptor : IInterceptReadModel<TestReadModel>
     {
         public List<TestReadModel> InterceptedItems { get; } = [];
 
@@ -22,7 +22,7 @@ public class a_read_model_interceptors : Specification
         }
     }
 
-    protected class AnotherTestReadModelInterceptor : IInterceptReadModel<TestReadModel>
+    public class AnotherTestReadModelInterceptor : IInterceptReadModel<TestReadModel>
     {
         public List<TestReadModel> InterceptedItems { get; } = [];
 
@@ -33,9 +33,9 @@ public class a_read_model_interceptors : Specification
         }
     }
 
-    protected record OtherReadModel(int Count);
+    public record OtherReadModel(int Count);
 
-    protected class OtherReadModelInterceptor : IInterceptReadModel<OtherReadModel>
+    public class OtherReadModelInterceptor : IInterceptReadModel<OtherReadModel>
     {
         public Task<OtherReadModel> Intercept(OtherReadModel readModel) => Task.FromResult(readModel);
     }

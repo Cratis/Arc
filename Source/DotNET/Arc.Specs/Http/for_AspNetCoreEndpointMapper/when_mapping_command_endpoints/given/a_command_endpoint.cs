@@ -16,7 +16,7 @@ public class a_command_endpoint : Specification
     protected IEndpointRouteBuilder _routeBuilder;
     protected ICommandHandlerProviders _commandHandlerProviders;
 
-    protected record TestCommand;
+    public record TestCommand;
 
     void Establish()
     {

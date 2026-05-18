@@ -47,5 +47,5 @@ public class a_controller_observable_query_adapter : Specification
         _adapter = new ControllerObservableQueryAdapter(_queryContextManager, _logger);
     }
 
-    protected record TestData(string Value);
+    public record TestData(string Value);
 }

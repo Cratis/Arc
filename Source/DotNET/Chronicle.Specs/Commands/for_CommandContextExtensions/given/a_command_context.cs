@@ -21,5 +21,5 @@ public class a_command_context : Specification
         _commandContext = new CommandContext(_correlationId, typeof(TestCommand), _command, [], _commandContextValues, null);
     }
 
-    protected class TestCommand;
+    public class TestCommand;
 }
