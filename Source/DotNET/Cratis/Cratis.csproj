@@ -13,7 +13,7 @@
         <ProjectReference Include="../Arc/Arc.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
         <ProjectReference Include="../Swagger/Swagger.csproj" />
-        <ProjectReference Include="../Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" />
+        <ProjectReference Include="../Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" ReferenceOutputAssembly="false" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.AspNetCore" />
