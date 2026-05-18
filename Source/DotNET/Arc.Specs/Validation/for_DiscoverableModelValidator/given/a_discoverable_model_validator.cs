@@ -40,7 +40,7 @@ public class a_discoverable_model_validator : Specification
         _validationContext = new ModelValidationContext(_actionContext, _modelMetadata, modelMetadataProvider, null, _model);
     }
 
-    protected class TestModel
+    public class TestModel
     {
         public string Value { get; set; } = string.Empty;
     }
