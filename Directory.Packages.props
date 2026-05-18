@@ -8,8 +8,8 @@
     <PackageVersion Include="Cratis.Chronicle" Version="15.26.1" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.26.1" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.26.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.9.13" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.9.13" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.9.16" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.9.16" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.60" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
