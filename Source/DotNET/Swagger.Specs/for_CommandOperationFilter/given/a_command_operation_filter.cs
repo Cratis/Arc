@@ -16,8 +16,8 @@ public class a_command_operation_filter : Specification
     protected ISchemaGenerator _schemaGenerator;
     protected SchemaRepository _schemaRepository;
 
-    protected record TestCommand(string Name, int Value);
-    protected record AnotherCommand(string Data);
+    public record TestCommand(string Name, int Value);
+    public record AnotherCommand(string Data);
 
     void Establish()
     {

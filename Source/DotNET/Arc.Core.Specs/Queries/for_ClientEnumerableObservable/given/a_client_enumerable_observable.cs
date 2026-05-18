@@ -30,9 +30,9 @@ public class a_client_enumerable_observable : Specification
             _logger);
     }
 
-    protected record TestData(string Value);
+    public record TestData(string Value);
 
-    protected class TestAsyncEnumerable : IAsyncEnumerable<TestData>
+    public class TestAsyncEnumerable : IAsyncEnumerable<TestData>
     {
         readonly List<TestData> _items = [new("First"), new("Second"), new("Third")];
 

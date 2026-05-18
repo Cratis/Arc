@@ -129,6 +129,6 @@ public class a_command_pipeline_with_event_handlers : Specification
             _serviceScopeFactory);
     }
 
-    protected record TestEvent(string Name);
-    protected record AnotherTestEvent(int Value);
+    public record TestEvent(string Name);
+    public record AnotherTestEvent(int Value);
 }

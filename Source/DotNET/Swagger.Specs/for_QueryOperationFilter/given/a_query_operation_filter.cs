@@ -16,7 +16,7 @@ public class a_query_operation_filter : Specification
     protected ISchemaGenerator _schemaGenerator;
     protected SchemaRepository _schemaRepository;
 
-    protected record TestReadModel(string Name, int Value);
+    public record TestReadModel(string Name, int Value);
 
     void Establish()
     {

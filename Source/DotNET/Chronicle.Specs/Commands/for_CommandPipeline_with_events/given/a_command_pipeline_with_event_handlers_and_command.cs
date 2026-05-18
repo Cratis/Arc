@@ -34,7 +34,7 @@ public class a_command_pipeline_with_event_handlers_and_command : a_command_pipe
         _eventTypes.HasFor(typeof(AnotherTestEvent)).Returns(true);
     }
 
-    protected class TestCommand
+    public class TestCommand
     {
         public EventSourceId EventSourceId { get; set; } = EventSourceId.Unspecified;
     }
