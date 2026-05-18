@@ -177,7 +177,12 @@ public class IdentityProvider(
 
         var claimsPrincipal = context.User;
         var identityId = claimsPrincipal.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
-        var identityName = claimsPrincipal.Identity?.Name ?? "unknown";
+        var identityName = claimsPrincipal.Identity?.Name;
+        if (string.IsNullOrEmpty(identityName))
+        {
+            context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out identityName);
+        }
+        identityName = string.IsNullOrEmpty(identityName) ? "unknown" : identityName;
         var claims = claimsPrincipal.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value));
         var roles = claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
 

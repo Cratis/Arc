@@ -20,6 +20,7 @@ public class an_identity_provider_result_handler : Specification
     {
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
         _httpRequestContext.Cookies.Returns(new Dictionary<string, string>());
+        _httpRequestContext.Headers.Returns(new Dictionary<string, string>());
         _httpRequestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
         _httpRequestContextAccessor.Current.Returns(_httpRequestContext);
 
