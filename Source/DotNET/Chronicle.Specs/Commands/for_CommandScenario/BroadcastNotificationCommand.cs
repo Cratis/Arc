@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario;
 
