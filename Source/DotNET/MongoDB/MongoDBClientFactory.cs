@@ -57,7 +57,10 @@ public class MongoDBClientFactory(
 
     IMongoClient CreateImplementation(MongoClientSettings settings)
     {
-        settings.DirectConnection = options.Value.DirectConnection;
+        if (options.Value.DirectConnection is true)
+        {
+            settings.DirectConnection = true;
+        }
         settings.ClusterConfigurator = builder => ClusterConfigurator(settings, builder);
 
         logger.CreateClient(settings.Server.ToString());
