@@ -19,16 +19,15 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ReadModelServiceCollectionExtensions
 {
-    static readonly MethodInfo _releaseWithSubjectMethod = typeof(IReadModels)
+    static readonly MethodInfo _releaseMethod = typeof(IReadModels)
         .GetMethods()
         .Single(_ =>
         {
             var parameters = _.GetParameters();
             return _.Name == nameof(IReadModels.Release) &&
                    _.IsGenericMethodDefinition &&
-                   parameters.Length == 2 &&
-                   parameters[0].ParameterType == typeof(Subject) &&
-                   parameters[1].ParameterType.IsGenericParameter;
+                   parameters.Length == 1 &&
+                   parameters[0].ParameterType.IsGenericParameter;
         });
     static bool _initialized;
 
@@ -91,20 +90,16 @@ public static class ReadModelServiceCollectionExtensions
         }
 
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
-        var subject = commandContext.GetSubject();
-
-        return subject is null
-            ? readModel
-            : ReleaseReadModel(readModels, readModelType, subject, readModel);
+        return ReleaseReadModel(readModels, readModelType, readModel);
     }
 
-    static object ReleaseReadModel(IReadModels readModels, Type readModelType, Subject subject, object readModel)
+    static object ReleaseReadModel(IReadModels readModels, Type readModelType, object readModel)
     {
         try
         {
-            var task = (Task)_releaseWithSubjectMethod
+            var task = (Task)_releaseMethod
                 .MakeGenericMethod(readModelType)
-                .Invoke(readModels, [subject, readModel])!;
+                .Invoke(readModels, [readModel])!;
 
             task.GetAwaiter().GetResult();
 
@@ -112,7 +107,7 @@ public static class ReadModelServiceCollectionExtensions
         }
         catch (Exception exception)
         {
-            throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}' with subject '{subject.Value}'.", exception);
+            throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}'.", exception);
         }
     }
 }
