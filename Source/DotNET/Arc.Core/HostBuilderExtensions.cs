@@ -87,6 +87,7 @@ public static class HostBuilderExtensions
             var options = sp.GetRequiredService<IOptions<ArcOptions>>();
             return options.Value.Tenancy.ResolverType switch
             {
+                TenantResolverType.Subdomain => ActivatorUtilities.GetServiceOrCreateInstance<SubdomainTenantIdResolver>(sp),
                 TenantResolverType.Header => ActivatorUtilities.GetServiceOrCreateInstance<HeaderTenantIdResolver>(sp),
                 TenantResolverType.Query => ActivatorUtilities.GetServiceOrCreateInstance<QueryTenantIdResolver>(sp),
                 TenantResolverType.Claim => ActivatorUtilities.GetServiceOrCreateInstance<ClaimTenantIdResolver>(sp),
