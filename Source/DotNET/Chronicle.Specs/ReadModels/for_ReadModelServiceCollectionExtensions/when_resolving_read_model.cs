@@ -75,16 +75,14 @@ public class when_resolving_read_model
     {
         var eventSourceId = EventSourceId.New();
         var readModel = new TestReadModel("loaded");
-        var releasedReadModel = new TestReadModel("released");
         var commandContext = CreateCommandContext(eventSourceId);
         var readModels = Substitute.For<IReadModels>();
         readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
-        readModels.Release(readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
-        result.ShouldEqual(releasedReadModel);
-        readModels.Received(1).Release(readModel);
+        result.ShouldEqual(readModel);
+        readModels.DidNotReceive().Release(Arg.Any<TestReadModel>());
     }
 
     [Fact]

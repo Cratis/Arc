@@ -90,7 +90,11 @@ public static class ReadModelServiceCollectionExtensions
         }
 
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
-        return ReleaseReadModel(readModels, readModelType, readModel);
+        var subject = commandContext.GetSubject();
+
+        return subject is null
+            ? readModel
+            : ReleaseReadModel(readModels, readModelType, readModel);
     }
 
     static object ReleaseReadModel(IReadModels readModels, Type readModelType, object readModel)
