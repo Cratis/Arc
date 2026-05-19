@@ -384,7 +384,7 @@ public static class TypeExtensions
     /// <returns>The effective element type to use for proxy generation and type collection.</returns>
     public static Type GetDictionaryEffectiveValueType(this Type valueType) =>
         valueType.IsEnumerable() && !valueType.IsDictionary()
-            ? valueType.GetEnumerableElementType()
+            ? valueType.GetEnumerableElementType() ?? valueType
             : valueType;
 
     /// <summary>

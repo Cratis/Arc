@@ -70,7 +70,15 @@ public static class PropertyExtensions
             isEnumerable = propertyType.IsEnumerable();
             if (isEnumerable)
             {
-                propertyType = propertyType.GetEnumerableElementType();
+                var elementType = propertyType.GetEnumerableElementType();
+                if (elementType is null)
+                {
+                    isEnumerable = false;
+                }
+                else
+                {
+                    propertyType = elementType;
+                }
             }
         }
 
