@@ -22,12 +22,12 @@ public class when_resolving_read_model
         var commandContext = CreateCommandContext(eventSourceId, subject);
         var readModels = Substitute.For<IReadModels>();
         readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
-        readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
+        readModels.Release(readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
         result.ShouldEqual(releasedReadModel);
-        readModels.Received(1).Release(subject, readModel);
+        readModels.Received(1).Release(readModel);
     }
 
     [Fact]
@@ -40,12 +40,12 @@ public class when_resolving_read_model
         var commandContext = CreateCommandContext(eventSourceId) with { Response = subject };
         var readModels = Substitute.For<IReadModels>();
         readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
-        readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
+        readModels.Release(readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
         result.ShouldEqual(releasedReadModel);
-        readModels.Received(1).Release(subject, readModel);
+        readModels.Received(1).Release(readModel);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class when_resolving_read_model
         var commandContext = CreateCommandContext(EventSourceId.Unspecified, subject) with { Response = eventSourceId };
         var readModels = Substitute.For<IReadModels>();
         readModels.GetInstanceById(typeof(TestReadModel), eventSourceId, default).Returns(Task.FromResult<object>(readModel));
-        readModels.Release(subject, readModel).Returns(Task.FromResult(releasedReadModel));
+        readModels.Release(readModel).Returns(Task.FromResult(releasedReadModel));
 
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
@@ -82,7 +82,7 @@ public class when_resolving_read_model
         var result = (TestReadModel)Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels);
 
         result.ShouldEqual(readModel);
-        readModels.DidNotReceive().Release(Arg.Any<Subject>(), Arg.Any<TestReadModel>());
+        readModels.DidNotReceive().Release(Arg.Any<TestReadModel>());
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class when_resolving_read_model
         var exception = Catch.Exception(() => Microsoft.Extensions.DependencyInjection.ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(TestReadModel), commandContext, readModels));
 
         exception.ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();
-        readModels.DidNotReceive().Release(Arg.Any<Subject>(), Arg.Any<TestReadModel>());
+        readModels.DidNotReceive().Release(Arg.Any<TestReadModel>());
     }
 
     static CommandContext CreateCommandContext(EventSourceId eventSourceId, Subject? subject = null)
