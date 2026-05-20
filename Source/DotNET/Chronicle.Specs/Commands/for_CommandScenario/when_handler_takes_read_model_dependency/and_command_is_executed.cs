@@ -26,6 +26,9 @@ public class and_command_is_executed : Specification
         Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Replace(
             _scenario.Services,
             new Microsoft.Extensions.DependencyInjection.ServiceDescriptor(typeof(IReadModels), readModels));
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Replace(
+            _scenario.Services,
+            new Microsoft.Extensions.DependencyInjection.ServiceDescriptor(typeof(AccountBalanceReadModel), _ => new AccountBalanceReadModel(42m), Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped));
     }
 
     async Task Because() => await _scenario.Execute(new UseReadModelDependencyCommand(_eventSourceId));
