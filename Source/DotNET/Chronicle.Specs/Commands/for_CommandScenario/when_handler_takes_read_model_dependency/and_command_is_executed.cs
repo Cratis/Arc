@@ -20,7 +20,7 @@ public class and_command_is_executed : Specification
 
         var readModels = Substitute.For<IReadModels>();
         readModels
-            .GetInstanceById(typeof(AccountBalanceReadModel), Arg.Any<ReadModelKey>(), default)
+            .GetInstanceById(typeof(AccountBalanceReadModel), Arg.Any<ReadModelKey>(), Arg.Any<ReadModelSessionId?>())
             .Returns(Task.FromResult<object>(new AccountBalanceReadModel(42m)));
 
         Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Replace(
