@@ -2,18 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, act, waitFor } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import { useChangeStream } from '../useChangeStream';
-import { FakeChangeStreamQueryBase, FakeItem } from './FakeChangeStreamQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { createChangeStreamWrapper, FakeChangeStreamQuery, FakeItem } from './FakeChangeStreamQuery';
+import { ArcConfiguration } from '../../ArcContext';
 import { ChangeSet, QueryResult } from '@cratis/arc/queries';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-class FakeChangeStreamQuery extends FakeChangeStreamQueryBase {
-    readonly route = '/api/when-receiving-second-update-with-key-based-delta';
-    readonly queryName = 'when-receiving-second-update-with-key-based-delta';
-}
 
 describe('when receiving second update with key-based delta', () => {
     let capturedChangeSet: ChangeSet<FakeItem> = { added: [], replaced: [], removed: [] };
@@ -40,17 +35,12 @@ describe('when receiving second update with key-based delta', () => {
             return React.createElement('div', null, 'Test');
         };
 
-        render(
-            React.createElement(
-                ArcContext.Provider,
-                { value: config },
-                React.createElement(TestComponent)
-            )
-        );
+        render(React.createElement(TestComponent), { wrapper: createChangeStreamWrapper(config) });
 
-        await waitFor(() => expect(FakeChangeStreamQuery.subscribeCallbacks[0]).toBeDefined());
-        const callback = FakeChangeStreamQuery.subscribeCallbacks[0]!;
+        const callback = FakeChangeStreamQuery.subscribeCallbacks[0];
+        callback!.should.not.be.undefined;
 
+        // First update
         await act(async () => {
             callback(new QueryResult({
                 data: [
@@ -68,6 +58,7 @@ describe('when receiving second update with key-based delta', () => {
             }, Object, true));
         });
 
+        // Second update — item 2 name changed, item 3 added
         await act(async () => {
             callback(new QueryResult({
                 data: [

@@ -182,7 +182,7 @@ export class UserRegistrationCommand extends Command<IUserRegistrationCommand, o
         this.propertyChanged('role');
     }
 
-    static use(initialValues?: IUserRegistrationCommand): [UserRegistrationCommand, SetCommandValues<IUserRegistrationCommand>, ClearCommandValues, number] {
+    static use(initialValues?: IUserRegistrationCommand): [UserRegistrationCommand, SetCommandValues<IUserRegistrationCommand>, ClearCommandValues] {
         return useCommand<UserRegistrationCommand, IUserRegistrationCommand>(UserRegistrationCommand, initialValues);
     }
 }
