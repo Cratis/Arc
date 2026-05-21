@@ -11,9 +11,9 @@ export interface FakeItem {
 
 export type SubscribeCallback = OnNextResult<QueryResult<FakeItem[]>>;
 
-export class FakeChangeStreamQuery extends ObservableQueryFor<FakeItem[]> implements IChangeStreamFor<FakeItem> {
-    readonly route = '/api/fake-change-stream';
+export abstract class FakeChangeStreamQueryBase extends ObservableQueryFor<FakeItem[]> implements IChangeStreamFor<FakeItem> {
     readonly parameterDescriptors: ParameterDescriptor[] = [];
+    abstract readonly route: string;
 
     get requiredRequestParameters(): string[] {
         return [];
@@ -30,14 +30,16 @@ export class FakeChangeStreamQuery extends ObservableQueryFor<FakeItem[]> implem
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     subscribe(callback: SubscribeCallback, args?: object): ObservableQuerySubscription<FakeItem[]> {
-        FakeChangeStreamQuery.subscribeCallbacks.push(callback);
-        FakeChangeStreamQuery.subscriptionReturned = {
+        const queryType = this.constructor as typeof FakeChangeStreamQueryBase;
+        queryType.subscribeCallbacks.push(callback);
+        queryType.subscriptionReturned = {
             unsubscribe: () => {}
         } as unknown as ObservableQuerySubscription<FakeItem[]>;
-        return FakeChangeStreamQuery.subscriptionReturned;
+        return queryType.subscriptionReturned;
     }
 
     static reset() {
-        FakeChangeStreamQuery.subscribeCallbacks = [];
+        this.subscribeCallbacks = [];
+        this.subscriptionReturned = undefined as unknown as ObservableQuerySubscription<FakeItem[]>;
     }
 }
