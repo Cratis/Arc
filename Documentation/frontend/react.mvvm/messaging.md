@@ -21,6 +21,7 @@ This creates for a more decoupled approach and making your code and structure ea
 In Cratis Arc the system that deals with this is called `IMessenger`.
 It has a method called `publish()` for publishing messages, and one for subscribing called `subscribe()`.
 Both of these methods work on types and require a runtime type like a `class` to be the message type.
+The implementation is provided by Arc core (`@cratis/arc/messaging`) and wired into MVVM bindings.
 
 Below is an example of the view models for two components, one listing items and the other holding details.
 
@@ -75,3 +76,19 @@ export class UserDetailsViewModel {
 
 With this, the details view model will subscribe to the `UserSelected` message and set the state of the
 view model accordingly.
+
+## Scoped messaging
+
+When using Arc React, the root `<Arc />` provides a root messenger.
+You can add nested scopes with `MessengerScope` from `@cratis/arc.react/messaging`.
+View models resolved with `withViewModel()` receive the nearest scoped messenger automatically, and fall back to the root messenger.
+
+By default:
+
+- Messages do not bubble to parent scopes.
+- Messages from parent scopes trickle down to child scopes recursively.
+
+Override behavior through:
+
+- `bubbleToParent`
+- `trickleDownToChildren`

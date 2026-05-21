@@ -4,6 +4,7 @@
 import * as commands from './commands';
 import * as dialogs from './dialogs';
 import * as identity from './identity';
+import * as messaging from './messaging';
 import * as queries from './queries';
 import * as stories from './stories';
 
@@ -15,6 +16,7 @@ export {
     commands,
     dialogs,
     identity,
+    messaging,
     queries,
     stories
 };

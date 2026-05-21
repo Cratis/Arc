@@ -3,10 +3,12 @@
 
 import { GetHttpHeaders, ObservableQueryTransferMode, Globals } from '@cratis/arc';
 import { QueryTransportMethod } from '@cratis/arc/queries';
+import { IMessenger, Messenger } from '@cratis/arc/messaging';
 import React from 'react';
 
 export interface ArcConfiguration {
     microservice: string;
+    messenger?: IMessenger;
     development?: boolean
     origin?: string;
     basePath?: string;
@@ -56,6 +58,7 @@ export interface ArcConfiguration {
 
 export const ArcContext = React.createContext<ArcConfiguration>({
     microservice: Globals.microservice,
+    messenger: new Messenger(),
     development: false,
     origin: '',
     basePath: '',

@@ -4,6 +4,8 @@
   href: identity.md
 - name: Dialogs
   href: dialogs.md
+- name: Messaging
+  href: messaging.md
 - name: Commands
   href: commands/toc.yml
 - name: CommandForm
