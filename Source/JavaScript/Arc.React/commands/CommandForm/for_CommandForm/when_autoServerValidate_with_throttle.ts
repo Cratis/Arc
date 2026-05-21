@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, waitFor, act } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
 import { asCommandFormField } from '../asCommandFormField';
 import { Command, CommandValidator } from '@cratis/arc/commands';
@@ -63,6 +63,12 @@ const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: un
     }
 );
 
+const waitForUpdates = async (milliseconds: number) => {
+    await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, milliseconds));
+    });
+};
+
 describe("when autoServerValidate with throttle", given(a_command_form_context, context => {
     let result: ReturnType<typeof render>;
 
@@ -87,7 +93,7 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             result.unmount();
         }
         // Wait for any pending async operations to complete
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForUpdates(100);
     });
 
     describe('and throttle is set to 300ms', () => {
@@ -143,7 +149,7 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
             
             // Wait 100ms (less than throttle)
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await waitForUpdates(100);
             
             // Change field again (should reset throttle)
             fireEvent.change(nameInput, { target: { value: 'Jane Smith' } });
@@ -168,17 +174,17 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
             
             // Rapid changes
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await waitForUpdates(50);
             fireEvent.change(nameInput, { target: { value: 'Jane Smith' } });
             
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await waitForUpdates(50);
             fireEvent.change(emailInput, { target: { value: 'jane@example.com' } });
             
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await waitForUpdates(50);
             fireEvent.change(nameInput, { target: { value: 'Bob Johnson' } });
             
             // Wait for throttle to complete after last change
-            await new Promise(resolve => setTimeout(resolve, 400));
+            await waitForUpdates(400);
             
             // Throttle should reduce the number of calls significantly.
             // With validateOn='change' each valid change fires a client-side validate() fetch

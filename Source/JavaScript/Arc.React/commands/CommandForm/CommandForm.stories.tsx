@@ -11,6 +11,8 @@ import {
     NumberField, 
     TextAreaField, 
     CheckboxField, 
+    RadioButtonField,
+    RadioGroupField,
     RangeField,
     SelectField 
 } from './fields';
@@ -58,6 +60,38 @@ class SimpleCommandValidator extends CommandValidator<SimpleCommand> {
         super();
         this.ruleFor(c => c.name).notEmpty().minLength(3);
         this.ruleFor(c => c.email).notEmpty().emailAddress();
+    }
+}
+
+class RadioPreferencesCommand extends Command {
+    readonly route: string = '/api/radio-preferences';
+    readonly validation: RadioPreferencesCommandValidator = new RadioPreferencesCommandValidator();
+    readonly propertyDescriptors: PropertyDescriptor[] = [
+        new PropertyDescriptor('contactMethod', String),
+        new PropertyDescriptor('role', String)
+    ];
+
+    contactMethod = 'email';
+    role = 'reader';
+
+    constructor() {
+        super(Object, false);
+    }
+
+    get requestParameters(): string[] {
+        return [];
+    }
+
+    get properties(): string[] {
+        return ['contactMethod', 'role'];
+    }
+}
+
+class RadioPreferencesCommandValidator extends CommandValidator<RadioPreferencesCommand> {
+    constructor() {
+        super();
+        this.ruleFor(c => c.contactMethod).notEmpty();
+        this.ruleFor(c => c.role).notEmpty();
     }
 }
 
@@ -296,6 +330,62 @@ export const UserRegistration: Story = {
             </StoryContainer>
         );
     }
+};
+
+export const RadioFields: Story = {
+    render: () => (
+        <StoryContainer size="sm" asCard>
+            <h2>Radio Button Fields</h2>
+            <p>
+                Use <code>RadioButtonField</code> when you want each option to be declared as its own field,
+                and use <code>RadioGroupField</code> when you want to provide the options as an array.
+            </p>
+            <p>
+                Both field types infer the selected value type from the accessor, so each option stays aligned
+                with the command property it updates.
+            </p>
+
+            <CommandForm
+                command={RadioPreferencesCommand}
+                initialValues={{
+                    contactMethod: 'sms',
+                    role: 'admin'
+                }}
+            >
+                <h3>Contact Method</h3>
+                <RadioButtonField
+                    value={(c: RadioPreferencesCommand) => c.contactMethod}
+                    setValue="email"
+                    label="Email"
+                    title="Preferred Contact Method"
+                />
+                <RadioButtonField
+                    value={(c: RadioPreferencesCommand) => c.contactMethod}
+                    setValue="sms"
+                    label="SMS"
+                />
+                <RadioButtonField
+                    value={(c: RadioPreferencesCommand) => c.contactMethod}
+                    setValue="phone"
+                    label="Phone"
+                />
+
+                <h3 style={{ marginTop: 'var(--space-2xl)', marginBottom: 0 }}>Role</h3>
+                <RadioGroupField
+                    value={(c: RadioPreferencesCommand) => c.role}
+                    title="Default Role"
+                    direction="horizontal"
+                    options={[
+                        { value: 'reader', label: 'Reader' },
+                        { value: 'admin', label: 'Administrator' },
+                        { value: 'owner', label: 'Owner' }
+                    ]}
+                />
+
+                <DefaultSubmitBar />
+            </CommandForm>
+        </StoryContainer>
+    )
 };
 
 export const CustomTitles: Story = {

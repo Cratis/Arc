@@ -94,4 +94,4 @@ function LocationForm() {
 
 - [CommandForm Overview](./index.md)
 - [Working with Hooks](./hooks.md)
-- [Field Types](./field-types.md)
+- [Field Types](./field-types/index.md)

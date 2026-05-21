@@ -467,6 +467,6 @@ function MyForm() {
 ## See Also
 
 - [CommandForm Overview](./index.md)
-- [Built-in Field Types](./field-types.md)
+- [Built-in Field Types](./field-types/index.md)
 - [Customization](./customization.md)
 - [Validation](./validation.md)
