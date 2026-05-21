@@ -4,8 +4,8 @@
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { useChangeStream } from '../useChangeStream';
-import { FakeChangeStreamQuery, FakeItem } from './FakeChangeStreamQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { createChangeStreamWrapper, FakeChangeStreamQuery, FakeItem } from './FakeChangeStreamQuery';
+import { ArcConfiguration } from '../../ArcContext';
 import { ChangeSet, QueryResult } from '@cratis/arc/queries';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -31,13 +31,7 @@ describe('when receiving first update', () => {
             return React.createElement('div', null, 'Test');
         };
 
-        render(
-            React.createElement(
-                ArcContext.Provider,
-                { value: config },
-                React.createElement(TestComponent)
-            )
-        );
+        render(React.createElement(TestComponent), { wrapper: createChangeStreamWrapper(config) });
 
         const callback = FakeChangeStreamQuery.subscribeCallbacks[0];
         callback!.should.not.be.undefined;

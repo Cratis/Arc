@@ -1,8 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IChangeStreamFor, ObservableQueryFor, QueryResult, ObservableQuerySubscription, OnNextResult } from '@cratis/arc/queries';
+import React from 'react';
+import { IChangeStreamFor, ObservableQueryFor, QueryResult, ObservableQuerySubscription, OnNextResult, QueryInstanceCache } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
+import { ArcConfiguration, ArcContext } from '../../ArcContext';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
 
 export interface FakeItem {
     id: string;
@@ -41,3 +44,17 @@ export class FakeChangeStreamQuery extends ObservableQueryFor<FakeItem[]> implem
         FakeChangeStreamQuery.subscribeCallbacks = [];
     }
 }
+
+export const createChangeStreamWrapper = (config: ArcConfiguration) => {
+    const queryCache = new QueryInstanceCache();
+
+    return ({ children }: { children: React.ReactNode }) => React.createElement(
+        ArcContext.Provider,
+        { value: config },
+        React.createElement(
+            QueryInstanceCacheContext.Provider,
+            { value: queryCache },
+            children
+        )
+    );
+};

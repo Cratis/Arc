@@ -4,8 +4,8 @@
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { useChangeStream } from '../../useChangeStream';
-import { FakeChangeStreamQuery, FakeItem } from '../FakeChangeStreamQuery';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
+import { createChangeStreamWrapper, FakeChangeStreamQuery, FakeItem } from '../FakeChangeStreamQuery';
+import { ArcConfiguration } from '../../../ArcContext';
 import { ChangeSet, QueryResult } from '@cratis/arc/queries';
 import { Globals, ObservableQueryTransferMode } from '@cratis/arc';
 
@@ -38,13 +38,7 @@ describe('when receiving subsequent update in full transfer mode', () => {
             return React.createElement('div', null, 'Test');
         };
 
-        render(
-            React.createElement(
-                ArcContext.Provider,
-                { value: config },
-                React.createElement(TestComponent)
-            )
-        );
+        render(React.createElement(TestComponent), { wrapper: createChangeStreamWrapper(config) });
 
         const callback = FakeChangeStreamQuery.subscribeCallbacks[0];
 

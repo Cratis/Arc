@@ -4,8 +4,8 @@
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { useChangeStream } from '../useChangeStream';
-import { FakeChangeStreamQuery, FakeItem } from './FakeChangeStreamQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { createChangeStreamWrapper, FakeChangeStreamQuery, FakeItem } from './FakeChangeStreamQuery';
+import { ArcConfiguration } from '../../ArcContext';
 import { ChangeSet, QueryResult } from '@cratis/arc/queries';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -37,13 +37,7 @@ describe('when hook is disabled', () => {
             return React.createElement('div', null, 'Test');
         };
 
-        render(
-            React.createElement(
-                ArcContext.Provider,
-                { value: config },
-                React.createElement(TestComponent)
-            )
-        );
+        render(React.createElement(TestComponent), { wrapper: createChangeStreamWrapper(config) });
 
         // Simulate incoming data even though the hook is disabled
         if (FakeChangeStreamQuery.subscribeCallbacks.length > 0) {
