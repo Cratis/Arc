@@ -100,7 +100,7 @@ CommandForm accepts any React elements as children. The following are treated sp
 
 ## See Also
 
-- [Field Types](field-types.md) - Available field components
+- [Field Types](field-types/index.md) - Available field components
 - [Validation](validation.md) - Integration with Arc validation
 - [Customization](customization.md) - Custom titles, errors, and containers
 - [Advanced Usage](advanced.md) - Layouts, hooks, and async data

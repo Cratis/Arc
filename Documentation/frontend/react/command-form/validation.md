@@ -462,6 +462,6 @@ For comprehensive details on the command validation system:
 ## See Also
 
 - [CommandForm Overview](./index.md)
-- [Built-in Field Types](./field-types.md)
+- [Built-in Field Types](./field-types/index.md)
 - [Customization](./customization.md)
 - [Advanced Usage](./advanced.md)
