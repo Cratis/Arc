@@ -41,6 +41,11 @@
             "require": "./dist/cjs/dialogs/index.js",
             "import": "./dist/esm/dialogs/index.js"
         },
+        "./messaging": {
+            "types": "./dist/esm/messaging/index.d.ts",
+            "require": "./dist/cjs/messaging/index.js",
+            "import": "./dist/esm/messaging/index.js"
+        },
         "./identity": {
             "types": "./dist/esm/identity/index.d.ts",
             "require": "./dist/cjs/identity/index.js",
