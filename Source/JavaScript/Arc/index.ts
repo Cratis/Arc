@@ -3,6 +3,7 @@
 
 import * as commands from './commands';
 import * as identity from './identity';
+import * as messaging from './messaging';
 import * as queries from './queries';
 import * as validation from './validation';
 import * as reflection from './reflection';
@@ -15,6 +16,7 @@ export * from './GetHttpHeaders';
 export {
     commands,
     identity,
+    messaging,
     queries,
     validation,
     reflection,

@@ -36,6 +36,11 @@
             "import": "./dist/esm/identity/index.js",
             "require": "./dist/cjs/identity/index.js"
         },
+        "./messaging": {
+            "types": "./dist/esm/messaging/index.d.ts",
+            "import": "./dist/esm/messaging/index.js",
+            "require": "./dist/cjs/messaging/index.js"
+        },
         "./queries": {
             "types": "./dist/esm/queries/index.d.ts",
             "import": "./dist/esm/queries/index.js",
@@ -64,6 +69,7 @@
         "up": "yarn g:up"
     },
     "dependencies": {
-        "@cratis/fundamentals": "^7.9.2"
+        "@cratis/fundamentals": "^7.9.2",
+        "rxjs": "^7.8.2"
     }
 }

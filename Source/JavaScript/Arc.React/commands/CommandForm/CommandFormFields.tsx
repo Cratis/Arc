@@ -309,7 +309,7 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
 
                             return (
                                 <CommandFormFieldWrapper
-                                    key={propertyName}
+                                    key={`${propertyName}-${index}`}
                                     field={field}
                                 />
                             );
@@ -333,7 +333,7 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
 
                         return (
                             <CommandFormFieldWrapper
-                                key={propertyName}
+                                key={`${propertyName}-${item.index}`}
                                 field={field}
                             />
                         );
@@ -359,7 +359,7 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
 
                 return (
                     <CommandFormFieldWrapper
-                        key={propertyName}
+                        key={`${propertyName}-${index}`}
                         field={field}
                     />
                 );

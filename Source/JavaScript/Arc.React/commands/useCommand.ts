@@ -14,7 +14,7 @@ export type ClearCommandValues = () => void;
  * Use a command in a component.
  * @param commandType Type of the command to use.
  * @param initialValues Any initial values to set for the command.
- * @returns Tuple with the command, a {@link SetCommandValues<TCommandContent>} delegate to set values on command, {@link ClearCommandValues} delegate clear values, and a version number that increments on changes.
+ * @returns Tuple with the command, a {@link SetCommandValues<TCommandContent>} delegate to set values on command, and a {@link ClearCommandValues} delegate to clear values.
  */
 export function useCommand<
     TCommand extends Command<TCommandContent, TCommandResponse>,
@@ -23,10 +23,10 @@ export function useCommand<
 >(
     commandType: Constructor<TCommand>,
     initialValues?: TCommandContent
-): [TCommand, SetCommandValues<TCommandContent>, ClearCommandValues, number] {
+): [TCommand, SetCommandValues<TCommandContent>, ClearCommandValues] {
     const command = useRef<TCommand | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
-    const [version, setVersion] = useState(0);
+    const [, setVersion] = useState(0);
     const arc = useContext(ArcContext);
 
     const propertyChangedCallback = useCallback(() => {
@@ -72,5 +72,5 @@ export function useCommand<
         setVersion(v => v + 1);
     }, []);
 
-    return [command.current!, setCommandValues, clearCommandValues, version];
+    return [command.current!, setCommandValues, clearCommandValues];
 }

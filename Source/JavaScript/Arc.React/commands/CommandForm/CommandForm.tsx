@@ -149,12 +149,16 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         ...props.initialValues
     }), [valuesFromCurrentValues, initialValuesFromFields, props.initialValues]);
 
-    // useCommand returns [instance, setter, clearer, version] for the typed command. Provide generics so commandInstance is TCommand.
+    // useCommand returns [instance, setter, clearer] for the typed command. Provide generics so commandInstance is TCommand.
     // Using type assertion through unknown to work around generic constraint mismatch
     const useCommandResult = useCommand(props.command as unknown as Constructor<Command<Partial<TCommand>, object>>, mergedInitialValues);
     const commandInstance = useCommandResult[0] as unknown as TCommand;
-    const setCommandValues = useCommandResult[1] as SetCommandValues<TCommand>;
-    const commandVersion = useCommandResult[3];
+    const setCommandValuesInternal = useCommandResult[1] as SetCommandValues<TCommand>;
+    const [commandVersion, setCommandVersion] = useState(0);
+    const setCommandValues = useCallback((values: TCommand) => {
+        setCommandValuesInternal(values);
+        setCommandVersion(version => version + 1);
+    }, [setCommandValuesInternal]);
     const [commandResult, setCommandResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [silentValidationResult, setSilentValidationResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});

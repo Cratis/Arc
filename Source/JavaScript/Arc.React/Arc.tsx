@@ -8,7 +8,9 @@ import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
+import { Messenger } from '@cratis/arc/messaging';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
+import { MessengerScopeContext } from './messaging/MessengerScopeContext';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**
@@ -65,6 +67,7 @@ export interface ArcProps {
  */
 export const Arc = (props: ArcProps) => {
     const [queryVersion, setQueryVersion] = useState(0);
+    const messenger = useRef(new Messenger());
 
     // The cache is application-scoped — create once per Arc mount.
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
@@ -80,6 +83,7 @@ export const Arc = (props: ArcProps) => {
 
     const configuration: ArcConfiguration = {
         microservice: props.microservice ?? '',
+        messenger: messenger.current,
         development: props.development ?? false,
         origin: props.origin ?? '',
         basePath: props.basePath ?? '',
@@ -116,12 +120,14 @@ export const Arc = (props: ArcProps) => {
 
     return (
         <ArcContext.Provider value={configuration}>
-            <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
-                <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
-                    <CommandScope>
-                        {props.children}
-                    </CommandScope>
-                </IdentityProvider>
-            </QueryInstanceCacheContext.Provider>
+            <MessengerScopeContext.Provider value={configuration.messenger}>
+                <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
+                    <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
+                        <CommandScope>
+                            {props.children}
+                        </CommandScope>
+                    </IdentityProvider>
+                </QueryInstanceCacheContext.Provider>
+            </MessengerScopeContext.Provider>
         </ArcContext.Provider>);
 };
