@@ -4,11 +4,16 @@
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { useChangeStream } from '../useChangeStream';
-import { createChangeStreamWrapper, FakeChangeStreamQuery, FakeItem } from './FakeChangeStreamQuery';
-import { ArcConfiguration } from '../../ArcContext';
-import { ChangeSet, QueryResult } from '@cratis/arc/queries';
+import { FakeChangeStreamQueryBase, FakeItem } from './FakeChangeStreamQuery';
+import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { ChangeSet } from '@cratis/arc/queries';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+class FakeChangeStreamQuery extends FakeChangeStreamQueryBase {
+    readonly route = '/api/when-hook-is-disabled';
+    readonly queryName = 'when-hook-is-disabled';
+}
 
 describe('when hook is disabled', () => {
     let capturedChangeSet: ChangeSet<FakeItem> = { added: [], replaced: [], removed: [] };
@@ -37,25 +42,17 @@ describe('when hook is disabled', () => {
             return React.createElement('div', null, 'Test');
         };
 
-        render(React.createElement(TestComponent), { wrapper: createChangeStreamWrapper(config) });
+        render(
+            React.createElement(
+                ArcContext.Provider,
+                { value: config },
+                React.createElement(TestComponent)
+            )
+        );
 
-        // Simulate incoming data even though the hook is disabled
-        if (FakeChangeStreamQuery.subscribeCallbacks.length > 0) {
-            await act(async () => {
-                FakeChangeStreamQuery.subscribeCallbacks[0](new QueryResult({
-                    data: [{ id: '1', name: 'First' }],
-                    isSuccess: true,
-                    isAuthorized: true,
-                    isValid: true,
-                    hasExceptions: false,
-                    validationResults: [],
-                    exceptionMessages: [],
-                    exceptionStackTrace: '',
-                    paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 }
-                }, Object, true));
-            });
-        }
+        await act(async () => {});
 
+        expect(FakeChangeStreamQuery.subscribeCallbacks[0]).toBeUndefined();
         capturedChangeSet.added.length.should.equal(0);
         capturedChangeSet.replaced.length.should.equal(0);
         capturedChangeSet.removed.length.should.equal(0);
