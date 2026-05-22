@@ -235,6 +235,7 @@
     const modulePathMap = {
         '@cratis/fundamentals': 'node_modules/@cratis/fundamentals/dist/cjs/index.js',
         'reflect-metadata': 'node_modules/reflect-metadata/Reflect.js',
+        'rxjs': 'node_modules/rxjs/dist/cjs/index.js',
         '@cratis/arc/queries': 'Arc/dist/cjs/queries/index.js',
         '@cratis/arc/commands': 'Arc/dist/cjs/commands/index.js',
         '@cratis/arc/reflection': 'Arc/dist/cjs/reflection/index.js',
