@@ -4,6 +4,7 @@
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
+using Cratis.Traces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +20,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryRenderers">The query renderers.</param>
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
 /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> for validating paging and sorting.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 public class QueryPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
     IQueryContextManager queryContextManager,
@@ -26,13 +28,15 @@ public class QueryPipeline(
     IQueryPerformerProviders queryPerformerProviders,
     IQueryRenderers queryRenderers,
     IReadModelInterceptors readModelInterceptors,
-    IDiscoverableValidators discoverableValidators) : IQueryPipeline
+    IDiscoverableValidators discoverableValidators,
+    IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
 {
     /// <inheritdoc/>
     public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider)
     {
         var correlationId = GetCorrelationId();
         var result = QueryResult.Success(correlationId);
+        using var span = activitySource.Perform(queryName.Value);
         try
         {
             if (paging.IsPaged)

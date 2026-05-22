@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Execution;
+using Cratis.Traces;
 
 namespace Cratis.Arc.Commands.for_CommandFilters.when_executing_filters;
 
@@ -23,7 +24,9 @@ public class and_first_filter_returns_null : Specification
         _filter1.OnExecution(_context).Returns(Task.FromResult<CommandResult>(null!));
         _filter2.OnExecution(_context).Returns(Task.FromResult(_filterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
-        _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters));
+        var commandFiltersActivitySource = Substitute.For<IActivitySource<CommandFilters>>();
+        commandFiltersActivitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters), commandFiltersActivitySource);
     }
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);

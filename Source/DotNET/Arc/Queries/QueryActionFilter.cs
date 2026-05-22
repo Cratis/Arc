@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Validation;
 using Cratis.Strings;
+using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -21,12 +22,14 @@ namespace Cratis.Arc.Queries;
 /// <param name="readModelInterceptors"><see cref="IReadModelInterceptors"/> for intercepting read models.</param>
 /// <param name="controllerAdapter"><see cref="ControllerObservableQueryAdapter"/>.</param>
 /// <param name="logger"><see cref="ILogger"/> for logging.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 public class QueryActionFilter(
     IQueryContextManager queryContextManager,
     IQueryRenderers queryProviders,
     IReadModelInterceptors readModelInterceptors,
     ControllerObservableQueryAdapter controllerAdapter,
-    ILogger<QueryActionFilter> logger) : IAsyncActionFilter
+    ILogger<QueryActionFilter> logger,
+    IActivitySource<QueryActionFilter> activitySource) : IAsyncActionFilter
 {
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -37,6 +40,8 @@ public class QueryActionFilter(
             var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", queryContextManager);
             var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
             var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
+            var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
+            using var span = activitySource.OnQuery(routeTemplate);
 
             var callResult = await CallNextAndHandleValidationAndExceptions(context, next);
             if (context.IsAspNetResult()) return;

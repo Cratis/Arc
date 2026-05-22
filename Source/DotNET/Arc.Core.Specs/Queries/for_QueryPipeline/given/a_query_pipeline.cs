@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Validation;
 using Cratis.Execution;
+using Cratis.Traces;
 
 namespace Cratis.Arc.Queries.for_QueryPipeline.given;
 
@@ -45,6 +46,14 @@ public class a_query_pipeline : Specification
             _queryPerformerProviders,
             _queryRenderers,
             _readModelInterceptors,
-            _discoverableValidators);
+            _discoverableValidators,
+            CreateActivitySource<QueryPipeline>());
+    }
+
+    static IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        activitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        return activitySource;
     }
 }

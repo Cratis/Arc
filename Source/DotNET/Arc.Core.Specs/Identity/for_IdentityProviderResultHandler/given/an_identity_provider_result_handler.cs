@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Http;
+using Cratis.Traces;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity.for_IdentityProvider.given;
@@ -32,7 +33,9 @@ public class an_identity_provider_result_handler : Specification
         var optionsWrapper = Substitute.For<IOptions<ArcOptions>>();
         optionsWrapper.Value.Returns(_options);
 
-        _handler = new(_httpRequestContextAccessor, optionsWrapper);
+        var identityActivitySource = Substitute.For<IActivitySource<IdentityProvider>>();
+        identityActivitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        _handler = new(_httpRequestContextAccessor, optionsWrapper, identityActivitySource);
     }
 
     protected ClaimsPrincipal CreateAuthenticatedUser()
