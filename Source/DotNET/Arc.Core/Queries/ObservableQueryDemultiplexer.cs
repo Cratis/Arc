@@ -539,6 +539,12 @@ public class ObservableQueryDemultiplexer(
         var isDeltaMode = string.Equals(transferMode, "delta", StringComparison.OrdinalIgnoreCase);
         var isFullMode = string.Equals(transferMode, "full", StringComparison.OrdinalIgnoreCase);
 
+        // Capture the per-subscription query context here, while the AsyncLocal still carries the
+        // context set up by the query pipeline. Observer callbacks below are invoked from the MongoDB
+        // change-stream thread, where AsyncLocal flow does not reach, so reading the manager from
+        // inside the callback would return QueryContext.NotSet and overwrite the real paging info.
+        var subscriptionQueryContext = queryContextManager.Current;
+
         return subject.Subscribe(
             data =>
             {
@@ -564,7 +570,6 @@ public class ObservableQueryDemultiplexer(
                     previousItems = currentItems;
                 }
 
-                var queryContext = queryContextManager.Current;
                 var result = new QueryResult
                 {
                     CorrelationId = correlationId,
@@ -584,9 +589,12 @@ public class ObservableQueryDemultiplexer(
                     ChangeSet = isFullMode || (isDeltaMode && isFirstEmission) ? null : changeSet
                 };
 
-                if (queryContext is not null)
+                if (subscriptionQueryContext is not null && subscriptionQueryContext != QueryContext.NotSet)
                 {
-                    result.Paging = new PagingInfo(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
+                    result.Paging = new PagingInfo(
+                        subscriptionQueryContext.Paging.Page,
+                        subscriptionQueryContext.Paging.Size,
+                        subscriptionQueryContext.TotalItems);
                 }
 
                 _ = onNext(result);
