@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.EntityFrameworkCore;
+using Cratis.Arc.EntityFrameworkCore.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc;
 
@@ -30,6 +32,16 @@ public static class EntityFrameworkCoreArcBuilderExtensions
 
         configureOptions?.Invoke(builder.Options);
         configureEfCore?.Invoke(builder);
+
+        // Build and register JsonConversionOptions from the configured EF Core options so that
+        // BaseDbContext (and direct callers) can resolve the final JsonSerializerOptions from DI.
+        var jsonConversionOptions = new JsonConversionOptions();
+        foreach (var converter in builder.Options.JsonConverters)
+        {
+            jsonConversionOptions.JsonSerializerOptions.Converters.Add(converter);
+        }
+
+        arcBuilder.Services.TryAddSingleton(jsonConversionOptions);
 
         // Auto-discover and register DbContext types if enabled
         if (builder.Options.AutoDiscoverDbContexts && !string.IsNullOrEmpty(builder.Options.ConnectionString))
