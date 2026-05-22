@@ -13,7 +13,7 @@ using Cratis.Arc.Commands.ModelBound;
 namespace TestNamespace
 {
     [Command]
-    public class TestCommand
+    public record TestCommand
     {
         public string Name { get; set; }
         
@@ -23,4 +23,3 @@ namespace TestNamespace
     }
 }");
 }
-

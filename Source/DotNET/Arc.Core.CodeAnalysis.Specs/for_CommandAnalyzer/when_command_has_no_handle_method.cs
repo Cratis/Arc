@@ -13,7 +13,7 @@ using Cratis.Arc.Commands.ModelBound;
 namespace TestNamespace
 {
     [Command]
-    public class {|#0:CreateOrder|}
+    public record {|#0:CreateOrder|}
     {
         public string OrderId { get; set; }
     }
