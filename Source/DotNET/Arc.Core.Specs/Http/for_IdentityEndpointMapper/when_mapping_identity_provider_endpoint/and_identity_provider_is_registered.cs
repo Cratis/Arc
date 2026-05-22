@@ -10,6 +10,7 @@ public class and_identity_provider_is_registered : given.an_identity_endpoint_ma
     void Establish()
     {
         _serviceProviderIsService.IsService(typeof(IProvideIdentityDetails)).Returns(true);
+        _mapper.EndpointExists("GetIdentityDetailsSchema").Returns(false);
         _mapper.EndpointExists("GetIdentityDetails").Returns(false);
     }
 
@@ -17,6 +18,11 @@ public class and_identity_provider_is_registered : given.an_identity_endpoint_ma
 
     [Fact] void should_map_get_endpoint() => _mapper.Received(1).MapGet(
         "/.cratis/me",
+        Arg.Any<Func<IHttpRequestContext, Task>>(),
+        Arg.Any<EndpointMetadata>());
+
+    [Fact] void should_map_get_identity_details_schema_endpoint() => _mapper.Received(1).MapGet(
+        "/.cratis/identity-details-schema",
         Arg.Any<Func<IHttpRequestContext, Task>>(),
         Arg.Any<EndpointMetadata>());
 }
