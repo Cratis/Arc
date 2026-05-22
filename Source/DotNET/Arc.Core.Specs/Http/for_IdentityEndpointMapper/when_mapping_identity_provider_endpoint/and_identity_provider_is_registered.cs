@@ -22,7 +22,7 @@ public class and_identity_provider_is_registered : given.an_identity_endpoint_ma
         Arg.Any<EndpointMetadata>());
 
     [Fact] void should_map_get_identity_details_schema_endpoint() => _mapper.Received(1).MapGet(
-        "/.cratis/identity-details-schema",
+        "/.cratis/identity-details/schema",
         Arg.Any<Func<IHttpRequestContext, Task>>(),
         Arg.Any<EndpointMetadata>());
 }

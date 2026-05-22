@@ -22,7 +22,7 @@ public class and_endpoint_already_exists : given.an_identity_endpoint_mapper
         Arg.Any<EndpointMetadata>());
 
     [Fact] void should_not_map_duplicate_schema_endpoint() => _mapper.DidNotReceive().MapGet(
-        "/.cratis/identity-details-schema",
+        "/.cratis/identity-details/schema",
         Arg.Any<Func<IHttpRequestContext, Task>>(),
         Arg.Any<EndpointMetadata>());
 }

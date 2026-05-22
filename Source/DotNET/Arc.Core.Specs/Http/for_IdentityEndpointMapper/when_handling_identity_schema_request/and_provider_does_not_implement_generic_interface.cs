@@ -14,7 +14,7 @@ public class and_provider_does_not_implement_generic_interface : given.an_identi
         MapIdentityProviderEndpoint();
     }
 
-    async Task Because() => await _mappedHandlers["/.cratis/identity-details-schema"](_httpRequestContext);
+    async Task Because() => await _mappedHandlers["/.cratis/identity-details/schema"](_httpRequestContext);
 
     [Fact]
     void should_write_generic_object_schema()

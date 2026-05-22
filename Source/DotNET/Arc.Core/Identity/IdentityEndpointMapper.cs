@@ -42,7 +42,7 @@ public static class IdentityEndpointMapper
                 ResponseType: typeof(JsonNode));
 
             mapper.MapGet(
-                "/.cratis/identity-details-schema",
+                "/.cratis/identity-details/schema",
                 async context =>
                 {
                     var identityDetailsProvider = context.RequestServices.GetRequiredService<IProvideIdentityDetails>();
