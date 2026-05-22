@@ -16,11 +16,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0001_IncorrectQueryMethodSignature = new(
         id: "ARC0001",
         title: "Incorrect Query method signature on ReadModel",
-        messageFormat: "Query method '{0}' on ReadModel '{1}' must return the ReadModel type, a collection of it, Task<ReadModel>, Task<IEnumerable<ReadModel>>, IAsyncEnumerable<ReadModel>, or ISubject<ReadModel>. Found: {2}.",
+        messageFormat: "Query method '{0}' on ReadModel '{1}' returns '{2}'. Change it to return '{1}', a collection of '{1}', Task<{1}>, Task<IEnumerable<{1}>>, IAsyncEnumerable<{1}>, or ISubject<{1}>.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Query methods on types with [ReadModel] attribute must return the ReadModel type, a collection, Task, IAsyncEnumerable, or ISubject of the ReadModel type.");
+        description: "Fix by changing the query method return type so it returns the read model itself or one of the allowed wrappers/collections of the same read model type.");
 
     /// <summary>
     /// ARC0002: Missing [Command] attribute on command-like type.
@@ -28,11 +28,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0002_MissingCommandAttribute = new(
         id: "ARC0002",
         title: "Missing [Command] attribute on command-like type",
-        messageFormat: "Type '{0}' has a Handle method but is missing the [Command] attribute",
+        messageFormat: "Type '{0}' has a Handle method but is missing [Command]. Add [Command] to '{0}' or rename/remove Handle if it is not a command.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Types with Handle methods should have the [Command] attribute to be recognized as commands.");
+        description: "Fix by annotating the type with [Command] when it is intended to be a model-bound command. If not a command, avoid a public Handle pattern that looks like a command handler.");
 
     /// <summary>
     /// ARC0003: Handle() must be on [Command] type.
@@ -40,11 +40,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0003_HandleMustBeOnCommandType = new(
         id: "ARC0003",
         title: "Handle() must be on [Command] type",
-        messageFormat: "Type '{0}' defines Handle() for command '{1}', but handlers must be defined on the [Command] type itself",
+        messageFormat: "Type '{0}' defines Handle() for command '{1}'. Move this logic to a public instance Handle() method on '{1}'.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Public Handle methods for commands must be declared on the [Command] type itself.");
+        description: "Fix by placing command handling logic on the [Command] type itself. External handler classes should not define public Handle methods that take a [Command] parameter.");
 
     /// <summary>
     /// ARC0004: [Command] type must have public Handle().
@@ -52,11 +52,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0004_CommandMustHavePublicHandle = new(
         id: "ARC0004",
         title: "[Command] type must have public Handle() method",
-        messageFormat: "Command type '{0}' must declare a public Handle() method",
+        messageFormat: "Command type '{0}' must declare a public instance Handle() method. Add public Handle() on '{0}' or remove [Command] if it is not a command.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Types marked with [Command] must declare a public instance Handle() method.");
+        description: "Fix by adding a public instance Handle() method to the [Command] type. Non-public Handle methods do not satisfy the model-bound command contract.");
 
     const string Category = "Arc";
 }
