@@ -8,6 +8,7 @@ When you call `UseCratisArc()`, Arc maps introspection endpoints automatically.
 
 - `/.cratis/commands`
 - `/.cratis/queries`
+- `/.cratis/identity-details/schema` (when an identity details provider is registered)
 
 These endpoints are mapped in both Arc.Core and ASP.NET Core hosting scenarios through `MapIntrospectionEndpoints()`.
 Automatically called when just using the out-of-the-box general builders for setting up an Arc or a Cratis application.
@@ -27,3 +28,4 @@ Introspection returns metadata, not business data. It helps you:
 | ------- | ----------- |
 | [Commands](./commands.md) | Metadata shape and behavior for `/.cratis/commands`. |
 | [Queries](./queries.md) | Metadata shape and behavior for `/.cratis/queries`. |
+| [Identity details schema](./identity-details-schema.md) | JSON Schema shape for `/.cratis/identity-details/schema`. |
