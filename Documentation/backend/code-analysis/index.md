@@ -12,6 +12,8 @@ All rules follow the identifier format `ARC####` where the numbers are sequentia
 | --- | --- | --- | --- |
 | [ARC0001](ARC0001.md) | Incorrect query method signature on ReadModel | Error | ReadModel query methods must return the ReadModel type or an allowed wrapper of it. |
 | [ARC0002](ARC0002.md) | Missing [Command] attribute on command-like type | Warning | Command-like types must be marked with `[Command]` to be recognized as commands. |
+| [ARC0003](ARC0003.md) | Handle() must be on [Command] type | Error | Public command `Handle()` methods must be declared on the command type itself. |
+| [ARC0004](ARC0004.md) | [Command] type must have public Handle() method | Error | Types marked with `[Command]` must declare a public instance `Handle()` method. |
 
 ## Quick Fixes
 
