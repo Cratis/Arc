@@ -72,6 +72,7 @@ out of the box without any extra configuration:
 | `TypeJsonConverter` | `System.Type` |
 | `UriJsonConverter` | `System.Uri` |
 | `EnumerableModelWithIdToConceptOrPrimitiveEnumerableConverterFactory` | Enumerable model-with-id to concept/primitive |
+| `DerivedTypeJsonConverterFactory` | Polymorphic types registered via `IDerivedTypes` (interfaces, abstract base classes) |
 
 ## Registering Custom Converters
 

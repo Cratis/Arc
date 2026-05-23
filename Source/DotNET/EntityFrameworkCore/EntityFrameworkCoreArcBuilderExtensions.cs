@@ -3,7 +3,9 @@
 
 using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Arc.EntityFrameworkCore.Json;
+using Cratis.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc;
@@ -35,13 +37,19 @@ public static class EntityFrameworkCoreArcBuilderExtensions
 
         // Build and register JsonConversionOptions from the configured EF Core options so that
         // BaseDbContext (and direct callers) can resolve the final JsonSerializerOptions from DI.
-        var jsonConversionOptions = new JsonConversionOptions();
-        foreach (var converter in builder.Options.JsonConverters)
+        // The factory resolves IDerivedTypes from DI so that polymorphic types registered via
+        // DerivedTypeJsonConverterFactory are handled correctly when model creation runs.
+        var userConverters = builder.Options.JsonConverters.ToList();
+        arcBuilder.Services.TryAddSingleton(sp =>
         {
-            jsonConversionOptions.JsonSerializerOptions.Converters.Add(converter);
-        }
-
-        arcBuilder.Services.TryAddSingleton(jsonConversionOptions);
+            var derivedTypes = sp.GetService<IDerivedTypes>();
+            var opts = new JsonConversionOptions(derivedTypes);
+            foreach (var converter in userConverters)
+            {
+                opts.JsonSerializerOptions.Converters.Add(converter);
+            }
+            return opts;
+        });
 
         // Auto-discover and register DbContext types if enabled
         if (builder.Options.AutoDiscoverDbContexts && !string.IsNullOrEmpty(builder.Options.ConnectionString))
