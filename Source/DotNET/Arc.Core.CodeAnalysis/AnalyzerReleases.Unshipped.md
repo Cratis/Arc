@@ -3,3 +3,5 @@ Rule ID|Category|Severity|Notes
 --------|----------|----------|--------------------
 ARC0001|Arc|Error|Incorrect Query method signature on ReadModel
 ARC0002|Arc|Warning|Missing [Command] attribute on command-like type
+ARC0003|Arc|Error|Handle() must be on [Command] type
+ARC0004|Arc|Error|[Command] type must have public Handle() method

@@ -3,7 +3,7 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0002;
 
 public class when_command_has_attribute
 {
@@ -13,7 +13,7 @@ using Cratis.Arc.Commands.ModelBound;
 namespace TestNamespace
 {
     [Command]
-    public class TestCommand
+    public record TestCommand
     {
         public string Name { get; set; }
         
@@ -23,4 +23,3 @@ namespace TestNamespace
     }
 }");
 }
-
