@@ -12,12 +12,16 @@ public class a_query_filters : Specification
     protected QueryContext _queryContext;
     protected CorrelationId _correlationId;
     protected IActivitySource<QueryFilters> _activitySource;
+    protected System.Diagnostics.ActivitySource _actualActivitySource;
 
     void Establish()
     {
         _correlationId = new(Guid.NewGuid());
         _queryContext = new("Test Query", _correlationId, Paging.NotPaged, Sorting.None);
         _activitySource = Substitute.For<IActivitySource<QueryFilters>>();
-        _activitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        _actualActivitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        _activitySource.ActualSource.Returns(_actualActivitySource);
     }
+
+    void Dispose() => _actualActivitySource?.Dispose();
 }
