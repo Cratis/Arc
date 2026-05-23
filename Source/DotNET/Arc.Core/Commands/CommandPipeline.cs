@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
+using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
@@ -20,6 +21,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
 /// <param name="scopeFactory">The <see cref="IServiceScopeFactory"/> used to create a dedicated service scope when no <see cref="IServiceProvider"/> is provided.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 [Singleton]
 public class CommandPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
@@ -28,7 +30,8 @@ public class CommandPipeline(
     ICommandResponseValueHandlers valueHandlers,
     ICommandContextModifier contextModifier,
     ICommandContextValuesBuilder contextValuesBuilder,
-    IServiceScopeFactory scopeFactory) : ICommandPipeline
+    IServiceScopeFactory scopeFactory,
+    IActivitySource<CommandPipeline> activitySource) : ICommandPipeline
 {
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity = default)
@@ -56,6 +59,7 @@ public class CommandPipeline(
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
+        using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
             handlerProviders.TryGetHandlerFor(command, out var commandHandler);
@@ -126,6 +130,7 @@ public class CommandPipeline(
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
+        using var span = activitySource.Validate(command.GetType().FullName ?? command.GetType().Name);
         try
         {
             handlerProviders.TryGetHandlerFor(command, out var commandHandler);

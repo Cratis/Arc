@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.DependencyInjection;
+using Cratis.Traces;
 using Cratis.Types;
 
 namespace Cratis.Arc.Commands;
@@ -10,13 +11,15 @@ namespace Cratis.Arc.Commands;
 /// Represents an instance of <see cref="ICommandFilters"/>.
 /// </summary>
 /// <param name="filters">The collection of <see cref="ICommandFilter"/> to use for filtering commands.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 [Singleton]
-public class CommandFilters(IInstancesOf<ICommandFilter> filters) : ICommandFilters
+public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySource<CommandFilters> activitySource) : ICommandFilters
 {
     /// <inheritdoc/>
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
         var result = CommandResult.Success(context.CorrelationId);
+        using var span = activitySource.OnExecution(context.Type.FullName ?? context.Type.Name);
 
         foreach (var filter in filters)
         {

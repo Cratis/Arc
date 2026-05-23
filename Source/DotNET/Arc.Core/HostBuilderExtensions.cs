@@ -1,12 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Cratis.Arc.Tenancy;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Serialization;
+using Cratis.Traces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -98,6 +100,7 @@ public static class HostBuilderExtensions
 
         services
             .AddCratisArcMeter()
+            .AddCratisArcActivitySource()
             .AddTypeDiscovery()
             .AddSingleton(Internals.DerivedTypes)
             .AddBindingsByConvention()
@@ -119,6 +122,18 @@ public static class HostBuilderExtensions
 #pragma warning disable CA2000 // Dispose objects before losing scope
         services.TryAddKeyedSingleton(Internals.MeterName, new Meter(Internals.MeterName));
 #pragma warning restore CA2000 // Dispose objects before losing scope
+        return services;
+    }
+
+    /// <summary>
+    /// Add the ActivitySource for the Arc.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to add the activity source to.</param>
+    /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
+    public static IServiceCollection AddCratisArcActivitySource(this IServiceCollection services)
+    {
+        services.TryAddSingleton(_ => new ActivitySource(Internals.ActivitySourceName));
+        services.TryAddSingleton(typeof(IActivitySource<>), typeof(ActivitySource<>));
         return services;
     }
 }

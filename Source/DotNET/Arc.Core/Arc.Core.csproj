@@ -17,6 +17,7 @@
 
     <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals" />
+        <PackageReference Include="Cratis.Metrics.Roslyn" />
         <PackageReference Include="FluentValidation" />
         <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" />
     <PackageReference Include="Microsoft.Extensions.DependencyModel" />
