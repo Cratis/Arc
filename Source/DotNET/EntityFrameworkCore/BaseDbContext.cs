@@ -28,6 +28,8 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
         var registrar = coreOptions?.ApplicationServiceProvider?.GetService(typeof(IEntityTypeRegistrar)) as IEntityTypeRegistrar;
         registrar?.RegisterEntityMaps(this, modelBuilder);
 
+        var jsonConversionOptions = coreOptions?.ApplicationServiceProvider?.GetService(typeof(JsonConversionOptions)) as JsonConversionOptions;
+
         var entityTypes = modelBuilder.Model.GetEntityTypes();
         var dbSetTypes = GetType()
             .GetProperties()
@@ -40,7 +42,7 @@ public class BaseDbContext(DbContextOptions options) : DbContext(options)
             .ToArray();
 
         var databaseType = Database.GetDatabaseType();
-        var typesOnlyInJsonProperties = modelBuilder.ApplyJsonConversion(entityTypesForConverters, databaseType);
+        var typesOnlyInJsonProperties = modelBuilder.ApplyJsonConversion(entityTypesForConverters, databaseType, jsonConversionOptions);
 
         var entityTypesForOtherConverters = entityTypesForConverters
             .Where(et => !typesOnlyInJsonProperties.Contains(et.ClrType))
