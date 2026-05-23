@@ -234,9 +234,11 @@
     // Map of module specifiers to built JavaScript file paths (dist/cjs)
     const modulePathMap = {
         '@cratis/fundamentals': 'node_modules/@cratis/fundamentals/dist/cjs/index.js',
+        'rxjs': 'node_modules/rxjs/dist/cjs/index.js',
         'reflect-metadata': 'node_modules/reflect-metadata/Reflect.js',
         '@cratis/arc/queries': 'Arc/dist/cjs/queries/index.js',
         '@cratis/arc/commands': 'Arc/dist/cjs/commands/index.js',
+        '@cratis/arc/messaging': 'Arc/dist/cjs/messaging/index.js',
         '@cratis/arc/reflection': 'Arc/dist/cjs/reflection/index.js',
         '@cratis/arc/validation': 'Arc/dist/cjs/validation/index.js',
         '@cratis/arc/identity': 'Arc/dist/cjs/identity/index.js',
