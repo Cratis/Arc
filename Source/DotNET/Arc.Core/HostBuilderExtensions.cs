@@ -132,9 +132,7 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
     public static IServiceCollection AddCratisArcActivitySource(this IServiceCollection services)
     {
-#pragma warning disable CA2000 // Dispose objects before losing scope
-        services.TryAddSingleton(new ActivitySource(Internals.ActivitySourceName));
-#pragma warning restore CA2000 // Dispose objects before losing scope
+        services.TryAddSingleton(_ => new ActivitySource(Internals.ActivitySourceName));
         services.TryAddSingleton(typeof(IActivitySource<>), typeof(ActivitySource<>));
         return services;
     }
