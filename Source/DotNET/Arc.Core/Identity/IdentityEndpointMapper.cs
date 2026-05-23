@@ -1,8 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
+using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity;
 
@@ -11,6 +16,9 @@ namespace Cratis.Arc.Identity;
 /// </summary>
 public static class IdentityEndpointMapper
 {
+    const string GetIdentityDetailsSchemaEndpointName = "GetIdentityDetailsSchema";
+    const string GetIdentityDetailsEndpointName = "GetIdentityDetails";
+
     /// <summary>
     /// Maps the identity provider endpoint.
     /// </summary>
@@ -24,14 +32,42 @@ public static class IdentityEndpointMapper
             return;
         }
 
-        const string endpointName = "GetIdentityDetails";
-        if (mapper.EndpointExists(endpointName))
+        if (!mapper.EndpointExists(GetIdentityDetailsSchemaEndpointName))
+        {
+            var schemaMetadata = new EndpointMetadata(
+                GetIdentityDetailsSchemaEndpointName,
+                "Get current user identity details schema",
+                ["Cratis Identity"],
+                AllowAnonymous: true,
+                ResponseType: typeof(JsonNode));
+
+            mapper.MapGet(
+                "/.cratis/identity-details/schema",
+                async context =>
+                {
+                    var identityDetailsProvider = context.RequestServices.GetRequiredService<IProvideIdentityDetails>();
+                    var detailsType = identityDetailsProvider
+                        .GetType()
+                        .GetInterfaces()
+                        .FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IProvideIdentityDetails<>))
+                        ?.GetGenericArguments()
+                        .SingleOrDefault() ?? typeof(object);
+
+                    var jsonSerializerOptions = new JsonSerializerOptions(context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
+                    jsonSerializerOptions.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+                    var schema = jsonSerializerOptions.GetJsonSchemaAsNode(detailsType);
+                    await context.WriteResponseAsJson(schema, schema.GetType(), context.RequestAborted);
+                },
+                schemaMetadata);
+        }
+
+        if (mapper.EndpointExists(GetIdentityDetailsEndpointName))
         {
             return;
         }
 
         var metadata = new EndpointMetadata(
-            endpointName,
+            GetIdentityDetailsEndpointName,
             "Get current user identity details",
             ["Cratis Identity"],
             AllowAnonymous: true);
