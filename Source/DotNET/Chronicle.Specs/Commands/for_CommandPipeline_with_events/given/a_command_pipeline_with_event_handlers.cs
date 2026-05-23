@@ -7,6 +7,7 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
+using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandPipeline_with_events.given;
@@ -30,6 +31,7 @@ public class a_command_pipeline_with_event_handlers : Specification
     protected SubjectCommandResponseValueHandler _subjectHandler;
     protected SingleEventForEventSourceIdCommandResponseValueHandler _singleEventForEventSourceIdHandler;
     protected EventsForEventSourceIdCommandResponseValueHandler _eventsForEventSourceIdHandler;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -142,7 +144,21 @@ public class a_command_pipeline_with_event_handlers : Specification
             _commandResponseValueHandlers,
             _commandContextModifier,
             _commandContextValuesBuilder,
-            _serviceScopeFactory);
+            _serviceScopeFactory,
+            CreateActivitySource<CommandPipeline>());
+    }
+
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
+        return activitySource;
     }
 
     public record TestEvent(string Name);

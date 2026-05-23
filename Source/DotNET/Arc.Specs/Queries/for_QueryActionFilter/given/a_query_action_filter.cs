@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
+using Cratis.Traces;
 
 namespace Cratis.Arc.Queries.for_QueryActionFilter.given;
 
@@ -19,6 +20,7 @@ public class a_query_action_filter : Specification
     protected QueryActionFilter _filter;
     protected HttpContext _httpContext;
     protected ActionExecutingContext _actionContext;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -62,7 +64,21 @@ public class a_query_action_filter : Specification
             _queryRenderers,
             _readModelInterceptors,
             _controllerAdapter,
-            _logger);
+            _logger,
+            CreateActivitySource<QueryActionFilter>());
+    }
+
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
+        return activitySource;
     }
 
     public record TestReadModel(string Value);
