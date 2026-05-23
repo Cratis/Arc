@@ -3,13 +3,11 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_attribute;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0002;
 
-public class and_record_has_properties : Specification
+public class when_command_has_attribute
 {
-    Exception _result;
-
-    async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
+    [Fact] async Task should_not_report_diagnostic() => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Commands.ModelBound;
 
 namespace TestNamespace
@@ -18,13 +16,10 @@ namespace TestNamespace
     public record TestCommand
     {
         public string Name { get; set; }
-        public int Age { get; set; }
-
+        
         public void Handle()
         {
         }
     }
-}"));
-
-    [Fact] void should_not_report_diagnostic() => _result.ShouldBeNull();
+}");
 }

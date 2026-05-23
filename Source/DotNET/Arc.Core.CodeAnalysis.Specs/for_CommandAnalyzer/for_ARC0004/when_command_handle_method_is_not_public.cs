@@ -3,9 +3,9 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0004;
 
-public class when_handle_method_for_command_is_on_different_type
+public class when_command_handle_method_is_not_public
 {
     [Fact] async Task should_report_diagnostic() => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Commands.ModelBound;
@@ -13,22 +13,17 @@ using Cratis.Arc.Commands.ModelBound;
 namespace TestNamespace
 {
     [Command]
-    public record CreateOrder(string OrderId)
+    public record {|#0:CreateOrder|}
     {
-        public void Handle()
-        {
-        }
-    }
+        public string OrderId { get; set; }
 
-    public class CreateOrderHandler
-    {
-        public void {|#0:Handle|}(CreateOrder command)
+        internal void Handle()
         {
         }
     }
 }",
-        VerifyCS.Diagnostic("ARC0003")
+        VerifyCS.Diagnostic("ARC0004")
             .WithSeverity(Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
             .WithLocation(0)
-            .WithArguments("CreateOrderHandler", "CreateOrder"));
+            .WithArguments("CreateOrder"));
 }

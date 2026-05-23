@@ -3,9 +3,9 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0004;
 
-public class when_command_handle_method_is_not_public
+public class when_command_has_no_handle_method
 {
     [Fact] async Task should_report_diagnostic() => await VerifyCS.VerifyAnalyzerAsync(@"
 using Cratis.Arc.Commands.ModelBound;
@@ -16,10 +16,6 @@ namespace TestNamespace
     public record {|#0:CreateOrder|}
     {
         public string OrderId { get; set; }
-
-        internal void Handle()
-        {
-        }
     }
 }",
         VerifyCS.Diagnostic("ARC0004")

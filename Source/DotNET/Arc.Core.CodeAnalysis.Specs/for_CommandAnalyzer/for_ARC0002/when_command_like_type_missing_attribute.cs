@@ -3,7 +3,7 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0002;
 
 public class when_command_like_type_missing_attribute
 {
