@@ -14,6 +14,7 @@ public class and_first_filter_returns_null : Specification
     CommandContext _context;
     CommandResult _result;
     CommandResult _filterResult;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -25,11 +26,14 @@ public class and_first_filter_returns_null : Specification
         _filter2.OnExecution(_context).Returns(Task.FromResult(_filterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
         var commandFiltersActivitySource = Substitute.For<IActivitySource<CommandFilters>>();
-        commandFiltersActivitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        commandFiltersActivitySource.ActualSource.Returns(_activitySource);
         _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters), commandFiltersActivitySource);
     }
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);
+
+    void Cleanup() => _activitySource?.Dispose();
 
     [Fact] void should_call_first_filter() => _filter1.Received(1).OnExecution(_context);
     [Fact] void should_call_second_filter() => _filter2.Received(1).OnExecution(_context);
