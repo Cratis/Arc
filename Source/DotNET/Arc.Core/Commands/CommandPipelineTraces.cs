@@ -12,9 +12,9 @@ namespace Cratis.Arc.Commands;
 
 internal static partial class CommandPipelineTraces
 {
-    [Span("arc.command.execute", ActivityKind.Internal)]
+    [Span("cratis.arc.command.execute", ActivityKind.Internal)]
     internal static partial IActivityScope<CommandPipeline> Execute(this IActivitySource<CommandPipeline> source, string commandType);
 
-    [Span("arc.command.validate", ActivityKind.Internal)]
+    [Span("cratis.arc.command.validate", ActivityKind.Internal)]
     internal static partial IActivityScope<CommandPipeline> Validate(this IActivitySource<CommandPipeline> source, string commandType);
 }

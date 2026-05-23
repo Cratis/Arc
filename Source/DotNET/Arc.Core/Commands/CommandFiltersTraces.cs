@@ -12,6 +12,6 @@ namespace Cratis.Arc.Commands;
 
 internal static partial class CommandFiltersTraces
 {
-    [Span("arc.command.filter", ActivityKind.Internal)]
+    [Span("cratis.arc.command.filter", ActivityKind.Internal)]
     internal static partial IActivityScope<CommandFilters> OnExecution(this IActivitySource<CommandFilters> source, string commandType);
 }

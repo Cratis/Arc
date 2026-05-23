@@ -12,6 +12,6 @@ namespace Cratis.Arc.Identity;
 
 internal static partial class IdentityProviderTraces
 {
-    [Span("arc.identity.resolve", ActivityKind.Internal)]
+    [Span("cratis.arc.identity.resolve", ActivityKind.Internal)]
     internal static partial IActivityScope<IdentityProvider> Resolve(this IActivitySource<IdentityProvider> source);
 }

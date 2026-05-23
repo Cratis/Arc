@@ -12,6 +12,6 @@ namespace Cratis.Arc.Queries;
 
 internal static partial class QueryPipelineTraces
 {
-    [Span("arc.query.perform", ActivityKind.Internal)]
+    [Span("cratis.arc.query.perform", ActivityKind.Internal)]
     internal static partial IActivityScope<QueryPipeline> Perform(this IActivitySource<QueryPipeline> source, string queryName);
 }

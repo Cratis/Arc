@@ -12,6 +12,6 @@ namespace Cratis.Arc.Queries;
 
 internal static partial class QueryFiltersTraces
 {
-    [Span("arc.query.filter", ActivityKind.Internal)]
+    [Span("cratis.arc.query.filter", ActivityKind.Internal)]
     internal static partial IActivityScope<QueryFilters> OnPerform(this IActivitySource<QueryFilters> source, string queryName);
 }
