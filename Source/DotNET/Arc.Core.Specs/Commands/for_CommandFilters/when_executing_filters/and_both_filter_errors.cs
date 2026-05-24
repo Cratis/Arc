@@ -16,6 +16,7 @@ public class and_both_filter_errors : Specification
     CommandResult _result;
     CommandResult _firstFilterResult;
     CommandResult _secondFilterResult;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -36,9 +37,12 @@ public class and_both_filter_errors : Specification
         _filter2.OnExecution(_context).Returns(Task.FromResult(_secondFilterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
         var commandFiltersActivitySource = Substitute.For<IActivitySource<CommandFilters>>();
-        commandFiltersActivitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        commandFiltersActivitySource.ActualSource.Returns(_activitySource);
         _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters), commandFiltersActivitySource);
     }
+
+    void Destroy() => _activitySource.Dispose();
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);
 
