@@ -1,14 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Identity;
+using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Serialization;
-using Cratis.Traces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -132,8 +133,12 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
     public static IServiceCollection AddCratisArcActivitySource(this IServiceCollection services)
     {
-        services.TryAddSingleton(_ => new ActivitySource(Internals.ActivitySourceName));
-        services.TryAddSingleton(typeof(IActivitySource<>), typeof(ActivitySource<>));
-        return services;
+        return services
+            .AddActivitySource(Internals.ActivitySourceName)
+            .AddActivitySource<CommandFilters>(Internals.ActivitySourceName)
+            .AddActivitySource<CommandPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryFilters>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<IdentityProvider>(Internals.ActivitySourceName);
     }
 }
