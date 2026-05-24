@@ -20,6 +20,7 @@ public class a_command_pipeline : Specification
     protected IServiceScope _serviceScope;
     protected CommandPipeline _commandPipeline;
     protected CorrelationId _correlationId;
+    protected System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -50,10 +51,16 @@ public class a_command_pipeline : Specification
             CreateActivitySource<CommandPipeline>());
     }
 
-    static IActivitySource<T> CreateActivitySource<T>()
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
     {
         var activitySource = Substitute.For<IActivitySource<T>>();
-        activitySource.ActualSource.Returns(new System.Diagnostics.ActivitySource("Cratis.Arc.Test"));
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
         return activitySource;
     }
 }
