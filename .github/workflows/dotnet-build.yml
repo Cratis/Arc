@@ -114,6 +114,7 @@ jobs:
         with:
           path: |
             .yarn/cache
+            node_modules
             **/node_modules
             **/.eslintcache
             **/yarn.lock
@@ -189,6 +190,7 @@ jobs:
         with:
           path: |
             .yarn/cache
+            node_modules
             **/node_modules
             **/.eslintcache
             **/yarn.lock
