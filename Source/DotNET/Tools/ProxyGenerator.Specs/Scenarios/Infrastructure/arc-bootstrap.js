@@ -257,6 +257,26 @@
         if (specifier === 'react' || specifier === 'react/jsx-runtime') {
             return '__POLYFILL__' + specifier;
         }
+
+        // RxJS is consumed as an external dependency by the built Arc packages and needs to
+        // resolve directly from node_modules in the ClearScript test host.
+        if (specifier === 'rxjs') {
+            return 'node_modules/rxjs/dist/cjs/index.js';
+        }
+        if (specifier.startsWith('rxjs/')) {
+            const subPath = specifier.substring('rxjs/'.length);
+            const candidates = [
+                `node_modules/rxjs/dist/cjs/${subPath}.js`,
+                `node_modules/rxjs/dist/cjs/${subPath}/index.js`,
+                `node_modules/rxjs/${subPath}.js`,
+                `node_modules/rxjs/${subPath}/index.js`
+            ];
+            for (const candidate of candidates) {
+                if (__fileExists(candidate)) {
+                    return candidate;
+                }
+            }
+        }
         
         // Direct mapping for package imports
         if (modulePathMap[specifier]) {
