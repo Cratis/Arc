@@ -14,7 +14,13 @@
         <ProjectReference Include="../Arc/Arc.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
         <ProjectReference Include="../Swagger/Swagger.csproj" />
-        <ProjectReference Include="../Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" />
+        <!-- Hides the build-time tool from the global namespace of Cratis.dll's compilation while
+             preserving its package dependency in the published nuspec. Without an alias, the type-discovery
+             source generator bakes typeof() references to the build helper's public types into the published
+             Cratis.dll, which then fail with FileNotFoundException at runtime in consuming applications
+             because the build helper's DLL is not deployed to the runtime output. -->
+        <ProjectReference Include="../Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj"
+                          Aliases="ProxyGeneratorBuild" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.AspNetCore" />
