@@ -11,7 +11,7 @@
     <PackageVersion Include="Cratis.Fundamentals" Version="7.10.3" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.10.3" />
     <!-- MAUI -->
-    <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.60" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.70" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
