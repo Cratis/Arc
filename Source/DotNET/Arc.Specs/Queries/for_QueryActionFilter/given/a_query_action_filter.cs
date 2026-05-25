@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Traces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -19,6 +20,7 @@ public class a_query_action_filter : Specification
     protected QueryActionFilter _filter;
     protected HttpContext _httpContext;
     protected ActionExecutingContext _actionContext;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -62,7 +64,21 @@ public class a_query_action_filter : Specification
             _queryRenderers,
             _readModelInterceptors,
             _controllerAdapter,
-            _logger);
+            _logger,
+            CreateActivitySource<QueryActionFilter>());
+    }
+
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
+        return activitySource;
     }
 
     public record TestReadModel(string Value);

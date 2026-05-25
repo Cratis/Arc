@@ -10,6 +10,9 @@
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="Cratis.Metrics.Roslyn" />
+    </ItemGroup>
+    <ItemGroup>
         <ProjectReference Include="..\Arc.Core\Arc.Core.csproj" />
     </ItemGroup>
 </Project>

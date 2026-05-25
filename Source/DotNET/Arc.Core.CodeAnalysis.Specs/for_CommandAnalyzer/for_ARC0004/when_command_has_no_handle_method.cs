@@ -3,25 +3,23 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0004;
 
-public class when_command_like_type_missing_attribute
+public class when_command_has_no_handle_method
 {
     [Fact] async Task should_report_diagnostic() => await VerifyCS.VerifyAnalyzerAsync(@"
+using Cratis.Arc.Commands.ModelBound;
+
 namespace TestNamespace
 {
-    public class {|#0:TestCommand|}
+    [Command]
+    public record {|#0:CreateOrder|}
     {
-        public string Name { get; set; }
-        
-        public void Handle()
-        {
-        }
+        public string OrderId { get; set; }
     }
 }",
-        VerifyCS.Diagnostic("ARC0002")
-            .WithSeverity(Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+        VerifyCS.Diagnostic("ARC0004")
+            .WithSeverity(Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
             .WithLocation(0)
-            .WithArguments("TestCommand"));
+            .WithArguments("CreateOrder"));
 }
-

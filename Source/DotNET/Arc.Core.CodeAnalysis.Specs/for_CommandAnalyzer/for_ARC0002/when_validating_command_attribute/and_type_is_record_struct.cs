@@ -3,9 +3,9 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_attribute;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0002.when_validating_command_attribute;
 
-public class and_record_has_properties : Specification
+public class and_type_is_record_struct : Specification
 {
     Exception _result;
 
@@ -15,11 +15,8 @@ using Cratis.Arc.Commands.ModelBound;
 namespace TestNamespace
 {
     [Command]
-    public record TestCommand
+    public record struct TestCommand(string Name, int Age)
     {
-        public string Name { get; set; }
-        public int Age { get; set; }
-
         public void Handle()
         {
         }

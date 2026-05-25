@@ -46,6 +46,8 @@ public static class JavaScriptResources
         }
 
         RepoRoot ??= Path.GetFullPath(Path.Combine(ScenariosRoot, "..", "..", "..", "..", "..", ".."));
+
+        NodeModulesRoot = FindDirectoryContaining(AppContext.BaseDirectory, "node_modules") ?? RepoRoot;
     }
 
     /// <summary>
@@ -59,10 +61,15 @@ public static class JavaScriptResources
     public static string RepoRoot { get; }
 
     /// <summary>
+    /// Gets the path to the directory that contains the JavaScript runtime dependencies.
+    /// </summary>
+    public static string NodeModulesRoot { get; }
+
+    /// <summary>
     /// Gets the path to the TypeScript compiler.
     /// </summary>
     public static string TypeScriptCompilerPath =>
-        Path.Combine(RepoRoot, "node_modules", "typescript", "lib", "typescript.js");
+        Path.Combine(NodeModulesRoot, "node_modules", "typescript", "lib", "typescript.js");
 
     /// <summary>
     /// Gets the path to the Arc package CJS directory.
@@ -80,7 +87,7 @@ public static class JavaScriptResources
     /// Gets the path to the Fundamentals package CJS directory.
     /// </summary>
     public static string FundamentalsPackagePath =>
-        Path.Combine(RepoRoot, "node_modules", "@cratis", "fundamentals", "dist", "cjs");
+        Path.Combine(NodeModulesRoot, "node_modules", "@cratis", "fundamentals", "dist", "cjs");
 
     /// <summary>
     /// Reads the TypeScript compiler source.
@@ -103,4 +110,20 @@ public static class JavaScriptResources
     /// </summary>
     /// <returns>JavaScript code to bootstrap Arc modules.</returns>
     public static string GetArcBootstrap() => EmbeddedResources.GetArcBootstrap();
+
+    static string? FindDirectoryContaining(string startPath, string directoryName)
+    {
+        var current = startPath;
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (Directory.Exists(Path.Combine(current, directoryName)))
+            {
+                return current;
+            }
+
+            current = Path.GetDirectoryName(current);
+        }
+
+        return null;
+    }
 }

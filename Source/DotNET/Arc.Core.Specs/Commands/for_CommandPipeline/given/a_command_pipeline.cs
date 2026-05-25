@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Execution;
+using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands.for_CommandPipeline.given;
@@ -19,6 +20,7 @@ public class a_command_pipeline : Specification
     protected IServiceScope _serviceScope;
     protected CommandPipeline _commandPipeline;
     protected CorrelationId _correlationId;
+    protected System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -45,6 +47,20 @@ public class a_command_pipeline : Specification
             _commandResponseValueHandlers,
             _commandContextModifier,
             _commandContextValuesBuilder,
-            _serviceScopeFactory);
+            _serviceScopeFactory,
+            CreateActivitySource<CommandPipeline>());
+    }
+
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
+        return activitySource;
     }
 }

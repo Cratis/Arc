@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Validation;
+using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -13,9 +14,11 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 public class CommandActionFilter(
     ICommandContextModifier contextModifier,
-    ICommandContextValuesBuilder contextValuesBuilder) : IAsyncActionFilter
+    ICommandContextValuesBuilder contextValuesBuilder,
+    IActivitySource<CommandActionFilter> activitySource) : IAsyncActionFilter
 {
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -28,6 +31,8 @@ public class CommandActionFilter(
             var exceptionStackTrace = string.Empty;
             ActionExecutedContext? result = null;
             object? response = null;
+            var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
+            using var span = activitySource.OnCommand(routeTemplate);
 
             var ignoreValidation = context.ShouldIgnoreValidation();
             var isValidationRequest = IsValidationRequest(context);

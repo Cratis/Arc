@@ -3,19 +3,17 @@
 
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.CommandAnalyzer>;
 
-namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.when_validating_command_missing_attribute;
+namespace Cratis.Arc.CodeAnalysis.for_CommandAnalyzer.for_ARC0002.when_validating_command_missing_attribute;
 
-public class and_record_has_properties : Specification
+public class and_record_has_primary_constructor : Specification
 {
     Exception _result;
 
     async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 namespace TestNamespace
 {
-    public record {|#0:TestCommand|}
+    public record {|#0:TestCommand|}(string Name, int Age)
     {
-        public string Name { get; set; }
-        
         public void Handle()
         {
         }

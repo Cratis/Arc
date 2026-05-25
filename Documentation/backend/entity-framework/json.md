@@ -57,6 +57,82 @@ The conversion will automatically:
 - Support Cratis concepts within the JSON data
 - Maintain type safety when loading the data back
 
+## Default Converters
+
+`JsonConversionOptions` is pre-populated with all Arc default JSON converters so that common types work
+out of the box without any extra configuration:
+
+| Converter | Handles |
+| --------- | ------- |
+| `ConceptAsJsonConverterFactory` | Cratis `ConceptAs<T>` value types |
+| `EnumerableConceptAsJsonConverterFactory` | `IEnumerable<ConceptAs<T>>` sequences |
+| `EnumConverterFactory` | Enum values (serialised as integers) |
+| `DateOnlyJsonConverter` | `System.DateOnly` |
+| `TimeOnlyJsonConverter` | `System.TimeOnly` |
+| `TypeJsonConverter` | `System.Type` |
+| `UriJsonConverter` | `System.Uri` |
+| `EnumerableModelWithIdToConceptOrPrimitiveEnumerableConverterFactory` | Enumerable model-with-id to concept/primitive |
+| `DerivedTypeJsonConverterFactory` | Polymorphic types registered via `IDerivedTypes` (interfaces, abstract base classes) |
+
+## Registering Custom Converters
+
+Some property types require a custom `JsonConverter` to round-trip correctly — for example, interface types, abstract base classes, or discriminated unions. Without a matching converter, `JsonSerializer` throws `NotSupportedException: Deserialization of interface or abstract types is not supported`.
+
+Register additional converters at startup through the `JsonConverters` list on `EntityFrameworkCoreOptions`. The converters are appended after the built-in Arc defaults:
+
+```csharp
+builder.AddCratisArc(configureBuilder: arcBuilder =>
+{
+    arcBuilder.WithEntityFrameworkCore(options =>
+    {
+        options.ConnectionString = "...";
+        options.JsonConverters.Add(new MyRequestConverter());
+    });
+});
+```
+
+With the converter registered, an entity with an interface-typed `[Json]` property works correctly:
+
+```csharp
+public interface IMyRequest { int Count { get; } }
+public sealed record DoThing(int Count) : IMyRequest;
+
+public class MyEntity
+{
+    [Key] public Guid Id { get; set; }
+    [Json] public IMyRequest Request { get; set; } = default!;  // round-trips correctly
+}
+```
+
+### Writing a Custom Converter
+
+Implement `JsonConverter<T>` where `T` is the interface or abstract type that needs to be handled:
+
+```csharp
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+public class MyRequestConverter : JsonConverter<IMyRequest>
+{
+    public override IMyRequest? Read(
+        ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var doc = JsonDocument.ParseValue(ref reader);
+        // Use a discriminator or well-known property to pick the concrete type
+        var count = doc.RootElement.GetProperty("count").GetInt32();
+        return new DoThing(count);
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer, IMyRequest value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteNumber("count", value.Count);
+        writer.WriteEndObject();
+    }
+}
+```
+
 ## Manual Configuration
 
 If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply JSON conversion in your `DbContext`:
@@ -76,7 +152,19 @@ public class StoreDbContext(DbContextOptions options) : DbContext(options)
 }
 ```
 
-> Note: This is automatically configured for you when using the [`BaseDbContext`](./base-db-context.md).
+To include custom converters in a manual setup, pass a `JsonConversionOptions` instance directly:
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    var jsonOptions = new JsonConversionOptions();
+    jsonOptions.JsonSerializerOptions.Converters.Add(new MyRequestConverter());
+    modelBuilder.ApplyJsonConversion(Database.ProviderName, jsonOptions);
+    base.OnModelCreating(modelBuilder);
+}
+```
+
+> Note: When using [`BaseDbContext`](./base-db-context.md) with `WithEntityFrameworkCore`, the `JsonConversionOptions` singleton is resolved automatically from DI — you only need to populate `EntityFrameworkCoreOptions.JsonConverters` at startup.
 
 ## How it works
 

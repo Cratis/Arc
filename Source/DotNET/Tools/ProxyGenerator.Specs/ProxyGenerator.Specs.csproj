@@ -31,6 +31,24 @@
     <ItemGroup>
         <EmbeddedResource Include="Scenarios\Infrastructure\arc-bootstrap.js" Condition="Exists('Scenarios\Infrastructure\arc-bootstrap.js')" />
     </ItemGroup>
+    <ItemGroup>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js')">
+            <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
+        </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/reflect-metadata/Reflect.js"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/reflect-metadata/Reflect.js')">
+            <TargetPath>node_modules/reflect-metadata/Reflect.js</TargetPath>
+        </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs/**/*"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs')">
+            <TargetPath>node_modules/@cratis/fundamentals/dist/cjs/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/rxjs/dist/cjs/**/*"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/rxjs/dist/cjs')">
+            <TargetPath>node_modules/rxjs/dist/cjs/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        </ProxyJavaScriptDependency>
+    </ItemGroup>
     <PropertyGroup>
         <ArcJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc</ArcJavaScriptPath>
         <ArcReactJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc.React</ArcReactJavaScriptPath>
@@ -62,5 +80,10 @@
         <Message Text="Building @cratis/arc.react JavaScript package..." Importance="high" Condition="$(ArcReactNeedsRebuild)" />
         <Exec Command="yarn build" WorkingDirectory="$(ArcReactJavaScriptPath)" Condition="$(ArcReactNeedsRebuild)" />
         <Message Text="Skipping @cratis/arc.react build - sources unchanged" Importance="high" Condition="!$(ArcReactNeedsRebuild)" />
+    </Target>
+    <Target Name="CopyProxyJavaScriptDependencies" AfterTargets="Build" Condition="'$(TargetFramework)' == 'net10.0'">
+        <Copy SourceFiles="@(ProxyJavaScriptDependency)"
+              DestinationFiles="@(ProxyJavaScriptDependency->'$(OutDir)%(TargetPath)')"
+              SkipUnchangedFiles="true" />
     </Target>
 </Project>

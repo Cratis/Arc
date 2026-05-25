@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Validation;
 using Cratis.Execution;
+using Cratis.Traces;
 
 namespace Cratis.Arc.Commands.for_CommandFilters.when_executing_filters;
 
@@ -15,6 +16,7 @@ public class and_both_filter_errors : Specification
     CommandResult _result;
     CommandResult _firstFilterResult;
     CommandResult _secondFilterResult;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -34,8 +36,13 @@ public class and_both_filter_errors : Specification
         _filter1.OnExecution(_context).Returns(Task.FromResult(_firstFilterResult));
         _filter2.OnExecution(_context).Returns(Task.FromResult(_secondFilterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
-        _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters));
+        var commandFiltersActivitySource = Substitute.For<IActivitySource<CommandFilters>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        commandFiltersActivitySource.ActualSource.Returns(_activitySource);
+        _commandFilters = new CommandFilters(new KnownInstancesOf<ICommandFilter>(filters), commandFiltersActivitySource);
     }
+
+    void Destroy() => _activitySource.Dispose();
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);
 

@@ -8,8 +8,9 @@ env:
   DOTNET8_VERSION: "8.0.407"
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
-  DOTNET_BIN_CACHE: "dotnet-bin-${{ github.sha }}"
-  JS_DIST_CACHE: "js-dist-${{ github.sha }}"
+  DOTNET_OBJ_CACHE: "dotnet-obj-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
+  DOTNET_BIN_CACHE: "dotnet-bin-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
+  JS_DIST_CACHE: "js-dist-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
 on:
   workflow_dispatch:
@@ -93,7 +94,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./**/obj
-          key: dotnet-obj-${{ github.sha }}
+          key: ${{ env.DOTNET_OBJ_CACHE }}
           restore-keys: |
             dotnet-obj-
 
@@ -114,6 +115,7 @@ jobs:
         with:
           path: |
             .yarn/cache
+            node_modules
             **/node_modules
             **/.eslintcache
             **/yarn.lock
@@ -189,6 +191,7 @@ jobs:
         with:
           path: |
             .yarn/cache
+            node_modules
             **/node_modules
             **/.eslintcache
             **/yarn.lock

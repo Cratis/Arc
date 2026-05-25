@@ -15,7 +15,9 @@ public class CommandAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
-            DiagnosticDescriptors.ARC0002_MissingCommandAttribute
+            DiagnosticDescriptors.ARC0002_MissingCommandAttribute,
+            DiagnosticDescriptors.ARC0003_HandleMustBeOnCommandType,
+            DiagnosticDescriptors.ARC0004_CommandMustHavePublicHandle
         ];
 
     /// <inheritdoc/>
@@ -46,6 +48,7 @@ public class CommandAnalyzer : DiagnosticAnalyzer
 
         var hasCommandAttribute = HasAttribute(namedTypeSymbol, "Cratis.Arc.Commands.ModelBound.CommandAttribute");
         var handleMethod = FindHandleMethod(namedTypeSymbol);
+        var publicHandleMethods = FindPublicHandleMethods(namedTypeSymbol).ToArray();
 
         // Only warn about missing [Command] attribute if type looks like a command
         if (!hasCommandAttribute && handleMethod != null && LooksLikeCommand(namedTypeSymbol, handleMethod))
@@ -54,6 +57,37 @@ public class CommandAnalyzer : DiagnosticAnalyzer
                 DiagnosticDescriptors.ARC0002_MissingCommandAttribute,
                 namedTypeSymbol.Locations[0],
                 namedTypeSymbol.Name));
+        }
+
+        if (hasCommandAttribute && publicHandleMethods.Length == 0)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ARC0004_CommandMustHavePublicHandle,
+                namedTypeSymbol.Locations[0],
+                namedTypeSymbol.Name));
+        }
+
+        if (hasCommandAttribute)
+        {
+            return;
+        }
+
+        foreach (var publicHandleMethod in publicHandleMethods)
+        {
+            var commandParameter = publicHandleMethod.Parameters.FirstOrDefault(parameter =>
+                parameter.Type is INamedTypeSymbol parameterType &&
+                HasAttribute(parameterType, "Cratis.Arc.Commands.ModelBound.CommandAttribute"));
+
+            if (commandParameter is null)
+            {
+                continue;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ARC0003_HandleMustBeOnCommandType,
+                publicHandleMethod.Locations[0],
+                namedTypeSymbol.Name,
+                commandParameter.Type.Name));
         }
     }
 
@@ -68,6 +102,15 @@ public class CommandAnalyzer : DiagnosticAnalyzer
         return typeSymbol.GetMembers("Handle")
             .OfType<IMethodSymbol>()
             .FirstOrDefault(m => m.MethodKind == MethodKind.Ordinary);
+    }
+
+    static IEnumerable<IMethodSymbol> FindPublicHandleMethods(INamedTypeSymbol typeSymbol)
+    {
+        return typeSymbol.GetMembers("Handle")
+            .OfType<IMethodSymbol>()
+            .Where(m => m.MethodKind == MethodKind.Ordinary &&
+                        !m.IsStatic &&
+                        m.DeclaredAccessibility == Accessibility.Public);
     }
 
     static bool LooksLikeCommand(INamedTypeSymbol typeSymbol, IMethodSymbol handleMethod)

@@ -19,6 +19,7 @@ export default defineConfig({
         alias: [
             { find: '@cratis/arc/commands', replacement: arc('commands/index.ts') },
             { find: '@cratis/arc/identity', replacement: arc('identity/index.ts') },
+            { find: '@cratis/arc/messaging', replacement: arc('messaging/index.ts') },
             { find: '@cratis/arc/queries', replacement: arc('queries/index.ts') },
             { find: '@cratis/arc/validation', replacement: arc('validation/index.ts') },
             { find: '@cratis/arc/reflection', replacement: arc('reflection/index.ts') },
@@ -26,6 +27,7 @@ export default defineConfig({
             { find: '@cratis/arc.react/commands', replacement: arcReact('commands/index.ts') },
             { find: '@cratis/arc.react/dialogs', replacement: arcReact('dialogs/index.ts') },
             { find: '@cratis/arc.react/identity', replacement: arcReact('identity/index.ts') },
+            { find: '@cratis/arc.react/messaging', replacement: arcReact('messaging/index.ts') },
             { find: '@cratis/arc.react/queries', replacement: arcReact('queries/index.ts') },
             { find: '@cratis/arc.react', replacement: arcReact('index.ts') },
         ],

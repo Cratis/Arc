@@ -4,6 +4,7 @@
 using Cratis.Arc;
 using Cratis.Arc.Commands;
 using Cratis.Arc.ModelBinding;
+using Cratis.Arc.Queries;
 using Cratis.Arc.Validation;
 using Cratis.Reflection;
 using Cratis.Types;
@@ -33,6 +34,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
         services.AddCorrelationId();
+        services
+            .AddActivitySource<CommandActionFilter>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryActionFilter>(Internals.ActivitySourceName);
 
         // Register the command validation route convention
         services.AddSingleton<IApplicationModelProvider, CommandValidationRouteConvention>();
