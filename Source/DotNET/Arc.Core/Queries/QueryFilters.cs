@@ -4,6 +4,7 @@
 using Cratis.DependencyInjection;
 using Cratis.Traces;
 using Cratis.Types;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
 
@@ -13,7 +14,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="filters">The collection of <see cref="IQueryFilter"/> to use for filtering queries.</param>
 /// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 [Singleton]
-public class QueryFilters(IInstancesOf<IQueryFilter> filters, IActivitySource<QueryFilters> activitySource) : IQueryFilters
+public class QueryFilters(IInstancesOf<IQueryFilter> filters, [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<QueryFilters> activitySource) : IQueryFilters
 {
     /// <inheritdoc/>
     public async Task<QueryResult> OnPerform(QueryContext context)

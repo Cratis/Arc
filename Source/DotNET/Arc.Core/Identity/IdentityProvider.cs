@@ -22,7 +22,7 @@ namespace Cratis.Arc.Identity;
 public class IdentityProvider(
     IHttpRequestContextAccessor httpRequestContextAccessor,
     IOptions<ArcOptions> options,
-    IActivitySource<IdentityProvider> activitySource) : IIdentityProvider
+    [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<IdentityProvider> activitySource) : IIdentityProvider
 {
     /// <summary>
     /// The name of the identity cookie.

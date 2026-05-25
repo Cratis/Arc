@@ -21,9 +21,9 @@ public class it_should_register_action_filter_activity_sources : Specification
             .AddCratisArc(options => options.IdentityDetailsProvider = typeof(DefaultIdentityDetailsProvider))
             .Build();
 
-        _commandActionFilterActivitySource = host.Services.GetRequiredService<IActivitySource<CommandActionFilter>>();
-        _queryActionFilterActivitySource = host.Services.GetRequiredService<IActivitySource<QueryActionFilter>>();
-        _commandPipelineActivitySource = host.Services.GetRequiredService<IActivitySource<CommandPipeline>>();
+        _commandActionFilterActivitySource = host.Services.GetRequiredKeyedService<IActivitySource<CommandActionFilter>>(Internals.ActivitySourceName);
+        _queryActionFilterActivitySource = host.Services.GetRequiredKeyedService<IActivitySource<QueryActionFilter>>(Internals.ActivitySourceName);
+        _commandPipelineActivitySource = host.Services.GetRequiredKeyedService<IActivitySource<CommandPipeline>>(Internals.ActivitySourceName);
     }
 
     [Fact] void should_use_the_arc_activity_source_name_for_command_action_filter() => _commandActionFilterActivitySource.ActualSource.Name.ShouldEqual("Cratis.Arc");
