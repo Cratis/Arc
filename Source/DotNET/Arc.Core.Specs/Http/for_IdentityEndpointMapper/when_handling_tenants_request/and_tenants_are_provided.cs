@@ -30,13 +30,13 @@ public class and_tenants_are_provided : given.an_identity_schema_endpoint_handle
 
     class FirstProvider : ICanProvideTenants
     {
-        public Task<IEnumerable<Tenant>> Provide(CancellationToken cancellationToken = default) =>
+        public Task<IEnumerable<Tenant>> Provide() =>
             Task.FromResult<IEnumerable<Tenant>>([new Tenant("first", "First Tenant")]);
     }
 
     class SecondProvider : ICanProvideTenants
     {
-        public Task<IEnumerable<Tenant>> Provide(CancellationToken cancellationToken = default) =>
+        public Task<IEnumerable<Tenant>> Provide() =>
             Task.FromResult<IEnumerable<Tenant>>([new Tenant("second", "Second Tenant")]);
     }
 }

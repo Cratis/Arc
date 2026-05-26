@@ -26,6 +26,6 @@ public class and_tenants_provider_is_registered : given.an_identity_endpoint_map
 
     class TenantsProvider : ICanProvideTenants
     {
-        public Task<IEnumerable<Tenant>> Provide(CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<Tenant>>([]);
+        public Task<IEnumerable<Tenant>> Provide() => Task.FromResult<IEnumerable<Tenant>>([]);
     }
 }

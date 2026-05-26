@@ -11,7 +11,6 @@ public interface ICanProvideUsers
     /// <summary>
     /// Provide users for development tooling.
     /// </summary>
-    /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The users.</returns>
-    Task<IEnumerable<User>> Provide(CancellationToken cancellationToken = default);
+    Task<IEnumerable<User>> Provide();
 }

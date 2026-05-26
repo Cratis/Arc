@@ -11,7 +11,6 @@ public interface ICanProvideTenants
     /// <summary>
     /// Provide tenants for development tooling.
     /// </summary>
-    /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The tenants.</returns>
-    Task<IEnumerable<Tenant>> Provide(CancellationToken cancellationToken = default);
+    Task<IEnumerable<Tenant>> Provide();
 }

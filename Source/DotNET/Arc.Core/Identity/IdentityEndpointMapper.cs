@@ -136,7 +136,7 @@ public static class IdentityEndpointMapper
                 foreach (var providerType in providerTypes)
                 {
                     var provider = (ICanProvideUsers)ActivatorUtilities.GetServiceOrCreateInstance(context.RequestServices, providerType);
-                    users.AddRange(await provider.Provide(context.RequestAborted));
+                    users.AddRange(await provider.Provide());
                 }
 
                 await context.WriteResponseAsJson(users, typeof(IEnumerable<User>), context.RequestAborted);
@@ -177,7 +177,7 @@ public static class IdentityEndpointMapper
                 foreach (var providerType in providerTypes)
                 {
                     var provider = (ICanProvideTenants)ActivatorUtilities.GetServiceOrCreateInstance(context.RequestServices, providerType);
-                    tenants.AddRange(await provider.Provide(context.RequestAborted));
+                    tenants.AddRange(await provider.Provide());
                 }
 
                 await context.WriteResponseAsJson(tenants, typeof(IEnumerable<Tenant>), context.RequestAborted);

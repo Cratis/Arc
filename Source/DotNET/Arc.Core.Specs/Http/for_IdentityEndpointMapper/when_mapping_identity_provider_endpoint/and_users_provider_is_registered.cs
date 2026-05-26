@@ -25,6 +25,6 @@ public class and_users_provider_is_registered : given.an_identity_endpoint_mappe
 
     class UsersProvider : ICanProvideUsers
     {
-        public Task<IEnumerable<User>> Provide(CancellationToken cancellationToken = default) => Task.FromResult<IEnumerable<User>>([]);
+        public Task<IEnumerable<User>> Provide() => Task.FromResult<IEnumerable<User>>([]);
     }
 }

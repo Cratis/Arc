@@ -30,7 +30,7 @@ public class and_users_are_provided : given.an_identity_schema_endpoint_handler
 
     class FirstProvider : ICanProvideUsers
     {
-        public Task<IEnumerable<User>> Provide(CancellationToken cancellationToken = default) =>
+        public Task<IEnumerable<User>> Provide() =>
             Task.FromResult<IEnumerable<User>>(
             [
                 new User(new ClientPrincipal { UserId = "first", UserDetails = "First User", IdentityProvider = "aad", UserRoles = [] }, new { IsDeveloper = true })
@@ -39,7 +39,7 @@ public class and_users_are_provided : given.an_identity_schema_endpoint_handler
 
     class SecondProvider : ICanProvideUsers
     {
-        public Task<IEnumerable<User>> Provide(CancellationToken cancellationToken = default) =>
+        public Task<IEnumerable<User>> Provide() =>
             Task.FromResult<IEnumerable<User>>(
             [
                 new User(new ClientPrincipal { UserId = "second", UserDetails = "Second User", IdentityProvider = "aad", UserRoles = [] }, new { IsDeveloper = false })
