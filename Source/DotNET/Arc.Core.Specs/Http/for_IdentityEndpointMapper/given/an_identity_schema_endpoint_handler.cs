@@ -13,6 +13,7 @@ public class an_identity_schema_endpoint_handler : Specification
     protected IHttpRequestContext _httpRequestContext;
     protected Dictionary<string, Func<IHttpRequestContext, Task>> _mappedHandlers;
     protected IServiceCollection _services;
+    protected global::Cratis.Types.ITypes _types;
 
     void Establish()
     {
@@ -20,6 +21,9 @@ public class an_identity_schema_endpoint_handler : Specification
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
         _mappedHandlers = [];
         _services = new ServiceCollection();
+        _types = Substitute.For<global::Cratis.Types.ITypes>();
+        _types.FindMultiple<global::Cratis.Arc.Identity.ICanProvideUsers>().Returns([]);
+        _types.FindMultiple<global::Cratis.Arc.Tenancy.ICanProvideTenants>().Returns([]);
         _services.AddSingleton<IOptions<ArcOptions>>(Options.Create(new ArcOptions()));
 
         _httpRequestContext.RequestAborted.Returns(CancellationToken.None);
@@ -38,6 +42,7 @@ public class an_identity_schema_endpoint_handler : Specification
 
         var mockServiceProvider = Substitute.For<IServiceProvider>();
         mockServiceProvider.GetService(typeof(IServiceProviderIsService)).Returns(serviceProviderIsService);
+        mockServiceProvider.GetService(typeof(ITypes)).Returns(_types);
 
         _mapper.MapIdentityProviderEndpoint(mockServiceProvider);
     }

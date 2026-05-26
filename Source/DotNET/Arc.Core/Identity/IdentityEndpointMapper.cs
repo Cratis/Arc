@@ -6,6 +6,8 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +20,8 @@ public static class IdentityEndpointMapper
 {
     const string GetIdentityDetailsSchemaEndpointName = "GetIdentityDetailsSchema";
     const string GetIdentityDetailsEndpointName = "GetIdentityDetails";
+    const string GetUsersEndpointName = "GetUsers";
+    const string GetTenantsEndpointName = "GetTenants";
 
     /// <summary>
     /// Maps the identity provider endpoint.
@@ -92,6 +96,91 @@ public static class IdentityEndpointMapper
                 }
 
                 await identityProvider.SetCookieForHttpResponse(result);
+            },
+            metadata);
+
+        MapUsersEndpoint(mapper, serviceProvider);
+        MapTenantsEndpoint(mapper, serviceProvider);
+    }
+
+    static void MapUsersEndpoint(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    {
+        if (mapper.EndpointExists(GetUsersEndpointName))
+        {
+            return;
+        }
+
+        if (serviceProvider.GetService<ITypes>() is not ITypes types)
+        {
+            return;
+        }
+
+        var providerTypes = types.FindMultiple<ICanProvideUsers>().ToArray();
+        if (providerTypes.Length == 0)
+        {
+            return;
+        }
+
+        var metadata = new EndpointMetadata(
+            GetUsersEndpointName,
+            "Get development users",
+            ["Cratis Development"],
+            AllowAnonymous: true,
+            ResponseType: typeof(IEnumerable<User>));
+
+        mapper.MapGet(
+            "/.cratis/users",
+            async context =>
+            {
+                var users = new List<User>();
+                foreach (var providerType in providerTypes)
+                {
+                    var provider = (ICanProvideUsers)ActivatorUtilities.GetServiceOrCreateInstance(context.RequestServices, providerType);
+                    users.AddRange(await provider.Provide(context.RequestAborted));
+                }
+
+                await context.WriteResponseAsJson(users, typeof(IEnumerable<User>), context.RequestAborted);
+            },
+            metadata);
+    }
+
+    static void MapTenantsEndpoint(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    {
+        if (mapper.EndpointExists(GetTenantsEndpointName))
+        {
+            return;
+        }
+
+        if (serviceProvider.GetService<ITypes>() is not ITypes types)
+        {
+            return;
+        }
+
+        var providerTypes = types.FindMultiple<ICanProvideTenants>().ToArray();
+        if (providerTypes.Length == 0)
+        {
+            return;
+        }
+
+        var metadata = new EndpointMetadata(
+            GetTenantsEndpointName,
+            "Get development tenants",
+            ["Cratis Development"],
+            AllowAnonymous: true,
+            ResponseType: typeof(IEnumerable<Tenant>));
+
+        mapper.MapGet(
+            "/.cratis/tenants",
+            async context =>
+            {
+                var tenants = new List<Tenant>();
+                foreach (var providerType in providerTypes)
+                {
+                    var provider = (ICanProvideTenants)ActivatorUtilities.GetServiceOrCreateInstance(context.RequestServices, providerType);
+                    tenants.AddRange(await provider.Provide(context.RequestAborted));
+                }
+
+                await context.WriteResponseAsJson(tenants, typeof(IEnumerable<Tenant>), context.RequestAborted);
             },
             metadata);
     }
