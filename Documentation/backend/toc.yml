@@ -9,7 +9,7 @@
 - name: Tenancy
   href: tenancy/toc.yml
 - name: Identity
-  href: identity.md
+  href: identity/toc.yml
 - name: Commands
   href: commands/toc.yml
 - name: Queries

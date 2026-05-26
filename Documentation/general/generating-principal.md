@@ -86,7 +86,7 @@ that simulate the Azure-provided Microsoft Identity headers for local developmen
 Once you have these headers configured, your application's [Microsoft Identity authentication handler](../backend/asp-net-core/microsoft-identity.md) will automatically process the Microsoft Client Principal token and populate the ASP.NET Core authentication context. This allows you to:
 
 - Test authorization policies that depend on Azure AD claims
-- Verify that your [identity details provider](../backend/identity.md) receives the correct user information
+- Verify that your [identity details provider](../backend/identity/overview.md) receives the correct user information
 - Ensure your application behaves correctly with different Microsoft Identity user scenarios
 
 The Microsoft Identity integration seamlessly handles the token validation and claim extraction, making your local development experience consistent with how the application behaves when deployed to Azure services.

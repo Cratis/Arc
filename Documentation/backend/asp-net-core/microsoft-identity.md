@@ -47,6 +47,6 @@ app.UseAuthorization();
 
 ## Identity Details
 
-For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity.md).
+For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity/overview.md).
 
 The Microsoft Identity integration works seamlessly with the generic identity system to provide domain-specific information beyond what's available in identity provider tokens.

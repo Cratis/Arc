@@ -519,7 +519,7 @@ This filter is automatically registered and executes before command handlers and
 
 ## Integration with Identity
 
-Authorization works seamlessly with the [Identity](../identity.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
+Authorization works seamlessly with the [Identity](../identity/overview.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
 
 ```csharp
 public class IdentityDetailsProvider : IProvideIdentityDetails
@@ -553,5 +553,5 @@ Authorization attributes work seamlessly with the [proxy generator](../proxy-gen
 - [Model-Bound Commands](../commands/model-bound/index.md) - Model-bound command authorization
 - [Queries](../queries/index.md) - Query documentation
 - [Command Filters](../commands/command-filters.md) - Including the AuthorizationFilter
-- [Identity](../identity.md) - Identity and authentication setup
+- [Identity](../identity/overview.md) - Identity and authentication setup
 - [Microsoft Identity](microsoft-identity.md) - Microsoft Identity integration

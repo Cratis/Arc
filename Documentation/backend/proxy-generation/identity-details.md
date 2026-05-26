@@ -22,7 +22,7 @@ public interface IProvideIdentityDetails<TDetails> : IProvideIdentityDetails
 
 This interface extends the base `IProvideIdentityDetails` interface but adds type information that the proxy generator can discover and use.
 
-For detailed information on implementing identity providers, see the [Identity documentation](../identity.md).
+For detailed information on implementing identity providers, see the [Identity documentation](../identity/overview.md).
 
 ## How Discovery Works
 
