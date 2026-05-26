@@ -4,7 +4,6 @@
 using Cratis.DependencyInjection;
 using Cratis.Traces;
 using Cratis.Types;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -14,7 +13,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="filters">The collection of <see cref="ICommandFilter"/> to use for filtering commands.</param>
 /// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 [Singleton]
-public class CommandFilters(IInstancesOf<ICommandFilter> filters, [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<CommandFilters> activitySource) : ICommandFilters
+public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySource<CommandFilters> activitySource) : ICommandFilters
 {
     /// <inheritdoc/>
     public async Task<CommandResult> OnExecution(CommandContext context)

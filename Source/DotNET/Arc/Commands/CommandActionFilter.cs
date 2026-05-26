@@ -6,7 +6,6 @@ using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -19,7 +18,7 @@ namespace Cratis.Arc.Commands;
 public class CommandActionFilter(
     ICommandContextModifier contextModifier,
     ICommandContextValuesBuilder contextValuesBuilder,
-    [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<CommandActionFilter> activitySource) : IAsyncActionFilter
+    IActivitySource<CommandActionFilter> activitySource) : IAsyncActionFilter
 {
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)

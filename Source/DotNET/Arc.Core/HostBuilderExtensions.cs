@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.Metrics;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Queries;
@@ -11,6 +12,7 @@ using Cratis.Execution;
 using Cratis.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -116,14 +118,27 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <param name="services"><see cref="IServiceCollection"/> to add the meter to.</param>
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
-    public static IServiceCollection AddCratisArcMeter(this IServiceCollection services) =>
-        services.AddNamedMeter(Internals.MeterName);
+    public static IServiceCollection AddCratisArcMeter(this IServiceCollection services)
+    {
+#pragma warning disable CA2000 // Dispose objects before losing scope
+        services.TryAddKeyedSingleton(Internals.MeterName, new Meter(Internals.MeterName));
+#pragma warning restore CA2000 // Dispose objects before losing scope
+        return services;
+    }
 
     /// <summary>
     /// Add the ActivitySource for the Arc.
     /// </summary>
     /// <param name="services"><see cref="IServiceCollection"/> to add the activity source to.</param>
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
-    public static IServiceCollection AddCratisArcActivitySource(this IServiceCollection services) =>
-        services.AddNamedActivitySource(Internals.ActivitySourceName);
+    public static IServiceCollection AddCratisArcActivitySource(this IServiceCollection services)
+    {
+        return services
+            .AddActivitySource(Internals.ActivitySourceName)
+            .AddActivitySource<CommandFilters>(Internals.ActivitySourceName)
+            .AddActivitySource<CommandPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryFilters>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<IdentityProvider>(Internals.ActivitySourceName);
+    }
 }

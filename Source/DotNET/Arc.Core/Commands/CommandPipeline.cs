@@ -31,7 +31,7 @@ public class CommandPipeline(
     ICommandContextModifier contextModifier,
     ICommandContextValuesBuilder contextValuesBuilder,
     IServiceScopeFactory scopeFactory,
-    [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<CommandPipeline> activitySource) : ICommandPipeline
+    IActivitySource<CommandPipeline> activitySource) : ICommandPipeline
 {
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity = default)

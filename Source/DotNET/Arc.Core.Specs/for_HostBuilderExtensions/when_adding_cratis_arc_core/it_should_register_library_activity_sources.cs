@@ -23,11 +23,11 @@ public class it_should_register_library_activity_sources : Specification
             .AddCratisArcCore()
             .BuildServiceProvider();
 
-        _commandPipelineActivitySource = serviceProvider.GetRequiredKeyedService<IActivitySource<CommandPipeline>>("Cratis.Arc");
-        _commandFiltersActivitySource = serviceProvider.GetRequiredKeyedService<IActivitySource<CommandFilters>>("Cratis.Arc");
-        _queryPipelineActivitySource = serviceProvider.GetRequiredKeyedService<IActivitySource<QueryPipeline>>("Cratis.Arc");
-        _queryFiltersActivitySource = serviceProvider.GetRequiredKeyedService<IActivitySource<QueryFilters>>("Cratis.Arc");
-        _identityProviderActivitySource = serviceProvider.GetRequiredKeyedService<IActivitySource<IdentityProvider>>("Cratis.Arc");
+        _commandPipelineActivitySource = serviceProvider.GetRequiredService<IActivitySource<CommandPipeline>>();
+        _commandFiltersActivitySource = serviceProvider.GetRequiredService<IActivitySource<CommandFilters>>();
+        _queryPipelineActivitySource = serviceProvider.GetRequiredService<IActivitySource<QueryPipeline>>();
+        _queryFiltersActivitySource = serviceProvider.GetRequiredService<IActivitySource<QueryFilters>>();
+        _identityProviderActivitySource = serviceProvider.GetRequiredService<IActivitySource<IdentityProvider>>();
     }
 
     [Fact] void should_use_the_arc_activity_source_name_for_command_pipeline() => _commandPipelineActivitySource.ActualSource.Name.ShouldEqual("Cratis.Arc");

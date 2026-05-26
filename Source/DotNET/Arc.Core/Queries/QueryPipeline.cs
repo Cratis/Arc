@@ -29,7 +29,7 @@ public class QueryPipeline(
     IQueryRenderers queryRenderers,
     IReadModelInterceptors readModelInterceptors,
     IDiscoverableValidators discoverableValidators,
-    [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
+    IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
 {
     /// <inheritdoc/>
     public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider)

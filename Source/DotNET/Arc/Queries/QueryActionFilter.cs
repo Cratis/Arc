@@ -7,7 +7,6 @@ using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
@@ -30,7 +29,7 @@ public class QueryActionFilter(
     IReadModelInterceptors readModelInterceptors,
     ControllerObservableQueryAdapter controllerAdapter,
     ILogger<QueryActionFilter> logger,
-    [FromKeyedServices(Internals.ActivitySourceName)] IActivitySource<QueryActionFilter> activitySource) : IAsyncActionFilter
+    IActivitySource<QueryActionFilter> activitySource) : IAsyncActionFilter
 {
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)

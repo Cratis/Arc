@@ -34,6 +34,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
         services.AddCorrelationId();
+        services
+            .AddActivitySource<CommandActionFilter>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryActionFilter>(Internals.ActivitySourceName);
 
         // Register the command validation route convention
         services.AddSingleton<IApplicationModelProvider, CommandValidationRouteConvention>();
