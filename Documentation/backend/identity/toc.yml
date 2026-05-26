@@ -1,24 +1,10 @@
 - name: Identity
   href: index.md
-- name: Overview
-  href: overview.md
-- name: How It Works
-  href: how-it-works.md
-- name: Identity Details Provider
-  href: identity-details-provider.md
-- name: Implementation Example
-  href: implementation-example.md
-- name: Identity Provider Context
-  href: identity-provider-context.md
-- name: Identity Details
-  href: identity-details.md
-- name: Identity Endpoint
-  href: identity-endpoint.md
-- name: Development Users and Tenants Endpoints
-  href: development-users-and-tenants-endpoints.md
-- name: Frontend Integration
-  href: frontend-integration.md
+- name: Provider Flow
+  href: provider-flow.md
+- name: Identity Contracts
+  href: contracts.md
 - name: IdentityProvider Service
   href: identity-provider-service.md
-- name: Multi-Service Considerations
-  href: multi-service-considerations.md
+- name: Development and Topologies
+  href: development-and-topologies.md

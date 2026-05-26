@@ -431,6 +431,6 @@ public class SecureCommandTests
 
 - [Authentication](authentication.md) - Implement custom authentication handlers
 - [Getting Started](getting-started.md) - Learn more about Arc.Core basics
-- [Identity](../identity/overview.md) - Integrate with Arc's identity system
+- [Identity](../identity/index.md) - Integrate with Arc's identity system
 - [Commands](../commands/index.md) - Learn about command patterns and authorization
 - [Queries](../queries/index.md) - Discover query features with authorization
