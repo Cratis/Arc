@@ -93,6 +93,28 @@ If the `IsUserAuthorized` property is set to false the return from this will be 
 
 Your provider will be exposed on a well known route: `/.cratis/me`.
 
+## Development Users and Tenants Endpoints
+
+For development tooling scenarios, Arc can also expose suggested users and tenants on:
+
+- `/.cratis/users`
+- `/.cratis/tenants`
+
+These endpoints are intended for development purposes and are discovered automatically when your application contains implementations of:
+
+- `ICanProvideUsers` in `Cratis.Arc.Identity`
+- `ICanProvideTenants` in `Cratis.Arc.Tenancy`
+
+The users endpoint returns `User` items with:
+
+- `MicrosoftIdentity` (`ClientPrincipal`)
+- `Details` (`object`)
+
+The tenants endpoint returns `Tenant` items with:
+
+- `Id` (`TenantId`)
+- `Name` (`TenantName`)
+
 ## Integration with Frontend
 
 The identity system seamlessly integrates with the frontend by setting a cookie that can be automatically consumed by your client-side application. This eliminates the need for separate API calls to retrieve user details after authentication.
