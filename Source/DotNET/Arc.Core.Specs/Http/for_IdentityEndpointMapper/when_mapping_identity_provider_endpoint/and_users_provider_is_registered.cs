@@ -13,7 +13,7 @@ public class and_users_provider_is_registered : given.an_identity_endpoint_mappe
         _mapper.EndpointExists("GetIdentityDetailsSchema").Returns(false);
         _mapper.EndpointExists("GetIdentityDetails").Returns(false);
         _mapper.EndpointExists("GetUsers").Returns(false);
-        _types.FindMultiple<ICanProvideUsers>().Returns([typeof(UsersProvider)]);
+        _usersProviders.GetEnumerator().Returns(_ => new List<ICanProvideUsers> { new UsersProvider() }.GetEnumerator());
     }
 
     void Because() => _mapper.MapIdentityProviderEndpoint(_serviceProvider);

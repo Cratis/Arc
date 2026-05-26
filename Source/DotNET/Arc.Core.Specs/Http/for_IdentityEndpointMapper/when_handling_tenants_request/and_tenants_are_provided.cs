@@ -9,7 +9,7 @@ public class and_tenants_are_provided : given.an_identity_schema_endpoint_handle
 {
     void Establish()
     {
-        _types.FindMultiple<ICanProvideTenants>().Returns([typeof(FirstProvider), typeof(SecondProvider)]);
+        _tenantsProviders.GetEnumerator().Returns(_ => new List<ICanProvideTenants> { new FirstProvider(), new SecondProvider() }.GetEnumerator());
         MapIdentityProviderEndpoint();
     }
 

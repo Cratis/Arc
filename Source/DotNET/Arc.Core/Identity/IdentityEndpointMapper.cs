@@ -110,13 +110,7 @@ public static class IdentityEndpointMapper
             return;
         }
 
-        if (serviceProvider.GetService<ITypes>() is not ITypes types)
-        {
-            return;
-        }
-
-        var providerTypes = types.FindMultiple<ICanProvideUsers>().ToArray();
-        if (providerTypes.Length == 0)
+        if (serviceProvider.GetService<IInstancesOf<ICanProvideUsers>>() is not IInstancesOf<ICanProvideUsers> providers || !providers.Any())
         {
             return;
         }
@@ -133,9 +127,8 @@ public static class IdentityEndpointMapper
             async context =>
             {
                 var users = new List<User>();
-                foreach (var providerType in providerTypes)
+                foreach (var provider in context.RequestServices.GetRequiredService<IInstancesOf<ICanProvideUsers>>())
                 {
-                    var provider = (ICanProvideUsers)ActivatorUtilities.GetServiceOrCreateInstance(context.RequestServices, providerType);
                     users.AddRange(await provider.Provide());
                 }
 
@@ -151,13 +144,7 @@ public static class IdentityEndpointMapper
             return;
         }
 
-        if (serviceProvider.GetService<ITypes>() is not ITypes types)
-        {
-            return;
-        }
-
-        var providerTypes = types.FindMultiple<ICanProvideTenants>().ToArray();
-        if (providerTypes.Length == 0)
+        if (serviceProvider.GetService<IInstancesOf<ICanProvideTenants>>() is not IInstancesOf<ICanProvideTenants> providers || !providers.Any())
         {
             return;
         }
@@ -174,9 +161,8 @@ public static class IdentityEndpointMapper
             async context =>
             {
                 var tenants = new List<Tenant>();
-                foreach (var providerType in providerTypes)
+                foreach (var provider in context.RequestServices.GetRequiredService<IInstancesOf<ICanProvideTenants>>())
                 {
-                    var provider = (ICanProvideTenants)ActivatorUtilities.GetServiceOrCreateInstance(context.RequestServices, providerType);
                     tenants.AddRange(await provider.Provide());
                 }
 

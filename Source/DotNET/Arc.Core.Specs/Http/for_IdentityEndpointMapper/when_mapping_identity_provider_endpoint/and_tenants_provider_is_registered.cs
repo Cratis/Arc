@@ -14,7 +14,7 @@ public class and_tenants_provider_is_registered : given.an_identity_endpoint_map
         _mapper.EndpointExists("GetIdentityDetailsSchema").Returns(false);
         _mapper.EndpointExists("GetIdentityDetails").Returns(false);
         _mapper.EndpointExists("GetTenants").Returns(false);
-        _types.FindMultiple<ICanProvideTenants>().Returns([typeof(TenantsProvider)]);
+        _tenantsProviders.GetEnumerator().Returns(_ => new List<ICanProvideTenants> { new TenantsProvider() }.GetEnumerator());
     }
 
     void Because() => _mapper.MapIdentityProviderEndpoint(_serviceProvider);
