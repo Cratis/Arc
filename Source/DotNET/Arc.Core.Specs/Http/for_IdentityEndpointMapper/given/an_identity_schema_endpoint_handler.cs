@@ -13,6 +13,8 @@ public class an_identity_schema_endpoint_handler : Specification
     protected IHttpRequestContext _httpRequestContext;
     protected Dictionary<string, Func<IHttpRequestContext, Task>> _mappedHandlers;
     protected IServiceCollection _services;
+    protected global::Cratis.Types.IInstancesOf<global::Cratis.Arc.Identity.ICanProvideUsers> _usersProviders;
+    protected global::Cratis.Types.IInstancesOf<global::Cratis.Arc.Tenancy.ICanProvideTenants> _tenantsProviders;
 
     void Establish()
     {
@@ -20,6 +22,12 @@ public class an_identity_schema_endpoint_handler : Specification
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
         _mappedHandlers = [];
         _services = new ServiceCollection();
+        _usersProviders = Substitute.For<global::Cratis.Types.IInstancesOf<global::Cratis.Arc.Identity.ICanProvideUsers>>();
+        _usersProviders.GetEnumerator().Returns(_ => new List<global::Cratis.Arc.Identity.ICanProvideUsers>().GetEnumerator());
+        _tenantsProviders = Substitute.For<global::Cratis.Types.IInstancesOf<global::Cratis.Arc.Tenancy.ICanProvideTenants>>();
+        _tenantsProviders.GetEnumerator().Returns(_ => new List<global::Cratis.Arc.Tenancy.ICanProvideTenants>().GetEnumerator());
+        _services.AddSingleton(_usersProviders);
+        _services.AddSingleton(_tenantsProviders);
         _services.AddSingleton<IOptions<ArcOptions>>(Options.Create(new ArcOptions()));
 
         _httpRequestContext.RequestAborted.Returns(CancellationToken.None);
@@ -38,6 +46,8 @@ public class an_identity_schema_endpoint_handler : Specification
 
         var mockServiceProvider = Substitute.For<IServiceProvider>();
         mockServiceProvider.GetService(typeof(IServiceProviderIsService)).Returns(serviceProviderIsService);
+        mockServiceProvider.GetService(typeof(global::Cratis.Types.IInstancesOf<global::Cratis.Arc.Identity.ICanProvideUsers>)).Returns(_usersProviders);
+        mockServiceProvider.GetService(typeof(global::Cratis.Types.IInstancesOf<global::Cratis.Arc.Tenancy.ICanProvideTenants>)).Returns(_tenantsProviders);
 
         _mapper.MapIdentityProviderEndpoint(mockServiceProvider);
     }

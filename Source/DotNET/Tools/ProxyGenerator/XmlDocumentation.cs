@@ -12,6 +12,7 @@ namespace Cratis.Arc.ProxyGenerator;
 public static class XmlDocumentation
 {
     static readonly Dictionary<string, XDocument> _loadedDocuments = [];
+    static readonly object _loadedDocumentsLock = new();
 
     /// <summary>
     /// Get the XML documentation for a member.
@@ -111,20 +112,23 @@ public static class XmlDocumentation
         var xmlPath = Path.ChangeExtension(assemblyLocation, ".xml");
         if (!File.Exists(xmlPath)) return null;
 
-        if (_loadedDocuments.TryGetValue(xmlPath, out var doc))
+        lock (_loadedDocumentsLock)
         {
-            return doc;
-        }
+            if (_loadedDocuments.TryGetValue(xmlPath, out var doc))
+            {
+                return doc;
+            }
 
-        try
-        {
-            doc = XDocument.Load(xmlPath);
-            _loadedDocuments[xmlPath] = doc;
-            return doc;
-        }
-        catch
-        {
-            return null;
+            try
+            {
+                doc = XDocument.Load(xmlPath);
+                _loadedDocuments[xmlPath] = doc;
+                return doc;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 
