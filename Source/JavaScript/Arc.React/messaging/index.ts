@@ -3,3 +3,5 @@
 
 export * from './MessengerScope';
 export * from './useMessenger';
+export * from './useOnMessage';
+export * from './useSendMessage';
