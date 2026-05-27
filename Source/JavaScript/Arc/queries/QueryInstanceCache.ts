@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { QueryResultWithState } from './QueryResultWithState';
+import { CacheDiagnostics, CacheEntryDiagnostics } from './ObservableQueryDiagnosticsSnapshot';
 
 /**
  * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialized arguments.
@@ -359,5 +360,51 @@ export class QueryInstanceCache {
             clearTimeout(this._pendingDispose);
             this._pendingDispose = undefined;
         }
+    }
+
+    /**
+     * Returns a diagnostics snapshot of the current cache state.
+     * @returns A {@link CacheDiagnostics} describing all entries.
+     */
+    getDiagnosticsSnapshot(): CacheDiagnostics {
+        const entries: CacheEntryDiagnostics[] = [];
+        let totalBytes = 0;
+        let unhealthyCount = 0;
+
+        for (const [key, entry] of this._entries) {
+            const colonIndex = key.indexOf('::');
+            const queryName = colonIndex >= 0 ? key.substring(0, colonIndex) : key;
+
+            let estimatedBytes = 0;
+            try {
+                if (entry.lastResult !== undefined) {
+                    estimatedBytes = JSON.stringify(entry.lastResult).length;
+                }
+            } catch {
+                // Ignore serialization errors
+            }
+
+            if (entry.subscriberCount > 0 && !entry.subscribed) {
+                unhealthyCount++;
+            }
+
+            totalBytes += estimatedBytes;
+            entries.push({
+                key,
+                queryName,
+                subscriberCount: entry.subscriberCount,
+                listenerCount: entry.listeners.size,
+                subscribed: entry.subscribed,
+                hasResult: entry.lastResult !== undefined,
+                estimatedBytes,
+            });
+        }
+
+        return {
+            healthy: unhealthyCount === 0,
+            entryCount: this._entries.size,
+            estimatedBytes: totalBytes,
+            entries,
+        };
     }
 }

@@ -20,7 +20,8 @@ describe('when getting or creating with a changed cache key', () => {
                 lastPingLatency: 0,
                 averageLatency: 0,
                 subscribe: () => {},
-                unsubscribe: () => {},
+                    isConnected: false,
+                    unsubscribe: () => {},
                 dispose: () => { disposedConnectionCount++; },
             };
         };

@@ -109,7 +109,9 @@ function hasAllRequiredArguments(requiredRequestParameters: string[], args?: obj
     });
 }
 
-function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled: boolean = true):
+function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
+    [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize];
+function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
@@ -117,6 +119,8 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     const queryCache = useContext(QueryInstanceCacheContext);
     const queryScope = useQueryScope();
     const cacheKeyRef = useRef<string>('');
+    const ownerRef = useRef<string | undefined>(owner);
+    ownerRef.current = owner;
 
     const queryInstance = useMemo(() => {
         // Create the instance first to read queryName, which is a hardcoded fully-qualified
@@ -171,7 +175,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
 
         queryCache.acquire(key);
 
-        if (!isEnabled || !hasAllRequiredArgumentsSet) {
+        if (isEnabled === false || !hasAllRequiredArgumentsSet) {
             return () => {
                 queryCache.release(key);
             };
@@ -273,14 +277,16 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             });
         }
 
+        arc.observableQueryDiagnostics?.beginTracking(key, ownerRef.current ?? '');
         return () => {
+            arc.observableQueryDiagnostics?.endTracking(key);
             queryCache.removeListener(key, listener);
             queryCache.release(key);
         };
     }, effectDeps);
 
     return [
-        !isEnabled ? QueryResultWithState.empty(queryInstance.defaultValue) : result,
+        isEnabled === false ? QueryResultWithState.empty(queryInstance.defaultValue) : result,
         async (sorting: Sorting) => {
             setCurrentSorting(sorting);
         },
@@ -303,9 +309,11 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
  * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResultWithState} and a {@link PerformQuery} delegate.
  */
-export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
+export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean):
+    [QueryResultWithState<TDataType>, SetSorting];
+export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, SetSorting] {
-    const [result, setSorting] = useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled);
+    const [result, setSorting] = useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled, owner);
     return [result, setSorting];
 }
 
@@ -321,7 +329,9 @@ export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor
  * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResultWithState} and paging/sorting controls.
  */
-export function useObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
+export function useObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean):
+    [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize];
+export function useObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    return useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled);
+    return useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled, owner);
 }

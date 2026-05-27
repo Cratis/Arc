@@ -37,7 +37,7 @@ public static class CommandEndpointMapper
                 options.IncludeCommandNameInRoute,
                 location,
                 handlersByNamespace);
-            var url = EndpointRouteHelper.BuildRouteUrl(options, location, handler.CommandType.Name, includeCommandName);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
             MapCommandEndpoint(
                 mapper,

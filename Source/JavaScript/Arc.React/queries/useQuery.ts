@@ -19,7 +19,9 @@ export type PerformQuery<TArguments = object> = (args?: TArguments) => Promise<v
 
 type QueryPerformer<TQuery extends IQueryFor<TDataType>, TDataType, TArguments = object> = (performer: TQuery, args?: TArguments) => Promise<QueryResult<TDataType>>;
 
-function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled: boolean = true):
+function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
+    [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
+function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
@@ -28,6 +30,8 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const queryScope = useQueryScope();
     const queryCache = useContext(QueryInstanceCacheContext);
     const cacheKeyRef = useRef<string>('');
+    const ownerRef = useRef<string | undefined>(owner);
+    ownerRef.current = owner;
 
     const queryInstance = useMemo(() => {
         // Create the instance first to read queryName, which is a hardcoded fully-qualified
@@ -87,20 +91,22 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
         queryCache.acquire(key);
 
-        if (!isEnabled) {
+        if (isEnabled === false) {
             return () => {
                 queryCache.release(key);
             };
         }
         queryExecutor(args);
 
+        arc.observableQueryDiagnostics?.beginTracking(key, ownerRef.current ?? '');
         return () => {
+            arc.observableQueryDiagnostics?.endTracking(key);
             queryCache.release(key);
         };
     }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled]]);
 
     return [
-        !isEnabled ? QueryResultWithState.empty(queryInstance.defaultValue) : result!,
+        isEnabled === false ? QueryResultWithState.empty(queryInstance.defaultValue) : result!,
         async (args?: TArguments) => {
             setResult(QueryResultWithState.fromQueryResult(result!, true));
             await queryExecutor(args);
@@ -127,9 +133,11 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
  * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResultWithState}, a {@link PerformQuery} delegate, and a {@link SetSorting} delegate.
  */
-export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
+export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean):
+    [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting];
+export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting] {
-    const [result, perform, setSorting] = useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, undefined, args, isEnabled);
+    const [result, perform, setSorting] = useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, undefined, args, isEnabled, owner);
     return [result, perform, setSorting];
 }
 
@@ -145,7 +153,9 @@ export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArgume
  * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResult} and a {@link PerformQuery} delegate.
  */
-export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
+export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean):
+    [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
+export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
-    return useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, paging, args, isEnabled);
+    return useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, paging, args, isEnabled, owner);
 }

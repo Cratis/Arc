@@ -49,7 +49,7 @@ public class IntrospectionService(
                 options.IncludeCommandNameInRoute,
                 location,
                 handlersByNamespace);
-            var route = EndpointRouteHelper.BuildRouteUrl(options, location, handler.CommandType.Name, includeCommandName);
+            var route = EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
             return new CommandIntrospectionMetadata(
                 handler.CommandType.Name,
@@ -74,7 +74,7 @@ public class IntrospectionService(
                 options.IncludeQueryNameInRoute,
                 location,
                 performersByNamespace);
-            var route = EndpointRouteHelper.BuildRouteUrl(options, location, performer.Name.ToString(), includeQueryName);
+            var route = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
 
             return new QueryIntrospectionMetadata(
                 performer.Name.ToString(),

@@ -47,7 +47,7 @@ public static class QueryEndpointMapper
                 options.IncludeQueryNameInRoute,
                 location,
                 performersByNamespace);
-            var url = EndpointRouteHelper.BuildRouteUrl(options, location, performer.Name.ToString(), includeQueryName);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
 
             if (!registeredUrls.Add(url)) continue;
 

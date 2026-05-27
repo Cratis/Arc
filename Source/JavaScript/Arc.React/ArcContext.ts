@@ -3,6 +3,7 @@
 
 import { GetHttpHeaders, ObservableQueryTransferMode, Globals } from '@cratis/arc';
 import { QueryTransportMethod } from '@cratis/arc/queries';
+import type { IObservableQueryDiagnostics } from '@cratis/arc/queries';
 import { IMessenger, Messenger } from '@cratis/arc/messaging';
 import React from 'react';
 
@@ -54,6 +55,13 @@ export interface ArcConfiguration {
      * (cookies, headers).
      */
     reconnectQueries?: () => void;
+    /**
+     * Diagnostics service that exposes live snapshots of observable query state.
+     * Consumers can call {@link IObservableQueryDiagnostics.getSnapshot} to retrieve
+     * a point-in-time view, or {@link IObservableQueryDiagnostics.subscribe} to be
+     * notified whenever a new snapshot is produced.
+     */
+    observableQueryDiagnostics?: IObservableQueryDiagnostics;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({

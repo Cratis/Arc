@@ -99,6 +99,13 @@ export class WebSocketHubConnection {
     }
 
     /**
+     * Gets whether the WebSocket connection is currently open.
+     */
+    get isConnected(): boolean {
+        return this._socket?.readyState === WebSocket.OPEN;
+    }
+
+    /**
      * Gets the latency of the last ping/pong sequence in milliseconds.
      */
     get lastPingLatency(): number {
