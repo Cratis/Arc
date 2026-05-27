@@ -35,7 +35,13 @@ public class an_identity_endpoint_handler : Specification
         _serviceProviderIsService.IsService(typeof(IProvideIdentityDetails)).Returns(true);
 
         _mapper.When(_ => _.MapGet(Arg.Any<string>(), Arg.Any<Func<IHttpRequestContext, Task>>(), Arg.Any<EndpointMetadata>()))
-               .Do(callInfo => _capturedHandler = callInfo.ArgAt<Func<IHttpRequestContext, Task>>(1));
+               .Do(callInfo =>
+               {
+                   if (callInfo.ArgAt<string>(0) == "/.cratis/me")
+                   {
+                       _capturedHandler = callInfo.ArgAt<Func<IHttpRequestContext, Task>>(1);
+                   }
+               });
 
         _mapper.MapIdentityProviderEndpoint(mockServiceProvider);
     }
