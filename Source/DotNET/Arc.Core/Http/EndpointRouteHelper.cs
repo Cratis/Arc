@@ -15,6 +15,7 @@ public static class EndpointRouteHelper
     /// </summary>
     /// <param name="options">The <see cref="ApiEndpointOptions"/>.</param>
     /// <param name="location">The namespace segments for the endpoint.</param>
+    /// <param name="segmentsToSkip">The number of leading namespace segments to skip.</param>
     /// <param name="endpointName">The name of the endpoint (command type name or query name).</param>
     /// <param name="includeNameInRoute">Whether to include the endpoint name as the last route segment.</param>
     /// <returns>A sanitized, kebab-cased, lowercase route URL.</returns>
@@ -22,11 +23,12 @@ public static class EndpointRouteHelper
     public static string BuildRouteUrl(
         ApiEndpointOptions options,
         IEnumerable<string> location,
+        int segmentsToSkip,
         string endpointName,
         bool includeNameInRoute)
     {
         var prefix = options.RoutePrefix.Trim('/');
-        var segments = location.Select(segment => segment.ToKebabCase());
+        var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
 
         var typeName = includeNameInRoute ? endpointName : string.Empty;

@@ -14,7 +14,7 @@ describe('when getting or creating with an explicit size', () => {
         factoryCallCount = 0;
         const factory = (): IObservableQueryHubConnection => {
             factoryCallCount++;
-            return { queryCount: 0, lastPingLatency: 0, averageLatency: 0, subscribe: () => {}, unsubscribe: () => {}, dispose: () => {} };
+            return { queryCount: 0, lastPingLatency: 0, averageLatency: 0, isConnected: false, subscribe: () => {}, unsubscribe: () => {}, dispose: () => {} };
         };
         multiplexer = getOrCreateMultiplexer(factory, 'test-key', 3);
     });

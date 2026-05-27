@@ -36,6 +36,7 @@ The `<Arc />` component provides centralized configuration for all commands and 
 | queryConnectionCount | Number | Number of observable query hub connection slots |
 | observableQueryTransferMode | `ObservableQueryTransferMode` | Transfer mode used by `useChangeStream` |
 | queryCacheRetentionMs | Number | How long (ms) to keep query data in cache after the last subscriber unmounts — defaults to `30000` |
+| observableQueryDiagnostics | `IObservableQueryDiagnostics` | Live diagnostics stream for query cache, transport, and ownership state |
 
 Example:
 
@@ -133,6 +134,12 @@ export const App = () => {
 ## Query Configuration
 
 Query-related Arc configuration (transport, direct mode, connection count, transfer mode, and headers) is documented in [Queries Configuration](./queries/configuration.md).
+
+## Observable Query Diagnostics
+
+Arc exposes a diagnostics service through `ArcContext.observableQueryDiagnostics` for tooling and internal dashboards. The service provides both a snapshot API and a live observable stream for the current query cache, transport, and ownership state.
+
+See [Observable Query Diagnostics](./queries/observable-query-diagnostics.md) for usage examples.
 
 ## HTTP Headers Callback
 

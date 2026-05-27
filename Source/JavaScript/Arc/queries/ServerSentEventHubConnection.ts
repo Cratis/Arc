@@ -84,6 +84,11 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     }
 
     /** @inheritdoc */
+    get isConnected(): boolean {
+        return this._connectionId !== undefined && this._eventSource?.readyState === EventSource.OPEN;
+    }
+
+    /** @inheritdoc */
     get lastPingLatency(): number {
         return this._lastPongLatency;
     }

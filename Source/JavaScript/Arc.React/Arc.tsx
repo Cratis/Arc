@@ -8,6 +8,7 @@ import { ArcConfiguration, ArcContext } from './ArcContext';
 import { GetHttpHeaders, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
+import { ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
 import { Messenger } from '@cratis/arc/messaging';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
 import { MessengerScopeContext } from './messaging/MessengerScopeContext';
@@ -75,6 +76,15 @@ export const Arc = (props: ArcProps) => {
     // effects are about to re-acquire.
     const queryInstanceCache = useRef(new QueryInstanceCache(props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs));
 
+    const observableQueryDiagnostics = useRef(new ObservableQueryDiagnostics(
+        queryInstanceCache.current,
+        () => getSharedMultiplexer(),
+        () => ({
+            queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
+            queryDirectMode: props.queryDirectMode ?? false,
+        }),
+    ));
+
     const reconnectQueries = useCallback(() => {
         queryInstanceCache.current.teardownAllSubscriptions();
         resetSharedMultiplexer();
@@ -96,6 +106,7 @@ export const Arc = (props: ArcProps) => {
         queryCacheRetentionMs: props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs,
         queryVersion,
         reconnectQueries,
+        observableQueryDiagnostics: observableQueryDiagnostics.current,
     };
 
     Bindings.initialize(

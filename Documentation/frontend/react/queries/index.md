@@ -12,6 +12,7 @@ This page is an overview of capabilities. Detailed behavior is documented on the
 | Core query usage | `use()` patterns, arguments, and `QueryResultWithState` | [Core Query Usage](./usage.md) |
 | Paging and sorting | `useWithPaging`, page/sort callbacks, and paging metadata | [Paging](./paging.md) |
 | Observable streams | Real-time subscriptions, transport selection, and direct mode | [Observable Queries](./observable-queries.md) |
+| Diagnostics | Live snapshots for cache, transport, and ownership state | [Observable Query Diagnostics](./observable-query-diagnostics.md) |
 | Suspense integration | `useSuspense()` with query boundaries and error boundaries | [Suspense Queries](./suspense-queries.md) |
 | Conditional execution | `when(condition)` patterns for safe query activation | [Conditional Queries](./conditional-queries.md) |
 | Change deltas | `useChangeStream()` and transfer-mode behavior | [Change Stream](./change-stream.md) |

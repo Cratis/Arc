@@ -35,4 +35,7 @@ export * from './QueryInstanceCache';
 export * from './IQueryProvider';
 export * from './QueryProvider';
 export * from './QueryValidator';
+export * from './IObservableQueryDiagnostics';
+export * from './ObservableQueryDiagnostics';
+export * from './ObservableQueryDiagnosticsSnapshot';
 import '../validation';
