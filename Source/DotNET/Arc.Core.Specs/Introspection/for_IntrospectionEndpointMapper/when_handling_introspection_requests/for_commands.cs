@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Nodes;
+
 namespace Cratis.Arc.Introspection.for_IntrospectionEndpointMapper.when_handling_introspection_requests;
 
 public class for_commands : given.a_introspection_endpoint_mapper
@@ -13,7 +15,7 @@ public class for_commands : given.a_introspection_endpoint_mapper
         _mapper.EndpointExists("IntrospectQueries").Returns(false);
 
         _discoveredCommands = [
-            new("RegisterOrder", "Features.Orders", "/api/features/orders/register-order", "Features.Orders.RegisterOrder", "")
+            new("RegisterOrder", "Features.Orders", "/api/features/orders/register-order", "Features.Orders.RegisterOrder", "", new JsonObject())
         ];
 
         _introspectionService.Commands.Returns(_discoveredCommands);

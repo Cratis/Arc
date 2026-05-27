@@ -1,6 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
+using System.Text.Json.Serialization.Metadata;
 using System.Xml.Linq;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
@@ -14,20 +18,32 @@ namespace Cratis.Arc.Introspection;
 /// Represents an implementation of <see cref="IIntrospectionService"/> that discovers command and query endpoints
 /// using the same route-building logic as the endpoint mappers, and extracts XML documentation summaries.
 /// </summary>
-/// <param name="commandHandlerProviders">The provider of all discovered command handlers.</param>
-/// <param name="queryPerformerProviders">The provider of all discovered query performers.</param>
-/// <param name="options">Configuration options for routing.</param>
 [Singleton]
-public class IntrospectionService(
-    ICommandHandlerProviders commandHandlerProviders,
-    IQueryPerformerProviders queryPerformerProviders,
-    IOptions<ApiEndpointOptions> options) : IIntrospectionService
+public class IntrospectionService : IIntrospectionService
 {
     static readonly Dictionary<string, XDocument?> _xmlDocCache = [];
     static readonly char[] _lineSeparators = ['\n', '\r'];
 
-    readonly Lazy<IReadOnlyList<CommandIntrospectionMetadata>> _commands = new(() => BuildCommands(commandHandlerProviders, options.Value));
-    readonly Lazy<IReadOnlyList<QueryIntrospectionMetadata>> _queries = new(() => BuildQueries(queryPerformerProviders, options.Value));
+    readonly Lazy<IReadOnlyList<CommandIntrospectionMetadata>> _commands;
+    readonly Lazy<IReadOnlyList<QueryIntrospectionMetadata>> _queries;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="IntrospectionService"/> class.
+    /// </summary>
+    /// <param name="commandHandlerProviders">The provider of all discovered command handlers.</param>
+    /// <param name="queryPerformerProviders">The provider of all discovered query performers.</param>
+    /// <param name="options">Configuration options for routing.</param>
+    /// <param name="arcOptions">General Arc options, including JSON serialization settings.</param>
+    public IntrospectionService(
+        ICommandHandlerProviders commandHandlerProviders,
+        IQueryPerformerProviders queryPerformerProviders,
+        IOptions<ApiEndpointOptions> options,
+        IOptions<ArcOptions> arcOptions)
+    {
+        var schemaGenerationOptions = CreateSchemaGenerationOptions(arcOptions.Value.JsonSerializerOptions);
+        _commands = new(() => BuildCommands(commandHandlerProviders, options.Value, schemaGenerationOptions));
+        _queries = new(() => BuildQueries(queryPerformerProviders, options.Value, schemaGenerationOptions));
+    }
 
     /// <inheritdoc/>
     public IReadOnlyList<CommandIntrospectionMetadata> Commands => _commands.Value;
@@ -35,7 +51,7 @@ public class IntrospectionService(
     /// <inheritdoc/>
     public IReadOnlyList<QueryIntrospectionMetadata> Queries => _queries.Value;
 
-    static List<CommandIntrospectionMetadata> BuildCommands(ICommandHandlerProviders providers, ApiEndpointOptions options)
+    static List<CommandIntrospectionMetadata> BuildCommands(ICommandHandlerProviders providers, ApiEndpointOptions options, JsonSerializerOptions schemaGenerationOptions)
     {
         var handlersByNamespace = EndpointRouteHelper.GroupByNamespace(
             providers.Handlers,
@@ -56,11 +72,12 @@ public class IntrospectionService(
                 string.Join('.', location),
                 route,
                 handler.CommandType.FullName ?? handler.CommandType.Name,
-                GetDocumentationSummary(handler.CommandType));
+                GetDocumentationSummary(handler.CommandType),
+                GetTypeSchema(handler.CommandType, schemaGenerationOptions));
         }).ToList();
     }
 
-    static List<QueryIntrospectionMetadata> BuildQueries(IQueryPerformerProviders providers, ApiEndpointOptions options)
+    static List<QueryIntrospectionMetadata> BuildQueries(IQueryPerformerProviders providers, ApiEndpointOptions options, JsonSerializerOptions schemaGenerationOptions)
     {
         var performersByNamespace = EndpointRouteHelper.GroupByNamespace(
             providers.Performers,
@@ -82,8 +99,46 @@ public class IntrospectionService(
                 route,
                 performer.FullyQualifiedName.ToString(),
                 performer.Type.FullName ?? performer.Type.Name,
-                GetDocumentationSummary(performer.Type));
+                GetDocumentationSummary(performer.Type),
+                GetArgumentsSchema(performer.Parameters, schemaGenerationOptions));
         }).ToList();
+    }
+
+    static JsonSerializerOptions CreateSchemaGenerationOptions(JsonSerializerOptions baseOptions)
+    {
+        var schemaGenerationOptions = new JsonSerializerOptions(baseOptions);
+        schemaGenerationOptions.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+        return schemaGenerationOptions;
+    }
+
+    static JsonNode GetTypeSchema(Type type, JsonSerializerOptions schemaGenerationOptions) => schemaGenerationOptions.GetJsonSchemaAsNode(type);
+
+    static JsonObject GetArgumentsSchema(QueryParameters parameters, JsonSerializerOptions schemaGenerationOptions)
+    {
+        var properties = new JsonObject();
+        var required = new JsonArray();
+
+        foreach (var parameter in parameters)
+        {
+            properties[parameter.Name] = GetTypeSchema(parameter.Type, schemaGenerationOptions);
+            if (parameter.IsRequired)
+            {
+                required.Add(parameter.Name);
+            }
+        }
+
+        var schema = new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = properties
+        };
+
+        if (required.Count > 0)
+        {
+            schema["required"] = required;
+        }
+
+        return schema;
     }
 
     static string GetDocumentationSummary(Type type)
