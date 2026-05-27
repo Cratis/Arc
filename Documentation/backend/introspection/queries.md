@@ -14,7 +14,7 @@ Each item includes:
 
 - `name`: Query name.
 - `namespace`: Namespace derived from the mapped location.
-- `route`: The resolved query route.
+- `route`: The resolved query route, built with the same route helper used by the runtime query mapper. It honors the configured route prefix and `SegmentsToSkipForRoute` value.
 - `type`: Fully qualified query type name.
 - `documentationSummary`: Summary text from type metadata when available.
 
