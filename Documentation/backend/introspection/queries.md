@@ -17,6 +17,7 @@ Each item includes:
 - `route`: The resolved query route, built with the same route helper used by the runtime query mapper. It honors the configured route prefix and `SegmentsToSkipForRoute` value.
 - `type`: Fully qualified query type name.
 - `documentationSummary`: Summary text from type metadata when available.
+- `argumentsSchema`: JSON Schema for query arguments, including argument names, types, and required fields.
 
 ## Typical uses
 
