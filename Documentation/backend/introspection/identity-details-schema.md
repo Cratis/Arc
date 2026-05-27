@@ -8,7 +8,7 @@ The identity details schema introspection endpoint returns JSON Schema for the i
 
 ## When Arc maps this endpoint
 
-Arc maps this endpoint when an `IProvideIdentityDetails` implementation is registered.
+Arc always maps this endpoint.
 
 ## What it returns
 
@@ -16,6 +16,7 @@ The endpoint returns a JSON Schema document generated from the runtime identity 
 
 - If your provider implements `IProvideIdentityDetails<TDetails>`, Arc generates schema for `TDetails`.
 - If your provider only implements non-generic `IProvideIdentityDetails`, Arc generates schema for `object`.
+- If no identity details provider is configured, Arc returns an empty schema object (`{}`).
 
 ## Typical uses
 

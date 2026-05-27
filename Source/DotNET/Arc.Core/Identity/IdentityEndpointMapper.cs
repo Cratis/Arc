@@ -31,10 +31,7 @@ public static class IdentityEndpointMapper
     public static void MapIdentityProviderEndpoint(this IEndpointMapper mapper, IServiceProvider serviceProvider)
     {
         var serviceProviderIsService = serviceProvider.GetService<IServiceProviderIsService>();
-        if (serviceProviderIsService?.IsService(typeof(IProvideIdentityDetails)) != true)
-        {
-            return;
-        }
+        var hasIdentityDetailsProvider = serviceProviderIsService?.IsService(typeof(IProvideIdentityDetails)) == true;
 
         if (!mapper.EndpointExists(GetIdentityDetailsSchemaEndpointName))
         {
@@ -49,9 +46,14 @@ public static class IdentityEndpointMapper
                 "/.cratis/identity-details/schema",
                 async context =>
                 {
-                    var identityDetailsProvider = context.RequestServices.GetRequiredService<IProvideIdentityDetails>();
-                    var detailsType = identityDetailsProvider
-                        .GetType()
+                    var identityDetailsProvider = context.RequestServices.GetService<IProvideIdentityDetails>();
+                    if (identityDetailsProvider is null)
+                    {
+                        await context.WriteResponseAsJson(new JsonObject(), typeof(JsonObject), context.RequestAborted);
+                        return;
+                    }
+
+                    var detailsType = identityDetailsProvider.GetType()
                         .GetInterfaces()
                         .FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IProvideIdentityDetails<>))
                         ?.GetGenericArguments()
@@ -63,6 +65,13 @@ public static class IdentityEndpointMapper
                     await context.WriteResponseAsJson(schema, schema.GetType(), context.RequestAborted);
                 },
                 schemaMetadata);
+        }
+
+        if (!hasIdentityDetailsProvider)
+        {
+            MapUsersEndpoint(mapper);
+            MapTenantsEndpoint(mapper);
+            return;
         }
 
         if (mapper.EndpointExists(GetIdentityDetailsEndpointName))
@@ -99,18 +108,13 @@ public static class IdentityEndpointMapper
             },
             metadata);
 
-        MapUsersEndpoint(mapper, serviceProvider);
-        MapTenantsEndpoint(mapper, serviceProvider);
+        MapUsersEndpoint(mapper);
+        MapTenantsEndpoint(mapper);
     }
 
-    static void MapUsersEndpoint(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    static void MapUsersEndpoint(IEndpointMapper mapper)
     {
         if (mapper.EndpointExists(GetUsersEndpointName))
-        {
-            return;
-        }
-
-        if (serviceProvider.GetService<IInstancesOf<ICanProvideUsers>>() is not IInstancesOf<ICanProvideUsers> providers || !providers.Any())
         {
             return;
         }
@@ -127,9 +131,12 @@ public static class IdentityEndpointMapper
             async context =>
             {
                 var users = new List<User>();
-                foreach (var provider in context.RequestServices.GetRequiredService<IInstancesOf<ICanProvideUsers>>())
+                if (context.RequestServices.GetService<IInstancesOf<ICanProvideUsers>>() is IInstancesOf<ICanProvideUsers> providers)
                 {
-                    users.AddRange(await provider.Provide());
+                    foreach (var provider in providers)
+                    {
+                        users.AddRange(await provider.Provide());
+                    }
                 }
 
                 await context.WriteResponseAsJson(users, typeof(IEnumerable<User>), context.RequestAborted);
@@ -137,14 +144,9 @@ public static class IdentityEndpointMapper
             metadata);
     }
 
-    static void MapTenantsEndpoint(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    static void MapTenantsEndpoint(IEndpointMapper mapper)
     {
         if (mapper.EndpointExists(GetTenantsEndpointName))
-        {
-            return;
-        }
-
-        if (serviceProvider.GetService<IInstancesOf<ICanProvideTenants>>() is not IInstancesOf<ICanProvideTenants> providers || !providers.Any())
         {
             return;
         }
@@ -161,9 +163,12 @@ public static class IdentityEndpointMapper
             async context =>
             {
                 var tenants = new List<Tenant>();
-                foreach (var provider in context.RequestServices.GetRequiredService<IInstancesOf<ICanProvideTenants>>())
+                if (context.RequestServices.GetService<IInstancesOf<ICanProvideTenants>>() is IInstancesOf<ICanProvideTenants> providers)
                 {
-                    tenants.AddRange(await provider.Provide());
+                    foreach (var provider in providers)
+                    {
+                        tenants.AddRange(await provider.Provide());
+                    }
                 }
 
                 await context.WriteResponseAsJson(tenants, typeof(IEnumerable<Tenant>), context.RequestAborted);
