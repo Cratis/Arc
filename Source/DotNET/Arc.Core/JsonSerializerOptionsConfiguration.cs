@@ -23,6 +23,7 @@ public static class JsonSerializerOptionsConfiguration
     {
         options.PropertyNamingPolicy = AcronymFriendlyJsonCamelCaseNamingPolicy.Instance;
         options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        options.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
 
         options.Converters.Add(new EnumConverterFactory());
         options.Converters.Add(new EnumerableConceptAsJsonConverterFactory());
