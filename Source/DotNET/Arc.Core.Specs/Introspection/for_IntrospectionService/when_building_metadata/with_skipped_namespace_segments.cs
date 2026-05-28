@@ -25,7 +25,10 @@ public class with_skipped_namespace_segments : Specification
         queryPerformer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Cratis.Arc.Features.Orders.ListOrders"));
         queryPerformer.Type.Returns(typeof(ListOrders));
         queryPerformer.ReadModelType.Returns(typeof(object));
-        queryPerformer.Parameters.Returns(QueryParameters.Empty);
+        queryPerformer.Parameters.Returns(new QueryParameters([
+            new QueryParameter("customerId", typeof(string)),
+            new QueryParameter("page", typeof(int), true)
+        ]));
         queryPerformer.AllowsAnonymousAccess.Returns(true);
         queryPerformer.SupportsPaging.Returns(false);
 
@@ -43,7 +46,7 @@ public class with_skipped_namespace_segments : Specification
             IncludeQueryNameInRoute = false,
         });
 
-        var service = new IntrospectionService(commandProviders, queryProviders, options);
+        var service = new IntrospectionService(commandProviders, queryProviders, options, Options.Create(new ArcOptions()));
 
         _commands = service.Commands;
         _queries = service.Queries;
@@ -51,7 +54,9 @@ public class with_skipped_namespace_segments : Specification
 
     [Fact] void should_build_command_route_using_skipped_namespace_segments() => _commands.Single().Route.ShouldEqual("/api/features/orders/create-order");
     [Fact] void should_build_query_route_using_skipped_namespace_segments() => _queries.Single().Route.ShouldEqual("/api/features/orders");
+    [Fact] void should_include_payload_schema_in_command_metadata() => _commands.Single().PayloadSchema.ToJsonString().ShouldContain("customerId");
+    [Fact] void should_include_query_argument_schema_with_required_fields() => _queries.Single().ArgumentsSchema.ToJsonString().ShouldContain("\"required\":[\"page\"]");
 
-    public record CreateOrder;
+    public record CreateOrder(string CustomerId, int Quantity);
     public record ListOrders;
 }

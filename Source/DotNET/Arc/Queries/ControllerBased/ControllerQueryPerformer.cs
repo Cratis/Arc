@@ -48,7 +48,7 @@ public class ControllerQueryPerformer(
     /// <inheritdoc/>
     public QueryParameters Parameters { get; } = new(actionDescriptor.MethodInfo.GetParameters()
         .Where(_ => !IsDependencyParameter(_, serviceProviderIsService))
-        .Select(_ => new QueryParameter(_.Name ?? string.Empty, _.ParameterType)));
+        .Select(_ => new QueryParameter(_.Name ?? string.Empty, _.ParameterType, !IsNullableOrOptional(_))));
 
     /// <inheritdoc/>
     public bool AllowsAnonymousAccess { get; } = actionDescriptor.MethodInfo.IsAnonymousAllowed();

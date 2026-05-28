@@ -38,7 +38,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         _dependencies = performMethod.GetParameters().Where(p => serviceProviderIsService.IsService(p.ParameterType));
         _queryParameters = performMethod.GetParameters().Where(p => !serviceProviderIsService.IsService(p.ParameterType));
         Dependencies = _dependencies.Select(p => p.ParameterType);
-        Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType)));
+        Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType, !IsNullableOrOptional(p))));
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
         SupportsPaging = ComputeSupportsPaging(performMethod);
         _performMethod = performMethod;
