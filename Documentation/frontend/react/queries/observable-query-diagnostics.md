@@ -7,6 +7,8 @@ The diagnostics service is exposed through `ArcContext` as `observableQueryDiagn
 - `getSnapshot()` for a point-in-time read.
 - `snapshots$` for a live stream of updates.
 
+Diagnostics snapshots are only exposed through this API surface. Arc does not emit browser `window` events for diagnostics updates.
+
 ## What the snapshot contains
 
 Each snapshot includes:
