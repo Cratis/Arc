@@ -118,10 +118,6 @@ export class ObservableQueryDiagnostics implements IObservableQueryDiagnostics {
     }
 
     private _publishSnapshot(snapshot: ObservableQueryDiagnosticsSnapshot): void {
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('cratis:observable-query-diagnostics', { detail: snapshot }));
-        }
-
         this._snapshots.next(snapshot);
     }
 }
