@@ -1,0 +1,51 @@
+---
+title: Arc
+description: The full-stack application framework for Cratis — CQRS commands and queries with end-to-end type safety, from C# to React.
+---
+
+import { CardGrid } from '@astrojs/starlight/components';
+import SimpleCard from '@components/SimpleCard.astro';
+import TopicHero from '@components/TopicHero.astro';
+
+<TopicHero icon="puzzle" eyebrow="Arc" title="Full-stack CQRS, typed to the browser">
+Turn **commands** and **queries** into a CQRS application wired to [Chronicle](/chronicle/), with **generated TypeScript proxies** that keep React in lockstep with your C# — no hand-written API client, no DTO duplication. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
+</TopicHero>
+
+## Start here
+
+<CardGrid>
+  <SimpleCard title="Your first command & query" icon="rocket" link="/arc/backend/getting-started/your-first-command/">
+    Build a backend slice end to end: a command with `Handle()`, the event it records, and the query that serves the read model.
+  </SimpleCard>
+  <SimpleCard title="Wire up the React frontend" icon="seti:react" link="/arc/frontend/getting-started/">
+    Consume the generated proxies from React — a typed query and a command, with zero hand-written client code.
+  </SimpleCard>
+  <SimpleCard title="Coming from MediatR or MVC" icon="right-arrow" link="/arc/coming-from-mediatr-and-mvc/">
+    Maps controllers, handlers, and DTOs onto Arc's command/query model so the shift is short.
+  </SimpleCard>
+</CardGrid>
+
+## Explore Arc
+
+<CardGrid>
+  <SimpleCard title="Why Arc" icon="approve-check" link="/arc/why-arc/">
+    The plumbing Arc removes, and why CQRS plus proxy generation keeps a full-stack app honest.
+  </SimpleCard>
+  <SimpleCard title="Vertical slices" icon="seti:folder" link="/arc/vertical-slices/">
+    Why everything for one feature — backend and frontend — lives in a single folder.
+  </SimpleCard>
+  <SimpleCard title="Backend" icon="seti:c-sharp" link="/arc/backend/">
+    Commands, queries, validation, identity, tenancy, persistence, and proxy generation.
+  </SimpleCard>
+  <SimpleCard title="Frontend" icon="laptop" link="/arc/frontend/">
+    React integration, command forms, observable queries, and the optional MVVM approach.
+  </SimpleCard>
+  <SimpleCard title="Build a full-stack feature" icon="open-book" link="/build-a-full-app/">
+    One slice from command to React screen, with full-stack type safety throughout.
+  </SimpleCard>
+  <SimpleCard title="Troubleshooting" icon="list-format" link="/arc/troubleshooting/">
+    Answers to the questions that come up most when wiring Arc together.
+  </SimpleCard>
+</CardGrid>
+
+Arc sits on top of [Chronicle](/chronicle/) and feeds [Components](/components/) — see [Why Cratis](/why-cratis/) for how the pieces fit.
