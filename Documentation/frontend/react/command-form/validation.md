@@ -455,8 +455,8 @@ if (!result.isAuthorized) {
 
 For comprehensive details on the command validation system:
 
-- **TypeScript/React**: See [Core Validation](../../../core/commands/validation.md)
-- **Backend**: See [Backend Command Validation](../../../../backend/commands/command-validation.md)
+- **TypeScript/React**: See [Core Validation](../../core/commands/validation.md)
+- **Backend**: See [Backend Command Validation](../../../backend/commands/command-validation.md)
 - **Command Usage**: See [Commands Overview](../index.md)
 
 ## See Also
@@ -464,4 +464,4 @@ For comprehensive details on the command validation system:
 - [CommandForm Overview](./index.md)
 - [Built-in Field Types](./field-types/index.md)
 - [Customization](./customization.md)
-- [Advanced Usage](./advanced.md)
+- [Advanced Usage](./advanced-patterns.md)

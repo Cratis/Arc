@@ -20,7 +20,7 @@ The `CommandScenario<TCommand>` class is the single entry point for all command 
 | Topic | Description |
 | ------- | ----------- |
 | [Command Scenarios](./command-scenario.md) | How to test commands with `CommandScenario<TCommand>` and the `CommandResult` assertion helpers. |
-| [Chronicle Extension](./chronicle-command-scenario.md) | How the Chronicle in-memory event log activates automatically and how to seed events and assert against the log. |
+| [Chronicle Extension](./chronicle.md) | How the Chronicle in-memory event log activates automatically and how to seed events and assert against the log. |
 
 ## Quick Start
 

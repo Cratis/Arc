@@ -1,2 +1,4 @@
+- name: Your first command and query
+  href: your-first-command.md
 - name: Cratis Package
   href: cratis-package.md

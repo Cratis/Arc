@@ -627,4 +627,4 @@ You can combine multiple customization options for complete control:
 - [CommandForm Overview](./index.md)
 - [Built-in Field Types](./field-types/index.md)
 - [Validation](./validation.md)
-- [Advanced Usage](./advanced.md)
+- [Advanced Usage](./advanced-patterns.md)

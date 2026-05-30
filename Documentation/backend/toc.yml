@@ -10,6 +10,8 @@
   href: tenancy/toc.yml
 - name: Identity
   href: identity/toc.yml
+- name: Authorizing commands and queries
+  href: authorizing-commands-and-queries.md
 - name: Commands
   href: commands/toc.yml
 - name: Queries

@@ -1,10 +1,18 @@
 - name: Overview
   href: index.md
+- name: Why Arc
+  href: why-arc.md
+- name: Coming from MediatR or MVC
+  href: coming-from-mediatr-and-mvc.md
+- name: Vertical slices
+  href: vertical-slices.md
 - name: Backend
   href: backend/toc.yml
 - name: Frontend
   href: frontend/toc.yml
 - name: General
   href: general/toc.yml
+- name: Troubleshooting
+  href: troubleshooting.md
 - name: Api
   href: ../../api/arc/

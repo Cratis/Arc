@@ -176,5 +176,5 @@ export const LiveFeed = () => {
 ## See Also
 
 - [Queries Overview](./index.md)
-- [React Usage](./react-usage.md)
+- [React Usage](../commands/react-usage.md)
 - [Command Scope](../commands/scope.md) — Equivalent feature for tracking command execution state.

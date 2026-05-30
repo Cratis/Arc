@@ -1,58 +1,29 @@
-# Arc
+---
+title: Arc
+description: The full-stack application framework for Cratis — CQRS commands and queries with end-to-end type safety, from C# to React.
+---
 
-## What is the Arc?
+Arc is the full-stack application framework. It turns **commands** and **queries** into a CQRS application, wires them to [Chronicle](/chronicle/) event sourcing, and **generates TypeScript proxies** so your React frontend stays in lockstep with your C# backend — no hand-written API client, no DTO duplication.
 
-Cratis Arc is a comprehensive development framework that provides a structured, opinionated approach to building modern applications. It delivers a cohesive set of libraries, patterns, and tools that work together to accelerate development while maintaining consistency, quality, and maintainability across your codebase.
-
-Rather than assembling disparate libraries and creating your own patterns, the Arc provides a unified foundation that covers everything from backend APIs to frontend user interfaces, with built-in support for modern architectural patterns like CQRS, event sourcing, and domain-driven design.
-
-## Packages / Deployables
-
-[![Nuget](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](http://nuget.org/packages/Cratis.Arc)
+[![NuGet](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](http://nuget.org/packages/Cratis.Arc)
 [![NPM](https://img.shields.io/npm/v/@cratis/arc?label=@cratis/arc&logo=npm)](https://www.npmjs.com/package/@cratis/arc)
 
-## Key Benefits
+## Why it exists
 
-### 🚀 **Accelerated Development**
+Building a modern full-stack app normally means writing the same plumbing over and over: controllers, DTOs, validation duplicated on both sides, and a fetch layer that drifts from the backend. Arc removes that plumbing with conventions — a command is a record with a `Handle()` method, a query is a method on a read model, and the typed client is generated for you. You spend your time on behavior, organized in [vertical slices](./vertical-slices.md) where everything for one feature — backend and frontend — lives together.
 
-- **Pre-built infrastructure** - Focus on business logic rather than boilerplate code
-- **Convention over configuration** - Sensible defaults that work out of the box
-- **Integrated tooling** - Everything works together seamlessly without integration overhead
+→ Read [Why Arc](./why-arc.md) for the full rationale.
 
-### 🏗️ **Architectural Excellence**
+## Start here
 
-- **Domain-driven design** - Built-in support for concepts, aggregates, and bounded contexts
-- **CQRS & Event Sourcing** - First-class support for modern architectural patterns
-- **Clean separation** - Clear boundaries between commands, queries, and domain logic
+- **New to Arc?** Build a backend slice in [Your first command and query](./backend/getting-started/your-first-command.md), then wire a UI in the [frontend getting started](./frontend/getting-started.md).
+- **Coming from MediatR or ASP.NET MVC?** The [bridge guide](./coming-from-mediatr-and-mvc.md) maps what you know onto Arc.
+- **Want the whole picture?** [Build a full-stack feature](/build-a-full-app/) takes one slice from command to React screen.
 
-### 🔧 **Developer Experience**
+## Explore
 
-- **Type safety** - Strong typing across the entire stack with concepts and value objects
-- **Consistent patterns** - Unified approach to validation, authorization, and error handling
-- **Rich tooling** - Proxy generation, automatic API documentation, and development utilities
+- [Backend](./backend/) — commands, queries, validation, identity, tenancy, proxy generation, persistence.
+- [Frontend](./frontend/) — React integration, command forms, observable queries, and the MVVM option.
+- [General](./general/) — cross-cutting topics.
 
-### 🌐 **Full-Stack Coherence**
-
-- **Backend integration** - Seamless ASP.NET Core integration with MongoDB and Entity Framework
-- **Frontend harmony** - React components and MVVM patterns that align with backend concepts
-- **End-to-end typing** - Shared models and consistent data flow from database to UI
-
-### 📈 **Production Ready**
-
-- **Multi-tenancy** - Built-in support for tenant isolation and data segregation
-- **Security** - Integrated authentication, authorization, and compliance features
-- **Observability** - Structured logging, metrics, and distributed tracing capabilities
-
-### 🔄 **Flexibility & Evolution**
-
-- **Modular architecture** - Use only what you need, extend what you want
-- **Migration friendly** - Gradually adopt patterns without rewriting existing code
-- **Future-proof** - Built on modern .NET and web standards with active maintenance
-
-## Get Started
-
-| Topic | Description |
-| ------- | ----------- |
-| [Backend](./backend/index.md) | What is offered for .NET backend developers. |
-| [Frontend](./frontend/index.md) | What is offered for Web frontend developers. |
-| [General](./general/index.md) | General topics. |
+Arc is designed to sit on top of Chronicle, but you can adopt it incrementally — see [Why Cratis](/why-cratis/) for how the pieces fit.

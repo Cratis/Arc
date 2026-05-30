@@ -44,7 +44,7 @@ Here's an example of a Microsoft Client Principal token structure for an Azure A
 
 Basically what you then need to do is generate a Microsoft Client Principal token that matches the structure above and `Base64` encode it.
 If you're using VSCode, you could use an [extension](https://marketplace.visualstudio.com/items?itemName=adamhartford.vscode-base64) for doing the base64 encoding.
-As an alternative, you could also use an online base64 encoder like [this](https://www.base64encode.org).
+As an alternative, you could also use an online [base64 encoder](https://www.base64encode.org).
 
 For the above Microsoft Identity structure that would become:
 

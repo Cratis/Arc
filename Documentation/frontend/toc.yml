@@ -1,3 +1,5 @@
+- name: Getting started (React)
+  href: getting-started.md
 - name: Core
   href: core/toc.yml
 - name: React

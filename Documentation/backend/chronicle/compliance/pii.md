@@ -3,7 +3,7 @@ uid: Arc.Chronicle.Compliance.PII
 ---
 # PII
 
-Arc automatically decrypts `[PII]`-annotated properties on read models before they are served to clients. This builds on top of the [Read Model Interception](../../../queries/read-model-interception.md) pipeline so decryption is applied consistently across all query types — controller-based, model-bound, and observable (WebSocket and SSE).
+Arc automatically decrypts `[PII]`-annotated properties on read models before they are served to clients. This builds on top of the [Read Model Interception](../../queries/read-model-interception.md) pipeline so decryption is applied consistently across all query types — controller-based, model-bound, and observable (WebSocket and SSE).
 
 For the full Chronicle-level guide on annotating types, identifying subjects, and honoring erasure requests, see [Chronicle compliance](xref:Chronicle.Compliance).
 
