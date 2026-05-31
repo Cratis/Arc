@@ -12,6 +12,8 @@
   href: vertical-slices.md
 - name: Understanding the proxy boundary
   href: understanding-the-proxy-boundary.mdx
+- name: Understanding identity and access
+  href: understanding-identity-and-access.mdx
 - name: Scenarios
   href: scenarios/toc.yml
 - name: Backend
