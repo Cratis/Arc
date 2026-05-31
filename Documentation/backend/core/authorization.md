@@ -12,7 +12,7 @@ Authorization in Arc.Core is attribute-based and supports:
 - **Flexible Application** - Apply at class or method level
 
 > [!NOTE]
-> **Model-bound is the default.** Arc applies these attributes directly to your `[Command]` records and `[ReadModel]` query methods — the [vertical-slice](/arc/vertical-slices/) style used throughout these docs, and what the examples below lead with. The lower-level `ICommandHandler`/`IQueryHandler` handler classes shown in some later examples are still supported, but you rarely reach for them. For how access control fits together end to end, see [Understanding identity and access](/arc/understanding-identity-and-access/).
+> **Model-bound is the default.** Arc applies these attributes directly to your `[Command]` records and `[ReadModel]` query methods — the [vertical-slice](/arc/vertical-slices/) style used throughout these docs, and what the examples below lead with. Some deeper sections show claims-based and custom checks for illustration; the part to take away is *where* the `[Authorize]`/`[Roles]` attributes go. For how access control fits together end to end, see [Understanding identity and access](/arc/understanding-identity-and-access/).
 
 ## Authorization Attributes
 
