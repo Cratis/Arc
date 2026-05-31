@@ -1,0 +1,143 @@
+---
+title: Frontend
+description: How Arc turns your C# commands and queries into typed React hooks — call your backend like a local function, with validation and live updates included.
+---
+
+import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import FullStackTabs from '@components/FullStackTabs.astro';
+
+Building a React frontend against a backend usually means writing the same plumbing over and over: a
+`fetch` call here, a hand-written request type there, validation rules copied from the server, and a
+pile of state to track whether the request is in flight, succeeded, or failed. Every time the backend
+changes, you go hunting for the frontend code that drifted out of sync.
+
+Arc removes that whole layer. When you build a command or query in C#, Arc **generates a typed
+TypeScript proxy** for it. On the frontend you import that proxy and call its `.use()` hook — the
+request shape, the response shape, and the validation rules all come along, type-checked end to end.
+Change the C# and the generated proxy changes with it, so the compiler catches the drift instead of
+your users.
+
+## How the pieces fit
+
+```mermaid
+flowchart LR
+    CS["C# command / query"] -->|proxy generator| TS["Generated TS proxy"]
+    TS -->|.use() hook| RC["React component"]
+    RC -->|executes / observes| API["Arc endpoint"]
+    API --> CS
+```
+
+You write the backend once. The proxy generator runs on build and emits a typed client. Your React
+code consumes it through each proxy's static `.use()` hook — and because the types flow across the
+boundary, there is no DTO to keep in sync and no untyped JSON to second-guess.
+
+## Run a command from React
+
+A command is an intent to change something — *open an account*, *check out a book*. You define it in
+C#; Arc generates a proxy whose static `.use()` hook gives you a reactive instance, change tracking,
+and execution.
+
+<FullStackTabs>
+<Fragment slot="csharp">
+
+```csharp
+// Backend — the command and the event it appends live together
+[Command]
+public record OpenAccount(AccountId Id, AccountHolder Owner)
+{
+    public Task Handle(IEventLog eventLog) =>
+        eventLog.Append(Id, new AccountOpened(Owner));
+}
+
+[EventType]
+public record AccountOpened(AccountHolder Owner);
+```
+
+</Fragment>
+<Fragment slot="typescript">
+
+```tsx
+// Frontend — the generated proxy, driven by its static .use() hook
+import { OpenAccount } from './api/accounts/OpenAccount';
+
+export const OpenAccountForm = () => {
+    const [command] = OpenAccount.use();
+
+    const submit = async () => {
+        const result = await command.execute();
+        if (result.isSuccess) { /* navigate away, show a toast, … */ }
+    };
+
+    return (
+        <>
+            <input value={command.owner} onChange={(e) => command.owner = e.target.value} />
+            <button onClick={submit} disabled={!command.hasChanges}>Open account</button>
+        </>
+    );
+};
+```
+
+</Fragment>
+</FullStackTabs>
+
+The `.use()` hook returns a tuple — the reactive command instance, then a setter for updating several
+properties at once. Set a property and the component re-renders; call `command.execute()` and check
+`result.isSuccess`. The validation you declare on the command is surfaced on the proxy, so invalid
+input is caught on the client before the request ever leaves the browser.
+
+<Aside type="tip" title="Don't hand-roll forms">
+    For real forms, reach for the [Command form](./react/command-form/) fields and the
+    [Components](/components/) library's `CommandDialog` instead of wiring inputs by hand — they bind to
+    the command, surface validation, and handle the in-flight state for you.
+</Aside>
+
+## Show live data with an observable query
+
+A query reads data. An *observable* query keeps reading — its `.use()` hook holds a live connection and
+re-renders your component whenever the underlying read model changes, so your UI stays current without
+polling.
+
+```tsx
+import { AllAccounts } from './api/accounts/AllAccounts';
+
+export const AccountsList = () => {
+    const [accounts] = AllAccounts.use();   // observable: re-renders as the read model changes
+
+    return (
+        <ul>
+            {accounts.data.map((account) => (
+                <li key={String(account.id)}>{account.owner}</li>
+            ))}
+        </ul>
+    );
+};
+```
+
+The result is a `QueryResultWithState` — `accounts.data` holds the rows, with `isPerforming`, `hasData`,
+and validation state alongside. When a command appends an event that updates the `AllAccounts` read
+model, every browser observing this query re-renders with the new list — no refresh, no refetch. That
+live loop, from a C# command to a React list, is the payoff of building the whole stack on Arc.
+
+## Two ways to build: hooks or MVVM
+
+Most screens are simplest with the **hooks** shown above — they keep state in the component and read
+naturally. For complex, stateful screens you can opt into a **Model-View-ViewModel** structure that
+moves logic into a view model class.
+
+| Reach for… | When |
+| --- | --- |
+| [Hooks](./react/) | The default. Forms, lists, and most screens — less boilerplate, state stays in the component. |
+| [MVVM for React](./react.mvvm/) | Complex screens with substantial view logic you want to test and reuse apart from the markup. |
+
+Start with hooks; move a screen to MVVM only when its logic outgrows the component.
+
+## Where to go next
+
+<CardGrid>
+    <LinkCard title="Getting started (React)" href="./getting-started/" description="Wire Arc into a React app and call your first command and query." />
+    <LinkCard title="Commands in React" href="./react/commands/" description="The .use() hook, validation, and command scopes." />
+    <LinkCard title="Queries in React" href="./react/queries/" description="Observable, paged, and conditional queries." />
+    <LinkCard title="Command forms" href="./react/command-form/" description="Typed form fields that bind straight to a command." />
+    <LinkCard title="Identity in React" href="./react/identity/" description="Who the user is and what they're allowed to do." />
+    <LinkCard title="Components" href="/components/" description="Prebuilt dialogs, forms, and tables that consume these proxies." />
+</CardGrid>
