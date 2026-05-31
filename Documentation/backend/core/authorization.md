@@ -11,6 +11,9 @@ Authorization in Arc.Core is attribute-based and supports:
 - **Anonymous Access** - Explicitly allow unauthenticated access
 - **Flexible Application** - Apply at class or method level
 
+> [!NOTE]
+> **Model-bound is the default.** Arc applies these attributes directly to your `[Command]` records and `[ReadModel]` query methods — the [vertical-slice](/arc/vertical-slices/) style used throughout these docs, and what the examples below lead with. The lower-level `ICommandHandler`/`IQueryHandler` handler classes shown in some later examples are still supported, but you rarely reach for them. For how access control fits together end to end, see [Understanding identity and access](/arc/understanding-identity-and-access/).
+
 ## Authorization Attributes
 
 Arc.Core provides authorization through attributes:
@@ -23,22 +26,17 @@ Arc.Core provides authorization through attributes:
 
 ### Requiring Authentication
 
-Require users to be authenticated without specifying roles:
+Require users to be authenticated without specifying roles — put the attribute on the `[Command]` record, and its `Handle()` only runs for an authenticated user:
 
 ```csharp
 using Cratis.Arc.Commands;
 using Cratis.Arc.Authorization;
 
 [Authorize]
-public record UpdateProfile(string Name, string Email) : ICommand;
-
-public class UpdateProfileHandler : ICommandHandler<UpdateProfile>
+[Command]
+public record UpdateProfile(ProfileId Id, ProfileName Name)
 {
-    public Task<CommandResult> Handle(UpdateProfile command, CommandContext context)
-    {
-        // Only authenticated users can reach this handler
-        return Task.FromResult(CommandResult.Success);
-    }
+    public ProfileRenamed Handle() => new(Name);
 }
 ```
 
@@ -47,22 +45,35 @@ public class UpdateProfileHandler : ICommandHandler<UpdateProfile>
 Restrict access to specific roles:
 
 ```csharp
-// Using Authorize attribute
+// Using the Authorize attribute
 [Authorize(Roles = "Admin")]
-public record DeleteUser(Guid UserId) : ICommand;
+[Command]
+public record DeleteUser(UserId Id)
+{
+    public UserDeleted Handle() => new();
+}
 
-// Using Roles attribute (more readable for multiple roles)
+// Using the Roles attribute (more readable for multiple roles)
 [Roles("Admin", "Manager")]
-public record ApproveRequest(Guid RequestId) : ICommand;
+[Command]
+public record ApproveRequest(RequestId Id)
+{
+    public RequestApproved Handle() => new();
+}
 ```
 
 ### Anonymous Access
 
-Explicitly allow anonymous access (useful when you have a fallback policy requiring authentication):
+Explicitly allow anonymous access (useful when you have a fallback policy requiring authentication) — on a model-bound query, the attribute goes on the static query method:
 
 ```csharp
-[AllowAnonymous]
-public record GetPublicData() : IQuery<PublicDataDto>;
+[ReadModel]
+public record PublicData(DataId Id, string Value)
+{
+    [AllowAnonymous]
+    public static IEnumerable<PublicData> All(IMongoCollection<PublicData> collection) =>
+        collection.Find(_ => true).ToList();
+}
 ```
 
 ## Applying Authorization
@@ -75,15 +86,23 @@ Apply to all commands or queries in a type:
 
 ```csharp
 [Authorize]
-public record UpdateSettings(string Key, string Value) : ICommand;
+[Command]
+public record UpdateSettings(SettingKey Key, string Value)
+{
+    public SettingChanged Handle() => new(Key, Value);
+}
 
 [Roles("Admin")]
-public record DeleteAccount(Guid AccountId) : ICommand;
+[Command]
+public record DeleteAccount(AccountId Id)
+{
+    public AccountDeleted Handle() => new();
+}
 ```
 
 ### Handler-Level Authorization
 
-Apply authorization to handler classes (less common but supported):
+If you use the lower-level handler classes (`ICommandHandler` / `IQueryHandler`) instead of model-bound `Handle()`, the attributes work there too:
 
 ```csharp
 [Authorize]
