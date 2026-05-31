@@ -1,28 +1,38 @@
-# Chronicle
+# Chronicle Integration
 
-`Cratis.Arc.Chronicle` is the integration package that extends Arc with [Cratis Chronicle](https://github.com/Cratis/Chronicle) capabilities. It wires the two frameworks together so that Arc's application model — commands, queries, identity, tenancy, and code generation — works seamlessly with Chronicle's event sourcing infrastructure.
+This is where Arc and [Chronicle](/chronicle/) meet: your commands stop writing rows and start
+**appending events**, and your read models are built from those events by projections. You write the
+same `[Command]` records and read models you saw in the rest of the backend — this integration is what
+makes their state event-sourced, with a full audit trail and strong-consistency guarantees for free.
 
-## What it provides
+```mermaid
+flowchart LR
+    CMD["[Command] Handle()"] -->|appends| EV[(Event log)]
+    EV -->|projection| RM[(Read model)]
+    RM -->|injected into| CMD
+```
 
-Without this package, Arc and Chronicle are independent. With it:
+That last arrow is the loop worth noticing: a command appends events, a projection folds them into a
+read model, and that read model can be **injected back into a command's `Handle()`** so business rules
+decide based on current state.
 
-- **Commands return events** — `Handle()` methods on commands can return event records directly; the package appends them to the correct event log automatically.
-- **Event source resolution** — the command context (current user identity, tenant, route parameters) is used to resolve the event source id without manual plumbing.
-- **Read models backed by projections** — Arc's read model conventions drive Chronicle projections so that query responses always reflect the current projected state.
-- **Tenant-aware event stores** — each tenant's event log and projections are namespaced automatically, matching Arc's tenancy model.
-- **Compliance integration** — PII-annotated properties are decrypted transparently before read models are served, and the compliance subject is set on commands from the current identity.
-- **Aggregate support** — aggregate roots are discoverable and invocable via the standard command pipeline, with Chronicle managing the event stream and rehydration.
-- **Validation with read models** — domain constraint checks can read current projected state directly inside `Handle()` without an extra query round-trip.
+## The essentials
 
-## Topics
+| Topic | What it covers |
+| ------- | ----------- |
+| [Commands](./commands/index.md) | How a command appends events to Chronicle from its `Handle()`. |
+| [Read Models](./read-models/index.md) | How read models are built from Chronicle projections — and injected into commands as state. |
+| [Resolving Event Source ID](./resolving-event-source-id/index.md) | How Arc figures out which event source a command writes to. |
+| [Aggregates](./aggregates/index.md) | Aggregate roots that encapsulate business logic and emit events. |
 
-| Topic | Description |
-| ----- | ----------- |
-| [Aggregates](aggregates/index.md) | Working with aggregate roots and event sourcing. |
-| [Commands](commands/index.md) | Returning events from commands, event source id resolution, and concurrency scoping. |
-| [Resolving EventSourceId](resolving-event-source-id.md) | How Chronicle resolves aggregate and read model identity from commands and query arguments. |
-| [Read Models](read-models.md) | How read models are hooked up to Chronicle projections. |
-| [Tenancy](tenancy.md) | Tenant-aware namespaces for event stores and projections. |
-| [Validation](validation.md) | Validation with read models and identity resolution conventions. |
-| [Compliance](compliance/index.md) | PII decryption on read models and compliance subject resolution on commands. |
-| [Code Analysis](code-analysis/index.md) | Diagnostics and analyzers specific to the Chronicle integration. |
+## Rules and compliance
+
+| Topic | What it covers |
+| ------- | ----------- |
+| [Validation](./validation.md) | Validating commands in the Chronicle integration. |
+| [Constraints](./constraints/index.md) | Unique constraints and rules backed by events. |
+| [Compliance](./compliance/index.md) | GDPR and compliance features for event-sourced data. |
+| [Tenancy](./tenancy.md) | Multi-tenant isolation with Chronicle. |
+
+New to event sourcing itself? Read [Why Event Sourcing](/chronicle/why-event-sourcing/) and the
+[Chronicle tutorial](/chronicle/tutorial/) first, then come back to wire it into Arc.
