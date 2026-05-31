@@ -1,34 +1,74 @@
 # Commands
 
-The Arc provides comprehensive support for implementing commands in your backend application. Commands represent actions or operations that modify the state of your system and are a fundamental part of CQRS (Command Query Responsibility Segregation) architecture.
+A command is how something *asks your system to change* — open an account, check out a book, change an
+address. In Arc a command is a small, intent-revealing record that carries the data for that change and
+knows how to handle itself. There's no separate handler class, no controller boilerplate to write: you
+declare the intent and what it does, and Arc wires up the HTTP endpoint, validation, and a typed
+TypeScript proxy for the frontend.
 
-## Topics
+```mermaid
+flowchart LR
+    UI[React UI] -->|POST| EP[Arc endpoint]
+    EP -->|binds + validates| CMD["Command record + Handle()"]
+    CMD -->|returns| R[CommandResult]
+    R -->|typed proxy| UI
+```
 
-| Topic | Description |
-| ------- | ----------- |
-| [Controller based](./controller-based.md) | How to implement commands using controller-based approach. |
-| [Model Bound](./model-bound/index.md) | How to work with model-bound commands for simplified parameter handling. |
-| [Command Pipeline](./command-pipeline.md) | How to execute commands programmatically using `ICommandPipeline`. |
-| [Command Context](./command-context.md) | Understanding CommandContext and how to extend it with custom values for the non-controller-based pipeline. |
-| [Command Filters](./command-filters.md) | How to implement command filters for cross-cutting concerns in the non-controller-based pipeline. |
-| [Authorization](../core/authorization.md) | How to use authorization attributes for role-based and policy-based authorization. |
-| [Response Value Handlers](./response-value-handlers.md) | How to customize command response handling with value handlers. |
-| [Response Examples](./response-examples.md) | Comprehensive examples of different command response patterns. |
-| [Validation](./validation.md) | How to implement validation for commands. |
-| [Command Validation](./command-validation.md) | How to validate commands without executing them for pre-flight validation. |
+## Your first command
 
-> **💡 Frontend Integration**: Automatically generate TypeScript proxies for your commands with the [Proxy Generation](../proxy-generation/index.md) feature.
+Here's the whole thing — the command, its data, and its behavior, in one record:
 
-## Overview
+```csharp
+[Command]
+public record OpenAccount(AccountId Id, AccountHolder Owner)
+{
+    public Task Handle(IEventLog eventLog) =>
+        eventLog.Append(Id, new AccountOpened(Owner));
+}
+```
 
-Commands in the Arc are designed to be simple to implement while providing powerful features like automatic validation, response handling, and integration with the overall application architecture. Whether you prefer controller-based approaches or model-bound commands, the framework provides the flexibility to work with your preferred style while maintaining consistency and best practices.
+`Handle()` is defined **directly on the record** — that's the convention. Arc discovers it, exposes the
+command as an HTTP `POST`, binds the incoming JSON to the record, runs any validation, then calls
+`Handle()`. Whatever you inject into `Handle()` (here, `IEventLog`) is resolved from the container, so
+the method reads as pure intent: *append the fact that this account was opened*.
 
-### Key Features
+`Handle()` can return what suits the operation:
 
-- **Automatic Response Handling**: Command handlers can return any value, which will either be processed by custom response value handlers or automatically become a typed `CommandResult<T>` response
-- **Flexible Return Types**: Support for single values, tuples, and OneOf types with intelligent processing
-- **Built-in Validation**: Automatic command validation before execution
-- **Pre-flight Validation**: Validate commands without executing them using the `validate()` method for early user feedback
-- **Response Value Handlers**: Extensible system for processing specific types of return values
-- **Controller and Model-Bound Support**: Multiple patterns for implementing commands
-- **TypeScript Integration**: Automatic proxy generation for frontend integration
+- **nothing** (`void` / `Task`) — fire-and-forget changes
+- **a value** — becomes a typed `CommandResult<T>` the frontend can read
+- **a tuple** — return an event *and* a value (e.g. a generated id)
+- **a `Result<TSuccess, TError>`** — model success and failure explicitly
+
+Whatever you return, the caller gets a `CommandResult` carrying success, validation, and authorization
+state — so the frontend always knows what happened.
+
+## Two ways to define one
+
+| Style | What it looks like | Reach for it when |
+| --- | --- | --- |
+| [Model-bound](./model-bound/index.md) | A `[Command]` record with `Handle()`, as above | **The default.** Least boilerplate; the intent and behavior live together. |
+| [Controller-based](./controller-based.md) | A command type posted to a controller action | You need full control over the HTTP surface, or you're integrating with existing controllers. |
+
+## Then make it bulletproof
+
+Once the command exists, layer on the cross-cutting concerns Arc handles for you:
+
+| Concern | Page |
+| --- | --- |
+| Validate input before it runs | [Validation](./validation.md) |
+| Check validity without executing (pre-flight) | [Command Validation](./command-validation.md) |
+| Run a command in code, not over HTTP | [Command Pipeline](./command-pipeline.md) |
+| Carry ambient values through the pipeline | [Command Context](./command-context.md) |
+| Apply cross-cutting logic to every command | [Command Filters](./command-filters.md) |
+| Authorize by role or policy | [Authorization](../core/authorization.md) |
+| Shape the response the frontend receives | [Response Value Handlers](./response-value-handlers.md) · [Response Examples](./response-examples.md) |
+
+## The payoff: it's already on the frontend
+
+You didn't write a DTO or an API client. When you build the backend, Arc's
+[proxy generator](../proxy-generation/index.md) emits a typed TypeScript proxy for `OpenAccount`, ready
+to call from React with full type checking — see [Commands in React](../../frontend/react/commands/).
+Rename a property in the C# record, rebuild, and the frontend won't compile until it's fixed. That's the
+whole point of building on Arc: one definition, typed end to end.
+
+Next, read about the [queries](../queries/index.md) that read the data your commands change.
