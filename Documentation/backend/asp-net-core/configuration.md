@@ -70,7 +70,7 @@ The most common approach is to use the configuration file with the default secti
 var builder = Host.CreateDefaultBuilder(args);
 
 // Use default configuration section (Cratis:Arc)
-builder.UseCratisArc();
+builder.AddCratisArc();
 
 var app = builder.Build();
 app.UseCratisArc();
@@ -84,7 +84,7 @@ You can specify a custom configuration section path:
 var builder = Host.CreateDefaultBuilder(args);
 
 // Use custom configuration section
-builder.UseCratisArc("MyApp:CratisConfig");
+builder.AddCratisArc(configSectionPath: "MyApp:CratisConfig");
 
 var app = builder.Build();
 app.UseCratisArc();
@@ -97,7 +97,7 @@ You can configure the options entirely through code:
 ```csharp
 var builder = Host.CreateDefaultBuilder(args);
 
-builder.UseCratisArc(options =>
+builder.AddCratisArc(options =>
 {
     // Configure correlation ID
     options.CorrelationId.HttpHeader = "X-My-Correlation-ID";
@@ -127,7 +127,7 @@ You can combine configuration file settings with programmatic overrides:
 var builder = Host.CreateDefaultBuilder(args);
 
 // First bind from configuration, then override specific values
-builder.UseCratisArc("Cratis:Arc")
+builder.AddCratisArc(configSectionPath: "Cratis:Arc")
        .ConfigureServices(services =>
        {
            services.Configure<ArcOptions>(options =>
@@ -297,7 +297,7 @@ public class MyService
 You can add custom converters or modify the configuration through the options pattern:
 
 ```csharp
-builder.UseCratisArc(options =>
+builder.AddCratisArc(options =>
 {
     // Add a custom converter
     options.JsonSerializerOptions.Converters.Add(new MyCustomConverter());
