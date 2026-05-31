@@ -51,8 +51,13 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 That's the backend. Register MongoDB once at startup:
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args).UseCratisArc();
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
 builder.UseCratisMongoDB();
+
+var app = builder.Build();
+app.UseCratisArc();
+app.Run();
 ```
 
 Build, and Arc generates the typed proxies for `RegisterAuthor` and `AllAuthors` exactly as it would for an event-sourced slice. The React side is unchanged from any other Arc app:

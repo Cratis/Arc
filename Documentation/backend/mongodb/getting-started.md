@@ -9,19 +9,20 @@ The simplest way to add MongoDB support to your application is through the confi
 ### With WebApplicationBuilder
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args)
-    .UseCratisArc();
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
 
 builder.UseCratisMongoDB();
 
 var app = builder.Build();
+app.UseCratisArc();
 ```
 
 ### With HostBuilder
 
 ```csharp
 var host = Host.CreateDefaultBuilder(args)
-    .UseCratisArc()
+    .AddCratisArc()
     .UseCratisMongoDB()
     .Build();
 ```
