@@ -1,0 +1,78 @@
+---
+title: "5. Decide who can do what"
+description: Gate the catalog with role-based authorization on commands and queries, connect it to the signed-in user, and look back at the full-stack feature you built.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Our back office works, but it's wide open: anyone who can reach it can register authors and add books. The last thing a real app needs is to decide *who is allowed*. We'll add role-based authorization — and the nice part is that it's declarative, so none of our `Handle()` methods or read models change. The rule lives at the boundary, where it belongs.
+
+## Gate the commands
+
+Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one attribute at the edge. Put `[Roles(...)]` on the command, and Arc checks the caller's roles before the command runs:
+
+<Steps>
+
+1. **Require a role to change the catalog.** Only a librarian may register authors or add books:
+
+   ```csharp
+   [Command]
+   [Roles(nameof(UserRole.Librarian))]
+   public record RegisterAuthor(AuthorId Id, AuthorName Name)
+   {
+       public Result<ValidationResult, AuthorRegistered> Handle(RegisteredAuthorName? existing) =>
+           existing is not null && existing.Name != AuthorName.NotSet
+               ? ValidationResult.Error("An author with that name is already registered.")
+               : new AuthorRegistered(Name);
+   }
+   ```
+
+   The same attribute goes on `AddBook`. Everything inside `Handle()` stays exactly as it was — the gate is applied around it.
+
+</Steps>
+
+## Gate the queries
+
+The read side deserves the same protection — a public catalog might be fine, but an internal audit list is not. Query methods take the same attribute:
+
+```csharp
+[ReadModel]
+[FromEvent<AuthorRegistered>]
+public record Author([property: Key] AuthorId Id, AuthorName Name)
+{
+    [Roles(nameof(UserRole.Librarian))]
+    public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
+        collection.Observe();
+}
+```
+
+<Aside type="note" title="The frontend respects it too">
+The generated proxies enforce the same rules — an unauthorized call fails the same way from React as from any other client. So you can drive your UI off identity as well: hide the "Add author" button when the signed-in user isn't a librarian, and the command is *still* protected on the server if someone calls it anyway. See [frontend identity](/arc/frontend/react/identity/) for reading the current user's roles in React.
+</Aside>
+
+## Where the roles come from
+
+`UserRole.Librarian` is just a value you check against; the roles themselves come from the **authenticated identity**. Arc plugs into standard ASP.NET Core authentication, and you can enrich the identity with application-specific details — roles, tenant, preferences — through `IProvideIdentityDetails`. For local development you can generate a principal so you can exercise authorized endpoints without standing up a full login.
+
+That's a topic in its own right; the [Identity](/arc/backend/identity/) section walks through it, and the [Authorizing commands and queries](/arc/backend/authorizing-commands-and-queries/) recipe is the condensed how-to.
+
+## Look back at what you built
+
+Five chapters ago we had nothing. Now we have a real full-stack library back office, and — more importantly — you've used every part of the Arc loop and know *why* each one is shaped the way it is:
+
+- **Chapter 1** — a full-stack slice: a `[Command]` with `Handle()`, the `[EventType]` it records, a `[ReadModel]` a projection fills, a query, and a React screen calling both through generated, typed proxies.
+- **Chapter 2** — trust: a `ConceptValidator` on the value type and a uniqueness business rule inside `Handle()`, both surfaced in the UI for free.
+- **Chapter 3** — relationships: a second slice and a `[ChildrenFrom<…>]` projection that folds two events into one read model, no join code.
+- **Chapter 4** — life and reaction: observable queries as standing subscriptions, and a reactor that automates a side effect or triggers a follow-up command.
+- **Chapter 5** — authorization: `[Roles(...)]` at the boundary, on both commands and queries, tied to the signed-in user.
+
+The thing worth taking with you is the loop itself: **something happens (a command) → it's recorded as a fact (an event) → the fact is folded into state (a projection) → that state is served (a query) → and React calls all of it, typed end to end.** Every feature you build from here is another turn of that loop in its own folder. You never go back and edit the last one to add the next.
+
+## Where to go next
+
+- **[Build a full-stack feature](/build-a-full-app/)** — a focused capstone that takes one slice end to end, if you want to see the whole thing assembled once more.
+- **Go deeper on the building blocks** — [Commands](/arc/backend/commands/), [Queries](/arc/backend/queries/), and the [Frontend](/arc/frontend/) integration each have the full set of options.
+- **Reach for the UI library** — [Components](/components/) is the set of React building blocks `CommandDialog` and friends come from.
+- **Want the event-sourcing side in depth?** The [Chronicle tutorial](/chronicle/tutorial/) builds the read/write/react loop from the event store's point of view.
+
+You've built a full-stack feature and you have the model to build your own. That's the whole point of Arc — go make something.

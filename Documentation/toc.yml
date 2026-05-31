@@ -1,11 +1,15 @@
 - name: Overview
   href: index.md
+- name: Tutorial
+  href: tutorial/toc.yml
 - name: Why Arc
   href: why-arc.md
 - name: Coming from MediatR or MVC
   href: coming-from-mediatr-and-mvc.md
 - name: Vertical slices
   href: vertical-slices.md
+- name: Scenarios
+  href: scenarios/toc.yml
 - name: Backend
   href: backend/toc.yml
 - name: Frontend
