@@ -100,18 +100,16 @@ public record DeleteAccount(AccountId Id)
 }
 ```
 
-### Handler-Level Authorization
+### Method-Level Authorization
 
-If you use the lower-level handler classes (`ICommandHandler` / `IQueryHandler`) instead of model-bound `Handle()`, the attributes work there too:
+Apply an attribute to a single operation rather than the whole type. On a model-bound command the attribute goes on the `[Command]` record itself, and its `Handle()` only runs once the attribute's requirements are met:
 
 ```csharp
 [Authorize]
-public class SecureCommandHandler : ICommandHandler<SecureCommand>
+[Command]
+public record SecureCommand(string Data)
 {
-    public Task<CommandResult> Handle(SecureCommand command, CommandContext context)
-    {
-        // Requires authentication
-    }
+    public SecureOperationCompleted Handle() => new(Data);
 }
 ```
 
@@ -122,7 +120,11 @@ public class SecureCommandHandler : ICommandHandler<SecureCommand>
 ```csharp
 // User must have the "Admin" role
 [Roles("Admin")]
-public record CreateAdmin(string Username) : ICommand;
+[Command]
+public record CreateAdmin(string Username)
+{
+    public AdminCreated Handle() => new(Username);
+}
 ```
 
 ### Multiple Role Requirement (OR Logic)
@@ -132,7 +134,12 @@ Users need **at least one** of the specified roles:
 ```csharp
 // User must have either "Admin" OR "Manager" role
 [Roles("Admin", "Manager")]
-public record ViewAuditLog() : IQuery<AuditLogDto>;
+[ReadModel]
+public record AuditLogEntry(AuditLogId Id, string Action)
+{
+    public static IEnumerable<AuditLogEntry> All(IMongoCollection<AuditLogEntry> collection) =>
+        collection.Find(_ => true).ToList();
+}
 ```
 
 ### Combining with Standard Authorize
@@ -143,24 +150,25 @@ You can mix `[Authorize]` and `[Roles]` if needed:
 // Requires authentication via specific scheme AND a role
 [Authorize(AuthenticationSchemes = "Bearer")]
 [Roles("Admin")]
-public record SecureAdminCommand(string Data) : ICommand;
+[Command]
+public record SecureAdminCommand(string Data)
+{
+    public SecureOperationCompleted Handle() => new(Data);
+}
 ```
 
 ## AllowAnonymous Attribute
 
-The `[AllowAnonymous]` attribute explicitly allows unauthenticated access:
+The `[AllowAnonymous]` attribute explicitly allows unauthenticated access. On a model-bound query the attribute goes on the static query method:
 
 ```csharp
-[AllowAnonymous]
-public record GetPublicCatalog() : IQuery<CatalogDto>;
-
-public class GetPublicCatalogHandler : IQueryHandler<GetPublicCatalog, CatalogDto>
+[ReadModel]
+public record CatalogItem(CatalogItemId Id, string Name)
 {
-    public Task<CatalogDto> Handle(GetPublicCatalog query, QueryContext context)
-    {
-        // Anyone can access this, even without authentication
-        return Task.FromResult(new CatalogDto());
-    }
+    // Anyone can access this, even without authentication
+    [AllowAnonymous]
+    public static IEnumerable<CatalogItem> All(IMongoCollection<CatalogItem> collection) =>
+        collection.Find(_ => true).ToList();
 }
 ```
 
@@ -178,59 +186,87 @@ Authorization attributes follow specific inheritance rules:
 
 ### Examples
 
+A read model inherits authorization from the type, and a query method can override it:
+
 ```csharp
-// Class-level authorization applies to all operations
+// Authentication required for every query method on the read model
 [Authorize]
-public record UserOperations
+[ReadModel]
+public record Profile(ProfileId Id, ProfileName Name)
 {
-    // Inherits [Authorize] from the record
-    public record GetProfile(Guid UserId) : IQuery<ProfileDto>;
-    
-    // Overrides with more specific role requirement
+    // Inherits [Authorize] from the record — requires authentication
+    public static IEnumerable<Profile> All(IMongoCollection<Profile> collection) =>
+        collection.Find(_ => true).ToList();
+
+    // Overrides with a more specific role requirement
     [Roles("Admin")]
-    public record DeleteProfile(Guid UserId) : ICommand;
+    public static IEnumerable<Profile> AllForAdmins(IMongoCollection<Profile> collection) =>
+        collection.Find(_ => true).ToList();
 }
+```
 
-// Class-level anonymous access
+A command record can override an `[AllowAnonymous]` default by requiring authentication on a single command:
+
+```csharp
+// Anonymous access by default
 [AllowAnonymous]
-public record PublicQueries
+[Command]
+public record TrackPageView(string Path)
 {
-    // Inherits [AllowAnonymous] from record
-    public record GetProducts() : IQuery<ProductDto[]>;
-    
-    // Override to require authentication for specific operation
-    [Authorize]
-    public record GetUserProducts() : IQuery<ProductDto[]>;
+    public PageViewTracked Handle() => new(Path);
 }
 
+// Authentication required for this command
+[Authorize]
+[Command]
+public record SubmitFeedback(string Message)
+{
+    public FeedbackSubmitted Handle() => new(Message);
+}
+```
+
+Applying both `[Authorize]` and `[AllowAnonymous]` to the same target is an error:
+
+```csharp
 // ERROR: This will throw AmbiguousAuthorizationLevel at startup
 [AllowAnonymous]
 [Authorize]  // Cannot have both!
-public record InvalidCommand : ICommand;
+[Command]
+public record InvalidCommand(string Data)
+{
+    public OperationCompleted Handle() => new(Data);
+}
 ```
 
 ## Working with Claims
 
-When a request is authenticated, the `ClaimsPrincipal` is available through the command or query context:
+When a request is authenticated, the `ClaimsPrincipal` is available from the current `HttpContext`. Inject `IHttpContextAccessor` into a model-bound query method (or a command's `Handle()`) and read `HttpContext?.User`:
 
 ```csharp
-public class GetUserDataHandler : IQueryHandler<GetUserData, UserDataDto>
-{
-    public Task<UserDataDto> Handle(GetUserData query, QueryContext context)
-    {
-        // Access the authenticated user's claims
-        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var userName = context.User.FindFirst(ClaimTypes.Name)?.Value;
-        var roles = context.User.Claims
-            .Where(c => c.Type == ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToArray();
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
-        // Use claims for authorization logic
-        return Task.FromResult(new UserDataDto(userId, userName, roles));
+[ReadModel]
+public record UserProfile(UserId Id, string DisplayName)
+{
+    // Returns the profile for whichever user is currently authenticated
+    public static UserProfile? Mine(
+        IHttpContextAccessor httpContextAccessor,
+        IMongoCollection<UserProfile> collection)
+    {
+        var user = httpContextAccessor.HttpContext?.User;
+        var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return null;
+        }
+
+        return collection.Find(profile => profile.Id == userId).FirstOrDefault();
     }
 }
 ```
+
+The same `httpContextAccessor.HttpContext?.User` gives you a `ClaimsPrincipal` — use `FindFirstValue(ClaimTypes.NameIdentifier)` for the user id, `FindFirstValue(ClaimTypes.Name)` for the name, and `IsInRole("Admin")` for role checks.
 
 ## Authorization Results
 
@@ -243,81 +279,73 @@ When authorization fails, Arc.Core automatically returns appropriate HTTP status
 
 ## Custom Authorization Logic
 
-For more complex authorization scenarios, implement custom logic in your handlers:
+The `[Authorize]` and `[Roles]` attributes handle coarse-grained access — whether the user is authenticated and in the right role. For row-level checks (for example, "you can only update your own orders") put the logic inside `Handle()`: inject `IHttpContextAccessor`, read the current user's claims, and return a `ValidationResult.Error(...)` when the guard fails. Make the return type `Result<ValidationResult, TEvent>` so the framework knows the command can fail validation:
 
 ```csharp
+using System.Security.Claims;
+using Cratis.Arc.Validation;
+using Microsoft.AspNetCore.Http;
+
 [Authorize]
-public record UpdateOrder(Guid OrderId, string Data) : ICommand;
-
-public class UpdateOrderHandler(IOrderRepository orders) 
-    : ICommandHandler<UpdateOrder>
+[Command]
+public record UpdateOrder(OrderId Id, string Data)
 {
-    public async Task<CommandResult> Handle(
-        UpdateOrder command, 
-        CommandContext context)
+    public Result<ValidationResult, OrderUpdated> Handle(
+        IHttpContextAccessor httpContextAccessor,
+        IOrderRepository orders)
     {
-        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var order = await orders.GetById(command.OrderId);
+        var user = httpContextAccessor.HttpContext?.User;
+        var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var order = orders.GetById(Id);
 
-        // Custom authorization: user can only update their own orders
-        if (order.UserId != userId)
+        // Custom authorization: a user can only update their own orders
+        if (order.OwnerId != userId)
         {
-            return CommandResult.Forbidden(
-                context.CorrelationId, 
-                "You can only update your own orders");
+            return ValidationResult.Error("You can only update your own orders.");
         }
 
-        // Process the update
-        order.Update(command.Data);
-        await orders.Save(order);
-
-        return CommandResult.Success;
+        return new OrderUpdated(Data);
     }
 }
 ```
 
+A returned `ValidationResult.Error` surfaces to the caller as a failed `CommandResult` with validation errors — the command does not append its event.
+
 ## Policy-Based Authorization
 
-While Arc.Core focuses on attribute-based authorization, you can implement policy-based logic in your handlers:
+While Arc.Core focuses on attribute-based authorization, you can implement policy-based logic inside `Handle()` by inspecting the current user's roles and returning a `ValidationResult.Error(...)` when the policy fails:
 
 ```csharp
-[Authorize]
-public record ApproveExpense(Guid ExpenseId) : ICommand;
+using System.Security.Claims;
+using Cratis.Arc.Validation;
+using Microsoft.AspNetCore.Http;
 
-public class ApproveExpenseHandler(
-    IExpenseRepository expenses,
-    IAuthorizationService authService) 
-    : ICommandHandler<ApproveExpense>
+[Authorize]
+[Command]
+public record ApproveExpense(ExpenseId Id)
 {
-    public async Task<CommandResult> Handle(
-        ApproveExpense command, 
-        CommandContext context)
+    public Result<ValidationResult, ExpenseApproved> Handle(
+        IHttpContextAccessor httpContextAccessor,
+        IExpenseRepository expenses)
     {
-        var expense = await expenses.GetById(command.ExpenseId);
+        var user = httpContextAccessor.HttpContext?.User;
+        var expense = expenses.GetById(Id);
 
         // Custom policy: managers can approve up to $1000, directors unlimited
-        var isManager = context.User.IsInRole("Manager");
-        var isDirector = context.User.IsInRole("Director");
-
-        if (expense.Amount > 1000 && !isDirector)
-        {
-            return CommandResult.Forbidden(
-                context.CorrelationId,
-                "Only directors can approve expenses over $1000");
-        }
+        var isManager = user?.IsInRole("Manager") ?? false;
+        var isDirector = user?.IsInRole("Director") ?? false;
 
         if (!isManager && !isDirector)
         {
-            return CommandResult.Forbidden(
-                context.CorrelationId,
-                "Only managers and directors can approve expenses");
+            return ValidationResult.Error("Only managers and directors can approve expenses.");
         }
 
-        // Process approval
-        expense.Approve(context.User.Identity?.Name ?? "Unknown");
-        await expenses.Save(expense);
+        if (expense.Amount > 1000 && !isDirector)
+        {
+            return ValidationResult.Error("Only directors can approve expenses over $1000.");
+        }
 
-        return CommandResult.Success;
+        return new ExpenseApproved(user?.FindFirstValue(ClaimTypes.Name) ?? "Unknown");
     }
 }
 ```
@@ -326,19 +354,22 @@ public class ApproveExpenseHandler(
 
 ### Secure by Default
 
-Apply authorization at the broadest scope possible and override only when necessary:
+Apply authorization at the broadest scope possible and override only when necessary. Put `[Authorize]` on the read model so every query method requires authentication, then opt specific methods out with `[AllowAnonymous]`:
 
 ```csharp
-// Good: Secure by default, explicit opt-out
+// Good: secure by default, explicit opt-out
 [Authorize]
-public record SecureOperations
+[ReadModel]
+public record Resource(ResourceId Id, string Name)
 {
-    public record CreateResource() : ICommand;
-    public record UpdateResource(Guid Id) : ICommand;
-    
-    // Explicitly allow anonymous for specific operation
+    // Inherits [Authorize] — requires authentication
+    public static IEnumerable<Resource> Mine(IMongoCollection<Resource> collection) =>
+        collection.Find(_ => true).ToList();
+
+    // Explicitly allow anonymous access for this method
     [AllowAnonymous]
-    public record GetPublicResources() : IQuery<ResourceDto[]>;
+    public static IEnumerable<Resource> Public(IMongoCollection<Resource> collection) =>
+        collection.Find(_ => true).ToList();
 }
 ```
 
@@ -349,11 +380,19 @@ Use `[Roles]` for better readability when specifying multiple roles:
 ```csharp
 // More readable
 [Roles("Admin", "Manager", "Supervisor")]
-public record ReviewApplication(Guid ApplicationId) : ICommand;
+[Command]
+public record ReviewApplication(ApplicationId Id)
+{
+    public ApplicationReviewed Handle() => new();
+}
 
 // Less readable
 [Authorize(Roles = "Admin,Manager,Supervisor")]
-public record ReviewApplication(Guid ApplicationId) : ICommand;
+[Command]
+public record ReviewApplication(ApplicationId Id)
+{
+    public ApplicationReviewed Handle() => new();
+}
 ```
 
 ### Avoid Ambiguous Authorization
@@ -364,7 +403,11 @@ Never apply both `[Authorize]` and `[AllowAnonymous]` to the same target:
 // ERROR: Will throw AmbiguousAuthorizationLevel
 [Authorize]
 [AllowAnonymous]
-public record AmbiguousCommand : ICommand;
+[Command]
+public record AmbiguousCommand(string Data)
+{
+    public OperationCompleted Handle() => new(Data);
+}
 ```
 
 ### Document Authorization Requirements
@@ -376,24 +419,39 @@ Add XML documentation to clarify authorization requirements:
 /// Deletes a user account. Requires Admin role.
 /// </summary>
 [Roles("Admin")]
-public record DeleteUser(Guid UserId) : ICommand;
+[Command]
+public record DeleteUser(UserId Id)
+{
+    public UserDeleted Handle() => new();
+}
 ```
 
 ### Validate Claims in Handlers
 
-For complex authorization logic, validate claims within handlers:
+For complex authorization logic, validate claims inside `Handle()` by injecting `IHttpContextAccessor` and returning a `ValidationResult.Error(...)` when a required claim is missing:
 
 ```csharp
-public Task<CommandResult> Handle(SecureCommand command, CommandContext context)
-{
-    var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Task.FromResult(
-            CommandResult.Unauthorized(context.CorrelationId));
-    }
+using System.Security.Claims;
+using Cratis.Arc.Validation;
+using Microsoft.AspNetCore.Http;
 
-    // Continue with business logic
+[Authorize]
+[Command]
+public record SecureCommand(string Data)
+{
+    public Result<ValidationResult, SecureOperationCompleted> Handle(
+        IHttpContextAccessor httpContextAccessor)
+    {
+        var user = httpContextAccessor.HttpContext?.User;
+        var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return ValidationResult.Error("A user identifier claim is required.");
+        }
+
+        // Continue with business logic
+        return new SecureOperationCompleted(Data);
+    }
 }
 ```
 
@@ -403,48 +461,13 @@ Authorization works hand-in-hand with authentication. See the [Authentication](a
 
 ## Testing Authorization
 
-When testing authorization, ensure your test setup includes proper claims:
+Authorization runs as part of the real command pipeline, so you test it with [`CommandScenario<TCommand>`](../testing/command-scenario.md) — the same class used for testing validation and handler behavior. Instantiate the scenario, run the command with `Execute`, and assert on the resulting `CommandResult`:
 
-```csharp
-public class SecureCommandTests
-{
-    [Fact]
-    public async Task should_allow_admin_users()
-    {
-        var handler = new SecureCommandHandler();
-        var context = new CommandContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, "user-123"),
-                new Claim(ClaimTypes.Role, "Admin")
-            }, "Test"))
-        };
+- `ShouldNotBeAuthorized()` — the command was rejected by an `[Authorize]` or `[Roles]` attribute.
+- `ShouldBeAuthorized()` — the command passed authorization.
+- `ShouldHaveValidationErrors()` / `ShouldHaveValidationErrorFor("message")` — an in-`Handle` guard returned a `ValidationResult.Error`.
 
-        var result = await handler.Handle(new SecureCommand(), context);
-
-        result.IsSuccess.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task should_deny_non_admin_users()
-    {
-        var handler = new SecureCommandHandler();
-        var context = new CommandContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, "user-123"),
-                new Claim(ClaimTypes.Role, "User")
-            }, "Test"))
-        };
-
-        var result = await handler.Handle(new SecureCommand(), context);
-
-        result.IsSuccess.ShouldBeFalse();
-    }
-}
-```
+For the full scenario API, the assertion reference, and a worked authorization example, see [Command Scenarios](../testing/command-scenario.md) and the wider [Testing](../testing/index.md) guide.
 
 ## Next Steps
 
