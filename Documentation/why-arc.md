@@ -11,7 +11,7 @@ Arc answers them once, with conventions, so you can spend your time on behavior 
 
 - **Commands and queries as the unit of work.** A command is a record with a `Handle()` method — no separate handler class, no controller boilerplate. A query is a method on a read model. Arc maps them to HTTP automatically.
 - **Generated TypeScript proxies.** Every command and query becomes a typed client your React code calls. Change a command's shape in C# and the frontend types change with it — the compiler catches the mismatch, not your users.
-- **First-class Chronicle integration.** Commands append [events](/chronicle/concepts/event/); queries read [projections](/chronicle/concepts/projection/). The CQRS write and read sides are wired to the event store out of the box.
+- **Pluggable persistence.** Commands and queries read and write wherever you point them — [MongoDB](/arc/backend/mongodb/), [EF Core / SQL](/arc/backend/entity-framework/), or [Chronicle](/chronicle/). Chronicle is the most powerful option — commands append [events](/chronicle/concepts/event/) and queries read [projections](/chronicle/concepts/projection/) out of the box — but [Arc works just as well without it](/arc/arc-without-event-sourcing/).
 - **The cross-cutting concerns handled for you.** Validation, authorization, identity, multi-tenancy, OpenAPI, and MongoDB/EF Core integration are conventions, not assignments.
 
 ## Why CQRS and proxy generation
@@ -26,6 +26,8 @@ flowchart LR
     ReadModel -->|query proxy| React
 ```
 
+That diagram shows the most common setup — Arc over Chronicle. But the event store is a *choice*: the same command and query model runs over a plain database when you don't need history. See [Arc without event sourcing](/arc/arc-without-event-sourcing/).
+
 ## Vertical slices, not layers
 
 Arc applications are organized by **feature**, not by technical role. Everything for one behavior — the command, the events it produces, the projection that builds its read model, the React component that renders it, and the specs that prove it — lives in one folder. You read a feature top to bottom instead of hunting across `Commands/`, `Handlers/`, and `Events/`.
@@ -33,4 +35,5 @@ Arc applications are organized by **feature**, not by technical role. Everything
 ## Where to start
 
 - Build your first feature in the [getting started](/arc/backend/getting-started/) guide.
+- Not using event sourcing? [Arc without event sourcing](/arc/arc-without-event-sourcing/) shows the standalone shape over MongoDB or EF Core.
 - New to the underlying model? Read [Why Event Sourcing](/chronicle/why-event-sourcing/) and [Why Cratis](/why-cratis/) first.

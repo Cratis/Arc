@@ -8,7 +8,7 @@ import SimpleCard from '@components/SimpleCard.astro';
 import TopicHero from '@components/TopicHero.astro';
 
 <TopicHero icon="puzzle" eyebrow="Arc" title="Full-stack CQRS, typed to the browser">
-Turn **commands** and **queries** into a CQRS application wired to [Chronicle](/chronicle/), with **generated TypeScript proxies** that keep React in lockstep with your C# — no hand-written API client, no DTO duplication. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
+Turn **commands** and **queries** into a full-stack CQRS application — backed by [Chronicle](/chronicle/), MongoDB, or EF Core — with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
 </TopicHero>
 
 ## Start here
@@ -34,6 +34,9 @@ Turn **commands** and **queries** into a CQRS application wired to [Chronicle](/
   <SimpleCard title="Vertical slices" icon="seti:folder" link="/arc/vertical-slices/">
     Why everything for one feature — backend and frontend — lives in a single folder.
   </SimpleCard>
+  <SimpleCard title="Arc without event sourcing" icon="right-arrow" link="/arc/arc-without-event-sourcing/">
+    Use Arc on its own over MongoDB or EF Core — the same typed full-stack app, no event store required.
+  </SimpleCard>
   <SimpleCard title="Backend" icon="seti:c-sharp" link="/arc/backend/">
     Commands, queries, validation, identity, tenancy, persistence, and proxy generation.
   </SimpleCard>
@@ -48,4 +51,4 @@ Turn **commands** and **queries** into a CQRS application wired to [Chronicle](/
   </SimpleCard>
 </CardGrid>
 
-Arc sits on top of [Chronicle](/chronicle/) and feeds [Components](/components/) — see [Why Cratis](/why-cratis/) for how the pieces fit.
+Arc can sit on top of [Chronicle](/chronicle/) and feeds [Components](/components/) — though it [runs over a plain database just as well](/arc/arc-without-event-sourcing/). See [Why Cratis](/why-cratis/) for how the pieces fit.

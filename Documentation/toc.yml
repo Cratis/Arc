@@ -4,10 +4,14 @@
   href: tutorial/toc.yml
 - name: Why Arc
   href: why-arc.md
+- name: Arc without event sourcing
+  href: arc-without-event-sourcing.md
 - name: Coming from MediatR or MVC
   href: coming-from-mediatr-and-mvc.md
 - name: Vertical slices
   href: vertical-slices.md
+- name: Understanding the proxy boundary
+  href: understanding-the-proxy-boundary.mdx
 - name: Scenarios
   href: scenarios/toc.yml
 - name: Backend
