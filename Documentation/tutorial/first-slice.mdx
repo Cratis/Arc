@@ -6,16 +6,16 @@ description: Build the library's first feature — register an author — from a
 import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 import FullStackTabs from '@components/FullStackTabs.astro';
 
-Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before they can catalog a single book. It's deliberately small, but building it touches the entire Arc loop: a command that expresses intent, the event it records, a read model a projection builds, the query that serves it, and the React screen that calls both — all of it typed end to end.
+Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before they can catalog a single book. It's deliberately small, but building it touches the entire Arc loop: a command that expresses intent, the read model it updates, the query that serves it, and the React screen that calls both — all of it typed end to end.
 
-In a layered app these would be files scattered across `Commands/`, `Handlers/`, `Events/`, and `ReadModels/`, and you'd jump between folders to follow one behavior. Arc organizes by **feature**: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the slice we're about to build:
+In a layered app these would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd jump between folders to follow one behavior. Arc organizes by **feature**: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the slice we're about to build:
 
 ```mermaid
 flowchart LR
-    Cmd["RegisterAuthor<br/>command"] -->|Handle| Evt["AuthorRegistered<br/>event"]
-    Evt -->|projection| RM["Author<br/>read model"]
+    Cmd["RegisterAuthor<br/>command"] -->|Handle, writes| DB[("database")]
+    DB --> RM["Author<br/>read model"]
     RM -->|AllAuthors| Q["query, over HTTP"]
-    Q -->|generated proxy| UI["React list"]
+    Q -->|generated proxy, live| UI["React list"]
 ```
 
 ## The backend half
@@ -28,7 +28,6 @@ flowchart LR
    public record AuthorId(Guid Value) : ConceptAs<Guid>(Value)
    {
        public static AuthorId New() => new(Guid.NewGuid());
-       public static implicit operator EventSourceId(AuthorId id) => new(id.Value.ToString());
    }
 
    public record AuthorName(string Value) : ConceptAs<string>(Value)
@@ -37,52 +36,101 @@ flowchart LR
    }
    ```
 
-   That implicit conversion from `AuthorId` to `EventSourceId` is what lets Chronicle use an author's id directly as the key of their event stream — no glue code.
+2. **Write the command — with `Handle()` on the record.** A command is a `record` marked `[Command]`. The behavior lives in a `Handle()` method **on the record itself**; there's no separate handler class to hunt for. Here it writes the new author straight to the database:
 
-2. **Write the command — with `Handle()` on the record.** A command is a `record` marked `[Command]`. The behavior lives in a `Handle()` method **on the record itself**; there's no separate handler class to hunt for. It returns the event(s) that happened:
-
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
    ```csharp
    [Command]
    public record RegisterAuthor(AuthorId Id, AuthorName Name)
    {
-       public AuthorRegistered Handle() => new(Name);
+       public Task Handle(IMongoCollection<Author> authors) =>
+           authors.InsertOneAsync(new Author(Id, Name));
    }
-
-   [EventType]
-   public record AuthorRegistered(AuthorName Name);
    ```
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
+   ```csharp
+   [Command]
+   public record RegisterAuthor(AuthorId Id, AuthorName Name)
+   {
+       public async Task Handle(LibraryDbContext db)
+       {
+           db.Authors.Add(new Author(Id, Name));
+           await db.SaveChangesAsync();
+       }
+   }
+   ```
+   </TabItem>
+   </Tabs>
 
-   The event is an immutable, past-tense fact. `[EventType]` carries **no name argument** — Chronicle uses the type name, `AuthorRegistered`, as its identity.
+   `Handle()` returns `Task` because there's nothing to report back — the write *is* the outcome. Arc injects the dependency it declares (the Mongo collection, or your `DbContext`) from the container.
 
-3. **Declare the read model and let a projection fill it.** State the shape you want to query, mark it `[ReadModel]`, and tell it which event feeds it. A static method exposes the query — return an observable so consumers get live updates:
+3. **Declare the read model and its query.** The read model is just the shape you want to query, marked `[ReadModel]`. A static method **is** the query — return an observable so consumers get live updates:
 
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
    ```csharp
    [ReadModel]
-   [FromEvent<AuthorRegistered>]
    public record Author([property: Key] AuthorId Id, AuthorName Name)
    {
        public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
            collection.Observe();
    }
    ```
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
+   ```csharp
+   [ReadModel]
+   public record Author([property: Key] AuthorId Id, AuthorName Name)
+   {
+       public static ISubject<IEnumerable<Author>> AllAuthors(LibraryDbContext db) =>
+           db.Authors.Observe();
+   }
+
+   // A BaseDbContext registered via WithEntityFrameworkCore — see the EF integration guide.
+   public class LibraryDbContext(DbContextOptions<LibraryDbContext> options) : BaseDbContext(options)
+   {
+       public DbSet<Author> Authors => Set<Author>();
+   }
+   ```
+   </TabItem>
+   </Tabs>
 
    <Aside type="tip" title="Notice what you didn't write">
-   There's no update code. **AutoMap** matches `AuthorRegistered.Name` straight onto `Author.Name`, so the projection populates the read model on its own. And that static `AllAuthors` method *is* your query — Arc serves it over HTTP automatically. No controller, no routing, no DTO.
+   That static `AllAuthors` method *is* your query — Arc serves it over HTTP automatically. No controller, no routing, no DTO. And it's **live**: `.Observe()` watches the database's change stream (MongoDB's, or an [observed `DbSet`](/arc/backend/entity-framework/observing/)), so the instant the command writes, every subscribed browser re-renders.
    </Aside>
 
-4. **Build.**
+4. **Wire the database in once at startup, then build.**
+
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
+   ```csharp
+   var builder = WebApplication.CreateBuilder(args);
+   builder.AddCratisArc();
+   builder.UseCratisMongoDB();
+   ```
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
+   ```csharp
+   var builder = WebApplication.CreateBuilder(args);
+   builder.AddCratisArc(configureBuilder: arc => arc.WithEntityFrameworkCore());
+   // your DbContext is auto-discovered and registered
+   ```
+   </TabItem>
+   </Tabs>
 
    ```bash
    dotnet build
    ```
 
-   Building compiles your C#, wires `RegisterAuthor` to append through Chronicle when it runs, and — the part that matters most for the next half — **generates TypeScript proxies** for `RegisterAuthor` and `AllAuthors`. Your frontend is about to call them as if they were local, typed code.
+   Building compiles your C# and — the part that matters most for the next half — **generates TypeScript proxies** for `RegisterAuthor` and `AllAuthors`. Your frontend is about to call them as if they were local, typed code.
 
 </Steps>
 
 ## The frontend half
 
-The proxies now exist, generated *from your C#*. Normally this is exactly where type safety ends — you'd hand-write a `fetch`, redeclare the shapes in TypeScript, and hope the two stay in sync. We skip all of it.
+The proxies now exist, generated *from your C#*. Normally this is exactly where type safety ends — you'd hand-write a `fetch`, redeclare the shapes in TypeScript, and hope the two stay in sync. We skip all of it. **None of this React changes whether the backend is MongoDB, EF Core, or — later — Chronicle.**
 
 <Steps>
 
@@ -117,7 +165,7 @@ The proxies now exist, generated *from your C#*. Normally this is exactly where 
 
 </Steps>
 
-Run the app, register an author, and the list updates the moment you confirm — you didn't write a line of refresh logic. `AllAuthors.use()` is subscribed to the read model, so when the command appends its event and the projection updates, the screen re-renders itself.
+Run the app, register an author, and the list updates the moment you confirm — you didn't write a line of refresh logic. `AllAuthors.use()` is subscribed to the read model, so when the command writes its document, the screen re-renders itself.
 
 ## Where the type safety lives
 
@@ -129,7 +177,8 @@ Look at the accessor `i => i.name`. It isn't a string you typed and hope matches
   [Command]
   public record RegisterAuthor(AuthorId Id, AuthorName Name)
   {
-      public AuthorRegistered Handle() => new(Name);
+      public Task Handle(IMongoCollection<Author> authors) =>
+          authors.InsertOneAsync(new Author(Id, Name));
   }
   ```
   </Fragment>
@@ -148,10 +197,9 @@ Look at the accessor `i => i.name`. It isn't a string you typed and hope matches
 In one folder, read top to bottom:
 
 - a `[Command]` with `Handle()` — intent and implementation together, no handler class,
-- the `[EventType]` it records — the permanent fact,
-- a `[ReadModel]` a projection fills with no update code, and whose query method is served over HTTP,
-- and a **React screen** that reads and writes it through generated, typed proxies.
+- a `[ReadModel]` whose query method is served over HTTP, live, and
+- a **React screen** that reads and writes it through generated, typed proxies.
 
-That's a complete vertical slice, backend to browser. The next feature will be another folder just like it.
+That's a complete vertical slice, backend to browser, over a plain database. The next feature will be another folder just like it.
 
 There's one problem, though: right now a librarian can register an author with a blank name, or the same author twice, and nothing stops them. A real app has to say no. [Let's make it trustworthy →](./validation)
