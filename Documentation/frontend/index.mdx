@@ -41,16 +41,13 @@ and execution.
 <Fragment slot="csharp">
 
 ```csharp
-// Backend — the command and the event it appends live together
+// Backend — the command and the read model it serves live together
 [Command]
 public record OpenAccount(AccountId Id, AccountHolder Owner)
 {
-    public Task Handle(IEventLog eventLog) =>
-        eventLog.Append(Id, new AccountOpened(Owner));
+    public Task Handle(IMongoCollection<Account> accounts) =>
+        accounts.InsertOneAsync(new Account(Id, Owner));
 }
-
-[EventType]
-public record AccountOpened(AccountHolder Owner);
 ```
 
 </Fragment>
@@ -114,8 +111,8 @@ export const AccountsList = () => {
 ```
 
 The result is a `QueryResultWithState` — `accounts.data` holds the rows, with `isPerforming`, `hasData`,
-and validation state alongside. When a command appends an event that updates the `AllAccounts` read
-model, every browser observing this query re-renders with the new list — no refresh, no refetch. That
+and validation state alongside. When a command writes and the `AllAccounts` read
+model changes, every browser observing this query re-renders with the new list — no refresh, no refetch. That
 live loop, from a C# command to a React list, is the payoff of building the whole stack on Arc.
 
 ## Two ways to build: hooks or MVVM

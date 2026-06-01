@@ -76,7 +76,7 @@ flowchart LR
 
 Look at the field accessor `i => i.name`. It isn't a string you typed and hope matches — it's a property on the generated `RegisterAuthor` type. Rename `Name` in the C# command, rebuild, and `i => i.name` stops compiling until you update it. The same goes for `a.name` on the query side. There's no second source of truth to drift, and no runtime surprise when a shape changes: the mismatch is a build error, on your machine, before anyone runs it.
 
-And the form is wired to the live list for nothing extra — `AllAuthors.use()` is subscribed to the read model, so the moment the command appends its event and the projection updates, the list re-renders. You didn't write any of that plumbing.
+And the form is wired to the live list for nothing extra — `AllAuthors.use()` is subscribed to the read model, so the moment the command writes, the list re-renders. You didn't write any of that plumbing.
 
 ## Recap
 

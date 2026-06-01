@@ -1,19 +1,19 @@
 ---
 title: Your first command and query
-description: Build a backend slice in Arc — a command, the event it produces, the read model a projection builds, and the query that serves it — all in one folder.
+description: Build a backend slice in Arc — a command that writes, a read model, and a live query that serves it — all in one folder, over a plain database.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Let's build the backend half of a real feature: registering an author in a library app. It's small, but it exercises the whole Arc loop — something *happens* (a command), it's recorded as a fact (an event), that fact is folded into queryable state (a projection builds a read model), and that state is served back out (a query).
+Let's build the backend half of a real feature: registering an author in a library app. It's small, but it exercises the whole Arc loop — something *happens* (a command), it writes state, and that state is served back out (a query) — over a plain database, with no event store required.
 
-In a layered app this would be four files scattered across four folders — `Commands/`, `Handlers/`, `Events/`, `ReadModels/` — and you'd hop between them to follow one behavior. Arc organizes by **feature** instead: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the shape we're building:
+In a layered app this would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd hop between them to follow one behavior. Arc organizes by **feature** instead: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the shape we're building:
 
 ```mermaid
 flowchart LR
-    Cmd["RegisterAuthor<br/>command"] -->|Handle| Evt["AuthorRegistered<br/>event"]
-    Evt -->|projection| RM["Author<br/>read model"]
-    RM -->|AllAuthors| Q["query over HTTP"]
+    Cmd["RegisterAuthor<br/>command"] -->|Handle, writes| DB[("database")]
+    DB --> RM["Author<br/>read model"]
+    RM -->|AllAuthors| Q["query over HTTP, live"]
 ```
 
 <Steps>
@@ -24,36 +24,26 @@ flowchart LR
    public record AuthorId(Guid Value) : ConceptAs<Guid>(Value)
    {
        public static AuthorId New() => new(Guid.NewGuid());
-       public static implicit operator EventSourceId(AuthorId id) => new(id.Value.ToString());
    }
    ```
 
-   That implicit conversion to `EventSourceId` is what lets Chronicle use an `AuthorId` directly as the key of an event stream — no glue.
-
-2. **The command — with `Handle()` on the record.** A command is a `record` marked `[Command]`. The behavior lives in a `Handle()` method **on the record itself** — there's no separate handler class to find. It returns the event(s) that happened:
+2. **The command — with `Handle()` on the record.** A command is a `record` marked `[Command]`. The behavior lives in a `Handle()` method **on the record itself** — there's no separate handler class to find. Here it writes the new author to the database:
 
    ```csharp
    [Command]
    public record RegisterAuthor(AuthorId Id, AuthorName Name)
    {
-       public AuthorRegistered Handle() => new(Name);
+       public Task Handle(IMongoCollection<Author> authors) =>
+           authors.InsertOneAsync(new Author(Id, Name));
    }
    ```
 
-   `Handle()` can return a single event, a tuple of `(event, result)`, a `Result<,>`, or several events. Need a collaborator — a service, a repository? Add it as a parameter and Arc injects it.
+   `Handle()` returns `Task` — the write is the outcome. Need a different store or a collaborator? Add it as a parameter and Arc injects it: an `IMongoCollection<T>`, your EF Core `DbContext`, a service, anything in the container.
 
-3. **The event.** An immutable, past-tense fact — the thing that actually happened:
-
-   ```csharp
-   [EventType]
-   public record AuthorRegistered(AuthorName Name);
-   ```
-
-4. **The read model and its projection.** Declare the shape you want to query, mark it `[ReadModel]`, and tell it which event feeds it. A static method exposes the query — return an observable so consumers get live updates:
+3. **The read model and its query.** Declare the shape you want to query and mark it `[ReadModel]`. A static method exposes the query — return an observable so consumers get live updates:
 
    ```csharp
    [ReadModel]
-   [FromEvent<AuthorRegistered>]
    public record Author([property: Key] AuthorId Id, AuthorName Name)
    {
        public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
@@ -62,16 +52,16 @@ flowchart LR
    ```
 
    <Aside type="tip" title="Notice what you didn't write">
-   No update code. **AutoMap** matches `AuthorRegistered.Name` straight onto `Author.Name`, so the projection fills the read model on its own. And that static `AllAuthors` method *is* your query — Arc exposes it over HTTP automatically. No controller, no routing, no DTO.
+   That static `AllAuthors` method *is* your query — Arc exposes it over HTTP automatically. No controller, no routing, no DTO. And it's **live**: `.Observe()` watches the change stream, so the moment the command writes, every subscriber re-renders.
    </Aside>
 
-5. **Build.**
+4. **Build.**
 
    ```bash
    dotnet build
    ```
 
-   Building does two things beyond compiling: it wires your command to append through Chronicle when it runs, and it **generates the TypeScript proxies** for `RegisterAuthor` and `AllAuthors` so your frontend can call them type-safely.
+   Building **generates the TypeScript proxies** for `RegisterAuthor` and `AllAuthors` so your frontend can call them type-safely — that's the part that makes the next step (the UI) effortless.
 
 </Steps>
 
@@ -80,13 +70,16 @@ flowchart LR
 In one folder, read top to bottom:
 
 - A `[Command]` with `Handle()` — intent and implementation in one place, no handler class.
-- The `[EventType]` it records — the permanent fact.
-- A `[ReadModel]` whose projection builds it from events with no update code, and whose query method is served over HTTP for free.
+- A `[ReadModel]` with a query method served over HTTP, live, for free.
 
-That's a complete vertical slice. The next feature is another folder just like it — you never go back and touch this one to add the next.
+That's a complete vertical slice, over a plain database. The next feature is another folder just like it.
+
+<Aside type="note" title="Storing where you like">
+This slice writes straight to MongoDB. Arc is persistence-agnostic — the same shape works over [EF Core](/arc/backend/entity-framework/getting-started/), and the day you want history, audit, and replay, you can move the write side to [Chronicle](/chronicle/) without touching your query or your frontend. The [tutorial's last chapter](/arc/tutorial/add-event-sourcing/) shows exactly that.
+</Aside>
 
 ## Where to go next
 
 - **[Wire a UI to it](/arc/frontend/getting-started/)** — read this query and run this command from React, fully typed.
-- **[Build a full-stack feature](/build-a-full-app/)** — the same slice end to end, backend and frontend together.
+- **[Build the library, full-stack](/arc/tutorial/)** — the threaded tutorial builds this into a real app, chapter by chapter.
 - Go deeper on [Commands](/arc/backend/commands/) and [Queries](/arc/backend/queries/).
