@@ -22,7 +22,7 @@ your users.
 ```mermaid
 flowchart LR
     CS["C# command / query"] -->|proxy generator| TS["Generated TS proxy"]
-    TS -->|.use() hook| RC["React component"]
+    TS -->|".use() hook"| RC["React component"]
     RC -->|executes / observes| API["Arc endpoint"]
     API --> CS
 ```
