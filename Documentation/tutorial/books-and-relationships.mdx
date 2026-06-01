@@ -1,25 +1,22 @@
 ---
 title: "3. Relate your slices"
-description: Add a second feature — books that belong to an author — and let a projection fold both events into one read model where every author carries their catalog.
+description: Add a second feature — books that belong to an author — and read each author's catalog back with a filtered, live query.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-An author exists to have written things. So our second feature is **adding a book to an author's catalog** — and it's the first time two slices in our app relate to each other. This is where event sourcing earns its keep: we won't store a foreign key and join at read time. Instead, a projection will *fold* two different events — `AuthorRegistered` and a new `BookAddedToCatalog` — into a single read model where each author already carries their list of books.
+An author exists to have written things. So our second feature is **adding a book to an author's catalog** — and it's the first time two slices in our app relate to each other. A book belongs to an author; we'll model that with a plain foreign key — the author's id on the book — and read a catalog back with a **filtered** query.
 
 Here's the shape:
 
 ```mermaid
 flowchart LR
-    AR["AuthorRegistered"] --> P["projection"]
-    BA["BookAddedToCatalog"] --> P
-    P --> RM["AuthorWithBooks<br/>(name + Book[] )"]
-    RM -->|AllAuthorsWithBooks| UI["React: author → books"]
+    AB["AddBook<br/>(keyed by author)"] -->|writes| DB[("Books")]
+    DB --> Q["BooksForAuthor<br/>(filtered by AuthorId)"]
+    Q -->|live| UI["React: author → books"]
 ```
 
 ## The book slice
-
-A book belongs to an author, so the command is **keyed by the author** — every book event lands in that author's stream, which is exactly what lets the projection attach it to the right author later.
 
 <Steps>
 
@@ -37,66 +34,88 @@ A book belongs to an author, so the command is **keyed by the author** — every
    }
    ```
 
-2. **The command and its event.** The command is keyed by `AuthorId`, and carries the new `BookId` and `BookTitle`. The event records all three — the author it belongs to, the book's own id, and the title:
+2. **The command writes a book, tagged with its author.** `AddBook` is keyed by `AuthorId` — the author it belongs to — and writes a `Book` carrying that id:
 
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
    ```csharp
    [Command]
    public record AddBook([Key] AuthorId AuthorId, BookId BookId, BookTitle Title)
    {
-       public BookAddedToCatalog Handle() => new(AuthorId, BookId, Title);
+       public Task Handle(IMongoCollection<Book> books) =>
+           books.InsertOneAsync(new Book(BookId, AuthorId, Title));
    }
-
-   [EventType]
-   public record BookAddedToCatalog(AuthorId AuthorId, BookId BookId, BookTitle Title);
    ```
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
+   ```csharp
+   [Command]
+   public record AddBook([Key] AuthorId AuthorId, BookId BookId, BookTitle Title)
+   {
+       public async Task Handle(LibraryDbContext db)
+       {
+           db.Books.Add(new Book(BookId, AuthorId, Title));
+           await db.SaveChangesAsync();
+       }
+   }
+   ```
+   </TabItem>
+   </Tabs>
 
 </Steps>
 
-## One read model, folded from two events
+## Read a catalog back, filtered
 
-Now the interesting part. We want a read model where every author *contains* their books, built without a single line of join logic. Declare the child shape, then declare the parent with a `[ChildrenFrom<…>]` property that tells the projection how to attach children to their parent:
+The read model is just the book document — it carries the `AuthorId` it belongs to. The query takes the author's id (Arc binds it from the route via `[Key]`) and returns only that author's books, live:
 
+<Tabs syncKey="db">
+<TabItem label="MongoDB" icon="seti:db">
 ```csharp
-[FromEvent<BookAddedToCatalog>]
-public record Book([Key] BookId Id, BookTitle Title);
-
 [ReadModel]
-[FromEvent<AuthorRegistered>]
-public record AuthorWithBooks(
-    [Key] AuthorId Id,
-    AuthorName Name,
-    [ChildrenFrom<BookAddedToCatalog>(parentKey: nameof(BookAddedToCatalog.AuthorId), identifiedBy: nameof(Book.Id))]
-    IEnumerable<Book> Books)
+public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title)
 {
-    public static ISubject<IEnumerable<AuthorWithBooks>> AllAuthorsWithBooks(IMongoCollection<AuthorWithBooks> collection) =>
-        collection.Observe();
+    public static ISubject<IEnumerable<Book>> BooksForAuthor([Key] AuthorId authorId, IMongoCollection<Book> books) =>
+        books.Observe(b => b.AuthorId == authorId);
 }
 ```
+</TabItem>
+<TabItem label="EF Core" icon="seti:db">
+```csharp
+[ReadModel]
+public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title)
+{
+    public static ISubject<IEnumerable<Book>> BooksForAuthor([Key] AuthorId authorId, LibraryDbContext db) =>
+        db.Books.Observe(b => b.AuthorId == authorId);
 
-<Aside type="tip" title="Read the attribute out loud">
-`[ChildrenFrom<BookAddedToCatalog>(parentKey: …AuthorId, identifiedBy: …Id)]` says: *"the `Books` list is built from `BookAddedToCatalog` events; attach each one to the author whose id equals the event's `AuthorId`, and identify each book by its `Id`."* That's the whole relationship — declared, not coded. AutoMap fills `Book.Title` from the event, and Chronicle keeps the list in sync as books are added.
+    // add the DbSet to LibraryDbContext: public DbSet<Book> Books => Set<Book>();
+}
+```
+</TabItem>
+</Tabs>
+
+<Aside type="tip" title="The relationship is a filter">
+`Observe(b => b.AuthorId == authorId)` is the whole relationship: one collection of books, read back by the author they point at — and still live, because it's an observed query. No join, no second store. (When you adopt event sourcing in [chapter 6](./add-event-sourcing), a projection can go further and *fold* books into each author as a single read model — but you don't need that yet.)
 </Aside>
-
-So `AllAuthorsWithBooks` returns each author already carrying their catalog. There's no second query, no client-side stitching, and — because it's `Observe()` — it stays live.
 
 ## Showing the catalog
 
-The query proxy is generated like any other, and now each author has a `books` array to map over:
+`BooksForAuthor` takes an author id, so it's a query *per author*. The list of authors comes from chapter 1's `AllAuthors`; each row renders its own live catalog:
 
 ```tsx title="Catalog.tsx"
-import { AllAuthorsWithBooks } from './Authors/AuthorWithBooks';   // generated proxy
+import { AllAuthors } from './Authors/Author';
+import { BooksForAuthor } from './Books/Book';   // generated proxies
+
+const AuthorBooks = ({ authorId }: { authorId: string }) => {
+    const [books] = BooksForAuthor.use(authorId);   // live, scoped to this author
+    return <ul>{books.data.map(b => <li key={String(b.id)}>{b.title}</li>)}</ul>;
+};
 
 export const Catalog = () => {
-    const [authors] = AllAuthorsWithBooks.use();
+    const [authors] = AllAuthors.use();
     return (
         <ul>
-            {authors.data.map(author => (
-                <li key={String(author.id)}>
-                    {author.name}
-                    <ul>
-                        {author.books.map(book => <li key={String(book.id)}>{book.title}</li>)}
-                    </ul>
-                </li>
+            {authors.data.map(a => (
+                <li key={String(a.id)}>{a.name}<AuthorBooks authorId={String(a.id)} /></li>
             ))}
         </ul>
     );
@@ -121,8 +140,8 @@ The `authorId` is context the form needs to be *valid* from the start, so it goe
 
 ## What you built
 
-- A second slice — `AddBook` — keyed to the author it belongs to.
-- A **relationship expressed as a projection**: `AuthorWithBooks` folds two event types into one read model, with `[ChildrenFrom<…>]` doing the attaching and no join code.
-- A React screen that renders authors and their books from a single live query.
+- A second slice — `AddBook` — that tags each book with the author it belongs to.
+- A **relationship as a foreign key + a filtered query**: `BooksForAuthor` reads exactly one author's catalog, live, with no join.
+- A React screen that composes the two: a list of authors, each rendering its own live catalog.
 
-Two features, related, with the read side doing the heavy lifting. But notice we keep saying "it stays live" without really showing it — and we haven't done anything *automatically* when a book is added. Next we'll make the live updates concrete and add our first reactor. [Let's make it move →](./real-time)
+Two features, related, both live. We keep *saying* "it stays live" — next we'll make that concrete and watch a screen update itself the instant the data changes. [Let's make it live →](./real-time)
