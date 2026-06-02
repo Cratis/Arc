@@ -6,6 +6,7 @@ using System.Reflection;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Queries;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
@@ -29,7 +30,6 @@ public static class ReadModelServiceCollectionExtensions
                    parameters.Length == 1 &&
                    parameters[0].ParameterType.IsGenericParameter;
         });
-    static bool _initialized;
 
     /// <summary>
     /// Adds read model auto-discovery and registration to the service collection.
@@ -39,11 +39,7 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>The service collection for continuation.</returns>
     public static IServiceCollection AddReadModels(this IServiceCollection services, IClientArtifactsProvider clientArtifactsProvider)
     {
-        if (_initialized)
-        {
-            return services;
-        }
-        _initialized = true;
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
         var readModelTypesFromProjections = clientArtifactsProvider.Projections
             .Select(projectionType =>

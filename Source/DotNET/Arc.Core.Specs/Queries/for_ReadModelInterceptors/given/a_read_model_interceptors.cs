@@ -33,6 +33,31 @@ public class a_read_model_interceptors : Specification
         }
     }
 
+    public class GenericReadModelInterceptor<TReadModel> : IInterceptReadModel<TReadModel>
+    {
+        public List<TReadModel> InterceptedItems { get; } = [];
+
+        public Task<TReadModel> Intercept(TReadModel readModel)
+        {
+            InterceptedItems.Add(readModel);
+            return Task.FromResult(readModel);
+        }
+    }
+
+    public class ServiceRegisteredGenericReadModelInterceptorState
+    {
+        public List<object> InterceptedItems { get; } = [];
+    }
+
+    public class ServiceRegisteredGenericReadModelInterceptor<TReadModel>(ServiceRegisteredGenericReadModelInterceptorState state) : IInterceptReadModel<TReadModel>
+    {
+        public Task<TReadModel> Intercept(TReadModel readModel)
+        {
+            state.InterceptedItems.Add(readModel!);
+            return Task.FromResult(readModel);
+        }
+    }
+
     public record OtherReadModel(int Count);
 
     public class OtherReadModelInterceptor : IInterceptReadModel<OtherReadModel>
