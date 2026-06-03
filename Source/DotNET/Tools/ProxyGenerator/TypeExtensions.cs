@@ -332,9 +332,27 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is, false if not.</returns>
-    public static bool IsDictionary(this Type type) =>
-        (type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType) ||
-        type.GetInterfaces().Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+    public static bool IsDictionary(this Type type)
+    {
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType)
+        {
+            return true;
+        }
+
+        return type.GetInterfaces().Any(i =>
+        {
+            if (!i.IsGenericType) return false;
+            try
+            {
+                return i.GetGenericTypeDefinition() == _dictionaryType;
+            }
+            catch
+            {
+                // GetGenericTypeDefinition can throw on some types
+                return false;
+            }
+        });
+    }
 
     /// <summary>
     /// Get the key type of a dictionary type.
@@ -459,9 +477,13 @@ public static class TypeExtensions
         }
 
         // Handle nullable types (Nullable<T>) by unwrapping and getting the target type of the underlying type
+        // IMPORTANT: Cannot use Nullable.GetUnderlyingType() with MetadataLoadContext types because it's a
+        // runtime reflection API that accesses private CLR implementation details. MetadataLoadContext types
+        // are metadata-only and not backed by runtime CLR types, so Nullable.GetUnderlyingType returns null.
+        // Instead, we use GetGenericArguments()[0] which works with metadata-only reflection.
         if (type.IsGenericType && type.GetGenericTypeDefinition() == _nullableType)
         {
-            var underlyingType = Nullable.GetUnderlyingType(type)!;
+            var underlyingType = type.GetGenericArguments()[0];
             return underlyingType.GetTargetType();
         }
 
