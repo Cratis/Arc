@@ -313,6 +313,13 @@ public static class TypeExtensions
             type = type.GetConceptValueType();
         }
 
+        // Unwrap nullable types before checking the primitive map - Nullable<T> primitives
+        // should be treated as known types since they map to TypeScript primitives
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _nullableType)
+        {
+            type = type.GetGenericArguments()[0];
+        }
+
         return type.FullName is not null && _primitiveTypeMap.ContainsKey(type.FullName);
     }
 
