@@ -458,6 +458,13 @@ public static class TypeExtensions
             type = type.GetConceptValueType();
         }
 
+        // Handle nullable types (Nullable<T>) by unwrapping and getting the target type of the underlying type
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _nullableType)
+        {
+            var underlyingType = Nullable.GetUnderlyingType(type)!;
+            return underlyingType.GetTargetType();
+        }
+
         if (_primitiveTypeMap.TryGetValue(type.FullName!, out var value))
         {
             return value;
