@@ -1,6 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+/**
+ * Format a single query / route parameter value into a string the .NET TypeConverter
+ * infrastructure can round-trip. Date values are emitted as ISO 8601 so DateTimeOffset
+ * binding succeeds; everything else falls back to the JS String coercion.
+ */
+function formatQueryValue(value: unknown): string {
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+    return String(value);
+}
+
 export class UrlHelpers {
     /**
      * Creates a URL from the given origin, API base path, and route.
@@ -40,8 +52,8 @@ export class UrlHelpers {
             }
 
             const pattern = new RegExp(`\\{${key}\\}`, 'gi');
-            const newRoute = result.replace(pattern, encodeURIComponent(String(value)));
-            
+            const newRoute = result.replace(pattern, encodeURIComponent(formatQueryValue(value)));
+
             if (newRoute !== result) {
                 delete unusedParameters[key as keyof T];
                 result = newRoute;
@@ -65,17 +77,17 @@ export class UrlHelpers {
             if (value !== undefined && value !== null) {
                 if (Array.isArray(value)) {
                     for (const item of value) {
-                        queryParams.append(key, String(item));
+                        queryParams.append(key, formatQueryValue(item));
                     }
                 } else {
-                    queryParams.set(key, String(value));
+                    queryParams.set(key, formatQueryValue(value));
                 }
             }
         }
 
         if (additionalParams) {
             for (const [key, value] of Object.entries(additionalParams)) {
-                queryParams.set(key, String(value));
+                queryParams.set(key, formatQueryValue(value));
             }
         }
 
