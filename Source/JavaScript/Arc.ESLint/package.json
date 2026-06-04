@@ -1,5 +1,5 @@
 {
-    "name": "@cratis/arc.eslint",
+    "name": "@cratis/eslint-plugin-arc",
     "version": "0.0.0",
     "description": "Cratis Arc ESLint rules: skip generated proxies and keep MVVM view models React-free. Compose on top of @cratis/eslint-config.",
     "author": "Cratis",

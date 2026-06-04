@@ -1,4 +1,4 @@
-# @cratis/arc.eslint
+# @cratis/eslint-plugin-arc
 
 ESLint rules for projects that consume Cratis Arc. Compose these on top of the Cratis
 base config, [`@cratis/eslint-config`](https://www.npmjs.com/package/@cratis/eslint-config).
@@ -11,7 +11,7 @@ base config, [`@cratis/eslint-config`](https://www.npmjs.com/package/@cratis/esl
 ## Install
 
 ```sh
-yarn add -D @cratis/arc.eslint @cratis/eslint-config eslint
+yarn add -D @cratis/eslint-plugin-arc @cratis/eslint-config eslint
 ```
 
 ## Use
@@ -19,7 +19,7 @@ yarn add -D @cratis/arc.eslint @cratis/eslint-config eslint
 ```js
 // eslint.config.mjs
 import cratis from '@cratis/eslint-config';
-import arc from '@cratis/arc.eslint';
+import arc from '@cratis/eslint-plugin-arc';
 
 export default [
     ...cratis.configs.consumer,

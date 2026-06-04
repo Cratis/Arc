@@ -5,7 +5,7 @@ import { skipGeneratedProxies } from './lib/skipGeneratedProxies.js';
 const { version } = createRequire(import.meta.url)('./package.json');
 
 export const plugin = {
-    meta: { name: '@cratis/arc.eslint', version },
+    meta: { name: '@cratis/eslint-plugin-arc', version },
     rules: { 'no-hooks-in-view-model': noHooksInViewModel },
     processors: { 'skip-generated-proxies': skipGeneratedProxies },
 };
@@ -14,7 +14,7 @@ export const plugin = {
 // (`@cratis/eslint-config`) in a consuming project:
 //
 //   import cratis from '@cratis/eslint-config';
-//   import arc from '@cratis/arc.eslint';
+//   import arc from '@cratis/eslint-plugin-arc';
 //   export default [...cratis.configs.consumer, ...arc.configs.recommended];
 const recommended = [
     {
