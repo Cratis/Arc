@@ -34,7 +34,8 @@ public class EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLo
                 commandContext.GetEventStreamId(),
                 commandContext.GetEventSourceType(),
                 correlationId: default,
-                concurrencyScope: concurrencyScope);
+                concurrencyScope: concurrencyScope,
+                subject: commandContext.GetSubject());
 
             if (!result.IsSuccess)
             {
