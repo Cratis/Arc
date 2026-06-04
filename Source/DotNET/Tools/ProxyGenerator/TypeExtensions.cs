@@ -262,8 +262,8 @@ public static class TypeExtensions
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is observable, false if not.</returns>
     public static bool IsSubject(this Type type) =>
-        type.FullName!.StartsWith("System.Reactive.Subjects.ISubject`1") ||
-        type.FullName!.StartsWith("System.IObservable`1");
+        (type.FullName?.StartsWith("System.Reactive.Subjects.ISubject`1") ?? false) ||
+        (type.FullName?.StartsWith("System.IObservable`1") ?? false);
 
     /// <summary>
     /// Check if a type is a task or a task of T.
@@ -271,8 +271,8 @@ public static class TypeExtensions
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is a task, false if not.</returns>
     public static bool IsTask(this Type type) =>
-        type.FullName!.StartsWith(_taskType.FullName!) ||
-        (type.IsGenericType && type.GetGenericTypeDefinition().FullName!.StartsWith(typeof(Task<>).FullName!));
+        (type.FullName?.StartsWith(_taskType.FullName!) ?? false) ||
+        (type.IsGenericType && (type.GetGenericTypeDefinition().FullName?.StartsWith(typeof(Task<>).FullName!) ?? false));
 
     /// <summary>
     /// Check if a type is a String or not.
@@ -313,7 +313,14 @@ public static class TypeExtensions
             type = type.GetConceptValueType();
         }
 
-        return _primitiveTypeMap.ContainsKey(type.FullName!);
+        // Unwrap nullable types before checking the primitive map - Nullable<T> primitives
+        // should be treated as known types since they map to TypeScript primitives
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _nullableType)
+        {
+            type = type.GetGenericArguments()[0];
+        }
+
+        return type.FullName is not null && _primitiveTypeMap.ContainsKey(type.FullName);
     }
 
     /// <summary>
@@ -332,9 +339,27 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is, false if not.</returns>
-    public static bool IsDictionary(this Type type) =>
-        (type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType) ||
-        type.GetInterfaces().Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+    public static bool IsDictionary(this Type type)
+    {
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType)
+        {
+            return true;
+        }
+
+        return type.GetInterfaces().Any(i =>
+        {
+            if (!i.IsGenericType) return false;
+            try
+            {
+                return i.GetGenericTypeDefinition() == _dictionaryType;
+            }
+            catch
+            {
+                // GetGenericTypeDefinition can throw on some types
+                return false;
+            }
+        });
+    }
 
     /// <summary>
     /// Get the key type of a dictionary type.
@@ -439,7 +464,7 @@ public static class TypeExtensions
             var resolvedKeyType = keyType.IsConcept() ? keyType.GetConceptValueType() : keyType;
             var keyTargetType = resolvedKeyType.IsEnum
                 ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
-                : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var primitiveKeyType)
+                : resolvedKeyType.FullName is not null && _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName, out var primitiveKeyType)
                     ? primitiveKeyType
                     : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
 
@@ -458,7 +483,18 @@ public static class TypeExtensions
             type = type.GetConceptValueType();
         }
 
-        if (_primitiveTypeMap.TryGetValue(type.FullName!, out var value))
+        // Handle nullable types (Nullable<T>) by unwrapping and getting the target type of the underlying type
+        // IMPORTANT: Cannot use Nullable.GetUnderlyingType() with MetadataLoadContext types because it's a
+        // runtime reflection API that accesses private CLR implementation details. MetadataLoadContext types
+        // are metadata-only and not backed by runtime CLR types, so Nullable.GetUnderlyingType returns null.
+        // Instead, we use GetGenericArguments()[0] which works with metadata-only reflection.
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == _nullableType)
+        {
+            var underlyingType = type.GetGenericArguments()[0];
+            return underlyingType.GetTargetType();
+        }
+
+        if (type.FullName is not null && _primitiveTypeMap.TryGetValue(type.FullName, out var value))
         {
             return value;
         }
@@ -518,7 +554,7 @@ public static class TypeExtensions
 
                 var resolvedKeyTargetType = resolvedKeyType.IsEnum
                     ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
-                    : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var keyPrimitiveType)
+                    : resolvedKeyType.FullName is not null && _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName, out var keyPrimitiveType)
                         ? keyPrimitiveType
                         : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
                 if (resolvedKeyTargetType.Type != "string")
@@ -839,7 +875,7 @@ public static class TypeExtensions
     public static bool IsAPrimitiveType(this Type type)
     {
         return type.GetTypeInfo().IsPrimitive
-                || type.IsNullable() || _primitiveTypeMap.ContainsKey(type.FullName!);
+                || type.IsNullable() || (type.FullName is not null && _primitiveTypeMap.ContainsKey(type.FullName));
     }
 
     /// <summary>
@@ -1093,7 +1129,7 @@ public static class TypeExtensions
     /// <returns>The best type found, or the original tuple type if none match the criteria.</returns>
     public static Type GetBestTupleType(this Type type)
     {
-        if (!type.IsGenericType || !type.FullName!.StartsWith("System.ValueTuple"))
+        if (!type.IsGenericType || !(type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
             return type;
         }
@@ -1157,7 +1193,7 @@ public static class TypeExtensions
     /// <returns>The unwrapped type, or null if the type should be skipped.</returns>
     static Type? UnwrapType(Type type)
     {
-        if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))
+        if (type.IsGenericType && (type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
             return type.GetBestTupleType();
         }
