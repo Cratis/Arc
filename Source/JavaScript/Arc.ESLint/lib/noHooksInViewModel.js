@@ -17,6 +17,7 @@ export const noHooksInViewModel = {
         docs: {
             description: 'Disallow React hook calls inside MVVM view models (classes named *ViewModel).',
             recommended: true,
+            url: 'https://github.com/Cratis/Arc/blob/main/Source/JavaScript/Arc.ESLint/README.md',
         },
         schema: [{
             type: 'object',

@@ -1,8 +1,11 @@
+import { createRequire } from 'node:module';
 import { noHooksInViewModel } from './lib/noHooksInViewModel.js';
 import { skipGeneratedProxies } from './lib/skipGeneratedProxies.js';
 
+const { version } = createRequire(import.meta.url)('./package.json');
+
 export const plugin = {
-    meta: { name: '@cratis/arc.eslint' },
+    meta: { name: '@cratis/arc.eslint', version },
     rules: { 'no-hooks-in-view-model': noHooksInViewModel },
     processors: { 'skip-generated-proxies': skipGeneratedProxies },
 };
