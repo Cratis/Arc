@@ -37,7 +37,7 @@ public class MyDbContext : DbContext
         modelBuilder.Entity<User>(entity =>
         {
             entity.Property(e => e.Id)
-                .AsGuid(Database); // Pass the database for proper provider detection
+                .AsGuid(Database.GetDatabaseType()); // Pass the database type for proper provider detection
         });
     }
 }
@@ -101,13 +101,13 @@ public class StoreDbContext : DbContext
         modelBuilder.Entity<Customer>(entity =>
         {
             entity.Property(e => e.Id)
-                .AsConcept(Database); // Configure concept property manually
+                .AsConcept(Database.GetDatabaseType()); // Configure concept property manually
             
             entity.Property(e => e.Name)
-                .AsConcept(Database); // Works with any ConceptAs<T> type
+                .AsConcept(Database.GetDatabaseType()); // Works with any ConceptAs<T> type
             
             entity.Property(e => e.Email)
-                .AsConcept(Database);
+                .AsConcept(Database.GetDatabaseType());
         });
     }
 }

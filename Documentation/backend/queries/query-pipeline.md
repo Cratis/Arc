@@ -277,7 +277,7 @@ public class AccountSecurityFilter : IQueryFilter
         // Check if user has permission to execute this query
         if (!await _currentUser.HasPermissionAsync("accounts.read"))
         {
-            return QueryResult.Unauthorized(context.CorrelationId, "Access denied to accounts");
+            return QueryResult.Unauthorized(context.CorrelationId);
         }
 
         return QueryResult.Success(context.CorrelationId);

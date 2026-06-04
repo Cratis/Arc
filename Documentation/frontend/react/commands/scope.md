@@ -11,7 +11,7 @@ component. This will establish a React context for this part of the hierarchy an
 and queries used within any descendants.
 
 ```typescript
-import { CommandScope } from '@cratis/arc/commands';
+import { CommandScope } from '@cratis/arc.react/commands';
 
 export const MyComposition = () => {
     const [hasChanges, setHasChanges] = useState(false);
@@ -71,7 +71,7 @@ These are cleared automatically when a command executes again — you never need
 ### Checking aggregate state
 
 ```typescript
-import { useCommandScope } from '@cratis/arc/commands';
+import { useCommandScope } from '@cratis/arc.react/commands';
 
 export const Toolbar = () => {
     const scope = useCommandScope();
@@ -215,7 +215,7 @@ The command scope provides the following properties and methods:
 To consume the command scope context you can use the hook that is provided.
 
 ```typescript
-import { useCommandScope } from '@cratis/arc/commands';
+import { useCommandScope } from '@cratis/arc.react/commands';
 
 export const Toolbar = ({ hasChanges, isPerforming }) => {
     const commandScope = useCommandScope();
@@ -242,7 +242,7 @@ The hook is a convenience hook that makes it easier to get the context.
 You can also consume the context directly by using its consumer:
 
 ```typescript
-import { CommandScopeContext } from '@cratis/arc/commands';
+import { CommandScopeContext } from '@cratis/arc.react/commands';
 
 export const Toolbar = () => {
     return (

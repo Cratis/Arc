@@ -61,7 +61,7 @@ builder.UseCratisMongoDB(configureMongoDB: mongoBuilder =>
     mongoBuilder
         .WithCamelCaseNamingPolicy()
         .WithServerResolver<MyCustomServerResolver>()
-        .WithDatabaseNameResolver<MyCustomDatabaseNameResolver>();
+        .WithDatabaseResolver<MyCustomDatabaseNameResolver>();
 });
 ```
 
@@ -76,7 +76,7 @@ Implement `IMongoServerResolver` to provide connection string logic:
 ```csharp
 public class MyServerResolver : IMongoServerResolver
 {
-    public MongoUrl GetMongoUrl()
+    public MongoUrl Resolve()
     {
         return new MongoUrl("mongodb://localhost:27017");
     }
@@ -90,7 +90,7 @@ Implement `IMongoDatabaseNameResolver` to provide database naming logic:
 ```csharp
 public class MyDatabaseNameResolver : IMongoDatabaseNameResolver
 {
-    public string GetDatabaseName()
+    public string Resolve()
     {
         return "MyApplicationDatabase";
     }

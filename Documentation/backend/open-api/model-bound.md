@@ -29,10 +29,11 @@ For matched operations it:
 3. Adds 400, 403, and 500 error response schemas.
 
 ```csharp
-// The handler is automatically discovered and the endpoint is documented
-public class CreateInvoiceCommandHandler : ICommandHandler<CreateInvoice>
+// The command is automatically discovered and the endpoint is documented
+[Command]
+public record CreateInvoice(CustomerId Customer, decimal Amount)
 {
-    public Task Handle(CreateInvoice command, CommandContext context) { ... }
+    public Task Handle() { ... }
 }
 ```
 

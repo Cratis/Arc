@@ -29,7 +29,7 @@ var app = builder.Build();
 
 app.MapGet("/health", async context =>
 {
-    await context.WriteAsync("OK");
+    await context.Write("OK");
 });
 
 await app.RunAsync();
@@ -42,7 +42,7 @@ Map a POST endpoint to handle HTTP POST requests:
 ```csharp
 app.MapPost("/webhook", async context =>
 {
-    var data = await context.ReadBodyAsJsonAsync(typeof(object));
+    var data = await context.ReadBodyAsJson(typeof(object));
     // Process webhook data
     context.SetStatusCode(200);
 });
@@ -89,7 +89,7 @@ app.MapPost("/api/data", async context =>
     var sessionId = context.Cookies["SessionId"];
     
     // Request body as JSON
-    var data = await context.ReadBodyAsJsonAsync(typeof(MyData));
+    var data = await context.ReadBodyAsJson(typeof(MyData));
     
     // Path and method
     var path = context.Path;
@@ -111,10 +111,10 @@ app.MapGet("/api/users", async context =>
     context.ContentType = "application/json";
     
     // Write JSON response
-    await context.WriteResponseAsJsonAsync(users, users.GetType());
+    await context.WriteResponseAsJson(users, users.GetType());
     
     // Or write plain text
-    // await context.WriteAsync("Hello World");
+    // await context.Write("Hello World");
 });
 ```
 
@@ -126,7 +126,7 @@ app.MapGet("/api/data", async context =>
     context.SetResponseHeader("Cache-Control", "no-cache");
     context.SetResponseHeader("X-Custom-Header", "value");
     
-    await context.WriteAsync("Data");
+    await context.Write("Data");
 });
 ```
 
@@ -162,17 +162,17 @@ The extension methods return the `ArcApplication` instance, enabling fluent chai
 ```csharp
 app.MapGet("/health", async context =>
     {
-        await context.WriteAsync("OK");
+        await context.Write("OK");
     },
     new EndpointMetadata(Name: "Health", AllowAnonymous: true))
    .MapGet("/version", async context =>
     {
-        await context.WriteAsync("1.0.0");
+        await context.Write("1.0.0");
     },
     new EndpointMetadata(Name: "Version", AllowAnonymous: true))
    .MapPost("/api/events", async context =>
     {
-        var evt = await context.ReadBodyAsJsonAsync(typeof(object));
+        var evt = await context.ReadBodyAsJson(typeof(object));
         context.SetStatusCode(202);
     },
     new EndpointMetadata(Name: "ReceiveEvent", AllowAnonymous: false));
@@ -195,7 +195,7 @@ app.MapGet("/health", async context =>
     };
     
     context.ContentType = "application/json";
-    await context.WriteResponseAsJsonAsync(health, health.GetType());
+    await context.WriteResponseAsJson(health, health.GetType());
 },
 new EndpointMetadata(
     Name: "HealthCheck",
@@ -213,13 +213,13 @@ app.MapPost("/webhooks/github", async context =>
     var signature = context.Headers["X-Hub-Signature-256"];
     
     // Read webhook payload
-    var payload = await context.ReadBodyAsJsonAsync(typeof(object));
+    var payload = await context.ReadBodyAsJson(typeof(object));
     
     // Process webhook
     // ... your logic here ...
     
     context.SetStatusCode(200);
-    await context.WriteAsync("Webhook received");
+    await context.Write("Webhook received");
 },
 new EndpointMetadata(
     Name: "GitHubWebhook",
@@ -241,7 +241,7 @@ app.MapGet("/api/products", async context =>
         new Product(2, "Product B", 39.99m)
     };
     
-    await context.WriteResponseAsJsonAsync(products, products.GetType());
+    await context.WriteResponseAsJson(products, products.GetType());
 },
 new EndpointMetadata(
     Name: "ListProducts",
@@ -251,12 +251,12 @@ new EndpointMetadata(
 
 app.MapPost("/api/products", async context =>
 {
-    var product = await context.ReadBodyAsJsonAsync(typeof(Product)) as Product;
+    var product = await context.ReadBodyAsJson(typeof(Product)) as Product;
     
     if (product == null)
     {
         context.SetStatusCode(400);
-        await context.WriteAsync("Invalid product data");
+        await context.Write("Invalid product data");
         return;
     }
     
@@ -264,7 +264,7 @@ app.MapPost("/api/products", async context =>
     
     context.SetStatusCode(201);
     context.SetResponseHeader("Location", $"/api/products/{product.Id}");
-    await context.WriteResponseAsJsonAsync(product, typeof(Product));
+    await context.WriteResponseAsJson(product, typeof(Product));
 },
 new EndpointMetadata(
     Name: "CreateProduct",
@@ -284,7 +284,7 @@ app.MapGet("/api/data/{id}", async context =>
     {
         context.SetStatusCode(400);
         var error = new { Error = "ID parameter is required" };
-        await context.WriteResponseAsJsonAsync(error, error.GetType());
+        await context.WriteResponseAsJson(error, error.GetType());
         return;
     }
     
@@ -295,11 +295,11 @@ app.MapGet("/api/data/{id}", async context =>
     {
         context.SetStatusCode(404);
         var error = new { Error = $"Data with ID {id} not found" };
-        await context.WriteResponseAsJsonAsync(error, error.GetType());
+        await context.WriteResponseAsJson(error, error.GetType());
         return;
     }
     
-    await context.WriteResponseAsJsonAsync(data, data.GetType());
+    await context.WriteResponseAsJson(data, data.GetType());
 });
 ```
 
@@ -312,7 +312,7 @@ Control access to endpoints using the `AllowAnonymous` metadata property:
 ```csharp
 app.MapGet("/public/info", async context =>
 {
-    await context.WriteAsync("Public information");
+    await context.Write("Public information");
 },
 new EndpointMetadata(
     Name: "PublicInfo",
@@ -326,7 +326,7 @@ app.MapGet("/private/data", async context =>
 {
     // Only accessible to authenticated users
     var user = context.User;
-    await context.WriteAsync($"Hello, {user.Identity?.Name}");
+    await context.Write($"Hello, {user.Identity?.Name}");
 },
 new EndpointMetadata(
     Name: "PrivateData",
@@ -349,7 +349,7 @@ var app = builder.Build();
 // Map custom endpoints
 app.MapGet("/api/status", async context =>
     {
-        await context.WriteAsync("Running");
+        await context.Write("Running");
     },
     new EndpointMetadata(
         Name: "GetStatus",
@@ -396,14 +396,14 @@ app.MapPost("/api/data", async context =>
 {
     try
     {
-        var data = await context.ReadBodyAsJsonAsync(typeof(MyData));
+        var data = await context.ReadBodyAsJson(typeof(MyData));
         // Process data
     }
     catch (Exception ex)
     {
         context.SetStatusCode(500);
         var error = new { Error = "Internal server error" };
-        await context.WriteResponseAsJsonAsync(error, error.GetType());
+        await context.WriteResponseAsJson(error, error.GetType());
     }
 });
 ```
@@ -428,7 +428,7 @@ app.MapGet("/api/users", async context =>
 {
     var userService = context.RequestServices.GetRequiredService<IUserService>();
     var users = await userService.GetAllAsync();
-    await context.WriteResponseAsJsonAsync(users, users.GetType());
+    await context.WriteResponseAsJson(users, users.GetType());
 });
 ```
 

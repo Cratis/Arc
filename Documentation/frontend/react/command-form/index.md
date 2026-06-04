@@ -15,8 +15,8 @@ CommandForm simplifies working with Arc commands in React by:
 ## Basic Usage
 
 ```tsx
-import { CommandForm } from '@cratis/arc/commands';
-import { InputTextField } from '@cratis/arc/commands/fields';
+import { CommandForm } from '@cratis/arc.react/commands';
+import { InputTextField } from '@cratis/arc.react/commands';
 
 class UserCommand extends Command {
     name = '';

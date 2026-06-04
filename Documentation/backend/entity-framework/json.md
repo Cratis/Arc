@@ -146,7 +146,8 @@ public class StoreDbContext(DbContextOptions options) : DbContext(options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyJsonConversion(Database.ProviderName);
+        var entityTypes = modelBuilder.Model.GetEntityTypes();
+        modelBuilder.ApplyJsonConversion(entityTypes, Database.GetDatabaseType());
         base.OnModelCreating(modelBuilder);
     }
 }
@@ -159,7 +160,8 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     var jsonOptions = new JsonConversionOptions();
     jsonOptions.JsonSerializerOptions.Converters.Add(new MyRequestConverter());
-    modelBuilder.ApplyJsonConversion(Database.ProviderName, jsonOptions);
+    var entityTypes = modelBuilder.Model.GetEntityTypes();
+    modelBuilder.ApplyJsonConversion(entityTypes, Database.GetDatabaseType(), jsonOptions);
     base.OnModelCreating(modelBuilder);
 }
 ```

@@ -221,7 +221,7 @@ const hasAnyChanges = profileCommand.hasChanges || settingsCommand.hasChanges;
 ### Example With Scope
 
 ```typescript
-import { CommandScope } from '@cratis/applications-react';
+import { CommandScope } from '@cratis/arc.react/commands';
 
 export const UserEditor = () => {
     return (

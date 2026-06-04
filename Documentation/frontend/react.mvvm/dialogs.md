@@ -107,7 +107,7 @@ You request a dialog through the `IDialogs` service by giving it an instance of 
 how to resolve into a dialog. This mechanism is in use on the confirmation dialogs and is the same for a custom dialog.
 
 For the dialog to know the context in which it is rendering, there is a hook called `useDialogContext()`.
-In the view where the dialog is used, you define the context implicitly by using the `useDialogRequest()`.
+In the view where the dialog is used, you define the context implicitly by using the `useDialog()`.
 This establishes the **subscriber** that responds to a request from your view model of showing a dialog.
 
 Subscriptions are based on type and it must be a well known type at runtime, so typically in TypeScript you'd define the
@@ -155,13 +155,13 @@ Below is an example of a view that leverages the dialog and has a view model beh
 ```tsx
 import { withViewModel } from '@cratis/arc.react.mvvm';
 import { FeatureViewModel } from './FeatureViewModel';
-import { useDialogRequest } from '@cratis/arc.react.mvvm/dialogs';
+import { useDialog } from '@cratis/arc.react.mvvm/dialogs';
 import { CustomDialog, CustomDialogRequest } from './CustomDialog';
 
 export const Feature = withViewModel<FeatureViewModel>(FeatureViewModel, ({ viewModel }) => {
 
     // Use the dialog request to get a wrapper for rendering our dialog
-    const [CustomDialogWrapper] = useDialogRequest<CustomDialogRequest, string>(CustomDialogRequest, CustomDialog);
+    const [CustomDialogWrapper] = useDialog<CustomDialogRequest, string>(CustomDialogRequest, CustomDialog);
 
     return (
         <div>
@@ -174,7 +174,7 @@ export const Feature = withViewModel<FeatureViewModel>(FeatureViewModel, ({ view
 });
 ```
 
-The code leverages the `useDialogRequest()` with the generic parameters corresponding to the request and response types,
+The code leverages the `useDialog()` with the generic parameters corresponding to the request and response types,
 as you saw when defining the `CustomDialog` component. It returns a **tuple** that holds a wrapper as a React functional component,
 then the context which holds the request when a request is made and a function to close the dialog. This allows for inlining dialogs or passing the information
 on to things that needs it. But for this scenario, we don't need them and we therefor only capture the wrapper.

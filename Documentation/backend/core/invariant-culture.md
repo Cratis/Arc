@@ -15,14 +15,16 @@ Using invariant culture guarantees:
 
 ## Configuration
 
-Call `UseInvariantCulture()` on the `IHostBuilder` before building the application:
+For an `ArcApplication`-based host (a worker or console service), set the default thread cultures to invariant before building the application:
 
 ```csharp
+using System.Globalization;
 using Cratis.Arc;
 
-var builder = ArcApplication.CreateBuilder(args);
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
-builder.UseInvariantCulture();
+var builder = ArcApplication.CreateBuilder(args);
 builder.AddCratisArc();
 
 var app = builder.Build();
@@ -31,12 +33,23 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
+For a generic host, the `UseInvariantCulture()` extension on `IHostBuilder` does the same thing in one call:
+
+```csharp
+using Cratis.Arc;
+using Microsoft.Extensions.Hosting;
+
+var host = Host.CreateDefaultBuilder(args)
+    .UseInvariantCulture()
+    .Build();
+```
+
 ## What Gets Configured
 
-Calling `UseInvariantCulture()` on the builder:
+Both approaches set:
 
-- Sets `CultureInfo.DefaultThreadCurrentCulture` to `CultureInfo.InvariantCulture`
-- Sets `CultureInfo.DefaultThreadCurrentUICulture` to `CultureInfo.InvariantCulture`
+- `CultureInfo.DefaultThreadCurrentCulture` to `CultureInfo.InvariantCulture`
+- `CultureInfo.DefaultThreadCurrentUICulture` to `CultureInfo.InvariantCulture`
 
 This ensures that all threads in the application, including background threads and thread pool threads, use invariant culture by default.
 

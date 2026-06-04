@@ -7,7 +7,7 @@ CommandForm provides hooks for advanced scenarios.
 Access the form context to inspect state and control behavior:
 
 ```tsx
-import { useCommandFormContext } from '@cratis/applications-react/commands';
+import { useCommandFormContext } from '@cratis/arc.react/commands';
 import { Command } from '@cratis/arc/commands';
 
 function CustomSubmitButton() {
@@ -47,7 +47,7 @@ function CustomSubmitButton() {
 Create and manage a command instance outside of CommandForm:
 
 ```tsx
-import { useCommandInstance } from '@cratis/applications-react/commands';
+import { useCommandInstance } from '@cratis/arc.react/commands';
 
 function MyComponent() {
     const command = useCommandInstance(CreateOrder, {

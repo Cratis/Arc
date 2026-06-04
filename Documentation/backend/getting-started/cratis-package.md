@@ -55,14 +55,13 @@ builder.AddCratis(
     configureArcOptions: options =>
     {
         // Configure Arc options
-        options.UseControllerBasedRouting = true;
     },
     configureArcBuilder: arcBuilder =>
     {
         // Configure additional Arc features
         arcBuilder.WithMongoDB();
     },
-    configureArcChronicleOptions: options =>
+    configureChronicleOptions: options =>
     {
         // Configure Chronicle options
         options.ClusterName = "my-cluster";

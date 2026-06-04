@@ -364,46 +364,68 @@ Queries also support both authorization approaches for data protection:
 ### Using Standard Authorization for Queries
 
 ```csharp
-[Query]
+[ReadModel]
 [Authorize(Roles = "Admin,Manager")]
-public record GetUserAuditLog(
-    string UserId,
-    DateTime FromDate,
-    DateTime ToDate);
+public record UserAuditLog(string UserId, DateTime Occurred, string Action)
+{
+    public static IEnumerable<UserAuditLog> GetUserAuditLog(
+        IMongoCollection<UserAuditLog> collection,
+        string userId,
+        DateTime fromDate,
+        DateTime toDate) =>
+        collection.Find(entry =>
+            entry.UserId == userId &&
+            entry.Occurred >= fromDate &&
+            entry.Occurred <= toDate).ToList();
+}
 ```
 
 ### Using the Roles Attribute for Queries
 
 ```csharp
-[Query]
+[ReadModel]
 [Roles("Manager", "Admin", "Auditor")]
-public record GetUserAuditLog(
-    string UserId,
-    DateTime FromDate,
-    DateTime ToDate);
+public record UserAuditLog(string UserId, DateTime Occurred, string Action)
+{
+    public static IEnumerable<UserAuditLog> GetUserAuditLog(
+        IMongoCollection<UserAuditLog> collection,
+        string userId,
+        DateTime fromDate,
+        DateTime toDate) =>
+        collection.Find(entry =>
+            entry.UserId == userId &&
+            entry.Occurred >= fromDate &&
+            entry.Occurred <= toDate).ToList();
+}
 
-[Query]
+[ReadModel]
 [Roles("Viewer", "Editor", "Admin")]
-public record GetProductDetails(string ProductId);
+public record ProductDetails(string ProductId, string Name, decimal Price)
+{
+    public static ProductDetails? GetProductDetails(
+        IMongoCollection<ProductDetails> collection,
+        string productId) =>
+        collection.Find(product => product.ProductId == productId).FirstOrDefault();
+}
 ```
 
 ### Authorization Results for Queries
 
-Query results include authorization status that can be checked:
+Model-bound queries are invoked by calling their static method directly. The
+authorization attributes are enforced by the query pipeline before the method runs,
+so a caller that lacks the required roles never reaches the query logic:
 
 ```csharp
-var result = await mediator.Send(new GetUserAuditLogQuery("user123", DateTime.Now.AddDays(-30), DateTime.Now));
+var auditLog = UserAuditLog.GetUserAuditLog(
+    collection,
+    "user123",
+    DateTime.Now.AddDays(-30),
+    DateTime.Now);
 
-if (!result.IsAuthorized)
+// Use the returned data
+foreach (var entry in auditLog)
 {
-    // Handle unauthorized access
-    return Unauthorized();
-}
-
-if (result.IsSuccess)
-{
-    // Query executed successfully, use result.Data
-    var auditLog = result.Data;
+    // Process each audit log entry
 }
 ```
 
@@ -472,7 +494,7 @@ public class QueryAuthorizationFilter : IQueryFilter
         // Custom authorization logic for queries
         if (!IsAuthorized(context))
         {
-            return Task.FromResult(QueryResult.Unauthorized(context.CorrelationId, "Access denied"));
+            return Task.FromResult(QueryResult.Unauthorized(context.CorrelationId));
         }
         
         return Task.FromResult(QueryResult.Success(context.CorrelationId));
