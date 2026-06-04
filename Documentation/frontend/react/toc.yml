@@ -19,4 +19,4 @@
 - name: Story Components
   href: stories/toc.yml
 - name: Storybook
-  href: storybook.md
+  href: storybook.mdx
