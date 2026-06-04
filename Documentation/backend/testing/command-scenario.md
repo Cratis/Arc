@@ -140,8 +140,18 @@ public class when_admin_command_executed_by_regular_user
 {
     readonly CommandScenario<DeleteAllOrders> _scenario = new();
 
-    public when_admin_command_executed_by_regular_user() =>
-        _scenario.Services.AddSingleton<IIdentityProvider>(new StubIdentityProvider(roles: []));
+    public when_admin_command_executed_by_regular_user()
+    {
+        // Arc reads the current principal from the HTTP context. Supply one whose user
+        // lacks the "admin" role that DeleteAllOrders requires via [Authorize(Roles = "admin")].
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Role, "user")], authenticationType: "test"))
+        });
+        _scenario.Services.AddSingleton(httpContextAccessor);
+    }
 
     [Fact]
     public async Task should_not_be_authorized()
