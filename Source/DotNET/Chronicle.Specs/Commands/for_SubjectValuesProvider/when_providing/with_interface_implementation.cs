@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
+using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Commands.for_SubjectValuesProvider.when_providing;
 
