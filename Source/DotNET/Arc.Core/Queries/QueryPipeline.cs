@@ -1,9 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive.Subjects;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
+using Cratis.Reflection;
 using Cratis.Traces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,6 +107,16 @@ public class QueryPipeline(
 
     async Task<object> ApplyInterceptors(Type readModelType, object data, IServiceProvider serviceProvider)
     {
+        // Streaming results are intercepted per emission by the streaming transport — ClientObservableSSE /
+        // ClientObservable for single observable queries, and ObservableQueryDemultiplexer for the multiplexed
+        // hub. The data here is the subject / async-enumerable wrapper, not a read model instance, so handing it
+        // to the per-item interceptor would try to bind the wrapper to the read model type and throw.
+        if (data.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) ||
+            data.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
+        {
+            return data;
+        }
+
         if (data is IQueryable queryable)
         {
             var items = queryable.Cast<object>().ToList();

@@ -14,6 +14,8 @@ public class an_observable_query_demultiplexer : Specification
     protected IQueryContextManager _queryContextManager;
     protected IHttpRequestContextAccessor _httpRequestContextAccessor;
     protected IHostApplicationLifetime _hostApplicationLifetime;
+    protected IReadModelInterceptors _readModelInterceptors;
+    protected IServiceProvider _serviceProvider;
     protected IOptions<ArcOptions> _arcOptions;
     protected ILogger<ObservableQueryDemultiplexer> _logger;
     protected ObservableQueryDemultiplexer _hub;
@@ -25,6 +27,14 @@ public class an_observable_query_demultiplexer : Specification
         _httpRequestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
         _hostApplicationLifetime = Substitute.For<IHostApplicationLifetime>();
         _hostApplicationLifetime.ApplicationStopping.Returns(CancellationToken.None);
+
+        // Pass-through interception by default — each emitted item flows out unchanged. Specs that
+        // exercise compliance/PII release override this to assert the streaming path is intercepted.
+        _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+            .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
+        _serviceProvider = Substitute.For<IServiceProvider>();
+
         _arcOptions = Options.Create(new ArcOptions());
         _logger = Substitute.For<ILogger<ObservableQueryDemultiplexer>>();
         _hub = new ObservableQueryDemultiplexer(
@@ -32,6 +42,8 @@ public class an_observable_query_demultiplexer : Specification
             _queryContextManager,
             _httpRequestContextAccessor,
             _hostApplicationLifetime,
+            _readModelInterceptors,
+            _serviceProvider,
             _arcOptions,
             _logger);
     }
