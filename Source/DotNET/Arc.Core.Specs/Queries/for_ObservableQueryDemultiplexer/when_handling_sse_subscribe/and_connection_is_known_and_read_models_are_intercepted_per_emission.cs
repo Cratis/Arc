@@ -97,8 +97,7 @@ public class and_connection_is_known_and_read_models_are_intercepted_per_emissio
 
         foreach (var hubMessage in _messages
                      .Select(TryParseHubMessage)
-                     .Where(_ => _ is not null)
-                     .Select(_ => _))
+                     .Where(_ => _ is not null))
         {
             if (hubMessage.Type != ObservableQueryHubMessageType.Connected || hubMessage.Payload is not JsonElement payload)
             {
