@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
@@ -39,6 +40,8 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryContextManager">The <see cref="IQueryContextManager"/> for managing query contexts.</param>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> used to propagate the caller's identity into the authorization pipeline.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/> used to cancel connections on shutdown.</param>
+/// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> used to intercept (e.g. decrypt compliance/PII properties on) each emitted read model before it is sent to the client.</param>
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors. The root provider is used because subscriptions outlive the short-lived subscribe request scope.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/> used for JSON serialization.</param>
 /// <param name="logger">The logger.</param>
 [Singleton]
@@ -47,6 +50,8 @@ public class ObservableQueryDemultiplexer(
     IQueryContextManager queryContextManager,
     IHttpRequestContextAccessor httpRequestContextAccessor,
     IHostApplicationLifetime hostApplicationLifetime,
+    IReadModelInterceptors readModelInterceptors,
+    IServiceProvider serviceProvider,
     IOptions<ArcOptions> arcOptions,
     ILogger<ObservableQueryDemultiplexer> logger) : IObservableQueryDemultiplexer
 {
@@ -525,7 +530,7 @@ public class ObservableQueryDemultiplexer(
         return (IDisposable)method.Invoke(this, [subject, queryId, paging, transferMode, correlationId, onNext, onError, token])!;
     }
 
-    IDisposable SubscribeToSubjectOfType<T>(
+    CompositeDisposable SubscribeToSubjectOfType<T>(
         ISubject<T> subject,
         string queryId,
         PagingInfo paging,
@@ -539,19 +544,32 @@ public class ObservableQueryDemultiplexer(
         var isDeltaMode = string.Equals(transferMode, "delta", StringComparison.OrdinalIgnoreCase);
         var isFullMode = string.Equals(transferMode, "full", StringComparison.OrdinalIgnoreCase);
 
+        // Interception (compliance/PII release) is asynchronous. Emissions are serialized through this gate so
+        // the per-emission interception and the ChangeSet's previous/current item bookkeeping stay ordered even
+        // when the underlying subject delivers the next value before the previous one has finished interception.
+        var emissionGate = new SemaphoreSlim(1, 1);
+
         // Capture the per-subscription query context here, while the AsyncLocal still carries the
         // context set up by the query pipeline. Observer callbacks below are invoked from the MongoDB
         // change-stream thread, where AsyncLocal flow does not reach, so reading the manager from
         // inside the callback would return QueryContext.NotSet and overwrite the real paging info.
         var subscriptionQueryContext = queryContextManager.Current;
 
-        return subject.Subscribe(
-            data =>
+        var subscription = subject.Subscribe(OnEmission, OnSubscriptionError);
+
+        return new CompositeDisposable(subscription, emissionGate);
+
+        async void OnEmission(T data)
+        {
+            if (token.IsCancellationRequested)
             {
-                if (token.IsCancellationRequested)
-                {
-                    return;
-                }
+                return;
+            }
+
+            await emissionGate.WaitAsync(token);
+            try
+            {
+                var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, serviceProvider);
 
                 var isFirstEmission = previousItems is null;
 
@@ -559,7 +577,7 @@ public class ObservableQueryDemultiplexer(
                 // Delta mode: skip computation on first emission (full snapshot is sent instead).
                 // Full mode: skip computation entirely (client always receives the full snapshot).
                 ChangeSet? changeSet = null;
-                if (!(data is not IEnumerable enumerable || data is string))
+                if (interceptedData is IEnumerable enumerable and not string)
                 {
                     var currentItems = enumerable.Cast<object>().ToArray();
                     if (!isFullMode && (!isDeltaMode || !isFirstEmission))
@@ -576,7 +594,7 @@ public class ObservableQueryDemultiplexer(
 
                     // Delta mode subsequent emissions omit Data; client reconstructs from ChangeSet.
                     // First emission always includes the full snapshot regardless of mode.
-                    Data = isDeltaMode && !isFirstEmission ? null! : data!,
+                    Data = isDeltaMode && !isFirstEmission ? null! : interceptedData!,
                     IsAuthorized = true,
                     ValidationResults = [],
                     ExceptionMessages = [],
@@ -597,25 +615,45 @@ public class ObservableQueryDemultiplexer(
                         subscriptionQueryContext.TotalItems);
                 }
 
-                _ = onNext(result);
-            },
-            error =>
+                await onNext(result);
+            }
+            catch (OperationCanceledException)
             {
-                if (token.IsCancellationRequested)
+                // Connection cancelled — nothing to report.
+            }
+            catch (Exception error) when (error is not IOException)
+            {
+                // Transport errors (broken pipe, reset connection) indicate the client disconnected and are
+                // ignored; anything else is a genuine failure that must be surfaced to the subscriber.
+                if (!token.IsCancellationRequested)
                 {
-                    return;
+                    logger.SubscriptionError(queryId, error);
+                    _ = onError(queryId, error.Message);
                 }
+            }
+            finally
+            {
+                emissionGate.Release();
+            }
+        }
 
-                // Transport errors (broken pipe, reset connection) indicate the client
-                // disconnected — cancel the connection and do not forward to the client.
-                if (error is IOException)
-                {
-                    return;
-                }
+        void OnSubscriptionError(Exception error)
+        {
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
 
-                logger.SubscriptionError(queryId, error);
-                _ = onError(queryId, error.Message);
-            });
+            // Transport errors (broken pipe, reset connection) indicate the client
+            // disconnected — cancel the connection and do not forward to the client.
+            if (error is IOException)
+            {
+                return;
+            }
+
+            logger.SubscriptionError(queryId, error);
+            _ = onError(queryId, error.Message);
+        }
     }
 
     async Task StreamAsyncEnumerable(
