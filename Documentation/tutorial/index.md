@@ -9,7 +9,21 @@ This isn't a tour of one slice in isolation. We'll build several features that l
 
 Arc doesn't care where your data lives. We'll store it straight in a database — **MongoDB or EF Core**, your choice — with no event store in sight. (If you've read that Arc and [Chronicle](/chronicle/) are a package deal, they're not: Chronicle is an *optional* upgrade you can add later without touching your queries or your frontend. The last chapter shows exactly that.)
 
-Here's the shape of what we're heading toward. Don't worry if the pieces aren't familiar yet — we'll meet each one in turn:
+Here's the shape of what we're heading toward, as an **[event model](/event-modeling/)** — the way you'd whiteboard a feature *before* deciding how to store it. Read it left to right: the librarian adds an author on a screen, the `RegisterAuthor` command records that an author was registered, the `Author` read model is built from that, and the next screen lists it. Don't worry if the pieces aren't familiar yet — we'll meet each one in turn.
+
+```mermaid
+eventmodeling
+
+tf 01 ui  Authors.AddAuthor
+tf 02 cmd Authors.RegisterAuthor { id: uuid, name: string }
+tf 03 evt Authors.AuthorRegistered { name: string }
+tf 04 rmo Authors.Author ->> 03
+tf 05 ui  Authors.Authors ->> 04
+```
+
+Even with no event store, the model still has an *event*: `AuthorRegistered` is the business **fact** the command records — event modeling describes the flow, not the storage. Over a plain database your command simply writes the `Author` read model directly. Each later feature (add books, list them) is another column of the same shape.
+
+That's *what* you'll build. Here's *how* Arc runs it — and the part that earns its place: you write the command and the query once in C#, and the build **generates the typed proxies** your React calls, so the frontend can't drift from the backend. Over a database the path is direct:
 
 ```mermaid
 flowchart LR
@@ -28,6 +42,8 @@ flowchart LR
     RM --> Q
     Q -->|generated query proxy, live| UI
 ```
+
+The two diagrams are two views of the same feature: the event model is the **domain flow** you design, and the flowchart is the **typed boundary** the build wires up for you — generated C# → TypeScript proxies, no hand-written API client. That boundary is the heart of Arc; [Understanding the proxy boundary](/arc/understanding-the-proxy-boundary/) goes deeper on it.
 
 ## What you'll build
 

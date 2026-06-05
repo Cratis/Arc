@@ -8,7 +8,22 @@ import FullStackTabs from '@components/FullStackTabs.astro';
 
 You have a complete, typed, live full-stack app — and not an event anywhere in it. That's a perfectly good place to stop. But the day **history** starts to matter — an audit trail, the ability to rebuild a read model a brand-new way, temporal queries, or automation that fires on facts — you reach for [Chronicle](/chronicle/), Arc's event-sourcing engine.
 
-The reassuring part: adopting it is a **write-side change**. Your queries, your generated proxies, and your React screens don't move. Let's prove it on the very first slice.
+The reassuring part: adopting it is a **write-side change**. Your queries, your generated proxies, and your React screens don't move.
+
+You drew this slice as an **[event model](/event-modeling/)** back in the [tutorial intro](/arc/tutorial/), and it barely changes here. The screen, the command, the `AuthorRegistered` fact, the read model, and the query all stay put. What changes is *where the fact lives* — a database row becomes a real, stored event — and that unlocks one genuinely new block: a **reactor** (frame `06`), automation that fires *when a fact happens*.
+
+```mermaid
+eventmodeling
+
+tf 01 ui  Authors.AddAuthor
+tf 02 cmd Authors.RegisterAuthor { id: uuid, name: string }
+tf 03 evt Authors.AuthorRegistered { name: string }
+tf 04 rmo Authors.Author ->> 03
+tf 05 ui  Authors.Authors ->> 04
+tf 06 pcr Authors.WelcomeNewAuthors
+```
+
+Frames `01`–`05` are unchanged from the intro — the fact at `03` is just stored differently now. Frame `06` is the new part: a reactor, which you couldn't have before because there were no stored events to react to. Let's prove it on the very first slice.
 
 ## What changes, and what doesn't
 
