@@ -16,6 +16,12 @@ flowchart LR
     RM -->|AllAuthors| Q["query over HTTP, live"]
 ```
 
+## Prerequisites
+
+- **.NET SDK 8 or newer.**
+- **An Arc backend project** — add the `Cratis.Arc` packages to an ASP.NET Core app, or scaffold the full stack with the [Cratis templates](/chronicle/get-started/).
+- **A database Arc can write to** — MongoDB, or EF Core over SQLite/Postgres. No event store is required for this slice.
+
 <Steps>
 
 1. **A strongly-typed id.** Never pass raw `Guid`s around the domain — wrap them so the compiler keeps them straight and your signatures document themselves:

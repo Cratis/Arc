@@ -9,6 +9,12 @@ You finished the [backend slice](/arc/backend/getting-started/your-first-command
 
 Normally this is where the type safety ends. You'd hand-write a `fetch` wrapper, redeclare the request and response shapes in TypeScript, and hope the two sides stay in sync. Arc skips all of that: the proxies are generated *from your C#*, so the frontend already knows the exact types — and the compiler catches you the moment they drift. Let's read data and run a command through them.
 
+## Prerequisites
+
+- **The backend slice from [Your first command and query](/arc/backend/getting-started/your-first-command/)** — its `RegisterAuthor` command and `AllAuthors` query are what this screen calls.
+- **A successful `dotnet build`** — that's what generates the TypeScript proxies the frontend imports.
+- **A Vite + React app** with `@cratis/arc.react` and `@cratis/components` installed — the `dotnet new cratis` template scaffolds exactly that.
+
 <Aside type="note" title="Backend first">
 Proxies appear when you **build the backend** — until `dotnet build` succeeds, the proxy files don't exist. If you scaffolded with `dotnet new cratis`, the frontend and a sample feature are already wired; this page explains what's happening so you can add your own.
 </Aside>
