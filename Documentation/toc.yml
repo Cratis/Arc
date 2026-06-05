@@ -6,7 +6,7 @@
   href: why-arc.md
 - name: Arc without event sourcing
   href: arc-without-event-sourcing.md
-- name: Coming from MediatR or MVC
+- name: MediatR, MVC, and Arc
   href: coming-from-mediatr-and-mvc.md
 - name: Vertical slices
   href: vertical-slices.md

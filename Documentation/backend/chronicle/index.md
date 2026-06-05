@@ -2,6 +2,8 @@
 
 `Cratis.Arc.Chronicle` is the integration package that extends Arc with [Cratis Chronicle](https://github.com/Cratis/Chronicle) capabilities. It wires the two frameworks together so that Arc's application model — commands, queries, identity, tenancy, and code generation — works seamlessly with Chronicle's event sourcing infrastructure.
 
+Arc does not require Chronicle. Start with Arc over MongoDB or EF Core when current-state persistence is enough; add this integration when history, auditability, replay, reactors, or aggregate streams become part of the problem.
+
 ## What it provides
 
 Without this package, Arc and Chronicle are independent. With it:
@@ -19,6 +21,9 @@ Without this package, Arc and Chronicle are independent. With it:
 | Topic | Description |
 | ----- | ----------- |
 | [Aggregates](aggregates/index.md) | Working with aggregate roots and event sourcing. |
+| [Add event sourcing to an Arc slice](add-event-sourcing.md) | Move one database-backed slice to Chronicle while keeping its query and React screen in place. |
+| [Cratis Package](cratis-package.md) | The convenience package for Arc + Chronicle applications. |
+| [React to an event](react-to-an-event.md) | Run side effects or follow-up commands from Chronicle events with reactors. |
 | [Commands](commands/index.md) | Returning events from commands, event source id resolution, and concurrency scoping. |
 | [Resolving EventSourceId](resolving-event-source-id.md) | How Chronicle resolves aggregate and read model identity from commands and query arguments. |
 | [Read Models](read-models.md) | How read models are hooked up to Chronicle projections. |

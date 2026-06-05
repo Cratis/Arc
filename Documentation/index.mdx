@@ -8,19 +8,19 @@ import SimpleCard from '@components/SimpleCard.astro';
 import TopicHero from '@components/TopicHero.astro';
 
 <TopicHero icon="puzzle" eyebrow="Arc" title="Full-stack CQRS, typed to the browser">
-Turn **commands** and **queries** into a full-stack CQRS application — backed by [Chronicle](/chronicle/), MongoDB, or EF Core — with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
+Turn **commands** and **queries** into a full-stack CQRS application over MongoDB or EF Core, with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
 </TopicHero>
 
 ## Start here
 
 <CardGrid>
   <SimpleCard title="Your first command & query" icon="rocket" link="/arc/backend/getting-started/your-first-command/">
-    Build a backend slice end to end: a command with `Handle()`, the event it records, and the query that serves the read model.
+    Build a backend slice end to end: a command with `Handle()`, the read model it writes, and the live query that serves it.
   </SimpleCard>
   <SimpleCard title="Wire up the React frontend" icon="seti:react" link="/arc/frontend/getting-started/">
-    Consume the generated proxies from React — a typed query and a command, with zero hand-written client code.
+    Consume the generated proxies from React — a typed query and a command, with the client model generated from C#.
   </SimpleCard>
-  <SimpleCard title="Coming from MediatR or MVC" icon="right-arrow" link="/arc/coming-from-mediatr-and-mvc/">
+  <SimpleCard title="MediatR, MVC, and Arc" icon="right-arrow" link="/arc/coming-from-mediatr-and-mvc/">
     Maps controllers, handlers, and DTOs onto Arc's command/query model so the shift is short.
   </SimpleCard>
 </CardGrid>
@@ -51,4 +51,4 @@ Turn **commands** and **queries** into a full-stack CQRS application — backed 
   </SimpleCard>
 </CardGrid>
 
-Arc can sit on top of [Chronicle](/chronicle/) and feeds [Components](/components/) — though it [runs over a plain database just as well](/arc/arc-without-event-sourcing/). See [Why Cratis](/why-cratis/) for how the pieces fit.
+Arc feeds [Components](/components/) and runs over plain databases by default. When a slice needs event-sourced history, Arc can also sit on top of [Chronicle](/chronicle/) through its [optional Chronicle integration](/arc/backend/chronicle/). See [Why developers choose Cratis](/why-cratis/) for how the pieces fit.

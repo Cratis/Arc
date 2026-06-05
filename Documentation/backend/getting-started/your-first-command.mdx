@@ -76,12 +76,12 @@ flowchart LR
 In one folder, read top to bottom:
 
 - A `[Command]` with `Handle()` — intent and implementation in one place, no handler class.
-- A `[ReadModel]` with a query method served over HTTP, live, for free.
+- A `[ReadModel]` with a live query method served over HTTP.
 
 That's a complete vertical slice, over a plain database. The next feature is another folder just like it.
 
 <Aside type="note" title="Storing where you like">
-This slice writes straight to MongoDB. Arc is persistence-agnostic — the same shape works over [EF Core](/arc/backend/entity-framework/getting-started/), and the day you want history, audit, and replay, you can move the write side to [Chronicle](/chronicle/) without touching your query or your frontend. The [tutorial's last chapter](/arc/tutorial/add-event-sourcing/) shows exactly that.
+This slice writes straight to MongoDB. Arc is persistence-agnostic — the same shape works over [EF Core](/arc/backend/entity-framework/getting-started/). If a future slice needs history, audit, and replay, the [Chronicle integration](/arc/backend/chronicle/add-event-sourcing/) can move the write side to events without touching your query or your frontend.
 </Aside>
 
 ## Where to go next

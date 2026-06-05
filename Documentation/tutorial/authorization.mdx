@@ -58,7 +58,7 @@ That's a topic in its own right; the [Identity](/arc/backend/identity/) section 
 Five chapters ago we had nothing. Now we have a real full-stack library back office, running over a plain database — and you've used every part of the Arc loop and know *why* each one is shaped the way it is:
 
 - **Chapter 1** — a full-stack slice: a `[Command]` with `Handle()` that writes, a `[ReadModel]` with its query, and a React screen calling both through generated, typed proxies.
-- **Chapter 2** — trust: a `ConceptValidator` on the value type and a `CommandValidator` business rule, both surfaced in the UI for free.
+- **Chapter 2** — trust: a `ConceptValidator` on the value type and a `CommandValidator` business rule, both surfaced in the UI through the generated proxy.
 - **Chapter 3** — relationships: a second slice and a filtered query that reads one author's catalog, no join.
 - **Chapter 4** — life: observable queries as standing subscriptions, database to browser.
 - **Chapter 5** — authorization: `[Roles(...)]` at the boundary, on both commands and queries, tied to the signed-in user.
@@ -67,6 +67,4 @@ The thing worth taking with you is the loop itself: **something happens (a comma
 
 And notice what you *didn't* need: an event store. Arc gave you the full typed, live, full-stack experience over a plain database. That's the right call for a great many applications.
 
-## One optional step
-
-There's one more thing worth seeing — not because you need it, but because it's the question every event-sourcing curious developer asks: *what would it take to add Chronicle later?* The answer is reassuring, and it's a fitting last lesson. [Add event sourcing →](./add-event-sourcing)
+From here, build another feature the same way, or take the next layer up: [Components](/components/) turns these generated commands and queries into higher-level screens, and the [Cratis Stack tour](/cratis-stack/) shows where Arc fits with the rest of the platform.

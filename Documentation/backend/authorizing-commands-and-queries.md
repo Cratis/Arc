@@ -18,7 +18,8 @@ Put `[Roles(...)]` on the `[Command]` record. Arc checks the caller's roles befo
 [Roles(nameof(UserRole.Librarian))]
 public record RegisterAuthor(AuthorId Id, AuthorName Name)
 {
-    public AuthorRegistered Handle() => new(Name);
+    public Task Handle(IMongoCollection<Author> authors) =>
+        authors.InsertOneAsync(new Author(Id, Name));
 }
 ```
 
@@ -28,7 +29,6 @@ Query methods on a read model take the same attribute, so the read side is gated
 
 ```csharp
 [ReadModel]
-[FromEvent<AuthorRegistered>]
 public record Author([property: Key] AuthorId Id, AuthorName Name)
 {
     [Roles(nameof(UserRole.Librarian))]

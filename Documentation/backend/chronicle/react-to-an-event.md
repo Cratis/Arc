@@ -1,9 +1,11 @@
 ---
 title: React to an event
-description: Run a side effect or trigger a follow-up command automatically when an event is appended — using a reactor.
+description: Run a side effect or trigger a follow-up command automatically when a Chronicle event is appended — using a reactor.
 ---
 
-**Goal:** when something happens — a book is added, an author is registered — you want something *else* to happen automatically: a notification goes out, another system is told, a follow-up command runs. That's a reactor.
+**Goal:** when an event-sourced slice records something — a book is added, an author is registered — you want something *else* to happen automatically: a notification goes out, another system is told, a follow-up command runs. That's a reactor.
+
+This is part of Arc's optional Chronicle integration. Plain database-backed Arc slices use commands, queries, and ordinary services; reactors become available when the write side records events in Chronicle.
 
 ## A reactor does, a projection shows
 
@@ -40,5 +42,5 @@ A reactor may be called more than once for the same event — during replay or r
 ## See also
 
 - [Reactors](/chronicle/reactors/) — the full reactor model, dispatch, and failure behavior.
-- [Make it live, make it react](/arc/tutorial/real-time/) — a reactor built in context.
-- [Return a result or an error](./return-a-result-or-error.md) — what the command you execute can return.
+- [Add event sourcing to an Arc slice](./add-event-sourcing.md) — where reactors enter the Arc model.
+- [Return a result or an error](/arc/scenarios/return-a-result-or-error/) — what the command you execute can return.

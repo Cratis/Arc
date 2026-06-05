@@ -40,7 +40,7 @@ flowchart LR
     C --> UI["Frontend — typed identity"]
 ```
 
-Two things fall out of this for free:
+Two things fall out of this design:
 
 - **Authorization at the front door.** Returning `IsUserAuthorized: false` stops an unwanted user before a single command runs — Arc returns `403` and they never reach your app.
 - **One identity, backend to browser.** The details you return are published as a `.cratis-identity` cookie and consumed, typed, on the React side — the same way commands and queries are. You enrich identity once and read it everywhere. (Details: [Identity](/arc/backend/identity/), [contracts](/arc/backend/identity/contracts/), and [on the frontend](/arc/frontend/react/identity/).)
@@ -71,7 +71,7 @@ public record Author(AuthorId Id, AuthorName Name)
 
 - `[Authorize]` requires an authenticated user; `[Roles("Librarian", "Admin")]` requires **at least one** of the listed roles; `[AllowAnonymous]` opens a specific endpoint back up.
 - Apply them at the **class level** to cover everything and **override per method** for exceptions — secure by default, opt out where you mean it.
-- A failure is automatic: `401` if they're not signed in, `403` if they are but lack the role. The frontend's [generated proxy](/arc/understanding-the-proxy-boundary/) surfaces it in the command result, so the UI can react.
+- A failure is automatic: `401` if authentication stops the request before Arc runs, `403` if Arc's command or query pipeline rejects the signed-in user. Pipeline authorization failures are surfaced in the generated command/query result as `isAuthorized: false`, so the UI can react.
 
 When a rule is about *this specific row* — "you can only edit your own profile" — that's not an attribute, it's a check inside `Handle()` against the current user. (Full matrix, claims access, and inheritance rules: [Authorization](/arc/backend/core/authorization/).)
 

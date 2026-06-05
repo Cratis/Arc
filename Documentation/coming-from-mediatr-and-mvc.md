@@ -1,13 +1,13 @@
 ---
-title: Coming from MediatR or MVC
-description: If you already build .NET apps with MediatR and ASP.NET Core controllers, here's how those ideas map onto Arc — and what changes.
+title: MediatR, MVC, and Arc
+description: If you already build .NET apps with MediatR and ASP.NET Core controllers, here's how those ideas map onto Arc.
 ---
 
-If you've built ASP.NET Core apps with controllers, DTOs, and MediatR, you already know most of the *concepts* in Arc — they just have less ceremony. This page maps what you know onto Arc so you can move fast.
+If you've built ASP.NET Core apps with controllers, DTOs, and MediatR, you already know most of the *concepts* in Arc. This page maps those familiar pieces onto Arc's command/query model.
 
 ## The one-paragraph version
 
-In MVC you write a controller action that takes a request model, validates it, calls a handler, and returns a response. With MediatR you split that into an `IRequest` and an `IRequestHandler`. **Arc collapses all of that into one thing:** a command is a record with a `Handle()` method on it. There's no controller and no separate handler class — Arc maps the command to an HTTP endpoint and generates a typed client for your frontend.
+In MVC, a controller action takes a request model, validates it, calls a handler, and returns a response. With MediatR, that often becomes an `IRequest` and an `IRequestHandler`. In Arc, the command is a record with a `Handle()` method on it; Arc maps that command to an HTTP endpoint and generates a typed client for your frontend.
 
 ## How the pieces map
 
@@ -18,9 +18,9 @@ In MVC you write a controller action that takes a request model, validates it, c
 | Request/response DTOs | The command record itself; the result is what `Handle()` returns |
 | FluentValidation / `ModelState` | A `CommandValidator<T>` discovered by convention |
 | MediatR pipeline behaviors | The command pipeline and filters |
-| `INotification` / handlers | Domain **events** appended to [Chronicle](/chronicle/), observed by [reactors](/chronicle/reactors/) |
-| A query action returning a DTO from EF | A **query** method on a read model, served from a [projection](/chronicle/concepts/projection/) |
-| Hand-written `fetch`/HttpClient on the frontend | A **generated TypeScript proxy** — no manual client code |
+| `INotification` / handlers | A follow-up command, domain service, or optional [Chronicle reactor](/arc/backend/chronicle/) when you are event-sourcing |
+| A query action returning a DTO from EF | A **query** method on a `[ReadModel]`, served directly over HTTP |
+| Application-specific `fetch`/HttpClient on the frontend | A **generated TypeScript proxy** |
 
 ## What stays the same
 
@@ -28,32 +28,37 @@ In MVC you write a controller action that takes a request model, validates it, c
 - You still write small, focused handlers and validators.
 - You still use dependency injection; constructor-inject collaborators into `Handle()` and into validators.
 
-## What changes (and why it's less code)
+## What changes
 
-- **No controllers.** You don't route, bind, or serialize by hand — the command *is* the endpoint. That removes a whole layer of boilerplate and a common source of drift.
-- **No separate handler class.** `Handle()` lives on the command record, so the intent and its implementation sit together in one [vertical slice](/arc/) instead of across `Commands/` and `Handlers/` folders.
-- **No second source of truth for the frontend.** The proxy is generated from your C# types, so the client can't fall out of sync — change the command and the compiler flags the frontend.
-- **State changes become events, not row updates.** A command's `Handle()` returns the event(s) that happened; Chronicle stores them and projections build the read side. If that part is new to you, read [Why Event Sourcing](/chronicle/why-event-sourcing/).
+- **Commands are endpoints.** The command record carries the request shape and the `Handle()` method; Arc maps it to HTTP.
+- **The handler sits with the intent.** `Handle()` lives on the command record, so the intent and its implementation sit together in one [vertical slice](/arc/) instead of across `Commands/` and `Handlers/` folders.
+- **The frontend model is generated.** The proxy is generated from your C# types, so command/query shape changes are caught by TypeScript.
+- **The read side is explicit.** Instead of returning arbitrary DTOs from controllers, you name the read model and expose query methods on it. Those methods are generated into the frontend just like commands.
 
 ## A side-by-side
 
-A "register customer" feature in MediatR + MVC is a request record, a handler, a validator, a controller action, and a frontend client call. In Arc it's one slice:
+A "register customer" feature in MediatR + MVC is often a request record, a handler, a validator, a controller action, and a frontend client call. In Arc, the same feature is modeled as a slice:
 
 ```csharp
 [Command]
-public record RegisterCustomer(CompanyName Name)
+public record RegisterCustomer(CustomerId Id, CompanyName Name)
 {
-    public CustomerRegistered Handle() => new(Name);
+    public Task Handle(IMongoCollection<Customer> customers) =>
+        customers.InsertOneAsync(new Customer(Id, Name));
 }
 
-[EventType]
-public record CustomerRegistered(CompanyName Name);
+[ReadModel]
+public record Customer([property: Key] CustomerId Id, CompanyName Name)
+{
+    public static ISubject<IEnumerable<Customer>> AllCustomers(IMongoCollection<Customer> customers) =>
+        customers.Observe();
+}
 ```
 
-Arc exposes this over HTTP and generates the typed client. Your React component calls the generated proxy — no controller, no DTO, no handwritten fetch.
+Arc exposes both members over HTTP and generates the typed client. Your React component calls the generated command and query proxies; no controller, DTO mapper, or hand-written fetch layer sits between them.
 
 ## Where to go next
 
 - Build your first command in the [getting started](/arc/backend/getting-started/) guide.
 - See the full command and query options under [Backend](/arc/backend/).
-- New to the event-sourced read side? Start with [Why Event Sourcing](/chronicle/why-event-sourcing/).
+- Need history, replay, or reactors later? The [Chronicle integration](/arc/backend/chronicle/) shows how Arc adds event sourcing as an optional write-side choice.

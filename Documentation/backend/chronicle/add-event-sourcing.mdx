@@ -1,6 +1,6 @@
 ---
-title: "6. Add event sourcing (optional)"
-description: You built the whole library over a plain database. Here's how adding Chronicle — an event store — is a write-side change that leaves every query, proxy, and React screen exactly where it is.
+title: Add event sourcing to an Arc slice
+description: You built an Arc slice over a plain database. Here's how adding Chronicle is a write-side change that leaves every query, proxy, and React screen exactly where it is.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -10,7 +10,7 @@ You have a complete, typed, live full-stack app — and not an event anywhere in
 
 The reassuring part: adopting it is a **write-side change**. Your queries, your generated proxies, and your React screens don't move.
 
-You drew this slice as an **[event model](/event-modeling/)** back in the [tutorial intro](/arc/tutorial/), and it barely changes here. The screen, the command, the `AuthorRegistered` fact, the read model, and the query all stay put. What changes is *where the fact lives* — a database row becomes a real, stored event — and that unlocks one genuinely new block: a **reactor** (frame `06`), automation that fires *when a fact happens*.
+If you drew the database-backed slice as an **[event model](/event-modeling/)**, the model barely changes here. The screen, the command, the `AuthorRegistered` fact, the read model, and the query all stay put. What changes is *where the fact lives* — a database row becomes a real, stored event — and that unlocks one genuinely new block: a **reactor** (frame `06`), automation that fires *when a fact happens*.
 
 ```mermaid
 eventmodeling
@@ -65,9 +65,9 @@ public record Author([property: Key] AuthorId Id, AuthorName Name)
 }
 ```
 
-That's the whole migration for this slice. Lined up:
+That's the whole change for this slice. Lined up:
 
-| | Over a database (chapters 1–5) | With Chronicle |
+| | Over a database | With Chronicle |
 | --- | --- | --- |
 | What `Handle()` does | writes a document | returns an event |
 | What fills the read model | the command, directly | a projection over the event |
@@ -125,4 +125,4 @@ You don't have to decide up front. You just saw the move: the read side and the 
 - **The two together, end to end** — the [Cratis Stack tour](/cratis-stack/) and the [full-stack capstone](/build-a-full-app/) put Arc, Chronicle, and Components together on a real feature.
 - **Adopt it incrementally** — [Adopting Cratis](/adopting-cratis/) walks through moving an existing Arc app's write side to Chronicle, one slice at a time.
 
-That's the library — built full-stack and type-safe over a database, with a clear, low-cost path to event sourcing the day you need it. You have the model; go build your own.
+That's the library slice — built full-stack and type-safe over a database, with a clear, low-cost path to event sourcing the day you need it. You have the model; go build your own.

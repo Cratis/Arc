@@ -3,7 +3,7 @@ title: Arc without event sourcing
 description: Arc is a full-stack CQRS framework in its own right — typed commands, queries, and a generated React client over MongoDB or EF Core, with no event store required. Here is the standalone shape, and when to add Chronicle.
 ---
 
-It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal — most examples pair them, and the [tutorial](/arc/tutorial/) builds the full event-sourced loop. But Arc does not require an event store. Its core is a *persistence-agnostic* application model: **commands, queries, and the generated C# → TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is your choice.
+It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. But Arc does not require an event store. Its core is a *persistence-agnostic* application model: **commands, queries, and the generated C# → TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is your choice.
 
 This page shows Arc on its own — the same typed full-stack experience, backed by a plain database instead of an event log — and exactly where the line between the two sits.
 
@@ -75,7 +75,7 @@ const [authors] = AllAuthors.use();   // live — re-renders when the collection
 
 ## What actually changes when you add Chronicle
 
-Set this slice next to the event-sourced one from the [first tutorial chapter](/arc/tutorial/first-slice/). The query and the React are **identical**. The only thing that differs is the command's write path:
+Set this slice next to the same slice with [Chronicle added later](/arc/backend/chronicle/add-event-sourcing/). The query and the React are **identical**. The only thing that differs is the command's write path:
 
 | | Standalone (this page) | With Chronicle |
 | --- | --- | --- |
@@ -87,7 +87,7 @@ So adopting Chronicle later is a *write-side* change. Your queries, your generat
 
 ## What you give up — and when to add Chronicle back
 
-Storing current state directly is simpler, and for plenty of applications it's the right call. What you don't get is everything an event log buys you: an audit trail for free, the ability to rebuild a read model a brand-new way from history, temporal queries, and reactors that fire on facts. [Why Event Sourcing](/chronicle/why-event-sourcing/) is the honest look at that trade-off.
+Storing current state directly is simpler, and for plenty of applications it's the right call. What you don't get is everything an event log buys you: an audit trail, the ability to rebuild a read model a brand-new way from history, temporal queries, and reactors that fire on facts. [Why Event Sourcing](/chronicle/why-event-sourcing/) is the honest look at that trade-off.
 
 The reassuring part, from the table above: you don't have to decide up front. Start with Arc over a database, and the day history starts to matter, move the write side to Chronicle — the read side and the entire frontend come along unchanged. [Adopting Cratis](/adopting-cratis/) walks through doing exactly that, one step at a time.
 

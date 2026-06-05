@@ -186,6 +186,9 @@ public async Task should_have_exactly_two_events()
 In tests, you can keep things deterministic by overriding `IReadModels` and returning the instance you want for the current event source id:
 
 ```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 var scenario = new CommandScenario<UseReadModelDependencyCommand>();
 var readModels = Substitute.For<IReadModels>();
 
@@ -193,7 +196,7 @@ readModels
     .GetInstanceById(typeof(AccountBalanceReadModel), Arg.Any<ReadModelKey>(), default)
     .Returns(Task.FromResult<object>(new AccountBalanceReadModel(42m)));
 
-scenario.Services.AddSingleton(readModels);
+scenario.Services.Replace(ServiceDescriptor.Singleton<IReadModels>(readModels));
 ```
 
 ## Multiple Events

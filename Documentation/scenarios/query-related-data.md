@@ -1,48 +1,39 @@
 ---
 title: Query data across slices
-description: Serve a screen that needs data spanning more than one feature — by folding several events into one read model, or filtering a query by a relationship.
+description: Serve a screen that needs data spanning more than one feature — by filtering live queries around a relationship.
 ---
 
 **Goal:** a screen needs data that doesn't live in a single slice — authors *with* their books, an order *with* its line items, anything where one thing owns a list of another.
 
-## Fold it at write time, not read time
+## Keep the relationship explicit
 
-The instinct from relational databases is to store a foreign key and join at read time. Event sourcing flips that: a projection folds the relevant events into one **purpose-built read model**, so the query is a plain read with no join. You build the shape the screen needs.
+In a database-backed Arc slice, model the relationship the same way you would in the domain: the child carries the parent's id, and the query filters by it. Arc's part is making that query a typed, live endpoint and generating the React proxy that calls it.
 
 ## Do it
 
-**For an owns-a-list relationship, use `[ChildrenFrom<…>]`.** Declare the child shape, then declare the parent with a children property that tells the projection how to attach them:
+**For an owns-a-list relationship, keep the child keyed to its parent.** A book belongs to an author, so the `Book` read model carries `AuthorId`:
 
 ```csharp
-[FromEvent<BookAddedToCatalog>]
-public record Book([Key] BookId Id, BookTitle Title);
-
 [ReadModel]
-[FromEvent<AuthorRegistered>]
-public record AuthorWithBooks(
-    [Key] AuthorId Id,
-    AuthorName Name,
-    [ChildrenFrom<BookAddedToCatalog>(parentKey: nameof(BookAddedToCatalog.AuthorId), identifiedBy: nameof(Book.Id))]
-    IEnumerable<Book> Books)
+public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title)
 {
-    public static ISubject<IEnumerable<AuthorWithBooks>> AllAuthorsWithBooks(IMongoCollection<AuthorWithBooks> collection) =>
-        collection.Observe();
+    public static ISubject<IEnumerable<Book>> BooksForAuthor([Key] AuthorId authorId, IMongoCollection<Book> books) =>
+        books.Observe(book => book.AuthorId == authorId);
 }
 ```
 
-Each `AuthorWithBooks` arrives already carrying its catalog — one query, no stitching.
+The generated proxy takes the same parameter:
 
-**For "just the rows that match", filter the query.** `Observe` takes a predicate, and a query method can take parameters that bind from the request:
-
-```csharp
-public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId author, IMongoCollection<Book> collection) =>
-    collection.Observe(book => book.AuthorId == author);
+```tsx
+const [books] = BooksForAuthor.use(authorId);
 ```
 
-Both forms stay live: because they return `Observe()`, the screen updates as new events land.
+Because the query returns `Observe(...)`, it stays live. Add a book for that author and the row updates without polling.
+
+For a list-with-details screen, let the author list call `AllAuthors.use()` and each row call `BooksForAuthor.use(author.id)`. That keeps each slice small: the author slice owns authors, the book slice owns books, and the screen composes their generated proxies.
 
 ## See also
 
 - [Queries](/arc/backend/queries/) — observable and non-observable query methods, parameters, and filtering.
-- [Relate your slices](/arc/tutorial/books-and-relationships/) — the children projection built step by step.
+- [Relate your slices](/arc/tutorial/books-and-relationships/) — this relationship built step by step.
 - [Run a command from React](./run-a-command-from-react.md) — consuming the query proxy.

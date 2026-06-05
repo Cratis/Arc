@@ -1,6 +1,6 @@
 ---
 title: "2. Make it trustworthy"
-description: Reject a blank or duplicate author name — first with a validator on the value type, then with a business rule that checks existing state — and watch the reason appear in the React form for free.
+description: Reject a blank or duplicate author name — first with a validator on the value type, then with a business rule that checks existing state — and watch the reason appear in the React form.
 ---
 
 import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
@@ -78,7 +78,7 @@ Uniqueness is the harder kind of "no", because it depends on what's already ther
 </Steps>
 
 <Aside type="tip" title="Keep the check honest with a unique index">
-A check-then-write has a race: two registrations at the same instant can both pass the validator. The validator is for a *friendly message*; back it with a real **unique index** on the name (a MongoDB unique index, or an EF `HasIndex(...).IsUnique()`) so the database is the final authority. When history and concurrency matter at this level, it's also exactly the kind of guarantee [event sourcing with Chronicle](./add-event-sourcing) makes airtight — that's chapter 6.
+A check-then-write has a race: two registrations at the same instant can both pass the validator. The validator is for a *friendly message*; back it with a real **unique index** on the name (a MongoDB unique index, or an EF `HasIndex(...).IsUnique()`) so the database is the final authority.
 </Aside>
 
 ## The UI already knows
@@ -97,7 +97,7 @@ One rule on the value type, one rule on the command, and both ends of the app ho
 
 ## What you built
 
-- An `AuthorNameValidator` that guards the **value type**, enforced everywhere an `AuthorName` is used and run client-side for free.
+- An `AuthorNameValidator` that guards the **value type**, enforced everywhere an `AuthorName` is used and run client-side through the generated proxy.
 - A `RegisterAuthorValidator` **business rule** that checks existing state in the database, with a unique index behind it for the hard guarantee.
 - A React form that surfaces both — client-side and server-side — with no extra frontend code.
 

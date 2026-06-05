@@ -153,7 +153,7 @@ Now that you have Cratis set up, you can:
 
 - Define [Commands](../commands/index.md) to handle user actions
 - Create [Queries](../queries/index.md) to retrieve data
-- Build [Aggregates](../chronicle/aggregates/index.md) to model your domain
+- Build [Aggregates](aggregates/index.md) to model your domain
 - Configure [MongoDB](../mongodb/index.md) for read models and projections
 - Set up [tenancy](../tenancy/overview.md) for your application
 

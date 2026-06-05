@@ -7,9 +7,11 @@ Core query support in `@cratis/arc` is built on typed query classes and generate
 The base query interface holds cross-cutting query concerns:
 
 ```typescript
-interface IQuery {
-    sorting: Sorting;
-    paging: Paging;
+interface IQuery extends ICanBeConfigured {
+    get sorting(): Sorting;
+    set sorting(value: Sorting);
+    get paging(): Paging;
+    set paging(value: Paging);
 }
 ```
 
@@ -18,10 +20,14 @@ interface IQuery {
 `IQueryFor` adds route, typed parameters, default value, and execution:
 
 ```typescript
-interface IQueryFor<TDataType, TParameters = object> extends IQuery {
+interface IQueryFor<TDataType, TParameters = object>
+    extends IQuery, IHaveParameters {
     readonly route: string;
-    defaultValue: TDataType;
-    parameters: TParameters | undefined;
+    readonly requiredRequestParameters: string[];
+    readonly defaultValue: TDataType;
+    readonly roles: string[];
+    get parameters(): TParameters | undefined;
+    set parameters(value: TParameters);
     perform(args?: TParameters): Promise<QueryResult<TDataType>>;
 }
 ```
@@ -31,7 +37,9 @@ interface IQueryFor<TDataType, TParameters = object> extends IQuery {
 Query contracts include:
 
 - Typed parameters and responses
+- Required route/request parameter metadata
 - Sorting and paging metadata
+- Required roles for UI decisions
 - Default values for predictable initialization
 - Execution through `perform()`
 

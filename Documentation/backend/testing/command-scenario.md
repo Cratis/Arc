@@ -142,15 +142,17 @@ public class when_admin_command_executed_by_regular_user
 
     public when_admin_command_executed_by_regular_user()
     {
-        // Arc reads the current principal from the HTTP context. Supply one whose user
-        // lacks the "admin" role that DeleteAllOrders requires via [Authorize(Roles = "admin")].
-        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
-        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(ClaimTypes.Role, "user")], authenticationType: "test"))
-        });
-        _scenario.Services.AddSingleton(httpContextAccessor);
+        // Arc authorization reads the current principal from IHttpRequestContextAccessor.
+        // Supply a request context whose user lacks the "admin" role that DeleteAllOrders
+        // requires via [Authorize(Roles = "admin")].
+        var requestContext = Substitute.For<IHttpRequestContext>();
+        requestContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, "user")], authenticationType: "test")));
+
+        var requestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
+        requestContextAccessor.Current.Returns(requestContext);
+
+        _scenario.Services.AddSingleton(requestContextAccessor);
     }
 
     [Fact]
@@ -164,11 +166,10 @@ public class when_admin_command_executed_by_regular_user
 
 ## What the Scenario Provides
 
-`CommandScenario<TCommand>` calls `Services.AddCratisArcCore()` when first initialized, which wires:
+`CommandScenario<TCommand>` adds console logging and calls `Services.AddCratisArcCore()` when first initialized, which wires:
 
 - Type discovery for all handlers, validators, and filters
 - The real `ICommandPipeline`
 - All built-in validation and authorization filters
-- Logging to the console
 
 Everything that runs in production runs in the spec — there is no hidden short-circuiting.

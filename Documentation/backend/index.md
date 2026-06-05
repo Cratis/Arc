@@ -9,8 +9,9 @@ typed TypeScript proxy for the frontend. CQRS without the ceremony.
 flowchart LR
     REC["Command / query record"] -->|Arc discovers| EP[HTTP endpoint]
     EP -->|proxy generator| TS[Typed TS proxy]
-    REC -->|commands append| EV[(Events)]
+    REC -->|commands write| DB[(MongoDB / EF Core)]
     REC -->|queries read| RM[(Read models)]
+    DB --> RM
 ```
 
 ## Start here
@@ -18,7 +19,7 @@ flowchart LR
 New to the backend? Walk through [Getting started](./getting-started/index.md) to build your first
 command and query end to end. Then the two pillars:
 
-- [Commands](./commands/index.md) — intents that change state by appending events.
+- [Commands](./commands/index.md) — intents that change state through `Handle()`.
 - [Queries](./queries/index.md) — reads, exposed to the frontend as typed proxies (including live, observable ones).
 
 The magic that ties it to the frontend is [Proxy generation](./proxy-generation/index.md) — read it
@@ -30,9 +31,9 @@ Arc meets the rest of your stack:
 
 | Topic | What it covers |
 | ------- | ----------- |
-| [Chronicle](./chronicle/index.md) | Event sourcing — append events from commands, build read models, feed state back into business rules. |
 | [MongoDB](./mongodb/index.md) | Document storage for read models and other data. |
 | [Entity Framework](./entity-framework/index.md) | EF Core integration for relational read models. |
+| [Chronicle](./chronicle/index.md) | Optional event sourcing — append events from commands, build read models, feed state back into business rules. |
 | [ASP.NET Core](./asp-net-core/index.md) | How Arc plugs into the ASP.NET Core pipeline. |
 
 ## Cross-cutting

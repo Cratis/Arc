@@ -94,7 +94,7 @@ public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title
 </Tabs>
 
 <Aside type="tip" title="The relationship is a filter">
-`Observe(b => b.AuthorId == authorId)` is the whole relationship: one collection of books, read back by the author they point at — and still live, because it's an observed query. No join, no second store. (When you adopt event sourcing in [chapter 6](./add-event-sourcing), a projection can go further and *fold* books into each author as a single read model — but you don't need that yet.)
+`Observe(b => b.AuthorId == authorId)` is the whole relationship: one collection of books, read back by the author they point at — and still live, because it's an observed query. No join, no second store.
 </Aside>
 
 ## Showing the catalog

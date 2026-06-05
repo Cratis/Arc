@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Fixes for the issues that come up most when building with Arc — proxies, authorization, validation, and stale types.
 ---
 
-Most Arc snags come down to a handful of causes. Here they are. For event-store and read-model issues, see [Chronicle troubleshooting](/chronicle/troubleshooting/).
+Most Arc snags come down to a handful of causes. Here they are. If the slice uses the optional Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
 
 ## My frontend can't find the generated proxy
 
@@ -36,9 +36,15 @@ Arc discovers a `CommandValidator<TCommand>` by convention. Confirm the validato
 
 ## My query returns nothing
 
-This is usually the read side, not Arc: the projection that builds the read model is [eventually consistent](/chronicle/read-models/), or it doesn't map the events you appended. Walk through [Chronicle troubleshooting → my read model is empty](/chronicle/troubleshooting/).
+This is usually the read side, not proxy generation:
+
+- Confirm the command wrote the document or entity you expect.
+- Check any query predicate, especially ids passed through `[Key]`.
+- If the query is observable, confirm the underlying store is configured for observation: MongoDB change streams or EF observed DbSets.
+
+If the slice is backed by Chronicle, also check that the projection has caught up and maps the events you appended.
 
 ## See also
 
 - [Backend](./backend/) and [Frontend](./frontend/) guides.
-- [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store issues.
+- [Chronicle troubleshooting](/chronicle/troubleshooting/) for optional event-store issues.
