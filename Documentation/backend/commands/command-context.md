@@ -13,7 +13,8 @@ public record CommandContext(
     object Command, 
     IEnumerable<object> Dependencies, 
     CommandContextValues Values,
-    object? Response);
+    ValidationResultSeverity? AllowedSeverity = default,
+    object? Response = default);
 ```
 
 ### Properties

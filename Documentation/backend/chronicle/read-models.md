@@ -54,7 +54,7 @@ The read model resolution works exactly the same way as [Aggregate Root](aggrega
 1. **Identity Strategy Resolution**: The system inspects the command to determine the identity using one of the available strategies
 2. **Command Context Lookup**: The resolved identity is retrieved from the current `CommandContext`
 3. **Validation**: If no identity is found, an `UnableToResolveReadModelFromCommandContext` exception is thrown
-4. **Projection Query**: The system queries Chronicle's projection store using `IProjections.GetInstanceById()` with the resolved identity
+4. **Projection Query**: The system queries Chronicle's projection store using `IReadModels.GetInstanceById()` with the resolved identity
 5. **Subject Release**: If the command context has a resolved `Subject`, Arc releases the read model with that subject before returning it
 6. **Instance Return**: The loaded read model instance is returned
 

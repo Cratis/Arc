@@ -42,7 +42,8 @@ Below is a full sample of how this works.
 ```ts
 import { injectable } from 'tsyringe';
 import { DialogResult } from '@cratis/arc.react/dialogs';
-import { DialogButtons, IDialogs } from '@cratis/arc.react.mvvm/dialogs';
+import { DialogButtons } from '@cratis/arc.react/dialogs';
+import { IDialogs } from '@cratis/arc.react.mvvm/dialogs';
 
 @injectable()
 export class YourViewModel {
@@ -77,7 +78,8 @@ Below is a full sample of how this works.
 ```ts
 import { injectable } from 'tsyringe';
 import { DialogResult } from '@cratis/arc.react/dialogs';
-import { DialogButtons, IDialogs } from '@cratis/arc.react.mvvm/dialogs';
+import { DialogButtons } from '@cratis/arc.react/dialogs';
+import { IDialogs } from '@cratis/arc.react.mvvm/dialogs';
 
 @injectable()
 export class YourViewModel {
@@ -188,7 +190,8 @@ The last piece of the puzzle is now to use it from the view model. Following is 
 
 ```ts
 import { injectable } from 'tsyringe';
-import { DialogButtons, IDialogs } from '@cratis/arc.react.mvvm/dialogs';
+import { DialogButtons } from '@cratis/arc.react/dialogs';
+import { IDialogs } from '@cratis/arc.react.mvvm/dialogs';
 import { CustomDialogRequest } from './CustomDialogRequest;
 
 @injectable()

@@ -38,7 +38,7 @@ public class MyCustomFilter : ICommandFilter
 The `CommandContext` provides access to:
 
 - `CorrelationId` - The unique identifier for the command execution
-- `CommandType` - The type of the command being executed
+- `Type` - The type of the command being executed
 - `Command` - The actual command instance
 - `Dependencies` - Any dependencies resolved for the command handler
 - `Values` - Additional context values that may have been set

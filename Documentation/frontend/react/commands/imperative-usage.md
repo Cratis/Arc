@@ -192,7 +192,7 @@ const validationResult = await command.validate();
 if (!validationResult.isValid) {
     console.error('Validation failed:');
     validationResult.validationResults.forEach(error => {
-        console.error(`- ${error.property}: ${error.message}`);
+        console.error(`- ${error.members.join(', ')}: ${error.message}`);
     });
 }
 ```
