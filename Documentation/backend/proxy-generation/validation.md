@@ -40,7 +40,7 @@ The following FluentValidation rules are automatically converted to TypeScript:
 | `MinimumLength(n)` | `minLength(n)` | `this.ruleFor(c => c.name).minLength(2)` |
 | `MaximumLength(n)` | `maxLength(n)` | `this.ruleFor(c => c.name).maxLength(50)` |
 | `Length(min, max)` | `length(min, max)` | `this.ruleFor(c => c.code).length(3, 10)` |
-| `Matches(pattern)` | `matches(pattern)` | `this.ruleFor(c => c.phone).matches(/^\d+$/index.md)` |
+| `Matches(pattern)` | `matches(pattern)` | `this.ruleFor(c => c.phone).matches(/^\d+$/)` |
 | `GreaterThan(n)` | `greaterThan(n)` | `this.ruleFor(c => c.quantity).greaterThan(0)` |
 | `GreaterThanOrEqualTo(n)` | `greaterThanOrEqual(n)` | `this.ruleFor(c => c.age).greaterThanOrEqual(18)` |
 | `LessThan(n)` | `lessThan(n)` | `this.ruleFor(c => c.discount).lessThan(100)` |
@@ -174,10 +174,10 @@ export class RegisterUserCommandValidator extends CommandValidator<IRegisterUser
             .withMessage('Age must be between 18 and 150');
         
         this.ruleFor(c => c.website)
-            .matches(/^https?:\/\/.+/index.md);
+            .matches(/^https?:\/\/.+/);
         
         this.ruleFor(c => c.phoneNumber)
-            .matches(/^\+?[1-9]\d{1,14}$/index.md);
+            .matches(/^\+?[1-9]\d{1,14}$/);
     }
 }
 ```

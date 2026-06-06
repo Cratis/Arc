@@ -58,7 +58,7 @@ a dependency to in your view models. Within the package sits a type called `Bind
 > Note: If you're using the [MVVM context](./mvvm-context.md) all bindings are automatically configured for the MVVM scenario and you are good to go and you can skip this step.
 
 ```ts
-import { Bindings } from '@cratis/arc.react.mvvm`;
+import { Bindings } from '@cratis/arc.react.mvvm';
 
 Bindings.initialize();
 ```
