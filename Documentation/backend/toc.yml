@@ -6,6 +6,8 @@
   href: core/toc.yml
 - name: ASP.NET Core
   href: asp-net-core/toc.yml
+- name: Configuration
+  href: configuration/index.md
 - name: Tenancy
   href: tenancy/toc.yml
 - name: Identity

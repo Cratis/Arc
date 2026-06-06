@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Fixes for the issues that come up most when building with Arc — proxies, authorization, validation, and stale types.
 ---
 
-Most Arc snags come down to a handful of causes. Here they are. If the slice uses the optional Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
+Most Arc snags come down to a handful of causes. Here they are. If the slice uses the Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
 
 ## My frontend can't find the generated proxy
 

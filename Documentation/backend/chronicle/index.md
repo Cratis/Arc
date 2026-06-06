@@ -2,7 +2,7 @@
 
 `Cratis.Arc.Chronicle` is the integration package that extends Arc with [Cratis Chronicle](https://github.com/Cratis/Chronicle) capabilities. It wires the two frameworks together so that Arc's application model — commands, queries, identity, tenancy, and code generation — works seamlessly with Chronicle's event sourcing infrastructure.
 
-Arc does not require Chronicle. Start with Arc over MongoDB or EF Core when current-state persistence is enough; add this integration when history, auditability, replay, reactors, or aggregate streams become part of the problem.
+Arc does not require Chronicle, and Chronicle does not require Arc. That independence is useful for adoption and bounded current-state slices. In a full Cratis information system, though, this integration is the natural pairing: Arc gives the CQRS boundary and Chronicle keeps the event-sourced facts underneath it.
 
 ## What it provides
 

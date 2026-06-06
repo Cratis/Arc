@@ -18,6 +18,16 @@ It offers extensions for different frameworks and is built on top of ASP.NET Cor
 bridging between the backend and the frontend. Arc provides a tool, called **ProxyGenerator** that generates TypeScript
 code for recognized artifacts matching the criteria of what is considered a **commmand** or a **query**.
 
+## Support
+
+Cratis is an open community, and we are glad to help users, teams evaluating the stack, and contributors.
+
+| Channel | Details |
+|---|---|
+| Discord | Join the community on [Discord](https://discord.gg/kt4AMpV8WV) for questions and discussions |
+| GitHub Issues | [Report bugs or request features](https://github.com/Cratis/Arc/issues) |
+| Documentation | Read the docs at [cratis.io](https://cratis.io) |
+
 ## Contributing
 
 If you want to jump into building this repository and possibly contributing, please refer to [contributing](./Documentation/contributing/index.md).

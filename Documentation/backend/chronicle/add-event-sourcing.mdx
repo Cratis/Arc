@@ -6,7 +6,7 @@ description: You built an Arc slice over a plain database. Here's how adding Chr
 import { Aside } from '@astrojs/starlight/components';
 import FullStackTabs from '@components/FullStackTabs.astro';
 
-You have a complete, typed, live full-stack app — and not an event anywhere in it. That's a perfectly good place to stop. But the day **history** starts to matter — an audit trail, the ability to rebuild a read model a brand-new way, temporal queries, or automation that fires on facts — you reach for [Chronicle](/chronicle/), Arc's event-sourcing engine.
+You have a complete, typed, live full-stack app from the Arc tutorial — and so far it used a database directly. This page shows the write-side move that puts [Chronicle](/chronicle/) underneath the same CQRS boundary. For information systems, this is the direction we usually recommend: keep the Arc command/query shape, and let Chronicle store the facts.
 
 The reassuring part: adopting it is a **write-side change**. Your queries, your generated proxies, and your React screens don't move.
 
@@ -115,14 +115,14 @@ Now that state changes are recorded as facts, you get things a plain database ca
   This is why the live-screen chapter was just *observable queries* and not "make it react" — reactions fire on **events**, and you didn't have any until now. Reactors are an event-sourcing feature.
   </Aside>
 
-## When it's worth it — and where to go next
+## Why this is usually the better backbone
 
-Storing current state directly is simpler, and for plenty of apps it's the right call. Event sourcing earns its keep when history, auditability, or replay matter. [Why Event Sourcing](/chronicle/why-event-sourcing/) is the honest look at the trade-off — including when *not* to reach for it.
+Storing current state directly is simpler for bounded CRUD surfaces and adoption steps. Event sourcing earns its keep for information systems because history, auditability, replay, integration, and process insight show up over time. [Why Event Sourcing](/chronicle/why-event-sourcing/) explains why we treat it as the default, and [When to use event sourcing](/chronicle/concepts/when-to-use-event-sourcing/) names the exceptions.
 
-You don't have to decide up front. You just saw the move: the read side and the entire frontend came along unchanged.
+You also saw why the boundary matters: the read side and the entire frontend came along unchanged.
 
 - **The event-sourcing side, in depth** — the [Chronicle tutorial](/chronicle/tutorial/) builds the same library model one event-sourcing concept at a time.
 - **The two together, end to end** — the [Cratis Stack tour](/cratis-stack/) and the [full-stack capstone](/build-a-full-app/) put Arc, Chronicle, and Components together on a real feature.
 - **Adopt it incrementally** — [Adopting Cratis](/adopting-cratis/) walks through moving an existing Arc app's write side to Chronicle, one slice at a time.
 
-That's the library slice — built full-stack and type-safe over a database, with a clear, low-cost path to event sourcing the day you need it. You have the model; go build your own.
+That's the library slice — built full-stack and type-safe, with CQRS at the boundary and Chronicle underneath when the slice belongs in the event-sourced model. You have the model; go build your own.

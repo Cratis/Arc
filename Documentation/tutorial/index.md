@@ -1,13 +1,13 @@
 ---
 title: "Tutorial: Build a library, full-stack"
-description: Build a small but real library app with Arc — typed commands and queries over a plain database, validation, real-time React screens, and authorization — one chapter at a time.
+description: Build a small but real library app with Arc — typed commands and queries, validation, real-time React screens, and authorization — one chapter at a time.
 ---
 
 Let's build something real together: the back office for a small library. Librarians register authors, catalog the books each author wrote, and watch the catalog fill in live as they work. It's a modest app — but by the time it's done you'll have used every part of Arc that a real full-stack feature needs, and you'll understand *why* each part is shaped the way it is.
 
 This isn't a tour of one slice in isolation. We'll build several features that lean on each other, the way a real app does — and at each step we'll stop, look at what just happened, and only then move on. The thing Arc is really selling is that the whole loop — a C# command, the read model it updates, the query that serves it, and the React screen that calls both — stays **type-safe end to end**, with no hand-written API client in the middle. You'll feel that pay off repeatedly.
 
-Arc doesn't care where your data lives. We'll store it straight in a database — **MongoDB or EF Core**, your choice — with no event store in sight. If a future slice needs history, auditability, or replay, Chronicle can be added through Arc's optional integration; it is not part of the path we'll build here.
+Arc doesn't care where your data lives. We'll store it straight in a database — **MongoDB or EF Core**, your choice — so this tutorial can focus on CQRS and the generated proxy boundary. That is a teaching and adoption choice, not a claim that event sourcing is secondary: for information systems, we usually recommend Chronicle as the event-sourced backbone. The point is that CQRS can run with or without it.
 
 Here's the shape of what we're heading toward, as an **[event model](/event-modeling/)** — the way you'd whiteboard a feature *before* deciding how to store it. Read it left to right: the librarian adds an author on a screen, the `RegisterAuthor` command records the business fact that an author was registered, the `Author` read model is updated, and the next screen lists it. Don't worry if the pieces aren't familiar yet — we'll meet each one in turn.
 

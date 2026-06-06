@@ -179,12 +179,12 @@ export const Feature = withViewModel<FeatureViewModel>(FeatureViewModel, ({ view
 The code leverages the `useDialog()` with the generic parameters corresponding to the request and response types,
 as you saw when defining the `CustomDialog` component. It returns a **tuple** that holds a wrapper as a React functional component,
 then the context which holds the request when a request is made and a function to close the dialog. This allows for inlining dialogs or passing the information
-on to things that needs it. But for this scenario, we don't need them and we therefor only capture the wrapper.
+on to things that need it. For this scenario, we don't need them and therefore only capture the wrapper.
 
 > Note: See the sample later on how to create dialogs with a view model for an example of context and `closeDialog` use.
 
 With the wrapper, the code wraps the actual `CustomDialog` component as part of the rendering of the component. This ensures that
-is will only be displayed when it is supposed to.
+it will only be displayed when it is supposed to.
 
 The last piece of the puzzle is now to use it from the view model. Following is a sample that shows the usage.
 

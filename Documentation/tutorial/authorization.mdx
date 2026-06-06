@@ -65,6 +65,6 @@ Five chapters ago we had nothing. Now we have a real full-stack library back off
 
 The thing worth taking with you is the loop itself: **something happens (a command) → it writes state → that state is served (a query) → and React calls all of it, typed end to end.** Every feature you build from here is another turn of that loop in its own folder. You never go back and edit the last one to add the next.
 
-And notice what you *didn't* need: an event store. Arc gave you the full typed, live, full-stack experience over a plain database. That's the right call for a great many applications.
+And notice the boundary you proved: Arc did not need an event store for this CQRS loop. That is not an argument against event sourcing. For information systems, we usually reach for Chronicle as the default because history pays for itself. The point is architectural independence: CQRS can run over a plain database, and event sourcing can run without Arc, but they fit together extremely well.
 
 From here, build another feature the same way, or take the next layer up: [Components](/components/) turns these generated commands and queries into higher-level screens, and the [Cratis Stack tour](/cratis-stack/) shows where Arc fits with the rest of the platform.

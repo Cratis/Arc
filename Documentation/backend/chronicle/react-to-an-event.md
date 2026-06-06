@@ -5,7 +5,7 @@ description: Run a side effect or trigger a follow-up command automatically when
 
 **Goal:** when an event-sourced slice records something — a book is added, an author is registered — you want something *else* to happen automatically: a notification goes out, another system is told, a follow-up command runs. That's a reactor.
 
-This is part of Arc's optional Chronicle integration. Plain database-backed Arc slices use commands, queries, and ordinary services; reactors become available when the write side records events in Chronicle.
+This is part of Arc's Chronicle integration. Direct database-backed Arc slices use commands, queries, and ordinary services; reactors become available when the write side records events in Chronicle.
 
 ## A reactor does, a projection shows
 

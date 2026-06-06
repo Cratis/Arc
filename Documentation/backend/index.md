@@ -3,7 +3,7 @@
 The backend is where you express *what your application does* — the commands that change state and the
 queries that read it. Arc's job is to make that expression the only thing you write: you define a
 command or query as a plain record, and Arc handles the HTTP endpoint, validation, authorization, and a
-typed TypeScript proxy for the frontend. CQRS without the ceremony.
+typed TypeScript proxy for the frontend. CQRS without the ceremony. In the full Cratis loop those commands append events through Chronicle; in bounded current-state slices they can write MongoDB or EF Core directly.
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,7 @@ Arc meets the rest of your stack:
 | ------- | ----------- |
 | [MongoDB](./mongodb/index.md) | Document storage for read models and other data. |
 | [Entity Framework](./entity-framework/index.md) | EF Core integration for relational read models. |
-| [Chronicle](./chronicle/index.md) | Optional event sourcing — append events from commands, build read models, feed state back into business rules. |
+| [Chronicle](./chronicle/index.md) | Event sourcing integration — append events from commands, build read models, feed state back into business rules. |
 | [ASP.NET Core](./asp-net-core/index.md) | How Arc plugs into the ASP.NET Core pipeline. |
 
 ## Cross-cutting

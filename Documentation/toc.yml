@@ -4,7 +4,7 @@
   href: tutorial/toc.yml
 - name: Why Arc
   href: why-arc.md
-- name: Arc without event sourcing
+- name: CQRS without event sourcing
   href: arc-without-event-sourcing.md
 - name: MediatR, MVC, and Arc
   href: coming-from-mediatr-and-mvc.md

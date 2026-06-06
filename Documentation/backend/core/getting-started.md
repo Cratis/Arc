@@ -86,11 +86,15 @@ IMetricsBuilder Metrics = builder.Metrics;
 ### Adding Arc Services
 
 ```csharp
-builder.AddCratisArc(arcBuilder =>
-{
-    // Configure Arc-specific options
-    // Add extensions like Chronicle, MongoDB, etc.
-});
+builder.AddCratisArc(
+    configureOptions: options =>
+    {
+        // Configure Arc-specific options (ArcOptions)
+    },
+    configureBuilder: arcBuilder =>
+    {
+        // Add extensions like Chronicle, MongoDB, etc.
+    });
 ```
 
 ## ArcApplication API
@@ -356,7 +360,7 @@ builder.Services.AddHostedService<BackgroundWorker>();
 Add event sourcing capabilities:
 
 ```csharp
-builder.AddCratisArc(arcBuilder =>
+builder.AddCratisArc(configureBuilder: arcBuilder =>
 {
     arcBuilder.WithChronicle();
 });
@@ -367,7 +371,7 @@ builder.AddCratisArc(arcBuilder =>
 Add MongoDB support:
 
 ```csharp
-builder.AddCratisArc(arcBuilder =>
+builder.AddCratisArc(configureBuilder: arcBuilder =>
 {
     arcBuilder.WithMongoDB();
 });

@@ -1,11 +1,11 @@
 ---
 title: Your first command and query
-description: Build a backend slice in Arc — a command that writes, a read model, and a live query that serves it — all in one folder, over a plain database.
+description: Build a backend slice in Arc — a command that writes, a read model, and a live query that serves it — while learning the CQRS shape.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Let's build the backend half of a real feature: registering an author in a library app. It's small, but it exercises the whole Arc loop — something *happens* (a command), it writes state, and that state is served back out (a query) — over a plain database, with no event store required.
+Let's build the backend half of a real feature: registering an author in a library app. It's small, but it exercises the whole Arc loop — something *happens* (a command), it writes state, and that state is served back out (a query). We use a plain database in this lesson to keep the CQRS boundary visible; in a full Cratis information system, the same boundary usually writes events through Chronicle.
 
 In a layered app this would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd hop between them to follow one behavior. Arc organizes by **feature** instead: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the shape we're building:
 
@@ -20,7 +20,7 @@ flowchart LR
 
 - **.NET SDK 8 or newer.**
 - **An Arc backend project** — add the `Cratis.Arc` packages to an ASP.NET Core app, or scaffold the full stack with the [Cratis templates](/chronicle/get-started/).
-- **A database Arc can write to** — MongoDB, or EF Core over SQLite/Postgres. No event store is required for this slice.
+- **A database Arc can write to** — MongoDB, or EF Core over SQLite/Postgres. Chronicle is not required for this lesson.
 
 <Steps>
 
@@ -81,7 +81,7 @@ In one folder, read top to bottom:
 That's a complete vertical slice, over a plain database. The next feature is another folder just like it.
 
 <Aside type="note" title="Storing where you like">
-This slice writes straight to MongoDB. Arc is persistence-agnostic — the same shape works over [EF Core](/arc/backend/entity-framework/getting-started/). If a future slice needs history, audit, and replay, the [Chronicle integration](/arc/backend/chronicle/add-event-sourcing/) can move the write side to events without touching your query or your frontend.
+This slice writes straight to MongoDB. Arc is persistence-agnostic — the same shape works over [EF Core](/arc/backend/entity-framework/getting-started/) or over Chronicle. When this belongs in the event-sourced model, the [Chronicle integration](/arc/backend/chronicle/add-event-sourcing/) moves the write side to events without touching your query or your frontend.
 </Aside>
 
 ## Where to go next

@@ -1,9 +1,9 @@
 ---
 title: Getting started
-description: Set up an Arc backend and build your first command, read model, and live query over a plain database.
+description: Set up an Arc backend and build your first command, read model, and live query while learning the CQRS boundary.
 ---
 
-Get an Arc backend up and building features. Start with a plain database — MongoDB or EF Core — and use Arc for the application model: commands with `Handle()`, read models with query methods, validation, authorization, and generated TypeScript proxies.
+Get an Arc backend up and building features. These first pages use a plain database — MongoDB or EF Core — so you can see Arc's CQRS model in isolation: commands with `Handle()`, read models with query methods, validation, authorization, and generated TypeScript proxies. In a full Cratis information system, the same boundary usually sits on Chronicle's event-sourced write side.
 
 Once you have a project:
 
@@ -13,4 +13,4 @@ Once you have a project:
 
 When the backend compiles, it generates the TypeScript proxies your frontend consumes — continue with the [frontend getting started](/arc/frontend/getting-started/) or build the full database-backed path in the [Arc tutorial](/arc/tutorial/).
 
-If your slice later needs an event log, the [Chronicle integration](../chronicle/index.md) is there as an optional next step, not a prerequisite.
+When you are ready to put the event-sourced backbone underneath that boundary, continue with the [Chronicle integration](../chronicle/index.md).

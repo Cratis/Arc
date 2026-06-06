@@ -5,12 +5,15 @@ uid: Arc.Testing
 
 Arc provides first-class testing support through focused NuGet packages that let you drive commands through the real pipeline infrastructure — validation filters, authorization filters, and command handlers — without an HTTP server or an external database.
 
+In Cratis applications, those tests are usually written as [Cratis Specifications](/testing-with-cratis/): a light BDD-style wrapper over xUnit where `Establish()` sets up the context, `Because()` performs the behavior, and `[Fact]` methods assert the outcomes. That lines up with Arc's model: given a command context, when a command runs, then the command result, appended events, or read model state should look a certain way.
+
 The `CommandScenario<TCommand>` class is the single entry point for all command testing. When the Chronicle-specific testing package is also referenced, it automatically extends itself with an in-memory event log.
 
 ## Packages
 
 | Package | Description |
 | ------- | ----------- |
+| `Cratis.Specifications.XUnit` | BDD-style `Specification` base class and `Should*` assertion helpers on top of xUnit. |
 | `Cratis.Arc.Testing` | Core `CommandScenario<TCommand>` class and `CommandResult` assertion helpers. No event sourcing dependency. |
 | `Cratis.Arc.Chronicle.Testing` | Automatically extends `CommandScenario<TCommand>` with an in-memory event log when referenced. |
 | `Cratis.Testing` | Meta-package that pulls in both of the above. Reference this single package in most projects. |
@@ -27,24 +30,25 @@ The `CommandScenario<TCommand>` class is the single entry point for all command 
 ### 1. Add the package
 
 ```xml
+<PackageReference Include="Cratis.Specifications.XUnit" />
 <PackageReference Include="Cratis.Testing" />
 ```
 
 ### 2. Write a spec
 
-Create a `CommandScenario<TCommand>` instance as a field, then call `Execute` directly inside each `[Fact]`:
+Create a `CommandScenario<TCommand>` instance as a field, execute the command in `Because()`, and assert the result from `[Fact]` methods:
 
 ```csharp
-public class when_adding_item_to_cart
+public class when_adding_item_to_cart : Specification
 {
     readonly CommandScenario<AddItemToCart> _scenario = new();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_succeed()
-    {
-        var result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
-        result.ShouldBeSuccessful();
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
+
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
 }
 ```
 
@@ -59,25 +63,25 @@ When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is re
 - `EventSequence` — the same instance, compatible with Chronicle's assertion helpers
 
 ```csharp
-public class when_registering_author
+public class when_registering_author : Specification
 {
     readonly CommandScenario<RegisterAuthor> _scenario = new();
+    readonly EventSourceId _authorId = EventSourceId.New();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_succeed()
-    {
-        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        result.ShouldBeSuccessful();
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_authorId, "Jane Austen"));
 
-    [Fact]
-    public async Task should_have_appended_registered_event()
-    {
-        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
-    }
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_registered_event() =>
+        _scenario.ShouldHaveAppendedEvent<RegisterAuthor, AuthorRegistered>(
+            _authorId,
+            e => e.Name == "Jane Austen");
 }
 ```
 
-No base class, no interface, no setup method — just a field and inline async `[Fact]` methods.
+The command still runs through Arc's real command pipeline. The Chronicle testing extension captures the events appended during that execution so the spec can assert on the facts without starting a Chronicle server.
 
+For the cross-product testing model — Specifications, Arc command scenarios, Chronicle event/read-model/reactor scenarios, and full stack slice specs — see [Testing with Cratis](/testing-with-cratis/).

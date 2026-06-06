@@ -1,15 +1,15 @@
 ---
-title: Arc without event sourcing
-description: Arc is a full-stack CQRS framework in its own right — typed commands, queries, and a generated React client over MongoDB or EF Core, with no event store required. Here is the standalone shape, and when to add Chronicle.
+title: CQRS without event sourcing
+description: Arc's CQRS model can run over MongoDB or EF Core without Chronicle. This page shows the boundary between CQRS and event sourcing, not an argument against event sourcing.
 ---
 
-It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. But Arc does not require an event store. Its core is a *persistence-agnostic* application model: **commands, queries, and the generated C# → TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is your choice.
+It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. We think event sourcing is the default architecture for information systems, and Chronicle is the Cratis event-sourcing platform. But Arc itself is CQRS: **commands, queries, and the generated C# → TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is a separate decision.
 
-This page shows Arc on its own — the same typed full-stack experience, backed by a plain database instead of an event log — and exactly where the line between the two sits.
+This page shows Arc on its own — the same typed full-stack experience, backed by a plain database instead of an event log — so the line between CQRS and event sourcing is explicit. CQRS and event sourcing fit naturally together, but neither depends on the other.
 
 ## The line between Arc and Chronicle
 
-Arc is a layer that can sit *on top of* Chronicle; Chronicle never depends on Arc. That direction is the whole point — it's why you can drop Chronicle entirely and keep everything Arc gives you. In the backend docs, Chronicle is one **integration** among peers — [Chronicle](./backend/chronicle/index.md), [MongoDB](./backend/mongodb/index.md), and [Entity Framework](./backend/entity-framework/index.md) — each a way to give your commands and queries somewhere to read and write.
+Arc is a layer that can sit *on top of* Chronicle; Chronicle never depends on Arc. That direction is the whole point — it's why a bounded current-state slice can keep everything Arc gives you without storing events. In the backend docs, Chronicle, [MongoDB](./backend/mongodb/index.md), and [Entity Framework](./backend/entity-framework/index.md) are integrations: each gives commands and queries somewhere to read and write, while Chronicle adds the event-sourced backbone.
 
 ```mermaid
 flowchart TB
@@ -19,7 +19,7 @@ flowchart TB
     Core --> Chr[("Chronicle<br/>event sourcing")]
 ```
 
-Pick MongoDB or EF Core and you have a complete, fully-typed full-stack app with no events anywhere in sight.
+Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an event log. Pick Chronicle and the same Arc boundary records facts, builds projections, and keeps history.
 
 ## A standalone slice, end to end
 
@@ -85,15 +85,15 @@ Set this slice next to the same slice with [Chronicle added later](/arc/backend/
 
 So adopting Chronicle later is a *write-side* change. Your queries, your generated proxies, and your screens don't move.
 
-## What you give up — and when to add Chronicle back
+## The trade-off
 
-Storing current state directly is simpler, and for plenty of applications it's the right call. What you don't get is everything an event log buys you: an audit trail, the ability to rebuild a read model a brand-new way from history, temporal queries, and reactors that fire on facts. [Why Event Sourcing](/chronicle/why-event-sourcing/) is the honest look at that trade-off.
+Storing current state directly is simpler for bounded CRUD surfaces, reference data, settings, and adoption steps. What you don't get is everything an event log buys you: an audit trail, the ability to rebuild a read model a brand-new way from history, temporal queries, and reactors that fire on facts. For information systems, we prefer starting with Chronicle because those needs show up often. [Why Event Sourcing](/chronicle/why-event-sourcing/) explains the default.
 
-The reassuring part, from the table above: you don't have to decide up front. Start with Arc over a database, and the day history starts to matter, move the write side to Chronicle — the read side and the entire frontend come along unchanged. [Adopting Cratis](/adopting-cratis/) walks through doing exactly that, one step at a time.
+The reassuring part, from the table above: the boundary stays clean. If a direct-database slice later belongs in the event-sourced model, move the write side to Chronicle — the read side and the entire frontend come along unchanged. [Adopting Cratis](/adopting-cratis/) walks through doing exactly that, one step at a time.
 
 ## Go deeper
 
 - [MongoDB integration](./backend/mongodb/index.md) — setup, serializers, class mapping, and [observing collections](./backend/mongodb/observing-collections.md) for live queries.
 - [Entity Framework integration](./backend/entity-framework/getting-started.md) — DbContexts, read-only contexts, and [observing DbSets](./backend/entity-framework/observing.md).
 - [Commands](./backend/commands/index.md) and [Queries](./backend/queries/index.md) — the full model-bound and controller-based reference.
-- [Why Arc](./why-arc.md) — the problem Arc solves, with or without an event store.
+- [Why Arc](./why-arc.md) — the problem Arc solves, and how CQRS relates to event sourcing.
