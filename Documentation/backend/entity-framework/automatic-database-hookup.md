@@ -19,7 +19,7 @@ services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString(".
 However, **it is recommended** to use the Arc registration methods which use the pooled factory pattern for better performance and to support multiple database providers:
 
 ```csharp
-services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */index.md);
+services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", (serviceProvider, opt) => { /* do whatever configuration you want */ });
 ```
 
 This method automatically:
@@ -87,7 +87,7 @@ public class MyService
 For any **read-only** `DbContext` there is also an extension method:
 
 ```csharp
-services.AddReadOnlyDbContextWithConnectionString<MyDbContext>(".. your connection string..", opt => /* do whatever configuration you want */index.md);
+services.AddReadOnlyDbContextWithConnectionString<MyDbContext>(".. your connection string..", (serviceProvider, opt) => { /* do whatever configuration you want */ });
 ```
 
 ## Automatic Registration from Assemblies
@@ -96,10 +96,10 @@ The framework provides methods to automatically discover and register all `ReadO
 
 ```csharp
 // Register all ReadOnlyDbContext types from assemblies with a common options action
-services.AddReadModelDbContextsFromAssemblies(opt => opt.UseDatabaseFromConnectionString(connectionString), assembly1, assembly2);
+services.AddReadModelDbContextsFromAssemblies((serviceProvider, opt) => opt.UseDatabaseFromConnectionString(connectionString), assembly1, assembly2);
 
 // Register all ReadOnlyDbContext types from assemblies with a connection string
-services.AddReadModelDbContextsWithConnectionStringFromAssemblies(connectionString, opt => /* additional options */, assembly1, assembly2);
+services.AddReadModelDbContextsWithConnectionStringFromAssemblies(connectionString, (serviceProvider, opt) => { /* additional options */ }, assembly1, assembly2);
 ```
 
 ### Registration Filtering Rules

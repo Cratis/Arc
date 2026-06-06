@@ -48,14 +48,14 @@ public DebitAccount[] GetAccountsArray()
 
 ## Query Results
 
-For more control over the response metadata, you can return `QueryResult<T>`:
+For more control over the response metadata, you can return `QueryResult`:
 
 ```csharp
 [HttpGet]
-public QueryResult<IEnumerable<DebitAccount>> GetAccountsWithMetadata()
+public QueryResult GetAccountsWithMetadata()
 {
     var accounts = _collection.Find(_ => true).ToList();
-    return new QueryResult<IEnumerable<DebitAccount>>
+    return new QueryResult
     {
         Data = accounts,
         // Additional metadata will be populated automatically
@@ -134,7 +134,7 @@ public DebitAccount? GetAccount(AccountId id)
 2. **Consider nullability** - Use nullable types when queries might return no results
 3. **Async for I/O operations** - Always use async methods when dealing with database operations
 4. **Custom types for complex data** - Create dedicated response types for complex query results
-5. **QueryResult for metadata** - Use `QueryResult<T>` when you need to include additional response metadata
+5. **QueryResult for metadata** - Use `QueryResult` (assigning its `Data` property) when you need to include additional response metadata
 
 ## Response Wrappers
 
