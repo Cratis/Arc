@@ -110,7 +110,7 @@ The command pipeline processes tuples as follows:
 2. **Values with handlers** are processed by their respective response value handlers
 3. **Values without handlers** are considered potential response values
 4. **If exactly one value has no handler**, it becomes the response in the `CommandResult`
-5. **If multiple values have no handlers**, a `MultipleUnhandledTupleValuesException` is thrown
+5. **If multiple values have no handlers**, a `MultipleUnhandledTupleValues` is thrown
 6. **If all values have handlers**, no response value is set
 
 ### Simple Tuple (2 values)
@@ -167,7 +167,7 @@ In this example:
 
 ### Error Scenarios
 
-If your tuple contains multiple values that don't have corresponding response value handlers, the system will throw a `MultipleUnhandledTupleValuesException` with details about which values couldn't be handled:
+If your tuple contains multiple values that don't have corresponding response value handlers, the system will throw a `MultipleUnhandledTupleValues` with details about which values couldn't be handled:
 
 ```csharp
 // This would throw an exception if neither string nor int have handlers

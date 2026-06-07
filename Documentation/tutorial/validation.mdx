@@ -1,0 +1,104 @@
+---
+title: "2. Make it trustworthy"
+description: Reject a blank or duplicate author name — first with a validator on the value type, then with a business rule that checks existing state — and watch the reason appear in the React form.
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+We left chapter 1 with a working slice and an honest problem: a librarian can register an author with a blank name, or the same author twice, and nothing stops them. A trustworthy app has to be able to say *no* — clearly, and as early as possible.
+
+There are two different kinds of "no" here, and Arc handles them in two different places:
+
+- **"That input is malformed."** A blank name is wrong on its face — you don't need to look at anything else to know it. That's a *validation* rule, and it belongs on the value.
+- **"That input collides with what already exists."** A duplicate name is only wrong relative to the rest of the system. That's a *business rule*, and it needs to consult state.
+
+Let's add both.
+
+## Validate the value, once
+
+Your first instinct might be to validate `Name` inside a `RegisterAuthor` validator. But think about it: *every* command that takes an `AuthorName` wants the same guarantee — never blank. Arc lets you state that rule **on the value type itself**, so it's enforced everywhere an `AuthorName` is used, and you never write it twice.
+
+<Steps>
+
+1. **Write a `ConceptValidator` for the value type.** It reaches into the concept's underlying `Value` and applies ordinary [FluentValidation](https://docs.fluentvalidation.net/) rules:
+
+   ```csharp
+   public class AuthorNameValidator : ConceptValidator<AuthorName>
+   {
+       public AuthorNameValidator()
+       {
+           RuleFor(x => x.Value).NotEmpty().WithMessage("An author needs a name.");
+       }
+   }
+   ```
+
+   That's the whole change. You don't register it anywhere — Arc discovers validators by convention. From now on, any command carrying an `AuthorName` rejects a blank one before `Handle()` ever runs.
+
+</Steps>
+
+## Reject the duplicate against existing state
+
+Uniqueness is the harder kind of "no", because it depends on what's already there. Input validation can't answer it — you have to look in the database. That's a job for a **`CommandValidator`**, which validates a whole command and, because Arc constructs it from the container, can take the dependencies it needs to check state.
+
+<Steps>
+
+1. **Write a `CommandValidator` that asks the database.** A `MustAsync` rule looks for an author already carrying this name; if it finds one, the command is rejected:
+
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
+   ```csharp
+   public class RegisterAuthorValidator : CommandValidator<RegisterAuthor>
+   {
+       public RegisterAuthorValidator(IMongoCollection<Author> authors)
+       {
+           RuleFor(c => c.Name)
+               .MustAsync(async (name, _) => !await authors.Find(a => a.Name == name).AnyAsync())
+               .WithMessage("An author with that name is already registered.");
+       }
+   }
+   ```
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
+   ```csharp
+   public class RegisterAuthorValidator : CommandValidator<RegisterAuthor>
+   {
+       public RegisterAuthorValidator(LibraryDbContext db)
+       {
+           RuleFor(c => c.Name)
+               .MustAsync(async (name, ct) => !await db.Authors.AnyAsync(a => a.Name == name, ct))
+               .WithMessage("An author with that name is already registered.");
+       }
+   }
+   ```
+   </TabItem>
+   </Tabs>
+
+   `Handle()` doesn't change — it stays the clean write from chapter 1. The validator runs first; if it fails, `Handle()` never executes.
+
+</Steps>
+
+<Aside type="tip" title="Keep the check honest with a unique index">
+A check-then-write has a race: two registrations at the same instant can both pass the validator. The validator is for a *friendly message*; back it with a real **unique index** on the name (a MongoDB unique index, or an EF `HasIndex(...).IsUnique()`) so the database is the final authority.
+</Aside>
+
+## The UI already knows
+
+Here's the part that feels like a gift. You didn't touch the React code from chapter 1 — but the form now validates.
+
+When you wrote the `ConceptValidator`, the proxy generator extracted that rule into the generated TypeScript too, so the `CommandDialog` runs it **on the client** and disables the confirm button on a blank name — no round trip. The uniqueness rule can't run on the client (it has to look in the database), so it runs on the server; when it rejects, the message comes back through the same proxy and `CommandDialog` renders it against the form — *"An author with that name is already registered."* — because the dialog wires command results to fields for you.
+
+```tsx title="AddAuthor.tsx — unchanged from chapter 1"
+<CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" okLabel="Add">
+    <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
+</CommandDialog>
+```
+
+One rule on the value type, one rule on the command, and both ends of the app honor them — because the validation, like the types, flows from one source.
+
+## What you built
+
+- An `AuthorNameValidator` that guards the **value type**, enforced everywhere an `AuthorName` is used and run client-side through the generated proxy.
+- A `RegisterAuthorValidator` **business rule** that checks existing state in the database, with a unique index behind it for the hard guarantee.
+- A React form that surfaces both — client-side and server-side — with no extra frontend code.
+
+Our author is trustworthy now. But an author with no books is a lonely thing. Next we'll give them a catalog — a second feature that *relates* to this one. [Let's add books →](./books-and-relationships)

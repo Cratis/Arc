@@ -116,7 +116,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
     public static ISubject<DebitAccount> GetAccountObservable(
         AccountId id,
         IMongoCollection<DebitAccount> collection) =>
-            collection.Observe(a => a.Id == id);
+            collection.ObserveSingle(a => a.Id == id);
 }
 ```
 

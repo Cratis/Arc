@@ -9,19 +9,20 @@ The simplest way to add MongoDB support to your application is through the confi
 ### With WebApplicationBuilder
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args)
-    .UseCratisArc();
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
 
 builder.UseCratisMongoDB();
 
 var app = builder.Build();
+app.UseCratisArc();
 ```
 
 ### With HostBuilder
 
 ```csharp
 var host = Host.CreateDefaultBuilder(args)
-    .UseCratisArc()
+    .AddCratisArc()
     .UseCratisMongoDB()
     .Build();
 ```
@@ -60,7 +61,7 @@ builder.UseCratisMongoDB(configureMongoDB: mongoBuilder =>
     mongoBuilder
         .WithCamelCaseNamingPolicy()
         .WithServerResolver<MyCustomServerResolver>()
-        .WithDatabaseNameResolver<MyCustomDatabaseNameResolver>();
+        .WithDatabaseResolver<MyCustomDatabaseNameResolver>();
 });
 ```
 
@@ -75,7 +76,7 @@ Implement `IMongoServerResolver` to provide connection string logic:
 ```csharp
 public class MyServerResolver : IMongoServerResolver
 {
-    public MongoUrl GetMongoUrl()
+    public MongoUrl Resolve()
     {
         return new MongoUrl("mongodb://localhost:27017");
     }
@@ -89,7 +90,7 @@ Implement `IMongoDatabaseNameResolver` to provide database naming logic:
 ```csharp
 public class MyDatabaseNameResolver : IMongoDatabaseNameResolver
 {
-    public string GetDatabaseName()
+    public string Resolve()
     {
         return "MyApplicationDatabase";
     }

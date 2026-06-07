@@ -2,15 +2,17 @@
 
 Cratis Arc can be configured both through `appsettings.json` and programmatically to customize its behavior. The main configuration is handled through the `ArcOptions` class.
 
+This page covers the ASP.NET Core host specifically. For the lightweight Arc.Core host and its listen URL configuration, see [Arc.Core Getting Started](../core/getting-started.md).
+
 ## Default Configuration Section
 
-By default, the Arc looks for configuration under the `Cratis:Arc` section in your `appsettings.json` file.
+By default, Arc looks for configuration under the `Cratis:Arc` section in your `appsettings.json` file. The same keys can be supplied through environment variables — .NET maps the `__` separator onto nested keys, so `Cratis:Arc:GeneratedApis:RoutePrefix` becomes `Cratis__Arc__GeneratedApis__RoutePrefix`.
 
 ## Configuration Options
 
-### Complete Configuration Example
+### Configuration example
 
-Here's a complete example showing all available configuration options in `appsettings.json`:
+Here's an example covering the most common options, bound from `appsettings.json` under `Cratis:Arc`:
 
 ```json
 {
@@ -20,6 +22,7 @@ Here's a complete example showing all available configuration options in `appset
         "HttpHeader": "X-Correlation-ID"
       },
       "Tenancy": {
+        "ResolverType": "Header",
         "HttpHeader": "x-cratis-tenant-id"
       },
       "GeneratedApis": {
@@ -27,11 +30,17 @@ Here's a complete example showing all available configuration options in `appset
         "SegmentsToSkipForRoute": 0,
         "IncludeCommandNameInRoute": true,
         "IncludeQueryNameInRoute": true
+      },
+      "Query": {
+        "KeepAliveInterval": "00:00:30"
       }
     }
   }
 }
 ```
+
+> [!NOTE]
+> `ArcOptions.Hosting` (the listen URL) applies only to **Arc.Core** hosts — in an ASP.NET Core app the URL comes from Kestrel and `launchSettings.json`, not from Arc. For the Arc.Core hosting shape, see [Arc.Core Getting Started](../core/getting-started.md).
 
 ### Configuration Properties
 
@@ -43,9 +52,13 @@ Controls how correlation IDs are handled in HTTP requests.
 
 #### Tenancy
 
-Controls multi-tenancy support through HTTP headers.
+Controls how the active tenant is resolved on each request.
 
-- **HttpHeader** (string, default: `"x-cratis-tenant-id"`): The HTTP header name to use for tenant identification.
+- **ResolverType** (`TenantResolverType`, default: `Header`): How to resolve the tenant — `Header`, `Query`, `Claim`, or `Development`.
+- **HttpHeader** (string, default: `"x-cratis-tenant-id"`): The HTTP header used when `ResolverType` is `Header`.
+- **QueryParameter** (string, default: `"tenantId"`): The query-string parameter used when `ResolverType` is `Query`.
+- **ClaimType** (string, default: `"tenant_id"`): The claim used when `ResolverType` is `Claim`.
+- **DevelopmentTenantId** (string, default: `"development"`): The fixed tenant used when `ResolverType` is `Development`.
 
 #### GeneratedApis
 
@@ -56,24 +69,33 @@ Controls how automatically generated API endpoints are configured for commands a
 - **IncludeCommandNameInRoute** (bool, default: `true`): Whether to include the command type name as the last segment of the route for command endpoints.
 - **IncludeQueryNameInRoute** (bool, default: `true`): Whether to include the query type name as the last segment of the route for query endpoints.
 
+#### Query
+
+Controls observable (real-time) queries.
+
+- **KeepAliveInterval** (`TimeSpan`, default: `00:00:30`): How often a keep-alive frame is sent on an open observable-query connection.
+
 #### IdentityDetailsProvider
 
 - **IdentityDetailsProvider** (Type, default: `null`): Specifies a custom identity details provider type. If not specified, the system will use type discovery to find one automatically.
 
 ## Setup Methods
 
+The ASP.NET Core host bootstraps with `WebApplication.CreateBuilder`, registers Arc with `AddCratisArc`, and activates it with `UseCratisArc`.
+
 ### Using Configuration File
 
 The most common approach is to use the configuration file with the default section:
 
 ```csharp
-var builder = Host.CreateDefaultBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-// Use default configuration section (Cratis:Arc)
-builder.UseCratisArc();
+// Bind the default configuration section (Cratis:Arc)
+builder.AddCratisArc();
 
 var app = builder.Build();
 app.UseCratisArc();
+app.Run();
 ```
 
 ### Using Custom Configuration Section
@@ -81,64 +103,62 @@ app.UseCratisArc();
 You can specify a custom configuration section path:
 
 ```csharp
-var builder = Host.CreateDefaultBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-// Use custom configuration section
-builder.UseCratisArc("MyApp:CratisConfig");
+// Bind a custom configuration section
+builder.AddCratisArc(configSectionPath: "MyApp:CratisConfig");
 
 var app = builder.Build();
 app.UseCratisArc();
+app.Run();
 ```
 
 ### Programmatic Configuration
 
-You can configure the options entirely through code:
+You can configure the options through code with the `configureOptions` callback:
 
 ```csharp
-var builder = Host.CreateDefaultBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-builder.UseCratisArc(options =>
+builder.AddCratisArc(options =>
 {
     // Configure correlation ID
     options.CorrelationId.HttpHeader = "X-My-Correlation-ID";
-    
+
     // Configure tenancy
     options.Tenancy.HttpHeader = "X-Tenant-ID";
-    
+
     // Configure generated APIs
     options.GeneratedApis.RoutePrefix = "myapi";
     options.GeneratedApis.SegmentsToSkipForRoute = 2;
     options.GeneratedApis.IncludeCommandNameInRoute = false;
     options.GeneratedApis.IncludeQueryNameInRoute = false;
-    
-    // Set custom identity details provider
+
+    // Set a custom identity details provider
     options.IdentityDetailsProvider = typeof(MyCustomIdentityDetailsProvider);
 });
 
 var app = builder.Build();
 app.UseCratisArc();
+app.Run();
 ```
 
 ### Hybrid Configuration
 
-You can combine configuration file settings with programmatic overrides:
+`AddCratisArc` binds `appsettings.json` first and then applies the `configureOptions` callback, so the callback acts as a programmatic override on top of file-based settings:
 
 ```csharp
-var builder = Host.CreateDefaultBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-// First bind from configuration, then override specific values
-builder.UseCratisArc("Cratis:Arc")
-       .ConfigureServices(services =>
-       {
-           services.Configure<ArcOptions>(options =>
-           {
-               // Override specific settings programmatically
-               options.GeneratedApis.RoutePrefix = "v1/api";
-           });
-       });
+// Values come from Cratis:Arc; the callback overrides specific settings
+builder.AddCratisArc(options =>
+{
+    options.GeneratedApis.RoutePrefix = "v1/api";
+});
 
 var app = builder.Build();
 app.UseCratisArc();
+app.Run();
 ```
 
 ## Environment-Specific Configuration
@@ -249,6 +269,9 @@ For example, with the configuration above:
 - If you have only `MyApp.Sales.Commands.CreateOrder`, the route will be `/api/commands`
 - If you have both `MyApp.Sales.Commands.CreateOrder` and `MyApp.Sales.Commands.UpdateOrder`, the routes will be `/api/commands/create-order` and `/api/commands/update-order` respectively (type names added automatically to avoid conflict)
 
+> [!NOTE]
+> The runtime `GeneratedApis` settings and the build-time proxy-generation settings must agree. If you change route generation here, mirror it in the `CratisProxies*` MSBuild properties so the generated TypeScript clients call the same routes. See [Proxy Generation Configuration](../proxy-generation/Configuration/index.md).
+
 ## JSON Serialization
 
 Arc provides a centralized `JsonSerializerOptions` configuration through `ArcOptions`. This ensures consistent JSON serialization across your entire application, including controller actions, manual serialization, and generated API endpoints.
@@ -297,7 +320,7 @@ public class MyService
 You can add custom converters or modify the configuration through the options pattern:
 
 ```csharp
-builder.UseCratisArc(options =>
+builder.AddCratisArc(options =>
 {
     // Add a custom converter
     options.JsonSerializerOptions.Converters.Add(new MyCustomConverter());

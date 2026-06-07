@@ -48,10 +48,10 @@ if (result.isSuccess) {
 
 ### isAuthorized
 
-Indicates whether the user is authorized to execute this command.
+Indicates whether Arc's command pipeline authorized this command.
 
 - `true`: The user has permission to execute the command
-- `false`: The user lacks the necessary permissions (HTTP 401/403)
+- `false`: The generated command endpoint returned an authorization failure, typically HTTP 403. An upstream authentication challenge can return HTTP 401 before a `CommandResult` payload is produced.
 
 **Use this when:**
 
@@ -287,6 +287,6 @@ This is especially useful for debugging and support scenarios.
 
 ## Related Topics
 
-- [Commands](./commands/index.md) - Core command concepts and usage
-- [React Commands](../react/commands/index.md) - Using commands in React components
-- [Validation](../../backend/commands/validation.md) - Understanding validation rules
+- [Commands](./index.md) - Core command concepts and usage
+- [React Commands](../../react/commands/index.md) - Using commands in React components
+- [Validation](../../../backend/commands/validation.md) - Understanding validation rules

@@ -140,7 +140,8 @@ useSuspenseQuery<TDataType, TQuery, TArguments>(
 #### With Paging
 
 ```typescript
-import { useSuspenseQueryWithPaging, Paging } from '@cratis/arc.react/queries';
+import { useSuspenseQueryWithPaging } from '@cratis/arc.react/queries';
+import { Paging } from '@cratis/arc/queries';
 
 function PagedList() {
     const [result, perform, setSorting, setPage, setPageSize] =
@@ -193,7 +194,8 @@ useSuspenseObservableQuery<TDataType, TQuery, TArguments>(
 #### With Paging
 
 ```typescript
-import { useSuspenseObservableQueryWithPaging, Paging } from '@cratis/arc.react/queries';
+import { useSuspenseObservableQueryWithPaging } from '@cratis/arc.react/queries';
+import { Paging } from '@cratis/arc/queries';
 
 function PagedFeed() {
     const [result, setSorting, setPage, setPageSize] =

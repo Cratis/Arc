@@ -1,0 +1,12 @@
+- name: Overview
+  href: index.md
+- name: 1. Your first full-stack slice
+  href: first-slice.mdx
+- name: 2. Make it trustworthy
+  href: validation.mdx
+- name: 3. Relate your slices
+  href: books-and-relationships.mdx
+- name: 4. Make it live
+  href: real-time.mdx
+- name: 5. Decide who can do what
+  href: authorization.mdx

@@ -83,7 +83,7 @@ A typical pattern is to first execute without allowing warnings, show them to th
 
 ```typescript
 import { CreateOrder } from './generated/commands';
-import { ValidationResultSeverity } from '@cratis/arc';
+import { ValidationResultSeverity } from '@cratis/arc/validation';
 
 async function createOrderWithWarningConfirmation() {
     const command = new CreateOrder();
@@ -142,7 +142,8 @@ function showErrorDialog(title: string, message: string): void {
 You can create a reusable helper function for the warning confirmation pattern:
 
 ```typescript
-import { ICommand, CommandResult, ValidationResultSeverity } from '@cratis/arc';
+import { ICommand, CommandResult } from '@cratis/arc/commands';
+import { ValidationResultSeverity } from '@cratis/arc/validation';
 
 interface ConfirmationOptions {
     title?: string;
@@ -196,7 +197,8 @@ For React applications, you can create a custom hook:
 
 ```typescript
 import { useState } from 'react';
-import { ICommand, CommandResult, ValidationResultSeverity } from '@cratis/arc';
+import { ICommand, CommandResult } from '@cratis/arc/commands';
+import { ValidationResultSeverity } from '@cratis/arc/validation';
 
 interface UseCommandWithConfirmationResult<TResponse> {
     execute: () => Promise<void>;
@@ -332,7 +334,10 @@ interface ICommand<TCommandContent, TCommandResponse> {
      *                       Validation results with severity higher than this will cause the command to fail.
      *                       If not specified, only Error severity blocks execution.
      */
-    execute(allowedSeverity?: ValidationResultSeverity): Promise<CommandResult<TCommandResponse>>;
+    execute(
+        allowedSeverity?: ValidationResultSeverity,
+        ignoreWarnings?: boolean
+    ): Promise<CommandResult<TCommandResponse>>;
 }
 ```
 
@@ -410,6 +415,6 @@ Results with severity **greater than** the `allowedSeverity` will block executio
 ## Related Documentation
 
 - [Validation](../commands/validation.md) - Pre-flight validation without execution
-- [Validation](./validation/index.md) - Client-side validation rules
+- [Validation](./index.md) - Client-side validation rules
 - [Backend Validation Severity Filtering](../../../backend/commands/validation-severity-filtering.md) - Server implementation
-- [Command Filters](../../backend/commands/command-filters.md) - Backend validation pipeline
+- [Command Filters](../../../backend/commands/command-filters.md) - Backend validation pipeline

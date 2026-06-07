@@ -1,8 +1,8 @@
 # Query Pipeline
 
 The query pipeline provides automatic handling of sorting, paging, and advanced query processing
-through query renderers. This allows you to write simple query methods while getting advanced
-functionality for free.
+through query renderers. This lets query methods stay small while the pipeline handles the
+cross-cutting query behavior.
 
 ## Automatic Sorting and Paging
 
@@ -277,7 +277,7 @@ public class AccountSecurityFilter : IQueryFilter
         // Check if user has permission to execute this query
         if (!await _currentUser.HasPermissionAsync("accounts.read"))
         {
-            return QueryResult.Unauthorized(context.CorrelationId, "Access denied to accounts");
+            return QueryResult.Unauthorized(context.CorrelationId);
         }
 
         return QueryResult.Success(context.CorrelationId);

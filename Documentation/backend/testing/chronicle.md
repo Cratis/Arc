@@ -7,73 +7,77 @@ When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is re
 
 The extension is wired via `ChronicleCommandScenarioExtender`, which implements `ICommandScenarioExtender` and is discovered automatically by `CommandScenario<TCommand>` at construction time using the Cratis type discovery system.
 
+In a Cratis Specification, that gives you the event-sourced test shape directly: seed prior facts with `_scenario.EventScenario.Given` in `Establish()`, execute the command once in `Because()`, then assert the `CommandResult` and the captured events from `[Fact]` methods.
+
 ## Package
 
 ```xml
+<PackageReference Include="Cratis.Specifications.XUnit" />
 <PackageReference Include="Cratis.Arc.Chronicle.Testing" />
 ```
 
 Or via the meta-package:
 
 ```xml
+<PackageReference Include="Cratis.Specifications.XUnit" />
 <PackageReference Include="Cratis.Testing" />
 ```
 
 ## Basic Usage
 
-Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, three extension properties are available directly on the scenario:
+Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, four extension properties are available directly on the scenario:
 
 | Property | Type | Purpose |
 | -------- | ---- | ------- |
 | `EventScenario` | `EventScenario` | The full scenario object — use for seeding via `Given` |
 | `EventLog` | `IEventLog` | The in-memory event log — use for appending and assertions |
 | `EventSequence` | `IEventSequence` | The same instance as `EventLog` — use with Chronicle's assertion helpers |
+| `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | The events captured during command execution |
 
 ```csharp
-public class when_registering_author
+public class when_registering_author : Specification
 {
+    readonly EventSourceId _authorId = EventSourceId.New();
     readonly CommandScenario<RegisterAuthor> _scenario = new();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_succeed()
-    {
-        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        result.ShouldBeSuccessful();
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_authorId, "Jane Austen"));
 
-    [Fact]
-    public async Task should_have_appended_registered_event()
-    {
-        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
-    }
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_registered_event() =>
+        _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(_authorId);
 }
 ```
+
+The spec executes the command once and then asserts both the Arc result and the Chronicle fact that was recorded.
 
 ## Seeding Pre-existing Events with `Given`
 
 Use `_scenario.EventScenario.Given` to append events to the in-memory event log *before* the command runs. Call `ForEventSource` with the event source identifier, then pass the pre-existing events to `Events`:
 
 ```csharp
-public class when_registering_author_with_same_name
+public class when_registering_author_with_same_name : Specification
 {
+    readonly EventSourceId _authorId = EventSourceId.New();
     readonly CommandScenario<RegisterAuthor> _scenario = new();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_not_succeed()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(AuthorId.New()).Events(new AuthorRegistered("Jane Austen"));
-        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        result.ShouldNotBeSuccessful();
-    }
+    Task Establish() =>
+        _scenario.EventScenario.Given
+            .ForEventSource(_authorId)
+            .Events(new AuthorRegistered("Jane Austen"));
 
-    [Fact]
-    public async Task should_not_have_appended_a_second_event()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(AuthorId.New()).Events(new AuthorRegistered("Jane Austen"));
-        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_authorId, "Jane Austen"));
+
+    [Fact] void should_not_succeed() =>
+        _result.ShouldNotBeSuccessful();
+
+    [Fact] Task should_not_have_appended_a_second_event() =>
+        _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
 }
 ```
 
@@ -100,23 +104,26 @@ using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
 
-public class when_migrating_customer_to_new_id
+public class when_migrating_customer_to_new_id : Specification
 {
     readonly CommandScenario<MigrateCustomerToNewId> _scenario = new();
     readonly EventSourceId _oldId = EventSourceId.New();
     readonly EventSourceId _newId = EventSourceId.New();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_have_appended_migrated_event_for_new_id() =>
-        await _scenario.Execute(new MigrateCustomerToNewId(_oldId, _newId))
-            .ContinueWith(_ => _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(_newId));
+    async Task Because() =>
+        _result = await _scenario.Execute(new MigrateCustomerToNewId(_oldId, _newId));
 
-    [Fact]
-    public async Task should_reference_old_id_in_event() =>
-        await _scenario.Execute(new MigrateCustomerToNewId(_oldId, _newId))
-            .ContinueWith(_ => _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(
-                _newId,
-                e => e.OldCustomerId == _oldId));
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_migrated_event_for_new_id() =>
+        _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(_newId);
+
+    [Fact] Task should_reference_old_id_in_event() =>
+        _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(
+            _newId,
+            e => e.OldCustomerId == _oldId);
 }
 ```
 
@@ -127,42 +134,30 @@ using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
 
-public class when_transferring_funds
+public class when_transferring_funds : Specification
 {
     readonly CommandScenario<TransferFunds> _scenario = new();
     readonly EventSourceId _fromAccount = EventSourceId.New();
     readonly EventSourceId _toAccount = EventSourceId.New();
+    CommandResult _result = default!;
 
-    async Task Execute() =>
-        await _scenario.Execute(new TransferFunds(_fromAccount, _toAccount, 250m));
+    async Task Because() =>
+        _result = await _scenario.Execute(new TransferFunds(_fromAccount, _toAccount, 250m));
 
-    [Fact]
-    public async Task should_have_debited_from_account()
-    {
-        await Execute();
-        await _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount);
-    }
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
 
-    [Fact]
-    public async Task should_have_credited_to_account()
-    {
-        await Execute();
-        await _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsCredited>(_toAccount);
-    }
+    [Fact] Task should_have_debited_from_account() =>
+        _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount);
 
-    [Fact]
-    public async Task should_have_debited_correct_amount()
-    {
-        await Execute();
-        await _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount, e => e.Amount == 250m);
-    }
+    [Fact] Task should_have_credited_to_account() =>
+        _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsCredited>(_toAccount);
 
-    [Fact]
-    public async Task should_have_appended_two_events()
-    {
-        await Execute();
-        await _scenario.ShouldHaveTailSequenceNumber<TransferFunds>(1ul);
-    }
+    [Fact] Task should_have_debited_correct_amount() =>
+        _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount, e => e.Amount == 250m);
+
+    [Fact] Task should_have_appended_two_events() =>
+        _scenario.ShouldHaveTailSequenceNumber<TransferFunds>(1ul);
 }
 ```
 
@@ -172,11 +167,8 @@ The `AppendedEvents` extension property gives you the raw list if you need to wr
 
 ```csharp
 [Fact]
-public async Task should_have_exactly_two_events()
-{
-    await Execute();
+void should_have_exactly_two_events() =>
     _scenario.AppendedEvents.Count.ShouldEqual(2);
-}
 ```
 
 ## Testing Commands That Take Read Model Dependencies
@@ -186,6 +178,9 @@ public async Task should_have_exactly_two_events()
 In tests, you can keep things deterministic by overriding `IReadModels` and returning the instance you want for the current event source id:
 
 ```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 var scenario = new CommandScenario<UseReadModelDependencyCommand>();
 var readModels = Substitute.For<IReadModels>();
 
@@ -193,7 +188,7 @@ readModels
     .GetInstanceById(typeof(AccountBalanceReadModel), Arg.Any<ReadModelKey>(), default)
     .Returns(Task.FromResult<object>(new AccountBalanceReadModel(42m)));
 
-scenario.Services.AddSingleton(readModels);
+scenario.Services.Replace(ServiceDescriptor.Singleton<IReadModels>(readModels));
 ```
 
 ## Multiple Events
@@ -201,33 +196,28 @@ scenario.Services.AddSingleton(readModels);
 When a command appends several events, assert each one by its sequence number:
 
 ```csharp
-public class when_completing_order
+public class when_completing_order : Specification
 {
     readonly CommandScenario<CompleteOrder> _scenario = new();
+    readonly EventSourceId _orderId = EventSourceId.New();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_succeed()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
-        var result = await _scenario.Execute(new CompleteOrder());
-        result.ShouldBeSuccessful();
-    }
+    Task Establish() =>
+        _scenario.EventScenario.Given
+            .ForEventSource(_orderId)
+            .Events(new OrderPlaced("item-1", 3));
 
-    [Fact]
-    public async Task should_have_appended_two_events()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
-        await _scenario.Execute(new CompleteOrder());
-        await _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new CompleteOrder(_orderId));
 
-    [Fact]
-    public async Task should_have_appended_completed_event()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
-        await _scenario.Execute(new CompleteOrder());
-        await _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
-    }
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_two_events() =>
+        _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
+
+    [Fact] Task should_have_appended_completed_event() =>
+        _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
 }
 ```
 

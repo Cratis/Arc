@@ -1,5 +1,11 @@
 - name: Aggregates
   href: aggregates/toc.yml
+- name: Add event sourcing to an Arc slice
+  href: add-event-sourcing.mdx
+- name: Cratis Package
+  href: cratis-package.md
+- name: React to an event
+  href: react-to-an-event.md
 - name: Read Models
   href: read-models.md
 - name: Commands

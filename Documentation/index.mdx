@@ -1,0 +1,57 @@
+---
+title: Arc
+description: The full-stack application framework for Cratis — CQRS commands and queries with end-to-end type safety, from C# to React.
+---
+
+import { CardGrid } from '@astrojs/starlight/components';
+import SimpleCard from '@components/SimpleCard.astro';
+import TopicHero from '@components/TopicHero.astro';
+
+<TopicHero icon="puzzle" eyebrow="Arc" title="Full-stack CQRS, typed to the browser">
+Turn **commands** and **queries** into a full-stack CQRS application with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. Arc pairs naturally with Chronicle's event sourcing, and can also run over MongoDB or EF Core when a slice is deliberately current-state only. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
+</TopicHero>
+
+## Start here
+
+<CardGrid>
+  <SimpleCard title="Your first command & query" icon="rocket" link="/arc/backend/getting-started/your-first-command/">
+    Build a backend slice end to end: a command with `Handle()`, the read model it writes, and the live query that serves it.
+  </SimpleCard>
+  <SimpleCard title="Wire up the React frontend" icon="seti:react" link="/arc/frontend/getting-started/">
+    Consume the generated proxies from React — a typed query and a command, with the client model generated from C#.
+  </SimpleCard>
+  <SimpleCard title="MediatR, MVC, and Arc" icon="right-arrow" link="/arc/coming-from-mediatr-and-mvc/">
+    Maps controllers, handlers, and DTOs onto Arc's command/query model so the shift is short.
+  </SimpleCard>
+</CardGrid>
+
+## Explore Arc
+
+<CardGrid>
+  <SimpleCard title="Why Arc" icon="approve-check" link="/arc/why-arc/">
+    The plumbing Arc removes, and why CQRS plus proxy generation keeps a full-stack app honest.
+  </SimpleCard>
+  <SimpleCard title="Vertical slices" icon="seti:folder" link="/arc/vertical-slices/">
+    Why everything for one feature — backend and frontend — lives in a single folder.
+  </SimpleCard>
+  <SimpleCard title="CQRS without event sourcing" icon="right-arrow" link="/arc/arc-without-event-sourcing/">
+    Use Arc on its own over MongoDB or EF Core when you want the CQRS boundary without an event log.
+  </SimpleCard>
+  <SimpleCard title="Integrate with Chronicle" icon="seti:db" link="/arc/backend/chronicle/">
+    Add Chronicle when a slice needs events, projections, reducers, reactors, history, or aggregate roots.
+  </SimpleCard>
+  <SimpleCard title="Backend" icon="seti:c-sharp" link="/arc/backend/">
+    Commands, queries, validation, identity, tenancy, persistence, and proxy generation.
+  </SimpleCard>
+  <SimpleCard title="Frontend" icon="laptop" link="/arc/frontend/">
+    React integration, command forms, observable queries, and the optional MVVM approach.
+  </SimpleCard>
+  <SimpleCard title="Build a full-stack feature" icon="open-book" link="/build-a-full-app/">
+    One slice from command to React screen, with full-stack type safety throughout.
+  </SimpleCard>
+  <SimpleCard title="Troubleshooting" icon="list-format" link="/arc/troubleshooting/">
+    Answers to the questions that come up most when wiring Arc together.
+  </SimpleCard>
+</CardGrid>
+
+Arc feeds [Components](/components/) and gives the application its CQRS boundary. In the full Cratis loop it sits on top of [Chronicle](/chronicle/) through the [Chronicle integration](/arc/backend/chronicle/); for bounded current-state slices it can also run over MongoDB or EF Core. See [Why developers choose Cratis](/why-cratis/) for how the pieces fit.

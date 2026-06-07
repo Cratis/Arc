@@ -64,7 +64,7 @@ Set the `showErrors` prop to `false`:
 Use the `useCommandFormContext` hook to access validation state and render errors yourself:
 
 ```tsx
-import { useCommandFormContext } from '@cratis/applications-react/commands';
+import { useCommandFormContext } from '@cratis/arc.react/commands';
 
 function MyForm() {
     const { getFieldError } = useCommandFormContext();
@@ -155,7 +155,7 @@ For complete control over how each field is rendered, including its title, error
 Define a custom container component that receives field metadata:
 
 ```tsx
-import { FieldContainerProps } from '@cratis/applications-react/commands';
+import { FieldContainerProps } from '@cratis/arc.react/commands';
 
 const CustomFieldContainer = ({ title, errorMessage, children }: FieldContainerProps) => (
     <div className="custom-field-container" style={{
@@ -291,7 +291,7 @@ The `fieldDecoratorComponent` allows you to customize how fields with icons and 
 Define a custom decorator component:
 
 ```tsx
-import { FieldDecoratorProps } from '@cratis/applications-react/commands';
+import { FieldDecoratorProps } from '@cratis/arc.react/commands';
 
 const PrimeReactFieldDecorator = ({ icon, description, children }: FieldDecoratorProps) => {
     if (!icon && !description) {
@@ -346,7 +346,7 @@ The `errorDisplayComponent` allows complete control over how validation errors a
 Define a custom error display component:
 
 ```tsx
-import { ErrorDisplayProps } from '@cratis/applications-react/commands';
+import { ErrorDisplayProps } from '@cratis/arc.react/commands';
 
 const CustomErrorDisplay = ({ errors, fieldName }: ErrorDisplayProps) => (
     <div className="custom-errors" role="alert" aria-live="polite">
@@ -401,7 +401,7 @@ The `tooltipComponent` allows you to integrate custom tooltip libraries or compo
 Define a custom tooltip wrapper:
 
 ```tsx
-import { TooltipWrapperProps } from '@cratis/applications-react/commands';
+import { TooltipWrapperProps } from '@cratis/arc.react/commands';
 import { Tooltip } from 'primereact/tooltip';
 
 const PrimeReactTooltip = ({ description, children }: TooltipWrapperProps) => {
@@ -498,7 +498,7 @@ Then define your CSS:
 ### PrimeReact Integration
 
 ```tsx
-import { CommandForm } from '@cratis/applications-react/commands';
+import { CommandForm } from '@cratis/arc.react/commands';
 import { Tooltip } from 'primereact/tooltip';
 import 'primereact/resources/themes/lara-light-blue/theme.css';
 import 'primereact/resources/primereact.min.css';
@@ -627,4 +627,4 @@ You can combine multiple customization options for complete control:
 - [CommandForm Overview](./index.md)
 - [Built-in Field Types](./field-types/index.md)
 - [Validation](./validation.md)
-- [Advanced Usage](./advanced.md)
+- [Advanced Usage](./advanced-patterns.md)

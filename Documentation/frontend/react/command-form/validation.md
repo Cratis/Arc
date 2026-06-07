@@ -261,25 +261,23 @@ CommandForm automatically propagates validation results from backend command han
 ### Command Definition (C#)
 
 ```csharp
-public record CreateUser(string Email, string Username);
-
-public class CreateUserHandler : ICommandHandler<CreateUser>
+[Command]
+public record CreateUser(string Email, string Username)
 {
-    public async Task<CommandResult> Execute(CreateUser command)
+    public Result<ValidationResult, UserRegistered> Handle()
     {
         // Backend validation
-        if (await UserExists(command.Email))
+        if (Username.Length < 3)
         {
-            return CommandResult.Failed("A user with this email already exists");
+            return ValidationResult.Error("Username must be at least 3 characters");
         }
-        
-        if (command.Username.Length < 3)
+
+        if (!Email.Contains('@'))
         {
-            return CommandResult.Failed("Username must be at least 3 characters");
+            return ValidationResult.Error("Email must be a valid address");
         }
-        
-        // Process command...
-        return CommandResult.Success();
+
+        return new UserRegistered(Email, Username);
     }
 }
 ```
@@ -305,7 +303,7 @@ When the form is submitted:
 Use the `useCommandFormContext` hook to access validation state programmatically:
 
 ```tsx
-import { useCommandFormContext } from '@cratis/applications-react/commands';
+import { useCommandFormContext } from '@cratis/arc.react/commands';
 
 function MyForm() {
     const { getFieldError, commandResult } = useCommandFormContext();
@@ -341,7 +339,7 @@ function MyForm() {
 Validate as users interact with the form using the `useCommandInstance` hook:
 
 ```tsx
-import { useCommandInstance } from '@cratis/applications-react/commands';
+import { useCommandInstance } from '@cratis/arc.react/commands';
 import { useEffect } from 'react';
 
 function MyForm() {
@@ -455,8 +453,8 @@ if (!result.isAuthorized) {
 
 For comprehensive details on the command validation system:
 
-- **TypeScript/React**: See [Core Validation](../../../core/commands/validation.md)
-- **Backend**: See [Backend Command Validation](../../../../backend/commands/command-validation.md)
+- **TypeScript/React**: See [Core Validation](../../core/commands/validation.md)
+- **Backend**: See [Backend Command Validation](../../../backend/commands/command-validation.md)
 - **Command Usage**: See [Commands Overview](../index.md)
 
 ## See Also
@@ -464,4 +462,4 @@ For comprehensive details on the command validation system:
 - [CommandForm Overview](./index.md)
 - [Built-in Field Types](./field-types/index.md)
 - [Customization](./customization.md)
-- [Advanced Usage](./advanced.md)
+- [Advanced Usage](./advanced-patterns.md)

@@ -43,16 +43,22 @@ public class UserAccount
 
 ## Custom Naming Policies
 
-You can create your own naming policy by implementing `INamingPolicy`:
+You can create your own naming policy by implementing `INamingPolicy`. The interface has
+two members: `GetPropertyName` transforms a member name, and `GetReadModelName` transforms
+a type into a collection name:
 
 ```csharp
 public class SnakeCaseNamingPolicy : INamingPolicy
 {
-    public string ConvertName(string name)
+    public string GetPropertyName(string name) => ToSnakeCase(name);
+
+    public string GetReadModelName(Type readModelType) => ToSnakeCase(readModelType.Name);
+
+    static string ToSnakeCase(string name)
     {
         if (string.IsNullOrEmpty(name))
             return name;
-            
+
         var result = new StringBuilder();
         for (int i = 0; i < name.Length; i++)
         {
@@ -67,18 +73,15 @@ public class SnakeCaseNamingPolicy : INamingPolicy
 
 ### Registering Custom Policies
 
-You can register your custom naming policy in two ways:
-
-#### By Type
+Register your custom naming policy by passing an instance to `WithNamingPolicy`:
 
 ```csharp
 builder.UseCratisMongoDB(configureMongoDB: builder => 
-    builder.WithNamingPolicy<SnakeCaseNamingPolicy>());
+    builder.WithNamingPolicy(new SnakeCaseNamingPolicy()));
 ```
 
-#### By Instance
-
-If your naming policy requires constructor parameters:
+This also works when your naming policy requires constructor parameters — just construct
+the instance with the values you need:
 
 ```csharp
 var namingPolicy = new CustomNamingPolicy(prefix: "app_", suffix: "_v1");
@@ -122,10 +125,11 @@ public class CompoundNamingPolicy : INamingPolicy
         _policies = policies;
     }
     
-    public string ConvertName(string name)
-    {
-        return _policies.Aggregate(name, (current, policy) => policy.ConvertName(current));
-    }
+    public string GetPropertyName(string name) =>
+        _policies.Aggregate(name, (current, policy) => policy.GetPropertyName(current));
+
+    public string GetReadModelName(Type readModelType) =>
+        _policies.Aggregate(readModelType.Name, (current, policy) => policy.GetPropertyName(current));
 }
 
 // Usage
@@ -145,7 +149,7 @@ Create policies that apply different rules based on the property name:
 ```csharp
 public class ConditionalNamingPolicy : INamingPolicy
 {
-    public string ConvertName(string name)
+    public string GetPropertyName(string name)
     {
         // Don't transform ID fields
         if (name.EndsWith("Id", StringComparison.OrdinalIgnoreCase))
@@ -154,6 +158,9 @@ public class ConditionalNamingPolicy : INamingPolicy
         // Use camel case for everything else
         return char.ToLower(name[0]) + name[1..];
     }
+
+    public string GetReadModelName(Type readModelType) =>
+        char.ToLower(readModelType.Name[0]) + readModelType.Name[1..];
 }
 ```
 
@@ -229,8 +236,8 @@ var users = await collection
 If no naming policy is configured, the framework will throw a descriptive error:
 
 ```shell
-NamingPolicyNotConfigured: No naming policy has been configured. 
-Use WithNamingPolicy<T>() or WithNamingPolicy(instance) to configure one.
+NamingPolicyNotConfigured: A naming policy for MongoDB has not been configured.
+Please configure it using the WithNamingPolicy method.
 ```
 
 ### Null or Empty Names
@@ -238,7 +245,7 @@ Use WithNamingPolicy<T>() or WithNamingPolicy(instance) to configure one.
 Naming policies should handle edge cases:
 
 ```csharp
-public string ConvertName(string name)
+public string GetPropertyName(string name)
 {
     if (string.IsNullOrWhiteSpace(name))
         return name;  // Return unchanged for invalid input
@@ -276,7 +283,7 @@ If you're integrating with external systems that expect specific naming conventi
 
 ```csharp
 // For systems expecting snake_case
-builder.WithNamingPolicy<SnakeCaseNamingPolicy>();
+builder.WithNamingPolicy(new SnakeCaseNamingPolicy());
 
 // For JavaScript/JSON APIs expecting camelCase  
 builder.WithCamelCaseNamingPolicy();
@@ -288,11 +295,11 @@ Naming policies are called for every property during serialization setup, so kee
 
 ```csharp
 // Good: Simple, efficient transformation
-public string ConvertName(string name) => 
+public string GetPropertyName(string name) => 
     char.ToLower(name[0]) + name[1..];
 
 // Avoid: Complex regex or multiple string operations
-public string ConvertName(string name) => 
+public string GetPropertyName(string name) => 
     Regex.Replace(name, "([A-Z])", "_$1").ToLower().Trim('_');
 ```
 

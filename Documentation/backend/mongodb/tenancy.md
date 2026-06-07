@@ -34,9 +34,9 @@ public class CustomMongoDatabaseNameResolver(
 ## Registering the Resolver
 
 ```csharp
-builder.AddCratisArcMongoDB(mongodb =>
+builder.UseCratisMongoDB(configureMongoDB: mongodb =>
 {
-    mongodb.WithDatabaseNameResolver<CustomMongoDatabaseNameResolver>();
+    mongodb.WithDatabaseResolver<CustomMongoDatabaseNameResolver>();
 });
 ```
 

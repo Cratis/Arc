@@ -1,10 +1,30 @@
 - name: Overview
   href: index.md
+- name: Tutorial
+  href: tutorial/toc.yml
+- name: Why Arc
+  href: why-arc.md
+- name: CQRS without event sourcing
+  href: arc-without-event-sourcing.md
+- name: MediatR, MVC, and Arc
+  href: coming-from-mediatr-and-mvc.md
+- name: Vertical slices
+  href: vertical-slices.md
+- name: Understanding the proxy boundary
+  href: understanding-the-proxy-boundary.mdx
+- name: Understanding identity and access
+  href: understanding-identity-and-access.mdx
+- name: Scenarios
+  href: scenarios/toc.yml
 - name: Backend
   href: backend/toc.yml
+- name: Integrate with Chronicle
+  href: backend/chronicle/toc.yml
 - name: Frontend
   href: frontend/toc.yml
 - name: General
   href: general/toc.yml
+- name: Troubleshooting
+  href: troubleshooting.md
 - name: Api
   href: ../../api/arc/

@@ -6,10 +6,14 @@
   href: core/toc.yml
 - name: ASP.NET Core
   href: asp-net-core/toc.yml
+- name: Configuration
+  href: configuration/index.md
 - name: Tenancy
   href: tenancy/toc.yml
 - name: Identity
   href: identity/toc.yml
+- name: Authorizing commands and queries
+  href: authorizing-commands-and-queries.md
 - name: Commands
   href: commands/toc.yml
 - name: Queries
@@ -18,8 +22,6 @@
   href: introspection/toc.yml
 - name: Proxy Generation
   href: proxy-generation/toc.yml
-- name: Chronicle
-  href: chronicle/toc.yml
 - name: Code Analysis
   href: code-analysis/toc.yml
 - name: MongoDB

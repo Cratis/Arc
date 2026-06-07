@@ -123,7 +123,7 @@ When a command handler returns a tuple, the command pipeline intelligently proce
 2. **Values with handlers** are processed by their respective response value handlers
 3. **Values without handlers** are considered potential response values:
    - If exactly **one value** has no handler, it becomes the response (available in `CommandContext.Response`)
-   - If **multiple values** have no handlers, a `MultipleUnhandledTupleValuesException` is thrown
+   - If **multiple values** have no handlers, a `MultipleUnhandledTupleValues` is thrown
    - If **all values** have handlers, no response is set (`CommandContext.Response` remains `null`)
 
 ### Result Processing Behavior

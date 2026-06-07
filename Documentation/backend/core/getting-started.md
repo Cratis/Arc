@@ -24,10 +24,10 @@ using Cratis.Arc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-var builder = ArcApplicationBuilder.CreateBuilder(args);
+var builder = ArcApplication.CreateBuilder(args);
 
 // Add Arc services
-builder.AddCratisArc();
+builder.AddCratisArc(options => options.Hosting.ApplicationUrl = "http://localhost:5000/");
 
 // Configure logging
 builder.Services.AddLogging(logging =>
@@ -39,8 +39,8 @@ builder.Services.AddLogging(logging =>
 // Build and run the application
 var app = builder.Build();
 
-// Start the HTTP listener on specified prefixes
-app.UseCratisArc("http://localhost:5000/");
+// Wire up the Arc middleware and endpoints
+app.UseCratisArc();
 
 Console.WriteLine("Application started on http://localhost:5000/");
 Console.WriteLine("Press Ctrl+C to stop...");
@@ -56,10 +56,10 @@ The `ArcApplicationBuilder` provides a familiar builder pattern for configuring 
 
 ```csharp
 // Create with command-line arguments
-var builder = ArcApplicationBuilder.CreateBuilder(args);
+var builder = ArcApplication.CreateBuilder(args);
 
 // Or without arguments
-var builder = ArcApplicationBuilder.CreateBuilder();
+var builder = ArcApplication.CreateBuilder();
 ```
 
 ### Available Properties
@@ -86,32 +86,29 @@ IMetricsBuilder Metrics = builder.Metrics;
 ### Adding Arc Services
 
 ```csharp
-builder.AddCratisArc(arcBuilder =>
-{
-    // Configure Arc-specific options
-    // Add extensions like Chronicle, MongoDB, etc.
-});
+builder.AddCratisArc(
+    configureOptions: options =>
+    {
+        // Configure Arc-specific options (ArcOptions)
+    },
+    configureBuilder: arcBuilder =>
+    {
+        // Add extensions like Chronicle, MongoDB, etc.
+    });
 ```
 
 ## ArcApplication API
 
 ### Starting the Application
 
-The `UseCratisArc` method starts the built-in HTTP listener:
+The `UseCratisArc` method wires up the Arc middleware and endpoints. It takes no arguments:
 
 ```csharp
-// Single prefix
-app.UseCratisArc("http://localhost:5000/");
-
-// Multiple prefixes
-app.UseCratisArc(
-    "http://localhost:5000/",
-    "http://+:5001/"
-);
-
-// Default (http://localhost:5000/index.md)
+// UseCratisArc takes no arguments — it wires up the middleware and endpoints.
 app.UseCratisArc();
 ```
+
+The listen URL is **not** passed here — it comes from configuration via `ArcOptions.Hosting.ApplicationUrl` (default `http://+:5001/`). Set it through the options callback when adding Arc services, or in `appsettings.json` under `Cratis:Arc:Hosting:ApplicationUrl`.
 
 ### Running the Application
 
@@ -134,17 +131,14 @@ Commands represent actions or operations in your application. They're automatica
 ```csharp
 using Cratis.Arc.Commands;
 
-public record CreateUser(string Name, string Email) : ICommand;
-
-public class CreateUserHandler(ILogger<CreateUserHandler> logger) : ICommandHandler<CreateUser>
+[Command]
+public record CreateUser(string Name, string Email)
 {
-    public Task<CommandResult> Handle(CreateUser command, CommandContext context)
+    public Task Handle(ILogger<CreateUser> logger)
     {
-        logger.LogInformation("Creating user: {Name}", command.Name);
-        
+        logger.LogInformation("Creating user: {Name}", Name);
         // Your business logic here
-        
-        return Task.FromResult(CommandResult.Success);
+        return Task.CompletedTask;
     }
 }
 ```
@@ -168,18 +162,12 @@ Queries represent data retrieval operations. They're automatically exposed as HT
 ```csharp
 using Cratis.Arc.Queries;
 
-public record GetUser(Guid Id) : IQuery<UserDto>;
-
-public class GetUserHandler : IQueryHandler<GetUser, UserDto>
+[ReadModel]
+public record User(Guid Id, string Name)
 {
-    public Task<UserDto> Handle(GetUser query, QueryContext context)
-    {
-        // Your query logic here
-        return Task.FromResult(new UserDto(query.Id, "John Doe"));
-    }
+    // Exposed as GET; the method's parameters become query arguments.
+    public static User GetUser(Guid id) => new(id, "John Doe");
 }
-
-public record UserDto(Guid Id, string Name);
 ```
 
 ### Accessing Query Endpoints
@@ -229,7 +217,7 @@ Use environment-specific files following .NET conventions:
 - `appsettings.Production.json` - Production overrides
 
 ```csharp
-var builder = ArcApplicationBuilder.CreateBuilder(args);
+var builder = ArcApplication.CreateBuilder(args);
 
 // Configuration is automatically loaded based on environment
 var environment = builder.Environment.EnvironmentName;
@@ -297,9 +285,9 @@ using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-var builder = ArcApplicationBuilder.CreateBuilder(args);
+var builder = ArcApplication.CreateBuilder(args);
 
-builder.AddCratisArc();
+builder.AddCratisArc(options => options.Hosting.ApplicationUrl = "http://localhost:5000/");
 
 builder.Services.AddLogging(logging =>
 {
@@ -309,7 +297,7 @@ builder.Services.AddLogging(logging =>
 
 var app = builder.Build();
 
-app.UseCratisArc("http://localhost:5000/");
+app.UseCratisArc();
 
 Console.WriteLine("Application started!");
 Console.WriteLine("Available endpoints:");
@@ -322,26 +310,21 @@ Console.WriteLine("Press Ctrl+C to stop...");
 await app.RunAsync();
 
 // Commands
-public record Greet(string Name) : ICommand;
-
-public class GreetHandler(ILogger<GreetHandler> logger) : ICommandHandler<Greet>
+[Command]
+public record Greet(string Name)
 {
-    public Task<CommandResult> Handle(Greet command, CommandContext context)
+    public Task Handle(ILogger<Greet> logger)
     {
-        logger.LogInformation("Greeting {Name}", command.Name);
-        return Task.FromResult(CommandResult.Success);
+        logger.LogInformation("Greeting {Name}", Name);
+        return Task.CompletedTask;
     }
 }
 
 // Queries
-public record GetGreeting(string Name) : IQuery<string>;
-
-public class GetGreetingHandler : IQueryHandler<GetGreeting, string>
+[ReadModel]
+public record Greeting(string Text)
 {
-    public Task<string> Handle(GetGreeting query, QueryContext context)
-    {
-        return Task.FromResult($"Hello, {query.Name}!");
-    }
+    public static Greeting GetGreeting(string name) => new($"Hello, {name}!");
 }
 ```
 
@@ -377,7 +360,7 @@ builder.Services.AddHostedService<BackgroundWorker>();
 Add event sourcing capabilities:
 
 ```csharp
-builder.AddCratisArc(arcBuilder =>
+builder.AddCratisArc(configureBuilder: arcBuilder =>
 {
     arcBuilder.WithChronicle();
 });
@@ -388,7 +371,7 @@ builder.AddCratisArc(arcBuilder =>
 Add MongoDB support:
 
 ```csharp
-builder.AddCratisArc(arcBuilder =>
+builder.AddCratisArc(configureBuilder: arcBuilder =>
 {
     arcBuilder.WithMongoDB();
 });
@@ -402,7 +385,7 @@ Ensure you've called `app.UseCratisArc()` before `app.RunAsync()`:
 
 ```csharp
 var app = builder.Build();
-app.UseCratisArc("http://localhost:5000/");  // Must be called!
+app.UseCratisArc();  // Must be called!
 await app.RunAsync();
 ```
 
@@ -412,7 +395,7 @@ If you get HTTP listener errors, ensure:
 
 1. The port is not already in use
 2. You have permissions to bind to the port (on Windows, non-admin users can't bind to port 80)
-3. Use `http://+:5001/` instead of `http://localhost:5001/` to listen on all interfaces
+3. Set the listen URL via `ArcOptions.Hosting.ApplicationUrl` (in the options callback or `appsettings.json` under `Cratis:Arc:Hosting:ApplicationUrl`) — it is not passed to `UseCratisArc`. Use `http://+:5001/` instead of `http://localhost:5001/` to listen on all interfaces
 
 ### Configuration Not Loading
 

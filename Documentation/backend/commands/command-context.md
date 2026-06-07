@@ -13,7 +13,8 @@ public record CommandContext(
     object Command, 
     IEnumerable<object> Dependencies, 
     CommandContextValues Values,
-    object? Response);
+    ValidationResultSeverity? AllowedSeverity = default,
+    object? Response = default);
 ```
 
 ### Properties
@@ -55,12 +56,12 @@ Here's an example of a custom provider that adds audit tracking information:
 public class AuditContextValuesProvider : ICommandContextValuesProvider
 {
     private readonly IDateTimeProvider _dateTimeProvider;
-    private readonly IUserAccessor _userAccessor;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public AuditContextValuesProvider(IDateTimeProvider dateTimeProvider, IUserAccessor userAccessor)
+    public AuditContextValuesProvider(IDateTimeProvider dateTimeProvider, IHttpContextAccessor httpContextAccessor)
     {
         _dateTimeProvider = dateTimeProvider;
-        _userAccessor = userAccessor;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public CommandContextValues Provide(object command)
@@ -68,7 +69,7 @@ public class AuditContextValuesProvider : ICommandContextValuesProvider
         var values = new CommandContextValues();
         
         values["ExecutedAt"] = _dateTimeProvider.UtcNow;
-        values["ExecutedBy"] = _userAccessor.Current?.Id ?? "System";
+        values["ExecutedBy"] = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "System";
         values["TraceId"] = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString();
         
         // Example of using command information

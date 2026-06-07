@@ -15,8 +15,8 @@ CommandForm simplifies working with Arc commands in React by:
 ## Basic Usage
 
 ```tsx
-import { CommandForm } from '@cratis/arc/commands';
-import { InputTextField } from '@cratis/arc/commands/fields';
+import { CommandForm } from '@cratis/arc.react/commands';
+import { InputTextField } from '@cratis/arc.react/commands';
 
 class UserCommand extends Command {
     name = '';
@@ -103,4 +103,4 @@ CommandForm accepts any React elements as children. The following are treated sp
 - [Field Types](field-types/index.md) - Available field components
 - [Validation](validation.md) - Integration with Arc validation
 - [Customization](customization.md) - Custom titles, errors, and containers
-- [Advanced Usage](advanced.md) - Layouts, hooks, and async data
+- [Advanced Usage](advanced-patterns.md) - Layouts, hooks, and async data

@@ -46,7 +46,7 @@ From `QueryResult`:
 | `isSuccess` | Whether the query completed successfully. |
 | `isAuthorized` | Whether the query was authorized. |
 | `isValid` | Whether the query input was valid. |
-| `validationResult` | Validation errors returned by the backend. |
+| `validationResults` | Validation errors returned by the backend. |
 | `hasExceptions` | Whether exceptions were returned. |
 | `exceptionMessages` | Exception messages from the backend. |
 | `exceptionStackTrace` | Exception stack trace when available. |

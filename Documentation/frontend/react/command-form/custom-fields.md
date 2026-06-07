@@ -20,7 +20,7 @@ A custom field consists of two parts:
 2. **Field configuration** - Specifies default value and how to extract values from change events
 
 ```tsx
-import { asCommandFormField, WrappedFieldProps } from '@cratis/applications-react/commands';
+import { asCommandFormField, WrappedFieldProps } from '@cratis/arc.react/commands';
 
 // 1. Define your component props (extends WrappedFieldProps)
 interface MyFieldProps extends WrappedFieldProps<string> {
@@ -79,7 +79,7 @@ Here's a complete example of creating a custom field using PrimeReact's `InputTe
 ```tsx
 import React from 'react';
 import { InputText, InputTextProps } from 'primereact/inputtext';
-import { asCommandFormField, WrappedFieldProps } from '@cratis/applications-react/commands';
+import { asCommandFormField, WrappedFieldProps } from '@cratis/arc.react/commands';
 
 // Define the props your field accepts, combining WrappedFieldProps with PrimeReact's InputTextProps
 interface PrimeInputTextFieldProps extends WrappedFieldProps<string> {
@@ -136,7 +136,7 @@ export const PrimeInputTextField = asCommandFormField<PrimeInputTextFieldProps>(
 ### Usage
 
 ```tsx
-import { CommandForm } from '@cratis/applications-react/commands';
+import { CommandForm } from '@cratis/arc.react/commands';
 import { PrimeInputTextField } from './fields/PrimeInputTextField';
 
 interface UserCommand {
@@ -444,7 +444,7 @@ export { PrimeTextAreaField } from './PrimeTextAreaField';
 Then use them consistently across your application:
 
 ```tsx
-import { CommandForm } from '@cratis/applications-react/commands';
+import { CommandForm } from '@cratis/arc.react/commands';
 import {
     PrimeInputTextField,
     PrimeNumberField,

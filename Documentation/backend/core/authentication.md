@@ -64,7 +64,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler : IAuthenticationHan
 {
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
-        if (!context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.ClientPrincipalId, out var userId))
+        if (!context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityIdHeader, out var userId))
         {
             return Task.FromResult(AuthenticationResult.Anonymous);
         }
@@ -74,12 +74,12 @@ public class MicrosoftIdentityPlatformAuthenticationHandler : IAuthenticationHan
             new(ClaimTypes.NameIdentifier, userId)
         };
 
-        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.ClientPrincipalName, out var userName))
+        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out var userName))
         {
             claims.Add(new Claim(ClaimTypes.Name, userName));
         }
 
-        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.ClientPrincipal, out var encoded))
+        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.PrincipalHeader, out var encoded))
         {
             var json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
             var principal = JsonSerializer.Deserialize<ClientPrincipal>(json,
@@ -91,7 +91,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler : IAuthenticationHan
                     claims.Add(new Claim(ClaimTypes.Role, role));
 
                 foreach (var claim in principal.Claims ?? [])
-                    claims.Add(new Claim(claim.Typ, claim.Val));
+                    claims.Add(new Claim(claim.typ, claim.val));
             }
         }
 
