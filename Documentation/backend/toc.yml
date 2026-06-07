@@ -22,8 +22,6 @@
   href: introspection/toc.yml
 - name: Proxy Generation
   href: proxy-generation/toc.yml
-- name: Chronicle
-  href: chronicle/toc.yml
 - name: Code Analysis
   href: code-analysis/toc.yml
 - name: MongoDB

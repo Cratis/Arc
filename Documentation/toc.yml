@@ -18,6 +18,8 @@
   href: scenarios/toc.yml
 - name: Backend
   href: backend/toc.yml
+- name: Integrate with Chronicle
+  href: backend/chronicle/toc.yml
 - name: Frontend
   href: frontend/toc.yml
 - name: General

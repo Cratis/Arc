@@ -19,18 +19,25 @@ flowchart LR
 Here's the whole thing — the command, its data, and its behavior, in one record:
 
 ```csharp
+public interface IAccounts
+{
+    Task Open(AccountId id, AccountHolder owner);
+}
+
 [Command]
 public record OpenAccount(AccountId Id, AccountHolder Owner)
 {
-    public Task Handle(IEventLog eventLog) =>
-        eventLog.Append(Id, new AccountOpened(Owner));
+    public Task Handle(IAccounts accounts) =>
+        accounts.Open(Id, Owner);
 }
 ```
 
 `Handle()` is defined **directly on the record** — that's the convention. Arc discovers it, exposes the
 command as an HTTP `POST`, binds the incoming JSON to the record, runs any validation, then calls
-`Handle()`. Whatever you inject into `Handle()` (here, `IEventLog`) is resolved from the container, so
-the method reads as pure intent: *append the fact that this account was opened*.
+`Handle()`. Whatever you inject into `Handle()` is resolved from the container. In this example
+`IAccounts` is an application-owned service; it might write MongoDB, EF Core, another application
+service, or anything else your slice owns. With the [Chronicle integration](../chronicle/) installed, a
+command can return events instead and let Arc append them for you.
 
 `Handle()` can return what suits the operation:
 

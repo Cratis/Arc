@@ -73,6 +73,19 @@ const [authors] = AllAuthors.use();   // live — re-renders when the collection
 > [!NOTE]
 > `AllAuthors` is live with no event sourcing involved. `IMongoCollection<T>.Observe()` watches MongoDB's change stream, so the moment the command inserts a document, every subscribed browser re-renders. Entity Framework gets the same treatment through [observed DbSets](./backend/entity-framework/observing.md).
 
+## Test the slice the same way
+
+Arc's command testing does not depend on Chronicle either. Start with `Cratis.Arc.Testing`, drive the
+command through a `CommandScenario<TCommand>`, and assert the `CommandResult` exactly as you would in an
+event-sourced slice. The only difference is what you assert after the command runs: a current-state slice
+checks the database or application service it wrote to, while a Chronicle-backed slice can also assert
+the appended events.
+
+That keeps the CQRS boundary testable before you decide whether the slice needs an event log. See
+[Arc testing](./backend/testing/) and [command scenarios](./backend/testing/command-scenario.md) for the
+base testing loop; add the [Chronicle testing extension](./backend/testing/chronicle.md) only when the
+command appends events.
+
 ## What actually changes when you add Chronicle
 
 Set this slice next to the same slice with [Chronicle added later](/arc/backend/chronicle/add-event-sourcing/). The query and the React are **identical**. The only thing that differs is the command's write path:

@@ -47,9 +47,10 @@ This is the choice that defines a query:
 | **Transport** | A normal HTTP `GET` | SSE or WebSocket, hub-routed by default |
 | **Use it for** | One-off reads, reports, exports | Anything a user watches — lists, dashboards, status |
 
-Favor observable queries for screens that should stay current. The live loop — a command appends an
-event, a projection updates the read model, every subscribed browser re-renders — is the experience Arc
-is built to make effortless.
+Favor observable queries for screens that should stay current. The live loop — a command changes state,
+the read model updates, every subscribed browser re-renders — is the experience Arc is built to make
+effortless. In a Chronicle-backed slice that state change is an appended event and a projection; in a
+current-state slice it can be a MongoDB document or EF entity changing directly.
 
 ## The pipeline around it
 

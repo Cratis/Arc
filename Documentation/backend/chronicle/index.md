@@ -1,4 +1,7 @@
-# Chronicle
+---
+title: Integrate with Chronicle
+description: Add Chronicle's event-sourced write path to an Arc application while keeping Arc's commands, queries, identity, tenancy, and generated proxies.
+---
 
 `Cratis.Arc.Chronicle` is the integration package that extends Arc with [Cratis Chronicle](https://github.com/Cratis/Chronicle) capabilities. It wires the two frameworks together so that Arc's application model — commands, queries, identity, tenancy, and code generation — works seamlessly with Chronicle's event sourcing infrastructure.
 

@@ -16,7 +16,7 @@ The `CommandScenario<TCommand>` class is the single entry point for all command 
 | `Cratis.Specifications.XUnit` | BDD-style `Specification` base class and `Should*` assertion helpers on top of xUnit. |
 | `Cratis.Arc.Testing` | Core `CommandScenario<TCommand>` class and `CommandResult` assertion helpers. No event sourcing dependency. |
 | `Cratis.Arc.Chronicle.Testing` | Automatically extends `CommandScenario<TCommand>` with an in-memory event log when referenced. |
-| `Cratis.Testing` | Meta-package that pulls in both of the above. Reference this single package in most projects. |
+| `Cratis.Testing` | Convenience meta-package for full Cratis projects that use both Arc and Chronicle. Use `Cratis.Arc.Testing` when you want Arc without event sourcing. |
 
 ## Topics
 
@@ -31,7 +31,7 @@ The `CommandScenario<TCommand>` class is the single entry point for all command 
 
 ```xml
 <PackageReference Include="Cratis.Specifications.XUnit" />
-<PackageReference Include="Cratis.Testing" />
+<PackageReference Include="Cratis.Arc.Testing" />
 ```
 
 ### 2. Write a spec
@@ -54,7 +54,16 @@ public class when_adding_item_to_cart : Specification
 
 `Execute` runs the command through the same validation, authorization, and handler pipeline that production uses — no mocking required. The scenario initializes itself lazily on the first `Execute` or `Validate` call.
 
-### 3. Test Chronicle-backed commands
+### 3. Add Chronicle assertions when the command appends events
+
+For a Chronicle-backed slice, add the Chronicle testing extension alongside the Arc package:
+
+```xml
+<PackageReference Include="Cratis.Arc.Chronicle.Testing" />
+```
+
+You can also reference `Cratis.Testing` instead of the two focused packages when the test project is a
+full Cratis test suite.
 
 When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is referenced, `CommandScenario<TCommand>` automatically gains three extension properties:
 
