@@ -3,6 +3,7 @@
 
 using Cratis.Geospatial;
 using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 
@@ -11,7 +12,7 @@ namespace Cratis.Arc.MongoDB;
 /// <summary>
 /// Represents a serializer for handling serialization of <see cref="Coordinate"/>.
 /// </summary>
-public class CoordinateSerializer : StructSerializerBase<Coordinate>
+public class CoordinateSerializer : SerializerBase<Coordinate>
 {
     /// <inheritdoc/>
     public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, Coordinate value)
@@ -28,13 +29,13 @@ public class CoordinateSerializer : StructSerializerBase<Coordinate>
     public override Coordinate Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
     {
         context.Reader.ReadStartDocument();
-        
+
         double longitude = 0;
         double latitude = 0;
-        
+
         while (context.Reader.ReadBsonType() != BsonType.EndOfDocument)
         {
-            var name = context.Reader.ReadName();
+            var name = context.Reader.ReadName(Utf8NameDecoder.Instance);
             if (name == "longitude")
             {
                 longitude = context.Reader.ReadDouble();
@@ -48,9 +49,9 @@ public class CoordinateSerializer : StructSerializerBase<Coordinate>
                 context.Reader.SkipValue();
             }
         }
-        
+
         context.Reader.ReadEndDocument();
-        
+
         return new Coordinate(longitude, latitude);
     }
 }
