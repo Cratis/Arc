@@ -22,3 +22,5 @@
   href: concept-as-conversion.md
 - name: GUID Conversion
   href: guid-conversion.md
+- name: Coordinate Conversion
+  href: coordinate-conversion.md

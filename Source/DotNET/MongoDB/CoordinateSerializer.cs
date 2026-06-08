@@ -1,10 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#if COORDINATE_TYPE_AVAILABLE
-// NOTE: This serializer is ready for when Cratis.Fundamentals includes the Coordinate type
-// from Cratis.Geospatial namespace. Remove the #if/#endif when the type is available.
-
 using Cratis.Geospatial;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -58,4 +54,3 @@ public class CoordinateSerializer : StructSerializerBase<Coordinate>
         return new Coordinate(longitude, latitude);
     }
 }
-#endif

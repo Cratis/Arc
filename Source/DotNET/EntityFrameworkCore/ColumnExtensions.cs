@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Numerics;
+using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations.Builders;
@@ -98,11 +99,6 @@ public static class ColumnExtensions
         return cb.Column<DateTimeOffset>(type, nullable: nullable);
     }
 
-#if COORDINATE_TYPE_AVAILABLE
-    // NOTE: This method is ready for when Cratis.Fundamentals includes the Coordinate type
-    // from Cratis.Geospatial namespace. Remove the #if/#endif when the type is available.
-    using Cratis.Geospatial;
-
     /// <summary>
     /// Adds a Coordinate column with appropriate database-specific type.
     /// </summary>
@@ -115,5 +111,4 @@ public static class ColumnExtensions
         var type = ColumnTypeMappings.GetCoordinateType(mb.GetDatabaseType());
         return cb.Column<Coordinate>(type, nullable: nullable);
     }
-#endif
 }

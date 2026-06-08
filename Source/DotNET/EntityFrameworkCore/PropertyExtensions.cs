@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Concepts;
+using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -17,15 +19,9 @@ public static class PropertyExtensions
         guid => guid.ToString("D"),
         str => Guid.Parse(str));
 
-#if COORDINATE_TYPE_AVAILABLE
-    // NOTE: This converter is ready for when Cratis.Fundamentals includes the Coordinate type
-    // from Cratis.Geospatial namespace. Remove the #if/#endif when the type is available.
-    using System.Text.Json;
-    using Cratis.Geospatial;
     static readonly ValueConverter<Coordinate, string> _coordinateValueConverter = new(
         coord => JsonSerializer.Serialize(coord),
         str => JsonSerializer.Deserialize<Coordinate>(str));
-#endif
 
     /// <summary>
     /// Configures the property to use a GUID representation that is compatible across different database providers.
@@ -48,9 +44,6 @@ public static class PropertyExtensions
         return propertyBuilder;
     }
 
-#if COORDINATE_TYPE_AVAILABLE
-    // NOTE: This method is ready for when Cratis.Fundamentals includes the Coordinate type
-    // from Cratis.Geospatial namespace. Remove the #if/#endif when the type is available.
     /// <summary>
     /// Configures the property to use a value conversion for Coordinate types.
     /// </summary>
@@ -62,7 +55,6 @@ public static class PropertyExtensions
         propertyBuilder.HasConversion(_coordinateValueConverter);
         return propertyBuilder;
     }
-#endif
 
     /// <summary>
     /// Configures the property to use a value conversion for concept types.
