@@ -43,10 +43,12 @@ public static class QueryEndpointMapper
         foreach (var performer in orderedPerformers)
         {
             string url;
+            IEnumerable<string> locationForTag;
             if (!string.IsNullOrEmpty(performer.CustomRoute))
             {
                 // Use custom route if specified via Route attribute
                 url = performer.CustomRoute;
+                locationForTag = performer.Location.Skip(options.SegmentsToSkipForRoute);
             }
             else
             {
@@ -57,6 +59,7 @@ public static class QueryEndpointMapper
                     location,
                     performersByNamespace);
                 url = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
+                locationForTag = location;
             }
 
             if (!registeredUrls.Add(url)) continue;
@@ -67,7 +70,7 @@ public static class QueryEndpointMapper
                 var metadata = new EndpointMetadata(
                     executeEndpointName,
                     $"Execute {performer.Name} query",
-                    [string.Join('.', location)],
+                    [string.Join('.', locationForTag)],
                     performer.AllowsAnonymousAccess,
                     ResponseType: typeof(QueryResult));
 

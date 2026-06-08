@@ -199,7 +199,7 @@ public class ObservableQueryDemultiplexer(
         if (state.Subscriptions.TryRemove(body.QueryId, out var existing))
         {
             existing.Dispose();
-            healthTracker.UnregisterSubscription(connectionId, body.QueryId);
+            healthTracker.UnregisterSubscription(body.ConnectionId, body.QueryId);
         }
 
         var wasUnauthorized = false;
@@ -212,7 +212,7 @@ public class ObservableQueryDemultiplexer(
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result);
                 await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock);
-                healthTracker.RecordDataServed(connectionId, body.QueryId);
+                healthTracker.RecordDataServed(body.ConnectionId, body.QueryId);
             },
             async (id, errorMsg) =>
             {
@@ -236,10 +236,10 @@ public class ObservableQueryDemultiplexer(
         if (subscription is not null)
         {
             state.Subscriptions[body.QueryId] = subscription;
-            
+
             // Register subscription with health tracker
             var metadata = CreateSubscriptionMetadata(body.QueryId, body.Request, context, "SSE");
-            healthTracker.RegisterSubscription(connectionId, "SSE", metadata);
+            healthTracker.RegisterSubscription(body.ConnectionId, "SSE", metadata);
         }
 
         context.SetStatusCode(200);
@@ -422,7 +422,7 @@ public class ObservableQueryDemultiplexer(
         if (subscription is not null)
         {
             subscriptions[queryId] = subscription;
-            
+
             // Register subscription with health tracker
             var metadata = CreateSubscriptionMetadata(queryId, request, context, "WebSocket");
             healthTracker.RegisterSubscription(connectionId, "WebSocket", metadata);
@@ -985,8 +985,8 @@ public class ObservableQueryDemultiplexer(
             ConnectedAt = DateTimeOffset.UtcNow,
             ClientInfo = new QuerySubscriptionClientInfo
             {
-                RemoteIpAddress = context.Headers.GetValueOrDefault("X-Forwarded-For") ?? 
-                                  context.Headers.GetValueOrDefault("X-Real-IP") ?? 
+                RemoteIpAddress = context.Headers.GetValueOrDefault("X-Forwarded-For") ??
+                                  context.Headers.GetValueOrDefault("X-Real-IP") ??
                                   "unknown",
                 UserAgent = context.Headers.GetValueOrDefault("User-Agent"),
                 UserId = context.User?.Identity?.Name,

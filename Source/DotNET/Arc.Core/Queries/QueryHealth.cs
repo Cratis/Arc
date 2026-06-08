@@ -44,9 +44,7 @@ public sealed record QueryHealth
         });
 
         var subscription = healthTracker.ObserveHealth().Subscribe(connections =>
-        {
-            subject.OnNext(new QueryHealth { Connections = connections });
-        });
+            subject.OnNext(new QueryHealth { Connections = connections }));
 
         // Return a subject that will clean up the subscription when disposed
         return subject;

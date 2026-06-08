@@ -6,6 +6,7 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// <summary>
 /// Attribute to specify a custom route for a read model or query method.
 /// </summary>
+/// <param name="route">The custom route path.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class RouteAttribute(string route) : Attribute
 {

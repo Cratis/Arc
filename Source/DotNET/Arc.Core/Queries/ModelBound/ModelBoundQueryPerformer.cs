@@ -37,12 +37,10 @@ public class ModelBoundQueryPerformer : IQueryPerformer
 
         // Check for Route attribute on method or type
         var routeAttribute = performMethod.GetCustomAttributes(true)
+            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute") ??
+            readModelType.GetCustomAttributes(true)
             .FirstOrDefault(a => a.GetType().Name == "RouteAttribute");
-        if (routeAttribute == null)
-        {
-            routeAttribute = readModelType.GetCustomAttributes(true)
-                .FirstOrDefault(a => a.GetType().Name == "RouteAttribute");
-        }
+
         if (routeAttribute != null)
         {
             var routeProperty = routeAttribute.GetType().GetProperty("Route");

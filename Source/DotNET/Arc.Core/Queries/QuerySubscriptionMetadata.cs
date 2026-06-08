@@ -48,29 +48,3 @@ public sealed record QuerySubscriptionMetadata
     /// </summary>
     public DateTimeOffset? LastDataServedAt { get; set; }
 }
-
-/// <summary>
-/// Represents client information for a query subscription.
-/// </summary>
-public sealed record QuerySubscriptionClientInfo
-{
-    /// <summary>
-    /// Gets the remote IP address.
-    /// </summary>
-    public string? RemoteIpAddress { get; init; }
-
-    /// <summary>
-    /// Gets the user agent string.
-    /// </summary>
-    public string? UserAgent { get; init; }
-
-    /// <summary>
-    /// Gets the user identity (if authenticated).
-    /// </summary>
-    public string? UserId { get; init; }
-
-    /// <summary>
-    /// Gets the connection protocol (WebSocket or SSE).
-    /// </summary>
-    public required string Protocol { get; init; }
-}
