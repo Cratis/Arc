@@ -18,6 +18,7 @@ The following table shows all the column extension methods available in Cratis A
 | `AutoIncrementColumn()` | Creates an auto-incrementing integer column with appropriate database-specific annotations | int | None (always non-nullable) |
 | `GuidColumn()` | Creates a GUID/UUID column with appropriate database-specific type (UUID/UNIQUEIDENTIFIER/TEXT) | Guid | `nullable` (bool, default: true) |
 | `DateTimeOffsetColumn()` | Creates a DateTimeOffset column with appropriate database-specific type (TIMESTAMPTZ/DATETIMEOFFSET/TEXT) | DateTimeOffset | `nullable` (bool, default: true) |
+| `CoordinateColumn()` | Creates a Coordinate column with appropriate database-specific type (jsonb/nvarchar(max)/text) for geospatial data | Coordinate | `nullable` (bool, default: true) |
 | `JsonColumn<T>()` | Creates a JSON column with appropriate database-specific type (jsonb/nvarchar(max)/text) | Any type | None (always non-nullable) |
 
 ## Database-Specific Type Mappings
@@ -55,6 +56,14 @@ The `NumberColumn<T>()` method supports all .NET numeric types and maps them app
 - **PostgreSQL**: `TIMESTAMPTZ`
 - **SQL Server**: `DATETIMEOFFSET`
 - **SQLite**: `TEXT`
+
+### Coordinate Types
+
+- **PostgreSQL**: `jsonb`
+- **SQL Server**: `nvarchar(max)`
+- **SQLite**: `text`
+
+> Note: Read more about Coordinate in [this article](./coordinate-conversion.md)
 
 ### JSON Types
 

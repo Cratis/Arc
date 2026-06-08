@@ -54,6 +54,57 @@ public class Schedule
 }
 ```
 
+### TimeSpan Serializer
+
+**Class**: `TimeSpanSerializer`
+
+Handles serialization of `TimeSpan` values:
+
+```csharp
+public class Task
+{
+    public TimeSpan Duration { get; set; }
+    public TimeSpan EstimatedTime { get; set; }
+}
+```
+
+### Coordinate Serializer
+
+**Class**: `CoordinateSerializer`
+
+Handles serialization of `Coordinate` geospatial types from Cratis.Fundamentals, storing longitude and latitude as a BSON document:
+
+```csharp
+using Cratis.Geospatial;
+
+public class Store
+{
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public Coordinate Location { get; set; }
+}
+```
+
+The coordinate is serialized as a BSON document:
+
+```json
+{
+  "_id": "store-001",
+  "name": "Downtown Store",
+  "location": {
+    "longitude": -122.4194,
+    "latitude": 37.7749
+  }
+}
+```
+
+This format provides:
+
+- **Structured storage**: Longitude and latitude stored as separate numeric fields
+- **Type safety**: Ensures coordinates are properly structured
+- **Query support**: Enables MongoDB queries on individual longitude or latitude values
+- **Readability**: Clear document structure when viewing data in MongoDB tools
+
 ### Type Serializer
 
 **Class**: `TypeSerializer`
