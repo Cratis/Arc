@@ -57,8 +57,10 @@ public static class MongoDBDefaults
                 .RegisterSerializer(new TypeSerializer());
             BsonSerializer
                 .RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+#if COORDINATE_TYPE_AVAILABLE
             BsonSerializer
                 .RegisterSerializer(new CoordinateSerializer());
+#endif
 
             // When you have types with properties defined as object but could hold a Guid, the GuidRepresentation gets by default set to Unspecified.
             // By adding an object serializer for object configured explicitly with the Standard representation it should get serialized correctly and not throw an exception.

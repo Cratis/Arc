@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Numerics;
-using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations.Builders;
@@ -145,6 +144,11 @@ public static class AddColumnExtensions
         return mb.AddColumn<DateTimeOffset>(name, table, type: type, schema: schema, nullable: nullable);
     }
 
+#if COORDINATE_TYPE_AVAILABLE
+    // NOTE: This method is ready for when Cratis.Fundamentals includes the Coordinate type
+    // from Cratis.Geospatial namespace. Remove the #if/#endif when the type is available.
+    using Cratis.Geospatial;
+
     /// <summary>
     /// Adds a Coordinate column to an existing table with appropriate database-specific type.
     /// </summary>
@@ -164,4 +168,5 @@ public static class AddColumnExtensions
         var type = ColumnTypeMappings.GetCoordinateType(mb.GetDatabaseType());
         return mb.AddColumn<Coordinate>(name, table, type: type, schema: schema, nullable: nullable);
     }
+#endif
 }
