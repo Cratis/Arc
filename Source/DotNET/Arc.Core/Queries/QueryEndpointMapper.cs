@@ -42,12 +42,22 @@ public static class QueryEndpointMapper
 
         foreach (var performer in orderedPerformers)
         {
-            var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
-            var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
-                options.IncludeQueryNameInRoute,
-                location,
-                performersByNamespace);
-            var url = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
+            string url;
+            if (!string.IsNullOrEmpty(performer.CustomRoute))
+            {
+                // Use custom route if specified via Route attribute
+                url = performer.CustomRoute;
+            }
+            else
+            {
+                // Use conventional route generation
+                var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
+                var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
+                    options.IncludeQueryNameInRoute,
+                    location,
+                    performersByNamespace);
+                url = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
+            }
 
             if (!registeredUrls.Add(url)) continue;
 

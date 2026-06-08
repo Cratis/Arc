@@ -94,8 +94,27 @@ public static class QueryExtensions
         var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods().Count());
         var hasConflict = totalMethodsInNamespace > 1;
         var includeQueryName = !skipQueryNameInRoute || hasConflict;
-        var route = includeQueryName ? $"{baseUrl}/{method.Name.ToKebabCase()}" : baseUrl;
-        route = route.ToLowerInvariant();
+        
+        // Check for Route attribute on method or type
+        var routeAttribute = method.GetCustomAttribute<Attribute>()?.GetType().Name == "RouteAttribute"
+            ? method.GetCustomAttribute<Attribute>()
+            : readModelType.GetCustomAttribute<Attribute>()?.GetType().Name == "RouteAttribute"
+                ? readModelType.GetCustomAttribute<Attribute>()
+                : null;
+        
+        string route;
+        if (routeAttribute != null)
+        {
+            // Use the custom route from the attribute
+            var routeProperty = routeAttribute.GetType().GetProperty("Route");
+            route = routeProperty?.GetValue(routeAttribute) as string ?? string.Empty;
+        }
+        else
+        {
+            // Use conventional route generation
+            route = includeQueryName ? $"{baseUrl}/{method.Name.ToKebabCase()}" : baseUrl;
+            route = route.ToLowerInvariant();
+        }
 
         var relativePath = readModelType.ResolveTargetPath(segmentsToSkip);
         var imports = typesInvolved
