@@ -21,7 +21,7 @@ public static class PropertyExtensions
 
     static readonly ValueConverter<Coordinate, string> _coordinateValueConverter = new(
         coord => JsonSerializer.Serialize(coord),
-        str => JsonSerializer.Deserialize<Coordinate>(str));
+        str => JsonSerializer.Deserialize<Coordinate>(str) ?? new Coordinate(0, 0));
 
     /// <summary>
     /// Configures the property to use a GUID representation that is compatible across different database providers.
@@ -50,7 +50,9 @@ public static class PropertyExtensions
     /// <param name="propertyBuilder">The property builder to configure.</param>
     /// <param name="databaseType">The database provider type.</param>
     /// <returns>The configured property builder.</returns>
+#pragma warning disable IDE0060 // Remove unused parameter - For consistency with other AsX methods that take databaseType, even though it's not currently used for Coordinate conversion
     public static PropertyBuilder AsCoordinate(this PropertyBuilder propertyBuilder, DatabaseType databaseType)
+#pragma warning restore IDE0060 // Remove unused parameter
     {
         propertyBuilder.HasConversion(_coordinateValueConverter);
         return propertyBuilder;
