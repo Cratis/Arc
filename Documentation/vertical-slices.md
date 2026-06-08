@@ -11,7 +11,7 @@ This page explains *why*. If you want to see one built, the [capstone walkthroug
 
 In a layer-organized codebase, one feature is smeared across the tree:
 
-```
+```shell
 ❌ Organized by layer — "register author" touches five folders
 Commands/RegisterAuthor.cs
 Handlers/RegisterAuthorHandler.cs
@@ -24,7 +24,7 @@ To change how authors register, you open five folders, hold the whole layer cake
 
 A vertical slice puts the whole feature in one place:
 
-```
+```shell
 ✅ Organized by feature — one folder, read top to bottom
 Features/Authors/Registration/
 ├── Registration.cs        # command + Handle() + read model + query
