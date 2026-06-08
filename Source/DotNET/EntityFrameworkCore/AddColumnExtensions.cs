@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Numerics;
+using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations.Builders;
@@ -142,5 +143,25 @@ public static class AddColumnExtensions
     {
         var type = ColumnTypeMappings.GetDateTimeOffsetType(mb.GetDatabaseType());
         return mb.AddColumn<DateTimeOffset>(name, table, type: type, schema: schema, nullable: nullable);
+    }
+
+    /// <summary>
+    /// Adds a Coordinate column to an existing table with appropriate database-specific type.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="nullable">Whether the column should be nullable.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddCoordinateColumn(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        bool nullable = true,
+        string? schema = null)
+    {
+        var type = ColumnTypeMappings.GetCoordinateType(mb.GetDatabaseType());
+        return mb.AddColumn<Coordinate>(name, table, type: type, schema: schema, nullable: nullable);
     }
 }

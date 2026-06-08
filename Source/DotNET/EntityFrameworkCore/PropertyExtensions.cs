@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Concepts;
+using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -16,6 +18,10 @@ public static class PropertyExtensions
     static readonly ValueConverter<Guid, string> _guidValueConverter = new(
         guid => guid.ToString("D"),
         str => Guid.Parse(str));
+
+    static readonly ValueConverter<Coordinate, string> _coordinateValueConverter = new(
+        coord => JsonSerializer.Serialize(coord),
+        str => JsonSerializer.Deserialize<Coordinate>(str));
 
     /// <summary>
     /// Configures the property to use a GUID representation that is compatible across different database providers.
@@ -35,6 +41,18 @@ public static class PropertyExtensions
             propertyBuilder.HasConversion(_guidValueConverter);
         }
 
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the property to use a value conversion for Coordinate types.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder to configure.</param>
+    /// <param name="databaseType">The database provider type.</param>
+    /// <returns>The configured property builder.</returns>
+    public static PropertyBuilder AsCoordinate(this PropertyBuilder propertyBuilder, DatabaseType databaseType)
+    {
+        propertyBuilder.HasConversion(_coordinateValueConverter);
         return propertyBuilder;
     }
 

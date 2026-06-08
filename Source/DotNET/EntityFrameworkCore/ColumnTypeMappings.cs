@@ -77,6 +77,19 @@ internal static class ColumnTypeMappings
         };
 
     /// <summary>
+    /// Gets the appropriate SQL type for a Coordinate column.
+    /// </summary>
+    /// <param name="databaseType">The database type.</param>
+    /// <returns>The SQL type string.</returns>
+    internal static string GetCoordinateType(DatabaseType databaseType) =>
+        databaseType switch
+        {
+            DatabaseType.PostgreSql => "jsonb",
+            DatabaseType.SqlServer => "nvarchar(max)",
+            _ => "text"
+        };
+
+    /// <summary>
     /// Gets the appropriate SQL type and annotation for an auto-increment column.
     /// </summary>
     /// <param name="databaseType">The database type.</param>
