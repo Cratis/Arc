@@ -94,14 +94,14 @@ public static class QueryExtensions
         var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods().Count());
         var hasConflict = totalMethodsInNamespace > 1;
         var includeQueryName = !skipQueryNameInRoute || hasConflict;
-        
+
         // Check for Route attribute on method or type
         var routeAttribute = method.GetCustomAttribute<Attribute>()?.GetType().Name == "RouteAttribute"
             ? method.GetCustomAttribute<Attribute>()
             : readModelType.GetCustomAttribute<Attribute>()?.GetType().Name == "RouteAttribute"
                 ? readModelType.GetCustomAttribute<Attribute>()
                 : null;
-        
+
         string route;
         if (routeAttribute != null)
         {
