@@ -68,7 +68,8 @@ public static class TypeExtensions
         { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.JsonDocument).FullName!, ObjectTypeFinal },
-        { typeof(Uri).FullName!, _dateTargetType }
+        { typeof(Uri).FullName!, _dateTargetType },
+        { "Cratis.Geospatial.Coordinate", new(typeof(object), "Coordinate", "Coordinate", "@cratis/fundamentals", FromPackage: true) }
     };
 
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
