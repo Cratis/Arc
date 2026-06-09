@@ -11,12 +11,44 @@ We keep saying the catalog "stays live." This chapter makes that concrete — an
 
 Go back to every query we've written: each returns `…Observe(…)`, not a one-shot list. That `ISubject<…>` is a stream. On the C# side, Arc serves it as an observable query; on the React side, the generated `.use()` hook **subscribes** to it. So the data flow isn't "fetch once and render" — it's a standing subscription:
 
-```mermaid
-flowchart LR
-    Cmd["AddBook"] -->|writes| DB[("Books")]
-    DB -->|change stream| Sub["BooksForAuthor.use()"]
-    Sub --> UI["React re-renders"]
-```
+<svg
+    viewBox="0 0 920 150"
+    role="img"
+    aria-labelledby="arc-live-flow-title arc-live-flow-description"
+    style="display: block; width: 100%; max-width: 58rem; height: auto; margin: 1.25rem auto; color: var(--sl-color-text);"
+>
+    <title id="arc-live-flow-title">Observable query data flow</title>
+    <desc id="arc-live-flow-description">AddBook writes to the Books collection, the database change stream pushes to BooksForAuthor.use, and React re-renders.</desc>
+    <defs>
+        <marker id="arc-live-flow-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--sl-color-accent)" />
+        </marker>
+    </defs>
+
+    <rect x="1" y="1" width="918" height="148" rx="10" fill="var(--sl-color-bg-nav)" stroke="var(--sl-color-gray-5)" stroke-width="2" />
+
+    <rect x="24" y="51" width="138" height="52" rx="8" fill="var(--sl-color-bg)" stroke="var(--sl-color-accent)" stroke-width="2" />
+    <text x="93" y="83" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="16" font-weight="600">AddBook</text>
+
+    <line x1="170" y1="77" x2="268" y2="77" stroke="var(--sl-color-accent)" stroke-width="2.5" marker-end="url(#arc-live-flow-arrow)" />
+    <text x="219" y="58" text-anchor="middle" fill="var(--sl-color-text-accent)" font-family="var(--sl-font)" font-size="14" font-weight="600">writes</text>
+
+    <path d="M 286 60 C 286 48 366 48 366 60 L 366 94 C 366 106 286 106 286 94 Z" fill="var(--sl-color-bg)" stroke="var(--sl-color-accent)" stroke-width="2" />
+    <ellipse cx="326" cy="60" rx="40" ry="12" fill="var(--sl-color-bg-nav)" stroke="var(--sl-color-accent)" stroke-width="2" />
+    <text x="326" y="84" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="16" font-weight="600">Books</text>
+
+    <line x1="374" y1="77" x2="501" y2="77" stroke="var(--sl-color-accent)" stroke-width="2.5" marker-end="url(#arc-live-flow-arrow)" />
+    <text x="438" y="58" text-anchor="middle" fill="var(--sl-color-text-accent)" font-family="var(--sl-font)" font-size="14" font-weight="600">change stream</text>
+
+    <rect x="519" y="51" width="210" height="52" rx="8" fill="var(--sl-color-bg)" stroke="var(--sl-color-accent)" stroke-width="2" />
+    <text x="624" y="83" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="16" font-weight="600">BooksForAuthor.use()</text>
+
+    <line x1="737" y1="77" x2="800" y2="77" stroke="var(--sl-color-accent)" stroke-width="2.5" marker-end="url(#arc-live-flow-arrow)" />
+
+    <rect x="818" y="51" width="78" height="52" rx="8" fill="var(--sl-color-bg)" stroke="var(--sl-color-accent)" stroke-width="2" />
+    <text x="857" y="73" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="14" font-weight="600">React</text>
+    <text x="857" y="91" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="14" font-weight="600">re-renders</text>
+</svg>
 
 When a command writes, the database's change stream notices, the observable query pushes the new value to every subscribed React component, and it re-renders. Open the app in two browser tabs, add a book in one, and watch it appear in the other — you wrote none of that plumbing. It falls out of returning `Observe()` and calling `.use()`.
 
