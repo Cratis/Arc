@@ -3,15 +3,15 @@
 
 using Cratis.Geospatial;
 
-namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions.when_getting_target_type_for_coordinate;
+namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 
-public class a_coordinate : Specification
+public class when_getting_target_type_for_point : Specification
 {
     TargetType _result = null!;
 
-    void Because() => _result = typeof(Coordinate).GetTargetType();
+    void Because() => _result = typeof(Point).GetTargetType();
 
-    [Fact] void should_have_the_coordinate_type_name() => _result.Type.ShouldEqual("Coordinate");
+    [Fact] void should_have_the_point_type_name() => _result.Type.ShouldEqual("Point");
     [Fact] void should_import_from_the_fundamentals_package() => _result.Module.ShouldEqual("@cratis/fundamentals");
     [Fact] void should_be_from_package() => _result.FromPackage.ShouldBeTrue();
 }

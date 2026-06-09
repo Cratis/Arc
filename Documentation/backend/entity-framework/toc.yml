@@ -22,5 +22,11 @@
   href: concept-as-conversion.md
 - name: GUID Conversion
   href: guid-conversion.md
-- name: Coordinate Conversion
-  href: coordinate-conversion.md
+- name: Geospatial Types
+  items:
+    - name: Point Conversion
+      href: point-conversion.md
+    - name: LineString Conversion
+      href: linestring-conversion.md
+    - name: Polygon Conversion
+      href: polygon-conversion.md

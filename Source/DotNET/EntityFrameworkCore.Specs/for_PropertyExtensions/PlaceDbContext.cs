@@ -12,5 +12,5 @@ public class PlaceDbContext(DbContextOptions<PlaceDbContext> options) : DbContex
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.Entity<Place>()
             .Property(_ => _.Location)
-            .AsCoordinate(DatabaseType.Sqlite);
+            .AsPoint();
 }

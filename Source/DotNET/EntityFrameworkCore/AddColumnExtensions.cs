@@ -146,7 +146,7 @@ public static class AddColumnExtensions
     }
 
     /// <summary>
-    /// Adds a Coordinate column to an existing table with appropriate database-specific type.
+    /// Adds a Point column to an existing table with appropriate database-specific type.
     /// </summary>
     /// <param name="mb">Migration builder.</param>
     /// <param name="name">The name of the column.</param>
@@ -154,14 +154,54 @@ public static class AddColumnExtensions
     /// <param name="nullable">Whether the column should be nullable.</param>
     /// <param name="schema">The schema of the table.</param>
     /// <returns>Operation builder for the column.</returns>
-    public static OperationBuilder<AddColumnOperation> AddCoordinateColumn(
+    public static OperationBuilder<AddColumnOperation> AddPointColumn(
         this MigrationBuilder mb,
         string name,
         string table,
         bool nullable = true,
         string? schema = null)
     {
-        var type = ColumnTypeMappings.GetCoordinateType(mb.GetDatabaseType());
-        return mb.AddColumn<Coordinate>(name, table, type: type, schema: schema, nullable: nullable);
+        var type = ColumnTypeMappings.GetPointType(mb.GetDatabaseType());
+        return mb.AddColumn<Point>(name, table, type: type, schema: schema, nullable: nullable);
+    }
+
+    /// <summary>
+    /// Adds a LineString column to an existing table with appropriate database-specific type.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="nullable">Whether the column should be nullable.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddLineStringColumn(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        bool nullable = true,
+        string? schema = null)
+    {
+        var type = ColumnTypeMappings.GetLineStringType(mb.GetDatabaseType());
+        return mb.AddColumn<LineString>(name, table, type: type, schema: schema, nullable: nullable);
+    }
+
+    /// <summary>
+    /// Adds a Polygon column to an existing table with appropriate database-specific type.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="nullable">Whether the column should be nullable.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddPolygonColumn(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        bool nullable = true,
+        string? schema = null)
+    {
+        var type = ColumnTypeMappings.GetPolygonType(mb.GetDatabaseType());
+        return mb.AddColumn<Polygon>(name, table, type: type, schema: schema, nullable: nullable);
     }
 }

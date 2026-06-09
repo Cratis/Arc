@@ -68,42 +68,15 @@ public class Task
 }
 ```
 
-### Coordinate Serializer
+### Geospatial Serializers
 
-**Class**: `CoordinateSerializer`
+Cratis provides specialized serializers for geospatial types from `Cratis.Geospatial`. These types follow the GeoJSON specification and are fully integrated with MongoDB's geospatial query operators.
 
-Handles serialization of `Coordinate` geospatial types from Cratis.Fundamentals, storing longitude and latitude as a BSON document:
+For comprehensive documentation on storing and querying geographic data, see the [Geospatial Types](./geospatial/) section, which covers:
 
-```csharp
-using Cratis.Geospatial;
-
-public class Store
-{
-    public string Id { get; set; }
-    public string Name { get; set; }
-    public Coordinate Location { get; set; }
-}
-```
-
-The coordinate is serialized as a BSON document:
-
-```json
-{
-  "_id": "store-001",
-  "name": "Downtown Store",
-  "location": {
-    "longitude": -122.4194,
-    "latitude": 37.7749
-  }
-}
-```
-
-This format provides:
-
-- **Structured storage**: Longitude and latitude stored as separate numeric fields
-- **Type safety**: Ensures coordinates are properly structured
-- **Query support**: Enables MongoDB queries on individual longitude or latitude values
-- **Readability**: Clear document structure when viewing data in MongoDB tools
+- **[Point](./geospatial/point.md)** — Single coordinates for locations and landmarks
+- **[LineString](./geospatial/linestring.md)** — Routes, paths, and trajectories
+- **[Polygon](./geospatial/polygon.md)** — Geographic areas and boundaries with optional exclusion zones
 
 ### Type Serializer
 

@@ -3,13 +3,13 @@
 
 using Cratis.Geospatial;
 
-namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions.when_checking_if_coordinate_is_known_type;
+namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 
-public class a_coordinate : Specification
+public class when_checking_if_point_is_known_type : Specification
 {
     bool _result;
 
-    void Because() => _result = typeof(Coordinate).IsKnownType();
+    void Because() => _result = typeof(Point).IsKnownType();
 
     [Fact] void should_be_a_known_type() => _result.ShouldBeTrue();
 }

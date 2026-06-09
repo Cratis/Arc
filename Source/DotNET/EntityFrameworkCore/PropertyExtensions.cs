@@ -19,9 +19,17 @@ public static class PropertyExtensions
         guid => guid.ToString("D"),
         str => Guid.Parse(str));
 
-    static readonly ValueConverter<Coordinate, string> _coordinateValueConverter = new(
-        coord => JsonSerializer.Serialize(coord),
-        str => JsonSerializer.Deserialize<Coordinate>(str) ?? new Coordinate(0, 0));
+    static readonly ValueConverter<Point, string> _pointValueConverter = new(
+        point => JsonSerializer.Serialize(point),
+        str => JsonSerializer.Deserialize<Point>(str) ?? new Point(0, 0));
+
+    static readonly ValueConverter<LineString, string> _lineStringValueConverter = new(
+        linestring => JsonSerializer.Serialize(linestring),
+        str => JsonSerializer.Deserialize<LineString>(str) ?? new LineString(Array.Empty<Point>()));
+
+    static readonly ValueConverter<Polygon, string> _polygonValueConverter = new(
+        polygon => JsonSerializer.Serialize(polygon),
+        str => JsonSerializer.Deserialize<Polygon>(str) ?? new Polygon(new LinearRing(Array.Empty<Point>()), Array.Empty<LinearRing>()));
 
     /// <summary>
     /// Configures the property to use a GUID representation that is compatible across different database providers.
@@ -45,16 +53,35 @@ public static class PropertyExtensions
     }
 
     /// <summary>
-    /// Configures the property to use a value conversion for Coordinate types.
+    /// Configures the property to use a value conversion for Point types.
     /// </summary>
     /// <param name="propertyBuilder">The property builder to configure.</param>
-    /// <param name="databaseType">The database provider type.</param>
     /// <returns>The configured property builder.</returns>
-#pragma warning disable IDE0060 // Remove unused parameter - For consistency with other AsX methods that take databaseType, even though it's not currently used for Coordinate conversion
-    public static PropertyBuilder AsCoordinate(this PropertyBuilder propertyBuilder, DatabaseType databaseType)
-#pragma warning restore IDE0060 // Remove unused parameter
+    public static PropertyBuilder AsPoint(this PropertyBuilder propertyBuilder)
     {
-        propertyBuilder.HasConversion(_coordinateValueConverter);
+        propertyBuilder.HasConversion(_pointValueConverter);
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the property to use a value conversion for LineString types.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder to configure.</param>
+    /// <returns>The configured property builder.</returns>
+    public static PropertyBuilder AsLineString(this PropertyBuilder propertyBuilder)
+    {
+        propertyBuilder.HasConversion(_lineStringValueConverter);
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the property to use a value conversion for Polygon types.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder to configure.</param>
+    /// <returns>The configured property builder.</returns>
+    public static PropertyBuilder AsPolygon(this PropertyBuilder propertyBuilder)
+    {
+        propertyBuilder.HasConversion(_polygonValueConverter);
         return propertyBuilder;
     }
 

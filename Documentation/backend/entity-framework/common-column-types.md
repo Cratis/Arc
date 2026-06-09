@@ -57,13 +57,13 @@ The `NumberColumn<T>()` method supports all .NET numeric types and maps them app
 - **SQL Server**: `DATETIMEOFFSET`
 - **SQLite**: `TEXT`
 
-### Coordinate Types
+### Point Types
 
 - **PostgreSQL**: `jsonb`
 - **SQL Server**: `nvarchar(max)`
 - **SQLite**: `text`
 
-> Note: Read more about Coordinate in [this article](./coordinate-conversion.md)
+> Note: Read more about Point in [this article](./point-conversion.md)
 
 ### JSON Types
 

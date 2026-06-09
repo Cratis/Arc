@@ -8,5 +8,5 @@ namespace Cratis.Arc.EntityFrameworkCore.for_PropertyExtensions;
 public class Place
 {
     public int Id { get; set; }
-    public Coordinate Location { get; set; } = new(0, 0);
+    public Point Location { get; set; } = new(0, 0);
 }
