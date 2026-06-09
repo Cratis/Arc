@@ -2,6 +2,8 @@
   href: getting-started.md
 - name: Serializers
   href: serializers.md
+- name: Geospatial Types
+  href: geospatial/index.md
 - name: Concepts
   href: concepts.md
 - name: Naming Policies
