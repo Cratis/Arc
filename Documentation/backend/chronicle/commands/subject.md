@@ -14,7 +14,7 @@ When the subject is already part of the command, put it on the record itself.
 Implement `ICanProvideSubject` when you want the subject to be computed:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
@@ -35,7 +35,7 @@ public record OrderPlaced(EventSourceId OrderId, CustomerId CustomerId, decimal 
 Use a `Subject` property directly when the command already has the final compliance identity:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 
@@ -52,7 +52,7 @@ public record CustomerImported(EventSourceId CustomerId, string Email);
 Use `[Subject]` when the source value is not already a `Subject`:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 
@@ -73,7 +73,7 @@ Chronicle converts the `[Subject]` value to `Subject` by calling `ToString()`.
 Return `Subject` in the tuple from `Handle()` when the subject is decided inside the handler. A returned subject overrides any subject that was resolved from the command itself.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 

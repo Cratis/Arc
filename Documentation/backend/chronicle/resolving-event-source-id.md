@@ -24,7 +24,7 @@ When Chronicle inspects a command, it resolves the event source id in this order
 If none of these are present, Chronicle creates a new `EventSourceId` so automatic event appends still have a valid identity.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Keys;

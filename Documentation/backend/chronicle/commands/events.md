@@ -6,7 +6,7 @@ uid: Arc.Chronicle.Commands.Events
 When a [model-bound](../../commands/model-bound/index.md) command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -25,7 +25,7 @@ public record CustomerRegistered(EventSourceId CustomerId, string Email);
 You can also return multiple events as a collection:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -63,7 +63,7 @@ Chronicle resolves the event source id in this order:
 If none of these are present, Chronicle creates a new `EventSourceId` so the command still has a valid identity for event appends.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Keys;
 
@@ -91,7 +91,7 @@ Chronicle supports additional metadata that can be attached to commands and used
 Use `[EventStreamId]` to assign a specific event stream id to a command, or implement `ICanProvideEventStreamId` to supply it dynamically.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -113,7 +113,7 @@ If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are u
 Use `[EventStreamType]` to categorize events under a named stream type. This is useful for grouping related streams, such as separating onboarding events from transaction events for the same event source.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -127,7 +127,7 @@ public record RegisterCustomer(EventSourceId CustomerId, string Email);
 Use `[EventSourceType]` to tag events with a specific event source type when they are appended.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -147,7 +147,7 @@ Sometimes a single command needs to append events to multiple different event so
 Return a single `EventForEventSourceId` when only one cross-source event is needed:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -165,7 +165,7 @@ public record CustomerMigrated(EventSourceId OldCustomerId, EventSourceId NewCus
 Return an `IEnumerable<EventForEventSourceId>` to append events to several different event sources in one command:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -191,7 +191,7 @@ Chronicle appends each event individually, in order. If any append fails (constr
 You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
