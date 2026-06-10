@@ -25,6 +25,7 @@ public static class JsonSerializerOptionsConfiguration
         options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         options.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
 
+        options.Converters.Add(new ComplexKeyDictionaryJsonConverterFactory());
         options.Converters.Add(new EnumConverterFactory());
         options.Converters.Add(new EnumerableConceptAsJsonConverterFactory());
         options.Converters.Add(new ConceptAsJsonConverterFactory());
@@ -32,6 +33,9 @@ public static class JsonSerializerOptionsConfiguration
         options.Converters.Add(new TimeOnlyJsonConverter());
         options.Converters.Add(new TypeJsonConverter());
         options.Converters.Add(new UriJsonConverter());
+        options.Converters.Add(new PointJsonConverter());
+        options.Converters.Add(new LineStringJsonConverter());
+        options.Converters.Add(new PolygonJsonConverter());
         options.Converters.Add(new EnumerableModelWithIdToConceptOrPrimitiveEnumerableConverterFactory());
 
         if (derivedTypes is not null)

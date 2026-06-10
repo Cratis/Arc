@@ -30,6 +30,7 @@ public class JsonConversionOptions(IDerivedTypes? derivedTypes = null)
         {
             WriteIndented = false
         };
+        options.Converters.Add(new ComplexKeyDictionaryJsonConverterFactory());
         options.Converters.Add(new EnumConverterFactory());
         options.Converters.Add(new EnumerableConceptAsJsonConverterFactory());
         options.Converters.Add(new ConceptAsJsonConverterFactory());
@@ -37,6 +38,9 @@ public class JsonConversionOptions(IDerivedTypes? derivedTypes = null)
         options.Converters.Add(new TimeOnlyJsonConverter());
         options.Converters.Add(new TypeJsonConverter());
         options.Converters.Add(new UriJsonConverter());
+        options.Converters.Add(new PointJsonConverter());
+        options.Converters.Add(new LineStringJsonConverter());
+        options.Converters.Add(new PolygonJsonConverter());
         options.Converters.Add(new EnumerableModelWithIdToConceptOrPrimitiveEnumerableConverterFactory());
         if (derivedTypes is not null)
         {
