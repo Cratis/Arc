@@ -96,18 +96,16 @@ public static class QueryExtensions
         var includeQueryName = !skipQueryNameInRoute || hasConflict;
 
         // Check for Route attribute on method or type
-        var routeAttribute = method.GetCustomAttribute<Attribute>()?.GetType().Name == "RouteAttribute"
-            ? method.GetCustomAttribute<Attribute>()
-            : readModelType.GetCustomAttribute<Attribute>()?.GetType().Name == "RouteAttribute"
-                ? readModelType.GetCustomAttribute<Attribute>()
-                : null;
+        var methodRouteAttr = method.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "RouteAttribute");
+        var typeRouteAttr = readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "RouteAttribute");
+        var routeAttributeData = methodRouteAttr ?? typeRouteAttr;
 
         string route;
-        if (routeAttribute != null)
+        if (routeAttributeData != null)
         {
             // Use the custom route from the attribute
-            var routeProperty = routeAttribute.GetType().GetProperty("Route");
-            route = routeProperty?.GetValue(routeAttribute) as string ?? string.Empty;
+            var routeArg = routeAttributeData.ConstructorArguments.FirstOrDefault();
+            route = routeArg.Value as string ?? string.Empty;
         }
         else
         {
