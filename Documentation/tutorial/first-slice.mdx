@@ -72,7 +72,7 @@ flowchart LR
    <TabItem label="MongoDB" icon="seti:db">
    ```csharp
    [ReadModel]
-   public record Author([property: Key] AuthorId Id, AuthorName Name)
+   public record Author(AuthorId Id, AuthorName Name)
    {
        public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
            collection.Observe();
@@ -82,7 +82,7 @@ flowchart LR
    <TabItem label="EF Core" icon="seti:db">
    ```csharp
    [ReadModel]
-   public record Author([property: Key] AuthorId Id, AuthorName Name)
+   public record Author(AuthorId Id, AuthorName Name)
    {
        public static ISubject<IEnumerable<Author>> AllAuthors(LibraryDbContext db) =>
            db.Authors.Observe();
@@ -101,21 +101,66 @@ flowchart LR
    That static `AllAuthors` method *is* your query — Arc serves it over HTTP automatically. No controller, no routing, no DTO. And it's **live**: `.Observe()` watches the database's change stream (MongoDB's, or an [observed `DbSet`](/arc/backend/entity-framework/observing/)), so the instant the command writes, every subscribed browser re-renders.
    </Aside>
 
-4. **Wire the database in once at startup, then build.**
+4. **Set up the project, then build.** Two pieces make the full-stack loop work: a build-time **proxy generator** and the **host wiring**. Add the packages and tell the generator where to write proxies — next to your source, so each `.ts` lands beside the `.tsx` that imports it:
 
    <Tabs syncKey="db">
    <TabItem label="MongoDB" icon="seti:db">
-   ```csharp
+   ```xml title="Library.csproj"
+   <ItemGroup>
+       <PackageReference Include="Cratis.Arc" Version="*" />
+       <PackageReference Include="Cratis.Arc.MongoDB" Version="*" />
+       <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="*" />
+   </ItemGroup>
+   <PropertyGroup>
+       <!-- Proxies are generated only when an output path is set -->
+       <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)</CratisProxiesOutputPath>
+       <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
+   </PropertyGroup>
+   ```
+
+   Then wire the host. `AddCratisArc` registers Arc, `UseCratisMongoDB` points it at MongoDB, and `UseCratisArc` maps the command, query, and observable-query endpoints:
+
+   ```csharp title="Program.cs"
    var builder = WebApplication.CreateBuilder(args);
    builder.AddCratisArc();
    builder.UseCratisMongoDB();
+   builder.Services.AddControllers();
+
+   var app = builder.Build();
+   app.UseRouting();
+   app.MapControllers();
+   app.UseCratisArc();          // maps the command, query, and observable-query endpoints
+
+   await app.RunAsync();
    ```
    </TabItem>
    <TabItem label="EF Core" icon="seti:db">
-   ```csharp
+   ```xml title="Library.csproj"
+   <ItemGroup>
+       <PackageReference Include="Cratis.Arc" Version="*" />
+       <PackageReference Include="Cratis.Arc.EntityFrameworkCore" Version="*" />
+       <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="*" />
+   </ItemGroup>
+   <PropertyGroup>
+       <!-- Proxies are generated only when an output path is set -->
+       <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)</CratisProxiesOutputPath>
+       <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
+   </PropertyGroup>
+   ```
+
+   Then wire the host. `WithEntityFrameworkCore` auto-discovers your `DbContext`, and `UseCratisArc` maps the endpoints:
+
+   ```csharp title="Program.cs"
    var builder = WebApplication.CreateBuilder(args);
    builder.AddCratisArc(configureBuilder: arc => arc.WithEntityFrameworkCore());
-   // your DbContext is auto-discovered and registered
+   builder.Services.AddControllers();
+
+   var app = builder.Build();
+   app.UseRouting();
+   app.MapControllers();
+   app.UseCratisArc();          // maps the command, query, and observable-query endpoints
+
+   await app.RunAsync();
    ```
    </TabItem>
    </Tabs>
@@ -124,7 +169,11 @@ flowchart LR
    dotnet build
    ```
 
-   Building compiles your C# and — the part that matters most for the next half — **generates TypeScript proxies** for `RegisterAuthor` and `AllAuthors`. Your frontend is about to call them as if they were local, typed code.
+   Building compiles your C# and — the part that matters most for the next half — **generates a TypeScript proxy** for `RegisterAuthor` and `AllAuthors` next to each slice. That's what `CratisProxiesOutputPath` turns on; with it unset, `dotnet build` still succeeds but emits nothing. Your frontend is about to call them as if they were local, typed code.
+
+   <Aside type="note" title="Route config lives in two places">
+   The proxy's URL is baked in at build time from the `CratisProxies*` properties; the server maps routes from `ArcOptions` at runtime. They agree by default — but if you customize one (a route prefix, say), mirror it in the other or the generated client calls a route the server never mapped. See [proxy-generation configuration](/arc/backend/proxy-generation/) and [ASP.NET Core host configuration](/arc/backend/asp-net-core/configuration/).
+   </Aside>
 
 </Steps>
 
@@ -166,6 +215,10 @@ The proxies now exist, generated *from your C#*. Normally this is exactly where 
 </Steps>
 
 Run the app, register an author, and the list updates the moment you confirm — you didn't write a line of refresh logic. `AllAuthors.use()` is subscribed to the read model, so when the command writes its document, the screen re-renders itself.
+
+<Aside type="note" title="One bit of dev wiring for live queries">
+Observable queries stream over a WebSocket, so in local dev your Vite server needs to proxy `/api` and `/.cratis` (with `ws: true`) through to the backend — otherwise the list loads but never updates live. The [Vite configuration](/arc/frontend/react/vite-configuration/) guide shows the exact `server.proxy` block.
+</Aside>
 
 ## Where the type safety lives
 

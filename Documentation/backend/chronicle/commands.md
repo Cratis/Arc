@@ -7,7 +7,7 @@ This content has moved. See [Commands](commands/index.md) for the full documenta
 When a model-bound command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -26,7 +26,7 @@ public record CustomerRegistered(EventSourceId CustomerId, string Email);
 You can also return multiple events as a collection:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -64,7 +64,7 @@ Chronicle resolves the event source id in this order:
 If none of these are present, Chronicle creates a new `EventSourceId` so the command still has a valid identity for event appends.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Keys;
 
@@ -90,7 +90,7 @@ Chronicle supports additional metadata that can be attached to commands and then
 Use `[EventStreamId]` to assign a specific event stream id to a command, or implement `ICanProvideEventStreamId` to supply it dynamically.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -113,7 +113,7 @@ If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are u
 Use `[EventSourceType]` to tag events with a specific event source type when they are appended.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -133,7 +133,7 @@ Chronicle can build a concurrency scope based on command metadata so event appen
 This builds a [concurrency scope](xref:Chronicle.ConcurrencyScope) using the metadata values in the command context.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 

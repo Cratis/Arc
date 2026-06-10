@@ -35,7 +35,7 @@ The read side deserves the same protection — a public catalog might be fine, b
 
 ```csharp
 [ReadModel]
-public record Author([property: Key] AuthorId Id, AuthorName Name)
+public record Author(AuthorId Id, AuthorName Name)
 {
     [Roles(nameof(UserRole.Librarian))]
     public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>

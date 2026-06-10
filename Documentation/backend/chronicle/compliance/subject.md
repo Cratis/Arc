@@ -23,7 +23,7 @@ If none of these are present, no subject is passed to Chronicle and it falls bac
 The simplest approach when the subject is computed inside the handler:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 
@@ -45,7 +45,7 @@ Arc detects the `Subject` in the tuple response and passes it to `Append` automa
 Use `ICanProvideSubject` when the subject is derived from command properties and you want an explicit, discoverable contract:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
@@ -65,7 +65,7 @@ public record PlaceOrder(EventSourceId OrderId, CustomerId CustomerId, decimal A
 When a command property directly represents the compliance identity, mark it with `[Subject]` from `Cratis.Chronicle`. Arc reads the property value and converts it to a `Subject`:
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 

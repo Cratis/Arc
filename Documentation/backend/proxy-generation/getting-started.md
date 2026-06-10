@@ -7,7 +7,7 @@ This guide covers the installation and basic setup of the Cratis Arc proxy gener
 To enable proxy generation, add a reference to the [Cratis.Arc.ProxyGenerator.Build](https://www.nuget.org/packages/Cratis.Arc.ProxyGenerator.Build) NuGet package to your project:
 
 ```xml
-<PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="1.0.0" />
+<PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="*" />
 ```
 
 > **Important**: All projects that contain controllers, commands, or queries should reference this package, as the proxy generation runs as part of the compilation process.

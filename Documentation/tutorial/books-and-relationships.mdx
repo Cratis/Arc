@@ -34,13 +34,13 @@ flowchart LR
    }
    ```
 
-2. **The command writes a book, tagged with its author.** `AddBook` is keyed by `AuthorId` — the author it belongs to — and writes a `Book` carrying that id:
+2. **The command writes a book, tagged with its author.** `AddBook` carries the `AuthorId` it belongs to — and writes a `Book` carrying that id:
 
    <Tabs syncKey="db">
    <TabItem label="MongoDB" icon="seti:db">
    ```csharp
    [Command]
-   public record AddBook([Key] AuthorId AuthorId, BookId BookId, BookTitle Title)
+   public record AddBook(AuthorId AuthorId, BookId BookId, BookTitle Title)
    {
        public Task Handle(IMongoCollection<Book> books) =>
            books.InsertOneAsync(new Book(BookId, AuthorId, Title));
@@ -50,7 +50,7 @@ flowchart LR
    <TabItem label="EF Core" icon="seti:db">
    ```csharp
    [Command]
-   public record AddBook([Key] AuthorId AuthorId, BookId BookId, BookTitle Title)
+   public record AddBook(AuthorId AuthorId, BookId BookId, BookTitle Title)
    {
        public async Task Handle(LibraryDbContext db)
        {
@@ -66,15 +66,15 @@ flowchart LR
 
 ## Read a catalog back, filtered
 
-The read model is just the book document — it carries the `AuthorId` it belongs to. The query takes the author's id (Arc binds it from the route via `[Key]`) and returns only that author's books, live:
+The read model is just the book document — it carries the `AuthorId` it belongs to. The query takes the author's id (Arc binds it by matching the parameter name) and returns only that author's books, live:
 
 <Tabs syncKey="db">
 <TabItem label="MongoDB" icon="seti:db">
 ```csharp
 [ReadModel]
-public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title)
+public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 {
-    public static ISubject<IEnumerable<Book>> BooksForAuthor([Key] AuthorId authorId, IMongoCollection<Book> books) =>
+    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, IMongoCollection<Book> books) =>
         books.Observe(b => b.AuthorId == authorId);
 }
 ```
@@ -82,9 +82,9 @@ public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title
 <TabItem label="EF Core" icon="seti:db">
 ```csharp
 [ReadModel]
-public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title)
+public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 {
-    public static ISubject<IEnumerable<Book>> BooksForAuthor([Key] AuthorId authorId, LibraryDbContext db) =>
+    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, LibraryDbContext db) =>
         db.Books.Observe(b => b.AuthorId == authorId);
 
     // add the DbSet to LibraryDbContext: public DbSet<Book> Books => Set<Book>();

@@ -16,7 +16,7 @@ Three attributes control concurrency scope declaration on a command. Each attrib
 Scopes concurrency to a specific event stream id within a stream type. Use this when independent streams within the same stream type should not interfere with each other.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -35,7 +35,7 @@ public record CustomerDisplayNameChanged(EventSourceId CustomerId, string Displa
 Scopes concurrency to a named stream type. Stream types group related streams — for example, separating `Onboarding` events from `Transactions` for the same customer.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -54,7 +54,7 @@ public record PaymentProcessed(EventSourceId AccountId, decimal Amount);
 Scopes concurrency to a named event source type. This is the overarching concept the event source belongs to — for example `Customer` or `BankAccount`.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -74,7 +74,7 @@ public record CustomerRegistered(EventSourceId CustomerId, string Email);
 You can combine multiple concurrency attributes to build a precise scope. Only the attributes with `concurrency: true` contribute to the scope; others still tag the events but do not affect concurrency.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
@@ -105,7 +105,7 @@ If no attribute has `concurrency: true`, Chronicle does not include a concurrenc
 When the event stream id is determined at runtime rather than as a constant, implement `ICanProvideEventStreamId` and return the id from `GetEventStreamId()`.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 
