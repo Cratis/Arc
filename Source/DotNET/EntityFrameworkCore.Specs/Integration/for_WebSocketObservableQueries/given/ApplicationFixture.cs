@@ -3,7 +3,9 @@
 
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using Cratis.Arc.EntityFrameworkCore.Observe;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +47,8 @@ public class ApplicationFixture : IAsyncLifetime
 
         Connection = new SqliteConnection("Data Source=:memory:");
         await Connection.OpenAsync();
+
+        RegisterReadModels(typeof(IntegrationTestReadModel).Assembly);
 
         var builder = ArcApplication.CreateBuilder();
 
@@ -105,6 +109,25 @@ public class ApplicationFixture : IAsyncLifetime
         {
             await Connection.CloseAsync();
             await Connection.DisposeAsync();
+        }
+    }
+
+    static void RegisterReadModels(Assembly assembly)
+    {
+        foreach (var type in assembly.GetTypes())
+        {
+            if (!type.IsReadModel())
+            {
+                continue;
+            }
+
+            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(m => m.IsValidQueryFor(type));
+
+            foreach (var method in methods)
+            {
+                QueryMetadataRegistry.Register($"{type.FullName}.{method.Name}", type);
+            }
         }
     }
 }
