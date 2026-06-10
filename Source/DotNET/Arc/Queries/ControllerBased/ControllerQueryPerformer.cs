@@ -43,6 +43,9 @@ public class ControllerQueryPerformer(
     public IEnumerable<string> Location { get; } = actionDescriptor.ControllerTypeInfo.Namespace?.Split('.') ?? [];
 
     /// <inheritdoc/>
+    public string? CustomRoute { get; } = GetCustomRoute(actionDescriptor);
+
+    /// <inheritdoc/>
     public IEnumerable<Type> Dependencies { get; } = [typeof(IServiceProvider)];
 
     /// <inheritdoc/>
@@ -282,6 +285,23 @@ public class ControllerQueryPerformer(
         }
 
         return result;
+    }
+
+    static string? GetCustomRoute(ControllerActionDescriptor actionDescriptor)
+    {
+        // Check for Route attribute on method or controller type
+        var routeAttribute = actionDescriptor.MethodInfo.GetCustomAttributes(true)
+            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute") ??
+            actionDescriptor.ControllerTypeInfo.GetCustomAttributes(true)
+            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute");
+
+        if (routeAttribute != null)
+        {
+            var routeProperty = routeAttribute.GetType().GetProperty("Route");
+            return routeProperty?.GetValue(routeAttribute) as string;
+        }
+
+        return null;
     }
 #pragma warning restore SA1204 // Static members should appear before non-static members
 }

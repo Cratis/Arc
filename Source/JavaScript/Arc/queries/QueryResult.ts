@@ -129,14 +129,17 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
 
         if (result.data) {
             let data: object = result.data;
+            const isPrimitive = instanceType === String || instanceType === Number || instanceType === Boolean;
             if (enumerable) {
                 if (Array.isArray(result.data)) {
-                    data = JsonSerializer.deserializeArrayFromInstance(instanceType, data);
+                    data = isPrimitive
+                        ? Array.from(result.data)
+                        : JsonSerializer.deserializeArrayFromInstance(instanceType, data);
                 } else {
                     data = [];
                 }
             } else {
-                data = JsonSerializer.deserializeFromInstance(instanceType, data);
+                data = isPrimitive ? data : JsonSerializer.deserializeFromInstance(instanceType, data);
             }
 
             this.data = data as TDataType;
@@ -145,10 +148,17 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         }
 
         if (enumerable && result.changeSet) {
+            const isPrimitive = instanceType === String || instanceType === Number || instanceType === Boolean;
             this.changeSet = {
-                added: JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.added ?? []),
-                replaced: JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.replaced ?? []),
-                removed: JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.removed ?? []),
+                added: isPrimitive
+                    ? Array.from(result.changeSet.added ?? [])
+                    : JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.added ?? []),
+                replaced: isPrimitive
+                    ? Array.from(result.changeSet.replaced ?? [])
+                    : JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.replaced ?? []),
+                removed: isPrimitive
+                    ? Array.from(result.changeSet.removed ?? [])
+                    : JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.removed ?? []),
             } as ChangeSet<unknown>;
         }
     }

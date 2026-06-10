@@ -45,6 +45,7 @@ public class an_observable_query_demultiplexer : Specification
             _readModelInterceptors,
             _serviceProvider,
             _arcOptions,
+            Substitute.For<IQueryHealthTracker>(),
             _logger);
     }
 

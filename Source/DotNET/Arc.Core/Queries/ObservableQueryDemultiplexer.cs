@@ -43,6 +43,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> used to intercept (e.g. decrypt compliance/PII properties on) each emitted read model before it is sent to the client.</param>
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors. The root provider is used because subscriptions outlive the short-lived subscribe request scope.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/> used for JSON serialization.</param>
+/// <param name="healthTracker">The <see cref="IQueryHealthTracker"/> used to track subscription health.</param>
 /// <param name="logger">The logger.</param>
 [Singleton]
 public class ObservableQueryDemultiplexer(
@@ -53,12 +54,14 @@ public class ObservableQueryDemultiplexer(
     IReadModelInterceptors readModelInterceptors,
     IServiceProvider serviceProvider,
     IOptions<ArcOptions> arcOptions,
+    IQueryHealthTracker healthTracker,
     ILogger<ObservableQueryDemultiplexer> logger) : IObservableQueryDemultiplexer
 {
     const int WebSocketBufferSize = 1024 * 4;
 
     readonly ConcurrentDictionary<string, SSEConnectionState> _sseConnections = new();
     readonly ChangeSetComputor _changeSetComputor = new(arcOptions.Value.JsonSerializerOptions);
+    int _nextConnectionId;
 
     /// <inheritdoc/>
     public async Task HandleWebSocketConnection(IHttpRequestContext context)
@@ -67,6 +70,7 @@ public class ObservableQueryDemultiplexer(
 
         httpRequestContextAccessor.Current = context;
 
+        var connectionId = $"ws-{Interlocked.Increment(ref _nextConnectionId)}";
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
         var subscriptions = new ConcurrentDictionary<string, IDisposable>();
         var writeLock = new SemaphoreSlim(1, 1);
@@ -83,7 +87,7 @@ public class ObservableQueryDemultiplexer(
 #pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
             keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, writeLock, linkedCts.Token);
 #pragma warning restore CA2025
-            await ReadWebSocketMessages(webSocket, subscriptions, context, keepAliveTracker, writeLock, linkedCts.Token);
+            await ReadWebSocketMessages(webSocket, subscriptions, context, connectionId, keepAliveTracker, writeLock, linkedCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -103,6 +107,7 @@ public class ObservableQueryDemultiplexer(
                 subscription.Dispose();
             }
 
+            healthTracker.RemoveConnection(connectionId);
             writeLock.Dispose();
 
             logger.WebSocketClientDisconnected();
@@ -194,6 +199,7 @@ public class ObservableQueryDemultiplexer(
         if (state.Subscriptions.TryRemove(body.QueryId, out var existing))
         {
             existing.Dispose();
+            healthTracker.UnregisterSubscription(body.ConnectionId, body.QueryId);
         }
 
         var wasUnauthorized = false;
@@ -206,6 +212,7 @@ public class ObservableQueryDemultiplexer(
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result);
                 await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock);
+                healthTracker.RecordDataServed(body.ConnectionId, body.QueryId);
             },
             async (id, errorMsg) =>
             {
@@ -229,6 +236,10 @@ public class ObservableQueryDemultiplexer(
         if (subscription is not null)
         {
             state.Subscriptions[body.QueryId] = subscription;
+
+            // Register subscription with health tracker
+            var metadata = CreateSubscriptionMetadata(body.QueryId, body.Request, context, "SSE");
+            healthTracker.RegisterSubscription(body.ConnectionId, "SSE", metadata);
         }
 
         context.SetStatusCode(200);
@@ -257,6 +268,7 @@ public class ObservableQueryDemultiplexer(
         {
             subscription.Dispose();
             logger.ClientUnsubscribed(body.QueryId);
+            healthTracker.UnregisterSubscription(body.ConnectionId, body.QueryId);
         }
 
         context.SetStatusCode(200);
@@ -266,6 +278,7 @@ public class ObservableQueryDemultiplexer(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
+        string connectionId,
         KeepAliveTracker keepAliveTracker,
         SemaphoreSlim writeLock,
         CancellationToken token)
@@ -310,7 +323,7 @@ public class ObservableQueryDemultiplexer(
                     continue;
                 }
 
-                await ProcessWebSocketMessage(message, webSocket, subscriptions, context, keepAliveTracker, writeLock, token);
+                await ProcessWebSocketMessage(message, webSocket, subscriptions, context, connectionId, keepAliveTracker, writeLock, token);
             }
             catch (Exception ex)
             {
@@ -332,6 +345,7 @@ public class ObservableQueryDemultiplexer(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
+        string connectionId,
         KeepAliveTracker keepAliveTracker,
         SemaphoreSlim writeLock,
         CancellationToken token)
@@ -342,11 +356,11 @@ public class ObservableQueryDemultiplexer(
         switch (message.Type)
         {
             case ObservableQueryHubMessageType.Subscribe:
-                await HandleWebSocketSubscribe(message, webSocket, subscriptions, context, keepAliveTracker, writeLock, token);
+                await HandleWebSocketSubscribe(message, webSocket, subscriptions, context, connectionId, keepAliveTracker, writeLock, token);
                 break;
 
             case ObservableQueryHubMessageType.Unsubscribe:
-                HandleWebSocketUnsubscribe(message, subscriptions);
+                HandleWebSocketUnsubscribe(message, subscriptions, connectionId);
                 break;
 
             case ObservableQueryHubMessageType.Ping:
@@ -360,6 +374,7 @@ public class ObservableQueryDemultiplexer(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
         IHttpRequestContext context,
+        string connectionId,
         KeepAliveTracker keepAliveTracker,
         SemaphoreSlim writeLock,
         CancellationToken token)
@@ -377,6 +392,7 @@ public class ObservableQueryDemultiplexer(
         if (message.QueryId is not null && subscriptions.TryRemove(message.QueryId, out var existing))
         {
             existing.Dispose();
+            healthTracker.UnregisterSubscription(connectionId, message.QueryId);
         }
 
         var queryId = message.QueryId ?? Guid.NewGuid().ToString();
@@ -389,6 +405,7 @@ public class ObservableQueryDemultiplexer(
             {
                 var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
                 await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, token);
+                healthTracker.RecordDataServed(connectionId, queryId);
             },
             async (id, errorMsg) =>
             {
@@ -405,12 +422,17 @@ public class ObservableQueryDemultiplexer(
         if (subscription is not null)
         {
             subscriptions[queryId] = subscription;
+
+            // Register subscription with health tracker
+            var metadata = CreateSubscriptionMetadata(queryId, request, context, "WebSocket");
+            healthTracker.RegisterSubscription(connectionId, "WebSocket", metadata);
         }
     }
 
     void HandleWebSocketUnsubscribe(
         ObservableQueryHubMessage message,
-        ConcurrentDictionary<string, IDisposable> subscriptions)
+        ConcurrentDictionary<string, IDisposable> subscriptions,
+        string connectionId)
     {
         var queryId = message.QueryId;
         if (queryId is null)
@@ -422,6 +444,7 @@ public class ObservableQueryDemultiplexer(
         {
             subscription.Dispose();
             logger.ClientUnsubscribed(queryId);
+            healthTracker.UnregisterSubscription(connectionId, queryId);
         }
     }
 
@@ -946,6 +969,33 @@ public class ObservableQueryDemultiplexer(
         {
             return null;
         }
+    }
+
+    QuerySubscriptionMetadata CreateSubscriptionMetadata(
+        string subscriptionId,
+        ObservableQuerySubscriptionRequest request,
+        IHttpRequestContext context,
+        string protocol)
+    {
+        var lastDotIndex = request.QueryName.LastIndexOf('.');
+        var readModelType = lastDotIndex >= 0 ? request.QueryName[..lastDotIndex] : request.QueryName;
+
+        return new QuerySubscriptionMetadata
+        {
+            SubscriptionId = subscriptionId,
+            QueryIdentifier = request.QueryName,
+            ReadModelType = readModelType,
+            ConnectedAt = DateTimeOffset.UtcNow,
+            ClientInfo = new QuerySubscriptionClientInfo
+            {
+                RemoteIpAddress = context.Headers.GetValueOrDefault("X-Forwarded-For") ??
+                                  context.Headers.GetValueOrDefault("X-Real-IP") ??
+                                  "unknown",
+                UserAgent = context.Headers.GetValueOrDefault("User-Agent"),
+                UserId = context.User?.Identity?.Name,
+                Protocol = protocol
+            }
+        };
     }
 #pragma warning restore SA1204
 
