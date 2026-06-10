@@ -15,14 +15,14 @@ In a database-backed Arc slice, model the relationship the same way you would in
 
 ```csharp
 [ReadModel]
-public record Book([property: Key] BookId Id, AuthorId AuthorId, BookTitle Title)
+public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 {
-    public static ISubject<IEnumerable<Book>> BooksForAuthor([Key] AuthorId authorId, IMongoCollection<Book> books) =>
+    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, IMongoCollection<Book> books) =>
         books.Observe(book => book.AuthorId == authorId);
 }
 ```
 
-The generated proxy takes the same parameter:
+No attribute marks the identity — by convention the `Id` property is the read model's identity. Arc sorts the query method's parameters by type: `authorId` is data, so it becomes a query parameter; `IMongoCollection<Book>` is a service, so it's injected. The generated proxy takes the data parameter:
 
 ```tsx
 const [books] = BooksForAuthor.use(authorId);
@@ -36,4 +36,4 @@ For a list-with-details screen, let the author list call `AllAuthors.use()` and 
 
 - [Queries](/arc/backend/queries/) — observable and non-observable query methods, parameters, and filtering.
 - [Relate your slices](/arc/tutorial/books-and-relationships/) — this relationship built step by step.
-- [Run a command from React](./run-a-command-from-react.md) — consuming the query proxy.
+- [Execute a command from React](./run-a-command-from-react.md) — consuming the query proxy.

@@ -31,7 +31,7 @@ You write the backend once. The proxy generator runs on build and emits a typed 
 code consumes it through each proxy's static `.use()` hook — and because the types flow across the
 boundary, there is no DTO to keep in sync and no untyped JSON to second-guess.
 
-## Run a command from React
+## Execute a command from React
 
 A command is an intent to change something — *open an account*, *check out a book*. You define it in
 C#; Arc generates a proxy whose static `.use()` hook gives you a reactive instance, change tracking,

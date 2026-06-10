@@ -8,7 +8,7 @@ import SimpleCard from '@components/SimpleCard.astro';
 import TopicHero from '@components/TopicHero.astro';
 
 <TopicHero icon="puzzle" eyebrow="Arc" title="Full-stack CQRS, typed to the browser">
-Turn **commands** and **queries** into a full-stack CQRS application with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. Arc pairs naturally with Chronicle's event sourcing, and can also run over MongoDB or EF Core when a slice is deliberately current-state only. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
+Turn **commands** and **queries** into a full-stack CQRS application with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. Arc pairs naturally with Chronicle's event sourcing, and runs just as well over MongoDB or EF Core — no event log required. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
 </TopicHero>
 
 ## Start here
@@ -32,7 +32,7 @@ Turn **commands** and **queries** into a full-stack CQRS application with **gene
     The plumbing Arc removes, and why CQRS plus proxy generation keeps a full-stack app honest.
   </SimpleCard>
   <SimpleCard title="Vertical slices" icon="seti:folder" link="/arc/vertical-slices/">
-    Why everything for one feature — backend and frontend — lives in a single folder.
+    How everything for one feature — backend and frontend — can live in a single folder.
   </SimpleCard>
   <SimpleCard title="CQRS without event sourcing" icon="right-arrow" link="/arc/arc-without-event-sourcing/">
     Use Arc on its own over MongoDB or EF Core when you want the CQRS boundary without an event log.

@@ -42,7 +42,24 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
            : new AuthorRegistered(Name);
    ```
 
-Validators are discovered by convention — you never register them. The frontend surfaces the messages automatically; see [Run a command from React](./run-a-command-from-react.md).
+   The handler isn't the only place a state-dependent rule can live. A `CommandValidator<TCommand>` is resolved through dependency injection, so it can take a collaborator and check state with FluentValidation's `MustAsync` — the rule sits with the rest of the command's rules, and `Handle()` stays focused on producing the event:
+
+   ```csharp
+   public class RegisterAuthorValidator : CommandValidator<RegisterAuthor>
+   {
+       public RegisterAuthorValidator(IAuthorsCatalog authors)
+       {
+           RuleFor(c => c.Name).NotEmpty().MaximumLength(200);
+           RuleFor(c => c)
+               .MustAsync(async (command, ct) => !await authors.IsRegistered(command.Name))
+               .WithMessage("An author with that name is already registered.");
+       }
+   }
+   ```
+
+   A `MustAsync` rule runs on the server only — unlike the declarative rules, it can't be extracted into the generated proxy. And like any pre-handler check, it reads eventually-consistent state: keep the in-`Handle()` guard for invariants that must hold under concurrency, and use the validator when separating rule checking from event production is what you're after.
+
+Validators are discovered by convention — you never register them. The frontend surfaces the messages automatically; see [Execute a command from React](./run-a-command-from-react.md).
 
 ## See also
 

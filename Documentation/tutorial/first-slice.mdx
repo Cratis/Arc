@@ -8,12 +8,12 @@ import FullStackTabs from '@components/FullStackTabs.astro';
 
 Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before they can catalog a single book. It's deliberately small, but building it touches the entire Arc loop: a command that expresses intent, the read model it updates, the query that serves it, and the React screen that calls both — all of it typed end to end.
 
-In a layered app these would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd jump between folders to follow one behavior. Arc organizes by **feature**: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the slice we're about to build:
+In a layered app these would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd jump between folders to follow one behavior. Arc doesn't force a layout on you — but we recommend the **vertical-slice** approach: a folder per feature, with a folder per slice inside it, mirroring the columns of your event model. That's how we'll build here: everything below lives in one `Authors/` folder you read top to bottom. Here's the slice we're about to build:
 
 ```mermaid
 flowchart LR
-    Cmd["RegisterAuthor<br/>command"] -->|Handle, writes| DB[("database")]
-    DB --> RM["Author<br/>read model"]
+    Cmd["RegisterAuthor command"] -->|Handle, writes| DB[("database")]
+    DB --> RM["Author read model"]
     RM -->|AllAuthors| Q["query, over HTTP"]
     Q -->|generated proxy, live| UI["React list"]
 ```
@@ -217,7 +217,7 @@ The proxies now exist, generated *from your C#*. Normally this is exactly where 
 Run the app, register an author, and the list updates the moment you confirm — you didn't write a line of refresh logic. `AllAuthors.use()` is subscribed to the read model, so when the command writes its document, the screen re-renders itself.
 
 <Aside type="note" title="One bit of dev wiring for live queries">
-Observable queries stream over a WebSocket, so in local dev your Vite server needs to proxy `/api` and `/.cratis` (with `ws: true`) through to the backend — otherwise the list loads but never updates live. The [Vite configuration](/arc/frontend/react/vite-configuration/) guide shows the exact `server.proxy` block.
+Observable queries stream over **Server-Sent Events** by default; you can switch to **WebSockets** with the `queryTransportMethod` prop on the [`<Arc/>` context component](/arc/frontend/react/arc/). Either way, in local dev your Vite server needs to proxy `/api` and `/.cratis` through to the backend (with `ws: true` if you use the WebSocket transport) — otherwise the list loads but never updates live. The [Vite configuration](/arc/frontend/react/vite-configuration/) guide shows the exact `server.proxy` block.
 </Aside>
 
 ## Where the type safety lives
