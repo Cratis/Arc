@@ -31,8 +31,8 @@ flowchart LR
         UI["Library screen"]
     end
     subgraph Backend["Arc (C#)"]
-        Cmd["commands<br/>RegisterAuthor · AddBook"]
-        RM["read models<br/>Author · BookOnShelf"]
+        Cmd["commands — RegisterAuthor · AddBook"]
+        RM["read models — Author · BookOnShelf"]
         Q["queries"]
     end
     DB[("MongoDB / EF Core")]

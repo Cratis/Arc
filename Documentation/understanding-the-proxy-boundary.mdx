@@ -16,8 +16,8 @@ The thing to internalize: **your C# command and query records are the contract.*
 
 ```mermaid
 flowchart LR
-    CS["C# record<br/>[Command] RegisterAuthor"] -->|dotnet build · Roslyn generator| TS["generated TS proxy<br/>RegisterAuthor"]
-    TS -->|import + call| RX["React<br/>CommandDialog · .use()"]
+    CS["C# record — [Command] RegisterAuthor"] -->|dotnet build · Roslyn generator| TS["generated TS proxy — RegisterAuthor"]
+    TS -->|import + call| RX["React — CommandDialog · .use()"]
     RX -.->|HTTP — typed both ends| CS
 ```
 
@@ -86,11 +86,24 @@ Rename a field on a `[ReadModel]`, rebuild, and every component reading it throu
 Each build, Arc emits typed proxies for:
 
 - **Commands** — a class you instantiate and execute (or hand to a `CommandDialog`), with every parameter — route, query string, body — flattened into typed properties.
-- **Queries** — a proxy exposing a React `.use()` hook that returns the typed result with its loading and error state; **observable** queries return a live subscription that re-renders on change, with no `perform` to call and no polling.
+- **Queries** — a proxy exposing a React `.use()` hook that returns the typed result with its loading and error state; **observable** queries return a live subscription that re-renders on change — no polling, no manual refresh.
 - **Types and enums** — every complex type and enum your commands and queries reference, so nested shapes are typed too.
 - **Identity details** — your custom identity type, so the signed-in user is typed on the frontend.
 
 Each has a detailed reference: [Commands](/arc/backend/proxy-generation/commands/), [Queries](/arc/backend/proxy-generation/queries/), and [Identity details](/arc/backend/proxy-generation/identity-details/). The [frontend proxy-generation guide](/arc/frontend/react/proxy-generation/) shows the generated TypeScript for each, with the `.use()` and `useSuspense()` hooks.
+
+## The transport disappears too
+
+Types are only half of what the proxy absorbs. The other half is **how the call travels**. Your component never writes a URL, picks an HTTP verb, or opens a socket — it executes `RegisterAuthor` or renders `AllAuthors.use()`, and the proxy owns the wire. That makes the transport an implementation detail behind the boundary: today the calls ride HTTP, and if Arc carried them over something else — gRPC-Web, say — the proxy is where that would change, not your components.
+
+The query system already cashes in on this freedom. A regular query executes as a plain HTTP request. An observable query streams — over WebSockets or Server-Sent Events, a choice you make once with the `queryTransportMethod` prop on the [`<Arc/>` context component](/arc/frontend/react/arc/), not in any component. And the same observable query can still be executed as a one-shot HTTP fetch by calling `perform()` on the proxy, when you want a snapshot instead of a subscription:
+
+```tsx
+const [authors] = AllAuthors.use();                  // live — streams over WebSockets or SSE
+const snapshot = await new AllAuthors().perform();   // one-shot — a plain HTTP fetch, same proxy
+```
+
+One definition in C#, one proxy in TypeScript — and whether the data arrives as a response or a stream is the proxy's concern, not yours. Tune the live transport in the [query configuration reference](/arc/frontend/react/queries/configuration/).
 
 ## It's a build step, not a checkout
 

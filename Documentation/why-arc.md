@@ -34,7 +34,7 @@ That diagram is the direct-database setup, useful for bounded current-state slic
 
 ## Vertical slices, not layers
 
-Arc applications are organized by **feature**, not by technical role. Everything for one behavior — the command, the read model and query it serves, the React component that renders it, and the specs that prove it — lives in one folder. You read a feature top to bottom instead of hunting across `Commands/`, `Handlers/`, `DTOs`, and `Clients/`.
+Arc doesn't impose a folder structure, but it's built to make one shine: organize the application by **feature**, with a folder per slice inside it — the shape [event modeling](/event-modeling/) gives you. Everything for one behavior — the command, the read model and query it serves, the React component that renders it, and the specs that prove it — then lives in one folder, and you read a feature top to bottom instead of hunting across `Commands/`, `Handlers/`, `DTOs`, and `Clients/`.
 
 ## Where to start
 

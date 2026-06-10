@@ -7,12 +7,12 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 Let's build the backend half of a real feature: registering an author in a library app. It's small, but it exercises the whole Arc loop — something *happens* (a command), it writes state, and that state is served back out (a query). We use a plain database in this lesson to keep the CQRS boundary visible; in a full Cratis information system, the same boundary usually writes events through Chronicle.
 
-In a layered app this would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd hop between them to follow one behavior. Arc organizes by **feature** instead: everything below lives in one `Features/Authors/` folder you read top to bottom. Here's the shape we're building:
+In a layered app this would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd hop between them to follow one behavior. Arc doesn't force a layout, but we strongly recommend organizing by **feature**: everything below lives in one `Authors/` folder you read top to bottom. Here's the shape we're building:
 
 ```mermaid
 flowchart LR
-    Cmd["RegisterAuthor<br/>command"] -->|Handle, writes| DB[("database")]
-    DB --> RM["Author<br/>read model"]
+    Cmd["RegisterAuthor command"] -->|Handle, writes| DB[("database")]
+    DB --> RM["Author read model"]
     RM -->|AllAuthors| Q["query over HTTP, live"]
 ```
 

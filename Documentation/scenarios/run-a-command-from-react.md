@@ -1,5 +1,5 @@
 ---
-title: Run a command from React
+title: Execute a command from React
 description: Wire a React form or button to a command through the generated proxy — with CommandDialog handling instantiation, validation, and the buttons.
 ---
 

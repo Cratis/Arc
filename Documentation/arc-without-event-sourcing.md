@@ -13,10 +13,10 @@ Arc is a layer that can sit *on top of* Chronicle; Chronicle never depends on Ar
 
 ```mermaid
 flowchart TB
-    Core["Arc.Core<br/>commands · queries · generated proxies"]
+    Core["Arc.Core — commands · queries · generated proxies"]
     Core --> Mongo[("MongoDB")]
     Core --> EF[("EF Core / SQL")]
-    Core --> Chr[("Chronicle<br/>event sourcing")]
+    Core --> Chr[("Chronicle — event sourcing")]
 ```
 
 Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an event log. Pick Chronicle and the same Arc boundary records facts, builds projections, and keeps history.
@@ -25,7 +25,7 @@ Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an
 
 Here's the whole thing — register an author, and list authors live — with the data stored straight in a MongoDB collection.
 
-**The read model is just a document.** Mark it `[ReadModel]` so Arc exposes its query methods; there's no `[FromEvent]` and no projection. A static method *is* the query, and returning an `ISubject<>` makes it live:
+**The read model is just a document.** Mark it `[ReadModel]` and Arc exposes its query methods. A static method *is* the query, and returning an `ISubject<>` makes it live:
 
 ```csharp
 [ReadModel]

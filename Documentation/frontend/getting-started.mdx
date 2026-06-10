@@ -21,9 +21,9 @@ Proxies appear when you **build the backend** — until `dotnet build` succeeds,
 
 ```mermaid
 flowchart LR
-    Cmd["C# command + query<br/>RegisterAuthor · AllAuthors"] -->|dotnet build| Proxy["generated TS proxies"]
-    Proxy --> Q["AllAuthors.use()<br/>reads, live"]
-    Proxy --> X["CommandDialog<br/>executes"]
+    Cmd["C# command + query — RegisterAuthor · AllAuthors"] -->|dotnet build| Proxy["generated TS proxies"]
+    Proxy --> Q["AllAuthors.use() — reads, live"]
+    Proxy --> X["CommandDialog — executes"]
     Q --> UI["your React screen"]
     X --> UI
 ```

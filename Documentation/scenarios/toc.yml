@@ -6,7 +6,7 @@
   href: return-a-result-or-error.md
 - name: Query data across slices
   href: query-related-data.md
-- name: Run a command from React
+- name: Execute a command from React
   href: run-a-command-from-react.md
 - name: Test a command
   href: test-a-command.md

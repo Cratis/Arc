@@ -3,7 +3,7 @@ title: Vertical slices
 description: Why a Cratis feature keeps its backend and frontend together in one folder — and why that beats organizing code by technical layer.
 ---
 
-Cratis applications are organized by **feature**, not by technical layer. Everything for one behavior — the command that writes state, the read model and query that serve it, the React component that renders it, and the specs that prove it — lives together in a single folder. That folder is a **vertical slice**.
+We strongly recommend organizing a Cratis application by **feature**, not by technical layer. Nothing in the framework enforces this — Arc discovers your commands and read models wherever they live — but we recommend it emphatically, because high cohesion and low coupling fall out of the shape almost for free. Everything for one behavior — the command that writes state, the read model and query that serve it, the React component that renders it, and the specs that prove it — lives together in a single folder. That folder is a **vertical slice**, and the slice folders inside a feature map directly onto the timeline an [event model](/event-modeling/) lays out.
 
 This page explains *why*. If you want to see one built, the [capstone walkthrough](/build-a-full-app/) does exactly that.
 
@@ -26,7 +26,7 @@ A vertical slice puts the whole feature in one place:
 
 ```shell
 ✅ Organized by feature — one folder, read top to bottom
-Features/Authors/Registration/
+Authors/Registration/
 ├── Registration.cs        # command + Handle() + read model + query
 ├── AddAuthor.tsx          # the React screen
 └── when_registering/      # the specs
@@ -54,13 +54,15 @@ flowchart LR
     end
 ```
 
+None of this dictates your repository layout, though. The proxy generator writes the TypeScript wherever you point it — the `CratisProxiesOutputPath` MSBuild property in your backend project sets the output folder, which can just as well be a separate frontend folder or another checkout entirely. If your team keeps backend and frontend apart, Arc follows your structure and the type safety holds across the distance. We co-locate because the feedback loop in point 2 is at its tightest when the generated proxy sits next to the command it mirrors — a strong preference, not a requirement.
+
 ## What lives in a slice
 
-A single backend `.cs` file can hold the backend artifacts for the behavior — the `[Command]` with its `Handle()`, validators, and the `[ReadModel]` with its query methods. Alongside it sit the React component(s) that consume the generated proxies, and the specs. Conventions and proxy generation rely on this co-location, so it's the easy path *and* the right one.
+A single backend `.cs` file can hold the backend artifacts for the behavior — the `[Command]` with its `Handle()`, validators, and the `[ReadModel]` with its query methods. Alongside it sit the React component(s) that consume the generated proxies, and the specs. Arc's convention-based discovery means none of it needs registration or wiring — the slice folder is self-contained and reads top to bottom.
 
 ## Slice types
 
-Not every slice does the same job. There are four kinds:
+Not every slice does the same job. There are four kinds — the same building blocks an event model lays out on its timeline:
 
 | Type | Purpose |
 |---|---|

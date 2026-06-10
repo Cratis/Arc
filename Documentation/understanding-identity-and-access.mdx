@@ -32,10 +32,10 @@ public class LibraryIdentityProvider(IMongoCollection<Member> members)
 
 ```mermaid
 flowchart LR
-    T["Provider token<br/>id · name · claims"] --> P["IProvideIdentityDetails<br/>.Provide()"]
+    T["Provider token — id · name · claims"] --> P["IProvideIdentityDetails.Provide()"]
     P --> Q{IsUserAuthorized?}
     Q -- no --> F["HTTP 403"]
-    Q -- yes --> D["IdentityDetails<br/>your domain identity"]
+    Q -- yes --> D["IdentityDetails — your domain identity"]
     D --> C[".cratis-identity cookie"]
     C --> UI["Frontend — typed identity"]
 ```
@@ -86,7 +86,7 @@ The shape of it:
 3. **Tenant-aware data stores** (a database per tenant, or a partition) keep one customer's events and read models physically apart from another's — isolation by construction, not by remembering to add a `WHERE tenantId =` to every query.
 
 <Aside type="caution" title="Resolve the tenant after you authenticate">
-Tenant id is sensitive. Resolve it from authenticated claims, validate membership, and never trust a raw header or query parameter — otherwise tenant isolation is one spoofed value away from breaking.
+Tenant id is sensitive. Resolve it from authenticated claims, validate membership, and never trust a raw header or query parameter — otherwise tenant isolation is one spoofed value away from breaking. In production, [Cratis AuthProxy](/authproxy/) can take this on at the edge: it strips spoofable identity and tenant headers from every inbound request, resolves the tenant after the user signs in, and validates it before the request reaches your app.
 </Aside>
 
 Set it up with [tenant resolvers](/arc/backend/tenancy/resolvers/), reach it through [tenant context](/arc/backend/tenancy/tenant-context/), and isolate storage with [database resolvers](/arc/backend/tenancy/database-resolvers/) — the [tenancy overview](/arc/backend/tenancy/overview/) ties them together.
@@ -96,4 +96,4 @@ Set it up with [tenant resolvers](/arc/backend/tenancy/resolvers/), reach it thr
 - [Identity](/arc/backend/identity/) — the provider flow, contracts, and multi-service topologies in full.
 - [Authorization](/arc/backend/core/authorization/) — every attribute, the inheritance rules, and claims-based custom logic.
 - [Tenancy](/arc/backend/tenancy/overview/) — resolvers, context, and per-tenant data isolation.
-- [Microsoft Identity](/arc/backend/asp-net-core/microsoft-identity/) — wiring Entra ID / Azure AD as your provider.
+- [Microsoft Identity headers](/arc/backend/asp-net-core/microsoft-identity/) — accepting the `x-ms-client-principal` family of HTTP headers from your ingress. Azure services emit them out of the box, but any identity provider or proxy can supply them.

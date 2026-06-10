@@ -11,8 +11,8 @@ Here's the shape:
 
 ```mermaid
 flowchart LR
-    AB["AddBook<br/>(keyed by author)"] -->|writes| DB[("Books")]
-    DB --> Q["BooksForAuthor<br/>(filtered by AuthorId)"]
+    AB["AddBook (keyed by author)"] -->|writes| DB[("Books")]
+    DB --> Q["BooksForAuthor (filtered by AuthorId)"]
     Q -->|live| UI["React: author → books"]
 ```
 
