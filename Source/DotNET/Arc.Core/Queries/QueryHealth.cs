@@ -31,6 +31,35 @@ public sealed record QueryHealth
     public int TotalSubscriptions => Connections.Sum(c => c.Subscriptions.Count);
 
     /// <summary>
+    /// Gets a query-centric view of all active subscriptions, grouped by query name.
+    /// </summary>
+    /// <remarks>
+    /// Each entry's <c>QueryName</c> matches the <c>queryName</c> property on the generated
+    /// TypeScript proxy, enabling cross-stack correlation between frontend cache diagnostics
+    /// and backend subscription state across all transport modes (multiplexed WebSocket and
+    /// direct SSE).
+    /// </remarks>
+    public IEnumerable<QuerySubscriptionAggregate> QuerySubscriptions =>
+        Connections
+            .SelectMany(c => c.Subscriptions.Select(s => (Connection: c, Subscription: s)))
+            .GroupBy(x => x.Subscription.QueryIdentifier)
+            .Select(g => new QuerySubscriptionAggregate
+            {
+                QueryName = g.Key,
+                Subscribers = g.Select(x => new QuerySubscriber
+                {
+                    ConnectionId = x.Connection.ConnectionId,
+                    Protocol = x.Connection.Protocol,
+                    SubscriptionId = x.Subscription.SubscriptionId,
+                    ConnectedAt = x.Subscription.ConnectedAt,
+                    LastPingSentAt = x.Subscription.LastPingSentAt,
+                    LastPongReceivedAt = x.Subscription.LastPongReceivedAt,
+                    LastDataServedAt = x.Subscription.LastDataServedAt,
+                    ClientInfo = x.Subscription.ClientInfo
+                }).ToList()
+            });
+
+    /// <summary>
     /// Observes query health as a real-time stream.
     /// </summary>
     /// <param name="healthTracker">The query health tracker service.</param>

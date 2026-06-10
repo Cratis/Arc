@@ -977,11 +977,14 @@ public class ObservableQueryDemultiplexer(
         IHttpRequestContext context,
         string protocol)
     {
+        var lastDotIndex = request.QueryName.LastIndexOf('.');
+        var readModelType = lastDotIndex >= 0 ? request.QueryName[..lastDotIndex] : request.QueryName;
+
         return new QuerySubscriptionMetadata
         {
             SubscriptionId = subscriptionId,
             QueryIdentifier = request.QueryName,
-            ReadModelType = request.QueryName, // We could extract the actual type, but query name is sufficient
+            ReadModelType = readModelType,
             ConnectedAt = DateTimeOffset.UtcNow,
             ClientInfo = new QuerySubscriptionClientInfo
             {
