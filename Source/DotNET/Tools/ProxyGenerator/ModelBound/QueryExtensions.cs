@@ -100,12 +100,13 @@ public static class QueryExtensions
         var typeRouteAttr = readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "RouteAttribute");
         var routeAttributeData = methodRouteAttr ?? typeRouteAttr;
 
+        var customRouteValue = routeAttributeData?.ConstructorArguments.FirstOrDefault().Value as string;
+
         string route;
-        if (routeAttributeData != null)
+        if (!string.IsNullOrEmpty(customRouteValue))
         {
             // Use the custom route from the attribute
-            var routeArg = routeAttributeData.ConstructorArguments.FirstOrDefault();
-            route = routeArg.Value as string ?? string.Empty;
+            route = customRouteValue;
         }
         else
         {
