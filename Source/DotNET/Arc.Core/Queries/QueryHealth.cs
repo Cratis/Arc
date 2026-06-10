@@ -76,6 +76,26 @@ public sealed record QueryHealth
             subject.OnNext(new QueryHealth { Connections = connections }));
 
         // Return a subject that will clean up the subscription when disposed
-        return subject;
+        return new DisposableQueryHealthSubject(subject, subscription);
+    }
+
+    private sealed class DisposableQueryHealthSubject(ISubject<QueryHealth> inner, IDisposable subscription) : ISubject<QueryHealth>, IDisposable
+    {
+        public void OnCompleted() => inner.OnCompleted();
+
+        public void OnError(Exception error) => inner.OnError(error);
+
+        public void OnNext(QueryHealth value) => inner.OnNext(value);
+
+        public IDisposable Subscribe(IObserver<QueryHealth> observer) => inner.Subscribe(observer);
+
+        public void Dispose()
+        {
+            subscription.Dispose();
+            if (inner is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
     }
 }
