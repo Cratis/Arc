@@ -36,10 +36,6 @@
                                    Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js')">
             <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
         </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/reflect-metadata/Reflect.js"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/reflect-metadata/Reflect.js')">
-            <TargetPath>node_modules/reflect-metadata/Reflect.js</TargetPath>
-        </ProxyJavaScriptDependency>
         <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs/**/*"
                                    Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs')">
             <TargetPath>node_modules/@cratis/fundamentals/dist/cjs/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>

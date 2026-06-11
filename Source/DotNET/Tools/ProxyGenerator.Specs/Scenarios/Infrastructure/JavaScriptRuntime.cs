@@ -115,15 +115,16 @@ public sealed class JavaScriptRuntime : IDisposable
                        "            if (!globalThis.exports) { globalThis.exports = globalThis.module.exports; }\n" +
                        "        ");
 
-        // Load reflect-metadata polyfill directly
+        // Load the Reflect metadata polyfill directly so the API is available globally
+        // before any script that relies on it runs.
         try
         {
-            var reflectMetadata = ReadJavaScriptFile("node_modules/reflect-metadata/Reflect.js");
-            Engine.Execute(reflectMetadata);
+            var reflectionPolyfill = ReadJavaScriptFile("node_modules/@cratis/fundamentals/dist/cjs/reflection.js");
+            Engine.Execute(reflectionPolyfill);
         }
         catch
         {
-            // Ignore errors loading reflect-metadata
+            // Ignore errors loading the reflection polyfill
         }
     }
 

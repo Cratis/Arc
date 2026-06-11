@@ -234,7 +234,7 @@
     // Map of module specifiers to built JavaScript file paths (dist/cjs)
     const modulePathMap = {
         '@cratis/fundamentals': 'node_modules/@cratis/fundamentals/dist/cjs/index.js',
-        'reflect-metadata': 'node_modules/reflect-metadata/Reflect.js',
+        '@cratis/fundamentals/reflection': 'node_modules/@cratis/fundamentals/dist/cjs/reflection.js',
         'rxjs': 'node_modules/rxjs/dist/cjs/index.js',
         '@cratis/arc/commands': 'Arc/dist/cjs/commands/index.js',
         '@cratis/arc/identity': 'Arc/dist/cjs/identity/index.js',
@@ -356,13 +356,6 @@
 
         if (globalThis.__write_to_file && modulePath.includes('fundamentals')) {
             globalThis.__write_to_file('[ModuleCache] MISS for: ' + modulePath);
-        }
-
-        // Special handling for reflect-metadata to avoid reloading it if it's already global
-        // This prevents resetting the metadata store if the library is loaded multiple times
-        if (modulePath.includes('reflect-metadata/Reflect.js') && globalThis.Reflect && globalThis.Reflect.metadata) {
-            moduleCache[modulePath] = { exports: {} };
-            return moduleCache[modulePath].exports;
         }
 
         // Check if we're already loading this module (circular dependency)
