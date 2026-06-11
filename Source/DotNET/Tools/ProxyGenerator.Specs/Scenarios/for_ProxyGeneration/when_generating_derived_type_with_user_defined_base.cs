@@ -6,6 +6,7 @@ using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration;
 
+[Collection(Cratis.Arc.ProxyGenerator.for_TypeExtensions.AssemblyPackageMappingCollectionDefinition.Name)]
 public class when_generating_derived_type_with_user_defined_base : Specification, IDisposable
 {
     JavaScriptRuntime _runtime = null!;
