@@ -27,7 +27,7 @@ public class with_failed_command : given.a_commands_result_handler
         _failedResult = new CommandResult
         {
             CorrelationId = _correlationId2,
-            ValidationResults = [new ValidationResult(ValidationResultSeverity.Error, "Command failed", [], null)]
+            ValidationResults = [new ValidationResult(ValidationResultSeverity.Error, "Command failed", [], default(object))]
         };
         _commandPipeline.Execute(_command2, _serviceProvider).Returns(_failedResult);
     }

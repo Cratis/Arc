@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
-using Cratis.Arc.Validation;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Reactors.for_CommandsResultHandler.when_handling;
