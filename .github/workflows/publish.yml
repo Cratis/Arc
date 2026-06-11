@@ -204,13 +204,4 @@ jobs:
           repository: cratis/samples
           event-type: update-dependencies
 
-  auto-approve-deployments:
-    name: Auto-Approve Pending Deployments
-    needs: [publish-dotnet-packages, publish-npm-packages]
-    # Only run if package publishing jobs completed successfully
-    if: needs.publish-dotnet-packages.result == 'success' && needs.publish-npm-packages.result == 'success'
-    uses: Cratis/Workflows/.github/workflows/auto-approve-publish-deployments.yml@main
-    with:
-      workflow_run_id: ${{ github.run_id }}
-
           
