@@ -19,7 +19,7 @@ public class CommandsResultHandler(IServiceScopeFactory serviceScopeFactory) : I
 {
     /// <inheritdoc/>
     public bool CanHandle(ReactorContext reactorContext, object value) =>
-        value is IEnumerable<object> objects && objects.All(o => o?.GetType().IsCommand() == true);
+        value is IEnumerable<object> objects && objects.Any() && objects.All(o => o?.GetType().IsCommand() == true);
 
     /// <inheritdoc/>
     public async Task Handle(ReactorContext reactorContext, IEventStore eventStore, object value)
