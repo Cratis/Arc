@@ -152,11 +152,18 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
         this.exceptionStackTrace = result.exceptionStackTrace;
         this.authorizationFailureReason = result.authorizationFailureReason;
 
-        if (result.response) {
+        if (result.response !== undefined && result.response !== null) {
+            const isPrimitive = responseInstanceType === String || responseInstanceType === Number || responseInstanceType === Boolean;
             if (isResponseTypeEnumerable) {
-                this.response = JsonSerializer.deserializeArrayFromInstance(responseInstanceType, result.response) as TResponse;
+                this.response = (Array.isArray(result.response)
+                    ? (isPrimitive
+                        ? Array.from(result.response)
+                        : JsonSerializer.deserializeArrayFromInstance(responseInstanceType, result.response))
+                    : []) as TResponse;
             } else {
-                this.response = JsonSerializer.deserializeFromInstance(responseInstanceType, result.response) as TResponse;
+                this.response = (isPrimitive
+                    ? result.response
+                    : JsonSerializer.deserializeFromInstance(responseInstanceType, result.response)) as TResponse;
             }
         }
     }
