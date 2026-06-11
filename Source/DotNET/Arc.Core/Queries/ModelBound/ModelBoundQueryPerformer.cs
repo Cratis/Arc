@@ -35,16 +35,16 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         FullyQualifiedName = $"{readModelTypeName}.{performMethod.Name}";
         Location = readModelType.Namespace?.Split('.') ?? [];
 
-        // Check for Route attribute on method or type
-        var routeAttribute = performMethod.GetCustomAttributes(true)
-            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute") ??
+        // Check for Path attribute on method or type
+        var pathAttribute = performMethod.GetCustomAttributes(true)
+            .FirstOrDefault(a => a.GetType().Name == "PathAttribute") ??
             readModelType.GetCustomAttributes(true)
-            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute");
+            .FirstOrDefault(a => a.GetType().Name == "PathAttribute");
 
-        if (routeAttribute != null)
+        if (pathAttribute != null)
         {
-            var routeProperty = routeAttribute.GetType().GetProperty("Route");
-            CustomRoute = routeProperty?.GetValue(routeAttribute) as string;
+            var pathProperty = pathAttribute.GetType().GetProperty("Path");
+            CustomRoute = pathProperty?.GetValue(pathAttribute) as string;
         }
 
         _dependencies = performMethod.GetParameters().Where(p => serviceProviderIsService.IsService(p.ParameterType));

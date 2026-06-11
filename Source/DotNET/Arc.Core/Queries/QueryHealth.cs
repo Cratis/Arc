@@ -12,7 +12,7 @@ namespace Cratis.Arc.Queries;
 /// Read model for query health monitoring.
 /// </summary>
 [ReadModel]
-[Route("/.cratis/queries/health")]
+[Path("/.cratis/queries/health")]
 [AllowAnonymous]
 public sealed record QueryHealth
 {

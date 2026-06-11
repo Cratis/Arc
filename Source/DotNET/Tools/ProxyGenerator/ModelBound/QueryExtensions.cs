@@ -95,9 +95,9 @@ public static class QueryExtensions
         var hasConflict = totalMethodsInNamespace > 1;
         var includeQueryName = !skipQueryNameInRoute || hasConflict;
 
-        // Check for Route attribute on method or type
-        var methodRouteAttr = method.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "RouteAttribute");
-        var typeRouteAttr = readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "RouteAttribute");
+        // Check for Path attribute on method or type
+        var methodRouteAttr = method.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "PathAttribute");
+        var typeRouteAttr = readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "PathAttribute");
         var routeAttributeData = methodRouteAttr ?? typeRouteAttr;
 
         var customRouteValue = routeAttributeData is { ConstructorArguments.Count: > 0 }
