@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 (async () => {
-    await import('reflect-metadata');
+    await import('@cratis/fundamentals/reflection');
     const chai = await import('chai');
     global.expect = chai.expect;
     const should = chai.should();
