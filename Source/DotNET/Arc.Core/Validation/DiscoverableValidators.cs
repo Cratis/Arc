@@ -15,13 +15,24 @@ namespace Cratis.Arc.Validation;
 public class DiscoverableValidators : IDiscoverableValidators
 {
     readonly Dictionary<Type, Type> _validatorTypesByModelType;
+    readonly Func<IServiceProvider> _serviceProviderAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DiscoverableValidators"/> class.
     /// </summary>
     /// <param name="types"><see cref="ITypes"/> for type discovery.</param>
-    public DiscoverableValidators(ITypes types)
+    public DiscoverableValidators(ITypes types) : this(types, () => Internals.ServiceProvider)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscoverableValidators"/> class.
+    /// </summary>
+    /// <param name="types"><see cref="ITypes"/> for type discovery.</param>
+    /// <param name="serviceProviderAccessor">Callback for getting the <see cref="IServiceProvider"/> to resolve validators from.</param>
+    internal DiscoverableValidators(ITypes types, Func<IServiceProvider> serviceProviderAccessor)
+    {
+        _serviceProviderAccessor = serviceProviderAccessor;
         var candidates = types.FindMultiple(typeof(IDiscoverableValidator<>));
         var invalidValidators = candidates.Where(_ =>
         {
@@ -50,12 +61,17 @@ public class DiscoverableValidators : IDiscoverableValidators
                 _ => _);
     }
 
+    /// <summary>
+    /// Gets the discovered validator types.
+    /// </summary>
+    internal IEnumerable<Type> ValidatorTypes => _validatorTypesByModelType.Values;
+
     /// <inheritdoc/>
     public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator)
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            validator = (Internals.ServiceProvider.GetRequiredService(value) as IValidator)!;
+            validator = (_serviceProviderAccessor().GetRequiredService(value) as IValidator)!;
             return true;
         }
 

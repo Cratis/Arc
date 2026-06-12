@@ -69,10 +69,12 @@ public sealed record QueryHealth
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership of the subject and subscription is transferred to the returned DisposableQueryHealthSubject, which disposes both.")]
     public static ISubject<QueryHealth> ObserveHealth(IQueryHealthTracker healthTracker)
     {
+#pragma warning disable CA2000 // DisposableQueryHealthSubject owns and disposes the BehaviorSubject returned from this method.
         var subject = new BehaviorSubject<QueryHealth>(new QueryHealth
         {
             Connections = healthTracker.GetAllConnectionHealth()
         });
+#pragma warning restore CA2000
 
         var subscription = healthTracker.ObserveHealth().Subscribe(connections =>
             subject.OnNext(new QueryHealth { Connections = connections }));
