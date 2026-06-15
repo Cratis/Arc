@@ -9,6 +9,7 @@ These are recipes: "I need to do X — how?" Each one is short and assumes you'v
 |---|---|
 | [Validate a command](./validate-a-command.md) | Reject malformed or duplicate input before it writes state |
 | [Return a result or an error](./return-a-result-or-error.md) | A command needs to hand back more than "it worked" — a value, or a typed failure |
+| [Provide data to a command handler](./provide-data-to-a-command.md) | A decision needs data you must fetch — keep the fetch out of `Handle` so it stays testable |
 | [Query data across slices](./query-related-data.md) | A screen needs data that spans more than one feature |
 | [Execute a command from React](./run-a-command-from-react.md) | Wire a form or button to a command through the generated proxy |
 | [Test a command](./test-a-command.md) | Prove a slice works through the real pipeline — no HTTP, no database |

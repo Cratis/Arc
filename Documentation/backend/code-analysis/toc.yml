@@ -4,3 +4,9 @@
   href: ARC0001.md
 - name: ARC0002 - Missing [Command] attribute on command-like type
   href: ARC0002.md
+- name: ARC0003 - Handle() must be on [Command] type
+  href: ARC0003.md
+- name: ARC0004 - [Command] type must have public Handle() method
+  href: ARC0004.md
+- name: ARC0005 - Value produced by Provide is not consumed by Handle
+  href: ARC0005.md

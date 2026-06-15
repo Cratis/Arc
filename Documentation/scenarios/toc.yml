@@ -4,6 +4,8 @@
   href: validate-a-command.md
 - name: Return a result or an error
   href: return-a-result-or-error.md
+- name: Provide data to a command handler
+  href: provide-data-to-a-command.md
 - name: Query data across slices
   href: query-related-data.md
 - name: Execute a command from React
