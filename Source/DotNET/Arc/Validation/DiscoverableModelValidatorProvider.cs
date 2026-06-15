@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace Cratis.Arc.Validation;
@@ -14,14 +15,24 @@ public class DiscoverableModelValidatorProvider(IDiscoverableValidators discover
     /// <inheritdoc/>
     public void CreateValidators(ModelValidatorProviderContext context)
     {
-        if (discoverableValidators.TryGet(context.ModelMetadata.ModelType, out var validator))
+        try
         {
-            var modelValidator = new DiscoverableModelValidator(validator);
-            context.Results.Add(new ValidatorItem
+            if (discoverableValidators.TryGet(context.ModelMetadata.ModelType, out var validator))
             {
-                IsReusable = false,
-                Validator = modelValidator
-            });
+                var modelValidator = new DiscoverableModelValidator(validator);
+                context.Results.Add(new ValidatorItem
+                {
+                    IsReusable = false,
+                    Validator = modelValidator
+                });
+            }
+        }
+        catch (NoCommandContextAvailable exception)
+        {
+            // MVC model validation runs during model binding, before the command context is established, so a
+            // validator that depends on a command-scoped read model cannot be constructed here. Surface an
+            // actionable error instead of the opaque dependency-resolution failure.
+            throw new ReadModelValidatorRequiresCommandPipeline(context.ModelMetadata.ModelType, exception);
         }
     }
 }

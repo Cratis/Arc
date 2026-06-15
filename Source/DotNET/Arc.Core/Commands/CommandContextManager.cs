@@ -11,7 +11,7 @@ public class CommandContextManager : ICommandContextModifier, ICommandContextAcc
     static readonly AsyncLocal<CommandContext?> _current = new();
 
     /// <inheritdoc/>
-    public CommandContext Current => _current.Value ?? throw new InvalidOperationException("No command context is available in the current scope.");
+    public CommandContext Current => _current.Value ?? throw new NoCommandContextAvailable();
 
     /// <inheritdoc/>
     public void SetCurrent(CommandContext context) => _current.Value = context;
