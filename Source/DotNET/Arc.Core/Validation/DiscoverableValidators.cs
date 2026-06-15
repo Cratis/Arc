@@ -67,11 +67,15 @@ public class DiscoverableValidators : IDiscoverableValidators
     internal IEnumerable<Type> ValidatorTypes => _validatorTypesByModelType.Values;
 
     /// <inheritdoc/>
-    public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator)
+    public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator) =>
+        TryGet(modelType, _serviceProviderAccessor(), out validator);
+
+    /// <inheritdoc/>
+    public bool TryGet(Type modelType, IServiceProvider serviceProvider, [MaybeNullWhen(false)] out IValidator validator)
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            validator = (_serviceProviderAccessor().GetRequiredService(value) as IValidator)!;
+            validator = (serviceProvider.GetRequiredService(value) as IValidator)!;
             return true;
         }
 
