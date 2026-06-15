@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public class a_command_pipeline : Specification
     protected ICommandResponseValueHandlers _commandResponseValueHandlers;
     protected ICommandContextModifier _commandContextModifier;
     protected ICommandContextValuesBuilder _commandContextValuesBuilder;
+    protected ICommandHandlerArgumentResolver _commandHandlerArgumentResolver;
     protected IServiceProvider _serviceProvider;
     protected IServiceScopeFactory _serviceScopeFactory;
     protected IServiceScope _serviceScope;
@@ -34,6 +36,10 @@ public class a_command_pipeline : Specification
         _commandContextModifier = Substitute.For<ICommandContextModifier>();
         _commandContextValuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
         _commandContextValuesBuilder.Build(Arg.Any<object>()).Returns(new CommandContextValues());
+        _commandHandlerArgumentResolver = Substitute.For<ICommandHandlerArgumentResolver>();
+        _commandHandlerArgumentResolver
+            .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
+            .Returns(_ => new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution([], CommandResult.Success(_correlationId))));
         _serviceProvider = Substitute.For<IServiceProvider>();
         _serviceScope = Substitute.For<IServiceScope>();
         _serviceScope.ServiceProvider.Returns(_serviceProvider);
@@ -47,6 +53,7 @@ public class a_command_pipeline : Specification
             _commandResponseValueHandlers,
             _commandContextModifier,
             _commandContextValuesBuilder,
+            _commandHandlerArgumentResolver,
             _serviceScopeFactory,
             CreateActivitySource<CommandPipeline>());
     }

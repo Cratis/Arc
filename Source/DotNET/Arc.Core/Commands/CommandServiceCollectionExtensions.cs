@@ -25,6 +25,8 @@ public static class CommandServiceCollectionExtensions
         services.AddSingleton<ICommandFilters, CommandFilters>();
         services.AddSingleton<ICommandHandlerProviders, CommandHandlerProviders>();
         services.AddSingleton<ICommandResponseValueHandlers, CommandResponseValueHandlers>();
+        services.AddSingleton<ICommandProvideInvoker, CommandProvideInvoker>();
+        services.AddSingleton<ICommandHandlerArgumentResolver, CommandHandlerArgumentResolver>();
         services.AddTransient(sp => sp.GetRequiredService<ICommandContextAccessor>().Current);
 
         return services;

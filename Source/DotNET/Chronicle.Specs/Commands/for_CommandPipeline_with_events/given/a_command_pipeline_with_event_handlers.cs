@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -20,6 +21,7 @@ public class a_command_pipeline_with_event_handlers : Specification
     protected ICommandResponseValueHandlers _commandResponseValueHandlers;
     protected ICommandContextModifier _commandContextModifier;
     protected ICommandContextValuesBuilder _commandContextValuesBuilder;
+    protected ICommandHandlerArgumentResolver _commandHandlerArgumentResolver;
     protected IServiceProvider _serviceProvider;
     protected IServiceScopeFactory _serviceScopeFactory;
     protected IEventLog _eventLog;
@@ -43,6 +45,10 @@ public class a_command_pipeline_with_event_handlers : Specification
         _commandHandlerProviders = Substitute.For<ICommandHandlerProviders>();
         _commandContextModifier = Substitute.For<ICommandContextModifier>();
         _commandContextValuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
+        _commandHandlerArgumentResolver = Substitute.For<ICommandHandlerArgumentResolver>();
+        _commandHandlerArgumentResolver
+            .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
+            .Returns(_ => new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution([], CommandResult.Success(_correlationId))));
         _serviceProvider = Substitute.For<IServiceProvider>();
 
         var serviceScope = Substitute.For<IServiceScope>();
@@ -144,6 +150,7 @@ public class a_command_pipeline_with_event_handlers : Specification
             _commandResponseValueHandlers,
             _commandContextModifier,
             _commandContextValuesBuilder,
+            _commandHandlerArgumentResolver,
             _serviceScopeFactory,
             CreateActivitySource<CommandPipeline>());
     }
