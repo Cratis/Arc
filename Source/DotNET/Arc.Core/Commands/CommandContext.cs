@@ -16,6 +16,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="Values">A set of values associated with the command context.</param>
 /// <param name="AllowedSeverity">The maximum validation result severity level to allow. Validation results with severity higher than this will cause the command to fail.</param>
 /// <param name="Response">The optional response from handling the command, if any.</param>
+/// <param name="ServiceProvider">The <see cref="IServiceProvider"/> scoped to the command, used to resolve scoped collaborators such as validators and read models during the command's lifetime.</param>
 public record CommandContext(
     CorrelationId CorrelationId,
     Type Type,
@@ -23,4 +24,5 @@ public record CommandContext(
     IEnumerable<object> Dependencies,
     CommandContextValues Values,
     ValidationResultSeverity? AllowedSeverity = default,
-    object? Response = default);
+    object? Response = default,
+    IServiceProvider? ServiceProvider = default);

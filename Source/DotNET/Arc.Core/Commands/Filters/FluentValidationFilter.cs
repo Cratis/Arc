@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Validation;
 using FluentValidation;
@@ -26,7 +27,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
         var commandResult = CommandResult.Success(context.CorrelationId);
 
         var instanceType = instance.GetType();
-        if (discoverableValidators.TryGet(instanceType, out var validator))
+        if (TryGetValidator(context, instanceType, out var validator))
         {
             var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
             var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
@@ -80,4 +81,18 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
 
         return commandResult;
     }
+
+    /// <summary>
+    /// Resolves a validator for the given model type, preferring the command-scoped <see cref="IServiceProvider"/>
+    /// from the <see cref="CommandContext"/> so the validator and its dependencies resolve from the same scope as
+    /// the command's <c>Handle()</c> method.
+    /// </summary>
+    /// <param name="context">The <see cref="CommandContext"/> the validation runs within.</param>
+    /// <param name="modelType">The type to resolve a validator for.</param>
+    /// <param name="validator">The resolved <see cref="IValidator"/> when found.</param>
+    /// <returns>True if a validator was found; otherwise false.</returns>
+    bool TryGetValidator(CommandContext context, Type modelType, [MaybeNullWhen(false)] out IValidator validator) =>
+        context.ServiceProvider is { } serviceProvider
+            ? discoverableValidators.TryGet(modelType, serviceProvider, out validator)
+            : discoverableValidators.TryGet(modelType, out validator);
 }

@@ -75,7 +75,8 @@ public class CommandPipeline(
                 command,
                 dependencies,
                 contextValuesBuilder.Build(command),
-                allowedSeverity);
+                allowedSeverity,
+                ServiceProvider: serviceProvider);
             contextModifier.SetCurrent(commandContext);
             result = await commandFilters.OnExecution(commandContext);
             result = FilterValidationResults(result, allowedSeverity);
@@ -146,7 +147,8 @@ public class CommandPipeline(
                 command,
                 dependencies,
                 contextValuesBuilder.Build(command),
-                allowedSeverity);
+                allowedSeverity,
+                ServiceProvider: serviceProvider);
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution

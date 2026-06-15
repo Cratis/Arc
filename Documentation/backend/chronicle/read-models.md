@@ -7,7 +7,7 @@ Read Models in Arc provide automatic dependency injection and seamless integrati
 
 ## Overview
 
-Arc automatically registers all read model types and provides them as transient services in the dependency injection container. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate projection instance.
+Arc automatically registers all read model types and provides them as scoped services in the dependency injection container, tied to the scope the command runs in. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate projection instance. Because the handler and the `CommandValidator<>` resolve from the same command scope, both receive the same read model instance for the command.
 
 ## Automatic Registration
 
@@ -193,6 +193,9 @@ Key points when using read models in validators:
 - **Rich Rules**: Access to full read model state enables complex business rule validation
 - **Async Validation**: Use `MustAsync` for asynchronous validation rules that need to check external systems
 
+> [!NOTE]
+> Read-model injection into validators works when commands run through the Arc command pipeline — minimal-API command endpoints (the default) and `ICommandPipeline` directly. It does **not** work when commands are exposed through MVC controllers, because MVC model validation runs during model binding, before the command context (and therefore the event source id) exists. In that case Arc raises an explicit `ReadModelValidatorRequiresCommandPipeline` error. Expose the command through a minimal-API endpoint, or move the read-model based check into the command's `Handle()` method.
+
 For more details on command validation, see the [Validation](../commands/validation.md) documentation.
 
 ## Error Handling
@@ -213,11 +216,11 @@ public record InvalidCommand(string SomeProperty);
 
 ## Lifecycle Management
 
-### Transient Scope
+### Command Scope
 
-Read models are registered as transient services, meaning:
+Read models are registered as scoped services, meaning:
 
-- The current projected state is fetched for each request
+- The current projected state is fetched once per command and shared across the command's validator and handler
 - The instance is tied to the specific identity/key resolved from the command context
 - Read models are read-only snapshots of the current projection state
 - The read model is automatically disposed after the command completes
