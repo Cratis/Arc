@@ -31,7 +31,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
         {
             var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
             var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
-            var validationResult = await validator.ValidateAsync(validationContext, CancellationToken.None);
+            var validationResult = await validator.ValidateAsync(validationContext, context.CancellationToken);
             if (!validationResult.IsValid)
             {
                 commandResult.MergeWith(new CommandResult

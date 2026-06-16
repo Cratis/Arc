@@ -222,6 +222,20 @@ public record AddItemToCart(string Sku, int Quantity)
 }
 ```
 
+`CancellationToken` is a special dependency. Arc injects it from the command execution context instead of resolving it from the service collection. HTTP command endpoints use the request-aborted token automatically. Programmatic callers can pass a token through `ICommandPipeline`.
+
+```csharp
+[Command]
+public record ImportCatalog(CatalogId CatalogId)
+{
+    public Task<CatalogSnapshot> Provide(ICatalogs catalogs, CancellationToken cancellationToken) =>
+        catalogs.GetSnapshot(CatalogId, cancellationToken);
+
+    public Task Handle(CatalogSnapshot snapshot, ICatalogImporter importer, CancellationToken cancellationToken) =>
+        importer.Import(snapshot, cancellationToken);
+}
+```
+
 ## Frontend Integration
 
 Model-bound commands work seamlessly with the [proxy generator](../../proxy-generation/index.md), which automatically creates TypeScript proxies for your commands. The generated proxies provide:

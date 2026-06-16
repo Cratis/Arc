@@ -46,11 +46,15 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
 
         // Non-blocking control values (for example warnings) are dropped here, just as the pipeline drops
         // them when filtering by severity, so the resolution reports a clean success.
-        var arguments = BuildArguments(handler, candidates, serviceProvider);
+        var arguments = BuildArguments(handler, candidates, context, serviceProvider);
         return new CommandHandlerArgumentResolution(arguments, CommandResult.Success(context.CorrelationId));
     }
 
-    static object?[] BuildArguments(ICommandHandler handler, List<object> candidates, IServiceProvider serviceProvider)
+    static object?[] BuildArguments(
+        ICommandHandler handler,
+        List<object> candidates,
+        CommandContext context,
+        IServiceProvider serviceProvider)
     {
         var parameters = handler.Parameters.ToArray();
         var arguments = new object?[parameters.Length];
@@ -58,8 +62,12 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         {
             var parameter = parameters[i];
             var parameterType = parameter.ParameterType;
-            var match = candidates.Find(parameterType.IsInstanceOfType);
-            if (match is not null)
+
+            if (parameterType == typeof(CancellationToken))
+            {
+                arguments[i] = context.CancellationToken;
+            }
+            else if (candidates.Find(parameterType.IsInstanceOfType) is { } match)
             {
                 arguments[i] = match;
                 candidates.Remove(match);
