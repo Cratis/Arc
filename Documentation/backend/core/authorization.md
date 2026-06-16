@@ -279,7 +279,7 @@ When authorization fails, Arc.Core automatically returns appropriate HTTP status
 
 ## Custom Authorization Logic
 
-The `[Authorize]` and `[Roles]` attributes handle coarse-grained access — whether the user is authenticated and in the right role. For row-level checks (for example, "you can only update your own orders") put the logic inside `Handle()`: inject `IHttpContextAccessor`, read the current user's claims, and return a `ValidationResult.Error(...)` when the guard fails. Make the return type `Result<ValidationResult, TEvent>` so the framework knows the command can fail validation:
+The `[Authorize]` and `[Roles]` attributes handle coarse-grained access — whether the user is authenticated and in the right role. For row-level checks (for example, "you can only update your own orders") put the logic inside `Handle()`: inject `IHttpContextAccessor`, read the current user's claims, and return a `ValidationResult.Error(...)` when the guard fails. Make the return type `Result<TEvent, ValidationResult>` so the framework knows the command can fail validation:
 
 ```csharp
 using System.Security.Claims;
@@ -290,7 +290,7 @@ using Microsoft.AspNetCore.Http;
 [Command]
 public record UpdateOrder(OrderId Id, string Data)
 {
-    public Result<ValidationResult, OrderUpdated> Handle(
+    public Result<OrderUpdated, ValidationResult> Handle(
         IHttpContextAccessor httpContextAccessor,
         IOrderRepository orders)
     {
@@ -324,7 +324,7 @@ using Microsoft.AspNetCore.Http;
 [Command]
 public record ApproveExpense(ExpenseId Id)
 {
-    public Result<ValidationResult, ExpenseApproved> Handle(
+    public Result<ExpenseApproved, ValidationResult> Handle(
         IHttpContextAccessor httpContextAccessor,
         IExpenseRepository expenses)
     {
@@ -439,7 +439,7 @@ using Microsoft.AspNetCore.Http;
 [Command]
 public record SecureCommand(string Data)
 {
-    public Result<ValidationResult, SecureOperationCompleted> Handle(
+    public Result<SecureOperationCompleted, ValidationResult> Handle(
         IHttpContextAccessor httpContextAccessor)
     {
         var user = httpContextAccessor.HttpContext?.User;

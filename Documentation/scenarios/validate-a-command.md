@@ -36,7 +36,7 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
 3. **A rule that depends on existing state → decide inside `Handle()`.** Uniqueness can't be checked against an eventually-consistent read model without a race. Instead, inject the read model Arc resolves for this command's key and return a typed error:
 
    ```csharp
-   public Result<ValidationResult, AuthorRegistered> Handle(RegisteredAuthorName? existing) =>
+   public Result<AuthorRegistered, ValidationResult> Handle(RegisteredAuthorName? existing) =>
        existing is not null && existing.Name != AuthorName.NotSet
            ? ValidationResult.Error("An author with that name is already registered.")
            : new AuthorRegistered(Name);
