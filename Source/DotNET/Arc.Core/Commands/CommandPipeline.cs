@@ -33,31 +33,56 @@ public class CommandPipeline(
     ICommandContextValuesBuilder contextValuesBuilder,
     ICommandHandlerArgumentResolver argumentResolver,
     IServiceScopeFactory scopeFactory,
-    IActivitySource<CommandPipeline> activitySource) : ICommandPipeline
+    IActivitySource<CommandPipeline> activitySource) : ICommandPipelineWithCancellation
 {
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity = default)
     {
         using var scope = scopeFactory.CreateScope();
-        return await Execute(command, scope.ServiceProvider, allowedSeverity);
+        return await Execute(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await Execute(command, scope.ServiceProvider, allowedSeverity, cancellationToken);
     }
 
     /// <inheritdoc/>
     public async Task<CommandResult<TResult>> Execute<TResult>(object command, ValidationResultSeverity? allowedSeverity = default)
     {
         using var scope = scopeFactory.CreateScope();
-        return await Execute<TResult>(command, scope.ServiceProvider, allowedSeverity);
+        return await Execute<TResult>(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await Execute<TResult>(command, scope.ServiceProvider, allowedSeverity, cancellationToken);
     }
 
     /// <inheritdoc/>
     public async Task<CommandResult> Validate(object command, ValidationResultSeverity? allowedSeverity = default)
     {
         using var scope = scopeFactory.CreateScope();
-        return await Validate(command, scope.ServiceProvider, allowedSeverity);
+        return await Validate(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
     }
 
     /// <inheritdoc/>
-    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
+    public async Task<CommandResult> Validate(object command, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        return await Validate(command, scope.ServiceProvider, allowedSeverity, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
+        Execute(command, serviceProvider, allowedSeverity, CancellationToken.None);
+
+    /// <inheritdoc/>
+    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -77,7 +102,8 @@ public class CommandPipeline(
                 [],
                 contextValuesBuilder.Build(command),
                 allowedSeverity,
-                ServiceProvider: serviceProvider);
+                ServiceProvider: serviceProvider,
+                CancellationToken: cancellationToken);
             contextModifier.SetCurrent(commandContext);
             result = await commandFilters.OnExecution(commandContext);
             result = FilterValidationResults(result, allowedSeverity);
@@ -113,9 +139,13 @@ public class CommandPipeline(
     }
 
     /// <inheritdoc/>
-    public async Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
+    public Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
+        Execute<TResult>(command, serviceProvider, allowedSeverity, CancellationToken.None);
+
+    /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        var result = await Execute(command, serviceProvider, allowedSeverity);
+        var result = await Execute(command, serviceProvider, allowedSeverity, cancellationToken);
         if (result is CommandResult<TResult> typed)
         {
             return typed;
@@ -138,7 +168,11 @@ public class CommandPipeline(
     }
 
     /// <inheritdoc/>
-    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
+    public Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
+        Validate(command, serviceProvider, allowedSeverity, CancellationToken.None);
+
+    /// <inheritdoc/>
+    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -158,7 +192,8 @@ public class CommandPipeline(
                 [],
                 contextValuesBuilder.Build(command),
                 allowedSeverity,
-                ServiceProvider: serviceProvider);
+                ServiceProvider: serviceProvider,
+                CancellationToken: cancellationToken);
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution

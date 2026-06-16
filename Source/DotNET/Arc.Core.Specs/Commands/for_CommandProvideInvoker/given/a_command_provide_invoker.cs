@@ -16,6 +16,14 @@ public class a_command_provide_invoker : Specification
         _serviceProvider = Substitute.For<IServiceProvider>();
     }
 
-    protected ValueTask<IReadOnlyList<object>> Invoke(object command) =>
-        _invoker.Invoke(new CommandContext(CorrelationId.New(), command.GetType(), command, [], new()), _serviceProvider);
+    protected ValueTask<IReadOnlyList<object>> Invoke(object command, CancellationToken cancellationToken = default) =>
+        _invoker.Invoke(
+            new CommandContext(
+                CorrelationId.New(),
+                command.GetType(),
+                command,
+                [],
+                new(),
+                CancellationToken: cancellationToken),
+            _serviceProvider);
 }

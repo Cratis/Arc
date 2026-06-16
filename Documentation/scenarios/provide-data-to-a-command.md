@@ -47,6 +47,24 @@ public LoanApproved Handle(CreditScore score, RiskBand band) => new(LoanId, scor
 
 `Provide` may be synchronous or `async` (`Task<T>` / `ValueTask<T>`).
 
+## Use cancellation when the work can stop
+
+`Provide` and `Handle` can both take a `CancellationToken`. Arc supplies the current command execution token. For HTTP command endpoints, that is the request-aborted token. For direct `ICommandPipeline` execution, pass the token to the pipeline call.
+
+```csharp
+[Command]
+public record ApproveLoan(LoanId LoanId, ApplicantId Applicant)
+{
+    public Task<CreditScore> Provide(ICreditBureau bureau, CancellationToken cancellationToken) =>
+        bureau.GetScore(Applicant, cancellationToken);
+
+    public Task<LoanApproved> Handle(CreditScore creditScore, CancellationToken cancellationToken) =>
+        Task.FromResult(new LoanApproved(LoanId, creditScore));
+}
+```
+
+Use the token for IO or long-running work. You do not register `CancellationToken` in the service container; Arc treats it as part of the command execution context.
+
 ## Short-circuit before `Handle` runs
 
 `Provide` can stop the command before `Handle` is ever called:

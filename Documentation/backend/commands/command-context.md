@@ -11,10 +11,12 @@ public record CommandContext(
     CorrelationId CorrelationId, 
     Type Type, 
     object Command, 
-    IEnumerable<object> Dependencies, 
+    IEnumerable<object?> Dependencies,
     CommandContextValues Values,
     ValidationResultSeverity? AllowedSeverity = default,
-    object? Response = default);
+    object? Response = default,
+    IServiceProvider? ServiceProvider = default,
+    CancellationToken CancellationToken = default);
 ```
 
 ### Properties
@@ -24,7 +26,10 @@ public record CommandContext(
 - **Command**: The actual command instance
 - **Dependencies**: The resolved dependencies required to handle the command
 - **Values**: A collection of key-value pairs providing additional context
-- **Response**: The response, **if any**, that is returned as part of the command result.
+- **AllowedSeverity**: The highest validation severity the caller allows before the command short-circuits
+- **Response**: The response, **if any**, that is returned as part of the command result
+- **ServiceProvider**: The scoped service provider used for command execution
+- **CancellationToken**: The cancellation token for the command execution
 
 ## Command Context Values
 

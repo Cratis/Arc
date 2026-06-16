@@ -154,7 +154,8 @@ public class CommandActionFilter(
             commandType,
             command,
             [],
-            values);
+            values,
+            CancellationToken: context.HttpContext.RequestAborted);
 
         contextModifier.SetCurrent(commandContext);
     }

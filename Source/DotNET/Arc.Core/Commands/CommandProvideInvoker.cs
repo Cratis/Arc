@@ -30,22 +30,27 @@ public class CommandProvideInvoker : ICommandProvideInvoker
             return [];
         }
 
-        var arguments = ResolveArguments(provideMethod, serviceProvider);
+        var arguments = ResolveArguments(context, provideMethod, serviceProvider);
         var invocationResult = Invoke(provideMethod, context.Command, arguments);
         var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
         return Flatten(value);
     }
 
-    static object?[]? ResolveArguments(MethodInfo provideMethod, IServiceProvider serviceProvider)
+    static object?[]? ResolveArguments(CommandContext context, MethodInfo provideMethod, IServiceProvider serviceProvider)
     {
         var parameters = provideMethod.GetParameters();
         return parameters.Length == 0
             ? null
+            : parameters.Select(parameter => ResolveArgument(context, serviceProvider, parameter)).ToArray();
+    }
+
+    static object? ResolveArgument(CommandContext context, IServiceProvider serviceProvider, ParameterInfo parameter) =>
+        parameter.ParameterType == typeof(CancellationToken)
+            ? context.CancellationToken
             : ParameterDependencyResolver.Resolve(
                 serviceProvider,
-                parameters,
-                parameter => new CannotResolveCommandDependency(parameter));
-    }
+                parameter,
+                _ => new CannotResolveCommandDependency(parameter));
 
     static object? Invoke(MethodInfo provideMethod, object command, object?[]? arguments)
     {
