@@ -61,11 +61,6 @@ public class DiscoverableValidators : IDiscoverableValidators
                 _ => _);
     }
 
-    /// <summary>
-    /// Gets the discovered validator types.
-    /// </summary>
-    internal IEnumerable<Type> ValidatorTypes => _validatorTypesByModelType.Values;
-
     /// <inheritdoc/>
     public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator) =>
         TryGet(modelType, _serviceProviderAccessor(), out validator);
@@ -75,7 +70,11 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            validator = (serviceProvider.GetRequiredService(value) as IValidator)!;
+            // Construct the validator from the supplied (command-scoped) provider rather than requiring it to be
+            // registered. This mirrors how the command handler and Provide method resolve their dependencies, and
+            // it lets a validator take a Chronicle read model — a scoped service the self-binding convention skips
+            // (it has a record-typed constructor parameter) and therefore never registers — as a dependency.
+            validator = (ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, value) as IValidator)!;
             return true;
         }
 

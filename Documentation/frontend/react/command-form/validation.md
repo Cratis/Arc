@@ -264,7 +264,7 @@ CommandForm automatically propagates validation results from backend command han
 [Command]
 public record CreateUser(string Email, string Username)
 {
-    public Result<ValidationResult, UserRegistered> Handle()
+    public Result<UserRegistered, ValidationResult> Handle()
     {
         // Backend validation
         if (Username.Length < 3)

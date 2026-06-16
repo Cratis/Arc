@@ -61,7 +61,7 @@ public LoanApproved Handle(CreditScore score, RiskBand band) => new(LoanId, scor
 Use `Result<,>` to reject or proceed in one method — return the error to stop, or the value to continue:
 
 ```csharp
-public Result<ValidationResult, CreditScore> Provide(ICreditBureau bureau)
+public Result<CreditScore, ValidationResult> Provide(ICreditBureau bureau)
 {
     var score = bureau.GetScore(Applicant);
     return score is null

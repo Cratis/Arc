@@ -38,7 +38,7 @@ using OneOf;
 [Command]
 public record AddItemToCart(string Sku, int Quantity)
 {
-    public Result<ValidationResult, Guid> Handle()
+    public Result<Guid, ValidationResult> Handle()
     {
         if( /* code that checks if product is carried */ )
         {
@@ -65,7 +65,7 @@ using OneOf;
 [Command]
 public record CreateOrder(string CustomerId, List<OrderItem> Items)
 {
-    public Result<ValidationResult, (OrderId, OrderCreated)> Handle()
+    public Result<(OrderId, OrderCreated), ValidationResult> Handle()
     {
         if (!IsValidOrder())
         {
@@ -185,7 +185,7 @@ using OneOf;
 [Command]
 public record ProcessPayment(string OrderId, decimal Amount)
 {
-    public (OrderId, Result<PaymentFailed, PaymentSucceeded>) Handle()
+    public (OrderId, Result<PaymentSucceeded, PaymentFailed>) Handle()
     {
         var orderId = new OrderId(OrderId);
         

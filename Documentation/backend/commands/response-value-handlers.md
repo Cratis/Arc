@@ -46,7 +46,7 @@ using OneOf;
 [Command]
 public record CreateUser(string Name, string Email)
 {
-    public Result<ValidationResult, UserId> Handle()
+    public Result<UserId, ValidationResult> Handle()
     {
         if (!IsValidEmail(Email))
         {
@@ -128,7 +128,7 @@ When a command handler returns a tuple, the command pipeline intelligently proce
 
 ### Result Processing Behavior
 
-When a command handler returns a `Result<TError, TSuccess>` or `OneOf<T1, T2, ...>` value:
+When a command handler returns a `Result<TSuccess, TError>` or `OneOf<T1, T2, ...>` value:
 
 1. **The inner value** is extracted from the Result/OneOf wrapper
 2. **Value handlers are checked** using the `CanHandle` method on the inner value
@@ -150,7 +150,7 @@ using OneOf;
 [Command]
 public record CreateOrder(string CustomerId, List<OrderItem> Items)
 {
-    public Result<ValidationResult, (OrderId, OrderCreated)> Handle()
+    public Result<(OrderId, OrderCreated), ValidationResult> Handle()
     {
         if (!IsValidOrder())
         {

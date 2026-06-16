@@ -134,13 +134,13 @@ public class CommandScenario<TCommand>
 
         Services.AddCratisArcCore();
         IServiceProvider? serviceProvider = null;
+
+        // Validators are not registered here on purpose. The command pipeline constructs them on demand from the
+        // command scope (see DiscoverableValidators.TryGet), so a validator taking a read model resolves the same
+        // way a command handler does — no registration required.
         var discoverableValidators = new DiscoverableValidators(
             Cratis.Types.Types.Instance,
             () => serviceProvider ?? throw new InvalidOperationException("The command scenario service provider has not been built."));
-        foreach (var validatorType in discoverableValidators.ValidatorTypes)
-        {
-            Services.TryAddTransient(validatorType, validatorType);
-        }
 
         if (!hasExplicitDiscoverableValidatorsRegistration)
         {
