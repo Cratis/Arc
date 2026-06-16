@@ -21,7 +21,7 @@ public record CommandContext(
     CorrelationId CorrelationId,
     Type Type,
     object Command,
-    IEnumerable<object> Dependencies,
+    IEnumerable<object?> Dependencies,
     CommandContextValues Values,
     ValidationResultSeverity? AllowedSeverity = default,
     object? Response = default,

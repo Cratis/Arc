@@ -6,3 +6,4 @@ ARC0002|Arc|Warning|Missing [Command] attribute on command-like type
 ARC0003|Arc|Error|Handle() must be on [Command] type
 ARC0004|Arc|Error|[Command] type must have public Handle() method
 ARC0005|Arc|Warning|Value produced by Provide is not consumed by Handle
+ARC0006|Arc|Warning|Command-scoped read model can be missing

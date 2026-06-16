@@ -6,9 +6,9 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.DependencyInjection;
 using Cratis.DependencyInjection;
 using Cratis.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -36,15 +36,18 @@ public class CommandProvideInvoker : ICommandProvideInvoker
         return Flatten(value);
     }
 
-    static object[]? ResolveArguments(MethodInfo provideMethod, IServiceProvider serviceProvider)
+    static object?[]? ResolveArguments(MethodInfo provideMethod, IServiceProvider serviceProvider)
     {
         var parameters = provideMethod.GetParameters();
         return parameters.Length == 0
             ? null
-            : [.. parameters.Select(parameter => serviceProvider.GetRequiredService(parameter.ParameterType))];
+            : ParameterDependencyResolver.Resolve(
+                serviceProvider,
+                parameters,
+                parameter => new CannotResolveCommandDependency(parameter));
     }
 
-    static object? Invoke(MethodInfo provideMethod, object command, object[]? arguments)
+    static object? Invoke(MethodInfo provideMethod, object command, object?[]? arguments)
     {
         try
         {

@@ -7,7 +7,9 @@ Read Models in Arc provide automatic dependency injection and seamless integrati
 
 ## Overview
 
-Arc automatically registers all read model types and provides them as scoped services in the dependency injection container, tied to the scope the command runs in. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate projection instance. Because the handler and the `CommandValidator<>` resolve from the same command scope, both receive the same read model instance for the command.
+Arc automatically registers all read model types and provides them as scoped services in the dependency injection container, tied to the scope the command runs in. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate projection instance. Because `CommandValidator<>`, `Provide()`, and `Handle()` resolve from the same command scope, they receive the same read model instance for the command when it exists.
+
+A read model can also be missing. A `[Key]` or event source id tells Arc which projection instance to resolve; it does not prove that the projection instance exists. Missing projected state can be a normal business condition, such as "not registered yet", or it can be exceptional, such as a command that targets an event source whose projection is expected to exist. Declare the dependency nullable (`Customer?`, `RoleReadModel?`, and so on) when the command handles absence. Keep it non-nullable when the command requires the projection to exist; if Arc cannot resolve it, the command fails with a clear dependency-resolution error.
 
 ## Automatic Registration
 
@@ -20,32 +22,11 @@ The system will scan for all read model types and register them with the depende
 
 ## Taking Dependencies on Read Models
 
-You can inject read models directly into your commands through the Handle method signature, just like aggregate roots:
+Read models can be injected into command validators, `Provide()`, and `Handle()` from the same command scope. The usual place to inject them is a `CommandValidator<>`, because validators run before the command handler and are the right place for existence checks and state-based rejection.
 
-```csharp
-public record UpdateUserProfileCommand([Key] Guid UserId, string DisplayName, string Bio)
-{
-    public object Handle(UserProfile profile, ILogger<UpdateUserProfileCommand> logger)
-    {
-        // The 'profile' read model is automatically loaded using the UserId
-        // which is marked with [Key] to identify which instance to load
-        
-        logger.LogInformation(
-            "Updating profile for {Email} from {OldName} to {NewName}",
-            profile.Email,
-            profile.DisplayName,
-            DisplayName);
+Use a nullable read model dependency when missing projected state is a valid business condition that the command should handle. Use a non-nullable dependency when the read model is required to exist and a missing instance should fail the command as a dependency-resolution error.
 
-        // You can use the read model for validation or context
-        if (profile.Status == UserStatus.Suspended)
-        {
-            throw new CannotUpdateSuspendedUserProfile(UserId);
-        }
-
-        return new UpdateUserProfileCommand { DisplayName = DisplayName, Bio = Bio };
-    }
-}
-```
+The same nullable dependency behavior applies if a command's `Provide()` or `Handle()` method takes a read model parameter. `Provide()` should still be used for acquiring data that `Handle()` consumes, not as the primary place for validation. See [Provide data to a command handler](../../scenarios/provide-data-to-a-command.md) for that pattern.
 
 ## Id/Key Resolution
 
@@ -55,8 +36,8 @@ The read model resolution works exactly the same way as [Aggregate Root](aggrega
 2. **Command Context Lookup**: The resolved identity is retrieved from the current `CommandContext`
 3. **Validation**: If no identity is found, an `UnableToResolveReadModelFromCommandContext` exception is thrown
 4. **Projection Query**: The system queries Chronicle's projection store using `IReadModels.GetInstanceById()` with the resolved identity
-5. **Subject Release**: If the command context has a resolved `Subject`, Arc releases the read model with that subject before returning it
-6. **Instance Return**: The loaded read model instance is returned
+5. **Subject Release**: If the command context has a resolved `Subject` and the read model exists, Arc releases the read model with that subject before returning it
+6. **Instance Return**: The loaded read model instance is returned, or `null` is returned when the projection instance does not exist
 
 ### Id/Key Resolution Strategies
 
@@ -73,32 +54,45 @@ The `[Key]` attribute approach is the most flexible as it works with any type (G
 
 ### Validation with Read Models
 
-Read models are particularly useful for validation since they provide the current projected state:
+Read models are particularly useful in validators since they provide the current projected state before the command handler runs. A common case is uniqueness validation, where the read model being missing means the command can continue:
 
 ```csharp
-public record PlaceOrderCommand([Key] Guid OrderId, Guid CustomerId, OrderLine[] Items)
+public record RegisterCustomer([Key] Guid CustomerId, string Name);
+
+public class RegisterCustomerValidator : CommandValidator<RegisterCustomer>
 {
-    public OrderPlaced Handle(OrderReadModel order)
+    public RegisterCustomerValidator(Customer? customer)
     {
-        // Use the read model to validate business rules
-        if (order.Status != OrderStatus.Draft)
-        {
-            throw new CannotModifyNonDraftOrder(OrderId);
-        }
-
-        if (order.LineItems.Length + Items.Length > 100)
-        {
-            throw new TooManyOrderLines();
-        }
-
-        return new OrderPlaced
-        {
-            CustomerId = CustomerId,
-            Items = Items
-        };
+        RuleFor(_ => customer)
+            .Null()
+            .WithMessage("Customer is already registered");
     }
 }
 ```
+
+For commands that target existing event sources, a missing read model might be a validation failure, but it might also indicate projection lag, a projection rebuild, or a state check that should use aggregate/event-stream state instead. Choose nullable when the command intentionally handles absence; choose non-nullable when absence should fail as required state.
+
+When the projection is required state, inject the read model as non-nullable and write the validator against the projected state directly:
+
+```csharp
+public record SubmitOrder([Key] Guid OrderId);
+
+public class SubmitOrderValidator : CommandValidator<SubmitOrder>
+{
+    public SubmitOrderValidator(OrderReadModel order)
+    {
+        RuleFor(_ => order.Status)
+            .Equal(OrderStatus.ReadyForSubmission)
+            .WithMessage("Only orders that are ready for submission can be submitted");
+
+        RuleFor(_ => order.Lines)
+            .NotEmpty()
+            .WithMessage("Order must have at least one line");
+    }
+}
+```
+
+In this shape, a missing `OrderReadModel` is not a validation outcome. Arc fails the command with `CannotResolveValidatorDependency`, because the validator declared that the projection is required.
 
 ### Combining Read Models and Aggregate Roots
 
@@ -112,7 +106,7 @@ public record AddItemToCartCommand([Key] Guid CartId, Guid ProductId, int Quanti
         ShoppingCartSummary summary,    // Read model
         ILogger<AddItemToCartCommand> logger)
     {
-        // Use read model for display/validation
+        // Use read model state as contextual information
         logger.LogInformation(
             "Adding item to cart with {ItemCount} items totaling {Total}",
             summary.TotalItems,
@@ -148,7 +142,9 @@ public record GetUserStatsCommand([Key] Guid UserId)
 
 ### Using Read Models in Validators
 
-Read models are particularly powerful when used in `CommandValidator<>` for complex validation scenarios. You can inject read models directly into your validator's constructor through dependency injection:
+Read models are particularly powerful when used in `CommandValidator<>` for complex validation scenarios. You can inject read models directly into your validator's constructor through dependency injection.
+
+If the command intentionally handles a missing read model, make the constructor parameter nullable. This is the shape to use when absence is part of the business rule:
 
 ```csharp
 public record AssignPersonToRoleCommand([Key] Guid RoleId, Guid PersonId)
@@ -163,35 +159,46 @@ public record AssignPersonToRoleCommand([Key] Guid RoleId, Guid PersonId)
 
 public class AssignPersonToRoleValidator : CommandValidator<AssignPersonToRoleCommand>
 {
-    public AssignPersonToRoleValidator(RoleReadModel role)
+    public AssignPersonToRoleValidator(RoleReadModel? role)
     {
         RuleFor(x => x.PersonId)
             .NotEmpty()
             .WithMessage("Person ID is required");
 
-        RuleFor(x => x.PersonId)
-            .Must(personId => !role.AssignedPersonIds.Contains(personId))
-            .WithMessage("Person is already assigned to this role");
+        RuleFor(x => role)
+            .NotNull()
+            .WithMessage("Role does not exist");
 
-        RuleFor(x => x)
-            .Must(cmd => role.Status == RoleStatus.Active)
-            .WithMessage("Cannot assign people to inactive roles");
+        When(_ => role is not null, () =>
+        {
+            RuleFor(x => x.PersonId)
+                .Must(personId => !role!.AssignedPersonIds.Contains(personId))
+                .WithMessage("Person is already assigned to this role");
 
-        RuleFor(x => x)
-            .Must(cmd => role.AssignedPersonIds.Length < role.MaxAssignments)
-            .WithMessage($"Role has reached maximum assignments of {role.MaxAssignments}");
+            RuleFor(x => x)
+                .Must(_ => role!.Status == RoleStatus.Active)
+                .WithMessage("Cannot assign people to inactive roles");
+
+            RuleFor(x => x)
+                .Must(_ => role!.AssignedPersonIds.Length < role.MaxAssignments)
+                .WithMessage(_ => $"Role has reached maximum assignments of {role!.MaxAssignments}");
+        });
     }
 }
 ```
 
 Key points when using read models in validators:
 
-- **Constructor Injection**: Read models are automatically resolved and injected, just like in command handlers
+- **Constructor Injection**: Read models are automatically resolved and injected, just like in `Provide()` and `Handle()`
+- **Nullable Means Handled Absence**: Use a nullable read model parameter when "does not exist" is a valid state that validation should handle
+- **Non-Nullable Means Required**: Use a non-nullable read model parameter when the command requires the projection to exist; it fails if the read model cannot be resolved or resolves to `null`
 - **Event Source ID**: The read model instance is resolved using the same event source ID from the command
-- **Subject-aware release**: If the command resolved a `Subject`, the injected read model is released with that subject before validation runs
-- **Validation Context**: Perfect for validating against current state before executing the command
+- **Subject-aware release**: If the command resolved a `Subject` and the read model exists, the injected read model is released with that subject before validation runs
+- **Validation Context**: Useful for validating against projected state before executing the command
 - **Rich Rules**: Access to full read model state enables complex business rule validation
 - **Async Validation**: Use `MustAsync` for asynchronous validation rules that need to check external systems
+
+The Arc analyzer reports `ARC0006` when a command-scoped read model parameter is non-nullable in a validator, `Provide()`, or `Handle()`. See [ARC0006](../code-analysis/ARC0006.md) for details.
 
 > [!NOTE]
 > Read-model injection into validators works when commands run through the Arc command pipeline — minimal-API command endpoints (the default) and `ICommandPipeline` directly. It does **not** work when commands are exposed through MVC controllers, because MVC model validation runs during model binding, before the command context (and therefore the event source id) exists. In that case the validator cannot be constructed and the request fails with a `ReadModelValidatorRequiresCommandPipeline` error (or, when development-time scope validation is enabled, the underlying scoped-service resolution error). Expose the command through a minimal-API endpoint, or move the read-model based check into the command's `Handle()` method.
@@ -212,6 +219,24 @@ public record InvalidCommand(string SomeProperty);
 // No identity property, attribute, or interface implementation
 
 // This will fail because no identity can be resolved
+```
+
+### CannotResolveCommandDependency and CannotResolveValidatorDependency
+
+These exceptions are thrown when Arc needs to invoke `Provide()`, `Handle()`, or a discoverable command validator and a required, non-nullable dependency cannot be resolved or resolves to `null`.
+
+For command-scoped read models, this usually means the read model does not exist for the resolved event source id. Make the parameter nullable if absence is part of the business rule; keep it non-nullable if absence should fail as required state:
+
+```csharp
+public class RemoveContactValidator : CommandValidator<RemoveContact>
+{
+    public RemoveContactValidator(Customer? customer)
+    {
+        RuleFor(_ => customer)
+            .NotNull()
+            .WithMessage("Customer is not registered");
+    }
+}
 ```
 
 ## Lifecycle Management

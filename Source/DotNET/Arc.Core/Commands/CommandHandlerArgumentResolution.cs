@@ -11,7 +11,7 @@ namespace Cratis.Arc.Commands;
 /// The <see cref="CommandResult"/> produced by any short-circuiting control values returned from the
 /// command's <c>Provide</c> method. Successful when nothing short-circuited.
 /// </param>
-public record CommandHandlerArgumentResolution(IReadOnlyList<object> Arguments, CommandResult ControlResult)
+public record CommandHandlerArgumentResolution(IReadOnlyList<object?> Arguments, CommandResult ControlResult)
 {
     /// <summary>
     /// Gets a value indicating whether argument resolution short-circuited command execution.
