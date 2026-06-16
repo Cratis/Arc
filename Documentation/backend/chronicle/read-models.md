@@ -194,7 +194,7 @@ Key points when using read models in validators:
 - **Async Validation**: Use `MustAsync` for asynchronous validation rules that need to check external systems
 
 > [!NOTE]
-> Read-model injection into validators works when commands run through the Arc command pipeline — minimal-API command endpoints (the default) and `ICommandPipeline` directly. It does **not** work when commands are exposed through MVC controllers, because MVC model validation runs during model binding, before the command context (and therefore the event source id) exists. In that case Arc raises an explicit `ReadModelValidatorRequiresCommandPipeline` error. Expose the command through a minimal-API endpoint, or move the read-model based check into the command's `Handle()` method.
+> Read-model injection into validators works when commands run through the Arc command pipeline — minimal-API command endpoints (the default) and `ICommandPipeline` directly. It does **not** work when commands are exposed through MVC controllers, because MVC model validation runs during model binding, before the command context (and therefore the event source id) exists. In that case the validator cannot be constructed and the request fails with a `ReadModelValidatorRequiresCommandPipeline` error (or, when development-time scope validation is enabled, the underlying scoped-service resolution error). Expose the command through a minimal-API endpoint, or move the read-model based check into the command's `Handle()` method.
 
 For more details on command validation, see the [Validation](../commands/validation.md) documentation.
 
