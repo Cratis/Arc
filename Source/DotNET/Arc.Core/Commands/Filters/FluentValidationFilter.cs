@@ -70,6 +70,14 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
             {
                 foreach (var property in instanceType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
+                    // Skip indexer properties — they require index arguments, so GetValue(instance)
+                    // without any would throw "Parameter count mismatch". These show up on types such as
+                    // JsonElement (this[int]) that can appear in an object-typed command property graph.
+                    if (property.GetIndexParameters().Length > 0)
+                    {
+                        continue;
+                    }
+
                     var propertyValue = property.GetValue(instance);
                     if (propertyValue is not null)
                     {
