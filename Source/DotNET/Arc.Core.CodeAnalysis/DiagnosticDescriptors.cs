@@ -58,5 +58,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Fix by adding a public instance Handle() method to the [Command] type. Non-public Handle methods do not satisfy the model-bound command contract.");
 
+    /// <summary>
+    /// ARC0005: Value produced by Provide is not consumed by Handle.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0005_ProvidedValueNotConsumed = new(
+        id: "ARC0005",
+        title: "Value produced by Provide is not consumed by Handle",
+        messageFormat: "Value of type '{0}' produced by the Provide method on command '{1}' is not consumed by any Handle parameter. Add a matching Handle parameter or remove the value from Provide.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Fix by adding a Handle parameter that consumes the value the Provide method returns, or by removing the unused value from Provide. Control values (ValidationResult, AuthorizationResult, CommandResult) are exempt because they short-circuit execution rather than feed Handle.");
+
     const string Category = "Arc";
 }

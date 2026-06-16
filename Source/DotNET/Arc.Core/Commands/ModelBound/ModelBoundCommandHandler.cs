@@ -25,15 +25,17 @@ public class ModelBoundCommandHandler(Type commandType, MethodInfo handleMethod)
     public IEnumerable<Type> Dependencies { get; } = handleMethod.GetParameters().Select(p => p.ParameterType);
 
     /// <inheritdoc/>
+    public IEnumerable<ParameterInfo> Parameters { get; } = handleMethod.GetParameters();
+
+    /// <inheritdoc/>
     public bool AllowsAnonymousAccess { get; } = commandType.IsAnonymousAllowed();
 
     /// <inheritdoc/>
     public async ValueTask<object?> Handle(CommandContext commandContext)
     {
-        var parameters = handleMethod.GetParameters();
-        var args = parameters.Length == 0
+        var args = handleMethod.GetParameters().Length == 0
             ? null
-            : commandContext.Dependencies.Take(parameters.Length).ToArray();
+            : commandContext.Dependencies.ToArray();
         try
         {
             var invocationResult = handleMethod.Invoke(commandContext.Command, args);

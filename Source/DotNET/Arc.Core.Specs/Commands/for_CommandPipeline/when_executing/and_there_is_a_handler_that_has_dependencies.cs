@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
+
 namespace Cratis.Arc.Commands.for_CommandPipeline.when_executing;
 
 public class and_there_is_a_handler_that_has_dependencies : given.a_command_pipeline_and_a_handler_for_command
@@ -14,9 +16,9 @@ public class and_there_is_a_handler_that_has_dependencies : given.a_command_pipe
     void Establish()
     {
         _expectedDependencies = ["Forty two", 42];
-        _commandHandler.Dependencies.Returns([typeof(string), typeof(int)]);
-        _serviceProvider.GetService(typeof(string)).Returns(_expectedDependencies[0]);
-        _serviceProvider.GetService(typeof(int)).Returns(_expectedDependencies[1]);
+        _commandHandlerArgumentResolver
+            .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
+            .Returns(_ => new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution(_expectedDependencies, CommandResult.Success(_correlationId))));
 
         _expectedValues = new CommandContextValues
         {
