@@ -10,3 +10,5 @@
   href: ARC0004.md
 - name: ARC0005 - Value produced by Provide is not consumed by Handle
   href: ARC0005.md
+- name: ARC0006 - Command-scoped read model can be missing
+  href: ARC0006.md

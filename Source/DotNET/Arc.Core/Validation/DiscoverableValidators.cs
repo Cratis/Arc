@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Reflection;
 using Cratis.Types;
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -70,15 +70,42 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            // Construct the validator from the supplied (command-scoped) provider rather than requiring it to be
-            // registered. This mirrors how the command handler and Provide method resolve their dependencies, and
-            // it lets a validator take a Chronicle read model — a scoped service the self-binding convention skips
-            // (it has a record-typed constructor parameter) and therefore never registers — as a dependency.
-            validator = (ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, value) as IValidator)!;
+            validator = (Construct(serviceProvider, value) as IValidator)!;
             return true;
         }
 
         validator = null;
         return false;
+    }
+
+    /// <summary>
+    /// Constructs a validator from the supplied provider.
+    /// </summary>
+    /// <remarks>
+    /// This follows command parameter binding semantics: nullable dependencies may resolve to null, while
+    /// non-nullable dependencies that resolve to null fail with <see cref="CannotResolveValidatorDependency"/>.
+    /// </remarks>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
+    /// <param name="validatorType">The validator type to construct.</param>
+    /// <returns>The constructed validator instance.</returns>
+    static object Construct(IServiceProvider serviceProvider, Type validatorType)
+    {
+        // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
+        var registered = serviceProvider.GetService(validatorType);
+        if (registered is not null)
+        {
+            return registered;
+        }
+
+        var constructor = validatorType.GetConstructors()
+            .OrderByDescending(_ => _.GetParameters().Length)
+            .First();
+
+        var arguments = ParameterDependencyResolver.Resolve(
+            serviceProvider,
+            constructor.GetParameters(),
+            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
+
+        return constructor.Invoke(arguments);
     }
 }

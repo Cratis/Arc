@@ -9,7 +9,7 @@ public class and_there_is_a_handler_that_has_dependencies : given.a_command_pipe
 {
     CommandResult _result;
     object[] _expectedDependencies;
-    List<object> _dependencies = [];
+    readonly List<object?> _dependencies = [];
     CommandContextValues _expectedValues;
     CommandContext _commandContext;
 

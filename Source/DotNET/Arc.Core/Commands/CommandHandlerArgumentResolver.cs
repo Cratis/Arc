@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Authorization;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -50,13 +50,14 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         return new CommandHandlerArgumentResolution(arguments, CommandResult.Success(context.CorrelationId));
     }
 
-    static object[] BuildArguments(ICommandHandler handler, List<object> candidates, IServiceProvider serviceProvider)
+    static object?[] BuildArguments(ICommandHandler handler, List<object> candidates, IServiceProvider serviceProvider)
     {
         var parameters = handler.Parameters.ToArray();
-        var arguments = new object[parameters.Length];
+        var arguments = new object?[parameters.Length];
         for (var i = 0; i < parameters.Length; i++)
         {
-            var parameterType = parameters[i].ParameterType;
+            var parameter = parameters[i];
+            var parameterType = parameter.ParameterType;
             var match = candidates.Find(parameterType.IsInstanceOfType);
             if (match is not null)
             {
@@ -65,7 +66,10 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
             else
             {
-                arguments[i] = serviceProvider.GetRequiredService(parameterType);
+                arguments[i] = ParameterDependencyResolver.Resolve(
+                    serviceProvider,
+                    parameter,
+                    _ => new CannotResolveCommandDependency(parameter));
             }
         }
 
