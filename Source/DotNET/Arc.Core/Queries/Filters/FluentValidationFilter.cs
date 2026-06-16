@@ -66,6 +66,12 @@ public class FluentValidationFilter(IQueryPerformerProviders queryPerformerProvi
             {
                 foreach (var property in parameterType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
+                    // Skip indexer properties — GetValue without index arguments throws "Parameter count mismatch".
+                    if (property.GetIndexParameters().Length > 0)
+                    {
+                        continue;
+                    }
+
                     var propertyValue = property.GetValue(value);
                     if (propertyValue is not null)
                     {
