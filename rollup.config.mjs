@@ -64,6 +64,7 @@ export function rollup(cjsPath, esmPath, tsconfigPath, pkg) {
             ...Object.keys(pkg.dependencies || {}),
             ...Object.keys(pkg.peerDependencies || {}),
             /^@cratis\/arc/,
+            /^@cratis\/fundamentals/,
             'react',
             'react-dom',
         ],
@@ -78,7 +79,7 @@ export function rollup(cjsPath, esmPath, tsconfigPath, pkg) {
             }),
             typescript2({
                 include: ['**/*.ts', '**/*.tsx'],
-                exclude: "for_**/**/*",
+                exclude: ["for_**/**/*", "**/node_modules/**"],
                 tsconfig: tsconfigPath,
                 clean: true
             }),

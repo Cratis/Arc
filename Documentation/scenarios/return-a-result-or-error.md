@@ -18,14 +18,14 @@ Return the shape that matches the outcome:
 | record one event (source from the command's `[Key]`) | the event: `AuthorRegistered Handle()` |
 | record one event against an explicit source | a tuple: `(AuthorId, AuthorRegistered) Handle()` |
 | also hand the caller a value | a tuple of `(result, event)` |
-| reject with a typed failure *or* succeed | `Result<ValidationResult, AuthorRegistered>` |
+| reject with a typed failure *or* succeed | `Result<AuthorRegistered, ValidationResult>` |
 | record several events | return them together as an `IEnumerable<…>` |
 | record nothing | `void` |
 
 The `Result<,>` form is how a handler rejects based on state it had to consult — return `ValidationResult.Error("…")` to fail, or the event to proceed:
 
 ```csharp
-public Result<ValidationResult, AuthorRegistered> Handle(RegisteredAuthorName? existing) =>
+public Result<AuthorRegistered, ValidationResult> Handle(RegisteredAuthorName? existing) =>
     existing is not null && existing.Name != AuthorName.NotSet
         ? ValidationResult.Error("An author with that name is already registered.")
         : new AuthorRegistered(Name);

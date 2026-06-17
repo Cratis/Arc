@@ -63,7 +63,7 @@ public static class ReadModelServiceCollectionExtensions
             services.AddScoped(readModelType, serviceProvider => ResolveReadModel(
                 readModelType,
                 serviceProvider.GetRequiredService<CommandContext>(),
-                serviceProvider.GetRequiredService<IReadModels>()));
+                serviceProvider.GetRequiredService<IReadModels>())!);
         }
 
         return services;
@@ -75,9 +75,9 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
-    /// <returns>The resolved read model instance.</returns>
+    /// <returns>The resolved read model instance, or null when it does not exist.</returns>
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context does not contain a usable event source id.</exception>
-    internal static object ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
+    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
     {
         var eventSourceId = commandContext.GetEventSourceId();
         if (eventSourceId == EventSourceId.Unspecified)
@@ -88,7 +88,10 @@ public static class ReadModelServiceCollectionExtensions
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
         var subject = commandContext.GetSubject();
 
-        return subject is null
+        // A never-created or removed read model resolves to null; there is nothing to release (decrypt),
+        // and releasing null would dereference it while resolving the compliance subject. Hand back the
+        // null so command-side code can inject a nullable read model and treat null as "does not exist".
+        return subject is null || readModel is null
             ? readModel
             : ReleaseReadModel(readModels, readModelType, readModel);
     }

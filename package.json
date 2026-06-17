@@ -31,7 +31,7 @@
         "up": "node ./run-task-on-workspaces.js up"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "^7.10.3",
+        "@cratis/fundamentals": "^7.16.0",
         "@eslint/eslintrc": "3.3.5",
         "@eslint/js": "10.0.1",
         "@testing-library/dom": "^10.4.1",
@@ -78,7 +78,7 @@
         "ts-node": "10.9.2",
         "typescript": "6.0.3",
         "typescript-eslint": "8.59.4",
-        "vite": "8.0.14",
+        "vite": "8.0.16",
         "vite-plugin-commonjs": "0.10.4",
         "vite-tsconfig-paths": "6.1.1",
         "vitest": "4.1.7"

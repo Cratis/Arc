@@ -14,6 +14,8 @@ All rules follow the identifier format `ARC####` where the numbers are sequentia
 | [ARC0002](ARC0002.md) | Missing [Command] attribute on command-like type | Warning | Command-like types must be marked with `[Command]` to be recognized as commands. |
 | [ARC0003](ARC0003.md) | Handle() must be on [Command] type | Error | Public command `Handle()` methods must be declared on the command type itself. |
 | [ARC0004](ARC0004.md) | [Command] type must have public Handle() method | Error | Types marked with `[Command]` must declare a public instance `Handle()` method. |
+| [ARC0005](ARC0005.md) | Value produced by Provide is not consumed by Handle | Warning | Every value a command's `Provide()` method produces must be consumed by a `Handle()` parameter. |
+| [ARC0006](ARC0006.md) | Command-scoped read model can be missing | Warning | Non-nullable command-scoped read model parameters should be a deliberate required-state choice. |
 
 ## Quick Fixes
 

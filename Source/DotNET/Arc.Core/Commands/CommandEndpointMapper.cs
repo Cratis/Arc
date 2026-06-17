@@ -112,8 +112,8 @@ public static class CommandEndpointMapper
                     else
                     {
                         commandResult = validateOnly
-                            ? await commandPipeline.Validate(command, context.RequestServices, allowedSeverity)
-                            : await commandPipeline.Execute(command, context.RequestServices, allowedSeverity);
+                            ? await commandPipeline.Validate(command, context.RequestServices, allowedSeverity, context.RequestAborted)
+                            : await commandPipeline.Execute(command, context.RequestServices, allowedSeverity, context.RequestAborted);
                     }
                 }
                 catch (Exception ex)

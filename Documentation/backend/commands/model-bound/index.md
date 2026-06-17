@@ -38,7 +38,7 @@ using OneOf;
 [Command]
 public record AddItemToCart(string Sku, int Quantity)
 {
-    public Result<ValidationResult, Guid> Handle()
+    public Result<Guid, ValidationResult> Handle()
     {
         if( /* code that checks if product is carried */ )
         {
@@ -65,7 +65,7 @@ using OneOf;
 [Command]
 public record CreateOrder(string CustomerId, List<OrderItem> Items)
 {
-    public Result<ValidationResult, (OrderId, OrderCreated)> Handle()
+    public Result<(OrderId, OrderCreated), ValidationResult> Handle()
     {
         if (!IsValidOrder())
         {
@@ -185,7 +185,7 @@ using OneOf;
 [Command]
 public record ProcessPayment(string OrderId, decimal Amount)
 {
-    public (OrderId, Result<PaymentFailed, PaymentSucceeded>) Handle()
+    public (OrderId, Result<PaymentSucceeded, PaymentFailed>) Handle()
     {
         var orderId = new OrderId(OrderId);
         
@@ -219,6 +219,20 @@ public record AddItemToCart(string Sku, int Quantity)
     {
         carts.AddItemToCart(Sku, Quantity);
     }
+}
+```
+
+`CancellationToken` is a special dependency. Arc injects it from the command execution context instead of resolving it from the service collection. HTTP command endpoints use the request-aborted token automatically. Programmatic callers can pass a token through `ICommandPipeline`.
+
+```csharp
+[Command]
+public record ImportCatalog(CatalogId CatalogId)
+{
+    public Task<CatalogSnapshot> Provide(ICatalogs catalogs, CancellationToken cancellationToken) =>
+        catalogs.GetSnapshot(CatalogId, cancellationToken);
+
+    public Task Handle(CatalogSnapshot snapshot, ICatalogImporter importer, CancellationToken cancellationToken) =>
+        importer.Import(snapshot, cancellationToken);
 }
 ```
 

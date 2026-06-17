@@ -39,6 +39,11 @@ command as an HTTP `POST`, binds the incoming JSON to the record, runs any valid
 service, or anything else your slice owns. With the [Chronicle integration](../chronicle/) installed, a
 command can return events instead and let Arc append them for you.
 
+> [!TIP]
+> When a decision needs data you have to *fetch* — external data, application-service data, a score, or a
+> lookup — move that fetch into a `Provide()` method next to `Handle()`, so `Handle` stays a pure, easily
+> tested function of its arguments. See [Provide data to a command handler](../../scenarios/provide-data-to-a-command.md).
+
 `Handle()` can return what suits the operation:
 
 - **nothing** (`void` / `Task`) — fire-and-forget changes

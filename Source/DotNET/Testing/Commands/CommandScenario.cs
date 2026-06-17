@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Testing.Commands;
@@ -127,8 +129,27 @@ public class CommandScenario<TCommand>
             return;
         }
 
+        var explicitlyRegisteredServiceTypes = Services.Select(_ => _.ServiceType).ToHashSet();
+        var hasExplicitDiscoverableValidatorsRegistration = explicitlyRegisteredServiceTypes.Contains(typeof(IDiscoverableValidators));
+
         Services.AddCratisArcCore();
+        IServiceProvider? serviceProvider = null;
+
+        // Validators are not registered here on purpose. The command pipeline constructs them on demand from the
+        // command scope (see DiscoverableValidators.TryGet), so a validator taking a read model resolves the same
+        // way a command handler does — no registration required.
+        var discoverableValidators = new DiscoverableValidators(
+            Cratis.Types.Types.Instance,
+            () => serviceProvider ?? throw new InvalidOperationException("The command scenario service provider has not been built."));
+
+        if (!hasExplicitDiscoverableValidatorsRegistration)
+        {
+            Services.RemoveAll<IDiscoverableValidators>();
+            Services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
+        }
+
         _serviceProvider = Services.BuildServiceProvider();
+        serviceProvider = _serviceProvider;
         Internals.ServiceProvider = _serviceProvider;
         _pipeline = _serviceProvider.GetRequiredService<ICommandPipeline>();
     }

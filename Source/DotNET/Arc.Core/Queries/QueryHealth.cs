@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Subjects;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries.ModelBound;
@@ -11,7 +12,7 @@ namespace Cratis.Arc.Queries;
 /// Read model for query health monitoring.
 /// </summary>
 [ReadModel]
-[Route("/.cratis/queries/health")]
+[Path("/.cratis/queries/health")]
 [AllowAnonymous]
 public sealed record QueryHealth
 {
@@ -65,9 +66,10 @@ public sealed record QueryHealth
     /// <param name="healthTracker">The query health tracker service.</param>
     /// <returns>Observable subject emitting query health snapshots.</returns>
     [AllowAnonymous]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership of the subject and subscription is transferred to the returned DisposableQueryHealthSubject, which disposes both.")]
     public static ISubject<QueryHealth> ObserveHealth(IQueryHealthTracker healthTracker)
     {
-#pragma warning disable CA2000 // BehaviorSubject is wrapped in DisposableQueryHealthSubject which handles disposal
+#pragma warning disable CA2000 // DisposableQueryHealthSubject owns and disposes the BehaviorSubject returned from this method.
         var subject = new BehaviorSubject<QueryHealth>(new QueryHealth
         {
             Connections = healthTracker.GetAllConnectionHealth()

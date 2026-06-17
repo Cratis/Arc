@@ -24,7 +24,7 @@ Chronicle inspects the value `Handle()` returns and appends accordingly. Anythin
 | Tuple `(event, result)` | The event is appended; the other element is returned to the caller as the response. |
 | Tuple `(EventSourceId, event)` | The `EventSourceId` sets the stream; the event is appended. See [Returning EventSourceId](./returning-event-source-id.md). |
 | Tuple `(event, Subject)` | The event is appended; the `Subject` is attached as [compliance metadata](./subject.md), not returned. |
-| `Result<TResult, TError>` (e.g. `Result<ValidationResult, T>`) | A failure short-circuits the command (nothing appended); a success is unwrapped and handled like the rows above. |
+| `Result<TResult, TError>` (e.g. `Result<TEvent, ValidationResult>`) | A failure short-circuits the command (nothing appended); a success is unwrapped and handled like the rows above. |
 
 The rule of thumb: **return the fact that happened.** The event source id (see [Resolving EventSourceId](./returning-event-source-id.md)) decides which stream it lands on.
 
