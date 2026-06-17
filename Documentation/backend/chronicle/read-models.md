@@ -7,18 +7,21 @@ Read Models in Arc provide automatic dependency injection and seamless integrati
 
 ## Overview
 
-Arc automatically registers all read model types and provides them as scoped services in the dependency injection container, tied to the scope the command runs in. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate projection instance. Because `CommandValidator<>`, `Provide()`, and `Handle()` resolve from the same command scope, they receive the same read model instance for the command when it exists.
+Arc automatically registers all read model types and provides them as scoped services in the dependency injection container, tied to the scope the command runs in. When a read model is requested, it uses the resolved identity from the current command context to load the appropriate read model instance — whether that instance is materialized by a projection or a reducer. Because `CommandValidator<>`, `Provide()`, and `Handle()` resolve from the same command scope, they receive the same read model instance for the command when it exists.
 
 A read model can also be missing. A `[Key]` or event source id tells Arc which projection instance to resolve; it does not prove that the projection instance exists. Missing projected state can be a normal business condition, such as "not registered yet", or it can be exceptional, such as a command that targets an event source whose projection is expected to exist. Declare the dependency nullable (`Customer?`, `RoleReadModel?`, and so on) when the command handles absence. Keep it non-nullable when the command requires the projection to exist; if Arc cannot resolve it, the command fails with a clear dependency-resolution error.
 
 ## Automatic Registration
 
-Read models are automatically discovered and registered when you configure Arc. This includes:
+When you add Chronicle to Arc, read models are automatically discovered and registered as command-scoped services. What makes a read model injectable into command-scoped code is that it is **resolvable by key** (the resolved event source id) through Chronicle's read model store. That resolvability comes from a Chronicle backing artifact, so a read model is registered when it has one — **whether or not it is also marked with `[ReadModel]`**:
 
-- Read models from `IProjectionFor<T>` implementations
-- Read models from model-bound projections
+- A fluent `IProjectionFor<T>` projection
+- A model-bound projection
+- An `IReducerFor<T>` reducer
 
-The system will scan for all read model types and register them with the dependency injection container.
+You write the validator, `Provide()`, or `Handle()` dependency the same way in every case — the backing artifact is an implementation detail Arc hides from you.
+
+The `[ReadModel]` attribute alone is **not** enough to make a read model injectable into commands. `[ReadModel]` is an Arc concept used for queries, and it can be backed by stores other than Chronicle (for example Entity Framework Core). A read model has to be resolvable by key for command-scoped injection to make sense, and that key resolution is owned by the backing provider. Chronicle registers the read models it can resolve (the three above); a read model backed by another provider is registered for command injection by that provider, not by Chronicle.
 
 ## Taking Dependencies on Read Models
 
