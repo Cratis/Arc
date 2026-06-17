@@ -39,7 +39,12 @@ public class DerivedTypeDiscriminatorConvention(IDerivedTypes derivedTypes) : ID
         }
 
         bsonReader.ReturnToBookmark(bookmark);
-        return type is null
+
+        // When the nominal type has no registered derivatives it is already the concrete type (for example
+        // a leaf derived type being deserialized after its discriminator was resolved one level up). The
+        // discriminator element may still be present on the document, so only resolve a derived type when
+        // the nominal type actually has derivatives to avoid throwing for an unknown target type.
+        return type is null || !derivedTypes.HasDerivatives(nominalType)
             ? nominalType
             : derivedTypes.GetDerivedTypeFor(nominalType, type);
     }
