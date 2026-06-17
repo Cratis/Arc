@@ -67,10 +67,12 @@ public sealed record QueryHealth
     [AllowAnonymous]
     public static ISubject<QueryHealth> ObserveHealth(IQueryHealthTracker healthTracker)
     {
+#pragma warning disable CA2000 // BehaviorSubject is wrapped in DisposableQueryHealthSubject which handles disposal
         var subject = new BehaviorSubject<QueryHealth>(new QueryHealth
         {
             Connections = healthTracker.GetAllConnectionHealth()
         });
+#pragma warning restore CA2000
 
         var subscription = healthTracker.ObserveHealth().Subscribe(connections =>
             subject.OnNext(new QueryHealth { Connections = connections }));
