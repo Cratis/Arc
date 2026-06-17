@@ -11,6 +11,7 @@ using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Reducers;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -37,24 +38,28 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="services">The <see cref="IServiceCollection"/> to add to.</param>
     /// <param name="clientArtifactsProvider">The <see cref="IClientArtifactsProvider"/> for client artifacts.</param>
     /// <returns>The service collection for continuation.</returns>
+    /// <remarks>
+    /// A read model is injectable into command-scoped code (a <c>CommandValidator&lt;&gt;</c>, <c>Provide()</c>, or
+    /// <c>Handle()</c>) because it is resolvable by key (the resolved event source id) through <see cref="IReadModels"/>.
+    /// What makes a read model resolvable that way is a Chronicle backing artifact, so this registers every read model
+    /// that has a projection, model-bound projection, or reducer — independent of whether it also carries the Arc-level
+    /// <c>[ReadModel]</c> attribute. It deliberately does not register read models by <c>[ReadModel]</c> alone: that
+    /// attribute is an Arc concept that does not imply Chronicle key resolution, and a read model backed by another
+    /// provider (for example Entity Framework Core) is registered by that provider, not here.
+    /// </remarks>
     public static IServiceCollection AddReadModels(this IServiceCollection services, IClientArtifactsProvider clientArtifactsProvider)
     {
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
-        var readModelTypesFromProjections = clientArtifactsProvider.Projections
-            .Select(projectionType =>
-            {
-                var projectionInterface = projectionType.GetInterfaces()
-                    .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionFor<>));
-                return projectionInterface?.GetGenericArguments()[0];
-            })
-            .Where(type => type?.IsClass == true && !type.IsAbstract)
-            .Cast<Type>();
-
         var modelBoundReadModels = clientArtifactsProvider.ModelBoundProjections
             .Where(type => type.IsClass && !type.IsAbstract);
-        var readModelTypes = readModelTypesFromProjections
+
+        // A read model is registered for command-scope resolution because it is resolvable by key through
+        // IReadModels. That resolvability comes from a Chronicle backing artifact, so the set is the union of the
+        // read model types behind each backing kind. Adding a future backing kind is one more ReadModelTargetsFrom.
+        var readModelTypes = ReadModelTargetsFrom(clientArtifactsProvider.Projections, typeof(IProjectionFor<>))
             .Concat(modelBoundReadModels)
+            .Concat(ReadModelTargetsFrom(clientArtifactsProvider.Reducers, typeof(IReducerFor<>)))
             .Distinct()
             .ToArray();
         foreach (var readModelType in readModelTypes)
@@ -95,6 +100,21 @@ public static class ReadModelServiceCollectionExtensions
             ? readModel
             : ReleaseReadModel(readModels, readModelType, readModel);
     }
+
+    /// <summary>
+    /// Extracts the read model target types behind a set of backing artifacts that implement a given open generic
+    /// interface (for example <see cref="IProjectionFor{T}"/> or <see cref="IReducerFor{T}"/>).
+    /// </summary>
+    /// <param name="artifactTypes">The backing artifact types to inspect.</param>
+    /// <param name="openGenericInterface">The open generic interface whose single type argument is the read model type.</param>
+    /// <returns>The concrete read model types behind the artifacts.</returns>
+    static IEnumerable<Type> ReadModelTargetsFrom(IEnumerable<Type> artifactTypes, Type openGenericInterface) =>
+        artifactTypes
+            .Select(artifactType => artifactType.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == openGenericInterface)
+                ?.GetGenericArguments()[0])
+            .Where(type => type?.IsClass == true && !type.IsAbstract)
+            .Cast<Type>();
 
     static object ReleaseReadModel(IReadModels readModels, Type readModelType, object readModel)
     {
