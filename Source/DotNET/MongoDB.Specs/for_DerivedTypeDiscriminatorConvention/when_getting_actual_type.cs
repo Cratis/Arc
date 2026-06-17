@@ -12,6 +12,7 @@ public class when_getting_actual_type : given.a_derived_type_discriminator_conve
 
     void Establish()
     {
+        _derivedTypes.HasDerivatives(typeof(BaseType)).Returns(true);
         _derivedTypes
             .GetDerivedTypeFor(typeof(BaseType), _derivedTypeIdentifier)
             .Returns(typeof(DerivedType));
