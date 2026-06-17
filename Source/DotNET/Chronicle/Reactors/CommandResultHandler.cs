@@ -19,7 +19,7 @@ public class CommandResultHandler(IServiceScopeFactory serviceScopeFactory) : IR
 {
     /// <inheritdoc/>
     public bool CanHandle(ReactorContext reactorContext, object value) =>
-        value is not null && value.GetType().IsCommand();
+        value?.GetType().IsCommand() == true;
 
     /// <inheritdoc/>
     public async Task Handle(ReactorContext reactorContext, IEventStore eventStore, object value)
