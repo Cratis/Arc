@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using Cratis.Concepts;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
@@ -154,6 +155,33 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
     /// <inheritdoc/>
     object IBsonSerializer.Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => Deserialize(context, args)!;
 
+    /// <summary>
+    /// Reads the numeric value at the reader's current position, tolerating any BSON numeric representation.
+    /// </summary>
+    /// <param name="bsonReader">The <see cref="IBsonReader"/> to read from.</param>
+    /// <returns>The numeric value read, boxed as the CLR type matching its stored BSON representation.</returns>
+    /// <exception cref="UnableToDeserializeValueForConcept">Thrown when the stored BSON type is not numeric.</exception>
+    /// <remarks>
+    /// Values that flow through JSON-based pipelines (for example Chronicle projections that materialize event
+    /// content via <c>ExpandoObject</c>) lose the distinction between integral and floating point numbers and
+    /// are persisted as <see cref="BsonType.Double"/>. Reading them back with a representation-specific reader
+    /// (for example <c>ReadInt32</c>) throws. Reading according to the actual stored BSON type and letting the
+    /// caller convert keeps a concept deserializable regardless of how it was stored.
+    /// </remarks>
+    static object ReadNumeric(ref IBsonReader bsonReader)
+    {
+        var bsonType = bsonReader.GetCurrentBsonType();
+        return bsonType switch
+        {
+            BsonType.Int32 => bsonReader.ReadInt32(),
+            BsonType.Int64 => bsonReader.ReadInt64(),
+            BsonType.Double => bsonReader.ReadDouble(),
+            BsonType.Decimal128 => (decimal)bsonReader.ReadDecimal128(),
+            BsonType.String => double.Parse(bsonReader.ReadString(), NumberStyles.Any, CultureInfo.InvariantCulture),
+            _ => throw new UnableToDeserializeValueForConcept(typeof(object))
+        };
+    }
+
     object GetDeserializedValue(BsonDeserializationContext context, BsonDeserializationArgs args, Type valueType, ref IBsonReader bsonReader)
     {
         var bsonType = bsonReader.CurrentBsonType;
@@ -175,32 +203,32 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
 
         if (valueType == typeof(double))
         {
-            return bsonReader.ReadDouble();
+            return Convert.ToDouble(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(float))
         {
-            return (float)bsonReader.ReadDouble();
+            return Convert.ToSingle(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(int))
         {
-            return bsonReader.ReadInt32();
+            return Convert.ToInt32(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(uint))
         {
-            return (uint)bsonReader.ReadInt64();
+            return Convert.ToUInt32(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(long))
         {
-            return bsonReader.ReadInt64();
+            return Convert.ToInt64(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(ulong))
         {
-            return (ulong)bsonReader.ReadDecimal128();
+            return Convert.ToUInt64(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(bool))
@@ -215,7 +243,7 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
 
         if (valueType == typeof(decimal))
         {
-            return bsonReader.ReadDecimal128();
+            return Convert.ToDecimal(ReadNumeric(ref bsonReader));
         }
 
         if (valueType == typeof(DateTime))
