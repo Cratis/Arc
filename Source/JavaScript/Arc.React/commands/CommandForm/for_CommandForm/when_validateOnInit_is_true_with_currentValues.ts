@@ -29,10 +29,6 @@ class ValidatedTestCommand extends Command {
     name = '';
     email = '';
 
-    get properties(): string[] {
-        return ['name', 'email'];
-    }
-
     get requestParameters(): string[] {
         return [];
     }

@@ -15,6 +15,7 @@ export * from './IHandleQueryParams';
 export * from './params';
 export * from './queryParams';
 export * from './props';
+export { observer } from 'mobx-react';
 
 export {
     browser,

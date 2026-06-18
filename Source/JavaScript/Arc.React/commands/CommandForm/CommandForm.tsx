@@ -129,8 +129,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const valuesFromCurrentValues = useMemo(() => {
         if (!props.currentValues) return {};
 
-        const tempCommand = new props.command();
-        const commandProperties = ((tempCommand as Record<string, unknown>).properties || []) as string[];
+        const tempCommand = new props.command() as Command;
+        const commandProperties = tempCommand.propertyDescriptors.map(propertyDescriptor => propertyDescriptor.name);
         const extracted: Partial<TCommand> = {};
 
         commandProperties.forEach((propertyName: string) => {
