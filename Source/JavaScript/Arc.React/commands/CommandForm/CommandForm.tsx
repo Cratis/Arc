@@ -134,7 +134,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         const extracted: Partial<TCommand> = {};
 
         commandProperties.forEach((propertyName: string) => {
-            if ((props.currentValues as Record<string, unknown>)[propertyName] !== undefined) {
+            if (Object.prototype.hasOwnProperty.call(props.currentValues, propertyName)) {
                 (extracted as Record<string, unknown>)[propertyName] = (props.currentValues as Record<string, unknown>)[propertyName];
             }
         });

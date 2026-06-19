@@ -82,3 +82,93 @@ describe("when currentValues changes", given(a_command_form_context, context => 
         input.value.should.equal('Updated Name');
     });
 }));
+
+describe("when currentValues clear a property to null", given(a_command_form_context, context => {
+    let capturedCommand: TestCommand | null = null;
+    let renderResult: ReturnType<typeof render>;
+
+    beforeEach(async () => {
+        const TestWrapper = () => {
+            const [currentData, setCurrentData] = useState<Partial<TestCommand>>({ name: 'Initial Name' });
+
+            const TestComponent = () => {
+                const command = useCommandInstance<TestCommand>();
+                capturedCommand = command;
+                return React.createElement('button', {
+                    onClick: () => setCurrentData({ name: null as unknown as string }),
+                    'data-testid': 'clear-button'
+                }, 'Clear');
+            };
+
+            return React.createElement(
+                CommandForm,
+                { command: TestCommand, currentValues: currentData },
+                React.createElement(TestComponent)
+            );
+        };
+
+        renderResult = render(
+            React.createElement(TestWrapper),
+            { wrapper: context.createWrapper() }
+        );
+
+        await waitFor(() => {
+            return capturedCommand !== null;
+        });
+
+        fireEvent.click(renderResult.getByTestId('clear-button'));
+
+        await waitFor(() => {
+            expect(capturedCommand!.name).toBeNull();
+        });
+    });
+
+    it("should update command instance with null value", () => {
+        expect(capturedCommand!.name).toBeNull();
+    });
+}));
+
+describe("when currentValues clear a property to undefined", given(a_command_form_context, context => {
+    let capturedCommand: TestCommand | null = null;
+    let renderResult: ReturnType<typeof render>;
+
+    beforeEach(async () => {
+        const TestWrapper = () => {
+            const [currentData, setCurrentData] = useState<Partial<TestCommand>>({ name: 'Initial Name' });
+
+            const TestComponent = () => {
+                const command = useCommandInstance<TestCommand>();
+                capturedCommand = command;
+                return React.createElement('button', {
+                    onClick: () => setCurrentData({ name: undefined }),
+                    'data-testid': 'clear-button'
+                }, 'Clear');
+            };
+
+            return React.createElement(
+                CommandForm,
+                { command: TestCommand, currentValues: currentData },
+                React.createElement(TestComponent)
+            );
+        };
+
+        renderResult = render(
+            React.createElement(TestWrapper),
+            { wrapper: context.createWrapper() }
+        );
+
+        await waitFor(() => {
+            return capturedCommand !== null;
+        });
+
+        fireEvent.click(renderResult.getByTestId('clear-button'));
+
+        await waitFor(() => {
+            expect(capturedCommand!.name).toBeUndefined();
+        });
+    });
+
+    it("should update command instance with undefined value", () => {
+        expect(capturedCommand!.name).toBeUndefined();
+    });
+}));
