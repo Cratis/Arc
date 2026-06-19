@@ -56,7 +56,9 @@ public static class TestProject
             MetadataReference.CreateFromFile(typeof(CSharpCompilation).Assembly.Location),
             MetadataReference.CreateFromFile(systemRuntime.Location),
             MetadataReference.CreateFromFile(typeof(Aggregates.AggregateRoot).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Cratis.Chronicle.Events.EventContext).Assembly.Location)
+            MetadataReference.CreateFromFile(typeof(Cratis.Chronicle.Events.EventContext).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Cratis.Chronicle.EventSequences.EventForEventSourceId).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Cratis.Arc.Commands.ModelBound.CommandAttribute).Assembly.Location)
         ];
     }
 }
