@@ -135,7 +135,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         this.propertyDescriptors.forEach(propertyDescriptor => {
             if (!propertyDescriptor.isOptional && !this.requestParameters.includes(propertyDescriptor.name)) {
                 const value = this[propertyDescriptor.name];
-                if (value === undefined || value === null || value === '') {
+                if (value === undefined || value === null) {
                     validationErrors.push(new ValidationResult(
                         ValidationResultSeverity.Error,
                         `${propertyDescriptor.name} is required`,

@@ -183,8 +183,11 @@ Mark fields as required using the `required` prop:
 
 Required fields:
 - Show visual indicator when invalid
-- Prevent form submission when empty
-- Display error messages when validation fails
+- Mark field controls as required
+- Display error messages when validation rules fail
+- Should be paired with explicit command validation rules when empty strings must be invalid
+
+Non-nullable command properties are treated as required for command payload presence, but empty strings are valid string values unless a validation rule rejects them. Use `[Required]`, FluentValidation `NotEmpty()`, or generated client validators when empty or whitespace-only strings should fail before submit.
 
 ## Automatic Error Display
 
@@ -292,7 +295,7 @@ public record CreateUser(string Email, string Username)
 ```
 
 When the form is submitted:
-1. Frontend validation runs first (required, type checking)
+1. Generated frontend validation rules run first
 2. Command is sent to backend if frontend validation passes
 3. Backend validation rules execute
 4. Validation errors are returned and displayed in the form
