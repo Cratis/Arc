@@ -82,5 +82,41 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Make the read model parameter nullable when absence is part of the command's valid behavior. Keep it non-nullable when absence should fail as a required dependency, or inject IReadModels for explicit existence checks.");
 
+    /// <summary>
+    /// ARC0007: Command should be declared as a record.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0007_CommandShouldBeRecord = new(
+        id: "ARC0007",
+        title: "Command should be declared as a record",
+        messageFormat: "Command '{0}' is declared as a class. Declare it as a record for value equality, immutability, and concise syntax.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Commands are immutable data structures and should be declared as records. Records give value equality, immutability, and concise positional syntax that the model-bound command pipeline relies on. Change the 'class' declaration to 'record'.");
+
+    /// <summary>
+    /// ARC0008: ReadModel should be declared as a record.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0008_ReadModelShouldBeRecord = new(
+        id: "ARC0008",
+        title: "ReadModel should be declared as a record",
+        messageFormat: "ReadModel '{0}' is declared as a class. Declare it as a record for value equality, immutability, and concise syntax.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Read models are immutable projections of events and should be declared as records. Records give value equality, immutability, and concise positional syntax. Change the 'class' declaration to 'record'.");
+
+    /// <summary>
+    /// ARC0009: Concept should be declared as a record.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0009_ConceptShouldBeRecord = new(
+        id: "ARC0009",
+        title: "Concept should be declared as a record",
+        messageFormat: "Concept '{0}' inherits ConceptAs<T> but is declared as a class. Declare it as a record so value equality and immutability work as intended.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Concepts inherit ConceptAs<T> to wrap a primitive in a strongly-typed domain value. They must be declared as positional records so that value equality, immutability, and the implicit conversions behave correctly. Change the 'class' declaration to 'record'.");
+
     const string Category = "Arc";
 }
