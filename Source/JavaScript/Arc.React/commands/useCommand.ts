@@ -57,7 +57,7 @@ export function useCommand<
     const setCommandValues = useCallback((values: TCommandContent) => {
         const valuesRecord = values as Record<string, unknown>;
         command!.current!.propertyDescriptors.forEach((propertyDescriptor) => {
-            if (valuesRecord[propertyDescriptor.name] !== undefined && valuesRecord[propertyDescriptor.name] != null) {
+            if (Object.prototype.hasOwnProperty.call(valuesRecord, propertyDescriptor.name)) {
                 (command.current as Record<string, unknown>)[propertyDescriptor.name] = valuesRecord[propertyDescriptor.name];
             }
         });
