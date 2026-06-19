@@ -56,7 +56,8 @@ public static class TestProject
             MetadataReference.CreateFromFile(typeof(CSharpCompilation).Assembly.Location),
             MetadataReference.CreateFromFile(systemRuntime.Location),
             MetadataReference.CreateFromFile(typeof(FluentValidation.AbstractValidator<>).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Commands.ModelBound.CommandAttribute).Assembly.Location)
+            MetadataReference.CreateFromFile(typeof(Commands.ModelBound.CommandAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Cratis.Concepts.ConceptAs<>).Assembly.Location)
         ];
     }
 }
