@@ -25,8 +25,73 @@
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.AspNetCore" />
     </ItemGroup>
+
+    <!-- Bundle every Cratis Roslyn analyzer into this meta package so that a single reference to Cratis
+         brings the full set of analyzers. NuGet marks analyzer assets as private by default, so analyzers
+         from dependency packages do not flow transitively to consumers of this package. We therefore pack
+         the analyzer assemblies directly into analyzers/dotnet/cs. -->
+    <ItemGroup>
+        <!-- In-repo analyzers and generators. Referenced so they are built before this project packs. -->
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- External analyzer packages: resolve their restored package path so the analyzer assemblies can be repacked. -->
+    <ItemGroup>
+        <PackageReference Include="Cratis.Fundamentals" GeneratePathProperty="true" PrivateAssets="all" />
+        <PackageReference Include="Cratis.Metrics.Roslyn" GeneratePathProperty="true" PrivateAssets="all" />
+    </ItemGroup>
+
     <ItemGroup>
         <None Include="GlobalUsings.cs" Pack="true" PackagePath="contentFiles/cs/any" />
         <None Include="build/Cratis.props" Pack="true" PackagePath="build;buildTransitive" />
+
+        <!-- In-repo analyzers (ARC*, ARCCHR*) and the Arc source generator. -->
+        <None Include="../Arc.Core.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="../Arc.Core.Generators/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.Generators.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="../Chronicle.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
+
+    <!-- Architecture analyzers (CRARCH*) live in the separate Cratis.Architecture repository and ship as the
+         Cratis.Architecture.CodeAnalysis package. Enable once that package is published by setting
+         IncludeArchitectureAnalyzers=true (and the version in Directory.Packages.props). -->
+    <ItemGroup Condition="'$(IncludeArchitectureAnalyzers)' == 'true'">
+        <PackageReference Include="Cratis.Architecture.CodeAnalysis" GeneratePathProperty="true" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- The path properties generated for external analyzer packages ($(PkgCratis_*)) are only populated in the
+         per-TFM inner builds, not in the outer (TargetFramework-less) build where pack gathers framework-agnostic
+         None items. We therefore add the external analyzer assemblies through TargetsForTfmSpecificContentInPackage,
+         emitting them once (during the net10.0 inner build) since analyzer assemblies are framework-agnostic. -->
+    <PropertyGroup>
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddExternalAnalyzersToPackage</TargetsForTfmSpecificContentInPackage>
+    </PropertyGroup>
+
+    <Target Name="AddExternalAnalyzersToPackage" Condition="'$(TargetFramework)' == 'net10.0'">
+        <ItemGroup>
+            <TfmSpecificPackageFile Include="$(PkgCratis_Fundamentals)/analyzers/dotnet/cs/Cratis.Fundamentals.TypeDiscovery.Generator.dll"
+                                    Condition="'$(PkgCratis_Fundamentals)' != ''">
+                <PackagePath>analyzers/dotnet/cs</PackagePath>
+            </TfmSpecificPackageFile>
+            <TfmSpecificPackageFile Include="$(PkgCratis_Metrics_Roslyn)/analyzers/dotnet/cs/Cratis.Metrics.Roslyn.dll"
+                                    Condition="'$(PkgCratis_Metrics_Roslyn)' != ''">
+                <PackagePath>analyzers/dotnet/cs</PackagePath>
+            </TfmSpecificPackageFile>
+            <TfmSpecificPackageFile Include="$(PkgCratis_Metrics_Roslyn)/analyzers/dotnet/cs/Handlebars.dll"
+                                    Condition="'$(PkgCratis_Metrics_Roslyn)' != ''">
+                <PackagePath>analyzers/dotnet/cs</PackagePath>
+            </TfmSpecificPackageFile>
+            <TfmSpecificPackageFile Include="$(PkgCratis_Architecture_CodeAnalysis)/analyzers/dotnet/cs/Cratis.Architecture.CodeAnalysis.dll"
+                                    Condition="'$(IncludeArchitectureAnalyzers)' == 'true' and '$(PkgCratis_Architecture_CodeAnalysis)' != ''">
+                <PackagePath>analyzers/dotnet/cs</PackagePath>
+            </TfmSpecificPackageFile>
+        </ItemGroup>
+    </Target>
 </Project>
