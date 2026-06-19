@@ -166,6 +166,18 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const lastServerValidateVersion = React.useRef<number>(-1);
     const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
 
+    const validateSilently = useCallback(async (showErrors: boolean) => {
+        if (commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+            const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+            if (validationResult) {
+                setSilentValidationResult(validationResult);
+                if (showErrors) {
+                    setCommandResult(validationResult);
+                }
+            }
+        }
+    }, [commandInstance]);
+
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
     // When using currentValues, always update when they change (reactive mode for editing)
     // When using initialValues only, set values once on mount
@@ -182,25 +194,17 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             setCommandValues(mergedInitialValues as TCommand);
         }
 
-        // Always run silent client validation on init to determine if the form is valid.
+        // Always run silent client validation on init and after currentValues changes to determine if the form is valid.
         // This ensures isValid reflects the real validity state from the first render,
         // even when no error messages are shown yet.
         // Error messages are only rendered (via commandResult) when validateOnInit is true.
-        if (!initializedRef.current && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+        if (!initializedRef.current) {
             initializedRef.current = true;
-            void (async () => {
-                const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
-                if (validationResult) {
-                    setSilentValidationResult(validationResult);
-                    if (props.validateOnInit) {
-                        setCommandResult(validationResult);
-                    }
-                }
-            })();
-        } else if (!initializedRef.current) {
-            initializedRef.current = true;
+            void validateSilently(props.validateOnInit ?? false);
+        } else if (hasCurrentValues) {
+            void validateSilently(props.validateOnInit ?? false);
         }
-    }, [mergedInitialValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues]);
+    }, [mergedInitialValues, props.validateOnInit, props.currentValues, setCommandValues, validateSilently]);
 
     // isValid is driven exclusively by silentValidationResult which is updated on mount and
     // after every field value change. commandResult only controls error message display.
