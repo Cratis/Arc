@@ -2,8 +2,14 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
+    <!-- Allow pinning vulnerable transitive packages to patched versions via PackageVersion entries below. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Transitive security pins -->
+    <!-- SQLitePCLRaw 2.1.10/2.1.11 (pulled in transitively by EF Core Sqlite) has a high-severity advisory
+         (GHSA-2m69-gcr7-jv3q). Pin the native library to the patched release. -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- Cratis -->
     <PackageVersion Include="Cratis.Chronicle" Version="15.33.11" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.33.11" />
