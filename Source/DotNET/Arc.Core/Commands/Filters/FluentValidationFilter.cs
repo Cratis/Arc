@@ -18,15 +18,27 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
-        commandResult.MergeWith(await Validate(context, context.Command));
+        commandResult.MergeWith(await Validate(context, context.Command, new HashSet<object>(ReferenceEqualityComparer.Instance)));
         return commandResult;
     }
 
-    async Task<CommandResult> Validate(CommandContext context, object instance)
+    async Task<CommandResult> Validate(CommandContext context, object instance, HashSet<object> visited)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
 
         var instanceType = instance.GetType();
+
+        // Guard against cycles in arbitrary object graphs. Some types — notably
+        // System.Text.Json.Nodes.JsonNode — hold a back-reference from every child to its parent, so
+        // blindly walking child properties would recurse forever and overflow the stack. Only reference
+        // types can participate in a cycle; value types are boxed afresh on each access, so tracking them
+        // would never dedupe and would only add overhead. ReferenceEqualityComparer keys on identity, so
+        // distinct-but-equal instances (e.g. two equal concept values in a list) are still each validated.
+        if (!instanceType.IsValueType && !visited.Add(instance))
+        {
+            return commandResult;
+        }
+
         if (TryGetValidator(context, instanceType, out var validator))
         {
             var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
@@ -63,7 +75,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                 foreach (var element in (System.Collections.IEnumerable)instance)
                 {
                     if (element is null) continue;
-                    commandResult.MergeWith(await Validate(context, element));
+                    commandResult.MergeWith(await Validate(context, element, visited));
                 }
             }
             else
@@ -81,7 +93,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                     var propertyValue = property.GetValue(instance);
                     if (propertyValue is not null)
                     {
-                        commandResult.MergeWith(await Validate(context, propertyValue));
+                        commandResult.MergeWith(await Validate(context, propertyValue, visited));
                     }
                 }
             }
