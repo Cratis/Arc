@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+    </PropertyGroup>
+
+    <!-- Reproduces the meta-package double-load: a consumer that references the Cratis meta package AND a package
+         that transitively brings Cratis.Arc.Core (Cratis.Arc.MongoDB -> Cratis.Arc.Core). Both deliver the Arc
+         source generator, which without the de-duplication target in Cratis.props would run twice and fail with
+         CS0101. The [ReadModel] below makes the generator emit GeneratedQueryMetadata as well as the marker, so
+         this exercises the full generated output, not just the marker. -->
+    <ItemGroup>
+        <PackageReference Include="Cratis" Version="1.0.0" />
+        <PackageReference Include="Cratis.Arc.MongoDB" Version="1.0.0" />
+    </ItemGroup>
+</Project>
