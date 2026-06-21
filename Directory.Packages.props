@@ -11,26 +11,29 @@
          (GHSA-2m69-gcr7-jv3q). Pin the native library to the patched release. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.33.11" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.33.11" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.33.11" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.15.1" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.15.0" />
-    <!-- Architecture analyzers — only restored when IncludeArchitectureAnalyzers=true (see Cratis.csproj). Update once published. -->
-    <PackageVersion Include="Cratis.Architecture.CodeAnalysis" Version="1.0.0" />
+    <!-- Floor must be the released Chronicle whose IEventSequence.AppendMany/Append signature Arc compiles
+         against. 15.35.0 added a trailing optional 'Subject? subject' parameter to AppendMany/Append; Arc
+         compiled against an older signature would bind to a method that no longer exists at runtime and throw
+         MissingMethodException. Keep this floor at the version Arc is built against so a mismatch fails
+         'dotnet restore' instead of crashing at runtime. See AppendMany signature guard spec. -->
+    <PackageVersion Include="Cratis.Chronicle" Version="15.35.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.35.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.35.0" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.16.0" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.70" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.6.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.9" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.6.3" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.6.3" />
