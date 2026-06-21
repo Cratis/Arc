@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.CodeAnalysis</AssemblyName>
+        <RootNamespace>Cratis.CodeAnalysis</RootNamespace>
+        <Description>The full set of Cratis Arc Roslyn analyzers (ARC*, ARCCHR*) in a single reference. Opt in to all the analyzers at once instead of referencing each analyzer package individually.</Description>
+        <PackageTags>cratis;arc;chronicle;analyzers;roslyn;codeanalysis</PackageTags>
+        <!-- Analyzer-only package: it ships no runtime assembly, only the bundled analyzer DLLs, and needs no
+             package dependencies of its own. -->
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeSymbols>false</IncludeSymbols>
+        <IncludeSource>false</IncludeSource>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
+    </PropertyGroup>
+
+    <!-- Build the in-repo lint analyzers first so their assemblies exist to bundle. ReferenceOutputAssembly=false
+         and PrivateAssets=all keep them off this package's compile/runtime surface and out of its dependencies.
+         Only the lint analyzers are bundled here — functional source generators (e.g. Cratis.Arc.Core.Generators)
+         ship with the package they serve, never here, so this umbrella can never collide with a functional
+         package's generator. -->
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Bundle the lint analyzer assemblies so a single Cratis.CodeAnalysis reference brings the full set. -->
+    <ItemGroup>
+        <None Include="../Arc.Core.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="../Chronicle.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+</Project>
