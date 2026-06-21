@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { noHooksInViewModel } from './lib/noHooksInViewModel.js';
+import { noDirectMobxReactImport } from './lib/noDirectMobxReactImport.js';
 import { isGeneratedProxy, skipGeneratedProxies } from './lib/skipGeneratedProxies.js';
 
 const { version } = createRequire(import.meta.url)('./package.json');
@@ -10,7 +11,10 @@ const { version } = createRequire(import.meta.url)('./package.json');
 // directly. Composes on top of @cratis/eslint-config.
 const plugin = {
     meta: { name: '@cratis/eslint-plugin-arc', version },
-    rules: { 'no-hooks-in-view-model': noHooksInViewModel },
+    rules: {
+        'no-hooks-in-view-model': noHooksInViewModel,
+        'no-direct-mobx-react-import': noDirectMobxReactImport,
+    },
     processors: { 'skip-generated-proxies': skipGeneratedProxies },
     configs: {},
 };
@@ -33,6 +37,7 @@ Object.assign(plugin.configs, {
             plugins: { '@cratis/arc': plugin },
             rules: {
                 '@cratis/arc/no-hooks-in-view-model': 'error',
+                '@cratis/arc/no-direct-mobx-react-import': 'error',
             },
         },
     ],
@@ -40,4 +45,4 @@ Object.assign(plugin.configs, {
 
 export default plugin;
 export const { configs, rules, processors, meta } = plugin;
-export { noHooksInViewModel, skipGeneratedProxies, isGeneratedProxy };
+export { noHooksInViewModel, noDirectMobxReactImport, skipGeneratedProxies, isGeneratedProxy };
