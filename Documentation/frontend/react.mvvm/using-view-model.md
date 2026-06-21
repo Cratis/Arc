@@ -32,6 +32,102 @@ The `viewModel` is automatically observable, which means that all properties on 
 if there are any changes to them. This means that the `increaseCounter()` method can just go ahead and
 increase the counter and the view will automatically re-render.
 
+## Observer boundaries
+
+`withViewModel()` observes the render of the component it wraps — and only that render. The view model
+is built on [mobx](https://mobx.js.org) (see [MVVM context](./mvvm-context.md)), so MobX tracks which
+observable view model properties a render reads and re-renders that component when they change.
+
+This has an important consequence: a **child** component that reads observable view model state
+*directly* sits outside the parent's observer boundary. MobX never tracks that read, so the child does
+not re-render when the state changes — even though the value on screen is stale.
+
+```tsx
+import { withViewModel } from '@cratis/arc.react.mvvm';
+
+// The child reads `viewModel.counter` directly — but it has no observer boundary of its own,
+// so it will NOT re-render when the counter changes.
+const CounterValue = ({ viewModel }: { viewModel: CounterViewModel }) => (
+    <span>Counter is : {viewModel.counter}</span>
+);
+
+export const Counter = withViewModel(CounterViewModel, ({ viewModel }) => {
+    return (
+        <>
+            <CounterValue viewModel={viewModel} />
+            <button onClick={() => viewModel.increaseCounter()}>Increase counter</button>
+        </>
+    );
+});
+```
+
+### Prefer passing plain props down
+
+The cleanest fix is to keep observable reads inside the wrapped component and pass plain values down to
+presentational children. The parent is already observed, so reading `viewModel.counter` there is tracked,
+and the child re-renders because its `value` prop changed like any other React prop:
+
+```tsx
+import { withViewModel } from '@cratis/arc.react.mvvm';
+
+// Presentational child — receives a plain value, knows nothing about the view model.
+const CounterValue = ({ value }: { value: number }) => (
+    <span>Counter is : {value}</span>
+);
+
+export const Counter = withViewModel(CounterViewModel, ({ viewModel }) => {
+    return (
+        <>
+            <CounterValue value={viewModel.counter} />
+            <button onClick={() => viewModel.increaseCounter()}>Increase counter</button>
+        </>
+    );
+});
+```
+
+This keeps reactivity entirely within the wrapped component and leaves children as simple, predictable
+functions of their props.
+
+### Wrap a leaf that must read view model state directly
+
+When a child genuinely needs to read observable view model state directly — for example a list that
+filters a large collection the view model owns — give just that leaf its own observer boundary with
+`observer()`. Import it from `@cratis/arc.react.mvvm`:
+
+```tsx
+import { observer, withViewModel } from '@cratis/arc.react.mvvm';
+
+// The leaf reads observable state directly and is wrapped in `observer()`, so it has its
+// own boundary and re-renders when `filteredPartners` changes.
+const PartnerResults = observer(({ viewModel }: { viewModel: PartnerSearchViewModel }) => (
+    <ul>
+        {viewModel.filteredPartners.map(partner => <li key={partner.id}>{partner.name}</li>)}
+    </ul>
+));
+
+export const PartnerSearch = withViewModel(PartnerSearchViewModel, ({ viewModel }) => {
+    return (
+        <>
+            <input
+                value={viewModel.partnerSearch}
+                onChange={event => viewModel.setPartnerSearch(event.target.value)} />
+            <PartnerResults viewModel={viewModel} />
+        </>
+    );
+});
+```
+
+> Note: Always import `observer` from `@cratis/arc.react.mvvm`, never directly from `mobx-react` or
+> `mobx-react-lite`. Going through Cratis Arc keeps the MobX binding an internal detail that can evolve
+> without breaking your code, and the
+> [Cratis Arc ESLint plugin](https://github.com/Cratis/Arc/blob/main/Source/JavaScript/Arc.ESLint/README.md)
+> flags direct imports for you.
+
+Reach for `observer()` only on the specific leaf that reads observable state directly. Do not blanket-wrap
+every component — that adds render-tracking overhead everywhere and obscures which components actually
+depend on view model state. Prefer the plain-props pattern above, and drop down to a leaf `observer()`
+only when a child must read view model observables itself.
+
 ## Props
 
 Components can have props associated with them. The `withViewModel` supports specifying props type and
