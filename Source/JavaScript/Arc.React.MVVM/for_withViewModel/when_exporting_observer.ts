@@ -7,4 +7,9 @@ describe('when exporting observer', () => {
     it('should export the mobx observer function', () => {
         observer.should.be.a('function');
     });
+
+    it('should wrap a component into an observer component', () => {
+        const Wrapped = observer(() => null);
+        Wrapped.should.not.be.null;
+    });
 });
