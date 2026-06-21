@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <ItemGroup>
-        <PackageVersion Update="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.24" />
+        <PackageVersion Update="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.28" />
         <PackageVersion Update="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
         <PackageVersion Update="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
         <!-- The shared net8/net9 file keeps EF Core at 9.x, and EF Core 9.x requires DependencyModel 9.x,
              so net8 must use the 9.x DependencyModel too rather than the 8.x line. -->
-        <PackageVersion Update="Microsoft.Extensions.DependencyModel" Version="9.0.13" />
+        <PackageVersion Update="Microsoft.Extensions.DependencyModel" Version="9.0.17" />
     </ItemGroup>
 </Project>
