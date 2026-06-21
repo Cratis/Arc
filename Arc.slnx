@@ -16,6 +16,7 @@
         <Project Path="Source\DotNET\Chronicle.Testing\Chronicle.Testing.csproj" />
         <Project Path="Source\DotNET\Cratis.Testing\Cratis.Testing.csproj" />
         <Project Path="Source\DotNET\Cratis\Cratis.csproj" />
+        <Project Path="Source\DotNET\Cratis.CodeAnalysis\Cratis.CodeAnalysis.csproj" />
         <Project Path="Source\DotNET\Chronicle\Chronicle.csproj" />
         <Project Path="Source\DotNET\Chronicle.Specs\Chronicle.Specs.csproj" />
         <Project Path="Source\DotNET\Chronicle.CodeAnalysis\Chronicle.CodeAnalysis.csproj" />

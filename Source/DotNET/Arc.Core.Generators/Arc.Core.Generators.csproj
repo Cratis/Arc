@@ -12,13 +12,13 @@
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
         <NoWarn>$(NoWarn);NU5128;NU1507</NoWarn>
+        <!-- This functional source generator ships inside Cratis.Arc.Core (it emits AOT query metadata into the
+             consumer's assembly), so it must not also be published as a standalone package. Referencing both
+             would load the same generator twice and fail with CS0101. -->
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
 </Project>
