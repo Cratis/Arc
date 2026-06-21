@@ -6,8 +6,8 @@
         <PackageVersion Update="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.16" />
         <PackageVersion Update="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.16" />
         <PackageVersion Update="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-        <PackageVersion Update="Microsoft.Extensions.Logging" Version="10.0.8" />
-        <PackageVersion Update="Microsoft.Extensions.DependencyModel" Version="10.0.8" />
+        <PackageVersion Update="Microsoft.Extensions.Logging" Version="10.0.9" />
+        <PackageVersion Update="Microsoft.Extensions.DependencyModel" Version="10.0.9" />
         <PackageVersion Update="System.Reflection.MetadataLoadContext" Version="10.0.8" />
         <PackageVersion Update="Microsoft.Build.Framework" Version="18.6.3" />
         <PackageVersion Update="Microsoft.Build.Utilities.Core" Version="18.6.3" />
@@ -15,9 +15,9 @@
              This causes NSubstitute/Castle.DynamicProxy failures in tests when 9.x version is used.
              Only apply the 9.x override for non-test projects. -->
         <PackageVersion Update="System.Text.Json" Version="10.0.8" Condition="'$(IsTestProject)' != 'true'" />
-        <PackageVersion Update="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.8" />
+        <PackageVersion Update="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.9" />
         <PackageVersion Update="Microsoft.Extensions.Telemetry" Version="10.6.0" />
-        <PackageVersion Update="Microsoft.Extensions.Hosting" Version="10.0.8" />
+        <PackageVersion Update="Microsoft.Extensions.Hosting" Version="10.0.9" />
         <PackageVersion Update="Microsoft.Extensions.Resilience" Version="10.6.0" />
     </ItemGroup>
 </Project>

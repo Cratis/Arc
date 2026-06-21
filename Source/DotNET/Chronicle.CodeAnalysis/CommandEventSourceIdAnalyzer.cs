@@ -59,7 +59,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (HandleReturnsOnlyEventForEventSourceId(namedTypeSymbol))
+        if (HandleReturnsExplicitEventSource(namedTypeSymbol))
         {
             return;
         }
@@ -129,7 +129,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             @interface.Name == CanProvideEventSourceIdName &&
             @interface.ContainingNamespace?.ToDisplayString() == EventsNamespace);
 
-    static bool HandleReturnsOnlyEventForEventSourceId(INamedTypeSymbol typeSymbol)
+    static bool HandleReturnsExplicitEventSource(INamedTypeSymbol typeSymbol)
     {
         var handleMethods = typeSymbol.GetMembers("Handle")
             .OfType<IMethodSymbol>()
@@ -139,10 +139,10 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
                 !method.IsStatic)
             .ToArray();
 
-        return handleMethods.Length > 0 && handleMethods.All(ReturnsOnlyEventForEventSourceId);
+        return handleMethods.Length > 0 && handleMethods.All(ReturnsExplicitEventSource);
     }
 
-    static bool ReturnsOnlyEventForEventSourceId(IMethodSymbol method)
+    static bool ReturnsExplicitEventSource(IMethodSymbol method)
     {
         var returnType = UnwrapTask(method.ReturnType);
         if (returnType is null)
@@ -150,7 +150,34 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             return false;
         }
 
-        return IsEventForEventSourceId(returnType) || IsSequenceOfEventForEventSourceId(returnType);
+        if (IsEventForEventSourceId(returnType) || IsSequenceOfEventForEventSourceId(returnType))
+        {
+            return true;
+        }
+
+        return TupleProvidesExplicitEventSource(returnType);
+    }
+
+    static bool TupleProvidesExplicitEventSource(ITypeSymbol returnType)
+    {
+        if (returnType is not INamedTypeSymbol { IsTupleType: true } tuple)
+        {
+            return false;
+        }
+
+        var elements = tuple.TupleElements;
+
+        // A returned or generated EventForEventSourceId (or a sequence of them) carries its own event source id,
+        // regardless of which position it sits in the tuple.
+        if (elements.Any(element => IsEventForEventSourceId(element.Type) || IsSequenceOfEventForEventSourceId(element.Type)))
+        {
+            return true;
+        }
+
+        // New-stream create: the first element is the event source id — a concept deriving from EventSourceId<T> —
+        // so the event source is the returned/generated id rather than a command property. ICanProvideEventSourceId
+        // is neither needed nor implementable there.
+        return elements.Length > 0 && IsOrDerivesFromEventSourceId(elements[0].Type);
     }
 
     static ITypeSymbol? UnwrapTask(ITypeSymbol returnType)
