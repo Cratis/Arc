@@ -2,4 +2,58 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)\..\contentFiles\cs\any\GlobalUsings.cs" Link="GlobalUsings.Cratis.cs" Visible="false" />
   </ItemGroup>
+
+  <!--
+    The Cratis meta package bundles every Cratis Roslyn analyzer/generator into analyzers/dotnet/cs so a single
+    reference to Cratis brings the full set. Some of those same analyzer assemblies (e.g. the Arc source generator
+    and the Fundamentals type-discovery generator) ALSO ship in the individual packages (Cratis.Arc.Core,
+    Cratis.Fundamentals, ...). A consumer that references Cratis AND any package that brings one of those
+    individual packages — directly or transitively (Cratis.Arc.MongoDB -> Cratis.Arc.Core, for example) — ends up
+    with the same generator assembly on two analyzer paths. Roslyn loads each path as a distinct generator and runs
+    it twice, so every unconditionally-generated type is emitted twice and the build fails with CS0101
+    (e.g. 'Cratis.Arc.Generated.GeneratedMarker' already contains a definition).
+
+    De-duplicate @(Analyzer) by file name (keeping the first occurrence) just before compilation. Because this runs
+    in every consumer of the Cratis meta package via buildTransitive, duplicate analyzer DLLs collapse to one
+    regardless of how they were restored. Filename-keyed de-duplication is not expressible with the built-in item
+    functions (which compare by full path), so a tiny inline task does it.
+  -->
+  <UsingTask TaskName="CratisDeduplicateAnalyzersByFileName"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Analyzers ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Result ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          var seenFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+          var kept = new List<Microsoft.Build.Framework.ITaskItem>();
+          foreach (var analyzer in Analyzers)
+          {
+              var fileName = Path.GetFileName(analyzer.ItemSpec);
+              if (seenFileNames.Add(fileName))
+              {
+                  kept.Add(analyzer);
+              }
+          }
+          Result = kept.ToArray();
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="CratisDeduplicateAnalyzers" BeforeTargets="CoreCompile">
+    <CratisDeduplicateAnalyzersByFileName Analyzers="@(Analyzer)">
+      <Output TaskParameter="Result" ItemName="_CratisDedupedAnalyzer" />
+    </CratisDeduplicateAnalyzersByFileName>
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" />
+      <Analyzer Include="@(_CratisDedupedAnalyzer)" />
+    </ItemGroup>
+  </Target>
 </Project>

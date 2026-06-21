@@ -204,7 +204,13 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         .AppendLine("/// <summary>")
         .AppendLine("/// Marker type that confirms Arc source generators have run for the assembly.")
         .AppendLine("/// </summary>")
-        .AppendLine("public static class GeneratedMarker")
+
+        // Declared 'partial' so that if the same generator assembly is loaded from more than one analyzer path
+        // in a single compilation (e.g. a consumer referencing both the Cratis meta package and a package that
+        // also ships this generator), the duplicate marker declarations merge into one type instead of failing
+        // the build with CS0101. The primary fix de-duplicates the analyzer references (see Cratis.props), but
+        // this keeps the generated output collision-proof regardless of how the analyzer is delivered.
+        .AppendLine("public static partial class GeneratedMarker")
         .AppendLine("{")
         .AppendLine("}")
         .ToString();
