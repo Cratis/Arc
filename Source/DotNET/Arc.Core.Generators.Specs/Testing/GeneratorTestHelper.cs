@@ -34,6 +34,27 @@ public static class GeneratorTestHelper
     }
 
     /// <summary>
+    /// Compiles the supplied source texts together and returns the resulting compilation diagnostics.
+    /// </summary>
+    /// <param name="sources">The C# source texts to compile in a single compilation.</param>
+    /// <returns>The <see cref="Diagnostic"/> entries produced by the compilation.</returns>
+    /// <remarks>
+    /// Used to prove that generated output stays collision-proof when the same generator is loaded more than once
+    /// in a single compilation — passing the same generated source twice must not produce a CS0101 duplicate
+    /// definition error.
+    /// </remarks>
+    public static ImmutableArray<Diagnostic> Compile(params string[] sources)
+    {
+        var compilation = CSharpCompilation.Create(
+            "TestAssembly",
+            sources.Select(source => CSharpSyntaxTree.ParseText(source)),
+            GetMetadataReferences(),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        return compilation.GetDiagnostics();
+    }
+
+    /// <summary>
     /// Gets generated source text for a file with a specific hint name.
     /// </summary>
     /// <param name="result">The generator run result.</param>
