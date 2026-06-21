@@ -29,6 +29,6 @@ public class and_read_model_exists_with_no_valid_query_methods : Specification
     }
 
     [Fact] void should_generate_only_marker_source() => _result.GeneratedTrees.Length.ShouldEqual(1);
-    [Fact] void should_generate_marker_type() => _generatedSource.ShouldContain("public static partial class GeneratedMarker");
+    [Fact] void should_generate_marker_type() => _generatedSource.ShouldContain("public static class GeneratedMarker");
     [Fact] void should_have_no_diagnostics() => _result.Diagnostics.Length.ShouldEqual(0);
 }

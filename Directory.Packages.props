@@ -21,8 +21,6 @@
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.35.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.16.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.0" />
-    <!-- Architecture analyzers — only restored when IncludeArchitectureAnalyzers=true (see Cratis.csproj). Update once published. -->
-    <PackageVersion Include="Cratis.Architecture.CodeAnalysis" Version="1.0.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.70" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />
