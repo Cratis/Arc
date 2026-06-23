@@ -63,6 +63,8 @@ public static class MongoDBDefaults
                 .RegisterSerializer(new LineStringSerializer());
             BsonSerializer
                 .RegisterSerializer(new PolygonSerializer());
+            BsonSerializer
+                .RegisterSerializer(new JsonObjectBsonSerializer());
 
             // When you have types with properties defined as object but could hold a Guid, the GuidRepresentation gets by default set to Unspecified.
             // By adding an object serializer for object configured explicitly with the Standard representation it should get serialized correctly and not throw an exception.
