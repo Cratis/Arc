@@ -25,11 +25,12 @@ Or via the meta-package:
 
 ## Basic Usage
 
-Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, four extension properties are available directly on the scenario:
+Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, these extension properties are available directly on the scenario:
 
 | Property | Type | Purpose |
 | -------- | ---- | ------- |
-| `EventScenario` | `EventScenario` | The full scenario object — use for seeding via `Given` |
+| `Given` | `CommandScenarioChronicleGivenBuilder<TCommand>` | Seed the read model state a command observes — `Given.ForEventSource(id).Events(...)` or `.ReadModel(...)` |
+| `EventScenario` | `EventScenario` | The full event scenario — use `EventScenario.Given` to seed the event log |
 | `EventLog` | `IEventLog` | The in-memory event log — use for appending and assertions |
 | `EventSequence` | `IEventSequence` | The same instance as `EventLog` — use with Chronicle's assertion helpers |
 | `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | The events captured during command execution |
@@ -173,23 +174,50 @@ void should_have_exactly_two_events() =>
 
 ## Testing Commands That Take Read Model Dependencies
 
-`CommandScenario<TCommand>` also supports direct read model dependencies in command handlers and validators, using the same convention-based registration as runtime (`IProjectionFor<T>` and model-bound projections).
+A command handler, `Provide` method, or `CommandValidator<T>` can take a read model as a parameter — Arc resolves it for the command's event source id exactly as it does at runtime (`IProjectionFor<T>`, `IReducerFor<T>`, and model-bound projections). To test such a command you need to control what that read model contains, and the awkward way is to hand-mock `IReadModels`.
 
-In tests, you can keep things deterministic by overriding `IReadModels` and returning the instance you want for the current event source id:
+`_scenario.Given.ForEventSource(id)` does it for you, two ways: seed the **events** the read model is built from, or pin a materialized **instance** directly.
+
+### Seeding Read Model State from Events
+
+State the events that happened for the event source. Any read model a command injects for that source is materialized from those events through its own reducer or projection — you never name the read model type here, just as you never do in production:
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+public class when_withdrawing_with_sufficient_funds : Specification
+{
+    readonly EventSourceId _accountId = EventSourceId.New();
+    readonly CommandScenario<Withdraw> _scenario = new();
+    CommandResult _result = default!;
 
-var scenario = new CommandScenario<UseReadModelDependencyCommand>();
-var readModels = Substitute.For<IReadModels>();
+    void Establish() =>
+        _scenario.Given
+            .ForEventSource(_accountId)
+            .Events(new MoneyDeposited(100m), new MoneyDeposited(50m));
 
-readModels
-    .GetInstanceById(typeof(AccountBalanceReadModel), Arg.Any<ReadModelKey>(), default)
-    .Returns(Task.FromResult<object>(new AccountBalanceReadModel(42m)));
+    async Task Because() =>
+        _result = await _scenario.Execute(new Withdraw(_accountId, 120m));
 
-scenario.Services.Replace(ServiceDescriptor.Singleton<IReadModels>(readModels));
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+}
 ```
+
+Events are the facts; read models are derived from them. One `Events(...)` call feeds *every* read model built from those events: if the command injects both an `AccountBalance` and an `AccountStatement`, both are materialized from the same events — no read model type appears in the test.
+
+This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters.
+
+### Pinning a Read Model Instance
+
+When you would rather assert against a known value than express the events behind it, pin the instance directly. The read model type is inferred from the value:
+
+```csharp
+void Establish() =>
+    _scenario.Given
+        .ForEventSource(_accountId)
+        .ReadModel(new AccountBalance(150m));
+```
+
+A read model seeded for one event source is not visible to a command targeting another: resolving an unseeded source yields `null`, so a command that injects a nullable read model parameter sees `null`, exactly as in production.
 
 ## Multiple Events
 
@@ -230,13 +258,14 @@ When `Cratis.Arc.Chronicle.Testing` is referenced, `ChronicleCommandScenarioExte
 - `IEventTypes` → discovered from the assemblies loaded in the test process (same convention used in production)
 - `IEventLog` → backed by the real in-process Chronicle kernel (no server required)
 - `IEventSequence` → the same in-process instance
-- `IReadModels` and convention-registered read model services → enabling direct read model dependencies in handlers and validators
+- `IReadModels` → resolves a command's injected read models from the state seeded with the `Given` builder — by projecting seeded events on demand, or from a pinned instance — enabling direct read model dependencies in handlers, validators, and `Provide` methods
 
-It also populates the scenario context with an `EventScenario` instance, which is exposed through C# 14 extension properties:
+It also populates the scenario context, exposed through C# 14 extension properties:
 
 | Property | Type | Purpose |
 | -------- | ---- | ------- |
-| `EventScenario` | `EventScenario` | The full scenario, including the `Given` builder for seeding events |
+| `Given` | `CommandScenarioChronicleGivenBuilder<TCommand>` | The given builder for seeding read model state — `ForEventSource(id).Events(...)` or `.ReadModel(...)` |
+| `EventScenario` | `EventScenario` | The full scenario, including the `Given` builder for seeding the event log |
 | `EventLog` | `IEventLog` | Shortcut to `EventScenario.EventLog` for Chronicle's own assertion helpers |
 | `EventSequence` | `IEventSequence` | Shortcut to `EventScenario.EventSequence` for Chronicle's assertion helpers |
 | `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | All events captured during command execution, used by `ShouldHaveAppendedEvent` and `ShouldHaveTailSequenceNumber` |
