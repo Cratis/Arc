@@ -52,4 +52,5 @@ The `CommandResult` assertion helpers — `ShouldBeSuccessful`, `ShouldHaveValid
 ## See also
 
 - [Command Scenarios](/arc/backend/testing/command-scenario/) — the full API and every assertion helper.
+- [Testing Chronicle commands](/arc/backend/testing/chronicle/) — seed the read model state a command reads (from events or a pinned instance) and assert the events it appended.
 - [Testing](/arc/backend/testing/) — the testing packages and the Chronicle in-memory event log.
