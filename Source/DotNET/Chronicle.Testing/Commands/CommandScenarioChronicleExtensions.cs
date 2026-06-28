@@ -51,5 +51,11 @@ public static class CommandScenarioChronicleExtensions
         /// </remarks>
         public IReadOnlyList<AppendedEventWithResult> AppendedEvents =>
             (List<AppendedEventWithResult>)scenario.Context[ChronicleCommandScenarioExtender.AppendedEventsKey];
+
+        /// <summary>
+        /// Gets the Chronicle-specific given builder for setting up command scenario state.
+        /// </summary>
+        public CommandScenarioChronicleGivenBuilder<TCommand> Given =>
+            new(scenario);
     }
 }

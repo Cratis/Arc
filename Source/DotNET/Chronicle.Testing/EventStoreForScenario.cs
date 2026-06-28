@@ -25,7 +25,8 @@ namespace Cratis.Arc.Chronicle.Testing;
 /// Represents an <see cref="IEventStore"/> backed by an in-memory <see cref="EventScenario"/>.
 /// </summary>
 /// <param name="eventScenario">The in-memory <see cref="EventScenario"/> to route operations through.</param>
-internal sealed class EventStoreForScenario(EventScenario eventScenario) : IEventStore
+/// <param name="readModels">The read models to expose through the event store.</param>
+internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadModels readModels) : IEventStore
 {
     /// <inheritdoc/>
     public EventStoreName Name => "test-event-store";
@@ -80,8 +81,7 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario) : IEven
         throw new NotSupportedException("Failed partitions are not supported for command scenarios.");
 
     /// <inheritdoc/>
-    public IReadModels ReadModels =>
-        throw new NotSupportedException("Read models are not supported for command scenarios.");
+    public IReadModels ReadModels => readModels;
 
     /// <inheritdoc/>
     public IEventSeeding Seeding =>

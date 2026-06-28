@@ -7,6 +7,7 @@ using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.EventSequences;
+using Cratis.Chronicle.Testing.ReadModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
@@ -40,22 +41,29 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// </summary>
     public const string AppendedEventsKey = "Chronicle.AppendedEvents";
 
+    /// <summary>
+    /// The context key used to store the <see cref="CommandScenarioReadModels"/> that seeded read model state is held in.
+    /// </summary>
+    internal const string ReadModelsKey = "Chronicle.ReadModels";
+
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
     {
         var eventScenario = new EventScenario();
         var appendedEvents = new List<AppendedEventWithResult>();
+        var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
 
         eventScenario.EventLog.AppendOperations.Subscribe(appendedEvents.AddRange);
 
         services.AddSingleton(Defaults.Instance.EventTypes);
         services.AddSingleton(eventScenario.EventLog);
         services.AddSingleton(eventScenario.EventSequence);
-        services.AddSingleton<IReadModels>(_ => Defaults.Instance.EventStore.ReadModels);
+        services.AddSingleton<IReadModels>(readModels);
         services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
-        services.AddSingleton<IEventStore>(_ => new EventStoreForScenario(eventScenario));
+        services.AddSingleton<IEventStore>(_ => new EventStoreForScenario(eventScenario, readModels));
 
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
+        context[ReadModelsKey] = readModels;
     }
 }
