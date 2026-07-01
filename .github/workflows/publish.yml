@@ -38,6 +38,11 @@ on:
       - "**"
     paths:
       - "Source/**"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Directory.Packages.*.props"
+      - "package.json"
+      - "global.json"
 
 permissions:
   contents: write
