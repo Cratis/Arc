@@ -10,6 +10,4 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Queries;
 /// Initializes a new instance of the <see cref="QueryExecutionFailed"/> class.
 /// </remarks>
 /// <param name="message">The error message.</param>
-public class QueryExecutionFailed(string message) : Exception(message)
-{
-}
+public class QueryExecutionFailed(string message) : Exception(message);
