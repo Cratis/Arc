@@ -6,6 +6,8 @@
   href: cratis-package.md
 - name: React to an event
   href: react-to-an-event.md
+- name: Reactors
+  href: reactors/toc.yml
 - name: Read Models
   href: read-models.md
 - name: Commands

@@ -41,6 +41,6 @@ A reactor may be called more than once for the same event — during replay or r
 
 ## See also
 
-- [Reactors](/chronicle/reactors/) — the full reactor model, dispatch, and failure behavior.
+- [Returning Commands as Side Effects](./reactors/toc.yml) — execute commands as side effects from a reactor.
 - [Add event sourcing to an Arc slice](./add-event-sourcing.md) — where reactors enter the Arc model.
 - [Return a result or an error](/arc/scenarios/return-a-result-or-error/) — what the command you execute can return.
