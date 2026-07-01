@@ -10,6 +10,9 @@
     <!-- SQLitePCLRaw 2.1.10/2.1.11 (pulled in transitively by EF Core Sqlite) has a high-severity advisory
          (GHSA-2m69-gcr7-jv3q). Pin the native library to the patched release. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
+    <!-- Microsoft.OpenApi 2.0.0 (pulled in transitively by Microsoft.AspNetCore.OpenApi) has a high-severity
+         advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
     <PackageVersion Include="Cratis.Chronicle" Version="15.38.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.38.0" />
