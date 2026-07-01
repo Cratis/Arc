@@ -11,9 +11,9 @@
          (GHSA-2m69-gcr7-jv3q). Pin the native library to the patched release. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.37.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.37.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.37.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="15.38.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.38.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.38.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.16.2" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.2" />
     <!-- MAUI -->
