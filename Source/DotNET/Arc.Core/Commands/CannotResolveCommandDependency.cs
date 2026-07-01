@@ -10,6 +10,4 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <param name="parameter">The parameter that could not be resolved.</param>
 public class CannotResolveCommandDependency(ParameterInfo parameter)
-    : Exception($"Cannot invoke '{parameter.Member.DeclaringType?.FullName}.{parameter.Member.Name}' because its required dependency '{parameter.ParameterType.FullName}' for parameter '{parameter.Name}' could not be resolved or resolved to null. If this is a Chronicle read model that may not exist, declare the parameter as nullable ('{parameter.ParameterType.Name}?') to receive null, or inject IReadModels and check existence explicitly.")
-{
-}
+    : Exception($"Cannot invoke '{parameter.Member.DeclaringType?.FullName}.{parameter.Member.Name}' because its required dependency '{parameter.ParameterType.FullName}' for parameter '{parameter.Name}' could not be resolved or resolved to null. If this is a Chronicle read model that may not exist, declare the parameter as nullable ('{parameter.ParameterType.Name}?') to receive null, or inject IReadModels and check existence explicitly.");

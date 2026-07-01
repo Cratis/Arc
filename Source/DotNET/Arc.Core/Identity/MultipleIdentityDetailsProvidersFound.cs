@@ -10,6 +10,4 @@ namespace Cratis.Arc.Identity;
 /// Initializes a new instance of the <see cref="MultipleIdentityDetailsProvidersFound"/> class.
 /// </remarks>
 /// <param name="types">Types that were found.</param>
-public class MultipleIdentityDetailsProvidersFound(IEnumerable<Type> types) : Exception($"There should only be one implementation of `{nameof(IProvideIdentityDetails)}` found {string.Join(',', types.Select(_ => _.FullName))}")
-{
-}
+public class MultipleIdentityDetailsProvidersFound(IEnumerable<Type> types) : Exception($"There should only be one implementation of `{nameof(IProvideIdentityDetails)}` found {string.Join(',', types.Select(_ => _.FullName))}");

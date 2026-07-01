@@ -16,9 +16,7 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : BaseDbCont
     public DbSet<Store> Stores { get; set; }
 }
 
-public class EmptyDbContext(DbContextOptions<EmptyDbContext> options) : BaseDbContext(options)
-{
-}
+public class EmptyDbContext(DbContextOptions<EmptyDbContext> options) : BaseDbContext(options);
 
 public class DbContextWithOwnedEntities(DbContextOptions<DbContextWithOwnedEntities> options) : BaseDbContext(options)
 {
