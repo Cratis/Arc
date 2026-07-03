@@ -52,7 +52,7 @@ public class CannotResolveDependency : Exception
 
     static string BuildMessage(string subject, string explanation, Type serviceType, Exception failure)
     {
-        var message = $"Failed to resolve dependency {subject}. {explanation} See the inner exception for details.";
+        var message = $"Failed to resolve dependency {subject}. {explanation} {failure.Message}";
 
         if (ChronicleConfigurationHint.AppliesTo(serviceType, failure))
         {
