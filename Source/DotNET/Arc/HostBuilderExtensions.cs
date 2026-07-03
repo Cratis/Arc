@@ -16,11 +16,13 @@ public static class HostBuilderExtensions
     public static readonly string[] DefaultArcSectionPaths = ["Cratis", "Arc"];
 
     /// <summary>
-    /// Use Cratis Arc with the <see cref="IHostBuilder"/>.
+    /// Adds Cratis Arc — commands, queries, validation, tenancy, and proxy generation — to a generic
+    /// <see cref="IHostBuilder"/>. On its own this wires Arc with no event store.
     /// </summary>
     /// <remarks>
     /// Binds the <see cref="ArcOptions"/> configuration to the given config section path or the default
-    /// Cratis:Arc section path.
+    /// Cratis:Arc section path. To add event sourcing, chain <c>WithChronicle</c> via
+    /// <paramref name="configureBuilder"/>, or use <c>AddCratis</c> for the all-in-one setup.
     /// </remarks>
     /// <param name="builder"><see cref="IHostBuilder"/> to extend.</param>
     /// <param name="configureOptions">The optional callback for configuring <see cref="ArcOptions"/>.</param>

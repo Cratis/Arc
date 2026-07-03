@@ -13,7 +13,9 @@ namespace Cratis.Arc;
 public static class ArcApplicationBuilderExtensions
 {
     /// <summary>
-    /// Adds Cratis Arc services to the application.
+    /// Adds Cratis Arc services — commands, queries, validation, tenancy, and proxy generation — to the
+    /// <see cref="ArcApplicationBuilder"/>. On its own this wires Arc with no event store; chain
+    /// <c>WithChronicle</c> via <paramref name="configureBuilder"/> to add event sourcing.
     /// </summary>
     /// <param name="builder">The <see cref="ArcApplicationBuilder"/>.</param>
     /// <param name="configureOptions">Optional callback for configuring <see cref="ArcOptions"/>.</param>

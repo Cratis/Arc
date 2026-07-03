@@ -17,7 +17,9 @@ namespace Cratis.Arc;
 public static class ArcApplicationExtensions
 {
     /// <summary>
-    /// Configures Cratis Arc middleware and endpoints.
+    /// Activates Cratis Arc on the <see cref="ArcApplication"/>, mapping the identity, introspection, command,
+    /// and query endpoints. Calling it more than once is a no-op. This activates Arc only; when you use event
+    /// sourcing, also activate the Chronicle client.
     /// </summary>
     /// <param name="app">The <see cref="ArcApplication"/>.</param>
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>

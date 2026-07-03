@@ -14,8 +14,22 @@ namespace Cratis.Arc;
 public static class ArcBuilderExtensions
 {
     /// <summary>
-    /// Adds Chronicle support to Arc.
+    /// Adds the Chronicle event store client to an Arc application, so commands and queries can append and read
+    /// events. Chronicle becomes tenant-aware automatically, scoping every event store to the active tenant.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This wires the Chronicle client only — it connects (over gRPC, using the connection string from
+    /// configuration) to a Chronicle instance that runs on its own, typically the <c>cratis/chronicle</c>
+    /// container. It does not start an event store inside your process.
+    /// </para>
+    /// <para>
+    /// Call this on the <see cref="IArcBuilder"/> from <c>AddCratisArc</c> when you want event sourcing but are
+    /// wiring authentication yourself. <c>AddCratis</c> composes it for you as part of the all-in-one setup. Once
+    /// added, activate it with <c>UseCratisChronicle</c> on the built application (or <c>UseCratis</c>, which
+    /// activates both halves).
+    /// </para>
+    /// </remarks>
     /// <param name="builder">The <see cref="IArcBuilder"/> to add to.</param>
     /// <param name="configureOptions">Optional callback for configuring <see cref="ChronicleClientOptions"/>.</param>
     /// <param name="configureChronicleBuilder">Optional callback for configuring the <see cref="IChronicleBuilder"/>.</param>

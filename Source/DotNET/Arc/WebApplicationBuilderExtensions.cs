@@ -13,17 +13,50 @@ namespace Microsoft.AspNetCore.Builder;
 public static class WebApplicationBuilderExtensions
 {
     /// <summary>
-    /// Use Cratis Arc with the <see cref="WebApplicationBuilder"/>.
+    /// Adds Cratis Arc — commands, queries, validation, tenancy, and C# → TypeScript proxy generation — to the
+    /// <see cref="WebApplicationBuilder"/>. On its own this wires Arc with no event store.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Binds the <see cref="ArcOptions"/> configuration to the given config section path or the default
-    /// Cratis:Arc section path.
+    /// Cratis:Arc section path. Pair it with <c>UseCratisArc</c> on the built application.
+    /// </para>
+    /// <para>
+    /// Use this directly to back commands and queries with MongoDB or EF Core instead of an event log. To add
+    /// event sourcing, chain <c>WithChronicle</c> via <paramref name="configureBuilder"/> (or use <c>AddCratis</c>,
+    /// which composes Arc, the Chronicle client, and identity in one call). Calling this without
+    /// <c>WithChronicle</c> while a command or query depends on a Chronicle service such as <c>IEventLog</c> fails
+    /// resolution with a message that points you at the fix.
+    /// </para>
     /// </remarks>
     /// <param name="builder"><see cref="WebApplicationBuilder"/> to extend.</param>
     /// <param name="configureOptions">The optional callback for configuring <see cref="ArcOptions"/>.</param>
     /// <param name="configureBuilder">Callback for configuring the <see cref="IArcBuilder"/>.</param>
     /// <param name="configSectionPath">The optional configuration section path.</param>
     /// <returns><see cref="WebApplicationBuilder"/> for building continuation.</returns>
+    /// <example>
+    /// Arc on its own (back commands and queries with MongoDB or EF Core instead of an event store):
+    /// <code>
+    /// var builder = WebApplication.CreateBuilder(args);
+    ///
+    /// builder.AddCratisArc();
+    ///
+    /// var app = builder.Build();
+    ///
+    /// app.UseCratisArc();
+    /// app.Run();
+    /// </code>
+    /// Arc plus the Chronicle event store, bringing your own authentication (what <c>AddCratis</c> does minus identity):
+    /// <code>
+    /// builder.AddCratisArc(configureBuilder: arc => arc.WithChronicle());
+    ///
+    /// var app = builder.Build();
+    ///
+    /// app.UseCratisArc();
+    /// app.UseCratisChronicle();
+    /// app.Run();
+    /// </code>
+    /// </example>
     public static WebApplicationBuilder AddCratisArc(
         this WebApplicationBuilder builder,
         Action<ArcOptions>? configureOptions = default,
