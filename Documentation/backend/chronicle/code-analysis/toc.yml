@@ -2,3 +2,5 @@
   href: index.md
 - name: ARCCHR0001 - Incorrect aggregate root event handler signature
   href: ARCCHR0001.md
+- name: ARCCHR0005 - Chronicle is used but not wired up
+  href: ARCCHR0005.md

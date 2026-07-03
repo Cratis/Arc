@@ -44,9 +44,12 @@ app.Run();
 
 `AddCratis` is opinionated — it makes a few decisions so you don't have to. Knowing them up front avoids surprises:
 
-- **Arc and Chronicle in one host.** It calls `AddCratisArc` and adds Chronicle through `WithChronicle`, so commands, queries, and the event store share a single application.
-- **Microsoft Identity Platform authentication is wired automatically** (`AddMicrosoftIdentityPlatformIdentityAuthentication`). If you don't want identity baked in, wire Arc and Chronicle separately with `AddCratisArc` + `WithChronicle` instead of `AddCratis`.
+- **Arc and the Chronicle _client_ in one host.** It calls `AddCratisArc` and adds Chronicle through `WithChronicle`, so your commands and queries can reach the event store from a single application. What lands in your process is the Chronicle **client** — `WithChronicle` wires it to connect (over gRPC, using the connection string from configuration) to a Chronicle instance that runs on its own, typically the `cratis/chronicle` container. `AddCratis` does **not** start the Chronicle engine inside your app; it wires the client that talks to it.
+- **Microsoft Identity Platform authentication is wired automatically** (`AddMicrosoftIdentityPlatformIdentityAuthentication`). If you don't want identity baked in, wire Arc and Chronicle separately with `AddCratisArc` + `WithChronicle` instead of `AddCratis` — see [Running Arc or Chronicle on their own](#running-arc-or-chronicle-on-their-own).
 - **Chronicle is tenant-aware by default.** `WithChronicle` resolves the event store namespace per tenant (via `TenantNamespaceResolver`), so every event store is automatically scoped to the active tenant. See [Namespaces](/chronicle/namespaces/) for how the namespace becomes the tenancy boundary.
+
+> [!NOTE]
+> Because Chronicle runs as its own process, your application hosts the client, not the engine. The same `AddCratis` code connects to a local `cratis/chronicle` container in development and a shared Chronicle instance in production — only the connection string changes between environments. There is no in-process Chronicle to run, and you should not see event-store traffic served from inside your app.
 
 ## How Arc and Chronicle fit together
 
@@ -60,7 +63,29 @@ flowchart LR
     RM -->|query| UI
 ```
 
-Because both run in the same host, they share the things that would otherwise need to be kept in sync by hand: the **MongoDB** connection that stores read models, the **identity** that authenticates requests and scopes tenancy, and the **hosting** (one Kestrel server, one configuration). That shared wiring is exactly what the `Cratis` package assembles for you.
+Because Arc and the Chronicle client run in the same host, your application shares the things that would otherwise need to be kept in sync by hand: the **MongoDB** connection that stores read models, the **identity** that authenticates requests and scopes tenancy, and the **hosting** (one Kestrel server, one configuration). That shared wiring is exactly what the `Cratis` package assembles for you.
+
+## Running Arc or Chronicle on their own
+
+`AddCratis` is the batteries-included front door, but the pieces underneath are independent — take just the part you need:
+
+- **Arc without an event store.** Call `AddCratisArc()` on its own and back your commands and queries with MongoDB or EF Core instead of Chronicle. You keep the full CQRS and proxy-generation experience with no event log. See [CQRS without event sourcing](../../arc-without-event-sourcing.md).
+- **Arc + Chronicle without the baked-in identity.** Call `AddCratisArc()` and add `WithChronicle()` yourself. This is exactly what `AddCratis` does, minus `AddMicrosoftIdentityPlatformIdentityAuthentication()` — reach for it when you bring your own authentication.
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddCratisArc(configureBuilder: arc => arc.WithChronicle());
+
+var app = builder.Build();
+
+app.UseCratisArc();
+app.UseCratisChronicle();   // UseCratis() calls both — wire both halves yourself when you split them
+app.Run();
+```
+
+> [!IMPORTANT]
+> Running Arc without Chronicle is a valid setup — but only if you don't use Chronicle. If you call `AddCratisArc()` **without** `WithChronicle()` yet the project uses Chronicle (an aggregate root, reactor, reducer, projection, `[EventType]` event, or a command that injects `IEventLog`), the [ARCCHR0005](code-analysis/ARCCHR0005.md) analyzer flags it at **compile time**. Should it slip through (for example, setup lives in a separate host project), resolution then fails at runtime with a message that points at the same fix: add `WithChronicle()`, or switch to `AddCratis()`.
 
 ## Advanced Configuration
 
