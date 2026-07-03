@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
@@ -55,7 +56,7 @@ public class QueryPipeline(
                 return QueryResult.MissingPerformer(correlationId, queryName);
             }
 
-            var dependencies = queryPerformer.Dependencies.Select(serviceProvider.GetRequiredService);
+            var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
             var context = new QueryContext(queryName, correlationId, paging, sorting, arguments, dependencies);
             queryContextManager.Set(context);
 
@@ -92,6 +93,20 @@ public class QueryPipeline(
         }
 
         return result;
+    }
+
+    static object ResolveDependency(IServiceProvider serviceProvider, Type dependencyType)
+    {
+        try
+        {
+            return serviceProvider.GetRequiredService(dependencyType);
+        }
+        catch (InvalidOperationException failure)
+        {
+            // A query dependency (e.g. a Chronicle read model service) could not be resolved. Translate the raw
+            // container exception into an actionable error rather than a bare "Unable to resolve service" message.
+            throw new CannotResolveDependency(dependencyType, failure);
+        }
     }
 
     CorrelationId GetCorrelationId()
