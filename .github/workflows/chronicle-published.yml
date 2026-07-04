@@ -73,22 +73,6 @@ jobs:
             git diff -- "$file"
           fi
 
-      - name: Wait for Chronicle on NuGet
-        if: steps.bump.outputs.changed == 'true'
-        run: |
-          version="${{ steps.inputs.outputs.version }}"
-          url="https://api.nuget.org/v3-flatcontainer/cratis.chronicle/index.json"
-          for i in $(seq 1 40); do
-            if curl -sf "$url" | grep -q "\"$version\""; then
-              echo "Cratis.Chronicle $version is available on NuGet."
-              exit 0
-            fi
-            echo "Waiting for Cratis.Chronicle $version on NuGet ($i/40)..."
-            sleep 15
-          done
-          echo "Timed out waiting for Cratis.Chronicle $version on NuGet." >&2
-          exit 1
-
       - name: Setup .Net
         if: steps.bump.outputs.changed == 'true'
         uses: actions/setup-dotnet@v4
@@ -109,11 +93,28 @@ jobs:
         if: steps.bump.outputs.changed == 'true'
         run: yarn
 
+      - name: Restore
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          version="${{ steps.inputs.outputs.version }}"
+          for i in $(seq 1 40); do
+            if dotnet restore; then
+              echo "Restore succeeded — Cratis.Chronicle $version resolved."
+              exit 0
+            fi
+            echo "Restore failed — Cratis.Chronicle $version may not be fully indexed on NuGet yet (retry $i/40)."
+            # Clear the HTTP cache so cached negative lookups don't keep the retry failing.
+            dotnet nuget locals http-cache --clear
+            sleep 15
+          done
+          echo "Timed out waiting for Cratis.Chronicle $version to be available on NuGet." >&2
+          exit 1
+
       - name: Build
         if: steps.bump.outputs.changed == 'true'
         id: build
         continue-on-error: true
-        run: dotnet build --configuration Release
+        run: dotnet build --no-restore --configuration Release
 
       - name: Run specs
         if: steps.bump.outputs.changed == 'true' && steps.build.outcome == 'success'
