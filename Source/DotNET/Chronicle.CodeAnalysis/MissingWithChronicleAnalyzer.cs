@@ -11,8 +11,8 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 
 /// <summary>
 /// Analyzer that warns when a project sets up Arc with <c>AddCratisArc</c> but never wires Chronicle with
-/// <c>WithChronicle</c> or <c>AddCratis</c>, yet defines Chronicle artifacts such as aggregate roots, reactors,
-/// event types, or projections.
+/// <c>WithChronicle</c> or <c>AddCratis</c>, yet uses Chronicle: aggregate roots, reactors, reducers, fluent or
+/// model-bound projections, event types, or a type that injects a Chronicle service such as <c>IEventLog</c>.
 /// </summary>
 /// <remarks>
 /// The report is intentionally scoped to a single compilation: it fires only when the setup call and the
@@ -24,18 +24,9 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 public class MissingWithChronicleAnalyzer : DiagnosticAnalyzer
 {
     const string SetupMethodName = "AddCratisArc";
-    const string EventTypeAttribute = "Cratis.Chronicle.Events.EventTypeAttribute";
-    const string ProjectionForType = "Cratis.Chronicle.Projections.IProjectionFor`1";
+    const string ChronicleNamespacePrefix = "Cratis.Chronicle";
     const string AggregateRootName = "AggregateRoot";
     const string AggregateRootNamespace = "Cratis.Arc.Chronicle.Aggregates";
-    const string ReactorInterfaceName = "IReactor";
-    const string ReactorsNamespace = "Cratis.Chronicle.Reactors";
-    const string ReducerInterfaceName = "IReducer";
-    const string ReducersNamespace = "Cratis.Chronicle.Reducers";
-    const string EventLogInterfaceName = "IEventLog";
-    const string EventSequencesNamespace = "Cratis.Chronicle.EventSequences";
-    const string EventStoreInterfaceName = "IEventStore";
-    const string EventStoreNamespace = "Cratis.Chronicle";
 
     static readonly string[] _wiringMethodNames = ["WithChronicle", "AddCratis"];
 
@@ -80,7 +71,7 @@ public class MissingWithChronicleAnalyzer : DiagnosticAnalyzer
                     return;
                 }
 
-                var artifact = FindChronicleArtifact(compilationEnd.Compilation);
+                var artifact = FindChronicleUsage(compilationEnd.Compilation);
                 if (artifact is null)
                 {
                     return;
@@ -97,18 +88,13 @@ public class MissingWithChronicleAnalyzer : DiagnosticAnalyzer
         });
     }
 
-    static string? FindChronicleArtifact(Compilation compilation)
+    static string? FindChronicleUsage(Compilation compilation)
     {
-        var eventTypeAttribute = compilation.GetTypeByMetadataName(EventTypeAttribute);
-        var projectionForType = compilation.GetTypeByMetadataName(ProjectionForType);
-
         foreach (var type in GetAllTypes(compilation.Assembly.GlobalNamespace))
         {
             if (IsAggregateRoot(type) ||
-                ImplementsMarker(type, ReactorInterfaceName, ReactorsNamespace) ||
-                ImplementsMarker(type, ReducerInterfaceName, ReducersNamespace) ||
-                HasEventTypeAttribute(type, eventTypeAttribute) ||
-                IsProjection(type, projectionForType) ||
+                ImplementsChronicleInterface(type) ||
+                HasChronicleAttribute(type) ||
                 InjectsChronicleService(type))
             {
                 return type.Name;
@@ -132,30 +118,28 @@ public class MissingWithChronicleAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    static bool ImplementsMarker(INamedTypeSymbol type, string interfaceName, string interfaceNamespace) =>
-        type.TypeKind == TypeKind.Class &&
-        type.AllInterfaces.Any(@interface =>
-            @interface.Name == interfaceName &&
-            @interface.ContainingNamespace?.ToDisplayString() == interfaceNamespace);
+    static bool ImplementsChronicleInterface(INamedTypeSymbol type) =>
+        type.AllInterfaces.Any(IsInChronicleNamespace);
+
+    static bool HasChronicleAttribute(INamedTypeSymbol type) =>
+        HasChronicleAttribute(type.GetAttributes()) ||
+        type.GetMembers().OfType<IPropertySymbol>().Any(property => HasChronicleAttribute(property.GetAttributes()));
+
+    static bool HasChronicleAttribute(ImmutableArray<AttributeData> attributes) =>
+        attributes.Any(attribute => attribute.AttributeClass is { } attributeClass && IsInChronicleNamespace(attributeClass));
 
     static bool InjectsChronicleService(INamedTypeSymbol type) =>
         type.GetMembers()
             .OfType<IMethodSymbol>()
-            .Any(method => method.Parameters.Any(parameter => IsChronicleService(parameter.Type)));
+            .Any(method => method.Parameters.Any(parameter =>
+                parameter.Type.TypeKind == TypeKind.Interface && IsInChronicleNamespace(parameter.Type)));
 
-    static bool IsChronicleService(ITypeSymbol type) =>
-        (type.Name == EventLogInterfaceName && type.ContainingNamespace?.ToDisplayString() == EventSequencesNamespace) ||
-        (type.Name == EventStoreInterfaceName && type.ContainingNamespace?.ToDisplayString() == EventStoreNamespace);
-
-    static bool HasEventTypeAttribute(INamedTypeSymbol type, INamedTypeSymbol? eventTypeAttribute) =>
-        eventTypeAttribute is not null &&
-        type.GetAttributes().Any(attribute =>
-            SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, eventTypeAttribute));
-
-    static bool IsProjection(INamedTypeSymbol type, INamedTypeSymbol? projectionForType) =>
-        projectionForType is not null &&
-        type.AllInterfaces.Any(@interface =>
-            SymbolEqualityComparer.Default.Equals(@interface.OriginalDefinition, projectionForType));
+    static bool IsInChronicleNamespace(ISymbol symbol)
+    {
+        var @namespace = symbol.ContainingNamespace?.ToDisplayString();
+        return @namespace == ChronicleNamespacePrefix ||
+            @namespace?.StartsWith(ChronicleNamespacePrefix + ".", StringComparison.Ordinal) == true;
+    }
 
     static IEnumerable<INamedTypeSymbol> GetAllTypes(INamespaceSymbol @namespace)
     {

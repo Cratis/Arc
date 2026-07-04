@@ -6,9 +6,11 @@ Running Arc **without** Chronicle is a valid, supported setup — `AddCratisArc`
 
 - declares an **aggregate root**;
 - declares a **reactor** or a **reducer**;
-- declares a **projection** (`IProjectionFor<>`);
+- declares a **projection** — fluent (`IProjectionFor<>`) or model-bound (a read model with `[FromEvent<T>]`, `[SetFrom<T>]`, `[SetValue<T>]`, or any other `Cratis.Chronicle.Projections` attribute);
 - declares an **`[EventType]`** event;
 - injects a Chronicle service such as **`IEventLog`** or **`IEventStore`** (appending events, returning events from a command handler, reading the event store).
+
+Detection is by namespace: implementing any interface, or applying any attribute (on the type or its properties), from the `Cratis.Chronicle` namespace counts as Chronicle usage — so new Chronicle features are covered automatically.
 
 In any of those cases the event store is required, so a command, query, reactor, or reducer that touches Chronicle fails to resolve at runtime.
 
