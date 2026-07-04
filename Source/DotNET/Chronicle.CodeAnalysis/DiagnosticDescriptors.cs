@@ -58,5 +58,18 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "The [EventType] attribute derives its identifier from the type name by convention, so an explicit id should not be passed. Use a bare [EventType]. The generation argument is still allowed for event evolution.");
 
+    /// <summary>
+    /// ARCCHR0005: Chronicle artifacts are present but Chronicle is not wired up.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0005_ChronicleArtifactsWithoutWithChronicle = new(
+        id: "ARCCHR0005",
+        title: "Chronicle is used but not wired up",
+        messageFormat: "This project sets up Arc with AddCratisArc but never calls WithChronicle() or AddCratis(), yet it uses Chronicle features (for example '{0}'). Call WithChronicle() on the Arc builder, or use AddCratis(), otherwise appending or reading events fails at runtime.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "AddCratisArc on its own wires Arc with no event store, and running Arc without Chronicle is a supported, valid setup (backed by MongoDB or EF Core). This rule only fires when the project actually uses Chronicle — an aggregate root, reactor, reducer, fluent or model-bound projection (IProjectionFor or [FromEvent]/[SetFrom]/[SetValue]/... attributes), [EventType] event, or a type that injects a Chronicle service such as IEventLog or IEventStore. In that case the event store must be added with WithChronicle() on the Arc builder, or by using the all-in-one AddCratis(); without it, any command, query, reactor, or reducer that touches Chronicle fails to resolve at runtime. This analyzer only reports when the setup call and the Chronicle usage live in the same project, so it never fires when setup is wired up in a separate host project.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
     const string Category = "Arc.Chronicle";
 }

@@ -11,6 +11,7 @@ All rules follow the identifier format `ARCCHR####` where the numbers are sequen
 | Rule ID | Title | Severity | Description |
 | --- | --- | --- | --- |
 | [ARCCHR0001](ARCCHR0001.md) | Incorrect aggregate root event handler signature | Error | Aggregate root event handlers must follow allowed `On` method signatures. |
+| [ARCCHR0005](ARCCHR0005.md) | Chronicle is used but not wired up | Warning | A project uses Chronicle features but sets up Arc without `WithChronicle()` or `AddCratis()`. |
 
 ## Quick Fixes
 

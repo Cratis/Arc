@@ -17,9 +17,22 @@ static class ParameterDependencyResolver
     /// <param name="parameter">The parameter to resolve.</param>
     /// <param name="createException">Callback for creating an exception when a non-nullable parameter cannot be resolved or resolves to null.</param>
     /// <returns>The resolved dependency, or null when the parameter is nullable.</returns>
+    /// <exception cref="CannotResolveDependency">Thrown when the dependency is registered but one of its own dependencies could not be constructed.</exception>
     public static object? Resolve(IServiceProvider serviceProvider, ParameterInfo parameter, Func<ParameterInfo, Exception> createException)
     {
-        var dependency = serviceProvider.GetService(parameter.ParameterType);
+        object? dependency;
+        try
+        {
+            dependency = serviceProvider.GetService(parameter.ParameterType);
+        }
+        catch (InvalidOperationException failure)
+        {
+            // The service itself is registered, but activating it failed because one of its own
+            // dependencies is missing. GetService surfaces this as a raw container exception rather
+            // than a null, so translate it into an actionable error that names the member and parameter.
+            throw new CannotResolveDependency(parameter, failure);
+        }
+
         if (dependency is not null)
         {
             return dependency;
