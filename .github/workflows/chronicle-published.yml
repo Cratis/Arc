@@ -1,0 +1,180 @@
+name: Chronicle Published
+
+concurrency:
+  group: chronicle-published-${{ github.event.client_payload.version || github.event.inputs.version }}
+  cancel-in-progress: false
+
+on:
+  repository_dispatch:
+    types: [chronicle-published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Chronicle version to update to'
+        required: true
+        type: string
+      bump:
+        description: 'Semantic version bump for the resulting Arc release'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  DOTNET8_VERSION: "8.0.407"
+  DOTNET9_VERSION: "9.0.x"
+  DOTNET10_VERSION: "10.0.x"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_WORKFLOWS }}
+
+      - name: Resolve inputs
+        id: inputs
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ github.event.inputs.version }}"
+            bump="${{ github.event.inputs.bump }}"
+          else
+            version="${{ github.event.client_payload.version }}"
+            bump="${{ github.event.client_payload.bump }}"
+          fi
+          bump="${bump:-patch}"
+          if [ -z "$version" ]; then
+            echo "No Chronicle version supplied." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+
+      - name: Update Chronicle package pins
+        id: bump
+        run: |
+          version="${{ steps.inputs.outputs.version }}"
+          file="Directory.Packages.props"
+          sed -i -E 's#(Include="Cratis\.Chronicle(\.AspNetCore|\.Testing)?" Version=")[^"]+(")#\1'"$version"'\3#g' "$file"
+          if git diff --quiet -- "$file"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Cratis.Chronicle is already at $version — nothing to update."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff -- "$file"
+          fi
+
+      - name: Wait for Chronicle on NuGet
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          version="${{ steps.inputs.outputs.version }}"
+          url="https://api.nuget.org/v3-flatcontainer/cratis.chronicle/index.json"
+          for i in $(seq 1 40); do
+            if curl -sf "$url" | grep -q "\"$version\""; then
+              echo "Cratis.Chronicle $version is available on NuGet."
+              exit 0
+            fi
+            echo "Waiting for Cratis.Chronicle $version on NuGet ($i/40)..."
+            sleep 15
+          done
+          echo "Timed out waiting for Cratis.Chronicle $version on NuGet." >&2
+          exit 1
+
+      - name: Setup .Net
+        if: steps.bump.outputs.changed == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ env.DOTNET8_VERSION }}
+            ${{ env.DOTNET9_VERSION }}
+            ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup node
+        if: steps.bump.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Yarn install
+        if: steps.bump.outputs.changed == 'true'
+        run: yarn
+
+      - name: Build
+        if: steps.bump.outputs.changed == 'true'
+        id: build
+        continue-on-error: true
+        run: dotnet build --configuration Release
+
+      - name: Run specs
+        if: steps.bump.outputs.changed == 'true' && steps.build.outcome == 'success'
+        id: specs
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          failed=0
+          while IFS= read -r project; do
+            echo "::group::Test $project"
+            if ! dotnet test "$project" --no-build --configuration Release --framework net10.0; then
+              failed=1
+            fi
+            echo "::endgroup::"
+          done < <(find Source/DotNET -name '*.Specs.csproj' | sort)
+          exit $failed
+
+      - name: Determine gate result
+        if: steps.bump.outputs.changed == 'true'
+        id: gate
+        run: |
+          if [ "${{ steps.build.outcome }}" = "success" ] && [ "${{ steps.specs.outcome }}" = "success" ]; then
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.bump.outputs.changed == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.PAT_WORKFLOWS }}
+          base: main
+          branch: chronicle-update/${{ steps.inputs.outputs.version }}
+          delete-branch: true
+          commit-message: "Update Cratis.Chronicle to ${{ steps.inputs.outputs.version }}"
+          title: "Update Cratis.Chronicle to ${{ steps.inputs.outputs.version }}"
+          labels: ${{ steps.inputs.outputs.bump }}
+          body: |
+            Automated update of `Cratis.Chronicle`, `Cratis.Chronicle.AspNetCore` and `Cratis.Chronicle.Testing` to `${{ steps.inputs.outputs.version }}`, triggered by a Chronicle release.
+
+            ### Verification gate
+
+            | Step | Result |
+            |------|--------|
+            | Build | `${{ steps.build.outcome }}` |
+            | Specs | `${{ steps.specs.outcome }}` |
+
+            ${{ (steps.gate.outputs.verified == 'true' && steps.inputs.outputs.bump != 'major') && '✅ All specs passed — auto-merge enabled.' || '⚠️ Requires human review before merging (verification failed or a major bump).' }}
+
+      - name: Enable auto-merge
+        if: steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number && steps.gate.outputs.verified == 'true' && steps.inputs.outputs.bump != 'major'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+        run: gh pr merge --auto --squash "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }}
+
+      - name: Comment when review is required
+        if: steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number && (steps.gate.outputs.verified != 'true' || steps.inputs.outputs.bump == 'major')
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+        run: |
+          gh pr comment "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }} --body \
+            "This Chronicle update was **not** auto-merged. Build outcome: \`${{ steps.build.outcome }}\`, specs outcome: \`${{ steps.specs.outcome }}\`, bump: \`${{ steps.inputs.outputs.bump }}\`. Please review before merging."
