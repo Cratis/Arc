@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Chronicle;
+using Cratis.Chronicle.Compliance.GDPR;
 using Cratis.Chronicle.Connections;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
@@ -48,6 +49,10 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadMo
     /// <inheritdoc/>
     public IConstraints Constraints =>
         throw new NotSupportedException("Constraints are not exposed through command scenarios.");
+
+    /// <inheritdoc/>
+    public IPIIManager PII =>
+        throw new NotSupportedException("PII management is not supported for command scenarios.");
 
     /// <inheritdoc/>
     public IEventLog EventLog => eventScenario.EventLog;
