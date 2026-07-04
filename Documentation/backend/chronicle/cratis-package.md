@@ -7,7 +7,7 @@ Wiring an event-sourced application by hand means bringing up Arc for commands a
 The `Cratis` package is a convenience package that bundles the whole stack:
 
 - **Arc Application Framework** — CQRS commands and queries, validation, multi-tenancy, proxy generation
-- **Chronicle Event Sourcing** — event store, aggregates, projections, reactors, and reducers
+- **Chronicle Event Sourcing** — the event store **client** (connecting to a separately running Chronicle server), aggregates, projections, reactors, and reducers
 - **Swagger/OpenAPI** — automatic API documentation
 
 It exists to get you to a running, end-to-end event-sourced application without wiring each component yourself.
@@ -38,18 +38,33 @@ app.UseCratis();
 app.Run();
 ```
 
-`AddCratis()` registers Arc's command and query infrastructure, Chronicle's event store and event handling, Swagger, and validation/model binding. `UseCratis()` activates both halves — it calls `UseCratisArc()` and `UseCratisChronicle()` for you.
+`AddCratis()` registers Arc's command and query infrastructure, the Chronicle client (which connects to a separately running event store — see [what AddCratis sets up for you](#what-addcratis-sets-up-for-you)), Swagger, and validation/model binding. `UseCratis()` activates both halves — it calls `UseCratisArc()` and `UseCratisChronicle()` for you.
 
 ## What AddCratis sets up for you
 
 `AddCratis` is opinionated — it makes a few decisions so you don't have to. Knowing them up front avoids surprises:
 
-- **Arc and the Chronicle _client_ in one host.** It calls `AddCratisArc` and adds Chronicle through `WithChronicle`, so your commands and queries can reach the event store from a single application. What lands in your process is the Chronicle **client** — `WithChronicle` wires it to connect (over gRPC, using the connection string from configuration) to a Chronicle instance that runs on its own, typically the `cratis/chronicle` container. `AddCratis` does **not** start the Chronicle engine inside your app; it wires the client that talks to it.
+- **It adds a Chronicle _client_ — not the Chronicle engine.** `AddCratis` calls `AddCratisArc` and then `WithChronicle`, and `WithChronicle` registers the Chronicle **client**: a gRPC client that connects to a Chronicle **server running as its own separate process** — the `cratis/chronicle` container you deploy. Your application never runs the event store; it connects to one over gRPC using the connection string from configuration. When you read "Arc and Chronicle in one host," it's the _client_ that shares your host — the engine runs elsewhere.
 - **Microsoft Identity Platform authentication is wired automatically** (`AddMicrosoftIdentityPlatformIdentityAuthentication`). If you don't want identity baked in, wire Arc and Chronicle separately with `AddCratisArc` + `WithChronicle` instead of `AddCratis` — see [Running Arc or Chronicle on their own](#running-arc-or-chronicle-on-their-own).
 - **Chronicle is tenant-aware by default.** `WithChronicle` resolves the event store namespace per tenant (via `TenantNamespaceResolver`), so every event store is automatically scoped to the active tenant. See [Namespaces](/chronicle/namespaces/) for how the namespace becomes the tenancy boundary.
 
+There are always **two processes**: your application (Arc plus the Chronicle client) and the Chronicle server (the event store). `AddCratis` sets up the first and connects it to the second — it never starts the second for you.
+
+```mermaid
+flowchart LR
+    subgraph app["Your application — one host"]
+        arc["Arc — commands and queries"]
+        client["Chronicle client"]
+        arc --> client
+    end
+    subgraph server["cratis/chronicle — separate process / container"]
+        engine["Chronicle engine — the event store"]
+    end
+    client -- "gRPC (connection string)" --> engine
+```
+
 > [!NOTE]
-> Because Chronicle runs as its own process, your application hosts the client, not the engine. The same `AddCratis` code connects to a local `cratis/chronicle` container in development and a shared Chronicle instance in production — only the connection string changes between environments. There is no in-process Chronicle to run, and you should not see event-store traffic served from inside your app.
+> The same `AddCratis` code connects to a local `cratis/chronicle` container in development and a shared Chronicle instance in production — only the connection string changes between environments. There is no in-process Chronicle to run, and you should not see event-store traffic served from inside your app. If you haven't started a `cratis/chronicle` container, your app has nothing to connect to.
 
 ## How Arc and Chronicle fit together
 
