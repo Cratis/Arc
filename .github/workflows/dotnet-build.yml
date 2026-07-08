@@ -9,7 +9,6 @@ env:
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
   DOTNET_OBJ_CACHE: "dotnet-obj-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
-  DOTNET_BIN_CACHE: "dotnet-bin-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
   JS_DIST_CACHE: "js-dist-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
 on:
@@ -98,12 +97,6 @@ jobs:
           restore-keys: |
             dotnet-obj-
 
-      - name: Cache build output
-        uses: actions/cache@v4
-        with:
-          path: ./**/bin
-          key: ${{ env.DOTNET_BIN_CACHE }}
-
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -133,6 +126,25 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release
 
+      # Hand off the compiled binaries to the spec jobs via an artifact rather than
+      # actions/cache. The bin output is an intra-run handoff, not cross-run reuse:
+      # actions/cache keys on the immutable commit SHA, so a single flaky save
+      # (reservation collision on the large ./**/bin cache) permanently poisons the
+      # key and every --no-build spec job fails with "cache not found". Artifacts are
+      # the correct primitive for passing build output between jobs in the same run.
+      - name: Archive build output
+        run: |
+          find . -type d -name bin -not -path '*/node_modules/*' -not -path './.git/*' -print0 \
+            | tar --null -czf build-output.tar.gz -T -
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build-output.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
   specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
@@ -155,11 +167,13 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Restore build output
-        uses: actions/cache@v4
+      - name: Download build output
+        uses: actions/download-artifact@v4
         with:
-          path: ./**/bin
-          key: ${{ env.DOTNET_BIN_CACHE }}
+          name: build-output
+
+      - name: Extract build output
+        run: tar -xzf build-output.tar.gz
 
       - name: Test (${{ matrix.project }})
         run: dotnet test ${{ matrix.project }} --no-build --configuration Release --framework net10.0
@@ -203,11 +217,13 @@ jobs:
           path: Source/JavaScript/**/dist
           key: ${{ env.JS_DIST_CACHE }}
 
-      - name: Restore build output
-        uses: actions/cache@v4
+      - name: Download build output
+        uses: actions/download-artifact@v4
         with:
-          path: ./**/bin
-          key: ${{ env.DOTNET_BIN_CACHE }}
+          name: build-output
+
+      - name: Extract build output
+        run: tar -xzf build-output.tar.gz
 
       - name: Test (${{ matrix.namespace }})
         run: |
