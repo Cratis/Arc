@@ -118,5 +118,41 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Concepts inherit ConceptAs<T> to wrap a primitive in a strongly-typed domain value. They must be declared as positional records so that value equality, immutability, and the implicit conversions behave correctly. Change the 'class' declaration to 'record'.");
 
+    /// <summary>
+    /// ARC0010: Command Handle() wraps a synchronous result in a Task.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0010_CommandHandleWrapsSynchronousResultInTask = new(
+        id: "ARC0010",
+        title: "Command Handle() wraps a synchronous result in a Task",
+        messageFormat: "Handle() on command '{0}' returns a Task but never awaits anything. Return the synchronous shape directly instead of wrapping it in a Task.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The command pipeline accepts the synchronous return shape directly. A Handle() that returns Task<T>/Task without awaiting — whether declared 'async' with no await, or wrapping the value in Task.FromResult/Task.CompletedTask — is pure noise. Unwrap it to return the event or result shape directly.");
+
+    /// <summary>
+    /// ARC0011: [Roles] argument should use nameof instead of a string literal.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0011_RolesArgumentShouldUseNameof = new(
+        id: "ARC0011",
+        title: "[Roles] argument should use nameof instead of a string literal",
+        messageFormat: "[Roles] argument \"{0}\" is a string literal. Use nameof(...) so it stays in sync with the role definition.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A string literal role silently desynchronizes from the role enum on rename — the authorization check then never matches and the endpoint is effectively locked, or worse, matches a stale role. Use nameof(<EnumType>.<Member>) so a rename is a compile error rather than a silent authorization failure.");
+
+    /// <summary>
+    /// ARC0012: Arc artifact throws a built-in exception type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0012_ArcArtifactThrowsBuiltInException = new(
+        id: "ARC0012",
+        title: "Arc artifact throws a built-in exception type",
+        messageFormat: "'{0}' is a built-in exception type thrown from an Arc artifact. Throw a domain-named exception type instead so the failure carries domain meaning.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Domain failures raised from Arc artifacts — command Handle() methods, CommandValidator<T>/ConceptValidator<T> validators, and reactor handlers — should be expressed as domain-named exception types (or validator rejections). Built-in exceptions like InvalidOperationException, ArgumentException, or Exception carry no domain meaning to the caller or the log.");
+
     const string Category = "Arc";
 }
