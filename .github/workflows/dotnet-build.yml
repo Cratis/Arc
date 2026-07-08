@@ -9,7 +9,6 @@ env:
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
   DOTNET_OBJ_CACHE: "dotnet-obj-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
-  JS_DIST_CACHE: "js-dist-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
 on:
   workflow_dispatch:
@@ -117,25 +116,24 @@ jobs:
       - name: Yarn install
         run: yarn
 
-      - name: Cache JavaScript dist output
-        uses: actions/cache@v6
-        with:
-          path: Source/JavaScript/**/dist
-          key: ${{ env.JS_DIST_CACHE }}
-
       - name: Build
         run: dotnet build --configuration Release
 
-      # Hand off the compiled binaries to the spec jobs via an artifact rather than
-      # actions/cache. The bin output is an intra-run handoff, not cross-run reuse:
-      # actions/cache keys on the immutable commit SHA, so a single flaky save
-      # (reservation collision on the large ./**/bin cache) permanently poisons the
-      # key and every --no-build spec job fails with "cache not found". Artifacts are
-      # the correct primitive for passing build output between jobs in the same run.
+      # Hand off the compiled binaries AND the JavaScript dist output to the spec jobs
+      # via an artifact rather than actions/cache. This is an intra-run handoff, not
+      # cross-run reuse: actions/cache keys on the immutable commit SHA, so a single
+      # flaky save (reservation collision) permanently poisons the key and every
+      # --no-build spec job fails with "cache not found" — and a re-run cannot recover
+      # because the key is fixed to the SHA. The proxy-specs jobs execute generated
+      # proxies against Source/JavaScript/**/dist (e.g. Arc/dist/cjs/index.js), so that
+      # output must ride along in the same artifact. Artifacts are the correct primitive
+      # for passing build output between jobs in the same run.
       - name: Archive build output
         run: |
-          find . -type d -name bin -not -path '*/node_modules/*' -not -path './.git/*' -print0 \
-            | tar --null -czf build-output.tar.gz -T -
+          {
+            find . -type d -name bin -not -path '*/node_modules/*' -not -path './.git/*' -print0
+            find Source/JavaScript -type d -name dist -not -path '*/node_modules/*' -print0
+          } | tar --null -czf build-output.tar.gz -T -
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
@@ -210,12 +208,6 @@ jobs:
             **/.eslintcache
             **/yarn.lock
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
-
-      - name: Restore JavaScript dist output
-        uses: actions/cache@v6
-        with:
-          path: Source/JavaScript/**/dist
-          key: ${{ env.JS_DIST_CACHE }}
 
       - name: Download build output
         uses: actions/download-artifact@v4
