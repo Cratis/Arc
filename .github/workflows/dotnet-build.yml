@@ -83,7 +83,7 @@ jobs:
             ${{ env.DOTNET10_VERSION }}
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
@@ -91,7 +91,7 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore obj cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./**/obj
           key: ${{ env.DOTNET_OBJ_CACHE }}
@@ -99,7 +99,7 @@ jobs:
             dotnet-obj-
 
       - name: Cache build output
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./**/bin
           key: ${{ env.DOTNET_BIN_CACHE }}
@@ -110,7 +110,7 @@ jobs:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: yarn-cache
         with:
           path: |
@@ -125,7 +125,7 @@ jobs:
         run: yarn
 
       - name: Cache JavaScript dist output
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: Source/JavaScript/**/dist
           key: ${{ env.JS_DIST_CACHE }}
@@ -156,7 +156,7 @@ jobs:
             ${{ env.DOTNET10_VERSION }}
 
       - name: Restore build output
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./**/bin
           key: ${{ env.DOTNET_BIN_CACHE }}
@@ -187,7 +187,7 @@ jobs:
             ${{ env.DOTNET10_VERSION }}
 
       - name: Restore node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .yarn/cache
@@ -198,13 +198,13 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
 
       - name: Restore JavaScript dist output
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: Source/JavaScript/**/dist
           key: ${{ env.JS_DIST_CACHE }}
 
       - name: Restore build output
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./**/bin
           key: ${{ env.DOTNET_BIN_CACHE }}
