@@ -219,7 +219,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             } else {
                 result.data = [];
             }
-        } else {
+        } else if (result.data) {
             result.data = JsonSerializer.deserializeFromInstance(this.modelType, result.data);
         }
     }
