@@ -10,3 +10,6 @@ ARC0006|Arc|Warning|Command-scoped read model can be missing
 ARC0007|Arc|Warning|Command should be declared as a record
 ARC0008|Arc|Warning|ReadModel should be declared as a record
 ARC0009|Arc|Warning|Concept should be declared as a record
+ARC0010|Arc|Warning|Command Handle() wraps a synchronous result in a Task
+ARC0011|Arc|Warning|[Roles] argument should use nameof instead of a string literal
+ARC0012|Arc|Warning|Arc artifact throws a built-in exception type
