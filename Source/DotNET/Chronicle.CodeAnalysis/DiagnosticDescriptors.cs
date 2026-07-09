@@ -71,5 +71,17 @@ static class DiagnosticDescriptors
         description: "AddCratisArc on its own wires Arc with no event store, and running Arc without Chronicle is a supported, valid setup (backed by MongoDB or EF Core). This rule only fires when the project actually uses Chronicle — an aggregate root, reactor, reducer, fluent or model-bound projection (IProjectionFor or [FromEvent]/[SetFrom]/[SetValue]/... attributes), [EventType] event, or a type that injects a Chronicle service such as IEventLog or IEventStore. In that case the event store must be added with WithChronicle() on the Arc builder, or by using the all-in-one AddCratis(); without it, any command, query, reactor, or reducer that touches Chronicle fails to resolve at runtime. This analyzer only reports when the setup call and the Chronicle usage live in the same project, so it never fires when setup is wired up in a separate host project.",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
+    /// <summary>
+    /// ARCCHR0006: Reactor handler invoking ICommandPipeline.Execute must be marked with [OnceOnly].
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0006_ReactorCommandPipelineExecuteMustBeOnceOnly = new(
+        id: "ARCCHR0006",
+        title: "Reactor handler invoking ICommandPipeline.Execute must be marked with [OnceOnly]",
+        messageFormat: "Reactor handler '{0}' invokes ICommandPipeline.Execute but is not marked [OnceOnly]; replay will re-execute the command. Mark the method [OnceOnly].",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A reactor handler that calls ICommandPipeline.Execute produces a side effect. During replay operations (redaction, revision, observer rewind), the handler runs again and re-executes the command, duplicating the side effect. Mark the method with [OnceOnly] so it is skipped during replays.");
+
     const string Category = "Arc.Chronicle";
 }
