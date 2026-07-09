@@ -36,7 +36,7 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory)
     }
 
     static ReactorSideEffectFailure CreateFailure(object command, CommandResult result) =>
-        new([new AppendFailure([], false, DescribeFailure(command.GetType(), result))]);
+        new([new AppendFailure([], false, DescribeFailure(command.GetType(), result), [])]);
 
     static IEnumerable<string> DescribeFailure(Type commandType, CommandResult result)
     {
