@@ -86,9 +86,9 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
-        services.AddSingleton<SystemExecution>();
-        services.AddSingleton<ISystemExecution>(sp => sp.GetRequiredService<SystemExecution>());
-        services.AddSingleton<ISystemExecutionAccessor>(sp => sp.GetRequiredService<SystemExecution>());
+        services.AddSingleton<CurrentPrincipalAccessor>();
+        services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
+        services.AddSingleton<ICurrentPrincipalOverride>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
 
         services.AddSingleton<ITenantIdResolver>(sp =>
         {

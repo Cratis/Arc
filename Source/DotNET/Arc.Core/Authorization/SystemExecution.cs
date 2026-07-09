@@ -6,40 +6,15 @@ using System.Security.Claims;
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
-/// Represents an implementation of <see cref="ISystemExecution"/> and <see cref="ISystemExecutionAccessor"/>
-/// that manages the current server-side execution principal in an async local manner.
+/// Represents an implementation of <see cref="ISystemExecution"/> that establishes the server-side principal
+/// through the <see cref="ICurrentPrincipalOverride"/>.
 /// </summary>
-public class SystemExecution : ISystemExecution, ISystemExecutionAccessor
+/// <param name="currentPrincipalOverride">The <see cref="ICurrentPrincipalOverride"/> used to establish the server-side principal.</param>
+public class SystemExecution(ICurrentPrincipalOverride currentPrincipalOverride) : ISystemExecution
 {
-    static readonly AsyncLocal<ClaimsPrincipal?> _current = new();
-
-    /// <inheritdoc/>
-    public ClaimsPrincipal? Current => _current.Value;
-
     /// <inheritdoc/>
     public IDisposable AsSystem(params string[] roles) => As(SystemPrincipal.WithRoles(roles));
 
     /// <inheritdoc/>
-    public IDisposable As(ClaimsPrincipal principal)
-    {
-        var previous = _current.Value;
-        _current.Value = principal;
-        return new Scope(previous);
-    }
-
-    sealed class Scope(ClaimsPrincipal? previous) : IDisposable
-    {
-        bool _disposed;
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _current.Value = previous;
-        }
-    }
+    public IDisposable As(ClaimsPrincipal principal) => currentPrincipalOverride.BeginScope(principal);
 }
