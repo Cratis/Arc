@@ -36,7 +36,10 @@ If you want to jump into building this repository and possibly contributing, ple
 
 The following are prerequisites to work with this repository.
 
-* [.NET 8+](https://dotnet.microsoft.com/en-us/).
+* [.NET SDK 10.0.301+](https://dotnet.microsoft.com/en-us/). Arc's analyzers and source generators are built
+  against Roslyn 5.6.0, which ships with .NET SDK 10.0.301 and newer. On an older SDK band the compiler
+  refuses to load them (CS9057), silently disabling proxy generation and the ARC*/ARCCHR* analyzers.
+  Consuming the `Cratis.Arc` packages carries the same floor. Raising this floor is a minor version bump.
 * [Node 16+](https://nodejs.org/en)
 * [Yarn](https://yarnpkg.com)
 
