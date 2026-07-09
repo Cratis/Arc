@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.Metrics;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Queries;
@@ -84,6 +85,10 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+
+        services.AddSingleton<SystemExecution>();
+        services.AddSingleton<ISystemExecution>(sp => sp.GetRequiredService<SystemExecution>());
+        services.AddSingleton<ISystemExecutionAccessor>(sp => sp.GetRequiredService<SystemExecution>());
 
         services.AddSingleton<ITenantIdResolver>(sp =>
         {

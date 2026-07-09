@@ -11,10 +11,12 @@ namespace Cratis.Arc.Authorization;
 /// Helper class for performing authorization checks.
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> to access the current HTTP request context.</param>
+/// <param name="systemExecutionAccessor">The <see cref="ISystemExecutionAccessor"/> to access the current server-side execution principal.</param>
 /// <param name="anonymousEvaluators">The collection of <see cref="IAnonymousEvaluator"/> instances.</param>
 /// <param name="authorizationAttributeEvaluators">The collection of <see cref="IAuthorizationAttributeEvaluator"/> instances.</param>
 public class AuthorizationEvaluator(
     IHttpRequestContextAccessor httpRequestContextAccessor,
+    ISystemExecutionAccessor systemExecutionAccessor,
     IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
     IInstancesOf<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators) : IAuthorizationEvaluator
 {
@@ -108,7 +110,12 @@ public class AuthorizationEvaluator(
             return true;
         }
 
-        var user = httpRequestContextAccessor.Current?.User;
+        // On any HTTP request the request principal is authoritative — the server-side execution
+        // principal is consulted only when there is no HTTP request context, so it can never
+        // influence authorization of an HTTP-origin command.
+        var user = httpRequestContextAccessor.Current is not null
+            ? httpRequestContextAccessor.Current.User
+            : systemExecutionAccessor.Current;
         if (user is null)
         {
             return false;
