@@ -5,7 +5,12 @@ namespace Cratis.Arc.Authorization.for_SystemExecution.given;
 
 public class a_system_execution : Specification
 {
+    protected ICurrentPrincipalOverride _currentPrincipalOverride;
     protected SystemExecution _systemExecution;
 
-    void Establish() => _systemExecution = new SystemExecution();
+    void Establish()
+    {
+        _currentPrincipalOverride = Substitute.For<ICurrentPrincipalOverride>();
+        _systemExecution = new SystemExecution(_currentPrincipalOverride);
+    }
 }

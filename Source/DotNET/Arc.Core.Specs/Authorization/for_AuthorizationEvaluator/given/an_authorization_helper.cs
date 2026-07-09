@@ -1,15 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 using System.Security.Claims;
-using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Authorization.for_AuthorizationEvaluator.given;
 
 public class an_authorization_helper : Specification
 {
-    protected IHttpRequestContextAccessor _httpRequestContextAccessor;
-    protected IHttpRequestContext _httpRequestContext;
-    protected ISystemExecutionAccessor _systemExecutionAccessor;
+    protected ICurrentPrincipalAccessor _currentPrincipalAccessor;
     protected AuthorizationEvaluator _authorizationHelper;
     protected ClaimsPrincipal _user;
     protected IInstancesOf<IAnonymousEvaluator> _anonymousEvaluators;
@@ -17,13 +14,10 @@ public class an_authorization_helper : Specification
 
     void Establish()
     {
-        _httpRequestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
-        _httpRequestContext = Substitute.For<IHttpRequestContext>();
-        _systemExecutionAccessor = Substitute.For<ISystemExecutionAccessor>();
+        _currentPrincipalAccessor = Substitute.For<ICurrentPrincipalAccessor>();
         _user = Substitute.For<ClaimsPrincipal>();
 
-        _httpRequestContextAccessor.Current.Returns(_httpRequestContext);
-        _httpRequestContext.User.Returns(_user);
+        _currentPrincipalAccessor.Current.Returns(_user);
 
         _anonymousEvaluators = Substitute.For<IInstancesOf<IAnonymousEvaluator>>();
         _anonymousEvaluators.GetEnumerator().Returns(_ => new List<IAnonymousEvaluator> { new AnonymousEvaluator() }.GetEnumerator());
@@ -31,7 +25,7 @@ public class an_authorization_helper : Specification
         _authorizationAttributeEvaluators = Substitute.For<IInstancesOf<IAuthorizationAttributeEvaluator>>();
         _authorizationAttributeEvaluators.GetEnumerator().Returns(_ => new List<IAuthorizationAttributeEvaluator> { new AuthorizationAttributeEvaluator() }.GetEnumerator());
 
-        _authorizationHelper = new AuthorizationEvaluator(_httpRequestContextAccessor, _systemExecutionAccessor, _anonymousEvaluators, _authorizationAttributeEvaluators);
+        _authorizationHelper = new AuthorizationEvaluator(_currentPrincipalAccessor, _anonymousEvaluators, _authorizationAttributeEvaluators);
     }
 
     protected void SetupAuthenticatedUser(params string[] roles)
@@ -53,18 +47,7 @@ public class an_authorization_helper : Specification
         _user.Identity.Returns(identity);
     }
 
-    protected void SetupNoHttpRequestContext()
-    {
-        _httpRequestContextAccessor.Current.Returns((IHttpRequestContext?)null);
-    }
+    protected void SetupNoHttpRequestContext() => _currentPrincipalAccessor.Current.Returns((ClaimsPrincipal?)null);
 
-    protected void SetupSystemExecutionUser(params string[] roles)
-    {
-        _systemExecutionAccessor.Current.Returns(SystemPrincipal.WithRoles(roles));
-    }
-
-    protected void SetupNoUser()
-    {
-        _httpRequestContext.User.Returns((ClaimsPrincipal?)null);
-    }
+    protected void SetupNoUser() => _currentPrincipalAccessor.Current.Returns((ClaimsPrincipal?)null);
 }
