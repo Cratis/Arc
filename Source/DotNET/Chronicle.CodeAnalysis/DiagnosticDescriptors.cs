@@ -83,5 +83,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A reactor handler that calls ICommandPipeline.Execute produces a side effect. During replay operations (redaction, revision, observer rewind), the handler runs again and re-executes the command, duplicating the side effect. Mark the method with [OnceOnly] so it is skipped during replays.");
 
+    /// <summary>
+    /// ARCCHR0007: Command Handle method must not inject IEventLog.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0007_CommandHandleMustNotInjectEventLog = new(
+        id: "ARCCHR0007",
+        title: "Command handler must not inject IEventLog",
+        messageFormat: "Command '{0}' injects IEventLog into '{1}' through parameter '{2}'. Express every append through the handler return type, not IEventLog.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A command expresses appends by returning events from its Handle method (a single event, a tuple of event and result, a Result, or a collection). Injecting IEventLog into the handler bypasses Arc's append pipeline and its correlation and ordering guarantees. Return the events instead of appending through IEventLog directly.");
+
     const string Category = "Arc.Chronicle";
 }
