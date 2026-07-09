@@ -9,6 +9,7 @@ public class an_authorization_helper : Specification
 {
     protected IHttpRequestContextAccessor _httpRequestContextAccessor;
     protected IHttpRequestContext _httpRequestContext;
+    protected ISystemExecutionAccessor _systemExecutionAccessor;
     protected AuthorizationEvaluator _authorizationHelper;
     protected ClaimsPrincipal _user;
     protected IInstancesOf<IAnonymousEvaluator> _anonymousEvaluators;
@@ -18,6 +19,7 @@ public class an_authorization_helper : Specification
     {
         _httpRequestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
+        _systemExecutionAccessor = Substitute.For<ISystemExecutionAccessor>();
         _user = Substitute.For<ClaimsPrincipal>();
 
         _httpRequestContextAccessor.Current.Returns(_httpRequestContext);
@@ -29,7 +31,7 @@ public class an_authorization_helper : Specification
         _authorizationAttributeEvaluators = Substitute.For<IInstancesOf<IAuthorizationAttributeEvaluator>>();
         _authorizationAttributeEvaluators.GetEnumerator().Returns(_ => new List<IAuthorizationAttributeEvaluator> { new AuthorizationAttributeEvaluator() }.GetEnumerator());
 
-        _authorizationHelper = new AuthorizationEvaluator(_httpRequestContextAccessor, _anonymousEvaluators, _authorizationAttributeEvaluators);
+        _authorizationHelper = new AuthorizationEvaluator(_httpRequestContextAccessor, _systemExecutionAccessor, _anonymousEvaluators, _authorizationAttributeEvaluators);
     }
 
     protected void SetupAuthenticatedUser(params string[] roles)
@@ -54,6 +56,11 @@ public class an_authorization_helper : Specification
     protected void SetupNoHttpRequestContext()
     {
         _httpRequestContextAccessor.Current.Returns((IHttpRequestContext?)null);
+    }
+
+    protected void SetupSystemExecutionUser(params string[] roles)
+    {
+        _systemExecutionAccessor.Current.Returns(SystemPrincipal.WithRoles(roles));
     }
 
     protected void SetupNoUser()
