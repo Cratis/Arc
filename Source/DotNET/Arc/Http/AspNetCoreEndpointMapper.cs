@@ -21,43 +21,43 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
             : endpoints.MapGroup(groupPrefix);
 
     /// <inheritdoc/>
-    public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
-    {
-        Delegate requestHandler = async (HttpContext httpContext) =>
-        {
-            var context = new AspNetCoreHttpRequestContext(httpContext);
-            var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-            accessor.Current = context;
-            await handler(context);
-        };
-
-        var builder = _group.MapGet(pattern, requestHandler);
-
-        ApplyMetadata((RouteHandlerBuilder)(object)builder, metadata);
-    }
+    public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
+        Map("GET", pattern, handler, metadata);
 
     /// <inheritdoc/>
-    public void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
-    {
-        Delegate requestHandler = async (HttpContext httpContext) =>
-        {
-            var context = new AspNetCoreHttpRequestContext(httpContext);
-            var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-            accessor.Current = context;
-            await handler(context);
-        };
+    public void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
+        Map("POST", pattern, handler, metadata);
 
-        var builder = _group.MapPost(pattern, requestHandler);
-
-        ApplyMetadata((RouteHandlerBuilder)(object)builder, metadata);
-    }
+    /// <inheritdoc/>
+    public void MapMethod(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
+        Map(httpMethod, pattern, handler, metadata);
 
     /// <inheritdoc/>
     public bool EndpointExists(string name) => endpoints.EndpointExists(name);
 
+    void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
+    {
+        Delegate requestHandler = async (HttpContext httpContext) =>
+        {
+            var context = new AspNetCoreHttpRequestContext(httpContext);
+            var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
+            accessor.Current = context;
+            await handler(context);
+        };
+
+        var builder = _group.MapMethods(pattern, [httpMethod], requestHandler);
+
+        ApplyMetadata(builder, metadata);
+    }
+
     void ApplyMetadata(RouteHandlerBuilder builder, EndpointMetadata? metadata)
     {
         if (metadata is null) return;
+
+        if (metadata.ExcludeFromApiDescription)
+        {
+            builder.ExcludeFromDescription();
+        }
 
         builder.WithName(metadata.Name);
 

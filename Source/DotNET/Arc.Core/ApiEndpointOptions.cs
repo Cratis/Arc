@@ -27,4 +27,15 @@ public class ApiEndpointOptions
     /// Whether to include the query name as the last segment of the route.
     /// </summary>
     public bool IncludeQueryNameInRoute { get; set; } = true;
+
+    /// <summary>
+    /// Whether to expose queries over the HTTP QUERY method (RFC 10008) in addition to GET.
+    /// </summary>
+    /// <remarks>
+    /// When enabled (the default), every generated query endpoint also accepts the QUERY method,
+    /// carrying its arguments in a JSON request body instead of the query string. Disable this to
+    /// restrict query endpoints to GET only — for example behind infrastructure that rejects
+    /// unknown HTTP verbs.
+    /// </remarks>
+    public bool EnableQueryHttpMethod { get; set; } = true;
 }
