@@ -14,9 +14,9 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.39.1" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.39.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.39.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="15.40.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.40.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.40.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.16.2" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.2" />
     <!-- MAUI -->
@@ -43,7 +43,7 @@
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
-    <PackageVersion Include="MongoDB.Driver" Version="3.9.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.10.0" />
     <PackageVersion Include="SharpCompress" Version="1.0.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageVersion Include="handlebars.net" Version="2.1.6" />
@@ -54,18 +54,18 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageVersion Include="snappier" Version="1.3.1" />
     <!-- Roslyn-->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.6.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
     <!-- Override vulnerable/incompatible transitive dependencies from analyzer testing packages -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.6.0" />
     <PackageVersion Include="System.Formats.Asn1" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Composition" Version="1.0.31" />
     <!-- Analysis -->
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.119" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.122" />
     <!-- Specifications -->
     <PackageVersion Include="Cratis.Specifications.XUnit" Version="3.0.5" />
     <PackageVersion Include="xunit" Version="2.9.3" />
