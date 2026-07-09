@@ -12,6 +12,8 @@ export * from './SortingActions';
 export * from './SortingActionsForQuery';
 export * from './SortingActionsForObservableQuery';
 export * from './QueryFor';
+export * from './QueryHttpMethod';
+export * from './QueryHttpRequest';
 export * from './QueryResult';
 export * from './QueryResultWithState';
 export * from './IObservableQueryFor';

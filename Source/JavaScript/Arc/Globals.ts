@@ -3,6 +3,7 @@
 
 import { GetHttpHeaders } from './GetHttpHeaders';
 import { QueryTransportMethod } from './queries/QueryTransportMethod';
+import { QueryHttpMethod } from './queries/QueryHttpMethod';
 
 /**
  * Defines the transfer mode used for observable query subscriptions.
@@ -29,6 +30,12 @@ export interface IGlobals {
     microserviceHttpHeader: string;
     microserviceWSQueryArgument: string;
     queryTransportMethod: QueryTransportMethod;
+    /**
+     * The HTTP method used to perform non-streaming queries. Defaults to {@link QueryHttpMethod.Get}.
+     * Set to {@link QueryHttpMethod.Query} to carry arguments in a JSON request body (RFC 10008)
+     * instead of the URL query string. Individual queries can override this via {@code setHttpMethod}.
+     */
+    queryHttpMethod: QueryHttpMethod;
     /**
      * Number of hub connections maintained for observable queries.
      * When greater than one, queries are distributed across the pool round-robin.
@@ -74,6 +81,7 @@ export const Globals: IGlobals = {
     microserviceHttpHeader: 'x-cratis-microservice',
     microserviceWSQueryArgument: 'x-cratis-microservice',
     queryTransportMethod: QueryTransportMethod.WebSocket,
+    queryHttpMethod: QueryHttpMethod.Get,
     queryConnectionCount: 1,
     queryDirectMode: false,
     observableQueryTransferMode: ObservableQueryTransferMode.Delta,
