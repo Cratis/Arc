@@ -22,7 +22,7 @@ public class with_multiple_successful_commands : given.a_command_side_effect_exe
         _commandPipeline.Execute(_second, _serviceProvider).Returns(CommandResult.Success(CorrelationId.New()));
     }
 
-    async Task Because() => _result = await _executor.Execute([_first, _second]);
+    async Task Because() => _result = await _executor.Execute([_first, _second], _reactorType);
 
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_create_a_single_service_scope() => _serviceScopeFactory.Received(1).CreateScope();

@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Reactors.SideEffects;
 using Cratis.DependencyInjection;
@@ -14,14 +16,17 @@ namespace Cratis.Arc.Chronicle.Reactors;
 /// the <see cref="ICommandPipeline"/> within a dedicated service scope.
 /// </summary>
 /// <param name="serviceScopeFactory">The <see cref="IServiceScopeFactory"/> used to create a scope per execution.</param>
+/// <param name="systemExecution">The <see cref="ISystemExecution"/> used to execute commands as a system actor when the reactor declares roles.</param>
 [Singleton]
-public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory) : ICommandSideEffectExecutor
+public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory, ISystemExecution systemExecution) : ICommandSideEffectExecutor
 {
     /// <inheritdoc/>
-    public async Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands)
+    public async Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
+
+        using var systemExecutionScope = EstablishSystemExecution(reactorType);
 
         foreach (var command in commands)
         {
@@ -55,5 +60,11 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory)
         {
             yield return $"Command '{name}' threw an exception: {exceptionMessage}";
         }
+    }
+
+    IDisposable? EstablishSystemExecution(Type reactorType)
+    {
+        var attribute = reactorType.GetCustomAttribute<ExecuteCommandsAsSystemAttribute>();
+        return attribute is not null ? systemExecution.AsSystem([.. attribute.Roles]) : null;
     }
 }

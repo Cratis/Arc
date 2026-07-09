@@ -15,6 +15,7 @@ public interface ICommandSideEffectExecutor
     /// Executes the given commands as side effects within a dedicated service scope.
     /// </summary>
     /// <param name="commands">The commands to execute.</param>
+    /// <param name="reactorType">The type of the reactor that returned the commands, used to resolve system execution roles.</param>
     /// <returns>
     /// A <see cref="Result{TError}"/> holding a <see cref="ReactorSideEffectFailure"/> describing the first
     /// command that failed, or a success result when every command executed successfully.
@@ -22,7 +23,8 @@ public interface ICommandSideEffectExecutor
     /// <remarks>
     /// Commands execute sequentially in order within a single service scope. Execution stops at the first command
     /// that fails and that failure is returned. There is no transaction spanning the commands — any events appended
-    /// by earlier, successful commands remain committed.
+    /// by earlier, successful commands remain committed. When the reactor is marked with
+    /// <see cref="ExecuteCommandsAsSystemAttribute"/>, the commands execute as a trusted system actor holding the declared roles.
     /// </remarks>
-    Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands);
+    Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType);
 }

@@ -22,7 +22,7 @@ public class and_a_command_is_not_authorized : given.a_command_side_effect_execu
 
     async Task Because()
     {
-        _result = await _executor.Execute([_command]);
+        _result = await _executor.Execute([_command], _reactorType);
         _result.TryGetError(out _failure);
     }
 

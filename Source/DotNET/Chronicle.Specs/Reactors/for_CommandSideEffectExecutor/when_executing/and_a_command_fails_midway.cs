@@ -28,7 +28,7 @@ public class and_a_command_fails_midway : given.a_command_side_effect_executor
 
     async Task Because()
     {
-        _result = await _executor.Execute([_first, _second, _third]);
+        _result = await _executor.Execute([_first, _second, _third], _reactorType);
         _result.TryGetError(out _failure);
     }
 

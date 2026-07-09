@@ -22,5 +22,5 @@ public class CommandsResultHandler(ICommandSideEffectExecutor executor) : IReact
 
     /// <inheritdoc/>
     public Task<Result<ReactorSideEffectFailure>> Handle(ReactorContext reactorContext, IEventStore eventStore, object value) =>
-        executor.Execute((IEnumerable<object>)value);
+        executor.Execute((IEnumerable<object>)value, reactorContext.Reactor.GetType());
 }

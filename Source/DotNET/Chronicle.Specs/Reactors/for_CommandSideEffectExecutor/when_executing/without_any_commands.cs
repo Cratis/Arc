@@ -10,7 +10,7 @@ public class without_any_commands : given.a_command_side_effect_executor
 {
     Result<ReactorSideEffectFailure> _result;
 
-    async Task Because() => _result = await _executor.Execute([]);
+    async Task Because() => _result = await _executor.Execute([], _reactorType);
 
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_execute_any_command() => _commandPipeline.ReceivedCalls().ShouldBeEmpty();
