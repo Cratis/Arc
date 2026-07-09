@@ -40,6 +40,8 @@ public class a_query_endpoint : Specification
         _queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         _queryPerformerProviders.Performers.Returns([queryPerformer]);
         builder.Services.AddSingleton(_queryPerformerProviders);
+        builder.Services.AddSingleton<IInstancesOf<IQueryRequestReader>>(
+            new KnownInstancesOf<IQueryRequestReader>([new QueryStringQueryRequestReader(), new BodyQueryRequestReader()]));
 
         _app = builder.Build();
         _routeBuilder = _app;
