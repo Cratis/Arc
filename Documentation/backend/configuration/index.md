@@ -76,6 +76,8 @@ For authenticating requests, see [Authentication](../core/authentication.md). Wh
 
 CORS is **not** an Arc option — configure it with standard ASP.NET Core (`builder.Services.AddCors(...)` and `app.UseCors(...)`). Arc neither wraps nor replaces it.
 
+If you opt queries into the [HTTP QUERY method](../queries/using-the-http-query-method.md), add `QUERY` to your allowed methods (`policy.WithMethods("GET", "POST", "QUERY")`) — it is not a simple method, so cross-origin calls preflight. The default `GET` transport needs no CORS change.
+
 ## Where to go next
 
 - [ASP.NET Core configuration](../asp-net-core/configuration.md) — route-generation examples and JSON serialization in depth.

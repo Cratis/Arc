@@ -6,6 +6,8 @@
   href: observable-query-demultiplexer.md
 - name: Query Health Endpoint
   href: query-health.md
+- name: Use the HTTP QUERY method
+  href: using-the-http-query-method.md
 - name: Use Observable Queries with cURL
   href: using-observable-queries-with-curl.md
 - name: Change Stream
