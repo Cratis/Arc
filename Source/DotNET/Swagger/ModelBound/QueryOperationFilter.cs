@@ -3,6 +3,7 @@
 
 using System.Net;
 using Cratis.Arc.Queries;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -12,8 +13,12 @@ namespace Cratis.Arc.Swagger.ModelBound;
 /// Represents an implementation of <see cref="IOperationFilter"/> that adds query arguments and result documentation for model-bound minimal APIs.
 /// </summary>
 /// <param name="queryPerformerProviders">The query performer providers.</param>
-public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProviders) : IOperationFilter
+/// <param name="options">The <see cref="ArcOptions"/>.</param>
+public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProviders, IOptions<ArcOptions> options) : IOperationFilter
 {
+    const string QueryHttpMethodNote =
+        "This query can also be invoked with the HTTP QUERY method (RFC 10008), sending the arguments, paging and sorting as a JSON request body instead of the URL query string.";
+
     /// <inheritdoc/>
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
@@ -26,6 +31,15 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
 
         // Set up response schemas for the query result
         SetupQueryResponseSchemas(operation, context);
+
+        // The QUERY method endpoint cannot be represented as its own OpenAPI operation, so surface its
+        // availability on the GET operation instead.
+        if (options.Value.GeneratedApis.EnableQueryHttpMethod)
+        {
+            operation.Description = string.IsNullOrEmpty(operation.Description)
+                ? QueryHttpMethodNote
+                : $"{operation.Description}\n\n{QueryHttpMethodNote}";
+        }
     }
 
     static IQueryPerformer? FindMatchingQueryPerformer(OpenApiOperation operation, IQueryPerformerProviders queryPerformerProviders)

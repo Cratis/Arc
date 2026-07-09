@@ -4,6 +4,7 @@
 using System.Reflection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Swagger.ModelBound;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -15,13 +16,15 @@ public class a_query_operation_filter : Specification
     protected QueryOperationFilter _filter;
     protected ISchemaGenerator _schemaGenerator;
     protected SchemaRepository _schemaRepository;
+    protected ArcOptions _arcOptions;
 
     public record TestReadModel(string Name, int Value);
 
     void Establish()
     {
         _queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
-        _filter = new QueryOperationFilter(_queryPerformerProviders);
+        _arcOptions = new ArcOptions();
+        _filter = new QueryOperationFilter(_queryPerformerProviders, Options.Create(_arcOptions));
         _schemaGenerator = Substitute.For<ISchemaGenerator>();
         _schemaRepository = new SchemaRepository();
 
