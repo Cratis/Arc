@@ -7,8 +7,9 @@ import { BuildQueryHttpRequestOptions } from '../QueryHttpRequest';
 
 /**
  * Builds a minimal set of options for exercising {@link executeQueryHttpRequest}.
+ * @param overrides Optional property overrides (e.g. a different origin).
  */
-export function makeOptions(): BuildQueryHttpRequestOptions {
+export function makeOptions(overrides?: Partial<BuildQueryHttpRequestOptions>): BuildQueryHttpRequestOptions {
     return {
         route: '/api/test',
         apiBasePath: '',
@@ -17,6 +18,7 @@ export function makeOptions(): BuildQueryHttpRequestOptions {
         parameterValues: {},
         paging: Paging.noPaging,
         sorting: Sorting.none,
-        headers: {}
+        headers: {},
+        ...overrides
     };
 }

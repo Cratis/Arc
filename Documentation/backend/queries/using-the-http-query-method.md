@@ -47,7 +47,7 @@ import { QueryHttpMethod } from '@cratis/arc/queries';
 Globals.queryHttpMethod = QueryHttpMethod.Auto;
 ```
 
-Arc sends `QUERY` on the first query. If the server or an intermediary rejects the verb — a `405`/`501` response, or a network/CORS error from `fetch` — it transparently retries the query with `GET` and remembers the outcome for the rest of the session, so subsequent queries go straight to the working transport. This also covers the cross-origin case: if the CORS policy doesn't allow `QUERY`, `Auto` simply settles on `GET`.
+Arc sends `QUERY` on the first query. If the server or an intermediary rejects the verb — a `405`/`501` response, or a network/CORS error from `fetch` — it transparently retries the query with `GET` and remembers the outcome **per backend** (origin + API base path) for the rest of the session, so subsequent queries go straight to the working transport and one backend's lack of support never downgrades another. This also covers the cross-origin case: if the CORS policy doesn't allow `QUERY`, `Auto` simply settles on `GET`.
 
 `Auto` only falls back on **transport-level** failures — an application error (a normal failed `QueryResult`) is never retried as `GET`. Call `resetQueryHttpMethodResolution()` (from `@cratis/arc/queries`) to make the next `Auto` query probe again, for example after a network change.
 
