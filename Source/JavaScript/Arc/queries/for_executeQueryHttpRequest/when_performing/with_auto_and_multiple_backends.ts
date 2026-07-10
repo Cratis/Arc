@@ -19,7 +19,7 @@ describe('when performing with auto and multiple backends', () => {
         fetchStub = fetchHelper.stubFetch();
         // The legacy backend rejects QUERY; the modern backend supports it.
         fetchStub.callsFake((url: URL, init: RequestInit) => {
-            const rejectsQuery = url.href.startsWith(unsupportedOrigin) && init.method === 'QUERY';
+            const rejectsQuery = url.origin === unsupportedOrigin && init.method === 'QUERY';
             return Promise.resolve({ status: rejectsQuery ? 405 : 200 } as unknown as Response);
         });
 
@@ -32,12 +32,12 @@ describe('when performing with auto and multiple backends', () => {
     afterEach(() => fetchHelper.restore());
 
     it('should use QUERY for the backend that supports it', () => {
-        const modernCalls = fetchStub.getCalls().filter(call => (call.args[0] as URL).href.startsWith(supportedOrigin));
+        const modernCalls = fetchStub.getCalls().filter(call => (call.args[0] as URL).origin === supportedOrigin);
         modernCalls.some(call => call.args[1].method === 'QUERY').should.be.true;
     });
 
     it('should not downgrade the supported backend to GET', () => {
-        const modernCalls = fetchStub.getCalls().filter(call => (call.args[0] as URL).href.startsWith(supportedOrigin));
+        const modernCalls = fetchStub.getCalls().filter(call => (call.args[0] as URL).origin === supportedOrigin);
         modernCalls.every(call => call.args[1].method === 'QUERY').should.be.true;
     });
 });
