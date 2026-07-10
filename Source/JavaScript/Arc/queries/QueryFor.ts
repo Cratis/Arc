@@ -13,7 +13,7 @@ import { GetHttpHeaders } from '../GetHttpHeaders';
 import { ParameterDescriptor } from '../reflection/ParameterDescriptor';
 import { ParametersHelper } from '../reflection/ParametersHelper';
 import { QueryHttpMethod } from './QueryHttpMethod';
-import { buildQueryHttpRequest } from './QueryHttpRequest';
+import { executeQueryHttpRequest } from './QueryHttpRequest';
 
 /**
  * Represents an implementation of {@link IQueryFor}.
@@ -137,7 +137,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
             headers[Globals.microserviceHttpHeader] = this._microservice;
         }
 
-        const { url, init } = buildQueryHttpRequest(this._httpMethod ?? Globals.queryHttpMethod, {
+        const response = await executeQueryHttpRequest(this._httpMethod ?? Globals.queryHttpMethod, {
             route: this.route,
             apiBasePath: this._apiBasePath,
             origin: this._origin,
@@ -148,8 +148,6 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
             headers,
             signal: this.abortController.signal
         });
-
-        const response = await fetch(url, init);
 
         try {
             const result = await response.json();

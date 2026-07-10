@@ -107,3 +107,71 @@ export function buildQueryHttpRequest(method: QueryHttpMethod, options: BuildQue
     };
     return { url, init };
 }
+
+/**
+ * The transport learned for {@link QueryHttpMethod.Auto} — once QUERY is found to be unsupported it is
+ * pinned to GET for the rest of the session; while QUERY works it stays undefined so each attempt keeps
+ * verifying cheaply. App-wide, since a client typically talks to a single backend.
+ */
+let autoResolvedMethod: QueryHttpMethod | undefined;
+
+/**
+ * Resets the transport learned for {@link QueryHttpMethod.Auto}, so the next Auto query re-probes for
+ * QUERY support. Useful after a network change, or between tests.
+ */
+export function resetQueryHttpMethodResolution(): void {
+    autoResolvedMethod = undefined;
+}
+
+function isMethodUnsupported(status: number): boolean {
+    // 405 Method Not Allowed / 501 Not Implemented — the server received the request but will not
+    // handle the verb (e.g. QUERY disabled). A missing intermediary surfaces as a thrown TypeError.
+    return status === 405 || status === 501;
+}
+
+function isAbortError(error: unknown): boolean {
+    return (error as { name?: string })?.name === 'AbortError';
+}
+
+/**
+ * Performs the query HTTP request for the given method, resolving {@link QueryHttpMethod.Auto} by
+ * preferring QUERY and falling back to GET when the server or network path does not support it.
+ *
+ * Explicit {@link QueryHttpMethod.Get} and {@link QueryHttpMethod.Query} are honored exactly, with no
+ * fallback. For Auto, a transport-level failure — a `405`/`501` response, or a network/CORS error from
+ * {@link fetch} — falls back to GET and pins the session to GET. Application-level errors (any other
+ * status, returned as a normal {@link Response}) are never treated as a fallback signal.
+ * @param method The configured {@link QueryHttpMethod}.
+ * @param options The {@link BuildQueryHttpRequestOptions} describing the request.
+ * @returns The {@link Response} from the request that was ultimately sent.
+ */
+export async function executeQueryHttpRequest(method: QueryHttpMethod, options: BuildQueryHttpRequestOptions): Promise<Response> {
+    const send = (httpMethod: QueryHttpMethod): Promise<Response> => {
+        const { url, init } = buildQueryHttpRequest(httpMethod, options);
+        return fetch(url, init);
+    };
+
+    if (method !== QueryHttpMethod.Auto) {
+        return send(method);
+    }
+
+    if (autoResolvedMethod === QueryHttpMethod.Get) {
+        return send(QueryHttpMethod.Get);
+    }
+
+    try {
+        const response = await send(QueryHttpMethod.Query);
+        if (isMethodUnsupported(response.status)) {
+            autoResolvedMethod = QueryHttpMethod.Get;
+            return send(QueryHttpMethod.Get);
+        }
+        autoResolvedMethod = QueryHttpMethod.Query;
+        return response;
+    } catch (error) {
+        if (isAbortError(error)) {
+            throw error;
+        }
+        autoResolvedMethod = QueryHttpMethod.Get;
+        return send(QueryHttpMethod.Get);
+    }
+}

@@ -14,4 +14,11 @@ export enum QueryHttpMethod {
      * Use the QUERY method (RFC 10008), carrying arguments in a JSON request body.
      */
     Query = 'QUERY',
+
+    /**
+     * Prefer the QUERY method and automatically fall back to GET when the server or network path
+     * does not support it. The outcome is remembered for the rest of the session so subsequent
+     * queries go straight to the working transport.
+     */
+    Auto = 'AUTO',
 }
