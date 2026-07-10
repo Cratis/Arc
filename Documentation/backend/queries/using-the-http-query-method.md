@@ -36,6 +36,21 @@ query.setHttpMethod(QueryHttpMethod.Query);
 
 Everything else — arguments, paging, sorting, the shape of the result — stays exactly the same. Only the transport changes.
 
+## Let the framework choose with `Auto`
+
+If you're not sure every deployment's network path supports `QUERY` (some corporate proxies, WAFs and gateways don't recognize it yet), use `QueryHttpMethod.Auto`:
+
+```typescript
+import { Globals } from '@cratis/arc';
+import { QueryHttpMethod } from '@cratis/arc/queries';
+
+Globals.queryHttpMethod = QueryHttpMethod.Auto;
+```
+
+Arc sends `QUERY` on the first query. If the server or an intermediary rejects the verb — a `405`/`501` response, or a network/CORS error from `fetch` — it transparently retries the query with `GET` and remembers the outcome for the rest of the session, so subsequent queries go straight to the working transport. This also covers the cross-origin case: if the CORS policy doesn't allow `QUERY`, `Auto` simply settles on `GET`.
+
+`Auto` only falls back on **transport-level** failures — an application error (a normal failed `QueryResult`) is never retried as `GET`. Call `resetQueryHttpMethodResolution()` (from `@cratis/arc/queries`) to make the next `Auto` query probe again, for example after a network change.
+
 ## The request body
 
 With `QUERY`, route parameters stay in the path (they identify the resource); every other argument, plus paging and sorting, moves into a JSON body:
