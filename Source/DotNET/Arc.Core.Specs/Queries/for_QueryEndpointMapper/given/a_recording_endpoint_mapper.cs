@@ -22,11 +22,14 @@ public class a_recording_endpoint_mapper : IEndpointMapper
         MapMethod("POST", pattern, handler, metadata);
 
     public void MapMethod(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
-        Mapped.Add(new MappedEndpoint(httpMethod, pattern, metadata));
+        Mapped.Add(new MappedEndpoint(httpMethod, pattern, handler, metadata));
 
     public bool EndpointExists(string name) => ExistingEndpoints.Contains(name);
 
     public int CountFor(string httpMethod) => Mapped.Count(m => m.HttpMethod == httpMethod);
 
-    public record MappedEndpoint(string HttpMethod, string Pattern, EndpointMetadata? Metadata);
+    public Func<IHttpRequestContext, Task> HandlerFor(string httpMethod) =>
+        Mapped.First(m => m.HttpMethod == httpMethod).Handler;
+
+    public record MappedEndpoint(string HttpMethod, string Pattern, Func<IHttpRequestContext, Task> Handler, EndpointMetadata? Metadata);
 }
