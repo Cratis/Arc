@@ -121,6 +121,21 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         return this.performRequest(actualRoute, 'Command validation endpoint not found at route', 'Error during validation call');
     }
 
+    /** @inheritdoc */
+    validateClientSide(): CommandResult<TCommandResponse> {
+        const clientValidationErrors = this.validation?.validate(this) || [];
+        if (clientValidationErrors.length > 0) {
+            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        }
+
+        const validationErrors = this.validateRequiredProperties();
+        if (validationErrors.length > 0) {
+            return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
+        }
+
+        return CommandResult.empty as unknown as CommandResult<TCommandResponse>;
+    }
+
     private buildPayload(): object {
         const payload = {};
         this.propertyDescriptors.forEach(propertyDescriptor => {

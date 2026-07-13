@@ -11,6 +11,7 @@ import { ValidationResult } from '@cratis/arc/validation';
 import React, { useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
+import { runCommandValidation } from './runCommandValidation';
 import { useIdentity } from '../../identity';
 
 // Re-export for backwards compatibility
@@ -33,6 +34,12 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
     validateOn?: 'blur' | 'change' | 'both';
     validateAllFieldsOnChange?: boolean;
     validateOnInit?: boolean;
+    /**
+     * Whether silent/eager validation (on init, on change, on blur) should be performed against the
+     * server. Defaults to false — silent validation only runs client-side rules and never contacts the
+     * server. Executing the command still performs full server-side validation regardless of this flag;
+     * enable this only to surface server-only rules (e.g. uniqueness checks) before submission.
+     */
     autoServerValidate?: boolean;
     autoServerValidateThrottle?: number;
     fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
@@ -167,16 +174,14 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
 
     const validateSilently = useCallback(async (showErrors: boolean) => {
-        if (commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
-            const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
-            if (validationResult) {
-                setSilentValidationResult(validationResult);
-                if (showErrors) {
-                    setCommandResult(validationResult);
-                }
+        const validationResult = await runCommandValidation(commandInstance, props.autoServerValidate ?? false);
+        if (validationResult) {
+            setSilentValidationResult(validationResult);
+            if (showErrors) {
+                setCommandResult(validationResult);
             }
         }
-    }, [commandInstance]);
+    }, [commandInstance, props.autoServerValidate]);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
     // When using currentValues, always update when they change (reactive mode for editing)
