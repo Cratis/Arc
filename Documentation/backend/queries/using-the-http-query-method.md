@@ -17,6 +17,21 @@ Use this when you want to:
 - Your application is running and exposes at least one query.
 - You are calling the query from the generated TypeScript proxy, or from a plain HTTP tool.
 
+## Declare the transport in C\#
+
+The most direct way is to declare the transport where the query lives — the same place you already put `[Route]` or `[AllowAnonymous]`. Put `[QueryHttpMethod]` on a read model (all its queries) or a single static query method, and the generated proxy defaults to that transport with no client wiring:
+
+```csharp
+[ReadModel]
+public record Order(OrderId Id, string Customer)
+{
+    [QueryHttpMethod(QueryHttpMethod.Query)]
+    public static IEnumerable<Order> Search(OrderFilter filter) => /* ... */;
+}
+```
+
+The generated `Search` proxy calls `setHttpMethod(QueryHttpMethod.Query)` in its constructor, so every caller uses QUERY automatically — the backend author's knowledge that this query takes a large filter flows to the client through proxy generation. A method-level attribute overrides a read-model-level one, callers can still override it at runtime with `setHttpMethod`, and the server accepts both verbs regardless — this only sets the client default.
+
 ## Opt in from the client
 
 The generated proxies default to `GET`. Switch the default for every query by setting `Globals.queryHttpMethod`:
