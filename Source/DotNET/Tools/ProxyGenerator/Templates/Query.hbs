@@ -6,13 +6,13 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { QueryFor, QueryResultWithState, QueryValidator, Sorting, SortingActions, SortingActionsForQuery, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, Sorting, SortingActions, SortingActionsForQuery, Paging{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 {{else}}
-import { QueryFor, QueryResultWithState, QueryValidator, Sorting, Paging } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator, Sorting, Paging{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 {{/if}}
 import { useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize, QueryWhen } from '@cratis/arc.react/queries';
 {{else}}
-import { QueryFor, QueryResultWithState, QueryValidator } from '@cratis/arc/queries';
+import { QueryFor, QueryResultWithState, QueryValidator{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 import { useQuery, useSuspenseQuery, PerformQuery, SetSorting, QueryWhen } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
@@ -133,8 +133,11 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
 
     constructor() {
         super({{{Constructor}}}, {{lowercase IsEnumerable}});
-{{#if IsEnumerable}}        
+{{#if IsEnumerable}}
         this._sortBy = new {{Name}}SortBy(this);
+{{/if}}
+{{#if HttpMethod}}
+        this.setHttpMethod(QueryHttpMethod.{{HttpMethod}});
 {{/if}}
     }
 

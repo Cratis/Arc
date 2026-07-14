@@ -202,6 +202,14 @@ public static class QueryExtensions
         // Extract roles from authorization attributes on the method and its declaring type (read model)
         var roles = method.GetRoles().ToArray();
 
+        // Check for QueryHttpMethod attribute on method (wins) or read-model type; the enum member name
+        // (Get/Query/Auto) matches the TypeScript QueryHttpMethod enum and is emitted into the proxy.
+        var httpMethodAttr = method.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "QueryHttpMethodAttribute") ??
+                             readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "QueryHttpMethodAttribute");
+        var httpMethod = httpMethodAttr is { ConstructorArguments.Count: > 0 }
+            ? Enum.GetName(httpMethodAttr.ConstructorArguments[0].ArgumentType, httpMethodAttr.ConstructorArguments[0].Value!)
+            : null;
+
         return new(
             readModelType,
             method,
@@ -219,7 +227,8 @@ public static class QueryExtensions
             documentation,
             validationRules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
-            roles);
+            roles,
+            httpMethod);
     }
 
     /// <summary>
