@@ -51,6 +51,28 @@ Arc sends `QUERY` on the first query. If the server or an intermediary rejects t
 
 `Auto` only falls back on **transport-level** failures — an application error (a normal failed `QueryResult`) is never retried as `GET`. Call `resetQueryHttpMethodResolution()` (from `@cratis/arc/queries`) to make the next `Auto` query probe again, for example after a network change.
 
+## Choose the transport per query
+
+Most queries have small arguments that belong in the URL — only the ones whose arguments overflow it really need `QUERY`. Instead of picking a method for the whole app, set a **resolver** that decides per query. The built-in `lengthBasedQueryHttpMethod` keeps short queries on cacheable `GET` and prefers `QUERY` only when the `GET` URL would exceed a threshold:
+
+```typescript
+import { Globals } from '@cratis/arc';
+import { lengthBasedQueryHttpMethod } from '@cratis/arc/queries';
+
+Globals.queryHttpMethodResolver = lengthBasedQueryHttpMethod({ threshold: 2000 });
+```
+
+When the URL is short the query uses `GET`; when it exceeds the threshold it uses `QUERY` (with `Auto`'s `GET` fallback, so an unsupporting backend still degrades gracefully).
+
+The resolver is consulted only when a query has **no** explicit method set via `setHttpMethod` — an explicit per-query choice always wins. You can also write your own policy; it receives the built `GET` URL, the route and the arguments:
+
+```typescript
+import { QueryHttpMethod } from '@cratis/arc/queries';
+
+Globals.queryHttpMethodResolver = ({ route }) =>
+    route.startsWith('/api/reports') ? QueryHttpMethod.Query : QueryHttpMethod.Get;
+```
+
 ## The request body
 
 With `QUERY`, route parameters stay in the path (they identify the resource); every other argument, plus paging and sorting, moves into a JSON body:
