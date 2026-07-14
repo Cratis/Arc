@@ -13,6 +13,7 @@ export * from './SortingActionsForQuery';
 export * from './SortingActionsForObservableQuery';
 export * from './QueryFor';
 export * from './QueryHttpMethod';
+export * from './QueryHttpMethodResolver';
 export * from './QueryHttpRequest';
 export * from './QueryResult';
 export * from './QueryResultWithState';

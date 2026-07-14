@@ -137,7 +137,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
             headers[Globals.microserviceHttpHeader] = this._microservice;
         }
 
-        const response = await executeQueryHttpRequest(this._httpMethod ?? Globals.queryHttpMethod, {
+        const response = await executeQueryHttpRequest(this._httpMethod, {
             route: this.route,
             apiBasePath: this._apiBasePath,
             origin: this._origin,
