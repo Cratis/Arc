@@ -28,7 +28,8 @@
         "test": "node ./run-task-on-workspaces.js test",
         "ci": "node ./run-task-on-workspaces.js ci",
         "publish-version": "node ./run-task-on-workspaces.js publish-version $*",
-        "up": "node ./run-task-on-workspaces.js up"
+        "up": "node ./run-task-on-workspaces.js up",
+        "postinstall": "node ./link-eslint-typescript.js"
     },
     "devDependencies": {
         "@cratis/fundamentals": "^7.16.2",
@@ -79,6 +80,7 @@
         "ts-node": "10.9.2",
         "typescript": "7.0.2",
         "typescript-eslint": "8.59.4",
+        "typescript-for-eslint": "npm:typescript@6.0.3",
         "vite": "8.0.16",
         "vite-plugin-commonjs": "0.10.4",
         "vite-tsconfig-paths": "6.1.1",
