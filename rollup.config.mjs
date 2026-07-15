@@ -1,7 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import typescript2 from 'rollup-plugin-typescript2';
+// rollup-plugin-typescript2 drives the TS compiler's classic Program/LanguageService
+// API, which TypeScript 7's native package no longer exposes. Type-checking and
+// declaration output are already handled by the `tsc -b` step that runs before this
+// config, so this only needs to strip types for bundling - swc does that without
+// depending on the classic API.
+import { swc } from 'rollup-plugin-swc3';
 import commonjs from 'rollup-plugin-commonjs';
 import peerDepsExternal from 'rollup-plugin-peer-deps-external';
 import { writeFileSync, mkdirSync } from 'fs';
@@ -67,6 +72,7 @@ export function rollup(cjsPath, esmPath, tsconfigPath, pkg) {
             /^@cratis\/fundamentals/,
             'react',
             'react-dom',
+            'rxjs',
         ],
         plugins: [
             peerDepsExternal(),
@@ -77,11 +83,14 @@ export function rollup(cjsPath, esmPath, tsconfigPath, pkg) {
                     'react/jsx-runtime': ['tsx', 'jsx', 'jsxs'],
                 },
             }),
-            typescript2({
+            swc({
                 include: ['**/*.ts', '**/*.tsx'],
-                exclude: ["for_**/**/*", "**/node_modules/**"],
+                exclude: ['for_**/**/*', '**/node_modules/**'],
                 tsconfig: tsconfigPath,
-                clean: true
+                sourceMaps: true,
+                jsc: {
+                    externalHelpers: false
+                }
             }),
             generatePackageJson(cjsPath, esmPath)
         ]
