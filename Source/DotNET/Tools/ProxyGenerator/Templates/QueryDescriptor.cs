@@ -25,6 +25,7 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="ValidationRules">Validation rules for the query parameters.</param>
 /// <param name="TreatWarningsAsErrors">Whether warnings should be treated as errors for this query.</param>
 /// <param name="Roles">Roles required to perform the query.</param>
+/// <param name="HttpMethod">The client HTTP method the query proxy should default to (<c>Get</c>, <c>Query</c> or <c>Auto</c>), or null for the default.</param>
 public record QueryDescriptor(
     Type Type,
     MethodInfo Method,
@@ -42,4 +43,5 @@ public record QueryDescriptor(
     string? Documentation,
     IEnumerable<PropertyValidationDescriptor> ValidationRules,
     bool TreatWarningsAsErrors,
-    IEnumerable<string> Roles) : IDescriptor;
+    IEnumerable<string> Roles,
+    string? HttpMethod = null) : IDescriptor;

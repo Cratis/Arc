@@ -138,6 +138,7 @@ public static class QueryExtensions
             documentation,
             validationRules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
-            roles);
+            roles,
+            HttpMethod: null);
     }
 }

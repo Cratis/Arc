@@ -1,9 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using Cratis.Arc.Http;
 using Cratis.Execution;
-using Cratis.Strings;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -14,11 +15,6 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 public static class QueryEndpointMapper
 {
-    const string SortByQueryStringKey = "sortby";
-    const string SortDirectionQueryStringKey = "sortDirection";
-    const string PageQueryStringKey = "page";
-    const string PageSizeQueryStringKey = "pageSize";
-
     /// <summary>
     /// Maps all query endpoints.
     /// </summary>
@@ -29,6 +25,12 @@ public static class QueryEndpointMapper
         var arcOptions = serviceProvider.GetRequiredService<IOptions<ArcOptions>>().Value;
         var options = arcOptions.GeneratedApis;
         var queryPerformerProviders = serviceProvider.GetRequiredService<IQueryPerformerProviders>();
+
+        // A reader per supported transport (GET query string, QUERY body, …). Adding a transport is a
+        // new IQueryRequestReader — this mapper stays untouched.
+        var readers = serviceProvider.GetRequiredService<IInstancesOf<IQueryRequestReader>>()
+            .Where(reader => options.EnableQueryHttpMethod || IsGet(reader))
+            .ToArray();
 
         var performersByNamespace = EndpointRouteHelper.GroupByNamespace(
             queryPerformerProviders.Performers,
@@ -64,121 +66,81 @@ public static class QueryEndpointMapper
 
             if (!registeredUrls.Add(url)) continue;
 
-            var executeEndpointName = $"Execute{performer.FullyQualifiedName}";
-            if (!mapper.EndpointExists(executeEndpointName))
+            foreach (var reader in readers)
             {
-                var metadata = new EndpointMetadata(
-                    executeEndpointName,
-                    $"Execute {performer.Name} query",
-                    [string.Join('.', locationForTag)],
-                    performer.AllowsAnonymousAccess,
-                    ResponseType: typeof(QueryResult));
-
-                mapper.MapGet(
-                    url,
-                    async context =>
-                    {
-                        var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
-                        var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
-                        var observableQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
-                        var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-
-                        context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
-
-                        var paging = GetPagingInfo(context);
-                        var sorting = GetSortingInfo(context);
-                        var arguments = GetQueryArguments(context, performer);
-
-                        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, arguments, paging, sorting, context.RequestServices);
-
-                        // Check if the result data is a streaming result (Subject or AsyncEnumerable)
-                        if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))
-                        {
-                            await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
-                            return;
-                        }
-
-                        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid);
-                        context.SetStatusCode(statusCode);
-                        await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
-                    },
-                    metadata);
+                MapForReader(mapper, reader, performer, url, locationForTag);
             }
         }
     }
 
-    static Paging GetPagingInfo(IHttpRequestContext context)
+    static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, string url, IEnumerable<string> locationForTag)
     {
-        if (context.Query.TryGetValue(PageSizeQueryStringKey, out var pageSizeString) &&
-            int.TryParse(pageSizeString, out var pageSize))
+        var endpointName = $"{reader.EndpointNamePrefix}{performer.FullyQualifiedName}";
+        if (mapper.EndpointExists(endpointName))
         {
-            var page = 0;
-            if (context.Query.TryGetValue(PageQueryStringKey, out var pageString) &&
-                int.TryParse(pageString, out var parsedPage))
-            {
-                page = parsedPage;
-            }
-
-            return new Paging(page, pageSize, true);
+            return;
         }
 
-        return Paging.NotPaged;
-    }
+        var metadata = new EndpointMetadata(
+            endpointName,
+            $"{reader.EndpointNamePrefix} {performer.Name} query",
+            [string.Join('.', locationForTag)],
+            performer.AllowsAnonymousAccess,
+            RequestBodyType: reader.RequestBodyType,
+            ResponseType: typeof(QueryResult),
+            ExcludeFromApiDescription: !reader.IncludeInApiDescription);
 
-    static Sorting GetSortingInfo(IHttpRequestContext context)
-    {
-        if (context.Query.TryGetValue(SortByQueryStringKey, out var sortBy) &&
-            context.Query.TryGetValue(SortDirectionQueryStringKey, out var sortDirection))
-        {
-            var sortByPascal = sortBy?.ToPascalCase();
-
-            if (!string.IsNullOrEmpty(sortByPascal) && !string.IsNullOrEmpty(sortDirection))
+        mapper.MapMethod(
+            reader.HttpMethod,
+            url,
+            async context =>
             {
-                var direction = sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase)
-                    ? SortDirection.Descending
-                    : SortDirection.Ascending;
-                return new Sorting(sortByPascal, direction);
-            }
-        }
-        return Sorting.None;
-    }
+                var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
+                var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
 
-    static QueryArguments GetQueryArguments(IHttpRequestContext context, IQueryPerformer performer)
-    {
-        var arguments = new QueryArguments();
+                context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
-        var excludedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            SortByQueryStringKey,
-            SortDirectionQueryStringKey,
-            PageQueryStringKey,
-            PageSizeQueryStringKey,
-            ObservableQueryHttp.WaitForFirstResultQueryStringKey,
-            ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
-        };
-
-        foreach (var kvp in context.Query)
-        {
-            if (!excludedKeys.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
-            {
-                var parameter = performer.Parameters.FirstOrDefault(p =>
-                    string.Equals(p.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
-
-                if (parameter is not null)
+                if (reader.ResponseCacheControl is { } cacheControl)
                 {
-                    var convertedValue = kvp.Value.ConvertTo(parameter.Type);
-                    if (convertedValue is not null)
-                    {
-                        arguments[kvp.Key] = convertedValue;
-                    }
+                    context.SetResponseHeader("Cache-Control", cacheControl);
                 }
-                else
+
+                QueryRequest request;
+                try
                 {
-                    arguments[kvp.Key] = kvp.Value;
+                    request = await reader.Read(context, performer);
                 }
-            }
+                catch (Exception ex)
+                {
+                    var errorResult = QueryResult.Error(correlationIdAccessor.Current, $"Failed to read query request: {ex.Message}");
+                    context.SetStatusCode((int)HttpStatusCode.BadRequest);
+                    await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
+                    return;
+                }
+
+                await ProcessQuery(context, performer, request);
+            },
+            metadata);
+    }
+
+    static async Task ProcessQuery(IHttpRequestContext context, IQueryPerformer performer, QueryRequest request)
+    {
+        var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
+        var observableQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
+
+        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices);
+
+        // Check if the result data is a streaming result (Subject or AsyncEnumerable)
+        if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))
+        {
+            await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
+            return;
         }
 
-        return arguments;
+        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid);
+        context.SetStatusCode(statusCode);
+        await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }
+
+    static bool IsGet(IQueryRequestReader reader) => reader.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase);
 }

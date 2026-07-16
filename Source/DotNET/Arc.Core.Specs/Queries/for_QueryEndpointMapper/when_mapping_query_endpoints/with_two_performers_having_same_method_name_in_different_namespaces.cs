@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Http;
-
 namespace Cratis.Arc.Queries.for_QueryEndpointMapper.when_mapping_query_endpoints;
 
 public class with_two_performers_having_same_method_name_in_different_namespaces : given.a_query_endpoint_mapper
@@ -32,14 +30,10 @@ public class with_two_performers_having_same_method_name_in_different_namespaces
         _secondPerformer.Parameters.Returns(new QueryParameters([]));
 
         _queryPerformerProviders.Performers.Returns([_firstPerformer, _secondPerformer]);
-
-        _mapper.EndpointExists(Arg.Any<string>()).Returns(false);
     }
 
     void Because() => _mapper.MapQueryEndpoints(_serviceProvider);
 
-    [Fact] void should_map_two_get_endpoints() => _mapper.Received(2).MapGet(
-        Arg.Any<string>(),
-        Arg.Any<Func<IHttpRequestContext, Task>>(),
-        Arg.Any<EndpointMetadata>());
+    [Fact] void should_map_two_get_endpoints() => _mapper.CountFor("GET").ShouldEqual(2);
+    [Fact] void should_map_two_query_endpoints() => _mapper.CountFor("QUERY").ShouldEqual(2);
 }

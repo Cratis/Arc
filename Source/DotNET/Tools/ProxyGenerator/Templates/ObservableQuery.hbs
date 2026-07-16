@@ -6,13 +6,13 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { ObservableQueryFor, QueryResultWithState, Sorting, SortingActions, SortingActionsForObservableQuery, Paging, ChangeSet } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState, Sorting, SortingActions, SortingActionsForObservableQuery, Paging, ChangeSet{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 {{else}}
-import { ObservableQueryFor, QueryResultWithState, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState, Sorting, Paging, ChangeSet{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 {{/if}}
 import { useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging, useChangeStream, SetSorting, SetPage, SetPageSize, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{else}}
-import { ObservableQueryFor, QueryResultWithState } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
@@ -109,8 +109,11 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 
     constructor() {
         super({{{Constructor}}}, {{lowercase IsEnumerable}});
-{{#if IsEnumerable}}        
+{{#if IsEnumerable}}
         this._sortBy = new {{Name}}SortBy(this);
+{{/if}}
+{{#if HttpMethod}}
+        this.setHttpMethod(QueryHttpMethod.{{HttpMethod}});
 {{/if}}
     }
 

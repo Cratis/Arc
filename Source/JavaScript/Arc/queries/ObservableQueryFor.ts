@@ -14,11 +14,12 @@ import { Sorting } from './Sorting';
 import { Paging } from './Paging';
 import { SortDirection } from './SortDirection';
 import { Globals } from '../Globals';
-import { joinPaths } from '../joinPaths';
 import { UrlHelpers } from '../UrlHelpers';
 import { GetHttpHeaders } from '../GetHttpHeaders';
 import { ParameterDescriptor } from '../reflection/ParameterDescriptor';
 import { ParametersHelper } from '../reflection/ParametersHelper';
+import { QueryHttpMethod } from './QueryHttpMethod';
+import { executeQueryHttpRequest } from './QueryHttpRequest';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -32,6 +33,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     private _origin: string;
     private _connection?: IObservableQueryConnection<TDataType>;
     private _httpHeadersCallback: GetHttpHeaders;
+    private _httpMethod?: QueryHttpMethod;
 
     abstract readonly route: string;
     abstract readonly defaultValue: TDataType;
@@ -82,6 +84,11 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     /** @inheritdoc */
     setHttpHeadersCallback(callback: GetHttpHeaders): void {
         this._httpHeadersCallback = callback;
+    }
+
+    /** @inheritdoc */
+    setHttpMethod(method: QueryHttpMethod): void {
+        this._httpMethod = method;
     }
 
     /** @inheritdoc */
@@ -142,30 +149,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             });
         }
 
-        const { route, unusedParameters } = UrlHelpers.replaceRouteParameters(this.route, args as object);
-        let actualRoute = joinPaths(this._apiBasePath, route);
-        
-        const additionalParams: Record<string, string | number> = {};
-        if (this.paging.hasPaging) {
-            additionalParams.page = this.paging.page;
-            additionalParams.pageSize = this.paging.pageSize;
-        }
-
-        if (this.sorting.hasSorting) {
-            additionalParams.sortBy = this.sorting.field;
-            additionalParams.sortDirection = (this.sorting.direction === SortDirection.descending) ? 'desc' : 'asc';
-        }
-
         // Collect parameter values from parameterDescriptors that are set
         const parameterValues = ParametersHelper.collectParameterValues(this);
-
-        const queryParams = UrlHelpers.buildQueryParams({ ...unusedParameters, ...parameterValues }, additionalParams);
-        const queryString = queryParams.toString();
-        if (queryString) {
-            actualRoute += (actualRoute.includes('?') ? '&' : '?') + queryString;
-        }
-
-        const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
 
         const headers = {
             ...(this._httpHeadersCallback?.() || {}),
@@ -177,8 +162,14 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             headers[Globals.microserviceHttpHeader] = this._microservice;
         }
 
-        const response = await fetch(url, {
-            method: 'GET',
+        const response = await executeQueryHttpRequest(this._httpMethod, {
+            route: this.route,
+            apiBasePath: this._apiBasePath,
+            origin: this._origin,
+            args: (args as object) ?? {},
+            parameterValues,
+            paging: this.paging,
+            sorting: this.sorting,
             headers
         });
 
