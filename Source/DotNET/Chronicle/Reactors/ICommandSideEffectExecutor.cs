@@ -25,4 +25,21 @@ public interface ICommandSideEffectExecutor
     /// by earlier, successful commands remain committed.
     /// </remarks>
     Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands);
+
+    /// <summary>
+    /// Executes the given commands as side effects within a dedicated service scope, resolving system execution roles
+    /// from the reactor that returned them.
+    /// </summary>
+    /// <param name="commands">The commands to execute.</param>
+    /// <param name="reactorType">The type of the reactor that returned the commands, used to resolve system execution roles.</param>
+    /// <returns>
+    /// A <see cref="Result{TError}"/> holding a <see cref="ReactorSideEffectFailure"/> describing the first
+    /// command that failed, or a success result when every command executed successfully.
+    /// </returns>
+    /// <remarks>
+    /// Behaves like <see cref="Execute(IEnumerable{object})"/>, except that when the reactor is marked with
+    /// <see cref="ExecuteCommandsAsSystemAttribute"/>, the commands execute as a trusted system actor holding the
+    /// declared roles. When the reactor is not marked, this behaves identically to <see cref="Execute(IEnumerable{object})"/>.
+    /// </remarks>
+    Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType);
 }

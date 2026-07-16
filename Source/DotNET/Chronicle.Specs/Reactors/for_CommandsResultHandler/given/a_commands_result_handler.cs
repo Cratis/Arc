@@ -17,6 +17,7 @@ public class a_commands_result_handler : Specification
     void Establish()
     {
         _executor = Substitute.For<ICommandSideEffectExecutor>();
+        _reactorContext = new ReactorContext(null!, new TestReactor(), null!);
         _handler = new CommandsResultHandler(_executor);
     }
 
@@ -27,4 +28,6 @@ public class a_commands_result_handler : Specification
     }
 
     public class NotACommand;
+
+    public class TestReactor;
 }

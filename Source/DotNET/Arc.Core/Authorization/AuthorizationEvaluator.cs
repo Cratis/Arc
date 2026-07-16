@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using Cratis.Arc.Http;
 using Cratis.Types;
 
 namespace Cratis.Arc.Authorization;
@@ -10,11 +9,11 @@ namespace Cratis.Arc.Authorization;
 /// <summary>
 /// Helper class for performing authorization checks.
 /// </summary>
-/// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> to access the current HTTP request context.</param>
+/// <param name="currentPrincipalAccessor">The <see cref="ICurrentPrincipalAccessor"/> to access the principal currently executing.</param>
 /// <param name="anonymousEvaluators">The collection of <see cref="IAnonymousEvaluator"/> instances.</param>
 /// <param name="authorizationAttributeEvaluators">The collection of <see cref="IAuthorizationAttributeEvaluator"/> instances.</param>
 public class AuthorizationEvaluator(
-    IHttpRequestContextAccessor httpRequestContextAccessor,
+    ICurrentPrincipalAccessor currentPrincipalAccessor,
     IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
     IInstancesOf<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators) : IAuthorizationEvaluator
 {
@@ -108,7 +107,7 @@ public class AuthorizationEvaluator(
             return true;
         }
 
-        var user = httpRequestContextAccessor.Current?.User;
+        var user = currentPrincipalAccessor.Current;
         if (user is null)
         {
             return false;

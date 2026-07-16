@@ -8,7 +8,7 @@ using Cratis.Monads;
 
 namespace Cratis.Arc.Chronicle.Reactors.for_CommandSideEffectExecutor.when_executing;
 
-public class with_a_successful_command : given.a_command_side_effect_executor
+public class with_a_successful_command_without_a_reactor_type : given.a_command_side_effect_executor
 {
     TestCommand _command;
     Result<ReactorSideEffectFailure> _result;
@@ -19,10 +19,9 @@ public class with_a_successful_command : given.a_command_side_effect_executor
         _commandPipeline.Execute(_command, _serviceProvider).Returns(CommandResult.Success(CorrelationId.New()));
     }
 
-    async Task Because() => _result = await _executor.Execute([_command], _reactorType);
+    async Task Because() => _result = await _executor.Execute([_command]);
 
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_create_a_service_scope() => _serviceScopeFactory.Received(1).CreateScope();
     [Fact] void should_execute_the_command_through_the_pipeline() => _commandPipeline.Received(1).Execute(_command, _serviceProvider);
-    [Fact] void should_dispose_the_scope() => _serviceScope.Received(1).Dispose();
+    [Fact] void should_not_establish_a_system_execution_scope() => _systemExecution.DidNotReceive().AsSystem(Arg.Any<string[]>());
 }

@@ -132,6 +132,57 @@ if (!result.IsAuthorized)
 }
 ```
 
+## Executing Commands from Server-Side Code
+
+Authorization reads the principal from the current HTTP request. Server-side callers — reactors, hosted services, background jobs, sagas, or one command orchestrating another — have no HTTP request, so a command carrying `[Authorize]` or `[Roles]` would be denied. To run such a command as a trusted system actor, establish a server-side execution scope with `ISystemExecution`:
+
+```csharp
+public class NightlyReconciliation(ISystemExecution systemExecution, ICommandPipeline pipeline) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using (systemExecution.AsSystem("Administrator"))
+        {
+            await pipeline.Execute(new ReconcileLedger());
+        }
+    }
+}
+```
+
+`AsSystem(params string[] roles)` runs as an authenticated system actor carrying exactly the roles you name — the normal role check still applies, so a `[Roles("Administrator")]` command passes while a `[Roles("Auditor")]` command is still denied. With no roles the actor satisfies `[Authorize]` but no `[Roles]`. Use `As(ClaimsPrincipal principal)` when you need to run as a specific principal. The scope is ambient and restores the previous context when disposed, so it flows into every command executed inside the `using` block, including nested calls.
+
+> The server-side principal is consulted **only when there is no HTTP request context**. On any HTTP request the request principal is always authoritative — a server-side scope can never influence authorization of an HTTP-origin command, and request-supplied data can never enter the scope.
+
+### Executing Commands from Reactors
+
+When a reactor returns a command as a side effect, mark the reactor with `[ExecuteCommandsAsSystem]` to run those commands under the declared roles automatically:
+
+```csharp
+[Reactor]
+[ExecuteCommandsAsSystem("Administrator")]
+public class ConsultantProvisioner : IReactor
+{
+    public InviteConsultant ConsultantRequested(ConsultantRequested @event, EventContext context) =>
+        new(@event.Email);
+}
+```
+
+A reactor that instead injects `ICommandPipeline` and calls `Execute` directly establishes the scope itself:
+
+```csharp
+public class ConsultantProvisioner(ISystemExecution systemExecution, ICommandPipeline pipeline) : IReactor
+{
+    [OnceOnly]
+    public async Task ConsultantRequested(ConsultantRequested @event, EventContext context)
+    {
+        using (systemExecution.AsSystem("Administrator"))
+        {
+            await pipeline.Execute(new InviteConsultant(@event.Email));
+        }
+    }
+}
+```
+
 ## Best Practices
 
 1. **Apply authorization at the command level** - Each command should declare its own authorization requirements

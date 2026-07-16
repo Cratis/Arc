@@ -22,7 +22,7 @@ public class and_a_command_throws_an_exception : given.a_command_side_effect_exe
 
     async Task Because()
     {
-        _result = await _executor.Execute([_command]);
+        _result = await _executor.Execute([_command], _reactorType);
         _result.TryGetError(out _failure);
     }
 

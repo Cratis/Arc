@@ -16,11 +16,12 @@ public class commands : given.a_commands_result_handler
     {
         _commands = [new TestCommand("first"), new TestCommand("second")];
         _expected = Result.Success<ReactorSideEffectFailure>();
-        _executor.Execute(Arg.Any<IEnumerable<object>>()).Returns(_expected);
+        _executor.Execute(Arg.Any<IEnumerable<object>>(), Arg.Any<Type>()).Returns(_expected);
     }
 
     async Task Because() => _result = await _handler.Handle(_reactorContext, _eventStore, _commands);
 
-    [Fact] void should_execute_the_commands_through_the_executor() => _executor.Received(1).Execute(_commands);
+    [Fact] void should_execute_the_commands_through_the_executor() => _executor.Received(1).Execute(_commands, Arg.Any<Type>());
+    [Fact] void should_execute_the_commands_for_the_reactor_type() => _executor.Received(1).Execute(Arg.Any<IEnumerable<object>>(), _reactorContext.Reactor.GetType());
     [Fact] void should_return_the_result_from_the_executor() => _result.ShouldEqual(_expected);
 }
