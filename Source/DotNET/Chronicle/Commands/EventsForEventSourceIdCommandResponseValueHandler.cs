@@ -32,22 +32,38 @@ public class EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLo
             return false;
         }
 
-        var items = enumerable.Cast<object>().ToArray();
+        // Validate every element in a single pass, without materializing the collection: each element must be an
+        // EventForEventSourceId wrapper carrying a registered event, or a registered plain event. Short-circuit on
+        // the first invalid element.
+        var hasItems = false;
+        var hasWrapper = false;
+        foreach (var item in enumerable)
+        {
+            hasItems = true;
+            if (item is EventForEventSourceId wrapper)
+            {
+                hasWrapper = true;
+                if (!eventTypes.HasFor(wrapper.Event.GetType()))
+                {
+                    return false;
+                }
+            }
+            else if (item is null || !eventTypes.HasFor(item.GetType()))
+            {
+                return false;
+            }
+        }
 
-        // An empty collection statically typed as wrappers is still ours — it is recognized (and appends
-        // nothing) rather than being serialized as the response payload.
-        if (items.Length == 0)
+        // An empty collection statically typed as wrappers is still ours — it is recognized (and appends nothing)
+        // rather than being serialized as the response payload.
+        if (!hasItems)
         {
             return value is IEnumerable<EventForEventSourceId>;
         }
 
-        // A non-empty collection must contain at least one wrapper (distinguishing it from a pure plain-event
-        // collection handled by the sibling handler), and every element must be a wrapper carrying a registered
-        // event, or a registered plain event.
-        return items.Any(item => item is EventForEventSourceId) &&
-            items.All(item => item is EventForEventSourceId wrapper
-                ? eventTypes.HasFor(wrapper.Event.GetType())
-                : eventTypes.HasFor(item.GetType()));
+        // A non-empty collection must contain at least one wrapper, distinguishing it from a pure plain-event
+        // collection handled by the sibling handler.
+        return hasWrapper;
     }
 
     /// <inheritdoc/>
