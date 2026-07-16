@@ -28,26 +28,6 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
     public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType) =>
         ExecuteWithinScope(commands, EstablishSystemExecution(reactorType));
 
-    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, IDisposable? systemExecutionScope)
-    {
-        using var scope = serviceScopeFactory.CreateScope();
-        var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
-
-        using (systemExecutionScope)
-        {
-            foreach (var command in commands)
-            {
-                var result = await commandPipeline.Execute(command, scope.ServiceProvider);
-                if (!result.IsSuccess)
-                {
-                    return Result.Failed(CreateFailure(command, result));
-                }
-            }
-        }
-
-        return Result.Success<ReactorSideEffectFailure>();
-    }
-
     static ReactorSideEffectFailure CreateFailure(object command, CommandResult result) =>
         new([new AppendFailure([], false, DescribeFailure(command.GetType(), result), [])]);
 
@@ -68,6 +48,26 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
         {
             yield return $"Command '{name}' threw an exception: {exceptionMessage}";
         }
+    }
+
+    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, IDisposable? systemExecutionScope)
+    {
+        using var scope = serviceScopeFactory.CreateScope();
+        var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
+
+        using (systemExecutionScope)
+        {
+            foreach (var command in commands)
+            {
+                var result = await commandPipeline.Execute(command, scope.ServiceProvider);
+                if (!result.IsSuccess)
+                {
+                    return Result.Failed(CreateFailure(command, result));
+                }
+            }
+        }
+
+        return Result.Success<ReactorSideEffectFailure>();
     }
 
     IDisposable? EstablishSystemExecution(Type reactorType)
