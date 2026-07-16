@@ -15,6 +15,7 @@ export class FakeCommand implements ICommand {
 
     execute: sinon.SinonSpy;
     validate: sinon.SinonSpy;
+    validateClientSide: sinon.SinonSpy;
     clear: sinon.SinonStub;
     setApiBasePath: sinon.SinonStub;
     setOrigin: sinon.SinonStub;
@@ -39,6 +40,7 @@ export class FakeCommand implements ICommand {
                 resolve(CommandResult.empty);
             });
         });
+        this.validateClientSide = sinon.fake(() => CommandResult.empty);
         this.clear = sinon.stub();
         this.setApiBasePath = sinon.stub();
         this.setOrigin = sinon.stub();

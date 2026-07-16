@@ -5,6 +5,7 @@ import { useCommandFormContext, type FieldValidationInfo } from './CommandFormCo
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
+import { runCommandValidation } from './runCommandValidation';
 
 export interface ColumnInfo {
     fields: React.ReactElement<CommandFormFieldProps>[];
@@ -76,13 +77,11 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
 
                 // Always run silent validation after every value change.
                 // This is the sole driver of context.isValid — it runs regardless of
-                // validateOn so isValid is always accurate.
-                let validationResult: ICommandResult<unknown> | undefined = undefined;
-                if (context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
-                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
-                    if (validationResult) {
-                        context.setSilentValidationResult(validationResult);
-                    }
+                // validateOn so isValid is always accurate. It only hits the server when
+                // autoServerValidate is enabled; otherwise it stays client-side only.
+                const validationResult = await runCommandValidation(context.commandInstance, context.autoServerValidate);
+                if (validationResult) {
+                    context.setSilentValidationResult(validationResult);
                 }
 
                 // Show validation error messages based on the validateOn setting.
@@ -116,8 +115,8 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 const shouldValidateOnBlur = context.validateOn === 'blur' || context.validateOn === 'both';
 
                 let validationResult: ICommandResult<unknown> | undefined = undefined;
-                if (shouldValidateOnBlur && context.commandInstance && typeof (context.commandInstance as Record<string, unknown>).validate === 'function') {
-                    validationResult = await ((context.commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                if (shouldValidateOnBlur) {
+                    validationResult = await runCommandValidation(context.commandInstance, context.autoServerValidate);
 
                     if (validationResult) {
                         // Keep silent result current (covers edge cases where blur fires

@@ -5,6 +5,7 @@ import React from 'react';
 import { Bindings } from './Bindings';
 import { configure as configureMobx } from 'mobx';
 import { MobxOptions } from './MobxOptions';
+import { deferredReactionScheduler } from './deferredReactionScheduler';
 
 export interface MVVMProps {
     children?: JSX.Element | JSX.Element[];
@@ -15,7 +16,8 @@ export const MVVMContext = React.createContext({});
 
 export const MVVM = (props: MVVMProps) => {
     const options: MobxOptions = {
-        ...{ enforceActions: 'never' },
+        enforceActions: 'never',
+        reactionScheduler: deferredReactionScheduler,
         ...(props.mobx || {}),
     };
 

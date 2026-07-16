@@ -57,7 +57,8 @@ public class QueryPipeline(
             }
 
             var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
-            var context = new QueryContext(queryName, correlationId, paging, sorting, arguments, dependencies);
+            var coercedArguments = CoerceArguments(arguments, queryPerformer);
+            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, dependencies);
             queryContextManager.Set(context);
 
             result = await queryFilters.OnPerform(context);
@@ -93,6 +94,49 @@ public class QueryPipeline(
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Coerces each raw query argument to its declared parameter type before it reaches the filters and performer.
+    /// </summary>
+    /// <param name="arguments">The <see cref="QueryArguments"/> to coerce.</param>
+    /// <param name="performer">The <see cref="IQueryPerformer"/> whose parameters describe the target types.</param>
+    /// <returns>The coerced <see cref="QueryArguments"/>, or the original instance when nothing needed coercion.</returns>
+    /// <remarks>
+    /// One-shot transports coerce arguments at the HTTP boundary, but streaming transports (WebSocket / SSE observable
+    /// queries) carry raw string arguments through verbatim. Coercing here — the single convergence point for every
+    /// transport — guarantees the <see cref="QueryContext"/> always exposes arguments in their declared parameter types,
+    /// so validation and invocation never see an unconverted string for a concept-typed parameter.
+    /// The conversion is idempotent, so already-typed arguments pass through untouched.
+    /// </remarks>
+    static QueryArguments CoerceArguments(QueryArguments arguments, IQueryPerformer performer)
+    {
+        var parameters = performer.Parameters;
+        if (arguments.Count == 0 || parameters is null)
+        {
+            return arguments;
+        }
+
+        var coerced = new QueryArguments();
+        var changed = false;
+        foreach (var kvp in arguments)
+        {
+            var value = kvp.Value;
+            var parameter = parameters.FirstOrDefault(_ => string.Equals(_.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
+            if (parameter is not null)
+            {
+                var convertedValue = value.ConvertTo(parameter.Type);
+                if (convertedValue is not null && !ReferenceEquals(convertedValue, value))
+                {
+                    value = convertedValue;
+                    changed = true;
+                }
+            }
+
+            coerced[kvp.Key] = value;
+        }
+
+        return changed ? coerced : arguments;
     }
 
     static object ResolveDependency(IServiceProvider serviceProvider, Type dependencyType)

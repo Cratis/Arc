@@ -14,11 +14,11 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="15.40.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="15.40.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="15.40.0" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.16.2" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.2" />
+    <PackageVersion Include="Cratis.Chronicle" Version="16.1.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.1.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.1.0" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.16.6" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.6" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.80" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />

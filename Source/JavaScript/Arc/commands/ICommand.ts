@@ -48,6 +48,16 @@ export interface ICommand<TCommandContent = object, TCommandResponse = object> e
     validate(): Promise<CommandResult<TCommandResponse>>;
 
     /**
+     * Validate the {@link ICommand} using only client-side rules, without contacting the server.
+     * @returns {CommandResult} for the validation containing the client-side validation status.
+     * @remarks
+     * This method checks the registered validator rules and required properties locally.
+     * It never performs a network call. Use this for cheap, immediate feedback while the user is typing;
+     * use {@link validate} when server-side rules (e.g. uniqueness checks) also need to be verified.
+     */
+    validateClientSide(): CommandResult<TCommandResponse>;
+
+    /**
      * Clear the command properties and reset them to their default values. This will also clear the initial values.
      * This is used when the command is not needed anymore and should be cleared.
      */

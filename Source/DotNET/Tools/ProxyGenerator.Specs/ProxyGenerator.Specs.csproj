@@ -32,8 +32,18 @@
         <EmbeddedResource Include="Scenarios\Infrastructure\arc-bootstrap.js" Condition="Exists('Scenarios\Infrastructure\arc-bootstrap.js')" />
     </ItemGroup>
     <ItemGroup>
+        <!-- The scenario specs compile generated TypeScript in-process through ClearScript's V8 engine, which
+             requires the classic JavaScript-based TypeScript compiler (lib/typescript.js). TypeScript 7 ships a
+             native compiler that no longer exposes lib/typescript.js, so prefer the classic 'typescript-for-eslint'
+             alias (npm:typescript@6.0.3) when present, and fall back to the root 'typescript' package for
+             environments that still resolve a classic TypeScript. Either source lands at the same TargetPath the
+             runtime fixture reads. -->
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
+            <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
+        </ProxyJavaScriptDependency>
         <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js')">
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js') AND !Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
             <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
         </ProxyJavaScriptDependency>
         <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs/**/*"
