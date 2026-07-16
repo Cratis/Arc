@@ -21,19 +21,27 @@ namespace Cratis.Arc.Chronicle.Reactors;
 public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory, ISystemExecution systemExecution) : ICommandSideEffectExecutor
 {
     /// <inheritdoc/>
-    public async Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType)
+    public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands) =>
+        ExecuteWithinScope(commands, null);
+
+    /// <inheritdoc/>
+    public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType) =>
+        ExecuteWithinScope(commands, EstablishSystemExecution(reactorType));
+
+    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, IDisposable? systemExecutionScope)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
 
-        using var systemExecutionScope = EstablishSystemExecution(reactorType);
-
-        foreach (var command in commands)
+        using (systemExecutionScope)
         {
-            var result = await commandPipeline.Execute(command, scope.ServiceProvider);
-            if (!result.IsSuccess)
+            foreach (var command in commands)
             {
-                return Result.Failed(CreateFailure(command, result));
+                var result = await commandPipeline.Execute(command, scope.ServiceProvider);
+                if (!result.IsSuccess)
+                {
+                    return Result.Failed(CreateFailure(command, result));
+                }
             }
         }
 
