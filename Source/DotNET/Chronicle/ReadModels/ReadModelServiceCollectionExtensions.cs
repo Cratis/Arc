@@ -81,12 +81,18 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
     /// <returns>The resolved read model instance, or null when it does not exist.</returns>
-    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context does not contain a usable event source id.</exception>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
     internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
     {
         var eventSourceId = commandContext.GetEventSourceId();
         if (eventSourceId == EventSourceId.Unspecified)
         {
+            // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
+            // usable key) can never resolve one — for a nullable and a non-nullable dependency alike. That is invalid
+            // client input, not "the entity does not exist", so returning null would be misleading and letting the
+            // throw fall through as-is would be an unhandled server error. UnableToResolveReadModelFromCommandContext
+            // implements IValidationFailure, so the pipeline surfaces it as a validation failure (HTTP 400). A
+            // valid-but-not-found read model still resolves to null below.
             throw new UnableToResolveReadModelFromCommandContext(readModelType);
         }
 

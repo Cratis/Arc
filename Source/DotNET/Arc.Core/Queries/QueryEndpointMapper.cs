@@ -6,6 +6,7 @@ using Cratis.Arc.Http;
 using Cratis.Execution;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
@@ -97,6 +98,7 @@ public static class QueryEndpointMapper
             {
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
@@ -112,7 +114,8 @@ public static class QueryEndpointMapper
                 }
                 catch (Exception ex)
                 {
-                    var errorResult = QueryResult.Error(correlationIdAccessor.Current, $"Failed to read query request: {ex.Message}");
+                    var errorResult = QueryResult.Error(correlationIdAccessor.Current, ex);
+                    ExceptionDetailRedactor.Redact(errorResult, arcOptions.ExposeExceptionDetails, logger);
                     context.SetStatusCode((int)HttpStatusCode.BadRequest);
                     await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
                     return;
@@ -127,6 +130,8 @@ public static class QueryEndpointMapper
     {
         var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
         var observableQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
+        var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
 
         var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices);
 
@@ -136,6 +141,8 @@ public static class QueryEndpointMapper
             await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
             return;
         }
+
+        ExceptionDetailRedactor.Redact(queryResult, arcOptions.ExposeExceptionDetails, logger);
 
         var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid);
         context.SetStatusCode(statusCode);

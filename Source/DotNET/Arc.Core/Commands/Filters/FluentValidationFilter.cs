@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Validation;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Commands.Filters;
 
@@ -12,7 +13,8 @@ namespace Cratis.Arc.Commands.Filters;
 /// Represents a command filter that validates commands before they are handled.
 /// </summary>
 /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> to use for finding validators.</param>
-public class FluentValidationFilter(IDiscoverableValidators discoverableValidators) : ICommandFilter
+/// <param name="logger">The <see cref="ILogger{TCategoryName}"/> used to log a validator that throws while validating.</param>
+public class FluentValidationFilter(IDiscoverableValidators discoverableValidators, ILogger<FluentValidationFilter> logger) : ICommandFilter
 {
     /// <inheritdoc/>
     public async Task<CommandResult> OnExecution(CommandContext context)
@@ -41,26 +43,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
 
         if (TryGetValidator(context, instanceType, out var validator))
         {
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
-            var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
-            var validationResult = await validator.ValidateAsync(validationContext, context.CancellationToken);
-            if (!validationResult.IsValid)
-            {
-                commandResult.MergeWith(new CommandResult
-                {
-                    ValidationResults = validationResult.Errors.Select(_ =>
-                    {
-                        var severity = _.Severity switch
-                        {
-                            FluentValidation.Severity.Info => ValidationResultSeverity.Information,
-                            FluentValidation.Severity.Warning => ValidationResultSeverity.Warning,
-                            FluentValidation.Severity.Error => ValidationResultSeverity.Error,
-                            _ => ValidationResultSeverity.Error
-                        };
-                        return new ValidationResult(severity, _.ErrorMessage, [_.PropertyName], _.CustomState ?? null!);
-                    }).ToArray()
-                });
-            }
+            commandResult.MergeWith(await RunValidator(context, instance, validator));
         }
 
         if (!instanceType.IsPrimitive &&
@@ -97,6 +80,58 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                     }
                 }
             }
+        }
+
+        return commandResult;
+    }
+
+    /// <summary>
+    /// Runs a resolved validator against an instance, converting a validator that throws while validating
+    /// (for example a rule that dereferences a null concept member such as <c>RuleFor(c =&gt; c.X.Value)</c> on a
+    /// null <c>X</c>) into a validation failure (HTTP 400) instead of letting it propagate as a server error (HTTP 500).
+    /// </summary>
+    /// <param name="context">The <see cref="CommandContext"/> the validation runs within.</param>
+    /// <param name="instance">The instance to validate.</param>
+    /// <param name="validator">The <see cref="IValidator"/> to run.</param>
+    /// <returns>A <see cref="CommandResult"/> describing the validation outcome.</returns>
+    async Task<CommandResult> RunValidator(CommandContext context, object instance, IValidator validator)
+    {
+        var commandResult = CommandResult.Success(context.CorrelationId);
+
+        try
+        {
+            var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
+            var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
+            var validationResult = await validator.ValidateAsync(validationContext, context.CancellationToken);
+            if (!validationResult.IsValid)
+            {
+                commandResult.MergeWith(new CommandResult
+                {
+                    ValidationResults = validationResult.Errors.Select(_ =>
+                    {
+                        var severity = _.Severity switch
+                        {
+                            FluentValidation.Severity.Info => ValidationResultSeverity.Information,
+                            FluentValidation.Severity.Warning => ValidationResultSeverity.Warning,
+                            FluentValidation.Severity.Error => ValidationResultSeverity.Error,
+                            _ => ValidationResultSeverity.Error
+                        };
+                        return new ValidationResult(severity, _.ErrorMessage, [_.PropertyName], _.CustomState ?? null!);
+                    }).ToArray()
+                });
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A validator that dereferences a null concept member throws while validating hostile or partial
+            // input. Surface it as a validation failure (HTTP 400) rather than letting it propagate to a server
+            // error (HTTP 500). The detail is logged server-side and never returned to the client. Cancellation
+            // is deliberately excluded so a cancelled request is not mistaken for invalid input.
+            logger.CommandValidatorThrew(instance.GetType().FullName ?? instance.GetType().Name, ex);
+            commandResult.MergeWith(new CommandResult
+            {
+                ValidationResults = [ValidationResult.Error("The command could not be validated.")]
+            });
         }
 
         return commandResult;

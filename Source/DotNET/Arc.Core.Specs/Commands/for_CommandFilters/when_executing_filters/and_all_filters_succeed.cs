@@ -1,21 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Cratis.Traces;
 
 namespace Cratis.Arc.Commands.for_CommandFilters.when_executing_filters;
 
-public class and_both_filter_errors : Specification
+public class and_all_filters_succeed : Specification
 {
     CommandFilters _commandFilters;
     ICommandFilter _filter1;
     ICommandFilter _filter2;
     CommandContext _context;
     CommandResult _result;
-    CommandResult _firstFilterResult;
-    CommandResult _secondFilterResult;
     System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
@@ -24,17 +21,9 @@ public class and_both_filter_errors : Specification
         _filter2 = Substitute.For<ICommandFilter>();
         _context = new CommandContext(CorrelationId.New(), typeof(object), new object(), [], new());
 
-        _firstFilterResult = new()
-        {
-            IsAuthorized = false
-        };
+        _filter1.OnExecution(_context).Returns(Task.FromResult<CommandResult>(null!));
+        _filter2.OnExecution(_context).Returns(Task.FromResult(CommandResult.Success(_context.CorrelationId)));
 
-        _secondFilterResult = new()
-        {
-            ValidationResults = [new ValidationResult(ValidationResultSeverity.Error, "error", [], null!)]
-        };
-        _filter1.OnExecution(_context).Returns(Task.FromResult(_firstFilterResult));
-        _filter2.OnExecution(_context).Returns(Task.FromResult(_secondFilterResult));
         var filters = new List<ICommandFilter> { _filter1, _filter2 };
         var commandFiltersActivitySource = Substitute.For<IActivitySource<CommandFilters>>();
         _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
@@ -46,13 +35,10 @@ public class and_both_filter_errors : Specification
 
     async Task Because() => _result = await _commandFilters.OnExecution(_context);
 
-    [Fact] void should_call_first_filter() => _filter1.Received(1).OnExecution(_context);
-    [Fact] void should_call_second_filter() => _filter2.Received(1).OnExecution(_context);
-    [Fact]
-    void should_return_result_combining_both_filter_results()
-    {
-        _result.IsAuthorized.ShouldBeFalse();
-        _result.IsValid.ShouldBeFalse();
-        _result.ValidationResults.ShouldContain(_secondFilterResult.ValidationResults.First());
-    }
+    [Fact] void should_call_the_first_filter() => _filter1.Received(1).OnExecution(_context);
+    [Fact] void should_call_the_second_filter() => _filter2.Received(1).OnExecution(_context);
+    [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_be_authorized() => _result.IsAuthorized.ShouldBeTrue();
+    [Fact] void should_be_valid() => _result.IsValid.ShouldBeTrue();
+    [Fact] void should_not_have_exceptions() => _result.HasExceptions.ShouldBeFalse();
 }

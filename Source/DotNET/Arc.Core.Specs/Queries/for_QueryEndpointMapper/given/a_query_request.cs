@@ -38,6 +38,7 @@ public class a_query_request : a_query_endpoint_mapper
         correlationIdAccessor.Current.Returns(CorrelationId.New());
 
         var requestServices = new ServiceCollection()
+            .AddLogging()
             .AddSingleton(_queryPipeline)
             .AddSingleton(_observableQueryHandler)
             .AddSingleton(correlationIdAccessor)

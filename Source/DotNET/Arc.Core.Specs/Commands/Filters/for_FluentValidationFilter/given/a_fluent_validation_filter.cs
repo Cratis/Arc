@@ -4,6 +4,7 @@
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 using FluentValidation.Results;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cratis.Arc.Commands.Filters.for_FluentValidationFilter.given;
 
@@ -18,7 +19,7 @@ public class a_fluent_validation_filter : Specification
     {
         _correlationId = CorrelationId.New();
         _discoverableValidators = Substitute.For<IDiscoverableValidators>();
-        _filter = new FluentValidationFilter(_discoverableValidators);
+        _filter = new FluentValidationFilter(_discoverableValidators, NullLogger<FluentValidationFilter>.Instance);
         _context = new CommandContext(_correlationId, typeof(object), new object(), [], new());
     }
 

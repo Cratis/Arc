@@ -5,6 +5,7 @@ using Cratis.Arc.Validation;
 using Cratis.Arc.Validation.for_DiscoverableValidators;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cratis.Arc.Commands.Filters.for_FluentValidationFilter.when_executing_command;
 
@@ -25,7 +26,7 @@ public class without_a_registered_validator : Specification
     void Establish()
     {
         _correlationId = CorrelationId.New();
-        _filter = new FluentValidationFilter(new DiscoverableValidators(Cratis.Types.Types.Instance));
+        _filter = new FluentValidationFilter(new DiscoverableValidators(Cratis.Types.Types.Instance), NullLogger<FluentValidationFilter>.Instance);
 
         // The scoped dependency is registered; the validator itself is intentionally NOT registered.
         _root = new ServiceCollection()

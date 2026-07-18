@@ -23,10 +23,29 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
 
         foreach (var filter in filters)
         {
-            var filterResult = await filter.OnExecution(context);
-            if (filterResult is not null)
+            try
             {
-                result.MergeWith(filterResult);
+                var filterResult = await filter.OnExecution(context);
+                if (filterResult is not null)
+                {
+                    result.MergeWith(filterResult);
+                }
+            }
+            catch (Exception ex)
+            {
+                // A throwing filter must not abort the chain and discard the verdicts of the filters that already
+                // ran (e.g. a clean Unauthorized from an authorization filter). Merge the failure into the running
+                // result so prior verdicts are preserved; the short-circuit below then stops the chain. FromException
+                // maps an IValidationFailure (invalid client input) to a validation failure (400) and anything else
+                // to an error (500).
+                result.MergeWith(CommandResult.FromException(context.CorrelationId, ex));
+            }
+
+            // Stop once a filter has produced a non-success (blocking) verdict — an authorization denial or a
+            // validation failure must not be overwritten (or a later filter allowed to throw) by continuing the chain.
+            if (!result.IsSuccess)
+            {
+                return result;
             }
         }
 
