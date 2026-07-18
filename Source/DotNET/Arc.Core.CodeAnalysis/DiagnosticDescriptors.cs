@@ -154,5 +154,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Domain failures raised from Arc artifacts — command Handle() methods, CommandValidator<T>/ConceptValidator<T> validators, and reactor handlers — should be expressed as domain-named exception types (or validator rejections). Built-in exceptions like InvalidOperationException, ArgumentException, or Exception carry no domain meaning to the caller or the log.");
 
+    /// <summary>
+    /// ARC0013: Validator rule dereferences a possibly-null concept member.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0013_ValidatorDereferencesNullConcept = new(
+        id: "ARC0013",
+        title: "Validator rule dereferences a possibly-null concept member",
+        messageFormat: "Concept '{0}' may be null at validation time; dereferencing its member in a validator rule throws instead of producing a validation error. Validate '{0}' first, or guard the rule with '.When(...)'.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A FluentValidation rule selector that dereferences a member of a ConceptAs<T> property assumes the concept is non-null. Because model-bound input can be deserialized with a null concept, the rule throws a NullReferenceException at validation time instead of producing a validation error. Validate the concept itself first (when it is required) or guard the rule with a null check (when it is optional), so invalid input is reported as a validation failure rather than crashing.");
+
     const string Category = "Arc";
 }
