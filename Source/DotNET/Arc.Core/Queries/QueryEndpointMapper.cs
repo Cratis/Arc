@@ -144,7 +144,7 @@ public static class QueryEndpointMapper
 
         ExceptionDetailRedactor.Redact(queryResult, arcOptions.ExposeExceptionDetails, logger);
 
-        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid);
+        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady);
         context.SetStatusCode(statusCode);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }

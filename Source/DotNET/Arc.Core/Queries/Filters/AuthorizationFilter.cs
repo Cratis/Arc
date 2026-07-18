@@ -7,7 +7,7 @@ namespace Cratis.Arc.Queries.Filters;
 /// Represents a query filter that authorizes queries before they are performed.
 /// </summary>
 /// <param name="queryPerformerProviders">The <see cref="IQueryPerformerProviders"/> to use for finding query performers.</param>
-public class AuthorizationFilter(IQueryPerformerProviders queryPerformerProviders) : IQueryFilter
+public class AuthorizationFilter(IQueryPerformerProviders queryPerformerProviders) : IAuthorizationQueryFilter
 {
     /// <inheritdoc/>
     public Task<QueryResult> OnPerform(QueryContext context)

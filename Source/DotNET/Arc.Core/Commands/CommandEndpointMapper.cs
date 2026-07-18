@@ -91,8 +91,14 @@ public static class CommandEndpointMapper
 
             return (command, null);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or FormatException or OverflowException or ArgumentException)
         {
+            // A malformed body (JsonException) or a value the concept/type converters cannot parse is invalid
+            // client input, not a server fault: FormatException/OverflowException from a Guid- or numeric-backed
+            // concept property fed a wrong-type string, and ArgumentException from an enum-backed concept. These
+            // escape the JSON deserializer unwrapped, so without this they would surface as an HTTP 500 rather than
+            // the 400 the body-read contract promises. Cancellation and genuine server faults are not matched here
+            // and continue to surface as a server error.
             logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, ex);
             return (null, CommandResult.InvalidBody(correlationId));
         }

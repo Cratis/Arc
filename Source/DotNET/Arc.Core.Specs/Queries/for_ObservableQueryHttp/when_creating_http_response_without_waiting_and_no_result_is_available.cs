@@ -21,7 +21,9 @@ public class when_creating_http_response_without_waiting_and_no_result_is_availa
         CancellationToken.None);
 
     [Fact] void should_return_accepted_status_code() => _response.StatusCode.ShouldEqual(HttpStatusCode.Accepted);
-    [Fact] void should_return_not_ready_error() => _response.Result.ExceptionMessages.First().ShouldContain("waitForFirstResult=true");
+    [Fact] void should_be_not_ready() => _response.Result.IsReady.ShouldBeFalse();
+    [Fact] void should_not_carry_any_exception() => _response.Result.HasExceptions.ShouldBeFalse();
+    [Fact] void should_not_be_successful() => _response.Result.IsSuccess.ShouldBeFalse();
 
     record TestData(string Value);
 }

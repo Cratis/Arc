@@ -90,11 +90,11 @@ public static class ObservableQueryHttp
 
         if (!options.WaitForFirstResult)
         {
-            return new(
-                QueryResult.Error(
-                    queryContext.CorrelationId,
-                    $"Observable query has not produced its first result yet. Add '{WaitForFirstResultQueryStringKey}=true' to wait for the first observable query result."),
-                HttpStatusCode.Accepted);
+            // The observable has not produced its first result yet — a transient, expected state (for example a page
+            // past the end of the data, or a subscription that has not emitted yet), not a failure. Return a not-ready
+            // result (no exception) with 202 Accepted so a caller does not read a pending query as a crash; the caller
+            // can add the wait-for-first-result query string key to wait for the first result instead.
+            return new(QueryResult.NotReady(queryContext.CorrelationId), HttpStatusCode.Accepted);
         }
 
         try
