@@ -132,7 +132,7 @@ public class CommandPipeline(
         }
         catch (Exception ex)
         {
-            result.MergeWith(CommandResult.Error(correlationId, ex));
+            result.MergeWith(CommandResult.FromException(correlationId, ex));
         }
 
         return result;
@@ -202,7 +202,7 @@ public class CommandPipeline(
         }
         catch (Exception ex)
         {
-            result.MergeWith(CommandResult.Error(correlationId, ex));
+            result.MergeWith(CommandResult.FromException(correlationId, ex));
         }
 
         return result;
