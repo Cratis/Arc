@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
@@ -61,6 +62,42 @@ public static class CommandEndpointMapper
         }
     }
 
+    /// <summary>
+    /// Reads and deserializes the request body into a command instance, mapping a deserialization failure
+    /// (malformed or wrong-typed body) to a validation failure (HTTP 400) instead of a server error (HTTP 500).
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/> to read the body from.</param>
+    /// <param name="commandType">The type of command to deserialize.</param>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the request.</param>
+    /// <param name="logger">The <see cref="ILogger"/> used to log the underlying parser detail server-side.</param>
+    /// <returns>
+    /// A tuple with the deserialized command (when successful) or a <see cref="CommandResult"/> describing the
+    /// failure (when the body could not be read). Exactly one of the two is non-null.
+    /// </returns>
+    internal static async Task<(object? Command, CommandResult? Failure)> ReadCommandBody(
+        IHttpRequestContext context,
+        Type commandType,
+        CorrelationId correlationId,
+        ILogger logger)
+    {
+        try
+        {
+            var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
+            if (command is null)
+            {
+                logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, null);
+                return (null, CommandResult.InvalidBody(correlationId));
+            }
+
+            return (command, null);
+        }
+        catch (JsonException ex)
+        {
+            logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, ex);
+            return (null, CommandResult.InvalidBody(correlationId));
+        }
+    }
+
     static void MapCommandEndpoint(
         IEndpointMapper mapper,
         string url,
@@ -105,18 +142,10 @@ public static class CommandEndpointMapper
                 CommandResult commandResult;
                 try
                 {
-                    var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
-
-                    if (command is null)
-                    {
-                        commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
-                    }
-                    else
-                    {
-                        commandResult = validateOnly
-                            ? await commandPipeline.Validate(command, context.RequestServices, allowedSeverity, context.RequestAborted)
-                            : await commandPipeline.Execute(command, context.RequestServices, allowedSeverity, context.RequestAborted);
-                    }
+                    var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
+                    commandResult = bodyFailure ?? (validateOnly
+                        ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
+                        : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted));
                 }
                 catch (Exception ex)
                 {

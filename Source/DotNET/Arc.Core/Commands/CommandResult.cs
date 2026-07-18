@@ -90,6 +90,21 @@ public class CommandResult
     public static CommandResult Error(CorrelationId correlationId, string message) => new() { CorrelationId = correlationId, ExceptionMessages = [message] };
 
     /// <summary>
+    /// Creates a new <see cref="CommandResult"/> representing a request body that could not be read or deserialized.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
+    /// <returns>A <see cref="CommandResult"/> that is a validation failure (mapping to HTTP 400), carrying no internal detail.</returns>
+    /// <remarks>
+    /// A malformed or wrong-typed request body is a client error, not a server fault. This surfaces it as a
+    /// validation failure (so the endpoint returns 400) without echoing the underlying parser message.
+    /// </remarks>
+    public static CommandResult InvalidBody(CorrelationId correlationId) => new()
+    {
+        CorrelationId = correlationId,
+        ValidationResults = [ValidationResult.Error("The request body could not be read or is not valid for this command.")]
+    };
+
+    /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing an error.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
