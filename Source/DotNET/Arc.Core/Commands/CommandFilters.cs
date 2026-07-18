@@ -21,7 +21,11 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
         var result = CommandResult.Success(context.CorrelationId);
         using var span = activitySource.OnExecution(context.Type.FullName ?? context.Type.Name);
 
-        foreach (var filter in filters)
+        // Evaluate authorization filters before ordinary filters, independent of the order IInstancesOf yields them.
+        // Without this the short-circuit below could return on a validation failure before the authorization filter
+        // runs, leaving the authorization verdict at its default (authorized) and reporting a forbidden caller as
+        // authorized. OrderBy is a stable sort, so filters within the same group keep their discovery order.
+        foreach (var filter in filters.OrderBy(filter => filter is IAuthorizationCommandFilter ? 0 : 1))
         {
             try
             {
