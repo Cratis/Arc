@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Types;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.DependencyInjection;
 
@@ -41,6 +43,21 @@ static class ParameterDependencyResolver
         if (IsNullable(parameter))
         {
             return null;
+        }
+
+        // A non-nullable dependency resolving to null is a misconfiguration by default (createException → HTTP 500).
+        // Give a higher layer the chance to recognize it as invalid client input instead — for example a read model
+        // that does not exist for the command's valid event source id, which is a 400, not a server fault. A dependency
+        // that no classifier recognizes keeps the default, so genuine misconfigurations are never masked.
+        if (serviceProvider.GetService<IInstancesOf<IUnresolvableDependencyClassifier>>() is { } classifiers)
+        {
+            foreach (var classifier in classifiers)
+            {
+                if (classifier.TryClassifyAsClientInput(parameter, serviceProvider, out var failure))
+                {
+                    throw failure;
+                }
+            }
         }
 
         throw createException(parameter);

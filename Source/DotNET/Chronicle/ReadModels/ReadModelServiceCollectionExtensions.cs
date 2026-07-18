@@ -71,6 +71,11 @@ public static class ReadModelServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IReadModels>())!);
         }
 
+        // Register the set of read model types so a command-scoped resolution failure for a non-nullable read model
+        // can be told apart from an unrelated missing dependency and surfaced as a validation failure (HTTP 400).
+        services.RemoveAll<RegisteredReadModelTypes>();
+        services.AddSingleton(new RegisteredReadModelTypes(readModelTypes));
+
         return services;
     }
 
