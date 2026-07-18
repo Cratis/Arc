@@ -22,10 +22,7 @@ public static class EventSourceExtensions
     /// <param name="command">The command to check for an event source ID.</param>
     /// <returns>True if the command has an event source ID; otherwise, false.</returns>
     public static bool HasEventSourceId(this object command) =>
-        command.GetType().GetProperties().Any(p =>
-            p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
-            IsGenericEventSourceIdType(p.PropertyType) ||
-            p.HasAttribute<KeyAttribute>()) ||
+        command.GetType().GetProperties().Any(p => p.IsEventSourceKeyProperty()) ||
             ((command is ITuple tuple) && tuple.HasEventSourceId());
 
     /// <summary>
@@ -70,10 +67,7 @@ public static class EventSourceExtensions
         else
         {
             var property = command.GetType().GetProperties()
-                .FirstOrDefault(p =>
-                    p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
-                    IsGenericEventSourceIdType(p.PropertyType) ||
-                    p.HasAttribute<KeyAttribute>());
+                .FirstOrDefault(p => p.IsEventSourceKeyProperty());
 
             if (property is not null)
             {
@@ -87,6 +81,17 @@ public static class EventSourceExtensions
 
         return eventSourceId;
     }
+
+    /// <summary>
+    /// Determines whether the given property is the command's event source key — an <see cref="EventSourceId"/>, a
+    /// generic <see cref="EventSourceId{T}"/> subtype, or a property carrying the <see cref="KeyAttribute"/>.
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <returns>True if the property is the event source key; otherwise, false.</returns>
+    internal static bool IsEventSourceKeyProperty(this PropertyInfo property) =>
+        property.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
+        IsGenericEventSourceIdType(property.PropertyType) ||
+        property.HasAttribute<KeyAttribute>();
 
     /// <summary>
     /// Determines whether the given value is an <see cref="EventSourceId"/> or a generic <see cref="EventSourceId{T}"/> subtype.
