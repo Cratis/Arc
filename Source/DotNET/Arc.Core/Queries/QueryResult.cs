@@ -124,6 +124,22 @@ public class QueryResult
     public static QueryResult Error(CorrelationId correlationId, Exception exception) => new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 
     /// <summary>
+    /// Creates a new <see cref="QueryResult"/> from an exception.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
+    /// <param name="exception">The exception to convert.</param>
+    /// <returns>A <see cref="QueryResult"/>.</returns>
+    /// <remarks>
+    /// An exception implementing <see cref="IValidationFailure"/> represents invalid client input and becomes a
+    /// validation failure (mapping to HTTP 400); any other exception becomes an error result (HTTP 500). This lets
+    /// code running inside the pipeline reject a query as invalid without knowing how the result is serialized.
+    /// </remarks>
+    public static QueryResult FromException(CorrelationId correlationId, Exception exception) =>
+        exception is IValidationFailure validationFailure
+            ? new() { CorrelationId = correlationId, ValidationResults = [validationFailure.ValidationResult] }
+            : Error(correlationId, exception);
+
+    /// <summary>
     /// Merges the results of one or more <see cref="QueryResult"/> instances into this.
     /// </summary>
     /// <param name="queryResults">Params of <see cref="QueryResult"/> to merge with.</param>
