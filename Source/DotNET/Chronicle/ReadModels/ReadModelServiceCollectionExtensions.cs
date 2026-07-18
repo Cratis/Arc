@@ -80,19 +80,20 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
-    /// <returns>The resolved read model instance, or null when it does not exist or the command carried no usable event source id.</returns>
+    /// <returns>The resolved read model instance, or null when it does not exist.</returns>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
     internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
     {
         var eventSourceId = commandContext.GetEventSourceId();
         if (eventSourceId == EventSourceId.Unspecified)
         {
-            // An unspecified event source id means the command carried no usable key (absent or unconvertible), so
-            // there is no entity to load. Return null — the same as a never-created or removed read model — so that
-            // command-scoped code injecting a nullable read model receives null and treats it as "does not exist"
-            // (surfacing a clean validation response), while a non-nullable (must-exist) injection still fails through
-            // the standard parameter-resolution contract. Throwing here instead would pre-empt that contract and turn
-            // even the nullable, recoverable case into an unhandled server error.
-            return null;
+            // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
+            // usable key) can never resolve one — for a nullable and a non-nullable dependency alike. That is invalid
+            // client input, not "the entity does not exist", so returning null would be misleading and letting the
+            // throw fall through as-is would be an unhandled server error. UnableToResolveReadModelFromCommandContext
+            // implements IValidationFailure, so the pipeline surfaces it as a validation failure (HTTP 400). A
+            // valid-but-not-found read model still resolves to null below.
+            throw new UnableToResolveReadModelFromCommandContext(readModelType);
         }
 
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
