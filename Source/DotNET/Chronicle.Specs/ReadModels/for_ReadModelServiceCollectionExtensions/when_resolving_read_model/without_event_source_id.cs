@@ -7,8 +7,8 @@ public class without_event_source_id : given.a_read_model_resolution
 {
     void Establish() => GivenEventSourceIdIsUnspecified();
 
-    void Because() => CatchResolveReadModelException();
+    void Because() => ResolveReadModel();
 
-    [Fact] void should_throw_unable_to_resolve_read_model_from_command_context() => _exception.ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();
+    [Fact] void should_return_null() => _result.ShouldBeNull();
     [Fact] void should_not_release_the_read_model() => ShouldNotHaveReleasedReadModel();
 }

@@ -80,14 +80,19 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
-    /// <returns>The resolved read model instance, or null when it does not exist.</returns>
-    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context does not contain a usable event source id.</exception>
+    /// <returns>The resolved read model instance, or null when it does not exist or the command carried no usable event source id.</returns>
     internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
     {
         var eventSourceId = commandContext.GetEventSourceId();
         if (eventSourceId == EventSourceId.Unspecified)
         {
-            throw new UnableToResolveReadModelFromCommandContext(readModelType);
+            // An unspecified event source id means the command carried no usable key (absent or unconvertible), so
+            // there is no entity to load. Return null — the same as a never-created or removed read model — so that
+            // command-scoped code injecting a nullable read model receives null and treats it as "does not exist"
+            // (surfacing a clean validation response), while a non-nullable (must-exist) injection still fails through
+            // the standard parameter-resolution contract. Throwing here instead would pre-empt that contract and turn
+            // even the nullable, recoverable case into an unhandled server error.
+            return null;
         }
 
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
