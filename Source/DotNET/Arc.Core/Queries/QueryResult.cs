@@ -29,7 +29,17 @@ public class QueryResult
     /// <summary>
     /// Gets whether or not the query executed successfully.
     /// </summary>
-    public bool IsSuccess => IsAuthorized && IsValid && !HasExceptions;
+    public bool IsSuccess => IsReady && IsAuthorized && IsValid && !HasExceptions;
+
+    /// <summary>
+    /// Gets whether the query result is ready.
+    /// </summary>
+    /// <remarks>
+    /// An observable query that has not yet produced its first result is not ready. This is a transient state, distinct
+    /// from a failure: <see cref="HasExceptions"/> stays false so a caller does not mistake "not produced yet" for a
+    /// crash. The HTTP layer surfaces it as <c>202 Accepted</c> rather than an error status.
+    /// </remarks>
+    public bool IsReady { get; set; } = true;
 
     /// <summary>
     /// Gets whether the query was authorized to execute.
@@ -84,6 +94,17 @@ public class QueryResult
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
     /// <returns>A <see cref="QueryResult"/>.</returns>
     public static QueryResult Unauthorized(CorrelationId correlationId) => new() { CorrelationId = correlationId, IsAuthorized = false };
+
+    /// <summary>
+    /// Creates a new <see cref="QueryResult"/> representing an observable query that has not yet produced its first result.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
+    /// <returns>A <see cref="QueryResult"/> that is not ready and carries no exception.</returns>
+    /// <remarks>
+    /// Use this instead of an error result for the transient "no first result yet" state: it keeps
+    /// <see cref="HasExceptions"/> false so a caller does not read a pending observable query as a crash.
+    /// </remarks>
+    public static QueryResult NotReady(CorrelationId correlationId) => new() { CorrelationId = correlationId, IsReady = false };
 
     /// <summary>
     /// Creates a new <see cref="QueryResult"/> representing a missing performer.
