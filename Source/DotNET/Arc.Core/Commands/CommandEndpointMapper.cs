@@ -5,6 +5,7 @@ using Cratis.Arc.Http;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Commands;
@@ -90,6 +91,7 @@ public static class CommandEndpointMapper
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CommandEndpointMapper).FullName!);
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
@@ -118,8 +120,10 @@ public static class CommandEndpointMapper
                 }
                 catch (Exception ex)
                 {
-                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Failed to read request body: {ex.Message}");
+                    commandResult = CommandResult.Error(correlationIdAccessor.Current, ex);
                 }
+
+                ExceptionDetailRedactor.Redact(commandResult, arcOptions.ExposeExceptionDetails, logger);
 
                 var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
                 context.SetStatusCode(statusCode);
