@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.Keys;
 using Cratis.Concepts;
 using Cratis.Execution;
 
@@ -23,5 +24,11 @@ public class a_required_concept_filter : Specification
     protected record CommandWithRequiredConcept(Name Name);
     protected record CommandWithNullableConcept(Name? Name);
     protected record CommandWithEventSourceKey(OrderId Id);
+    protected record CommandWithKeyAttributeConcept([property: Key] Name Id);
     protected record CommandWithNonConceptProperty(string Value);
+
+    protected record CommandWithComputedConcept(Name First)
+    {
+        public Name Derived => new(First.Value.ToUpperInvariant());
+    }
 }
