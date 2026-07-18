@@ -64,7 +64,7 @@ public static class EventSourceExtensions
             var id = values.Find(IsEventSourceIdValue);
             if (id is not null)
             {
-                eventSourceId = ToEventSourceId(id);
+                eventSourceId = ToEventSourceIdOrUnspecified(id);
             }
         }
         else
@@ -80,7 +80,7 @@ public static class EventSourceExtensions
                 var value = property.GetValue(command);
                 if (value is not null)
                 {
-                    eventSourceId = ToEventSourceId(value);
+                    eventSourceId = ToEventSourceIdOrUnspecified(value);
                 }
             }
         }
@@ -128,6 +128,31 @@ public static class EventSourceExtensions
         }
 
         return value.ToString()!;
+    }
+
+    /// <summary>
+    /// Converts a value to an <see cref="EventSourceId"/>, returning <see cref="EventSourceId.Unspecified"/> when the
+    /// conversion fails.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /// <returns>The corresponding <see cref="EventSourceId"/>, or <see cref="EventSourceId.Unspecified"/> when conversion fails.</returns>
+    /// <remarks>
+    /// A key value whose underlying concept is null (for example a generic <see cref="EventSourceId{T}"/> or a concept
+    /// wrapping a null value) would throw inside the implicit conversion. Extracting the event source id runs before
+    /// any command filter, so a throw here would surface as an unhandled server error (HTTP 500) for hostile or partial
+    /// command input. Treat an unconvertible key as an unspecified id instead, letting the command flow reach the
+    /// validation and read-model resolution stages that turn it into a clean response.
+    /// </remarks>
+    static EventSourceId ToEventSourceIdOrUnspecified(object value)
+    {
+        try
+        {
+            return ToEventSourceId(value);
+        }
+        catch (Exception)
+        {
+            return EventSourceId.Unspecified;
+        }
     }
 
     static bool IsGenericEventSourceIdType(Type? type)
