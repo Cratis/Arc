@@ -166,6 +166,7 @@ public class QueryResult
     /// <param name="queryResults">Params of <see cref="QueryResult"/> to merge with.</param>
     public void MergeWith(params QueryResult[] queryResults)
     {
+        IsReady = IsReady && queryResults.All(r => r.IsReady);
         IsAuthorized = IsAuthorized && queryResults.All(r => r.IsAuthorized);
         ValidationResults = [.. ValidationResults, .. queryResults.SelectMany(r => r.ValidationResults)];
         ExceptionMessages = [.. ExceptionMessages, .. queryResults.SelectMany(r => r.ExceptionMessages)];
