@@ -13,8 +13,9 @@ namespace Cratis.Arc.Commands;
 /// command a transactional scope. <see cref="Begin"/> is deliberately synchronous so ambient state an implementation
 /// establishes — for example an <c>AsyncLocal</c>-based unit of work — flows to the command's execution.
 /// Scopes nest: they complete in the reverse of the order they began. The relative order between different scope
-/// implementations is unspecified — implementations must be independent of each other. <see cref="Complete"/> can be
-/// invoked when <see cref="Begin"/> never ran for the implementation (for example when another scope's
+/// implementations is unspecified — implementations must be independent of each other. Every scope completes in
+/// isolation: a failure completing one scope never prevents the remaining scopes from completing. <see cref="Complete"/>
+/// can be invoked when <see cref="Begin"/> never ran for the implementation (for example when another scope's
 /// <see cref="Begin"/> threw), and implementations must tolerate that.
 /// </remarks>
 public interface ICommandExecutionScope

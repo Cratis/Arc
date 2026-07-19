@@ -90,6 +90,7 @@ public class CommandPipeline(
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         CommandContext? commandContext = default;
+        ICommandExecutionScope[]? scopes = default;
         var executionScopesCompleted = false;
         using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
@@ -111,7 +112,9 @@ public class CommandPipeline(
                 CancellationToken: cancellationToken);
             contextModifier.SetCurrent(commandContext);
 
-            foreach (var executionScope in executionScopes)
+            // Materialized once so Begin and Complete are guaranteed to act on the same scope instances.
+            scopes = [.. executionScopes];
+            foreach (var executionScope in scopes)
             {
                 executionScope.Begin(commandContext);
             }
@@ -150,26 +153,27 @@ public class CommandPipeline(
 
         async Task<CommandResult> CompleteExecutionScopes(CommandResult commandResult)
         {
-            if (commandContext is null || executionScopesCompleted)
+            if (commandContext is null || scopes is null || executionScopesCompleted)
             {
                 return commandResult;
             }
 
             executionScopesCompleted = true;
 
-            try
+            // Scopes nest: the last scope begun is the first completed, like using-blocks. Every scope completes
+            // exactly once and in isolation — a failure completing one scope must never prevent the remaining
+            // scopes from completing — and a failure becomes an exception outcome on the result rather than a
+            // raw exception to the caller.
+            for (var index = scopes.Length - 1; index >= 0; index--)
             {
-                // Scopes nest: the last scope begun is the first completed, like using-blocks.
-                foreach (var executionScope in executionScopes.Reverse())
+                try
                 {
-                    await executionScope.Complete(commandContext, commandResult);
+                    await scopes[index].Complete(commandContext, commandResult);
                 }
-            }
-            catch (Exception ex)
-            {
-                // Scopes are completed exactly once, and a failure completing them — for example a transactional
-                // scope whose commit fails — must reach the caller as a failed result, not as a raw exception.
-                commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
+                catch (Exception ex)
+                {
+                    commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
+                }
             }
 
             return commandResult;
