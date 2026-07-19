@@ -22,9 +22,10 @@ public interface ICommandExecutionScope
     void Begin(CommandContext context);
 
     /// <summary>
-    /// Completes the scope with the final result of the command, called for every outcome — success, validation
-    /// failure or exception. Implementations can mutate the <see cref="CommandResult"/> to reflect the outcome of
-    /// completing the scope.
+    /// Completes the scope with the final result of the command, called exactly once for every outcome — success,
+    /// validation failure or exception. Implementations can mutate the <see cref="CommandResult"/> to reflect the
+    /// outcome of completing the scope. An exception thrown from this method is folded into the command's result as
+    /// an exception outcome rather than propagating to the caller.
     /// </summary>
     /// <param name="context">The <see cref="CommandContext"/> for the command.</param>
     /// <param name="result">The final, mutable <see cref="CommandResult"/> for the command.</param>

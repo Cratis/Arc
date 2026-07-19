@@ -90,6 +90,7 @@ public class CommandPipeline(
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         CommandContext? commandContext = default;
+        var executionScopesCompleted = false;
         using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
@@ -149,12 +150,25 @@ public class CommandPipeline(
 
         async Task<CommandResult> CompleteExecutionScopes(CommandResult commandResult)
         {
-            if (commandContext is not null)
+            if (commandContext is null || executionScopesCompleted)
+            {
+                return commandResult;
+            }
+
+            executionScopesCompleted = true;
+
+            try
             {
                 foreach (var executionScope in executionScopes)
                 {
                     await executionScope.Complete(commandContext, commandResult);
                 }
+            }
+            catch (Exception ex)
+            {
+                // Scopes are completed exactly once, and a failure completing them — for example a transactional
+                // scope whose commit fails — must reach the caller as a failed result, not as a raw exception.
+                commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
             }
 
             return commandResult;
