@@ -7,11 +7,10 @@ using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Commands.for_TransactionalEventLog.when_appending;
 
-public class and_the_current_unit_of_work_is_completed : Specification
+public class and_the_command_transaction_is_completed : Specification
 {
     IEventLog _inner;
     IUnitOfWork _unitOfWork;
-    IUnitOfWorkManager _unitOfWorkManager;
     TransactionalEventLog _eventLog;
 
     void Establish()
@@ -19,13 +18,15 @@ public class and_the_current_unit_of_work_is_completed : Specification
         _inner = Substitute.For<IEventLog>();
         _unitOfWork = Substitute.For<IUnitOfWork>();
         _unitOfWork.IsCompleted.Returns(true);
-        _unitOfWorkManager = Substitute.For<IUnitOfWorkManager>();
-        _unitOfWorkManager.HasCurrent.Returns(true);
-        _unitOfWorkManager.Current.Returns(_unitOfWork);
-        _eventLog = new TransactionalEventLog(_inner, _unitOfWorkManager);
+        _eventLog = new TransactionalEventLog(_inner);
     }
 
-    async Task Because() => await _eventLog.Append(EventSourceId.New(), new object());
+    async Task Because()
+    {
+        CommandTransaction.Current = _unitOfWork;
+        await _eventLog.Append(EventSourceId.New(), new object());
+        CommandTransaction.Current = null;
+    }
 
     [Fact] void should_append_to_the_inner_log_immediately() => _inner.ReceivedWithAnyArgs(1).Append(default!, default!);
     [Fact] void should_not_enroll_the_event_in_the_completed_unit_of_work() => _unitOfWork.DidNotReceiveWithAnyArgs().AddEvent(default!, default!, default!, default!);

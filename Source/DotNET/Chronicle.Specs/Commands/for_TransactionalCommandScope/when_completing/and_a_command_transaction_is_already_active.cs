@@ -6,18 +6,14 @@ using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_TransactionalCommandScope.when_completing;
 
-public class and_a_unit_of_work_is_already_current : given.a_transactional_command_scope
+public class and_a_command_transaction_is_already_active : given.a_transactional_command_scope
 {
-    void Establish()
-    {
-        _unitOfWorkManager.HasCurrent.Returns(true);
-        _unitOfWorkManager.Current.Returns(_unitOfWork);
-    }
-
     async Task Because()
     {
+        CommandTransaction.Current = _unitOfWork;
         _scope.Begin(_context);
         await _scope.Complete(_context, CommandResult.Success(_correlationId));
+        CommandTransaction.Current = null;
     }
 
     [Fact] void should_not_begin_a_new_unit_of_work() => _unitOfWorkManager.DidNotReceive().Begin(Arg.Any<CorrelationId>());

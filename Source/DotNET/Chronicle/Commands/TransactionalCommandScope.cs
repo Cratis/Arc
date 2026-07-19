@@ -17,10 +17,12 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// that a command whose result is not successful appends no events at all.
 /// </summary>
 /// <remarks>
-/// A nested command joins the outermost command's unit of work — only the outermost commits or rolls back. An
-/// aggregate root reuses the same unit of work and commits it itself; the scope then leaves it untouched. The
-/// <see cref="IUnitOfWorkManager"/> is resolved from the command's own service provider so the unit of work is created
-/// over the tenant-correct event store.
+/// A command always owns its transaction; only a nested command — one executed from within another command — joins
+/// the outermost command's unit of work, and only the outermost commits or rolls back. A unit of work established by
+/// other integrations, such as Chronicle's request-level middleware, is left untouched. An aggregate root reuses the
+/// command's unit of work and commits it itself; the scope then leaves it alone. The <see cref="IUnitOfWorkManager"/>
+/// is resolved from the command's own service provider so the unit of work is created over the tenant-correct event
+/// store.
 /// </remarks>
 [Singleton]
 public class TransactionalCommandScope : ICommandExecutionScope
@@ -35,8 +37,17 @@ public class TransactionalCommandScope : ICommandExecutionScope
             return;
         }
 
+        if (CommandTransaction.TryGetActive(out _))
+        {
+            // A nested command joins the outermost command's transaction — only the outermost owns it.
+            _ownedUnitOfWork.Value = null;
+            return;
+        }
+
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
-        _ownedUnitOfWork.Value = unitOfWorkManager.HasCurrent ? null : unitOfWorkManager.Begin(context.CorrelationId);
+        var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
+        CommandTransaction.Current = unitOfWork;
+        _ownedUnitOfWork.Value = unitOfWork;
     }
 
     /// <inheritdoc/>
@@ -48,6 +59,7 @@ public class TransactionalCommandScope : ICommandExecutionScope
         }
 
         _ownedUnitOfWork.Value = null;
+        CommandTransaction.Current = null;
 
         if (result.IsSuccess)
         {

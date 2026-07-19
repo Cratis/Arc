@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
@@ -15,14 +14,13 @@ using Cratis.Monads;
 namespace Cratis.Arc.Chronicle.Commands;
 
 /// <summary>
-/// Represents an <see cref="IEventLog"/> that enrolls appends in the command's <see cref="IUnitOfWork"/> when one is
-/// active, so every event a command appends is committed atomically with the command and rolled back if the command
-/// fails. When no unit of work is current (for example outside a command), appends fall through to the underlying log
-/// immediately.
+/// Represents an <see cref="IEventLog"/> that enrolls appends in the command's <see cref="IUnitOfWork"/> when a
+/// command's transaction is active, so every event a command appends is committed atomically with the command and
+/// rolled back if the command fails. Outside a command — including from a controller action or a background
+/// continuation — appends fall through to the underlying log immediately.
 /// </summary>
 /// <param name="inner">The underlying <see cref="IEventLog"/> that performs the actual appends and reads.</param>
-/// <param name="unitOfWorkManager">The <see cref="IUnitOfWorkManager"/> used to resolve the ambient unit of work.</param>
-public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWorkManager) : IEventLog
+public class TransactionalEventLog(IEventLog inner) : IEventLog
 {
     /// <summary>
     /// The causation property carrying the event sequence id.
@@ -46,7 +44,7 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
     /// <inheritdoc/>
     public Task<AppendResult> Append(EventSourceId eventSourceId, object @event, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null)
     {
-        if (!TryGetActiveUnitOfWork(out var unitOfWork))
+        if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
             return inner.Append(eventSourceId, @event, eventStreamType, eventStreamId, eventSourceType, correlationId, tags, concurrencyScope, occurred, subject);
         }
@@ -58,7 +56,7 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
     /// <inheritdoc/>
     public Task<AppendManyResult> AppendMany(EventSourceId eventSourceId, IEnumerable<object> events, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null)
     {
-        if (!TryGetActiveUnitOfWork(out var unitOfWork))
+        if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
             return inner.AppendMany(eventSourceId, events, eventStreamType, eventStreamId, eventSourceType, correlationId, tags, concurrencyScope, occurred, subject);
         }
@@ -74,7 +72,7 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
     /// <inheritdoc/>
     public Task<AppendManyResult> AppendMany(IEnumerable<EventForEventSourceId> events, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, IDictionary<EventSourceId, ConcurrencyScope>? concurrencyScopes = null)
     {
-        if (!TryGetActiveUnitOfWork(out var unitOfWork))
+        if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
             return inner.AppendMany(events, correlationId, tags, concurrencyScopes);
         }
@@ -82,7 +80,18 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
         foreach (var @event in events)
         {
             var concurrencyScope = concurrencyScopes is not null && concurrencyScopes.TryGetValue(@event.EventSourceId, out var scope) ? scope : null;
-            unitOfWork.AddEvent(inner.Id, @event.EventSourceId, @event.Event, CreateCausation(), concurrencyScope: concurrencyScope, tags: tags);
+            unitOfWork.AddEvent(
+                inner.Id,
+                @event.EventSourceId,
+                @event.Event,
+                @event.Causation ?? CreateCausation(),
+                @event.EventStreamType,
+                @event.EventStreamId,
+                @event.EventSourceType,
+                concurrencyScope,
+                [.. @event.Tags, .. tags ?? []],
+                @event.Occurred,
+                @event.Subject);
         }
 
         return Task.FromResult(new AppendManyResult { CorrelationId = unitOfWork.CorrelationId });
@@ -120,23 +129,4 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
 
     Causation CreateCausation() =>
         new(DateTimeOffset.Now, CausationType, new Dictionary<string, string> { { CausationEventSequenceIdProperty, inner.Id } });
-
-    /// <summary>
-    /// Gets the current unit of work when one is active. A unit of work that has already completed — for example when
-    /// code appends from a background continuation after its command committed — is not returned, so such appends fall
-    /// through to the immediate path instead of being buffered into a unit of work that will never flush again.
-    /// </summary>
-    /// <param name="unitOfWork">The active <see cref="IUnitOfWork"/> when one is current and not completed.</param>
-    /// <returns>True when an active unit of work is current; otherwise false.</returns>
-    bool TryGetActiveUnitOfWork([NotNullWhen(true)] out IUnitOfWork? unitOfWork)
-    {
-        if (unitOfWorkManager.HasCurrent && !unitOfWorkManager.Current.IsCompleted)
-        {
-            unitOfWork = unitOfWorkManager.Current;
-            return true;
-        }
-
-        unitOfWork = null;
-        return false;
-    }
 }
