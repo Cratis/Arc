@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Chronicle.Commands;
-using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.EventSequences;
@@ -68,11 +67,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         services.AddSingleton<IUnitOfWorkManager>(unitOfWorkManager);
 
         // Make the harness a transactional command scope exactly like production (AddCommandTransactions): appends
-        // enroll in the command's unit of work and commit atomically, or roll back if the command is not successful.
+        // enroll in the command's unit of work — begun and completed by the discovered TransactionalCommandScope —
+        // and commit atomically, or roll back if the command is not successful.
         services.AddSingleton<IEventLog>(new TransactionalEventLog(eventScenario.EventLog, unitOfWorkManager));
-        services.AddSingleton<TransactionalCommandPipeline>();
-        services.AddSingleton<ICommandPipeline>(serviceProvider => serviceProvider.GetRequiredService<TransactionalCommandPipeline>());
-        services.AddSingleton<ICommandPipelineWithCancellation>(serviceProvider => serviceProvider.GetRequiredService<TransactionalCommandPipeline>());
 
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;

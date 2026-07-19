@@ -6,6 +6,7 @@ using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Traces;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
@@ -21,6 +22,7 @@ namespace Cratis.Arc.Commands;
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
 /// <param name="argumentResolver">The <see cref="ICommandHandlerArgumentResolver"/> to use for resolving handler arguments.</param>
+/// <param name="executionScopes">The discovered <see cref="ICommandExecutionScope"/> implementations that participate in every command's execution.</param>
 /// <param name="scopeFactory">The <see cref="IServiceScopeFactory"/> used to create a dedicated service scope when no <see cref="IServiceProvider"/> is provided.</param>
 /// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 [Singleton]
@@ -32,6 +34,7 @@ public class CommandPipeline(
     ICommandContextModifier contextModifier,
     ICommandContextValuesBuilder contextValuesBuilder,
     ICommandHandlerArgumentResolver argumentResolver,
+    IInstancesOf<ICommandExecutionScope> executionScopes,
     IServiceScopeFactory scopeFactory,
     IActivitySource<CommandPipeline> activitySource) : ICommandPipelineWithCancellation
 {
@@ -86,6 +89,7 @@ public class CommandPipeline(
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
+        CommandContext? commandContext = default;
         using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
@@ -95,7 +99,7 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var commandContext = new CommandContext(
+            commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
@@ -105,11 +109,17 @@ public class CommandPipeline(
                 ServiceProvider: serviceProvider,
                 CancellationToken: cancellationToken);
             contextModifier.SetCurrent(commandContext);
+
+            foreach (var executionScope in executionScopes)
+            {
+                executionScope.Begin(commandContext);
+            }
+
             result = await commandFilters.OnExecution(commandContext);
             result = FilterValidationResults(result, allowedSeverity);
             if (!result.IsSuccess)
             {
-                return result;
+                return await CompleteExecutionScopes(result);
             }
 
             var resolution = await argumentResolver.Resolve(commandHandler, commandContext, serviceProvider, allowedSeverity);
@@ -117,7 +127,7 @@ public class CommandPipeline(
             result = FilterValidationResults(result, allowedSeverity);
             if (!result.IsSuccess)
             {
-                return result;
+                return await CompleteExecutionScopes(result);
             }
 
             commandContext = commandContext with { Dependencies = resolution.Arguments };
@@ -135,7 +145,20 @@ public class CommandPipeline(
             result.MergeWith(CommandResult.FromException(correlationId, ex));
         }
 
-        return result;
+        return await CompleteExecutionScopes(result);
+
+        async Task<CommandResult> CompleteExecutionScopes(CommandResult commandResult)
+        {
+            if (commandContext is not null)
+            {
+                foreach (var executionScope in executionScopes)
+                {
+                    await executionScope.Complete(commandContext, commandResult);
+                }
+            }
+
+            return commandResult;
+        }
     }
 
     /// <inheritdoc/>
