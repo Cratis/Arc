@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Validation;
+using Cratis.Concepts;
 using FluentValidation;
 
 namespace Cratis.Arc.ProxyGenerator.for_ValidationRulesExtractor;
@@ -64,4 +65,28 @@ public class TestCommandWithDependencyValidator : BaseValidator<TestCommandWithD
         RuleFor(x => x.Age).GreaterThanOrEqualTo(18);
         RuleFor(x => x).MustAsync(async (cmd, ct) => await dependency.ValidateAsync(cmd.Name));
     }
+}
+
+public record EmailAddress(string Value) : ConceptAs<string>(Value);
+
+public class EmailAddressValidator : ConceptValidator<EmailAddress>
+{
+    public const string InvalidMessage = "Must be a valid email address";
+
+    public EmailAddressValidator() => RuleFor(x => x.Value).EmailAddress().WithMessage(InvalidMessage);
+}
+
+public class TestCommandWithConcept
+{
+    public EmailAddress Email { get; set; } = new(string.Empty);
+}
+
+public class TestCommandWithConceptAndOwnValidator
+{
+    public EmailAddress Email { get; set; } = new(string.Empty);
+}
+
+public class TestCommandWithConceptAndOwnValidatorValidator : BaseValidator<TestCommandWithConceptAndOwnValidator>
+{
+    public TestCommandWithConceptAndOwnValidatorValidator() => RuleFor(x => x.Email).NotEmpty();
 }

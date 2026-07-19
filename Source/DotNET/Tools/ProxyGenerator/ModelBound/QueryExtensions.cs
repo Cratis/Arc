@@ -141,59 +141,34 @@ public static class QueryExtensions
 
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules from query method parameters
-        // First, try to find a FluentValidation validator for a parameters class
-        // The parameters class should have properties that match the method parameters
-        var validationRules = new List<PropertyValidationDescriptor>();
-        var parameterTypeNames = new[]
-        {
-            $"{method.Name}Parameters",
-            $"{readModelType.Name}{method.Name}Parameters"
-        };
+        // Extract validation rules for the query's parameters from the three sources that can contribute them, merged
+        // with the same precedence the command path uses: an explicit validator for a matching parameters class, the
+        // validators of any concept-typed parameters, and DataAnnotations on the parameters as a per-parameter fallback.
+        var parametersType = FindParametersTypeFor(readModelType, method);
+        var explicitRules = parametersType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType).ToList()
+            : [];
 
-        Type? parametersType = null;
-        foreach (var typeName in parameterTypeNames)
+        var conceptRules = new List<PropertyValidationDescriptor>();
+        var dataAnnotationsRules = new List<PropertyValidationDescriptor>();
+        foreach (var param in method.GetParameters())
         {
-            var candidateType = readModelType.Assembly.GetTypes().FirstOrDefault(t => t.Name == typeName);
-            if (candidateType != null)
+            var parameterName = param.Name.ToCamelCase();
+
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType);
+            if (rulesFromConcept.Count > 0)
             {
-                // Verify that the candidate type's properties match the method parameters
-                var candidateProperties = candidateType.GetProperties();
-                var methodParams = method.GetParameters();
+                conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
+            }
 
-                // Check if all method parameters have corresponding properties in the candidate type
-                var allParamsMatch = methodParams.All(param =>
-                    candidateProperties.Any(prop =>
-                        prop.Name.Equals(param.Name, StringComparison.OrdinalIgnoreCase) &&
-                        prop.PropertyType == param.ParameterType));
-
-                if (allParamsMatch)
-                {
-                    parametersType = candidateType;
-                    break;
-                }
+            var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+            if (rulesFromDataAnnotations.Count > 0)
+            {
+                dataAnnotationsRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromDataAnnotations]));
             }
         }
 
-        if (parametersType != null)
-        {
-            // Found a parameters class, extract FluentValidation rules from it
-            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType);
-            validationRules.AddRange(fluentValidationRules);
-        }
-
-        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
-        if (validationRules.Count == 0)
-        {
-            foreach (var param in method.GetParameters())
-            {
-                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
-                if (rules.Count > 0)
-                {
-                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
-                }
-            }
-        }
+        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
 
         // Check for TreatWarningsAsErrors attribute
         var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
@@ -229,6 +204,51 @@ public static class QueryExtensions
             treatWarningsAsErrors,
             roles,
             httpMethod);
+    }
+
+    /// <summary>
+    /// Finds a class that stands in for a query method's parameters, by the naming convention
+    /// <c>{MethodName}Parameters</c> or <c>{ReadModelName}{MethodName}Parameters</c>, so an explicit
+    /// <c>QueryValidator&lt;T&gt;</c> can be declared against it.
+    /// </summary>
+    /// <param name="readModelType">The read model type owning the query method.</param>
+    /// <param name="method">The query method to find a parameters class for.</param>
+    /// <returns>The matching <see cref="Type"/>, or null when there is none.</returns>
+    /// <remarks>
+    /// A candidate only counts when every method parameter has a matching property, so an unrelated type that happens
+    /// to carry the name is never picked up.
+    /// </remarks>
+    static Type? FindParametersTypeFor(Type readModelType, MethodInfo method)
+    {
+        string[] parameterTypeNames =
+        [
+            $"{method.Name}Parameters",
+            $"{readModelType.Name}{method.Name}Parameters"
+        ];
+
+        var methodParameters = method.GetParameters();
+
+        foreach (var typeName in parameterTypeNames)
+        {
+            var candidateType = readModelType.Assembly.GetTypes().FirstOrDefault(_ => _.Name == typeName);
+            if (candidateType is null)
+            {
+                continue;
+            }
+
+            var candidateProperties = candidateType.GetProperties();
+            var allParametersMatch = methodParameters.All(parameter =>
+                candidateProperties.Any(property =>
+                    property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) &&
+                    property.PropertyType == parameter.ParameterType));
+
+            if (allParametersMatch)
+            {
+                return candidateType;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using HandlebarsDotNet;
 
 namespace Cratis.Arc.ProxyGenerator.Templates;
@@ -56,7 +57,45 @@ public static class TemplateTypes
         Handlebars.RegisterHelper("camelcase", (writer, _, parameters) => writer.WriteSafeString(parameters[0].ToString()!.ToCamelCase()));
         Handlebars.RegisterHelper("lowercase", (writer, _, parameters) => writer.WriteSafeString(parameters[0].ToString()!.ToLowerInvariant()));
         Handlebars.RegisterHelper("kebabcase", (writer, _, parameters) => writer.WriteSafeString(parameters[0].ToString()!.ToKebabCase()));
+        Handlebars.RegisterHelper("ruleargs", (writer, _, parameters) => writer.WriteSafeString(FormatRuleArguments(parameters[0])));
+        Handlebars.RegisterHelper("jsstring", (writer, _, parameters) => writer.WriteSafeString(FormatJavaScriptString(parameters[0]?.ToString())));
     }
+
+    /// <summary>
+    /// Formats a validation rule's arguments as a TypeScript argument list.
+    /// </summary>
+    /// <param name="arguments">The rule arguments to format.</param>
+    /// <returns>The formatted argument list, empty when there are none.</returns>
+    static string FormatRuleArguments(object? arguments) =>
+        arguments is IEnumerable<object> values
+            ? string.Join(", ", values.Select(FormatRuleArgument))
+            : string.Empty;
+
+    /// <summary>
+    /// Formats a single rule argument as a TypeScript literal.
+    /// </summary>
+    /// <param name="value">The argument value.</param>
+    /// <returns>The formatted literal.</returns>
+    /// <remarks>
+    /// A string argument — a <c>matches()</c> pattern in particular — has to be emitted as a quoted, escaped literal.
+    /// Writing it bare produces TypeScript that does not parse.
+    /// </remarks>
+    static string FormatRuleArgument(object? value) => value switch
+    {
+        null => "null",
+        string text => FormatJavaScriptString(text),
+        bool flag => flag ? "true" : "false",
+        IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+        _ => value.ToString() ?? string.Empty
+    };
+
+    /// <summary>
+    /// Formats a value as a single-quoted, escaped JavaScript string literal.
+    /// </summary>
+    /// <param name="value">The value to format.</param>
+    /// <returns>The quoted literal.</returns>
+    static string FormatJavaScriptString(string? value) =>
+        $"'{(value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "\\r").Replace("\n", "\\n")}'";
 
     static string GetTemplate(string name)
     {

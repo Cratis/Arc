@@ -37,11 +37,65 @@ public static class ValidationRulesExtractor
         // Try FluentValidation first
         var fluentValidationRules = ExtractFluentValidationRules(assembly, type).ToList();
 
+        // Then the rules contributed by the validators of any concept-typed properties
+        var conceptRules = ExtractConceptRules(assembly, type).ToList();
+
         // Then extract DataAnnotations
         var dataAnnotationsRules = ExtractDataAnnotationsRules(type).ToList();
 
         // Merge the rules - FluentValidation takes precedence
-        return MergeValidationRules(fluentValidationRules, dataAnnotationsRules);
+        return MergeValidationRules(fluentValidationRules, conceptRules, dataAnnotationsRules);
+    }
+
+    /// <summary>
+    /// Extract the validation rules that <c>ConceptValidator&lt;T&gt;</c> validators contribute to a type's
+    /// concept-typed properties, attributed to the property carrying the concept.
+    /// </summary>
+    /// <param name="assembly">Assembly to search for validators in.</param>
+    /// <param name="type">The type whose properties to inspect.</param>
+    /// <returns>Collection of property validation descriptors.</returns>
+    /// <remarks>
+    /// Whether a value is well formed is a property of its type, so a concept's validator already runs server-side
+    /// wherever that concept appears. Projecting it here means declaring it once also validates in the browser,
+    /// rather than the client silently enforcing less than the server.
+    /// </remarks>
+    public static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type)
+    {
+        var propertyValidations = new List<PropertyValidationDescriptor>();
+
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var rules = ExtractRulesForConceptType(assembly, property.PropertyType);
+            if (rules.Count > 0)
+            {
+                propertyValidations.Add(new PropertyValidationDescriptor(property.Name.ToCamelCase(), [.. rules]));
+            }
+        }
+
+        return propertyValidations;
+    }
+
+    /// <summary>
+    /// Extract the rules a concept's validator declares, flattened and detached from the concept's own member name.
+    /// </summary>
+    /// <param name="assembly">Assembly to search for validators in.</param>
+    /// <param name="type">The type to extract rules for; anything that is not a concept yields nothing.</param>
+    /// <returns>Collection of validation rule descriptors.</returns>
+    /// <remarks>
+    /// A <c>ConceptValidator&lt;T&gt;</c> declares its rules against the concept's <c>Value</c> member. The generated
+    /// TypeScript erases a concept to its underlying primitive, so on the client the owning property <em>is</em> that
+    /// value — the rules are re-attributed to the owner and the inner member name is dropped.
+    /// Only concepts sitting directly on a property or parameter are projected: the client-side rule builder resolves
+    /// a single property name, so it cannot express a rule against a concept nested deeper in the graph.
+    /// </remarks>
+    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type)
+    {
+        if (!type.IsConcept())
+        {
+            return [];
+        }
+
+        return [.. ExtractFluentValidationRules(assembly, type).SelectMany(_ => _.Rules)];
     }
 
     /// <summary>
@@ -74,6 +128,48 @@ public static class ValidationRulesExtractor
     {
         var attributesData = parameter.GetCustomAttributesData();
         return ExtractDataAnnotationsFromAttributesData(attributesData);
+    }
+
+    /// <summary>
+    /// Merges rules from the three sources that can contribute them, in the order of precedence the command and query
+    /// paths both follow.
+    /// </summary>
+    /// <param name="fluentValidationRules">Rules from an explicit validator for the model.</param>
+    /// <param name="conceptRules">Rules contributed by the validators of concept-typed members; additive.</param>
+    /// <param name="dataAnnotationsRules">Rules from DataAnnotations; applied only where nothing else contributed.</param>
+    /// <returns>The merged collection of property validation descriptors.</returns>
+    public static IEnumerable<PropertyValidationDescriptor> MergeValidationRules(
+        IEnumerable<PropertyValidationDescriptor> fluentValidationRules,
+        IEnumerable<PropertyValidationDescriptor> conceptRules,
+        IEnumerable<PropertyValidationDescriptor> dataAnnotationsRules)
+    {
+        var merged = new Dictionary<string, PropertyValidationDescriptor>();
+
+        // Add FluentValidation rules first (they take precedence)
+        foreach (var rule in fluentValidationRules)
+        {
+            merged[rule.PropertyName] = rule;
+        }
+
+        // Concept rules are additive rather than overriding: server-side both the explicit validator and the
+        // concept's own validator run, so the client has to apply both to agree with it.
+        foreach (var rule in conceptRules)
+        {
+            merged[rule.PropertyName] = merged.TryGetValue(rule.PropertyName, out var existing)
+                ? existing with { Rules = [.. existing.Rules, .. rule.Rules] }
+                : rule;
+        }
+
+        // Add DataAnnotations rules only if property doesn't already have FluentValidation rules
+        foreach (var rule in dataAnnotationsRules)
+        {
+            if (!merged.ContainsKey(rule.PropertyName))
+            {
+                merged[rule.PropertyName] = rule;
+            }
+        }
+
+        return [.. merged.Values];
     }
 
     static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromMember(PropertyInfo property)
@@ -221,30 +317,6 @@ public static class ValidationRulesExtractor
         }
 
         return default;
-    }
-
-    static List<PropertyValidationDescriptor> MergeValidationRules(
-        List<PropertyValidationDescriptor> fluentValidationRules,
-        List<PropertyValidationDescriptor> dataAnnotationsRules)
-    {
-        var merged = new Dictionary<string, PropertyValidationDescriptor>();
-
-        // Add FluentValidation rules first (they take precedence)
-        foreach (var rule in fluentValidationRules)
-        {
-            merged[rule.PropertyName] = rule;
-        }
-
-        // Add DataAnnotations rules only if property doesn't already have FluentValidation rules
-        foreach (var rule in dataAnnotationsRules)
-        {
-            if (!merged.ContainsKey(rule.PropertyName))
-            {
-                merged[rule.PropertyName] = rule;
-            }
-        }
-
-        return [.. merged.Values];
     }
 
     static List<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type)
