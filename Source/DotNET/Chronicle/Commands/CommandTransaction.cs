@@ -9,9 +9,9 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <summary>
 /// Holds the ambient <see cref="IUnitOfWork"/> owned by the command currently executing. Set by
 /// <see cref="TransactionalCommandScope"/> when a command begins its transaction and observed by
-/// <see cref="TransactionalEventLog"/> to enroll appends. Deliberately separate from Chronicle's own ambient
-/// current unit of work, so a unit of work established by other integrations — for example Chronicle's
-/// request-level middleware — is left untouched and commands always own their own transaction.
+/// <see cref="CommandTransactionAppender"/> to enroll the events a command returns. Deliberately separate from
+/// Chronicle's own ambient current unit of work, so a unit of work established by other integrations — for example
+/// Chronicle's request-level middleware — is left untouched and commands always own their own transaction.
 /// </summary>
 internal static class CommandTransaction
 {

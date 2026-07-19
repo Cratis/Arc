@@ -22,7 +22,7 @@ public static class ConstraintViolationExtensions
     /// <returns>A <see cref="ValidationResult"/> representing the violation.</returns>
     public static ValidationResult ToValidationResult(this ConstraintViolation violation)
     {
-        string[] members = violation.Details.TryGetValue(WellKnownConstraintDetailKeys.PropertyName, out var propertyName)
+        string[] members = violation.Details is { } details && details.TryGetValue(WellKnownConstraintDetailKeys.PropertyName, out var propertyName)
             ? [propertyName.ToCamelCase()]
             : [];
 

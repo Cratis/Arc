@@ -65,12 +65,6 @@ public static class ArcBuilderExtensions
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
 
-        // Commands own their transaction: the discovered TransactionalCommandScope begins and completes a unit of
-        // work per command, surfacing violations on the CommandResult. Chronicle's request-level unit of work
-        // middleware coexists — a command always begins its own transaction rather than joining the request's, while
-        // controller-based code keeps the request-level unit of work behavior it had before.
-        builder.Services.AddCommandTransactions();
-
         return builder;
     }
 }

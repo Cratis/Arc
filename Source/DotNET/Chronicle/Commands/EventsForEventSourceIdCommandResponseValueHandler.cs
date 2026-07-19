@@ -78,6 +78,11 @@ public class EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLo
                 ? (wrapped.EventSourceId, wrapped.Event)
                 : (commandContext.GetEventSourceId(), item);
 
+            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope))
+            {
+                continue;
+            }
+
             var result = await eventLog.Append(
                 eventSourceId,
                 @event,

@@ -30,7 +30,14 @@ public class EventsCommandResponseValueHandler(IEventLog eventLog, IEventTypes e
             var concurrencyScope = ConcurrencyScopeBuilder.BuildFromCommandContext(commandContext);
             var subject = commandContext.GetSubject();
 
-            if (subject is not null)
+            if (CommandTransaction.TryGetActive(out _))
+            {
+                foreach (var @event in events)
+                {
+                    eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope);
+                }
+            }
+            else if (subject is not null)
             {
                 foreach (var @event in events)
                 {

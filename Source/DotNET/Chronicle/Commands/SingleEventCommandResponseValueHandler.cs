@@ -25,20 +25,24 @@ public class SingleEventCommandResponseValueHandler(IEventLog eventLog, IEventTy
     {
         var eventSourceId = commandContext.GetEventSourceId();
         var concurrencyScope = ConcurrencyScopeBuilder.BuildFromCommandContext(commandContext);
-        var result = await eventLog.Append(
-            eventSourceId,
-            value,
-            commandContext.GetEventStreamType(),
-            commandContext.GetEventStreamId(),
-            commandContext.GetEventSourceType(),
-            correlationId: default,
-            concurrencyScope: concurrencyScope,
-            subject: commandContext.GetSubject());
-
-        if (!result.IsSuccess)
+        if (!eventLog.TryEnrollForCommand(eventSourceId, value, commandContext, concurrencyScope))
         {
-            return result.ToCommandResult();
+            var result = await eventLog.Append(
+                eventSourceId,
+                value,
+                commandContext.GetEventStreamType(),
+                commandContext.GetEventStreamId(),
+                commandContext.GetEventSourceType(),
+                correlationId: default,
+                concurrencyScope: concurrencyScope,
+                subject: commandContext.GetSubject());
+
+            if (!result.IsSuccess)
+            {
+                return result.ToCommandResult();
+            }
         }
+
         return CommandResult.Success(commandContext.CorrelationId);
     }
 }

@@ -36,12 +36,29 @@ public record StartPartnerOnboardingWithInvite(EventSourceId EventSourceId, Even
 }
 
 [Command]
-public record AppendInTransactionThenFail(EventSourceId EventSourceId)
+public record AppendImmediatelyThenFail(EventSourceId EventSourceId)
 {
     public async Task Handle(IEventLog eventLog)
     {
         await eventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
         throw new DeliberateOnboardingFailure();
+    }
+}
+
+[Command]
+public record AppendViaEventStoreWithDuplicate(EventSourceId EventSourceId, string OrganizationNumber)
+{
+    public async Task Handle(IEventStore eventStore) =>
+        await eventStore.EventLog.Append(EventSourceId, new PartnerOnboardingStarted(OrganizationNumber));
+}
+
+[Command]
+public record AppendMixedStylesWithDuplicate(EventSourceId TransactionalId, EventSourceId ImmediateId, string OrganizationNumber)
+{
+    public async Task Handle(IEventLog eventLog)
+    {
+        await eventLog.Transactional.Append(TransactionalId, new PartnerAdminInvited(TransactionalId));
+        await eventLog.Append(ImmediateId, new PartnerOnboardingStarted(OrganizationNumber));
     }
 }
 
@@ -77,7 +94,7 @@ public record ExecuteNestedThenFail(EventSourceId EventSourceId, EventSourceId N
 {
     public async Task Handle(IEventLog eventLog, ICommandPipeline commandPipeline)
     {
-        await eventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
+        await eventLog.Transactional.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
         await commandPipeline.Execute(new AppendInNestedCommand(NestedEventSourceId));
         throw new DeliberateOnboardingFailure();
     }
@@ -87,7 +104,7 @@ public record ExecuteNestedThenFail(EventSourceId EventSourceId, EventSourceId N
 public record AppendInNestedCommand(EventSourceId EventSourceId)
 {
     public async Task Handle(IEventLog eventLog) =>
-        await eventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
+        await eventLog.Transactional.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
 }
 
 /// <summary>
