@@ -71,7 +71,8 @@ Once the command exists, layer on the cross-cutting concerns Arc handles for you
 | Check validity without executing (pre-flight) | [Command Validation](./command-validation.md) |
 | Run a command in code, not over HTTP | [Command Pipeline](./command-pipeline.md) |
 | Carry ambient values through the pipeline | [Command Context](./command-context.md) |
-| Apply cross-cutting logic to every command | [Command Filters](./command-filters.md) |
+| Commit a command's events atomically — or not at all | [Transactional Commands](./transactional-commands.md) |
+| Apply cross-cutting logic to every command | [Command Filters](./command-filters.md) · [Command Execution Scopes](./command-execution-scopes.md) |
 | Authorize by role or policy | [Authorization](../core/authorization.md) |
 | Shape the response the frontend receives | [Response Value Handlers](./response-value-handlers.md) · [Response Examples](./response-examples.md) |
 

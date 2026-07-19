@@ -8,6 +8,7 @@ using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.EventSequences;
 using Cratis.Chronicle.Testing.ReadModels;
+using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
@@ -52,15 +53,21 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var eventScenario = new EventScenario();
         var appendedEvents = new List<AppendedEventWithResult>();
         var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
+        var eventStore = new EventStoreForScenario(eventScenario, readModels);
+        var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
         eventScenario.EventLog.AppendOperations.Subscribe(appendedEvents.AddRange);
 
         services.AddSingleton(Defaults.Instance.EventTypes);
-        services.AddSingleton(eventScenario.EventLog);
         services.AddSingleton(eventScenario.EventSequence);
         services.AddSingleton<IReadModels>(readModels);
         services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
-        services.AddSingleton<IEventStore>(_ => new EventStoreForScenario(eventScenario, readModels));
+        services.AddSingleton<IEventStore>(eventStore);
+        services.AddSingleton<IUnitOfWorkManager>(unitOfWorkManager);
+
+        // The harness's IEventLog is a pure pass-through — appends behave exactly like production: immediate through
+        // the in-memory kernel, with the explicit transactional style enrolling in the command's unit of work.
+        services.AddSingleton<IEventLog>(new EventLogForScenario(eventScenario.EventLog, unitOfWorkManager));
 
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;

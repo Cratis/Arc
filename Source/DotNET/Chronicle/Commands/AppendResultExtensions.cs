@@ -35,8 +35,7 @@ public static class AppendResultExtensions
 
             if (result.HasConstraintViolations)
             {
-                validationResults.AddRange(result.ConstraintViolations.Select(v =>
-                    ValidationResult.Error(v.Message.Value)));
+                validationResults.AddRange(result.ConstraintViolations.Select(v => v.ToValidationResult()));
             }
 
             if (result.HasConcurrencyViolations)

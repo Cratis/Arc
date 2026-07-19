@@ -49,8 +49,8 @@ The commands run **sequentially, in order, within a single service scope**. If o
 
 If a returned command comes back unsuccessful — a validation error, an authorization failure, or an exception thrown from its `Handle()` — the reactor fails for that event. Chronicle then pauses the event source partition for that reactor until the problem is resolved and processing is retried, the same failure behavior as any other reactor that throws.
 
-:::caution[This is not a transaction]
-Returning several commands is a convenience, not an atomic unit of work. Each command appends its own events as it runs. If the third command fails, the events already appended by the first two **remain committed** — there is no rollback. If you need all-or-nothing semantics, model the operation as a single command that appends every event together.
+:::caution[This is not a transaction across commands]
+Returning several commands is a convenience, not an atomic unit of work. Each command is its own [transactional scope](../../commands/transactional-commands.md) — its events commit or roll back together — but there is no transaction *across* the commands. If the third command fails, the events committed by the first two **remain committed**. If you need all-or-nothing semantics, model the operation as a single command that appends every event together.
 :::
 
 ## When you need finer control

@@ -22,7 +22,7 @@ public class a_result_with_constraint_violations : given.all_dependencies
             ConstraintType.Unknown,
             new ConstraintName("TestConstraint"),
             new ConstraintViolationMessage("Constraint was violated"),
-            new ConstraintViolationDetails());
+            new ConstraintViolationDetails { [WellKnownConstraintDetailKeys.PropertyName] = "OrganizationNumber" });
 
         _commitResult = new AggregateRootCommitResult
         {
@@ -36,4 +36,5 @@ public class a_result_with_constraint_violations : given.all_dependencies
     [Fact] void should_have_correct_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
     [Fact] void should_have_one_validation_result() => _result.ValidationResults.Count().ShouldEqual(1);
     [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual("Constraint was violated");
+    [Fact] void should_attribute_the_violation_to_the_camel_cased_member() => _result.ValidationResults.First().Members.ShouldContain("organizationNumber");
 }

@@ -17,6 +17,7 @@ public class a_command_pipeline : Specification
     protected ICommandContextModifier _commandContextModifier;
     protected ICommandContextValuesBuilder _commandContextValuesBuilder;
     protected ICommandHandlerArgumentResolver _commandHandlerArgumentResolver;
+    protected ICommandExecutionScope _executionScope;
     protected IServiceProvider _serviceProvider;
     protected IServiceScopeFactory _serviceScopeFactory;
     protected IServiceScope _serviceScope;
@@ -46,6 +47,7 @@ public class a_command_pipeline : Specification
         _serviceScopeFactory = Substitute.For<IServiceScopeFactory>();
         _serviceScopeFactory.CreateScope().Returns(_serviceScope);
 
+        _executionScope = Substitute.For<ICommandExecutionScope>();
         _commandPipeline = new(
             _correlationIdAccessor,
             _commandFilters,
@@ -54,6 +56,7 @@ public class a_command_pipeline : Specification
             _commandContextModifier,
             _commandContextValuesBuilder,
             _commandHandlerArgumentResolver,
+            new KnownInstancesOf<ICommandExecutionScope>([_executionScope]),
             _serviceScopeFactory,
             CreateActivitySource<CommandPipeline>());
     }
