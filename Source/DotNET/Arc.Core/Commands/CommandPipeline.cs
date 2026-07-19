@@ -159,7 +159,8 @@ public class CommandPipeline(
 
             try
             {
-                foreach (var executionScope in executionScopes)
+                // Scopes nest: the last scope begun is the first completed, like using-blocks.
+                foreach (var executionScope in executionScopes.Reverse())
                 {
                     await executionScope.Complete(commandContext, commandResult);
                 }

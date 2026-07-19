@@ -14,6 +14,8 @@ Implementations of `ICommandExecutionScope` are discovered automatically — no 
 
 `Begin` is deliberately synchronous so ambient state a scope establishes — such as an `AsyncLocal`-based unit of work — flows into the command's execution. `Complete` is asynchronous and may mutate the `CommandResult` to reflect the outcome of completing the scope.
 
+Scopes nest: they complete in the reverse of the order they began, like `using` blocks. The relative order between different scope implementations is unspecified — design scopes to be independent of each other. `Complete` can also be invoked when your `Begin` never ran (for example when another scope's `Begin` threw), so implementations must tolerate completing without having begun.
+
 ## Implementing a Custom Execution Scope
 
 ```csharp

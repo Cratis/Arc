@@ -12,6 +12,10 @@ namespace Cratis.Arc.Commands;
 /// This is the extension point for bracketing a command with cross-cutting lifetime concerns, such as making the
 /// command a transactional scope. <see cref="Begin"/> is deliberately synchronous so ambient state an implementation
 /// establishes — for example an <c>AsyncLocal</c>-based unit of work — flows to the command's execution.
+/// Scopes nest: they complete in the reverse of the order they began. The relative order between different scope
+/// implementations is unspecified — implementations must be independent of each other. <see cref="Complete"/> can be
+/// invoked when <see cref="Begin"/> never ran for the implementation (for example when another scope's
+/// <see cref="Begin"/> threw), and implementations must tolerate that.
 /// </remarks>
 public interface ICommandExecutionScope
 {
