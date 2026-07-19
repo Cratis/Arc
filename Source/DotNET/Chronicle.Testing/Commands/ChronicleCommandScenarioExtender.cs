@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.EventSequences;
@@ -8,6 +10,7 @@ using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.EventSequences;
 using Cratis.Chronicle.Testing.ReadModels;
+using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
@@ -52,15 +55,24 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var eventScenario = new EventScenario();
         var appendedEvents = new List<AppendedEventWithResult>();
         var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
+        var eventStore = new EventStoreForScenario(eventScenario, readModels);
+        var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
         eventScenario.EventLog.AppendOperations.Subscribe(appendedEvents.AddRange);
 
         services.AddSingleton(Defaults.Instance.EventTypes);
-        services.AddSingleton(eventScenario.EventLog);
         services.AddSingleton(eventScenario.EventSequence);
         services.AddSingleton<IReadModels>(readModels);
         services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
-        services.AddSingleton<IEventStore>(_ => new EventStoreForScenario(eventScenario, readModels));
+        services.AddSingleton<IEventStore>(eventStore);
+        services.AddSingleton<IUnitOfWorkManager>(unitOfWorkManager);
+
+        // Make the harness a transactional command scope exactly like production (AddCommandTransactions): appends
+        // enroll in the command's unit of work and commit atomically, or roll back if the command is not successful.
+        services.AddSingleton<IEventLog>(new TransactionalEventLog(eventScenario.EventLog, unitOfWorkManager));
+        services.AddSingleton<TransactionalCommandPipeline>();
+        services.AddSingleton<ICommandPipeline>(serviceProvider => serviceProvider.GetRequiredService<TransactionalCommandPipeline>());
+        services.AddSingleton<ICommandPipelineWithCancellation>(serviceProvider => serviceProvider.GetRequiredService<TransactionalCommandPipeline>());
 
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;

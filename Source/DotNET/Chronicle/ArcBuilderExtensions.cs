@@ -53,6 +53,8 @@ public static class ArcBuilderExtensions
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
 
+        builder.Services.AddCommandTransactions();
+
         return builder;
     }
 }

@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -22,8 +23,11 @@ public static class CommandServiceCollectionExtensions
         services.AddSingleton<ICommandContextModifier>(sp => sp.GetRequiredService<CommandContextManager>());
         services.AddSingleton<ICommandContextAccessor>(sp => sp.GetRequiredService<CommandContextManager>());
         services.AddSingleton<CommandPipeline>();
-        services.AddSingleton<ICommandPipeline>(sp => sp.GetRequiredService<CommandPipeline>());
-        services.AddSingleton<ICommandPipelineWithCancellation>(sp => sp.GetRequiredService<CommandPipeline>());
+
+        // TryAdd so a decorator registered before this call (for example the transactional command pipeline in the
+        // Chronicle testing harness) is respected; the plain pipeline is used only when nothing else provides one.
+        services.TryAddSingleton<ICommandPipeline>(sp => sp.GetRequiredService<CommandPipeline>());
+        services.TryAddSingleton<ICommandPipelineWithCancellation>(sp => sp.GetRequiredService<CommandPipeline>());
         services.AddSingleton<ICommandFilters, CommandFilters>();
         services.AddSingleton<ICommandHandlerProviders, CommandHandlerProviders>();
         services.AddSingleton<ICommandResponseValueHandlers, CommandResponseValueHandlers>();
