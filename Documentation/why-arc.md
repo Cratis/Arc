@@ -13,7 +13,7 @@ For Cratis, event sourcing is usually the default persistence architecture for i
 
 - **Commands and queries as the unit of work.** A command is a record with a `Handle()` method — no separate handler class, no controller boilerplate. A query is a method on a read model. Arc maps them to HTTP automatically.
 - **Generated TypeScript proxies.** Every command and query becomes a typed client your React code calls. Change a command's shape in C# and the frontend types change with it — the compiler catches the mismatch, not your users.
-- **Pluggable persistence.** Commands and queries read and write wherever you point them — [Chronicle](/arc/backend/chronicle/) for event-sourced information systems, or [MongoDB](/arc/backend/mongodb/) and [EF Core / SQL](/arc/backend/entity-framework/) for current-state slices.
+- **Pluggable persistence.** Commands and queries read and write wherever you point them — [Chronicle](/arc/backend/chronicle/) for event-sourced information systems, or [MongoDB](/arc/backend/mongodb/) and [EF Core / SQL](/arc/backend/entity-framework/) for current-state slices. With Chronicle, every command is a transactional scope: a failed command appends no events.
 - **The cross-cutting concerns handled for you.** Validation, authorization, identity, multi-tenancy, OpenAPI, and MongoDB/EF Core integration are conventions, not assignments.
 
 ## Why CQRS and proxy generation

@@ -12,6 +12,8 @@ When a command handler returns a value, the command pipeline follows this logic:
 
 This means that **command handlers can return any type of value**, and it will either be processed by a specific handler or automatically become the command response.
 
+> **Note**: When a value handler appends events — for example the Chronicle handlers that append returned events — those appends enroll in the command's transaction and commit atomically with it. See [Transactional Commands](./transactional-commands.md).
+
 ## Built-in Value Handlers
 
 Out-of-the-box Cratis Arc comes with the following value handlers:

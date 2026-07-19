@@ -10,6 +10,8 @@
   href: command-context.md
 - name: Command Filters
   href: command-filters.md
+- name: Command Execution Scopes
+  href: command-execution-scopes.md
 - name: Response Value Handlers
   href: response-value-handlers.md
 - name: Response Examples
