@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
@@ -45,12 +46,11 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
     /// <inheritdoc/>
     public Task<AppendResult> Append(EventSourceId eventSourceId, object @event, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null)
     {
-        if (!unitOfWorkManager.HasCurrent)
+        if (!TryGetActiveUnitOfWork(out var unitOfWork))
         {
             return inner.Append(eventSourceId, @event, eventStreamType, eventStreamId, eventSourceType, correlationId, tags, concurrencyScope, occurred, subject);
         }
 
-        var unitOfWork = unitOfWorkManager.Current;
         unitOfWork.AddEvent(inner.Id, eventSourceId, @event, CreateCausation(), eventStreamType, eventStreamId, eventSourceType, concurrencyScope, tags, occurred, subject);
         return Task.FromResult(AppendResult.Success(unitOfWork.CorrelationId, EventSequenceNumber.Unavailable));
     }
@@ -58,12 +58,11 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
     /// <inheritdoc/>
     public Task<AppendManyResult> AppendMany(EventSourceId eventSourceId, IEnumerable<object> events, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null)
     {
-        if (!unitOfWorkManager.HasCurrent)
+        if (!TryGetActiveUnitOfWork(out var unitOfWork))
         {
             return inner.AppendMany(eventSourceId, events, eventStreamType, eventStreamId, eventSourceType, correlationId, tags, concurrencyScope, occurred, subject);
         }
 
-        var unitOfWork = unitOfWorkManager.Current;
         foreach (var @event in events)
         {
             unitOfWork.AddEvent(inner.Id, eventSourceId, @event, CreateCausation(), eventStreamType, eventStreamId, eventSourceType, concurrencyScope, tags, occurred, subject);
@@ -75,12 +74,11 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
     /// <inheritdoc/>
     public Task<AppendManyResult> AppendMany(IEnumerable<EventForEventSourceId> events, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, IDictionary<EventSourceId, ConcurrencyScope>? concurrencyScopes = null)
     {
-        if (!unitOfWorkManager.HasCurrent)
+        if (!TryGetActiveUnitOfWork(out var unitOfWork))
         {
             return inner.AppendMany(events, correlationId, tags, concurrencyScopes);
         }
 
-        var unitOfWork = unitOfWorkManager.Current;
         foreach (var @event in events)
         {
             var concurrencyScope = concurrencyScopes is not null && concurrencyScopes.TryGetValue(@event.EventSourceId, out var scope) ? scope : null;
@@ -122,4 +120,23 @@ public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWor
 
     Causation CreateCausation() =>
         new(DateTimeOffset.Now, CausationType, new Dictionary<string, string> { { CausationEventSequenceIdProperty, inner.Id } });
+
+    /// <summary>
+    /// Gets the current unit of work when one is active. A unit of work that has already completed — for example when
+    /// code appends from a background continuation after its command committed — is not returned, so such appends fall
+    /// through to the immediate path instead of being buffered into a unit of work that will never flush again.
+    /// </summary>
+    /// <param name="unitOfWork">The active <see cref="IUnitOfWork"/> when one is current and not completed.</param>
+    /// <returns>True when an active unit of work is current; otherwise false.</returns>
+    bool TryGetActiveUnitOfWork([NotNullWhen(true)] out IUnitOfWork? unitOfWork)
+    {
+        if (unitOfWorkManager.HasCurrent && !unitOfWorkManager.Current.IsCompleted)
+        {
+            unitOfWork = unitOfWorkManager.Current;
+            return true;
+        }
+
+        unitOfWork = null;
+        return false;
+    }
 }
