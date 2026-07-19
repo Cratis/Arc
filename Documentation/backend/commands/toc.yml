@@ -4,6 +4,8 @@
   href: model-bound/toc.yml
 - name: Command Pipeline
   href: command-pipeline.md
+- name: Transactional Commands
+  href: transactional-commands.md
 - name: Command Context
   href: command-context.md
 - name: Command Filters
