@@ -3,6 +3,7 @@
 
 #pragma warning disable SA1402 // File may only contain a single type
 
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
@@ -52,6 +53,24 @@ public record AppendOutsideTransactionThenFail(EventSourceId EventSourceId)
         await eventStore.EventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
         throw new DeliberateOnboardingFailure();
     }
+}
+
+[Command]
+public record ExecuteNestedThenFail(EventSourceId EventSourceId, EventSourceId NestedEventSourceId)
+{
+    public async Task Handle(IEventLog eventLog, ICommandPipeline commandPipeline)
+    {
+        await eventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
+        await commandPipeline.Execute(new AppendInNestedCommand(NestedEventSourceId));
+        throw new DeliberateOnboardingFailure();
+    }
+}
+
+[Command]
+public record AppendInNestedCommand(EventSourceId EventSourceId)
+{
+    public async Task Handle(IEventLog eventLog) =>
+        await eventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
 }
 
 /// <summary>
