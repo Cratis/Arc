@@ -151,6 +151,7 @@ public class a_command_pipeline_with_event_handlers : Specification
             _commandContextModifier,
             _commandContextValuesBuilder,
             _commandHandlerArgumentResolver,
+            new KnownInstancesOf<ICommandExecutionScope>([]),
             _serviceScopeFactory,
             CreateActivitySource<CommandPipeline>());
     }

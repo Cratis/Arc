@@ -88,6 +88,42 @@ Seed events before calling `Execute` so they are present when the command handle
 
 Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see <xref:Chronicle.Testing.Events.Assertions>.
 
+## Transactional Commands in Tests
+
+The harness runs commands with the same [transactional scope](../commands/transactional-commands.md) as production: the events a command returns — and appends through `eventLog.Transactional` — commit atomically when it succeeds and roll back when it fails, including when a unique constraint rejects the commit. Immediate appends through `IEventLog`/`IEventStore.EventLog` land right away and are final, but a failed one fails the command. That gives specs two natural assertions:
+
+```csharp
+public class when_registering_author_with_taken_name : Specification
+{
+    readonly EventSourceId _existing = EventSourceId.New();
+    readonly EventSourceId _author = EventSourceId.New();
+    readonly CommandScenario<RegisterAuthor> _scenario = new();
+    CommandResult _result = default!;
+
+    Task Establish() =>
+        _scenario.EventScenario.Given
+            .ForEventSource(_existing)
+            .Events(new AuthorRegistered("Jane Austen"));
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_author, "Jane Austen"));
+
+    [Fact] void should_not_succeed() =>
+        _result.IsSuccess.ShouldBeFalse();
+
+    [Fact] void should_surface_the_violation() =>
+        _result.ValidationResults.ShouldNotBeEmpty();
+
+    [Fact] async Task should_append_nothing_for_the_rejected_author() =>
+        (await _scenario.EventLog.HasEventsFor(_author)).ShouldBeFalse();
+}
+```
+
+Two things to be aware of:
+
+- **When events show up in `AppendedEvents` depends on the style.** Immediate appends surface as they happen; the command's enrolled events — returned events and `Transactional` appends — surface as one batch when the command's transaction commits.
+- **Immediate appends are final.** A handler that appends through the plain `IEventLog.Append` (or `IEventStore.EventLog`) writes immediately — a successful append remains in the log even when the command fails afterwards, and a spec can assert exactly that.
+
 ## Testing Commands That Use EventForEventSourceId
 
 When a command handler returns `EventForEventSourceId` or `IEnumerable<EventForEventSourceId>`, events are appended to different event sources than the command's own event source id. The standard `EventLog.ShouldHaveAppendedEvent<T>(sequenceNumber)` helpers work against a single sequence and cannot filter by event source id. For these cases use the `CommandScenario`-level assertion helpers, which capture events during execution via the client-side `AppendOperations` observable.

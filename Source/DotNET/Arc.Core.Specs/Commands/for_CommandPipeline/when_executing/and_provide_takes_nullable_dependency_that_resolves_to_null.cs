@@ -54,6 +54,7 @@ public class and_provide_takes_nullable_dependency_that_resolves_to_null : given
             _commandContextModifier,
             _commandContextValuesBuilder,
             new CommandHandlerArgumentResolver(new CommandProvideInvoker()),
+            new KnownInstancesOf<ICommandExecutionScope>([]),
             _serviceScopeFactory,
             activitySource);
     }

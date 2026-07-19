@@ -5,6 +5,8 @@ uid: Arc.Chronicle.Commands.Events
 
 When a [model-bound](../../commands/model-bound/index.md) command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
 
+The appends are part of the command's transaction: all events commit atomically when the command succeeds, and none are appended when it fails — see [Transactional Commands](../../commands/transactional-commands.md).
+
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
@@ -142,7 +144,7 @@ These metadata attributes tag the appended events without affecting concurrency 
 
 Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.
 
-`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context.
+`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context. Because the command is a [transactional scope](../../commands/transactional-commands.md), the appends across all the event sources are atomic — if any of them is rejected, none of them land.
 
 Return a single `EventForEventSourceId` when only one cross-source event is needed:
 

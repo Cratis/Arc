@@ -353,10 +353,15 @@ public static class MongoCollectionExtensions
             var classMap = BsonClassMap.LookupClassMap(typeof(TDocument));
             var memberMap = classMap.GetMemberMap(queryContext.Sorting.Field);
 
-            var sort = queryContext.Sorting.Direction == Cratis.Arc.Queries.SortDirection.Ascending ?
-                Builders<TDocument>.Sort.Ascending(memberMap.ElementName) :
-                Builders<TDocument>.Sort.Descending(memberMap.ElementName);
-            response = response.Sort(sort);
+            // An unknown sort field has no member map — degrade to unsorted rather than dereferencing null
+            // (which surfaces as an HTTP 500), matching the EF Core provider's AddSorting graceful degradation.
+            if (memberMap is not null)
+            {
+                var sort = queryContext.Sorting.Direction == Cratis.Arc.Queries.SortDirection.Ascending ?
+                    Builders<TDocument>.Sort.Ascending(memberMap.ElementName) :
+                    Builders<TDocument>.Sort.Descending(memberMap.ElementName);
+                response = response.Sort(sort);
+            }
         }
 
         return response;
