@@ -11,6 +11,7 @@ import { ValidationResult } from '@cratis/arc/validation';
 import React, { useMemo, useState, useCallback } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
+import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { useIdentity } from '../../identity';
 
@@ -299,7 +300,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         }
 
         for (const validationResult of commandResult.validationResults) {
-            if (validationResult.members && validationResult.members.includes(propertyName)) {
+            if (memberMatchesField(validationResult.members, propertyName)) {
                 return validationResult.message;
             }
         }
