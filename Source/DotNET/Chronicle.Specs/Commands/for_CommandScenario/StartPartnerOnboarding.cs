@@ -56,6 +56,23 @@ public record AppendOutsideTransactionThenFail(EventSourceId EventSourceId)
 }
 
 [Command]
+public record AppendViaTransactionalStyle(EventSourceId EventSourceId)
+{
+    public async Task Handle(IEventLog eventLog) =>
+        await eventLog.Transactional.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
+}
+
+[Command]
+public record AppendViaTransactionalStyleThenFail(EventSourceId EventSourceId)
+{
+    public async Task Handle(IEventLog eventLog)
+    {
+        await eventLog.Transactional.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
+        throw new DeliberateOnboardingFailure();
+    }
+}
+
+[Command]
 public record ExecuteNestedThenFail(EventSourceId EventSourceId, EventSourceId NestedEventSourceId)
 {
     public async Task Handle(IEventLog eventLog, ICommandPipeline commandPipeline)

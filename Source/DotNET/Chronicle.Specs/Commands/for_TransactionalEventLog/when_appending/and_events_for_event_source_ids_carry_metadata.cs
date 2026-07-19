@@ -24,7 +24,7 @@ public class and_events_for_event_source_ids_carry_metadata : Specification
         _inner = Substitute.For<IEventLog>();
         _inner.Id.Returns(EventSequenceId.Log);
         _unitOfWork = Substitute.For<IUnitOfWork>();
-        _eventLog = new TransactionalEventLog(_inner);
+        _eventLog = new TransactionalEventLog(_inner, Substitute.For<IUnitOfWorkManager>());
         _causation = new Causation(DateTimeOffset.UtcNow, "Test", new Dictionary<string, string>());
         _subject = "the-subject";
         _occurred = DateTimeOffset.UtcNow.AddDays(-1);

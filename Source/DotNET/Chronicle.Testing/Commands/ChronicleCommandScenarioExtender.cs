@@ -69,7 +69,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         // Make the harness a transactional command scope exactly like production (AddCommandTransactions): appends
         // enroll in the command's unit of work — begun and completed by the discovered TransactionalCommandScope —
         // and commit atomically, or roll back if the command is not successful.
-        services.AddSingleton<IEventLog>(new TransactionalEventLog(eventScenario.EventLog));
+        services.AddSingleton<IEventLog>(new TransactionalEventLog(eventScenario.EventLog, unitOfWorkManager));
 
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;

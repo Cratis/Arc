@@ -69,6 +69,24 @@ public record RegisterReading(SensorId SensorId, Reading Reading)
 
 If the `OnboardingStarted` append above is rejected by a unique constraint on the organization number, the `AdminInvited` event on the other stream is rolled back with it — the command fails cleanly and the `CommandResult` carries the violation.
 
+For imperative appends, prefer the explicit transactional style — `eventLog.Transactional` — whose shape tells the truth about the deferral: its `Append` returns a plain `Task`, because no per-append result exists until the command commits:
+
+```csharp
+[Command]
+public record RegisterReadings(SensorId SensorId, IEnumerable<Reading> Readings)
+{
+    public async Task Handle(IEventLog eventLog)
+    {
+        foreach (var reading in Readings)
+        {
+            await eventLog.Transactional.Append(SensorId, new ReadingRegistered(reading));
+        }
+    }
+}
+```
+
+Both styles enroll in the same transaction — the difference is only that `Transactional` doesn't return a placeholder `AppendResult`.
+
 ## Nested Commands and Aggregates
 
 A command executed from within another command — for example through `ICommandPipeline` from a reactor or a handler — joins the outermost command's transaction. Only the outermost command commits or rolls back, so the whole composition is atomic.

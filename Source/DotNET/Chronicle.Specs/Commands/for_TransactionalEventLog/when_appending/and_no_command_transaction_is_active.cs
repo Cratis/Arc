@@ -3,6 +3,7 @@
 
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Commands.for_TransactionalEventLog.when_appending;
 
@@ -14,7 +15,7 @@ public class and_no_command_transaction_is_active : Specification
     void Establish()
     {
         _inner = Substitute.For<IEventLog>();
-        _eventLog = new TransactionalEventLog(_inner);
+        _eventLog = new TransactionalEventLog(_inner, Substitute.For<IUnitOfWorkManager>());
     }
 
     async Task Because() => await _eventLog.Append(EventSourceId.New(), new object());

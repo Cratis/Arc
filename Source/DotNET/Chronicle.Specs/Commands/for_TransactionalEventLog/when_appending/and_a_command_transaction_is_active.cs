@@ -18,7 +18,7 @@ public class and_a_command_transaction_is_active : Specification
         _inner = Substitute.For<IEventLog>();
         _inner.Id.Returns(EventSequenceId.Log);
         _unitOfWork = Substitute.For<IUnitOfWork>();
-        _eventLog = new TransactionalEventLog(_inner);
+        _eventLog = new TransactionalEventLog(_inner, Substitute.For<IUnitOfWorkManager>());
     }
 
     async Task Because()

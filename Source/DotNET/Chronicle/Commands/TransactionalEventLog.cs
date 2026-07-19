@@ -20,7 +20,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// continuation — appends fall through to the underlying log immediately.
 /// </summary>
 /// <param name="inner">The underlying <see cref="IEventLog"/> that performs the actual appends and reads.</param>
-public class TransactionalEventLog(IEventLog inner) : IEventLog
+/// <param name="unitOfWorkManager">The <see cref="IUnitOfWorkManager"/> the <see cref="Transactional"/> sequence enrolls through.</param>
+public class TransactionalEventLog(IEventLog inner, IUnitOfWorkManager unitOfWorkManager) : IEventLog
 {
     /// <summary>
     /// The causation property carrying the event sequence id.
@@ -39,7 +40,12 @@ public class TransactionalEventLog(IEventLog inner) : IEventLog
     public IObservable<IEnumerable<AppendedEventWithResult>> AppendOperations => inner.AppendOperations;
 
     /// <inheritdoc/>
-    public ITransactionalEventSequence Transactional => inner.Transactional;
+    /// <remarks>
+    /// Built over this log's <see cref="IUnitOfWorkManager"/> rather than the underlying log's, so the explicit
+    /// transactional style — <c>eventLog.Transactional.Append(...)</c> — enrolls in the same ambient unit of work
+    /// everywhere, including the in-memory test harness.
+    /// </remarks>
+    public ITransactionalEventSequence Transactional => new TransactionalEventSequence(inner, unitOfWorkManager);
 
     /// <inheritdoc/>
     public Task<AppendResult> Append(EventSourceId eventSourceId, object @event, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null)

@@ -4,6 +4,7 @@
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.Transactions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -24,7 +25,9 @@ public static class CommandTransactionServiceCollectionExtensions
     public static IServiceCollection AddCommandTransactions(this IServiceCollection services)
     {
         services.AddScoped<IEventLog>(serviceProvider =>
-            new TransactionalEventLog(serviceProvider.GetRequiredService<IEventStore>().EventLog));
+            new TransactionalEventLog(
+                serviceProvider.GetRequiredService<IEventStore>().EventLog,
+                serviceProvider.GetRequiredService<IUnitOfWorkManager>()));
 
         return services;
     }

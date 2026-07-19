@@ -18,7 +18,7 @@ public class and_the_command_transaction_is_completed : Specification
         _inner = Substitute.For<IEventLog>();
         _unitOfWork = Substitute.For<IUnitOfWork>();
         _unitOfWork.IsCompleted.Returns(true);
-        _eventLog = new TransactionalEventLog(_inner);
+        _eventLog = new TransactionalEventLog(_inner, Substitute.For<IUnitOfWorkManager>());
     }
 
     async Task Because()
