@@ -4,6 +4,8 @@
 using Cratis.Arc;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle.AspNetCore;
+using Cratis.Chronicle.AspNetCore.Transactions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -64,6 +66,21 @@ public static class ArcBuilderExtensions
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
+
+        // Commands own their transaction: the discovered TransactionalCommandScope begins and completes a unit of
+        // work per command, surfacing violations on the CommandResult. The per-request unit of work middleware the
+        // Chronicle ASP.NET Core integration registers would make the command scope join a request-level unit of
+        // work instead, deferring the commit to the end of the request and routing violations to MVC model state —
+        // so it is removed in favor of the per-command scope.
+        var unitOfWorkStartupFilter = builder.Services.FirstOrDefault(descriptor =>
+            descriptor.ServiceType == typeof(IStartupFilter) &&
+            descriptor.ImplementationType == typeof(UnitOfWorkStartupFilter));
+        if (unitOfWorkStartupFilter is not null)
+        {
+            builder.Services.Remove(unitOfWorkStartupFilter);
+        }
+
+        builder.Services.AddCommandTransactions();
 
         return builder;
     }
