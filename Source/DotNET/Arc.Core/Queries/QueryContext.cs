@@ -14,7 +14,8 @@ namespace Cratis.Arc.Queries;
 /// <param name="Sorting">The <see cref="Sorting"/> information.</param>
 /// <param name="Arguments">Optional arguments for the query.</param>
 /// <param name="Dependencies">Optional dependencies required to handle the query.</param>
-public record QueryContext(FullyQualifiedQueryName Name, CorrelationId CorrelationId, Paging Paging, Sorting Sorting, QueryArguments? Arguments = null, IEnumerable<object>? Dependencies = null)
+/// <param name="ServiceProvider">The <see cref="IServiceProvider"/> scoped to the query, used to resolve scoped collaborators such as validators during the query's lifetime.</param>
+public record QueryContext(FullyQualifiedQueryName Name, CorrelationId CorrelationId, Paging Paging, Sorting Sorting, QueryArguments? Arguments = null, IEnumerable<object>? Dependencies = null, IServiceProvider? ServiceProvider = null)
 {
     /// <summary>
     /// Represents a query context that is not set.

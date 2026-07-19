@@ -24,7 +24,7 @@ public class a_filter_resolving_validators_from_a_real_container : Specification
     void Establish()
     {
         _correlationId = CorrelationId.New();
-        _filter = new FluentValidationFilter(new DiscoverableValidators(Cratis.Types.Types.Instance), NullLogger<FluentValidationFilter>.Instance);
+        _filter = new FluentValidationFilter(new ModelGraphValidator(new DiscoverableValidators(Cratis.Types.Types.Instance), NullLogger<ModelGraphValidator>.Instance));
         _root = new ServiceCollection()
             .AddScoped(_ => new CommandDependency { IsAllowed = false })
             .AddTransient<CommandWithDependencyValidator>()

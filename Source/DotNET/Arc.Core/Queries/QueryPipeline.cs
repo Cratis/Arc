@@ -58,7 +58,7 @@ public class QueryPipeline(
 
             var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
             var coercedArguments = CoerceArguments(arguments, queryPerformer);
-            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, dependencies);
+            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, dependencies, serviceProvider);
             queryContextManager.Set(context);
 
             result = await queryFilters.OnPerform(context);
