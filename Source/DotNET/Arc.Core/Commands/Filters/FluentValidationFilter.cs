@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Validation;
+using Cratis.Strings;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -20,11 +21,22 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
-        commandResult.MergeWith(await Validate(context, context.Command, new HashSet<object>(ReferenceEqualityComparer.Instance)));
+        commandResult.MergeWith(await Validate(context, context.Command, new HashSet<object>(ReferenceEqualityComparer.Instance), string.Empty));
         return commandResult;
     }
 
-    async Task<CommandResult> Validate(CommandContext context, object instance, HashSet<object> visited)
+    /// <summary>
+    /// Prefixes a validation failure member with the owning property path, producing a dotted path whose leading
+    /// segment is the command field (for example <c>email.Value</c>). At the command root the path is empty, so the
+    /// member is returned unchanged.
+    /// </summary>
+    /// <param name="path">The camelCased property path from the command root, or empty at the root.</param>
+    /// <param name="member">The failure member reported by the validator.</param>
+    /// <returns>The member prefixed with <paramref name="path"/>, or the member unchanged when the path is empty.</returns>
+    static string Combine(string path, string member) =>
+        string.IsNullOrEmpty(path) ? member : $"{path}.{member}";
+
+    async Task<CommandResult> Validate(CommandContext context, object instance, HashSet<object> visited, string path)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
 
@@ -43,7 +55,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
 
         if (TryGetValidator(context, instanceType, out var validator))
         {
-            commandResult.MergeWith(await RunValidator(context, instance, validator));
+            commandResult.MergeWith(await RunValidator(context, instance, validator, path));
         }
 
         if (!instanceType.IsPrimitive &&
@@ -58,7 +70,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                 foreach (var element in (System.Collections.IEnumerable)instance)
                 {
                     if (element is null) continue;
-                    commandResult.MergeWith(await Validate(context, element, visited));
+                    commandResult.MergeWith(await Validate(context, element, visited, path));
                 }
             }
             else
@@ -76,7 +88,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                     var propertyValue = property.GetValue(instance);
                     if (propertyValue is not null)
                     {
-                        commandResult.MergeWith(await Validate(context, propertyValue, visited));
+                        commandResult.MergeWith(await Validate(context, propertyValue, visited, Combine(path, property.Name.ToCamelCase())));
                     }
                 }
             }
@@ -93,8 +105,12 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
     /// <param name="context">The <see cref="CommandContext"/> the validation runs within.</param>
     /// <param name="instance">The instance to validate.</param>
     /// <param name="validator">The <see cref="IValidator"/> to run.</param>
+    /// <param name="path">The camelCased property path from the command root to <paramref name="instance"/> (empty at
+    /// the root). Each failure's member is prefixed with it so a rule on a nested value — for example a
+    /// <c>ConceptValidator&lt;T&gt;</c>'s <c>RuleFor(x =&gt; x.Value)</c>, which reports the inner member <c>Value</c> —
+    /// is attributed to the owning command field (<c>email.Value</c>) rather than the unattributable <c>Value</c>.</param>
     /// <returns>A <see cref="CommandResult"/> describing the validation outcome.</returns>
-    async Task<CommandResult> RunValidator(CommandContext context, object instance, IValidator validator)
+    async Task<CommandResult> RunValidator(CommandContext context, object instance, IValidator validator, string path)
     {
         var commandResult = CommandResult.Success(context.CorrelationId);
 
@@ -116,7 +132,7 @@ public class FluentValidationFilter(IDiscoverableValidators discoverableValidato
                             FluentValidation.Severity.Error => ValidationResultSeverity.Error,
                             _ => ValidationResultSeverity.Error
                         };
-                        return new ValidationResult(severity, _.ErrorMessage, [_.PropertyName], _.CustomState ?? null!);
+                        return new ValidationResult(severity, _.ErrorMessage, [Combine(path, _.PropertyName)], _.CustomState ?? null!);
                     }).ToArray()
                 });
             }

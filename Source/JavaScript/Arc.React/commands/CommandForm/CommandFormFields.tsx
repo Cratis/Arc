@@ -5,6 +5,7 @@ import { useCommandFormContext, type FieldValidationInfo } from './CommandFormCo
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
+import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 
 export interface ColumnInfo {
@@ -66,7 +67,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 // silent validation result updates asynchronously below.
                 if (context.onFieldChange) {
                     const prevErrors = context.commandResult?.validationResults?.filter(
-                        vr => vr.members.includes(propertyName)
+                        vr => memberMatchesField(vr.members, propertyName)
                     ).map(vr => vr.message) || [];
                     const validationInfo: FieldValidationInfo = {
                         isValid: prevErrors.length === 0,
@@ -94,10 +95,10 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                         // Per-field merge: keep errors from untouched fields, update this field.
                         const currentErrors = context.commandResult?.validationResults || [];
                         const errorsFromOtherFields = currentErrors.filter(
-                            vr => !vr.members.includes(propertyName)
+                            vr => !memberMatchesField(vr.members, propertyName)
                         );
                         const errorsForThisField = validationResult.validationResults?.filter(
-                            vr => vr.members.includes(propertyName)
+                            vr => memberMatchesField(vr.members, propertyName)
                         ) || [];
                         const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
                         context.setCommandResult({
@@ -129,10 +130,10 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                             // Per-field merge: keep errors from untouched fields, update this field.
                             const currentErrors = context.commandResult?.validationResults || [];
                             const errorsFromOtherFields = currentErrors.filter(
-                                vr => !vr.members.includes(propertyName)
+                                vr => !memberMatchesField(vr.members, propertyName)
                             );
                             const errorsForThisField = validationResult.validationResults?.filter(
-                                vr => vr.members.includes(propertyName)
+                                vr => memberMatchesField(vr.members, propertyName)
                             ) || [];
                             const mergedValidationResults = [...errorsFromOtherFields, ...errorsForThisField];
                             context.setCommandResult({
@@ -148,7 +149,7 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                 if (context.onFieldChange && validationResult) {
                     const currentValue = (context.commandInstance as Record<string, unknown>)[propertyName];
                     const fieldErrors = validationResult?.validationResults?.filter(
-                        vr => vr.members.includes(propertyName)
+                        vr => memberMatchesField(vr.members, propertyName)
                     ).map(vr => vr.message) || [];
                     const validationInfo: FieldValidationInfo = {
                         isValid: fieldErrors.length === 0,

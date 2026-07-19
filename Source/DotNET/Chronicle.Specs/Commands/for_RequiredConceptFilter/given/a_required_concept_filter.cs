@@ -20,12 +20,16 @@ public class a_required_concept_filter : Specification
 
     protected record Name(string Value) : ConceptAs<string>(Value);
     protected record OrderId(Guid Value) : EventSourceId<Guid>(Value);
+    protected record CustomerId(Guid Value) : EventSourceId<Guid>(Value);
 
     protected record CommandWithRequiredConcept(Name Name);
     protected record CommandWithNullableConcept(Name? Name);
     protected record CommandWithEventSourceKey(OrderId Id);
     protected record CommandWithKeyAttributeConcept([property: Key] Name Id);
     protected record CommandWithNonConceptProperty(string Value);
+
+    protected record CommandWithPrimaryAndSecondaryEventSourceKeys(OrderId Id, CustomerId SecondaryId);
+    protected record CommandWithEventSourceKeyAndSecondaryKeyAttribute(OrderId Id, [property: Key] Name SecondaryKey);
 
     protected record CommandWithComputedConcept(Name First)
     {

@@ -58,7 +58,7 @@ public class with_complex_object_and_nested_validation_fails : given.a_fluent_va
     [Fact] void should_have_one_validation_result() => _result.ValidationResults.Count().ShouldEqual(1);
     [Fact] void should_have_validation_result_with_error_severity() => _result.ValidationResults.First().Severity.ShouldEqual(ValidationResultSeverity.Error);
     [Fact] void should_have_validation_result_with_correct_message() => _result.ValidationResults.First().Message.ShouldEqual("Nested value is invalid");
-    [Fact] void should_have_validation_result_with_correct_member() => _result.ValidationResults.First().Members.ShouldContain("Value");
+    [Fact] void should_attribute_the_member_to_the_owning_property() => _result.ValidationResults.First().Members.ShouldContain("nested.Value");
     [Fact] void should_call_command_validator() => _commandValidator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
     [Fact] void should_call_nested_validator() => _nestedValidator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
 
