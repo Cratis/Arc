@@ -71,6 +71,39 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         }, Object, false);
     }
 
+    /**
+     * Creates a {@link QueryResult} representing a query rejected by client-side validation, mirroring
+     * {@link CommandResult.validationFailed} so a caller reads a failed query the same way it reads a failed command.
+     * @param {ValidationResult[]} validationResults The validation results that caused the failure.
+     * @param {TDataType} defaultValue The default value to serve as data.
+     * @param {Constructor} instanceType The type of instance to deserialize the data as.
+     * @param {boolean} enumerable Whether or not the result is supposed to be an enumerable.
+     * @returns {QueryResult<TDataType>} A result that is neither successful nor valid.
+     */
+    static validationFailed<TDataType>(validationResults: ValidationResult[], defaultValue: TDataType, instanceType: Constructor, enumerable: boolean): QueryResult<TDataType> {
+        return new QueryResult({
+            data: defaultValue as object,
+            isSuccess: false,
+            isAuthorized: true,
+            isValid: false,
+            hasExceptions: false,
+            validationResults: validationResults.map(_ => ({
+                severity: _.severity,
+                message: _.message,
+                members: _.members,
+                state: _.state
+            })),
+            exceptionMessages: [],
+            exceptionStackTrace: '',
+            paging: {
+                totalItems: 0,
+                totalPages: 0,
+                page: 0,
+                size: 0
+            }
+        }, instanceType, enumerable) as QueryResult<TDataType>;
+    }
+
     static unauthorized<TDataType>(): QueryResult<TDataType> {
         return new QueryResult({
             data: null as unknown as object,
