@@ -26,8 +26,7 @@ public static class AggregateRootCommitResultExtensions
 
         if (result.ConstraintViolations.Any())
         {
-            validationResults.AddRange(result.ConstraintViolations.Select(v =>
-                ValidationResult.Error(v.Message.Value)));
+            validationResults.AddRange(result.ConstraintViolations.Select(v => v.ToValidationResult()));
         }
 
         if (result.ConcurrencyViolations.Any())
