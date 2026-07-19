@@ -19,12 +19,15 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// dereferenced later in <c>Provide()</c>, <c>Handle()</c>, or a validator rule and throws a <see cref="NullReferenceException"/>
 /// — which surfaces as a redacted server error (HTTP 500) rather than the 400 the input deserves. Surfacing it here as a
 /// validation failure turns it into a clean 400 pointing at the offending field. A concept declared nullable
-/// (<c>Concept?</c>) is intentionally optional and left alone; the event source key (an <see cref="Cratis.Chronicle.Events.EventSourceId"/>,
-/// a generic <c>EventSourceId&lt;T&gt;</c>, or a <c>[Key]</c> property) is excluded because a null key is deliberately
-/// resolved to an unspecified id rather than rejected. Only the command's own settable properties are inspected — a
-/// computed (get-only) property is never evaluated, so a derived concept that dereferences a missing value cannot turn
-/// this into a server error, and a concept nested inside another record is not checked here. To make a concept optional,
-/// declare it nullable.
+/// (<c>Concept?</c>) is intentionally optional and left alone; the <em>resolved</em> event source key (an
+/// <see cref="Cratis.Chronicle.Events.EventSourceId"/>, a generic <c>EventSourceId&lt;T&gt;</c>, or a <c>[Key]</c>
+/// property) is excluded because a null key is deliberately resolved to an unspecified id rather than rejected. When a
+/// command declares more than one key property, only the one that <see cref="EventSourceExtensions.GetEventSourceId"/>
+/// actually resolves — the first — is excluded; any <em>other</em> key-typed concept is a required value and a null one
+/// is rejected here (it would otherwise be dereferenced downstream and surface as a server error). Only the command's
+/// own settable properties are inspected — a computed (get-only) property is never evaluated, so a derived concept that
+/// dereferences a missing value cannot turn this into a server error, and a concept nested inside another record is not
+/// checked here. To make a concept optional, declare it nullable.
 /// </remarks>
 [Singleton]
 public class RequiredConceptFilter : ICommandFilter
@@ -59,15 +62,22 @@ public class RequiredConceptFilter : ICommandFilter
     static PropertyInfo[] RequiredConceptPropertiesFor(Type commandType)
     {
         var nullabilityContext = new NullabilityInfoContext();
+        var properties = commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+        // Only the resolved event source key — the first key property, matching EventSourceExtensions.GetEventSourceId —
+        // is excluded, because a null primary key is deliberately resolved to an unspecified id. Any other key-typed
+        // concept property is a required value; a null one would otherwise be dereferenced downstream and surface as an
+        // HTTP 500 instead of a clean 400.
+        var eventSourceKeyProperty = properties.FirstOrDefault(property => property.IsEventSourceKeyProperty());
+
         return
         [
-            .. commandType
-                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .. properties
                 .Where(property =>
                     property.CanWrite &&
                     property.GetIndexParameters().Length == 0 &&
                     property.PropertyType.IsConcept() &&
-                    !property.IsEventSourceKeyProperty() &&
+                    !ReferenceEquals(property, eventSourceKeyProperty) &&
                     nullabilityContext.Create(property).ReadState == NullabilityState.NotNull)
         ];
     }
