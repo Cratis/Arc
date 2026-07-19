@@ -1,53 +1,22 @@
 # Transactional Commands
 
-Every command executed through the command pipeline is a transactional scope. All events a command appends — whether returned from `Handle()` or appended directly through an injected `IEventLog` — are committed together, atomically, when the command succeeds. If the command fails for **any** reason — a validation error, a constraint violation, or an exception — nothing is appended at all.
+Every command executed through the command pipeline runs in a transactional scope. The events a command declares transactional — the events it **returns from `Handle()`** and appends made through the explicit **`eventLog.Transactional`** style — are committed together, atomically, when the command succeeds. If the command fails for **any** reason — a validation error, a constraint violation, or an exception — none of them are appended.
 
-> **Note**: The transactional scope applies to the **model-bound command pipeline** — commands executed over HTTP, directly through `ICommandPipeline`, from reactors, and in the `CommandScenario` test harness. Controller-based commands do not participate; appends from a controller action go to the event store immediately.
+> **Note**: The transactional scope applies to the **model-bound command pipeline** — commands executed over HTTP, directly through `ICommandPipeline`, from reactors, and in the `CommandScenario` test harness. Controller-based commands do not participate.
 
-This gives you one simple guarantee to reason about:
+Appends through an injected `IEventLog` (or `IEventStore.EventLog`) are **immediate and final** — they behave identically everywhere, inside and outside commands, returning the real `AppendResult`. They are still never silently swallowed: a failed immediate append during a command **fails the command**, which also rolls back everything enrolled in the transaction.
 
-> If the `CommandResult` is not successful, no events were appended.
+## Choosing an Append Style
 
-You never end up with a half-applied command: an event that landed on one stream while its sibling on another stream was rejected, or an append that was silently lost while the command reported success.
+| You write | Semantics | What you get back |
+| --- | --- | --- |
+| Return events from `Handle()` | Transactional — atomic with the command | The `CommandResult` is the outcome |
+| `eventLog.Transactional.Append(...)` | Transactional — atomic with the command | A plain `Task` — no per-append result exists until commit |
+| `eventLog.Append(...)` / `eventStore.EventLog.Append(...)` | Immediate and final — same as any event sequence | The real `AppendResult`; a failed one also fails the command |
 
-## How It Works
-
-When a command executes, Arc begins a Chronicle unit of work bounded by the command. Every append the command performs enrolls in that unit of work instead of hitting the event store immediately. When the command completes:
-
-- **Success** — the unit of work commits all buffered events as one atomic operation. If the commit is rejected — for example by a unique constraint — the violation surfaces as a validation error on the `CommandResult`, attributed to the offending member, and the command fails.
-- **Failure** — the unit of work rolls back and none of the events are appended.
-
-The mechanism behind this is the [command execution scope](./command-execution-scopes.md) extension point — the transactional scope is its built-in implementation.
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Pipeline as Command Pipeline
-    participant Handler as Handle()
-    participant UoW as Unit of Work
-    participant Chronicle
-
-    Client->>Pipeline: Execute command
-    Pipeline->>UoW: Begin
-    Pipeline->>Handler: Invoke
-    Handler->>UoW: Append events (buffered)
-    Handler-->>Pipeline: Return
-    alt Command succeeded
-        Pipeline->>UoW: Commit
-        UoW->>Chronicle: Append all events atomically
-        Chronicle-->>UoW: Result (or constraint violations)
-        UoW-->>Pipeline: Violations surface on CommandResult
-    else Command failed
-        Pipeline->>UoW: Rollback
-        Note over Chronicle: Nothing appended
-    end
-    Pipeline-->>Client: CommandResult
-```
-
-Both styles of appending participate:
+Returning events is the recommended style:
 
 ```csharp
-// Returned events enroll in the command's transaction.
 [Command]
 public record StartOnboarding(OnboardingId OnboardingId, InvitationId InvitationId, OrganizationNumber OrganizationNumber)
 {
@@ -57,19 +26,11 @@ public record StartOnboarding(OnboardingId OnboardingId, InvitationId Invitation
         new(InvitationId, new AdminInvited(OnboardingId))
     ];
 }
-
-// Direct appends through IEventLog enroll in the same transaction.
-[Command]
-public record RegisterReading(SensorId SensorId, Reading Reading)
-{
-    public async Task Handle(IEventLog eventLog) =>
-        await eventLog.Append(SensorId, new ReadingRegistered(Reading));
-}
 ```
 
-If the `OnboardingStarted` append above is rejected by a unique constraint on the organization number, the `AdminInvited` event on the other stream is rolled back with it — the command fails cleanly and the `CommandResult` carries the violation.
+If the `OnboardingStarted` append is rejected by a unique constraint on the organization number, the `AdminInvited` event on the other stream is rolled back with it — the command fails cleanly and the `CommandResult` carries the violation, attributed to the offending member.
 
-For imperative appends, prefer the explicit transactional style — `eventLog.Transactional` — whose shape tells the truth about the deferral: its `Append` returns a plain `Task`, because no per-append result exists until the command commits:
+For imperative transactional appends, use the explicit `Transactional` style — its shape tells the truth about the deferral: `Append` returns a plain `Task`, because no per-append result exists until the command commits:
 
 ```csharp
 [Command]
@@ -85,40 +46,71 @@ public record RegisterReadings(SensorId SensorId, IEnumerable<Reading> Readings)
 }
 ```
 
-Both styles enroll in the same transaction — the difference is only that `Transactional` doesn't return a placeholder `AppendResult`.
-
-## Nested Commands and Aggregates
-
-A command executed from within another command — for example through `ICommandPipeline` from a reactor or a handler — joins the outermost command's transaction. Only the outermost command commits or rolls back, so the whole composition is atomic.
-
-Aggregate roots already use the unit of work for their `Commit()`. Within a command they share the command's unit of work, so aggregate mutations and direct appends made *before* the aggregate's `Commit()` commit together. Note that calling an aggregate's `Commit()` inside a handler commits the command's transaction **at that point** — anything the handler appends afterwards is outside the committed batch. Prefer letting the command complete the transaction: apply the aggregate's events and let the pipeline commit when the command finishes.
-
-## Appending Outside the Transaction
-
-If you deliberately want an append to happen immediately — outside the command's transaction, surviving even if the command later fails — be explicit about it by injecting `IEventStore` and using its `EventLog` directly:
+And when you deliberately want an append to be immediate — final the moment it succeeds, surviving even if the command later fails — use the plain `Append`, which behaves exactly like it does everywhere else:
 
 ```csharp
 [Command]
 public record ImportReadings(SensorId SensorId)
 {
-    public async Task Handle(IEventStore eventStore)
+    public async Task Handle(IEventLog eventLog)
     {
         // Appends immediately — this event stays even if the command fails afterwards.
-        await eventStore.EventLog.Append(SensorId, new ImportAttempted());
+        await eventLog.Append(SensorId, new ImportAttempted());
 
         // ... work that may fail ...
     }
 }
 ```
 
-Use this sparingly — audit-style events like the one above are the typical fit. If you find yourself escaping the transaction for domain events, reconsider the command's design.
+## How It Works
+
+When a command executes, Arc begins a Chronicle unit of work bounded by the command. Events the command returns — and appends through `Transactional` — enroll in it instead of hitting the event store immediately. When the command completes:
+
+- **Success** — the unit of work commits all enrolled events as one atomic operation. If the commit is rejected — for example by a unique constraint — the violation surfaces as a validation error on the `CommandResult`, attributed to the offending member, and the command fails.
+- **Failure** — the unit of work rolls back and none of the enrolled events are appended.
+
+Immediate appends are observed throughout: if one fails during the command, its violations surface on the `CommandResult` and the command fails — rolling back the enrolled events with it.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Pipeline as Command Pipeline
+    participant Handler as Handle()
+    participant UoW as Unit of Work
+    participant Chronicle
+
+    Client->>Pipeline: Execute command
+    Pipeline->>UoW: Begin
+    Pipeline->>Handler: Invoke
+    Handler->>Chronicle: Immediate appends (final, real results)
+    Handler-->>Pipeline: Return events (enrolled in UoW)
+    alt Command succeeded
+        Pipeline->>UoW: Commit
+        UoW->>Chronicle: Append enrolled events atomically
+        Chronicle-->>UoW: Result (or constraint violations)
+        UoW-->>Pipeline: Violations surface on CommandResult
+    else Command failed (incl. a failed immediate append)
+        Pipeline->>UoW: Rollback
+        Note over Chronicle: No enrolled events appended
+    end
+    Pipeline-->>Client: CommandResult
+```
+
+The mechanism behind this is the [command execution scope](./command-execution-scopes.md) extension point — the transactional scope is its built-in implementation.
+
+## Nested Commands and Aggregates
+
+A command executed from within another command — for example through `ICommandPipeline` from a handler — joins the outermost command's transaction. Only the outermost command commits or rolls back, so the whole composition is atomic for its enrolled events.
+
+Aggregate roots already use the unit of work for their `Commit()`. Within a command they share the command's unit of work, so aggregate mutations and enrolled events from the same command commit together. Note that calling an aggregate's `Commit()` inside a handler commits the command's transaction **at that point** — anything enrolled afterwards is outside the committed batch. Prefer letting the command complete the transaction: apply the aggregate's events and let the pipeline commit when the command finishes.
 
 ## Things to Know
 
-- **The per-append result inside a command is deferred.** An `Append` inside a command returns an accepted placeholder — the real outcome, including constraint violations, is only known when the command commits and is reported on the `CommandResult`. Don't branch on the `AppendResult` of an individual append inside a command; the `CommandResult` is the source of truth.
-- **Reads don't see the command's own uncommitted appends.** Reading through `IEventLog` inside a handler — `HasEventsFor`, `GetFromSequenceNumber`, and friends — queries the event store, which doesn't contain the events the command has buffered but not yet committed. Base decisions on the events and read models you already have, not on reading back your own appends.
-- **A nested command's result reflects buffering, not the final outcome.** A command executed from within another command reports success when its events are enrolled in the outer transaction — the actual commit, and any violation, happens when the outermost command completes.
-- **Don't append from background work after the command returns.** An append from a background continuation started inside a handler runs after the command's transaction completed and goes to the event store immediately, outside any transaction. If you need side effects after events are committed, use a reactor.
-- **Chronicle's ASP.NET Core unit of work middleware coexists.** A command always begins its own transaction rather than joining a request-level unit of work, so the guarantee holds with or without the middleware — and controller-based code keeps the request-level behavior it had.
+- **Immediate appends are final.** A successful `eventLog.Append(...)` is in the log the moment it returns, and stays there even if the command fails afterwards. The safety net guarantees a *failed* append fails the command — it cannot un-append earlier successful ones. If you need all-or-nothing, return events or use `Transactional`.
+- **Reads don't see the transaction's enrolled events.** Reading through `IEventLog` inside a handler queries the event store, which doesn't contain events that are enrolled but not yet committed. Immediate appends *are* visible right away.
+- **A nested command's result reflects enrollment, not the final outcome.** Its enrolled events commit — and any violation surfaces — when the outermost command completes.
+- **Never use `Transactional` from background work.** An append through `eventLog.Transactional` from a continuation that outlives the command targets a completed unit of work and is **silently lost**. Plain immediate appends from background work go to the event store normally. If you need side effects after events are committed, use a reactor.
+- **`Transactional` requires an active transaction.** Outside a command — for example in a controller action with no ambient unit of work — it throws; use the plain `Append` there.
+- **Chronicle's ASP.NET Core unit of work middleware coexists.** A command always begins its own transaction rather than joining a request-level unit of work, and controller-based code keeps the request-level behavior it had.
 
-For how the guarantee shows up in tests — asserting that a failed command appended nothing, and that violations surface on the result — see [Testing with Chronicle](../testing/chronicle.md).
+For how the guarantee shows up in tests — asserting that a failed command committed nothing transactional, and that violations surface on the result — see [Testing with Chronicle](../testing/chronicle.md).

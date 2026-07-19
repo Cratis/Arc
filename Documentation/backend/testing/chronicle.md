@@ -90,7 +90,7 @@ Chronicle provides a set of assertion helpers that extend `IEventSequence` direc
 
 ## Transactional Commands in Tests
 
-The harness runs commands with the same [transactional scope](../commands/transactional-commands.md) as production: everything a command appends commits atomically when it succeeds, and nothing is appended when it fails — including when a unique constraint rejects the commit. That gives specs two natural assertions:
+The harness runs commands with the same [transactional scope](../commands/transactional-commands.md) as production: the events a command returns — and appends through `eventLog.Transactional` — commit atomically when it succeeds and roll back when it fails, including when a unique constraint rejects the commit. Immediate appends through `IEventLog`/`IEventStore.EventLog` land right away and are final, but a failed one fails the command. That gives specs two natural assertions:
 
 ```csharp
 public class when_registering_author_with_taken_name : Specification
@@ -121,8 +121,8 @@ public class when_registering_author_with_taken_name : Specification
 
 Two things to be aware of:
 
-- **`AppendedEvents` is captured at commit.** Events a command appends surface in `AppendedEvents` as one batch when the command's transaction commits — not one entry per `Append` call inside the handler.
-- **Appends outside the transaction are immediate.** A handler that appends through `IEventStore.EventLog` escapes the command's transaction — such an event remains in the log even when the command fails, and a spec can assert exactly that.
+- **When events show up in `AppendedEvents` depends on the style.** Immediate appends surface as they happen; the command's enrolled events — returned events and `Transactional` appends — surface as one batch when the command's transaction commits.
+- **Immediate appends are final.** A handler that appends through the plain `IEventLog.Append` (or `IEventStore.EventLog`) writes immediately — a successful append remains in the log even when the command fails afterwards, and a spec can assert exactly that.
 
 ## Testing Commands That Use EventForEventSourceId
 
