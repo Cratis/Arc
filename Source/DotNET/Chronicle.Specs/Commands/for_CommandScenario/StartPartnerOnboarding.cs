@@ -35,6 +35,16 @@ public record StartPartnerOnboardingWithInvite(EventSourceId EventSourceId, Even
 }
 
 [Command]
+public record AppendInTransactionThenFail(EventSourceId EventSourceId)
+{
+    public async Task Handle(IEventLog eventLog)
+    {
+        await eventLog.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
+        throw new DeliberateOnboardingFailure();
+    }
+}
+
+[Command]
 public record AppendOutsideTransactionThenFail(EventSourceId EventSourceId)
 {
     public async Task Handle(IEventStore eventStore)
