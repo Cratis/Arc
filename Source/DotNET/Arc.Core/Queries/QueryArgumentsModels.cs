@@ -59,70 +59,16 @@ public class QueryArgumentsModels(ILogger<QueryArgumentsModels> logger) : IQuery
     /// <param name="performer">The <see cref="IQueryPerformer"/> for the query.</param>
     /// <returns>The model <see cref="Type"/>, or null.</returns>
     /// <remarks>
-    /// A candidate only counts when it has a property for every one of the query's parameters, so an unrelated type
-    /// that happens to carry the name is never picked up. Verifying against the performer's parameters rather than
-    /// the raw method signature means injected dependencies are correctly ignored.
-    /// <para>
-    /// Every type carrying a candidate name is considered, not just the first one found. Two read models can each
-    /// expose a query of the same name, which makes <c>{QueryName}Parameters</c> ambiguous; picking one arbitrarily
-    /// and giving up when its shape did not match would resolve differently depending on the order the runtime
-    /// happens to report types in, and silently skip validation for whichever query lost.
-    /// </para>
+    /// Defers to <see cref="QueryArgumentsModelConvention"/>, the single source both this and the proxy generator
+    /// compile in, so the client and the server cannot resolve different types for the same query. The performer's
+    /// parameters are used rather than the raw method signature, which is what excludes injected dependencies.
     /// </remarks>
-    static Type? ResolveModelTypeFor(IQueryPerformer performer)
-    {
-        // A query with no arguments has nothing for a model to cover, and "covers every parameter" is vacuously true
-        // for an empty parameter set — without this, a parameterless query named All would bind any stray
-        // AllParameters type in the assembly and validate a shape the developer never associated with it.
-        if (performer.Parameters.Count == 0)
-        {
-            return null;
-        }
-
-        var readModelType = performer.ReadModelType;
-        string[] candidateNames =
-        [
-            $"{readModelType.Name}{performer.Name}Parameters",
-            $"{performer.Name}Parameters"
-        ];
-
-        var types = readModelType.Assembly.GetTypes();
-
-        foreach (var candidateName in candidateNames)
-        {
-            var candidate = types.FirstOrDefault(type =>
-                type.Name.Equals(candidateName, StringComparison.OrdinalIgnoreCase) && CoversEveryParameter(type, performer));
-
-            if (candidate is not null)
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Determines whether a candidate type has a property of matching name and type for every parameter the query
-    /// exposes.
-    /// </summary>
-    /// <param name="candidate">The candidate <see cref="Type"/>.</param>
-    /// <param name="performer">The <see cref="IQueryPerformer"/> whose parameters must be covered.</param>
-    /// <returns>True when every parameter is covered; otherwise false.</returns>
-    /// <remarks>
-    /// The type is matched as well as the name, and deliberately so: a name-only match would accept a model whose
-    /// members cannot hold the arguments, which then fails while being materialized. Requiring the type means a
-    /// mismatched candidate is simply not the argument model, and validation falls back to each argument on its own.
-    /// This is the same criterion the proxy generator applies, so both sides resolve the same type.
-    /// </remarks>
-    static bool CoversEveryParameter(Type candidate, IQueryPerformer performer)
-    {
-        var properties = candidate.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        return performer.Parameters.All(parameter =>
-            properties.Any(property =>
-                property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) &&
-                property.PropertyType == parameter.Type));
-    }
+    static Type? ResolveModelTypeFor(IQueryPerformer performer) =>
+        QueryArgumentsModelConvention.Resolve(
+            performer.ReadModelType.Name,
+            performer.Name,
+            [.. performer.Parameters.Select(_ => new QueryArgumentDescriptor(_.Name, _.Type))],
+            performer.ReadModelType.Assembly.GetTypes());
 
     /// <summary>
     /// Materializes the model from the arguments, filling what is present and leaving the rest at its default.

@@ -5,7 +5,7 @@
 /* eslint-disable sort-imports */
 /* eslint-disable @typescript-eslint/no-empty-interface */
 // eslint-disable-next-line header/header
-import { Command, CommandValidator } from '@cratis/arc/commands';
+import { Command{{#if HasValidationRules}}, CommandValidator{{/if}} } from '@cratis/arc/commands';
 import { useCommand, SetCommandValues, ClearCommandValues } from '@cratis/arc.react/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
@@ -33,6 +33,7 @@ export interface I{{Name}} {
     {{/Properties}}
 }
 
+{{#if HasValidationRules}}
 export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
     constructor() {
         super();
@@ -43,6 +44,7 @@ export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
         {{/each}}
     }
 }
+{{/if}}
 
 {{#if Documentation}}
 /**
@@ -55,7 +57,9 @@ export class {{Name}} extends Command<I{{Name}}, {{{ResponseType.Name}}}> implem
 export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{/if}}
     readonly route: string = '{{{Route}}}';
+{{#if HasValidationRules}}
     readonly validation: CommandValidator = new {{Name}}Validator();
+{{/if}}
     readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
     readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
     readonly propertyDescriptors: PropertyDescriptor[] = [

@@ -133,7 +133,7 @@ public static class QueryEndpointMapper
         var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
         var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
 
-        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices);
+        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
 
         // Check if the result data is a streaming result (Subject or AsyncEnumerable)
         if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))

@@ -44,4 +44,9 @@
               PackagePath="analyzers/dotnet/cs"
               Visible="false" />
     </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
+    </ItemGroup>
 </Project>

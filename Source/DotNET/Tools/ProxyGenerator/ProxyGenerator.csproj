@@ -18,4 +18,9 @@
         <PackageReference Include="Microsoft.Extensions.DependencyModel" />
         <PackageReference Include="System.Reflection.MetadataLoadContext" />
     </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
+    </ItemGroup>
 </Project>

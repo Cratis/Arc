@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
+using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound;
 
@@ -207,72 +208,24 @@ public static class QueryExtensions
     }
 
     /// <summary>
-    /// Finds a class that stands in for a query method's parameters, by the naming convention
-    /// <c>{MethodName}Parameters</c> or <c>{ReadModelName}{MethodName}Parameters</c>, so an explicit
-    /// <c>QueryValidator&lt;T&gt;</c> can be declared against it.
+    /// Finds the type modelling a query method's argument set, so an explicit <c>QueryValidator&lt;T&gt;</c> can be
+    /// declared against it.
     /// </summary>
     /// <param name="readModelType">The read model type owning the query method.</param>
-    /// <param name="method">The query method to find a parameters class for.</param>
+    /// <param name="method">The query method to find an argument model for.</param>
     /// <returns>The matching <see cref="Type"/>, or null when there is none.</returns>
     /// <remarks>
-    /// A candidate only counts when every one of the query's parameters has a property of matching name and type, so
-    /// an unrelated type that happens to carry the name is never picked up. Injected dependencies are excluded from
-    /// that check — they are not arguments the caller supplies, and requiring the model to mirror them would reject
-    /// every query that takes a collection or service alongside its arguments.
-    /// <para>
-    /// This mirrors <c>QueryArgumentsModels</c> on the server, which resolves the same convention against
-    /// <c>IQueryPerformer.Parameters</c>. Both sides must agree, or the client would validate rules the server does
-    /// not — or the reverse.
-    /// </para>
+    /// Defers to <see cref="QueryArgumentsModelConvention"/>, the single source both this and the framework's
+    /// <c>QueryArgumentsModels</c> compile in, so the client and the server cannot resolve different types for the
+    /// same query. Injected dependencies are excluded here — they are not arguments the caller supplies, and the
+    /// framework never sees them at all.
     /// </remarks>
-    static Type? FindParametersTypeFor(Type readModelType, MethodInfo method)
-    {
-        var queryParameters = method.GetParameters().Where(IsQueryParameter).ToArray();
-
-        // "Every parameter is covered" is vacuously true for an empty set, which would let a parameterless query
-        // bind any same-named type in the assembly.
-        if (queryParameters.Length == 0)
-        {
-            return null;
-        }
-
-        string[] parameterTypeNames =
-        [
-            $"{readModelType.Name}{method.Name}Parameters",
-            $"{method.Name}Parameters"
-        ];
-
-        var types = readModelType.Assembly.GetTypes();
-
-        foreach (var typeName in parameterTypeNames)
-        {
-            var candidateType = types.FirstOrDefault(type =>
-                type.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase) &&
-                CoversEveryParameter(type, queryParameters));
-
-            if (candidateType is not null)
-            {
-                return candidateType;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Determines whether a candidate type has a property of matching name and type for every query parameter.
-    /// </summary>
-    /// <param name="candidate">The candidate <see cref="Type"/>.</param>
-    /// <param name="queryParameters">The query's parameters, excluding injected dependencies.</param>
-    /// <returns>True when every parameter is covered; otherwise false.</returns>
-    static bool CoversEveryParameter(Type candidate, ParameterInfo[] queryParameters)
-    {
-        var properties = candidate.GetProperties();
-        return queryParameters.All(parameter =>
-            properties.Any(property =>
-                property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) &&
-                property.PropertyType == parameter.ParameterType));
-    }
+    static Type? FindParametersTypeFor(Type readModelType, MethodInfo method) =>
+        QueryArgumentsModelConvention.Resolve(
+            readModelType.Name,
+            method.Name,
+            [.. method.GetParameters().Where(IsQueryParameter).Select(_ => new QueryArgumentDescriptor(_.Name ?? string.Empty, _.ParameterType))],
+            readModelType.Assembly.GetTypes());
 
     /// <summary>
     /// Determines whether a parameter is an argument the caller supplies rather than an injected dependency.

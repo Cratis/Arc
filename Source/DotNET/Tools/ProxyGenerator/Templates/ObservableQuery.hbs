@@ -6,13 +6,13 @@
 // eslint-disable-next-line header/header
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { ObservableQueryFor, QueryResultWithState, QueryValidator, Sorting, SortingActions, SortingActionsForObservableQuery, Paging, ChangeSet{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, SortingActions, SortingActionsForObservableQuery, Paging, ChangeSet{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 {{else}}
-import { ObservableQueryFor, QueryResultWithState, QueryValidator, Sorting, Paging, ChangeSet{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, Paging, ChangeSet{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 {{/if}}
 import { useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging, useChangeStream, SetSorting, SetPage, SetPageSize, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{else}}
-import { ObservableQueryFor, QueryResultWithState, QueryValidator{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
+import { ObservableQueryFor, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
 import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
@@ -74,6 +74,7 @@ export interface {{Name}}Parameters {
     {{/Parameters}}
 }
 
+{{#if HasValidationRules}}
 export class {{Name}}Validator extends QueryValidator<{{Name}}Parameters> {
     constructor() {
         super();
@@ -84,6 +85,7 @@ export class {{Name}}Validator extends QueryValidator<{{Name}}Parameters> {
         {{/each}}
     }
 }
+{{/if}}
 
 {{#if Documentation}}
 /**
@@ -96,6 +98,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}[], {{Name}}Paramete
 export class {{Name}} extends ObservableQueryFor<{{{Model}}}, {{Name}}Parameters> {
 {{/if}}
 {{else}}
+{{#if HasValidationRules}}
 export class {{Name}}Validator extends QueryValidator<object> {
     constructor() {
         super();
@@ -106,6 +109,7 @@ export class {{Name}}Validator extends QueryValidator<object> {
         {{/each}}
     }
 }
+{{/if}}
 
 {{#if Documentation}}
 /**
@@ -120,7 +124,9 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 {{/if}}
     readonly route: string = '{{{Route}}}';
     readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
+{{#if HasValidationRules}}
     readonly validation: QueryValidator = new {{Name}}Validator();
+{{/if}}
     readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
     readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
 {{#if IsEnumerable}}

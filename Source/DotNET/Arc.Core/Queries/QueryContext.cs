@@ -15,7 +15,8 @@ namespace Cratis.Arc.Queries;
 /// <param name="Arguments">Optional arguments for the query.</param>
 /// <param name="Dependencies">Optional dependencies required to handle the query.</param>
 /// <param name="ServiceProvider">The <see cref="IServiceProvider"/> scoped to the query, used to resolve scoped collaborators such as validators during the query's lifetime.</param>
-public record QueryContext(FullyQualifiedQueryName Name, CorrelationId CorrelationId, Paging Paging, Sorting Sorting, QueryArguments? Arguments = null, IEnumerable<object>? Dependencies = null, IServiceProvider? ServiceProvider = null)
+/// <param name="CancellationToken">The cancellation token for the query, so a cancelled request is not mistaken for invalid input.</param>
+public record QueryContext(FullyQualifiedQueryName Name, CorrelationId CorrelationId, Paging Paging, Sorting Sorting, QueryArguments? Arguments = null, IEnumerable<object>? Dependencies = null, IServiceProvider? ServiceProvider = null, CancellationToken CancellationToken = default)
 {
     /// <summary>
     /// Represents a query context that is not set.

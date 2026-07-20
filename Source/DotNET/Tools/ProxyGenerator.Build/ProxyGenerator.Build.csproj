@@ -68,4 +68,9 @@
         <Content Include="$(MSBuildThisFileDirectory)bin/$(Configuration)/net9.0/**/*" PackagePath="tasks/net9.0" />
         <Content Include="$(MSBuildThisFileDirectory)bin/$(Configuration)/net10.0/**/*" PackagePath="tasks/net10.0" />
     </ItemGroup>       
+
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
+    </ItemGroup>
 </Project>

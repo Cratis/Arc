@@ -37,7 +37,7 @@ public class FluentValidationFilter(
         // and validating it as one graph reports members the way the client does — flat, from the argument set's own
         // perspective. Validating the arguments individually as well would report the same failures twice.
         queryResult.ValidationResults = queryArgumentsModels.TryCreateFor(performer, queryArguments, out var argumentsModel)
-            ? await modelGraphValidator.Validate(new ModelGraphValidationRequest(argumentsModel, context.ServiceProvider))
+            ? await modelGraphValidator.Validate(new ModelGraphValidationRequest(argumentsModel, context.ServiceProvider), context.CancellationToken)
             : await ValidateArgumentsIndividually(context, performer, queryArguments);
 
         return queryResult;
@@ -57,7 +57,7 @@ public class FluentValidationFilter(
             }
 
             validationResults.AddRange(await modelGraphValidator.Validate(
-                new ModelGraphValidationRequest(value, context.ServiceProvider, parameter.Name)));
+                new ModelGraphValidationRequest(value, context.ServiceProvider, parameter.Name), context.CancellationToken));
         }
 
         return validationResults;

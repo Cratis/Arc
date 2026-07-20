@@ -44,4 +44,15 @@ public record QueryDescriptor(
     IEnumerable<PropertyValidationDescriptor> ValidationRules,
     bool TreatWarningsAsErrors,
     IEnumerable<string> Roles,
-    string? HttpMethod = null) : IDescriptor;
+    string? HttpMethod = null) : IDescriptor
+{
+    /// <summary>
+    /// Gets whether any validation rules were extracted, so the template can omit an empty validator entirely.
+    /// </summary>
+    /// <remarks>
+    /// An explicit flag rather than testing the collection in the template: <c>ValidationRules</c> is an
+    /// <see cref="IEnumerable{T}"/>, which has no length for the template engine to read, so a length test there is
+    /// silently always false.
+    /// </remarks>
+    public bool HasValidationRules => ValidationRules.Any();
+}

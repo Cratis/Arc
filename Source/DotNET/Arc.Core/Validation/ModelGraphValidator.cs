@@ -7,7 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
-using Cratis.Strings;
 using FluentValidation;
 
 namespace Cratis.Arc.Validation;
@@ -21,11 +20,12 @@ namespace Cratis.Arc.Validation;
 public class ModelGraphValidator(IDiscoverableValidators discoverableValidators, IValidatorInvoker validatorInvoker) : IModelGraphValidator
 {
     /// <summary>
-    /// Caches the properties worth walking per type. Reflecting over a type's members is the dominant cost of a
-    /// traversal, and queries run this on every request — unlike commands, which are comparatively rare. The set of
-    /// properties for a type never changes, so it is resolved once and reused for the lifetime of the process.
+    /// Caches how to read the members worth walking, per type. Reflecting over a type's members and reading them is
+    /// the dominant cost of a traversal, and queries run this on every request — unlike commands, which are
+    /// comparatively rare. Neither the members of a type nor how to read them ever change, so both are resolved once
+    /// and reused for the lifetime of the process.
     /// </summary>
-    static readonly ConcurrentDictionary<Type, PropertyInfo[]> _walkableProperties = new();
+    static readonly ConcurrentDictionary<Type, WalkableMember[]> _walkableProperties = new();
 
     /// <summary>
     /// Caches whether a type is a leaf, for the same reason.
@@ -44,10 +44,10 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// Extends a member path with a property, in the casing the client uses.
     /// </summary>
     /// <param name="path">The path so far, or empty at the root.</param>
-    /// <param name="property">The property being descended into.</param>
+    /// <param name="member">The member being descended into.</param>
     /// <returns>The extended path.</returns>
-    static string Extend(string path, PropertyInfo property) =>
-        string.IsNullOrEmpty(path) ? property.Name.ToCamelCase() : $"{path}.{property.Name.ToCamelCase()}";
+    static string Extend(string path, WalkableMember member) =>
+        string.IsNullOrEmpty(path) ? member.Name : $"{path}.{member.Name}";
 
     /// <summary>
     /// Determines whether a type is a leaf for traversal purposes — a single value whose public properties describe
@@ -65,17 +65,20 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
 
     /// <summary>
-    /// Gets the properties of a type that are worth walking.
+    /// Gets the members of a type that are worth walking, along with how to read each one.
     /// </summary>
-    /// <param name="type">The <see cref="Type"/> to get properties for.</param>
-    /// <returns>The properties to descend into.</returns>
+    /// <param name="type">The <see cref="Type"/> to get members for.</param>
+    /// <returns>The members to descend into.</returns>
     /// <remarks>
     /// Indexer properties are excluded: they require index arguments, so reading one without any would throw
     /// "Parameter count mismatch". They show up on types such as <c>JsonElement</c> (<c>this[int]</c>) that can
-    /// appear in an object-typed property graph.
+    /// appear in an object-typed property graph. Write-only properties are excluded because there is nothing to read.
     /// </remarks>
-    static PropertyInfo[] GetWalkableProperties(Type type) =>
-        _walkableProperties.GetOrAdd(type, static _ => [.. _.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(property => property.GetIndexParameters().Length == 0)]);
+    static WalkableMember[] GetWalkableProperties(Type type) =>
+        _walkableProperties.GetOrAdd(type, static _ =>
+            [.. _.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                 .Where(property => property.GetIndexParameters().Length == 0 && property.CanRead)
+                 .Select(WalkableMember.For)]);
 
     async Task Validate(
         ModelGraphValidationRequest request,
@@ -119,12 +122,12 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             return;
         }
 
-        foreach (var property in GetWalkableProperties(instanceType))
+        foreach (var member in GetWalkableProperties(instanceType))
         {
-            var propertyValue = property.GetValue(instance);
-            if (propertyValue is not null)
+            var memberValue = member.Read(instance);
+            if (memberValue is not null)
             {
-                await Validate(request, propertyValue, Extend(path, property), visited, results, cancellationToken);
+                await Validate(request, memberValue, Extend(path, member), visited, results, cancellationToken);
             }
         }
     }

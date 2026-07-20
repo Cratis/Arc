@@ -35,7 +35,7 @@ public class QueryPipeline(
     IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
 {
     /// <inheritdoc/>
-    public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider)
+    public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
         var correlationId = GetCorrelationId();
         var result = QueryResult.Success(correlationId);
@@ -58,7 +58,7 @@ public class QueryPipeline(
 
             var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
             var coercedArguments = CoerceArguments(arguments, queryPerformer);
-            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, dependencies, serviceProvider);
+            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, dependencies, serviceProvider, cancellationToken);
             queryContextManager.Set(context);
 
             result = await queryFilters.OnPerform(context);
