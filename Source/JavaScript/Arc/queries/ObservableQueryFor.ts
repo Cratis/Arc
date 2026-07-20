@@ -105,7 +105,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             // on its normal callback path instead of the empty result an unestablished connection would emit.
             this._connection = new NullObservableQueryConnection(
                 this.defaultValue,
-                QueryResult.validationFailed(clientValidationErrors, this.defaultValue, this.modelType, this.enumerable));
+                QueryResult.validationFailed(clientValidationErrors, this));
         } else if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
         } else {
@@ -154,7 +154,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
         const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
         if (clientValidationErrors.length > 0) {
-            return QueryResult.validationFailed(clientValidationErrors, this.defaultValue, this.modelType, this.enumerable);
+            return QueryResult.validationFailed(clientValidationErrors, this);
         }
 
         if (!this.validateArguments(args)) {

@@ -87,7 +87,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
 
         const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
         if (clientValidationErrors.length > 0) {
-            return QueryResult.validationFailed(clientValidationErrors, this.defaultValue, this.modelType, this.enumerable);
+            return QueryResult.validationFailed(clientValidationErrors, this);
         }
 
         if (!ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, args as object)) {
