@@ -44,6 +44,30 @@ public class Accounts
 }
 ```
 
+### Concepts
+
+A `ConceptValidator<T>` describes whether a value of that concept is well formed. Because that is a property of the
+type rather than of the operation carrying it, the validator applies wherever the concept appears — on a command
+property, on a query argument, and at any depth inside either. Declare it once:
+
+```csharp
+public record EmailAddress(string Value) : ConceptAs<string>(Value)
+{
+    public static implicit operator string(EmailAddress address) => address.Value;
+    public static implicit operator EmailAddress(string value) => new(value);
+}
+
+public class EmailAddressValidator : ConceptValidator<EmailAddress>
+{
+    public EmailAddressValidator() =>
+        RuleFor(x => x.Value).EmailAddress().WithMessage("Must be a valid email address");
+}
+```
+
+Every query taking an `EmailAddress` now rejects a malformed one, with no per-query rule to write or keep in sync.
+The rule is also carried into the generated client, so the browser rejects it too — see
+[Proxy Generation Validation](../proxy-generation/validation.md).
+
 ### FluentValidationFilter
 
 Automatically validates query parameters using FluentValidation validators. Create validators by inheriting from `QueryValidator<T>`:
@@ -111,11 +135,62 @@ public class Accounts
 The validation filters operate in the query pipeline:
 
 1. **Parameter Discovery**: Filters use `IQueryPerformerProviders` to discover query parameters and their types
-2. **Individual Parameter Validation**: Each parameter value from `QueryArguments` is validated against its type
-3. **Validation Results**: Failed validations return a `QueryResult` with validation errors
-4. **Pipeline Continuation**: Only successful validations allow the query performer to execute
+2. **Argument Coercion**: Raw arguments are converted to their declared parameter types, so a validator always sees a real `AccountId` rather than the string it arrived as
+3. **Validation**: The arguments are validated — either as a whole, or one at a time (see below)
+4. **Validation Results**: Failed validations return a `QueryResult` with validation errors
+5. **Pipeline Continuation**: Only successful validations allow the query performer to execute
 
-## Automatic Model Validation
+Validation walks the whole object graph of each argument, exactly as command validation walks a command's
+properties. A validator is found and run for the argument itself, for anything nested inside it, and for every
+element of a collection — so a rule never silently fails to apply just because the value it guards sits a level
+down.
+
+## Whole Argument Set vs. Individual Arguments
+
+A query's arguments are flat, which means there are two ways to describe rules over them.
+
+**Individual arguments** is the default. Each argument is validated on its own, and a failing rule reports the
+argument it belongs to. A rule reported by a validator for a nested value is prefixed with the path to the argument
+that carried it — a `ConceptValidator<T>` reporting its inner `Value` member on an `email` argument surfaces as
+`email.Value`, so it is attributable to the field the caller supplied.
+
+**The whole argument set** is used when you want rules that span several arguments. Declare a type whose properties
+mirror the query's parameters, named `{QueryName}Parameters` or `{ReadModelName}{QueryName}Parameters`, and a
+`QueryValidator<T>` for it:
+
+```csharp
+[ReadModel]
+public class Accounts
+{
+    public static IEnumerable<DebitAccount> GetByEmailAndAge(string email, int minAge, IMongoCollection<DebitAccount> collection) =>
+        collection.Find(a => a.Owner.Email == email && a.Owner.Age >= minAge).ToList();
+}
+
+public class GetByEmailAndAgeParameters
+{
+    public string Email { get; set; } = string.Empty;
+    public int MinAge { get; set; }
+}
+
+public class GetByEmailAndAgeValidator : QueryValidator<GetByEmailAndAgeParameters>
+{
+    public GetByEmailAndAgeValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.MinAge).GreaterThanOrEqualTo(0);
+    }
+}
+```
+
+The parameters type is the server-side twin of the arguments object the generated proxy validates, so the same rules
+run in the browser and at the endpoint, reporting the same member names. Rules declared this way are enforced
+server-side whether or not the caller went through the proxy — a validator that only ran in the browser would be no
+validator at all, since the endpoint can be called directly.
+
+A type is only accepted as the argument set when it has a property for every one of the query's parameters, so an
+unrelated type that happens to carry the name is never picked up. Injected dependencies are ignored — only the
+parameters the caller actually supplies count. When a query has an argument set, it is validated through that alone,
+so a failure is never reported twice.
 
 ## Controller-Based Query Validation
 

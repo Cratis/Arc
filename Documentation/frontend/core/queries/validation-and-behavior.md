@@ -15,6 +15,21 @@ const result = await query.perform();
 // result.validationResults contains validation errors
 ```
 
+Observable queries validate the same way. `perform()` returns an invalid result, and `subscribe()` delivers one to
+your callback instead of opening a connection:
+
+```typescript
+const query = new ObserveUsers();
+
+query.subscribe(result => {
+    // result.isValid === false when the arguments were rejected,
+    // which is distinct from a valid result that simply has no data yet
+}, { minAge: -5 });
+```
+
+Client-side validation is a convenience, not a gate — every rule it applies is also enforced by the server, so
+calling an endpoint directly gains nothing.
+
 For general validation docs, see [Validation](../validation/index.md).
 
 ## Sorting And Paging
