@@ -47,35 +47,49 @@ public class QueryArgumentsModels : IQueryArgumentsModels
     /// A candidate only counts when it has a property for every one of the query's parameters, so an unrelated type
     /// that happens to carry the name is never picked up. Verifying against the performer's parameters rather than
     /// the raw method signature means injected dependencies are correctly ignored.
+    /// <para>
+    /// Every type carrying a candidate name is considered, not just the first one found. Two read models can each
+    /// expose a query of the same name, which makes <c>{QueryName}Parameters</c> ambiguous; picking one arbitrarily
+    /// and giving up when its shape did not match would resolve differently depending on the order the runtime
+    /// happens to report types in, and silently skip validation for whichever query lost.
+    /// </para>
     /// </remarks>
     static Type? ResolveModelTypeFor(IQueryPerformer performer)
     {
         var readModelType = performer.ReadModelType;
         string[] candidateNames =
         [
-            $"{performer.Name}Parameters",
-            $"{readModelType.Name}{performer.Name}Parameters"
+            $"{readModelType.Name}{performer.Name}Parameters",
+            $"{performer.Name}Parameters"
         ];
+
+        var types = readModelType.Assembly.GetTypes();
 
         foreach (var candidateName in candidateNames)
         {
-            var candidate = readModelType.Assembly.GetTypes().FirstOrDefault(_ => _.Name == candidateName);
-            if (candidate is null)
-            {
-                continue;
-            }
+            var candidate = types.FirstOrDefault(type =>
+                type.Name.Equals(candidateName, StringComparison.OrdinalIgnoreCase) && CoversEveryParameter(type, performer));
 
-            var candidateProperties = candidate.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            var coversEveryParameter = performer.Parameters.All(parameter =>
-                candidateProperties.Any(property => property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase)));
-
-            if (coversEveryParameter)
+            if (candidate is not null)
             {
                 return candidate;
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Determines whether a candidate type has a property for every parameter the query exposes.
+    /// </summary>
+    /// <param name="candidate">The candidate <see cref="Type"/>.</param>
+    /// <param name="performer">The <see cref="IQueryPerformer"/> whose parameters must be covered.</param>
+    /// <returns>True when every parameter is covered; otherwise false.</returns>
+    static bool CoversEveryParameter(Type candidate, IQueryPerformer performer)
+    {
+        var properties = candidate.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        return performer.Parameters.All(parameter =>
+            properties.Any(property => property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
