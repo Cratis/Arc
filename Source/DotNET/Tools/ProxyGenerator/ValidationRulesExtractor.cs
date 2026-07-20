@@ -152,12 +152,14 @@ public static class ValidationRulesExtractor
         }
 
         // Concept rules are additive rather than overriding: server-side both the explicit validator and the
-        // concept's own validator run, so the client has to apply both to agree with it.
+        // concept's own validator run, so the client has to apply both to agree with it. Identical rules are
+        // collapsed — the same concept can be reached both through a parameters class and through the parameter
+        // itself, and emitting it twice would show the user the same message twice.
         foreach (var rule in conceptRules)
         {
             merged[rule.PropertyName] = merged.TryGetValue(rule.PropertyName, out var existing)
-                ? existing with { Rules = [.. existing.Rules, .. rule.Rules] }
-                : rule;
+                ? existing with { Rules = Distinct([.. existing.Rules, .. rule.Rules]) }
+                : rule with { Rules = Distinct(rule.Rules) };
         }
 
         // Add DataAnnotations rules only if property doesn't already have FluentValidation rules
@@ -170,6 +172,28 @@ public static class ValidationRulesExtractor
         }
 
         return [.. merged.Values];
+    }
+
+    /// <summary>
+    /// Collapses rules that are indistinguishable to a client — same rule, same arguments, same message.
+    /// </summary>
+    /// <param name="rules">The rules to collapse.</param>
+    /// <returns>The distinct rules, in their original order.</returns>
+    static List<ValidationRuleDescriptor> Distinct(IEnumerable<ValidationRuleDescriptor> rules)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var distinct = new List<ValidationRuleDescriptor>();
+
+        foreach (var rule in rules)
+        {
+            var key = $"{rule.RuleName}({string.Join(',', rule.Arguments.Select(_ => _?.ToString() ?? string.Empty))}):{rule.ErrorMessage}";
+            if (seen.Add(key))
+            {
+                distinct.Add(rule);
+            }
+        }
+
+        return distinct;
     }
 
     static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromMember(PropertyInfo property)

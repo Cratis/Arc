@@ -26,7 +26,7 @@ public class a_model_graph_validator : Specification
                 return false;
             });
 
-        _validator = new ModelGraphValidator(_discoverableValidators, NullLogger<ModelGraphValidator>.Instance);
+        _validator = new ModelGraphValidator(_discoverableValidators, new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance));
     }
 
     /// <summary>

@@ -215,34 +215,42 @@ public static class QueryExtensions
     /// <param name="method">The query method to find a parameters class for.</param>
     /// <returns>The matching <see cref="Type"/>, or null when there is none.</returns>
     /// <remarks>
-    /// A candidate only counts when every method parameter has a matching property, so an unrelated type that happens
-    /// to carry the name is never picked up.
+    /// A candidate only counts when every one of the query's parameters has a property of matching name and type, so
+    /// an unrelated type that happens to carry the name is never picked up. Injected dependencies are excluded from
+    /// that check — they are not arguments the caller supplies, and requiring the model to mirror them would reject
+    /// every query that takes a collection or service alongside its arguments.
+    /// <para>
+    /// This mirrors <c>QueryArgumentsModels</c> on the server, which resolves the same convention against
+    /// <c>IQueryPerformer.Parameters</c>. Both sides must agree, or the client would validate rules the server does
+    /// not — or the reverse.
+    /// </para>
     /// </remarks>
     static Type? FindParametersTypeFor(Type readModelType, MethodInfo method)
     {
+        var queryParameters = method.GetParameters().Where(IsQueryParameter).ToArray();
+
+        // "Every parameter is covered" is vacuously true for an empty set, which would let a parameterless query
+        // bind any same-named type in the assembly.
+        if (queryParameters.Length == 0)
+        {
+            return null;
+        }
+
         string[] parameterTypeNames =
         [
-            $"{method.Name}Parameters",
-            $"{readModelType.Name}{method.Name}Parameters"
+            $"{readModelType.Name}{method.Name}Parameters",
+            $"{method.Name}Parameters"
         ];
 
-        var methodParameters = method.GetParameters();
+        var types = readModelType.Assembly.GetTypes();
 
         foreach (var typeName in parameterTypeNames)
         {
-            var candidateType = readModelType.Assembly.GetTypes().FirstOrDefault(_ => _.Name == typeName);
-            if (candidateType is null)
-            {
-                continue;
-            }
+            var candidateType = types.FirstOrDefault(type =>
+                type.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase) &&
+                CoversEveryParameter(type, queryParameters));
 
-            var candidateProperties = candidateType.GetProperties();
-            var allParametersMatch = methodParameters.All(parameter =>
-                candidateProperties.Any(property =>
-                    property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) &&
-                    property.PropertyType == parameter.ParameterType));
-
-            if (allParametersMatch)
+            if (candidateType is not null)
             {
                 return candidateType;
             }
@@ -252,22 +260,39 @@ public static class QueryExtensions
     }
 
     /// <summary>
+    /// Determines whether a candidate type has a property of matching name and type for every query parameter.
+    /// </summary>
+    /// <param name="candidate">The candidate <see cref="Type"/>.</param>
+    /// <param name="queryParameters">The query's parameters, excluding injected dependencies.</param>
+    /// <returns>True when every parameter is covered; otherwise false.</returns>
+    static bool CoversEveryParameter(Type candidate, ParameterInfo[] queryParameters)
+    {
+        var properties = candidate.GetProperties();
+        return queryParameters.All(parameter =>
+            properties.Any(property =>
+                property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) &&
+                property.PropertyType == parameter.ParameterType));
+    }
+
+    /// <summary>
+    /// Determines whether a parameter is an argument the caller supplies rather than an injected dependency.
+    /// </summary>
+    /// <param name="parameter">The <see cref="ParameterInfo"/> to check.</param>
+    /// <returns>True when the parameter is a query argument; otherwise false.</returns>
+    static bool IsQueryParameter(ParameterInfo parameter) =>
+        parameter.ParameterType.IsAPrimitiveType() ||
+        parameter.ParameterType.IsConcept() ||
+        parameter.ParameterType.IsEnumerableOfPrimitiveOrConcept();
+
+    /// <summary>
     /// Get query parameter descriptors from a method - primitives, concepts and enumerables of primitives/concepts are included.
     /// </summary>
     /// <param name="method">Method to get parameters for.</param>
     /// <returns>Collection of <see cref="RequestParameterDescriptor"/>.</returns>
     static IEnumerable<RequestParameterDescriptor> GetQueryParameterDescriptors(this MethodInfo method)
     {
-        var parameters = method.GetParameters();
-
-        // Include primitive types, concepts and enumerables of primitive/concept types as query parameters.
-        // Everything else is assumed to be a dependency.
-        var queryParameters = parameters.Where(p =>
-            p.ParameterType.IsAPrimitiveType() ||
-            p.ParameterType.IsConcept() ||
-            p.ParameterType.IsEnumerableOfPrimitiveOrConcept());
-
-        return queryParameters.Select(p => p.ToQueryRequestParameterDescriptor());
+        // Everything that is not a query argument is assumed to be a dependency.
+        return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToQueryRequestParameterDescriptor());
     }
 
     /// <summary>
@@ -277,15 +302,7 @@ public static class QueryExtensions
     /// <returns>Collection of <see cref="PropertyDescriptor"/>.</returns>
     static IEnumerable<PropertyDescriptor> GetQueryPropertyDescriptors(this MethodInfo method)
     {
-        var parameters = method.GetParameters();
-
-        // Include primitive types, concepts and enumerables of primitive/concept types as query properties.
-        var queryParameters = parameters.Where(p =>
-            p.ParameterType.IsAPrimitiveType() ||
-            p.ParameterType.IsConcept() ||
-            p.ParameterType.IsEnumerableOfPrimitiveOrConcept());
-
-        return queryParameters.Select(p => p.ToPropertyDescriptor());
+        return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToPropertyDescriptor());
     }
 
     /// <summary>

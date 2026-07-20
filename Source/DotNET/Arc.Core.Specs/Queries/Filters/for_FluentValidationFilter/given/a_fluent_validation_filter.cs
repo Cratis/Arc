@@ -36,7 +36,7 @@ public class a_fluent_validation_filter : Specification
         _filter = new FluentValidationFilter(
             _queryPerformerProviders,
             _queryArgumentsModels,
-            new ModelGraphValidator(_discoverableValidators, NullLogger<ModelGraphValidator>.Instance));
+            new ModelGraphValidator(_discoverableValidators, new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance)));
     }
 
     /// <summary>

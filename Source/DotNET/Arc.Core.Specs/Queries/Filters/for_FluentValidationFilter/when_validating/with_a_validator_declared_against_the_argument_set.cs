@@ -25,7 +25,7 @@ public class with_a_validator_declared_against_the_argument_set : given.a_fluent
 
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_report_both_failures() => _result.ValidationResults.Count().ShouldEqual(2);
-    [Fact] void should_report_members_flat_the_way_the_client_does() => _result.ValidationResults.SelectMany(_ => _.Members).ShouldContainOnly(["Email", "MinAge"]);
+    [Fact] void should_report_members_flat_the_way_the_client_does() => _result.ValidationResults.SelectMany(_ => _.Members).ShouldContainOnly(["email", "minAge"]);
 
     class SearchArguments
     {

@@ -27,8 +27,19 @@ query.subscribe(result => {
 }, { minAge: -5 });
 ```
 
+Because `subscribe()` validates the arguments it is given, a subscription started before its arguments are available
+is rejected rather than left open. Gate it with `ObservableQueryWhen` so the subscription only starts once the
+arguments exist:
+
+```tsx
+<ObservableQueryWhen condition={!!authorId}>
+    {/* subscribes only once authorId has a value */}
+</ObservableQueryWhen>
+```
+
 Client-side validation is a convenience, not a gate — every rule it applies is also enforced by the server, so
-calling an endpoint directly gains nothing.
+calling an endpoint directly gains nothing. Server rejections report member names the same way the client does:
+camelCased, and attributed to the field rather than to a concept's inner value.
 
 For general validation docs, see [Validation](../validation/index.md).
 

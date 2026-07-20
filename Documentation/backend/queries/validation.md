@@ -151,8 +151,12 @@ A query's arguments are flat, which means there are two ways to describe rules o
 
 **Individual arguments** is the default. Each argument is validated on its own, and a failing rule reports the
 argument it belongs to. A rule reported by a validator for a nested value is prefixed with the path to the argument
-that carried it — a `ConceptValidator<T>` reporting its inner `Value` member on an `email` argument surfaces as
-`email.Value`, so it is attributable to the field the caller supplied.
+that carried it, so it is attributable to the field the caller supplied.
+
+Members are reported the way the client names them: camelCased, and without a concept's inner member. A
+`ConceptValidator<T>` declares its rules against the concept's `Value`, but a concept is a single value — a failure
+on an `email` argument is reported as `email`, not `Email` or `email.Value`. This is what lets a form match a server
+rejection to the field that caused it.
 
 **The whole argument set** is used when you want rules that span several arguments. Declare a type whose properties
 mirror the query's parameters, named `{QueryName}Parameters` or `{ReadModelName}{QueryName}Parameters`, and a
@@ -187,10 +191,13 @@ run in the browser and at the endpoint, reporting the same member names. Rules d
 server-side whether or not the caller went through the proxy — a validator that only ran in the browser would be no
 validator at all, since the endpoint can be called directly.
 
-A type is only accepted as the argument set when it has a property for every one of the query's parameters, so an
-unrelated type that happens to carry the name is never picked up. Injected dependencies are ignored — only the
-parameters the caller actually supplies count. When a query has an argument set, it is validated through that alone,
-so a failure is never reported twice.
+A type is only accepted as the argument set when it has a property of matching name **and** type for every one of the
+query's parameters, so an unrelated type that happens to carry the name is never picked up. Injected dependencies —
+the `IMongoCollection<T>` above, and any other service the method takes — are ignored: only the parameters the caller
+actually supplies count. A query that takes no arguments never resolves an argument set.
+
+When a query has an argument set, it is validated through that alone, so a failure is never reported twice. If the
+type does not match, validation falls back to each argument on its own rather than failing.
 
 ## Controller-Based Query Validation
 

@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 namespace Cratis.Arc.Validation;
 
 /// <summary>
-/// Log messages for <see cref="ModelGraphValidator"/>.
+/// Log messages for <see cref="ValidatorInvoker"/>.
 /// </summary>
-internal static partial class ModelGraphValidatorLogMessages
+internal static partial class ValidatorInvokerLogMessages
 {
     [LoggerMessage(LogLevel.Warning, "The validator for '{ModelType}' threw while validating; surfacing the model as invalid")]
     internal static partial void ValidatorThrew(this ILogger logger, string modelType, Exception exception);

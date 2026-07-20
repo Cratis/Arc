@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Cratis.Arc.Queries.for_QueryArgumentsModels.given;
 
 public class query_arguments_models : Specification
@@ -10,7 +12,7 @@ public class query_arguments_models : Specification
 
     void Establish()
     {
-        _models = new QueryArgumentsModels();
+        _models = new QueryArgumentsModels(NullLogger<QueryArgumentsModels>.Instance);
         _performer = Substitute.For<IQueryPerformer>();
         _performer.ReadModelType.Returns(typeof(SearchReadModel));
         _performer.FullyQualifiedName.Returns(new FullyQualifiedQueryName($"{Guid.NewGuid()}"));

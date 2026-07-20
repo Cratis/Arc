@@ -9,7 +9,6 @@ using Cratis.DependencyInjection;
 using Cratis.Reflection;
 using Cratis.Strings;
 using FluentValidation;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Validation;
 
@@ -17,20 +16,10 @@ namespace Cratis.Arc.Validation;
 /// Represents an implementation of <see cref="IModelGraphValidator"/>.
 /// </summary>
 /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> to use for finding validators.</param>
-/// <param name="logger">The <see cref="ILogger{TCategoryName}"/> used to log a validator that throws while validating.</param>
+/// <param name="validatorInvoker">The <see cref="IValidatorInvoker"/> to run a discovered validator with.</param>
 [Singleton]
-public class ModelGraphValidator(IDiscoverableValidators discoverableValidators, ILogger<ModelGraphValidator> logger) : IModelGraphValidator
+public class ModelGraphValidator(IDiscoverableValidators discoverableValidators, IValidatorInvoker validatorInvoker) : IModelGraphValidator
 {
-    /// <summary>
-    /// The message surfaced when a validator throws while validating.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately says nothing about what went wrong: a validator throws on hostile or partial input, and the
-    /// detail is logged server-side rather than handed back to whoever sent it. It reads the same for a command and
-    /// for a query because the distinction tells a client nothing it can act on.
-    /// </remarks>
-    public const string CouldNotValidateMessage = "The value could not be validated.";
-
     /// <summary>
     /// Caches the properties worth walking per type. Reflecting over a type's members is the dominant cost of a
     /// traversal, and queries run this on every request — unlike commands, which are comparatively rare. The set of
@@ -52,15 +41,13 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     }
 
     /// <summary>
-    /// Prefixes a validation failure member with the owning property path, producing a dotted path whose leading
-    /// segment is the field the client supplied (for example <c>email.Value</c>). At an empty path the member is
-    /// returned unchanged.
+    /// Extends a member path with a property, in the casing the client uses.
     /// </summary>
-    /// <param name="path">The camelCased property path from the graph root, or empty at the root.</param>
-    /// <param name="member">The failure member reported by the validator.</param>
-    /// <returns>The member prefixed with <paramref name="path"/>, or the member unchanged when the path is empty.</returns>
-    static string Combine(string path, string member) =>
-        string.IsNullOrEmpty(path) ? member : $"{path}.{member}";
+    /// <param name="path">The path so far, or empty at the root.</param>
+    /// <param name="property">The property being descended into.</param>
+    /// <returns>The extended path.</returns>
+    static string Extend(string path, PropertyInfo property) =>
+        string.IsNullOrEmpty(path) ? property.Name.ToCamelCase() : $"{path}.{property.Name.ToCamelCase()}";
 
     /// <summary>
     /// Determines whether a type is a leaf for traversal purposes — a single value whose public properties describe
@@ -76,19 +63,6 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// </remarks>
     static bool IsLeaf(Type type) =>
         _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
-
-    /// <summary>
-    /// Maps a FluentValidation <see cref="Severity"/> onto the framework's <see cref="ValidationResultSeverity"/>.
-    /// </summary>
-    /// <param name="severity">The FluentValidation <see cref="Severity"/> to map.</param>
-    /// <returns>The corresponding <see cref="ValidationResultSeverity"/>.</returns>
-    static ValidationResultSeverity ToSeverity(Severity severity) => severity switch
-    {
-        Severity.Info => ValidationResultSeverity.Information,
-        Severity.Warning => ValidationResultSeverity.Warning,
-        Severity.Error => ValidationResultSeverity.Error,
-        _ => ValidationResultSeverity.Error
-    };
 
     /// <summary>
     /// Gets the properties of a type that are worth walking.
@@ -126,7 +100,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
 
         if (TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
-            results.AddRange(await RunValidator(instance, validator, path, cancellationToken));
+            results.AddRange(await validatorInvoker.Invoke(instance, validator, path, cancellationToken));
         }
 
         if (IsLeaf(instanceType))
@@ -150,51 +124,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             var propertyValue = property.GetValue(instance);
             if (propertyValue is not null)
             {
-                await Validate(request, propertyValue, Combine(path, property.Name.ToCamelCase()), visited, results, cancellationToken);
+                await Validate(request, propertyValue, Extend(path, property), visited, results, cancellationToken);
             }
-        }
-    }
-
-    /// <summary>
-    /// Runs a resolved validator against an instance, converting a validator that throws while validating
-    /// (for example a rule that dereferences a null concept member such as <c>RuleFor(c =&gt; c.X.Value)</c> on a
-    /// null <c>X</c>) into a validation failure (HTTP 400) instead of letting it propagate as a server error (HTTP 500).
-    /// </summary>
-    /// <param name="instance">The instance to validate.</param>
-    /// <param name="validator">The <see cref="IValidator"/> to run.</param>
-    /// <param name="path">The camelCased property path from the graph root to <paramref name="instance"/>. Each failure's
-    /// member is prefixed with it so a rule on a nested value — for example a <c>ConceptValidator&lt;T&gt;</c>'s
-    /// <c>RuleFor(x =&gt; x.Value)</c>, which reports the inner member <c>Value</c> — is attributed to the owning field
-    /// (<c>email.Value</c>) rather than the unattributable <c>Value</c>.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> for cancelling the validation.</param>
-    /// <returns>The <see cref="ValidationResult"/> collection describing the outcome.</returns>
-    async Task<IEnumerable<ValidationResult>> RunValidator(
-        object instance,
-        IValidator validator,
-        string path,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
-            var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
-            var validationResult = await validator.ValidateAsync(validationContext, cancellationToken);
-            if (validationResult.IsValid)
-            {
-                return [];
-            }
-
-            return validationResult.Errors.Select(_ =>
-                new ValidationResult(ToSeverity(_.Severity), _.ErrorMessage, [Combine(path, _.PropertyName)], _.CustomState ?? null!)).ToArray();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // A validator that dereferences a null concept member throws while validating hostile or partial
-            // input. Surface it as a validation failure (HTTP 400) rather than letting it propagate to a server
-            // error (HTTP 500). The detail is logged server-side and never returned to the client. Cancellation
-            // is deliberately excluded so a cancelled request is not mistaken for invalid input.
-            logger.ValidatorThrew(instance.GetType().FullName ?? instance.GetType().Name, ex);
-            return [ValidationResult.Error(CouldNotValidateMessage)];
         }
     }
 

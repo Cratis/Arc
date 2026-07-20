@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
 
@@ -18,8 +19,9 @@ namespace Cratis.Arc.Queries;
 /// generator uses to find the rules it emits into the client, so both sides resolve the same type and validate the
 /// same shape.
 /// </remarks>
+/// <param name="logger">The <see cref="ILogger{TCategoryName}"/> used to log a model that cannot be materialized.</param>
 [Singleton]
-public class QueryArgumentsModels : IQueryArgumentsModels
+public class QueryArgumentsModels(ILogger<QueryArgumentsModels> logger) : IQueryArgumentsModels
 {
     readonly ConcurrentDictionary<FullyQualifiedQueryName, Type?> _modelTypesByQuery = new();
 
@@ -28,13 +30,26 @@ public class QueryArgumentsModels : IQueryArgumentsModels
     {
         model = null;
 
-        var modelType = _modelTypesByQuery.GetOrAdd(performer.FullyQualifiedName, static (_, queryPerformer) => ResolveModelTypeFor(queryPerformer), performer);
-        if (modelType is null)
+        try
         {
-            return false;
+            var modelType = _modelTypesByQuery.GetOrAdd(performer.FullyQualifiedName, static (_, queryPerformer) => ResolveModelTypeFor(queryPerformer), performer);
+            if (modelType is null)
+            {
+                return false;
+            }
+
+            model = Materialize(modelType, arguments);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Resolving or materializing the model touches reflection over a caller-supplied argument set: a
+            // partially loadable assembly, an unconvertible argument, or a constructor with guard clauses can all
+            // throw. None of those are server faults the caller should see as a 500 — fall back to validating each
+            // argument on its own, which still applies every validator that can be found for the values themselves.
+            logger.CouldNotMaterializeArgumentsModel(performer.FullyQualifiedName.ToString() ?? string.Empty, ex);
+            model = null;
         }
 
-        model = Materialize(modelType, arguments);
         return model is not null;
     }
 
@@ -56,6 +71,14 @@ public class QueryArgumentsModels : IQueryArgumentsModels
     /// </remarks>
     static Type? ResolveModelTypeFor(IQueryPerformer performer)
     {
+        // A query with no arguments has nothing for a model to cover, and "covers every parameter" is vacuously true
+        // for an empty parameter set — without this, a parameterless query named All would bind any stray
+        // AllParameters type in the assembly and validate a shape the developer never associated with it.
+        if (performer.Parameters.Count == 0)
+        {
+            return null;
+        }
+
         var readModelType = performer.ReadModelType;
         string[] candidateNames =
         [
@@ -80,16 +103,25 @@ public class QueryArgumentsModels : IQueryArgumentsModels
     }
 
     /// <summary>
-    /// Determines whether a candidate type has a property for every parameter the query exposes.
+    /// Determines whether a candidate type has a property of matching name and type for every parameter the query
+    /// exposes.
     /// </summary>
     /// <param name="candidate">The candidate <see cref="Type"/>.</param>
     /// <param name="performer">The <see cref="IQueryPerformer"/> whose parameters must be covered.</param>
     /// <returns>True when every parameter is covered; otherwise false.</returns>
+    /// <remarks>
+    /// The type is matched as well as the name, and deliberately so: a name-only match would accept a model whose
+    /// members cannot hold the arguments, which then fails while being materialized. Requiring the type means a
+    /// mismatched candidate is simply not the argument model, and validation falls back to each argument on its own.
+    /// This is the same criterion the proxy generator applies, so both sides resolve the same type.
+    /// </remarks>
     static bool CoversEveryParameter(Type candidate, IQueryPerformer performer)
     {
         var properties = candidate.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         return performer.Parameters.All(parameter =>
-            properties.Any(property => property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase)));
+            properties.Any(property =>
+                property.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) &&
+                property.PropertyType == parameter.Type));
     }
 
     /// <summary>
