@@ -13,6 +13,7 @@ public class a_fluent_validation_filter : Specification
     protected IDiscoverableValidators _discoverableValidators;
     protected IQueryPerformerProviders _queryPerformerProviders;
     protected IQueryPerformer _performer;
+    protected IQueryArgumentsModels _queryArgumentsModels;
     protected FluentValidationFilter _filter;
     protected CorrelationId _correlationId;
 
@@ -31,8 +32,10 @@ public class a_fluent_validation_filter : Specification
                 return true;
             });
 
+        _queryArgumentsModels = Substitute.For<IQueryArgumentsModels>();
         _filter = new FluentValidationFilter(
             _queryPerformerProviders,
+            _queryArgumentsModels,
             new ModelGraphValidator(_discoverableValidators, NullLogger<ModelGraphValidator>.Instance));
     }
 
@@ -54,6 +57,19 @@ public class a_fluent_validation_filter : Specification
             .Returns(x =>
             {
                 x[1] = validator;
+                return true;
+            });
+
+    /// <summary>
+    /// Declares that the query's arguments are modelled as a whole by the supplied instance, as they are when a
+    /// validator is declared against the query's flat argument shape.
+    /// </summary>
+    /// <param name="model">The arguments model instance to validate.</param>
+    protected void WithArgumentsModel(object model) =>
+        _queryArgumentsModels.TryCreateFor(Arg.Any<IQueryPerformer>(), Arg.Any<QueryArguments>(), out Arg.Any<object>())
+            .Returns(x =>
+            {
+                x[2] = model;
                 return true;
             });
 

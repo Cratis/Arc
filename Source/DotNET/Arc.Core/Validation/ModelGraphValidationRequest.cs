@@ -17,12 +17,7 @@ namespace Cratis.Arc.Validation;
 /// whose properties are already named from the client's perspective; the parameter name for a query argument, so a
 /// failure reported by a nested validator is attributable to the argument that carried it.
 /// </param>
-/// <param name="MessageWhenValidatorThrows">
-/// The message to surface when a validator throws while validating. The exception detail is logged server-side and
-/// never returned to the client, so this is the only thing the caller sees.
-/// </param>
 public record ModelGraphValidationRequest(
     object Instance,
     IServiceProvider? ServiceProvider = default,
-    string RootPath = "",
-    string MessageWhenValidatorThrows = "The value could not be validated.");
+    string RootPath = "");

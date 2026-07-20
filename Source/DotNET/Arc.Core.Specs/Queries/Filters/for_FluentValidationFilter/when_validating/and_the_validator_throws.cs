@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
 using Cratis.Concepts;
 using FluentValidation;
 
@@ -24,7 +25,7 @@ public class and_the_validator_throws : given.a_fluent_validation_filter
 
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_not_surface_as_an_exception() => _result.HasExceptions.ShouldBeFalse();
-    [Fact] void should_surface_the_generic_validation_message() => _result.ValidationResults.Single().Message.ShouldEqual(FluentValidationFilter.MessageWhenValidatorThrows);
+    [Fact] void should_surface_the_generic_validation_message() => _result.ValidationResults.Single().Message.ShouldEqual(ModelGraphValidator.CouldNotValidateMessage);
 
     record EmailAddress(string Value) : ConceptAs<string>(Value);
     record AuthorFilter(EmailAddress Email);

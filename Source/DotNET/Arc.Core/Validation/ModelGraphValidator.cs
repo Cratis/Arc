@@ -2,9 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.DependencyInjection;
+using Cratis.Reflection;
 using Cratis.Strings;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -19,6 +21,28 @@ namespace Cratis.Arc.Validation;
 [Singleton]
 public class ModelGraphValidator(IDiscoverableValidators discoverableValidators, ILogger<ModelGraphValidator> logger) : IModelGraphValidator
 {
+    /// <summary>
+    /// The message surfaced when a validator throws while validating.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately says nothing about what went wrong: a validator throws on hostile or partial input, and the
+    /// detail is logged server-side rather than handed back to whoever sent it. It reads the same for a command and
+    /// for a query because the distinction tells a client nothing it can act on.
+    /// </remarks>
+    public const string CouldNotValidateMessage = "The value could not be validated.";
+
+    /// <summary>
+    /// Caches the properties worth walking per type. Reflecting over a type's members is the dominant cost of a
+    /// traversal, and queries run this on every request — unlike commands, which are comparatively rare. The set of
+    /// properties for a type never changes, so it is resolved once and reused for the lifetime of the process.
+    /// </summary>
+    static readonly ConcurrentDictionary<Type, PropertyInfo[]> _walkableProperties = new();
+
+    /// <summary>
+    /// Caches whether a type is a leaf, for the same reason.
+    /// </summary>
+    static readonly ConcurrentDictionary<Type, bool> _leafTypes = new();
+
     /// <inheritdoc/>
     public async Task<IEnumerable<ValidationResult>> Validate(ModelGraphValidationRequest request, CancellationToken cancellationToken = default)
     {
@@ -39,18 +63,19 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         string.IsNullOrEmpty(path) ? member : $"{path}.{member}";
 
     /// <summary>
-    /// Determines whether a type is a leaf for traversal purposes — a value whose public properties describe its
-    /// internals rather than further model to validate.
+    /// Determines whether a type is a leaf for traversal purposes — a single value whose public properties describe
+    /// its internals rather than further model to validate.
     /// </summary>
     /// <param name="type">The <see cref="Type"/> to check.</param>
     /// <returns>True when the type should not be descended into; otherwise false.</returns>
+    /// <remarks>
+    /// This defers to the framework's own answer to "is this a single value" rather than keeping a private list of
+    /// types, which drifts: a hand-maintained list here already omitted <see cref="DateOnly"/> and
+    /// <see cref="TimeOnly"/>, so the walker reflected over their calendar components on every request. Deferring
+    /// means new value types are picked up wherever the rest of the framework picks them up.
+    /// </remarks>
     static bool IsLeaf(Type type) =>
-        type.IsPrimitive ||
-        type == typeof(string) ||
-        type == typeof(DateTime) ||
-        type == typeof(DateTimeOffset) ||
-        type == typeof(Guid) ||
-        type == typeof(decimal);
+        _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
 
     /// <summary>
     /// Maps a FluentValidation <see cref="Severity"/> onto the framework's <see cref="ValidationResultSeverity"/>.
@@ -64,6 +89,19 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         Severity.Error => ValidationResultSeverity.Error,
         _ => ValidationResultSeverity.Error
     };
+
+    /// <summary>
+    /// Gets the properties of a type that are worth walking.
+    /// </summary>
+    /// <param name="type">The <see cref="Type"/> to get properties for.</param>
+    /// <returns>The properties to descend into.</returns>
+    /// <remarks>
+    /// Indexer properties are excluded: they require index arguments, so reading one without any would throw
+    /// "Parameter count mismatch". They show up on types such as <c>JsonElement</c> (<c>this[int]</c>) that can
+    /// appear in an object-typed property graph.
+    /// </remarks>
+    static PropertyInfo[] GetWalkableProperties(Type type) =>
+        _walkableProperties.GetOrAdd(type, static _ => [.. _.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(property => property.GetIndexParameters().Length == 0)]);
 
     async Task Validate(
         ModelGraphValidationRequest request,
@@ -88,7 +126,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
 
         if (TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
-            results.AddRange(await RunValidator(request, instance, validator, path, cancellationToken));
+            results.AddRange(await RunValidator(instance, validator, path, cancellationToken));
         }
 
         if (IsLeaf(instanceType))
@@ -107,16 +145,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             return;
         }
 
-        foreach (var property in instanceType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        foreach (var property in GetWalkableProperties(instanceType))
         {
-            // Skip indexer properties — they require index arguments, so GetValue(instance)
-            // without any would throw "Parameter count mismatch". These show up on types such as
-            // JsonElement (this[int]) that can appear in an object-typed property graph.
-            if (property.GetIndexParameters().Length > 0)
-            {
-                continue;
-            }
-
             var propertyValue = property.GetValue(instance);
             if (propertyValue is not null)
             {
@@ -130,7 +160,6 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// (for example a rule that dereferences a null concept member such as <c>RuleFor(c =&gt; c.X.Value)</c> on a
     /// null <c>X</c>) into a validation failure (HTTP 400) instead of letting it propagate as a server error (HTTP 500).
     /// </summary>
-    /// <param name="request">The <see cref="ModelGraphValidationRequest"/> the validation runs within.</param>
     /// <param name="instance">The instance to validate.</param>
     /// <param name="validator">The <see cref="IValidator"/> to run.</param>
     /// <param name="path">The camelCased property path from the graph root to <paramref name="instance"/>. Each failure's
@@ -140,7 +169,6 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> for cancelling the validation.</param>
     /// <returns>The <see cref="ValidationResult"/> collection describing the outcome.</returns>
     async Task<IEnumerable<ValidationResult>> RunValidator(
-        ModelGraphValidationRequest request,
         object instance,
         IValidator validator,
         string path,
@@ -166,7 +194,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             // error (HTTP 500). The detail is logged server-side and never returned to the client. Cancellation
             // is deliberately excluded so a cancelled request is not mistaken for invalid input.
             logger.ValidatorThrew(instance.GetType().FullName ?? instance.GetType().Name, ex);
-            return [ValidationResult.Error(request.MessageWhenValidatorThrows)];
+            return [ValidationResult.Error(CouldNotValidateMessage)];
         }
     }
 

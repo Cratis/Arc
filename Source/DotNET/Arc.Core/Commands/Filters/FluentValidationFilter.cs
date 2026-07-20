@@ -11,19 +11,11 @@ namespace Cratis.Arc.Commands.Filters;
 /// <param name="modelGraphValidator">The <see cref="IModelGraphValidator"/> to validate the command graph with.</param>
 public class FluentValidationFilter(IModelGraphValidator modelGraphValidator) : ICommandFilter
 {
-    /// <summary>
-    /// The message surfaced when a validator throws while validating a command.
-    /// </summary>
-    internal const string MessageWhenValidatorThrows = "The command could not be validated.";
-
     /// <inheritdoc/>
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
         var validationResults = await modelGraphValidator.Validate(
-            new ModelGraphValidationRequest(
-                context.Command,
-                context.ServiceProvider,
-                MessageWhenValidatorThrows: MessageWhenValidatorThrows),
+            new ModelGraphValidationRequest(context.Command, context.ServiceProvider),
             context.CancellationToken);
 
         var commandResult = CommandResult.Success(context.CorrelationId);
