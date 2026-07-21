@@ -85,8 +85,13 @@ public static class TemplateTypes
         null => "null",
         string text => FormatJavaScriptString(text),
         bool flag => flag ? "true" : "false",
-        IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-        _ => value.ToString() ?? string.Empty
+        byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal =>
+            ((IFormattable)value).ToString(null, CultureInfo.InvariantCulture),
+
+        // Anything else — a date, say — has no bare TypeScript literal (its invariant text such as 01/01/0001 does
+        // not parse), so it is quoted. Numeric-only rules are the norm; this only guards an unexpected argument type.
+        IFormattable formattable => FormatJavaScriptString(formattable.ToString(null, CultureInfo.InvariantCulture)),
+        _ => FormatJavaScriptString(value.ToString())
     };
 
     /// <summary>

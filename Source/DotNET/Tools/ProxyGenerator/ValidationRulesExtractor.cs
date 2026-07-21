@@ -744,6 +744,14 @@ public static class ValidationRulesExtractor
             return null;
         }
 
+        // The client-side comparison validators operate on numbers, so a non-numeric constant comparison cannot be
+        // projected. In practice this is a "must be set" sentinel such as GreaterThan(DateOnly.MinValue), which the
+        // server still enforces; emitting it here would only produce a client rule the browser cannot evaluate.
+        if (!IsNumeric(valueToCompare))
+        {
+            return null;
+        }
+
         var comparison = comparisonProperty?.GetValue(validator);
         if (comparison == null)
         {
@@ -762,6 +770,9 @@ public static class ValidationRulesExtractor
             _ => null
         };
     }
+
+    static bool IsNumeric(object value) => value
+        is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
 
     static ValidationRuleDescriptor ExtractRegexRule(object validator, string? errorMessage)
     {

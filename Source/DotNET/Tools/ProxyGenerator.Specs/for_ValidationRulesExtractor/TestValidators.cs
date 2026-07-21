@@ -92,6 +92,21 @@ public class TestCommandWithConceptAndOwnValidatorValidator : BaseValidator<Test
     public TestCommandWithConceptAndOwnValidatorValidator() => RuleFor(x => x.Email).NotEmpty();
 }
 
+public class TestCommandWithDateComparison
+{
+    public DateOnly When { get; set; }
+    public int Age { get; set; }
+}
+
+public class TestCommandWithDateComparisonValidator : BaseValidator<TestCommandWithDateComparison>
+{
+    public TestCommandWithDateComparisonValidator()
+    {
+        RuleFor(x => x.When).GreaterThan(DateOnly.MinValue).WithMessage("The date must be set.");
+        RuleFor(x => x.Age).GreaterThanOrEqualTo(18);
+    }
+}
+
 public record RecordEmail(string Value) : ConceptAs<string>(Value);
 
 public class RecordEmailValidator : ConceptValidator<RecordEmail>
