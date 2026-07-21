@@ -35,6 +35,7 @@ export * from './ObservableQuerySubscription';
 export * from './WebSocketMessage';
 export * from './QueryTransportMethod';
 export * from './QueryInstanceCache';
+export * from './reconcileQueryData';
 export * from './IQueryProvider';
 export * from './QueryProvider';
 export * from './QueryValidator';
