@@ -74,12 +74,15 @@ public static class CommandExtensions
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
-        // Use provided validation rules or extract them from command type
-        var rules = validationRules ?? [];
-        if (!rules.Any())
+        // Fall back to extracting from the method's command parameter only when no rules were supplied at all. A
+        // caller that supplied an empty set - a model-bound command whose validator holds no client-projectable rule
+        // - means exactly that; treating empty as "not supplied" here would re-extract from GetCommandType, which for
+        // a model-bound Handle(target) resolves to the provided-value type rather than the command.
+        var rules = validationRules;
+        if (rules is null)
         {
             var commandType = method.GetCommandType();
-            rules = commandType != null
+            rules = commandType is not null
                 ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
                 : [];
         }

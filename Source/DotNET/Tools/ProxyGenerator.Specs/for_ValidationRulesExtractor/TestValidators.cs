@@ -98,6 +98,16 @@ public class TestCommandWithDateComparison
     public int Age { get; set; }
 }
 
+public class TestCommandWithRegex
+{
+    public string PostalCode { get; set; } = string.Empty;
+}
+
+public class TestCommandWithRegexValidator : BaseValidator<TestCommandWithRegex>
+{
+    public TestCommandWithRegexValidator() => RuleFor(x => x.PostalCode).Matches(@"^\d{4}$");
+}
+
 public class TestCommandWithDateComparisonValidator : BaseValidator<TestCommandWithDateComparison>
 {
     public TestCommandWithDateComparisonValidator()

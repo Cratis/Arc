@@ -68,6 +68,7 @@ public class when_generating_command_with_validation : Specification, IDisposabl
     [Fact] void should_contain_greater_than_or_equal_rule() => _generatedCode.ShouldContain(".greaterThanOrEqual(18)");
     [Fact] void should_contain_min_length_rule_for_name() => _generatedCode.ShouldContain(".minLength(2)");
     [Fact] void should_contain_max_length_rule_for_name() => _generatedCode.ShouldContain(".maxLength(50)");
+    [Fact] void should_emit_the_regex_rule_as_a_regular_expression_literal() => _generatedCode.ShouldContain(@".matches(/^\d{4}$/)");
     [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
 
     public void Dispose() => _runtime?.Dispose();
