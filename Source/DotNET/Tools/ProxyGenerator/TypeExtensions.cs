@@ -217,7 +217,18 @@ public static class TypeExtensions
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
         AssemblyLoadContext.Default.Resolving += (_, name) =>
-            _assembliesByName[name.Name!] = _assemblyResolver.Resolve(_metadataLoadContext, name)!;
+        {
+            // Caching the metadata-only assembly is the point here - IsAssignableTo<T> needs it to translate a
+            // runtime type into the metadata world. Handing it back is not: the default context accepts only runtime
+            // assemblies and throws "Resolved assembly must be a runtime Assembly object" on anything else, which
+            // would turn any genuine resolution miss into a hard failure.
+            if (_assemblyResolver.Resolve(_metadataLoadContext, name) is { } resolved)
+            {
+                _assembliesByName[name.Name!] = resolved;
+            }
+
+            return null;
+        };
 
         Assemblies = [.. dependencyContext.RuntimeLibraries
                                         .Where(_ => _.Type.Equals("project"))

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using Cratis.Arc.Validation;
 using Cratis.Concepts;
 using FluentValidation;
@@ -89,4 +90,34 @@ public class TestCommandWithConceptAndOwnValidator
 public class TestCommandWithConceptAndOwnValidatorValidator : BaseValidator<TestCommandWithConceptAndOwnValidator>
 {
     public TestCommandWithConceptAndOwnValidatorValidator() => RuleFor(x => x.Email).NotEmpty();
+}
+
+public record RecordEmail(string Value) : ConceptAs<string>(Value);
+
+public class RecordEmailValidator : ConceptValidator<RecordEmail>
+{
+    public const string InvalidMessage = "Must be a valid email address";
+
+    public RecordEmailValidator() =>
+        RuleFor(email => email.Value)
+            .NotEmpty()
+            .WithMessage(_ => InvalidMessage)
+            .EmailAddress()
+            .WithMessage(_ => InvalidMessage);
+}
+
+public enum RecordRole
+{
+    None = 0,
+    Administrator = 1
+}
+
+public record TestRecordCommandWithConcept(RecordEmail Email, RecordRole Role);
+
+public class TestRecordCommandWithConceptValidator : CommandValidator<TestRecordCommandWithConcept>
+{
+    public TestRecordCommandWithConceptValidator() =>
+        RuleFor(c => c.Role)
+            .Must(r => r is RecordRole.Administrator)
+            .WithMessage(_ => "Internal roles only");
 }
