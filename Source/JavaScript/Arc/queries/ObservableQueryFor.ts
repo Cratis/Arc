@@ -4,6 +4,7 @@
 import { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
 import { ObservableQuerySubscription } from './ObservableQuerySubscription';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
+import { QueryValidator } from './QueryValidator';
 import { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
 import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
@@ -38,6 +39,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     abstract readonly route: string;
     abstract readonly defaultValue: TDataType;
     readonly roles: string[] = [];
+    readonly validation?: QueryValidator<any>;
     /** Backend fully-qualified query name used when subscribing via the SSE hub. Overridden in generated proxies. */
     readonly queryName?: string;
     abstract readonly parameterDescriptors: ParameterDescriptor[];
@@ -97,7 +99,14 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             this._connection.disconnect();
         }
 
-        if (!this.validateArguments(args)) {
+        const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
+        if (clientValidationErrors.length > 0) {
+            // Serve the failure through the connection rather than throwing, so a subscriber sees an invalid result
+            // on its normal callback path instead of the empty result an unestablished connection would emit.
+            this._connection = new NullObservableQueryConnection(
+                this.defaultValue,
+                QueryResult.validationFailed(clientValidationErrors, this));
+        } else if (!this.validateArguments(args)) {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
         } else {
             this._connection = createObservableQueryConnection({
@@ -142,6 +151,11 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     /** @inheritdoc */
     async perform(args?: TParameters): Promise<QueryResult<TDataType>> {
         const noSuccess = { ...QueryResult.noSuccess, ...{ data: this.defaultValue } } as QueryResult<TDataType>;
+
+        const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
+        if (clientValidationErrors.length > 0) {
+            return QueryResult.validationFailed(clientValidationErrors, this);
+        }
 
         if (!this.validateArguments(args)) {
             return new Promise<QueryResult<TDataType>>((resolve) => {

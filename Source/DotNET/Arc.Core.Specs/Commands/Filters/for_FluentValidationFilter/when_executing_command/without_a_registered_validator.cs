@@ -26,7 +26,7 @@ public class without_a_registered_validator : Specification
     void Establish()
     {
         _correlationId = CorrelationId.New();
-        _filter = new FluentValidationFilter(new DiscoverableValidators(Cratis.Types.Types.Instance), NullLogger<FluentValidationFilter>.Instance);
+        _filter = new FluentValidationFilter(new ModelGraphValidator(new DiscoverableValidators(Cratis.Types.Types.Instance), new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance)));
 
         // The scoped dependency is registered; the validator itself is intentionally NOT registered.
         _root = new ServiceCollection()

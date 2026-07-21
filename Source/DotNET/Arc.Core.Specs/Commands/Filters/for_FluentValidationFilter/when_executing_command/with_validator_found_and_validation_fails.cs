@@ -45,7 +45,7 @@ public class with_validator_found_and_validation_fails : given.a_fluent_validati
     [Fact] void should_have_one_validation_result() => _result.ValidationResults.Count().ShouldEqual(1);
     [Fact] void should_have_validation_result_with_error_severity() => _result.ValidationResults.First().Severity.ShouldEqual(ValidationResultSeverity.Error);
     [Fact] void should_have_validation_result_with_correct_message() => _result.ValidationResults.First().Message.ShouldEqual("Name is required");
-    [Fact] void should_have_validation_result_with_correct_member() => _result.ValidationResults.First().Members.ShouldContain("Name");
+    [Fact] void should_have_validation_result_with_correct_member() => _result.ValidationResults.First().Members.ShouldContain("name");
     [Fact] void should_call_validator() => _validator.Received(1).ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>());
 
     record TestCommand(string Name);

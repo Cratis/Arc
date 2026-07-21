@@ -87,27 +87,7 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
 
         const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
         if (clientValidationErrors.length > 0) {
-            return new QueryResult({
-                data: this.defaultValue as object,
-                isSuccess: false,
-                isAuthorized: true,
-                isValid: false,
-                hasExceptions: false,
-                validationResults: clientValidationErrors.map(_ => ({
-                    severity: _.severity,
-                    message: _.message,
-                    members: _.members,
-                    state: _.state
-                })),
-                exceptionMessages: [],
-                exceptionStackTrace: '',
-                paging: {
-                    totalItems: 0,
-                    totalPages: 0,
-                    page: 0,
-                    size: 0
-                }
-            }, this.modelType, this.enumerable) as QueryResult<TDataType>;
+            return QueryResult.validationFailed(clientValidationErrors, this);
         }
 
         if (!ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, args as object)) {

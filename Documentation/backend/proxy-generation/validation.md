@@ -262,6 +262,52 @@ export class SearchUsersQueryValidator extends QueryValidator<SearchUsersQueryPa
 }
 ```
 
+Observable queries get the same validator as one-shot queries. It runs when you call `perform()`, and when you
+`subscribe()` — a subscription rejected by validation delivers an invalid `QueryResult` to your callback rather than
+opening a connection, so a subscriber can tell "these arguments are wrong" apart from "no data yet".
+
+## Concept Validation
+
+A `ConceptValidator<T>` is extracted for every command property and query parameter of that concept's type, so a
+rule written once reaches the client everywhere the concept is used:
+
+```csharp
+public record EmailAddress(string Value) : ConceptAs<string>(Value);
+
+public class EmailAddressValidator : ConceptValidator<EmailAddress>
+{
+    public EmailAddressValidator() =>
+        RuleFor(x => x.Value).EmailAddress().WithMessage("Must be a valid email address");
+}
+
+public class RegisterUser
+{
+    public EmailAddress Email { get; set; } = new(string.Empty);
+}
+```
+
+A concept is represented in TypeScript by its underlying primitive, so the rule is attached to the property that
+carries it:
+
+```typescript
+export class RegisterUserValidator extends CommandValidator<IRegisterUser> {
+    constructor() {
+        super();
+        this.ruleFor(c => c.email)
+            .emailAddress()
+            .withMessage('Must be a valid email address');
+    }
+}
+```
+
+Concept rules add to a model's own rules rather than replacing them. If `RegisterUser` also has a
+`CommandValidator<RegisterUser>` with a rule on `Email`, both apply — which is what the server does, so the client
+agrees with it.
+
+Only a concept sitting directly on a property or parameter is extracted. The client rule builder resolves a single
+property name, so it cannot express a rule against a concept nested deeper in the graph. Those rules still run
+server-side, where the whole object graph is walked.
+
 ## Limitations
 
 The ProxyGenerator can only extract validation rules that can be executed client-side. The following are **not supported**:

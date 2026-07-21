@@ -33,7 +33,7 @@ public class with_a_deeply_nested_validator_reporting_an_inner_member : given.a_
     async Task Because() => _result = await _filter.OnExecution(_context);
 
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
-    [Fact] void should_compose_the_full_camel_cased_path() => _result.ValidationResults.First().Members.ShouldContain("middle.inner.Value");
+    [Fact] void should_compose_the_full_camel_cased_path() => _result.ValidationResults.First().Members.ShouldContain("middle.inner.value");
 
     record OuterCommand(Middle Middle);
     record Middle(Inner Inner);

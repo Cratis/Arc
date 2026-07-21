@@ -325,6 +325,73 @@ public enum ReadModelStatus
 }
 
 /// <summary>
+/// A read model used to verify that a validator declared against a query's argument set is enforced by the server,
+/// and not only by the generated client proxy.
+/// </summary>
+/// <remarks>
+/// It carries its own uniquely named query so a spec can resolve the route unambiguously. Two other read models in
+/// this assembly both expose a query called <c>GetByEmailAndAge</c>, which makes that name ambiguous.
+/// </remarks>
+[ReadModel]
+public class ServerEnforcedValidationReadModel
+{
+    internal static int SearchCallCount;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Searches by email and a minimum age.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<ServerEnforcedValidationReadModel> SearchByEmailAndMinimumAge(string email, int minAge)
+    {
+        SearchCallCount++;
+        return [new ServerEnforcedValidationReadModel { Id = Guid.NewGuid(), Email = email }];
+    }
+}
+
+/// <summary>
+/// Models the argument set of <see cref="ServerEnforcedValidationReadModel.SearchByEmailAndMinimumAge"/>.
+/// </summary>
+public class SearchByEmailAndMinimumAgeParameters
+{
+    /// <summary>
+    /// Gets or sets the email filter.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the minimum age.
+    /// </summary>
+    public int MinAge { get; set; }
+}
+
+/// <summary>
+/// Validator for the argument set of <see cref="ServerEnforcedValidationReadModel.SearchByEmailAndMinimumAge"/>.
+/// </summary>
+public class SearchByEmailAndMinimumAgeValidator : QueryValidator<SearchByEmailAndMinimumAgeParameters>
+{
+    public const string EmailMessage = "A valid email is required";
+    public const string AgeMessage = "Age must be zero or greater";
+
+    public SearchByEmailAndMinimumAgeValidator()
+    {
+        RuleFor(q => q.Email).NotEmpty().WithMessage(EmailMessage).EmailAddress().WithMessage(EmailMessage);
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).WithMessage(AgeMessage);
+    }
+}
+
+/// <summary>
 /// A read model with FluentValidation for parameters.
 /// </summary>
 [ReadModel]

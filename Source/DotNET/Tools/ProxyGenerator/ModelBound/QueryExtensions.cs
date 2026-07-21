@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
+using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound;
 
@@ -141,59 +142,34 @@ public static class QueryExtensions
 
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules from query method parameters
-        // First, try to find a FluentValidation validator for a parameters class
-        // The parameters class should have properties that match the method parameters
-        var validationRules = new List<PropertyValidationDescriptor>();
-        var parameterTypeNames = new[]
-        {
-            $"{method.Name}Parameters",
-            $"{readModelType.Name}{method.Name}Parameters"
-        };
+        // Extract validation rules for the query's parameters from the three sources that can contribute them, merged
+        // with the same precedence the command path uses: an explicit validator for a matching parameters class, the
+        // validators of any concept-typed parameters, and DataAnnotations on the parameters as a per-parameter fallback.
+        var parametersType = FindParametersTypeFor(readModelType, method);
+        var explicitRules = parametersType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType).ToList()
+            : [];
 
-        Type? parametersType = null;
-        foreach (var typeName in parameterTypeNames)
+        var conceptRules = new List<PropertyValidationDescriptor>();
+        var dataAnnotationsRules = new List<PropertyValidationDescriptor>();
+        foreach (var param in method.GetParameters())
         {
-            var candidateType = readModelType.Assembly.GetTypes().FirstOrDefault(t => t.Name == typeName);
-            if (candidateType != null)
+            var parameterName = param.Name.ToCamelCase();
+
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType);
+            if (rulesFromConcept.Count > 0)
             {
-                // Verify that the candidate type's properties match the method parameters
-                var candidateProperties = candidateType.GetProperties();
-                var methodParams = method.GetParameters();
+                conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
+            }
 
-                // Check if all method parameters have corresponding properties in the candidate type
-                var allParamsMatch = methodParams.All(param =>
-                    candidateProperties.Any(prop =>
-                        prop.Name.Equals(param.Name, StringComparison.OrdinalIgnoreCase) &&
-                        prop.PropertyType == param.ParameterType));
-
-                if (allParamsMatch)
-                {
-                    parametersType = candidateType;
-                    break;
-                }
+            var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+            if (rulesFromDataAnnotations.Count > 0)
+            {
+                dataAnnotationsRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromDataAnnotations]));
             }
         }
 
-        if (parametersType != null)
-        {
-            // Found a parameters class, extract FluentValidation rules from it
-            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType);
-            validationRules.AddRange(fluentValidationRules);
-        }
-
-        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
-        if (validationRules.Count == 0)
-        {
-            foreach (var param in method.GetParameters())
-            {
-                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
-                if (rules.Count > 0)
-                {
-                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
-                }
-            }
-        }
+        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
 
         // Check for TreatWarningsAsErrors attribute
         var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
@@ -232,22 +208,44 @@ public static class QueryExtensions
     }
 
     /// <summary>
+    /// Finds the type modelling a query method's argument set, so an explicit <c>QueryValidator&lt;T&gt;</c> can be
+    /// declared against it.
+    /// </summary>
+    /// <param name="readModelType">The read model type owning the query method.</param>
+    /// <param name="method">The query method to find an argument model for.</param>
+    /// <returns>The matching <see cref="Type"/>, or null when there is none.</returns>
+    /// <remarks>
+    /// Defers to <see cref="QueryArgumentsModelConvention"/>, the single source both this and the framework's
+    /// <c>QueryArgumentsModels</c> compile in, so the client and the server cannot resolve different types for the
+    /// same query. Injected dependencies are excluded here — they are not arguments the caller supplies, and the
+    /// framework never sees them at all.
+    /// </remarks>
+    static Type? FindParametersTypeFor(Type readModelType, MethodInfo method) =>
+        QueryArgumentsModelConvention.Resolve(
+            readModelType.Name,
+            method.Name,
+            [.. method.GetParameters().Where(IsQueryParameter).Select(_ => new QueryArgumentDescriptor(_.Name ?? string.Empty, _.ParameterType))],
+            readModelType.Assembly.GetTypes());
+
+    /// <summary>
+    /// Determines whether a parameter is an argument the caller supplies rather than an injected dependency.
+    /// </summary>
+    /// <param name="parameter">The <see cref="ParameterInfo"/> to check.</param>
+    /// <returns>True when the parameter is a query argument; otherwise false.</returns>
+    static bool IsQueryParameter(ParameterInfo parameter) =>
+        parameter.ParameterType.IsAPrimitiveType() ||
+        parameter.ParameterType.IsConcept() ||
+        parameter.ParameterType.IsEnumerableOfPrimitiveOrConcept();
+
+    /// <summary>
     /// Get query parameter descriptors from a method - primitives, concepts and enumerables of primitives/concepts are included.
     /// </summary>
     /// <param name="method">Method to get parameters for.</param>
     /// <returns>Collection of <see cref="RequestParameterDescriptor"/>.</returns>
     static IEnumerable<RequestParameterDescriptor> GetQueryParameterDescriptors(this MethodInfo method)
     {
-        var parameters = method.GetParameters();
-
-        // Include primitive types, concepts and enumerables of primitive/concept types as query parameters.
-        // Everything else is assumed to be a dependency.
-        var queryParameters = parameters.Where(p =>
-            p.ParameterType.IsAPrimitiveType() ||
-            p.ParameterType.IsConcept() ||
-            p.ParameterType.IsEnumerableOfPrimitiveOrConcept());
-
-        return queryParameters.Select(p => p.ToQueryRequestParameterDescriptor());
+        // Everything that is not a query argument is assumed to be a dependency.
+        return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToQueryRequestParameterDescriptor());
     }
 
     /// <summary>
@@ -257,15 +255,7 @@ public static class QueryExtensions
     /// <returns>Collection of <see cref="PropertyDescriptor"/>.</returns>
     static IEnumerable<PropertyDescriptor> GetQueryPropertyDescriptors(this MethodInfo method)
     {
-        var parameters = method.GetParameters();
-
-        // Include primitive types, concepts and enumerables of primitive/concept types as query properties.
-        var queryParameters = parameters.Where(p =>
-            p.ParameterType.IsAPrimitiveType() ||
-            p.ParameterType.IsConcept() ||
-            p.ParameterType.IsEnumerableOfPrimitiveOrConcept());
-
-        return queryParameters.Select(p => p.ToPropertyDescriptor());
+        return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToPropertyDescriptor());
     }
 
     /// <summary>
