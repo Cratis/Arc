@@ -18,7 +18,7 @@ public class with_a_command_that_cannot_compose_its_key : Specification
     Exception _exception;
 
     void Establish() => _builder = new CommandContextValuesBuilder(
-        new KnownInstancesOf<ICommandContextValuesProvider>([new EventSourceValuesProvider()]));
+        new KnownInstancesOf<ICommandContextValuesProvider>([new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>())]));
 
     void Because() => _exception = Catch.Exception(() => _result = _builder.Build(new CommandThatCannotComposeItsKey(null!)));
 

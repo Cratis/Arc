@@ -16,7 +16,7 @@ public class with_a_command_that_provides_its_key : Specification
     EventSourceValuesProvider _provider;
     CommandContextValues _result;
 
-    void Establish() => _provider = new EventSourceValuesProvider();
+    void Establish() => _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>());
 
     void Because() => _result = _provider.Provide(new CommandThatProvidesItsKey());
 

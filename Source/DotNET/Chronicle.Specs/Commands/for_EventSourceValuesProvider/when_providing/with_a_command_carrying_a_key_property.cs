@@ -18,7 +18,7 @@ public class with_a_command_carrying_a_key_property : Specification
 
     void Establish()
     {
-        _provider = new EventSourceValuesProvider();
+        _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>());
         _id = Guid.NewGuid();
     }
 
