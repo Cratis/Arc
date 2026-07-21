@@ -70,6 +70,13 @@ public static class TypeExtensionsModelBound
     /// <returns>True if the method qualifies as a query performer; otherwise, false.</returns>
     public static bool IsValidQueryFor(this MethodInfo method, Type readModelType)
     {
+        // Mirrors the runtime predicate in Cratis.Arc.Queries.ModelBound.ReadModelExtensions: an open generic method
+        // can never be invoked as a query, so emitting a client for it would promise a call that always fails.
+        if (method.ContainsGenericParameters)
+        {
+            return false;
+        }
+
         var returnType = method.ReturnType;
 
         if (returnType.IsGenericType &&

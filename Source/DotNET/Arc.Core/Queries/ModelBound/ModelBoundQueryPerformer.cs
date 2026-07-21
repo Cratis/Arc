@@ -27,8 +27,16 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     /// <param name="performMethod">The method info of the perform method.</param>
     /// <param name="serviceProviderIsService">Service to determine if a type is registered as a service.</param>
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
+    /// <exception cref="QueryMethodCannotBeGeneric">Thrown when <paramref name="performMethod"/> is generic.</exception>
     public ModelBoundQueryPerformer(Type readModelType, string readModelTypeName, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
     {
+        // Fail while wiring up rather than on every request: invoking an open generic throws a bare BCL message that
+        // says nothing about which read model method is at fault.
+        if (performMethod.ContainsGenericParameters)
+        {
+            throw new QueryMethodCannotBeGeneric(performMethod);
+        }
+
         Type = readModelType;
         ReadModelType = readModelType;
         Name = performMethod.Name;

@@ -166,5 +166,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A FluentValidation rule selector that dereferences a member of a ConceptAs<T> property assumes the concept is non-null. Because model-bound input can be deserialized with a null concept, the rule throws a NullReferenceException at validation time instead of producing a validation error. Validate the concept itself first (when it is required) or guard the rule with a null check (when it is optional), so invalid input is reported as a validation failure rather than crashing.");
 
+    /// <summary>
+    /// ARC0014: Generic query method on ReadModel.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0014_QueryMethodCannotBeGeneric = new(
+        id: "ARC0014",
+        title: "Generic query method on ReadModel",
+        messageFormat: "Method '{0}' on ReadModel '{1}' returns a query shape but is generic, so it can never be invoked as a query. Make it non-generic, or move it off the ReadModel if it is a composition helper.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A static method on a read model is discovered as a query by its return type alone, so a generic composition helper that happens to return the read model's query shape is registered and routed as an endpoint. A query is invoked with arguments resolved from the request, which leaves nothing to close the method's type parameters with, so every call fails. Make the method non-generic, or move it off the read model.");
+
     const string Category = "Arc";
 }

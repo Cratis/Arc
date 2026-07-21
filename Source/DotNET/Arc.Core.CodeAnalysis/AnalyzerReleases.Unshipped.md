@@ -14,3 +14,4 @@ ARC0010|Arc|Warning|Command Handle() wraps a synchronous result in a Task
 ARC0011|Arc|Warning|[Roles] argument should use nameof instead of a string literal
 ARC0012|Arc|Warning|Arc artifact throws a built-in exception type
 ARC0013|Arc|Warning|Validator rule dereferences a possibly-null concept member
+ARC0014|Arc|Error|Generic query method on ReadModel

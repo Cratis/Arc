@@ -55,6 +55,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             .Where(m =>
                 m.MethodKind == MethodKind.Ordinary &&
                 m.IsStatic &&
+                m.TypeParameters.Length == 0 &&
                 IsSupportedQueryMethodAccessibility(m) &&
                 IsValidQueryMethod(m, typeSymbol))
             .Select(m => m.Name)

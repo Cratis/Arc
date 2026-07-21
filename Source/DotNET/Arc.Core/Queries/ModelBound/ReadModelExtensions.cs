@@ -27,6 +27,14 @@ public static class ReadModelExtensions
     /// <returns>True if the method qualifies as a query performer; otherwise, false.</returns>
     public static bool IsValidQueryFor(this MethodInfo method, Type readModelType)
     {
+        // A query is invoked late-bound with arguments resolved from the request, so there is nothing to close an
+        // open generic with. Read models routinely carry generic composition helpers that return the very shapes a
+        // query returns, and the return type alone cannot tell those apart from a query.
+        if (method.ContainsGenericParameters)
+        {
+            return false;
+        }
+
         var returnType = method.ReturnType;
 
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
