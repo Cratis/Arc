@@ -15,8 +15,11 @@ public class ContactEmailAddressValidator : ConceptValidator<ContactEmailAddress
     public ContactEmailAddressValidator() => RuleFor(x => x.Value).NotEmpty().EmailAddress();
 }
 
-// The value Provide() resolves and Handle() consumes - it carries a validated concept, but it is not the command,
-// so its rules must not surface on the command's generated validator.
+/// <summary>
+/// The value <c>Provide()</c> resolves and <c>Handle()</c> consumes: it carries a validated concept, but it is not
+/// the command, so its rules must not surface on the command's generated validator.
+/// </summary>
+/// <param name="Email">The contact email address.</param>
 public record InvitationTarget(ContactEmailAddress Email);
 
 [Command]
