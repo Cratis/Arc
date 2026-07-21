@@ -15,7 +15,8 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
-            DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature
+            DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
+            DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric
         ];
 
     /// <inheritdoc/>
@@ -66,6 +67,16 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
                     context.ReportDiagnostic(diagnostic);
                 }
             }
+
+            foreach (var method in FindGenericQueryShapedMethods(namedTypeSymbol))
+            {
+                var diagnostic = Diagnostic.Create(
+                    DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric,
+                    method.Locations[0],
+                    method.Name,
+                    namedTypeSymbol.Name);
+                context.ReportDiagnostic(diagnostic);
+            }
         }
     }
 
@@ -83,6 +94,27 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
                        m.IsStatic &&
                        m.DeclaredAccessibility == Accessibility.Public &&
                        !m.ReturnsVoid);
+    }
+
+    /// <summary>
+    /// Finds the methods a read model would have registered as queries had they not been generic.
+    /// </summary>
+    /// <param name="typeSymbol">The read model to inspect.</param>
+    /// <returns>The generic methods carrying a query-shaped return type.</returns>
+    /// <remarks>
+    /// Deliberately wider than <see cref="FindPotentialQueryMethods"/>, which only looks at public methods: query
+    /// discovery registers internal methods too, so an internal generic helper is just as routable — and just as
+    /// broken — as a public one.
+    /// </remarks>
+    static IEnumerable<IMethodSymbol> FindGenericQueryShapedMethods(INamedTypeSymbol typeSymbol)
+    {
+        return typeSymbol.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(m => m.MethodKind == MethodKind.Ordinary &&
+                       m.IsStatic &&
+                       m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+                       m.TypeParameters.Length > 0 &&
+                       IsValidQueryMethodSignature(m, typeSymbol));
     }
 
     static bool IsValidQueryMethodSignature(IMethodSymbol method, INamedTypeSymbol readModelType)

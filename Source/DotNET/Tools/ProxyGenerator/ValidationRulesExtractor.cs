@@ -25,6 +25,7 @@ public static class ValidationRulesExtractor
     const string ExactLengthValidatorType = "FluentValidation.Validators.IExactLengthValidator";
     const string ComparisonValidatorType = "FluentValidation.Validators.IComparisonValidator";
     const string RegularExpressionValidatorType = "FluentValidation.Validators.IRegularExpressionValidator";
+    const string ConceptAsType = "Cratis.Concepts.ConceptAs`1";
 
     /// <summary>
     /// Extract validation rules for a specific type using FluentValidation validators.
@@ -34,11 +35,16 @@ public static class ValidationRulesExtractor
     /// <returns>Collection of property validation descriptors.</returns>
     public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type)
     {
+        // A FluentValidation rule only exists once its validator's constructor has run, which a metadata-only type
+        // cannot do - see RuntimeValidatorAssemblies.
+        var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
+        var runtimeType = RuntimeValidatorAssemblies.For(type);
+
         // Try FluentValidation first
-        var fluentValidationRules = ExtractFluentValidationRules(assembly, type).ToList();
+        var fluentValidationRules = ExtractFluentValidationRules(runtimeAssembly, runtimeType).ToList();
 
         // Then the rules contributed by the validators of any concept-typed properties
-        var conceptRules = ExtractConceptRules(assembly, type).ToList();
+        var conceptRules = ExtractConceptRules(runtimeAssembly, runtimeType).ToList();
 
         // Then extract DataAnnotations
         var dataAnnotationsRules = ExtractDataAnnotationsRules(type).ToList();
@@ -90,12 +96,15 @@ public static class ValidationRulesExtractor
     /// </remarks>
     public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type)
     {
-        if (!type.IsConcept())
+        var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
+        var runtimeType = RuntimeValidatorAssemblies.For(type);
+
+        if (!IsConcept(runtimeType))
         {
             return [];
         }
 
-        return [.. ExtractFluentValidationRules(assembly, type).SelectMany(_ => _.Rules)];
+        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType).SelectMany(_ => _.Rules)];
     }
 
     /// <summary>
@@ -194,6 +203,29 @@ public static class ValidationRulesExtractor
         }
 
         return distinct;
+    }
+
+    /// <summary>
+    /// Check whether a type is a concept, by name rather than by type identity.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns><see langword="true"/> if the type derives from <c>ConceptAs&lt;T&gt;</c>; otherwise <see langword="false"/>.</returns>
+    /// <remarks>
+    /// The types inspected here come from a load context of their own, so <c>typeof(ConceptAs&lt;&gt;)</c> as the
+    /// generator sees it is a different type from the one the target project derives from. Every other type test in
+    /// this class compares names for the same reason.
+    /// </remarks>
+    static bool IsConcept(Type type)
+    {
+        for (var baseType = type.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            if (baseType.IsGenericType && baseType.GetGenericTypeDefinition().FullName == ConceptAsType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static List<ValidationRuleDescriptor> ExtractDataAnnotationsFromMember(PropertyInfo property)
@@ -603,6 +635,21 @@ public static class ValidationRulesExtractor
                 if (!string.IsNullOrEmpty(errorMessage))
                 {
                     return errorMessage;
+                }
+            }
+
+            // A message declared lazily - .WithMessage(_ => Messages.Something), the form a localized message takes -
+            // is held as a factory instead. Resolving it against no instance is enough for a factory that just
+            // returns a constant; one that reads the instance throws and is left unprojected rather than guessed at.
+            var errorMessageFactoryField = component.GetType()
+                .GetField("_errorMessageFactory", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (errorMessageFactoryField?.GetValue(component) is Delegate errorMessageFactory)
+            {
+                var arguments = new object?[errorMessageFactory.Method.GetParameters().Length];
+                if (errorMessageFactory.DynamicInvoke(arguments) is string factoryMessage && !string.IsNullOrEmpty(factoryMessage))
+                {
+                    return factoryMessage;
                 }
             }
 

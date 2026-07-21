@@ -16,6 +16,15 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!--
+            Reading FluentValidation rules means running a validator's constructor, which loads the target project's
+            own assembly for real. Targets are ASP.NET applications, so without the shared framework here that load
+            fails on the target's Microsoft.AspNetCore.* references.
+        -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Content Include="build\*" PackagePath="build\;buildTransitive\" />
     </ItemGroup>
 
