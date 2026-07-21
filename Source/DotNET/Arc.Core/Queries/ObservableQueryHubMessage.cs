@@ -37,6 +37,16 @@ public class ObservableQueryHubMessage
     public long? Timestamp { get; set; }
 
     /// <summary>
+    /// Gets or sets the server's keep-alive interval in milliseconds, or <c>0</c> when keep-alive is disabled.
+    /// </summary>
+    /// <remarks>
+    /// Only set on <see cref="ObservableQueryHubMessageType.Connected"/> messages. Clients derive their
+    /// idle threshold from this rather than assuming the default interval, so that reconfiguring the server
+    /// cannot leave a client declaring healthy connections dead.
+    /// </remarks>
+    public long? KeepAliveIntervalMs { get; set; }
+
+    /// <summary>
     /// Creates a <see cref="ObservableQueryHubMessageType.QueryResult"/> message.
     /// </summary>
     /// <param name="queryId">The query identifier.</param>
@@ -78,10 +88,17 @@ public class ObservableQueryHubMessage
         new() { Type = ObservableQueryHubMessageType.Ping, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
 
     /// <summary>
-    /// Creates a <see cref="ObservableQueryHubMessageType.Connected"/> message carrying the server-assigned connection identifier.
+    /// Creates a <see cref="ObservableQueryHubMessageType.Connected"/> message carrying the server-assigned
+    /// connection identifier and the server's keep-alive interval.
     /// </summary>
     /// <param name="connectionId">The unique identifier for the SSE connection.</param>
+    /// <param name="keepAliveInterval">The server's keep-alive interval. Zero or negative means keep-alive is disabled.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
-    public static ObservableQueryHubMessage CreateConnected(string connectionId) =>
-        new() { Type = ObservableQueryHubMessageType.Connected, Payload = connectionId };
+    public static ObservableQueryHubMessage CreateConnected(string connectionId, TimeSpan keepAliveInterval) =>
+        new()
+        {
+            Type = ObservableQueryHubMessageType.Connected,
+            Payload = connectionId,
+            KeepAliveIntervalMs = keepAliveInterval > TimeSpan.Zero ? (long)keepAliveInterval.TotalMilliseconds : 0
+        };
 }

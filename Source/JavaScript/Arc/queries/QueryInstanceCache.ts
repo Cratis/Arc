@@ -3,6 +3,7 @@
 
 import { QueryResultWithState } from './QueryResultWithState';
 import { CacheDiagnostics, CacheEntryDiagnostics } from './ObservableQueryDiagnosticsSnapshot';
+import { reconcileQueryData } from './reconcileQueryData';
 
 /**
  * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialized arguments.
@@ -171,25 +172,68 @@ export class QueryInstanceCache {
     setLastResult<TDataType>(key: QueryCacheKey, result: QueryResultWithState<TDataType>): void {
         const entry = this._entries.get(key);
 
-        if (entry) {
-            const previousResult = entry.lastResult as QueryResultWithState<TDataType> | undefined;
-            entry.lastResult = result as QueryResultWithState<unknown>;
-
-            // Suppress re-renders when the server re-sends identical data after a reconnect.
-            // We only compare `data` and `isSuccess` — other fields (e.g. changeSet) are
-            // ephemeral and do not affect what the user sees.
-            if (
-                previousResult !== undefined &&
-                previousResult.isSuccess === result.isSuccess &&
-                JSON.stringify(previousResult.data) === JSON.stringify(result.data)
-            ) {
-                return;
-            }
-
-            for (const listener of entry.listeners) {
-                (listener as QueryCacheListener<TDataType>)(result);
-            }
+        if (!entry) {
+            return;
         }
+
+        const previousResult = entry.lastResult as QueryResultWithState<TDataType> | undefined;
+
+        // Reconcile the incoming payload against the one already held so items that did not actually
+        // change keep their previous references. A full snapshot — which is what the server re-sends
+        // whenever a subscription is re-established — otherwise arrives as all-new references and
+        // makes every consumer treat every item as changed.
+        const reconciled = previousResult !== undefined
+            ? this.withReconciledData(previousResult, result)
+            : result;
+
+        entry.lastResult = reconciled as QueryResultWithState<unknown>;
+
+        // Reconciliation returns the previous data reference when nothing changed, so identity is
+        // enough to detect it. Only `data` and `isSuccess` matter here — the other fields (e.g.
+        // changeSet) are ephemeral and do not affect what the user sees.
+        if (
+            previousResult !== undefined &&
+            previousResult.isSuccess === reconciled.isSuccess &&
+            previousResult.data === reconciled.data
+        ) {
+            return;
+        }
+
+        for (const listener of entry.listeners) {
+            (listener as QueryCacheListener<TDataType>)(reconciled);
+        }
+    }
+
+    /**
+     * Returns the incoming result with its data reconciled against the previous result, or the
+     * incoming result unchanged when reconciliation found nothing to carry over.
+     * @template TDataType The type of data returned by the query.
+     * @param previous The previously held result.
+     * @param next The freshly received result.
+     * @returns A result whose data preserves references for everything that did not change.
+     */
+    private withReconciledData<TDataType>(
+        previous: QueryResultWithState<TDataType>,
+        next: QueryResultWithState<TDataType>
+    ): QueryResultWithState<TDataType> {
+        const reconciledData = reconcileQueryData(previous.data, next.data);
+
+        if (reconciledData === next.data) {
+            return next;
+        }
+
+        return new QueryResultWithState<TDataType>(
+            reconciledData,
+            next.paging,
+            next.isSuccess,
+            next.isAuthorized,
+            next.isValid,
+            next.validationResults,
+            next.hasExceptions,
+            next.exceptionMessages,
+            next.exceptionStackTrace,
+            next.isPerforming,
+            next.changeSet);
     }
 
     /**

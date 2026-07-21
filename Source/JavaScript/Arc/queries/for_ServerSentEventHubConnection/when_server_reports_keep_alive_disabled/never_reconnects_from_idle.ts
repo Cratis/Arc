@@ -6,9 +6,9 @@ import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event
 import { given } from '../../../given';
 import { HubMessageType } from '../../WebSocketHubConnection';
 
-const KEEP_ALIVE_MS = 500;
+const ASSUMED_KEEP_ALIVE_MS = 500;
 
-describe('when keep-alive interval elapses without any server message', given(a_server_sent_event_hub_connection, context => {
+describe('when the server reports that keep-alive is disabled', given(a_server_sent_event_hub_connection, context => {
     let clock: sinon.SinonFakeTimers;
 
     beforeEach(() => {
@@ -22,7 +22,7 @@ describe('when keep-alive interval elapses without any server message', given(a_
             'http://localhost/.cratis/queries/sse/subscribe',
             'http://localhost/.cratis/queries/sse/unsubscribe',
             '',
-            KEEP_ALIVE_MS,
+            ASSUMED_KEEP_ALIVE_MS,
             15000,
             context.policy
         );
@@ -30,14 +30,15 @@ describe('when keep-alive interval elapses without any server message', given(a_
         context.connection.subscribe('q1', { queryName: 'MyQuery' }, sinon.stub());
         context.simulateOpen();
 
-        // Deliver Connected so the connection is fully established.
-        context.simulateMessage({ type: HubMessageType.Connected, payload: 'conn-123' });
+        context.simulateMessage({
+            type: HubMessageType.Connected,
+            payload: 'conn-123',
+            keepAliveIntervalMs: 0
+        });
 
-        // Advance past the idle threshold (IDLE_THRESHOLD_FACTOR × keep-alive interval) without any
-        // further messages. The check interval fires every KEEP_ALIVE_MS; the idle threshold is
-        // KEEP_ALIVE_MS * 2. After the first interval tick (500ms) the elapsed idle time (500ms) is
-        // below the threshold (1000ms). At the second tick (1000ms) the elapsed time reaches it.
-        clock.tick(KEEP_ALIVE_MS * 2 + 1);
+        // A server that never pings is silent by design — watching for silence would otherwise
+        // reconnect on a loop forever. Hard drops still surface through onerror.
+        clock.tick(ASSUMED_KEEP_ALIVE_MS * 20);
     });
 
     afterEach(() => {
@@ -45,7 +46,5 @@ describe('when keep-alive interval elapses without any server message', given(a_
         sinon.restore();
     });
 
-    it('should schedule a reconnect via the policy', () => {
-        (context.policy.schedule as sinon.SinonStub).calledOnce.should.be.true;
-    });
+    it('should never schedule a reconnect from inactivity', () => (context.policy.schedule as sinon.SinonStub).called.should.be.false);
 }));

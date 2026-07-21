@@ -46,4 +46,22 @@ public class KeepAliveTracker
     /// <returns><see langword="true"/> if a keep-alive should be sent; otherwise <see langword="false"/>.</returns>
     public bool ShouldSendKeepAlive(TimeSpan interval) =>
         DateTimeOffset.UtcNow - _lastMessageSent >= interval;
+
+    /// <summary>
+    /// Gets how long remains until a keep-alive message is due, measured from the last message sent.
+    /// </summary>
+    /// <param name="interval">The keep-alive interval.</param>
+    /// <returns>The remaining time, or <see cref="TimeSpan.Zero"/> when a keep-alive is already due.</returns>
+    /// <remarks>
+    /// Keep-alive loops should wait for exactly this long rather than for a fixed interval. Waiting a
+    /// fixed interval schedules checks on a grid that is independent of when messages actually go out,
+    /// so a data message landing mid-interval defers the next keep-alive to the following tick — allowing
+    /// gaps of up to twice the interval. Clients that treat silence as a dead connection then disconnect
+    /// while the server still considers the connection healthy.
+    /// </remarks>
+    public TimeSpan GetTimeUntilNextKeepAlive(TimeSpan interval)
+    {
+        var remaining = _lastMessageSent + interval - DateTimeOffset.UtcNow;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
 }
