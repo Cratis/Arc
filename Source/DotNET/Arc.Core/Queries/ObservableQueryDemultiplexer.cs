@@ -136,8 +136,14 @@ public class ObservableQueryDemultiplexer(
 
         try
         {
-            // Send the Connected message so the client knows its connection ID for POST requests.
-            await SendSseMessage(context, ObservableQueryHubMessage.CreateConnected(connectionId), state.KeepAliveTracker, linkedCts, state.WriteLock);
+            // Send the Connected message so the client knows its connection ID for POST requests, and the
+            // keep-alive interval it should expect messages on.
+            await SendSseMessage(
+                context,
+                ObservableQueryHubMessage.CreateConnected(connectionId, arcOptions.Value.Query.KeepAliveInterval),
+                state.KeepAliveTracker,
+                linkedCts,
+                state.WriteLock);
 
             // Block until the client disconnects or the server shuts down.
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -840,7 +846,33 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
-    async Task RunWebSocketKeepAlive(IWebSocket webSocket, KeepAliveTracker keepAliveTracker, SemaphoreSlim writeLock, CancellationToken token)
+    Task RunWebSocketKeepAlive(IWebSocket webSocket, KeepAliveTracker keepAliveTracker, SemaphoreSlim writeLock, CancellationToken token) =>
+        RunKeepAlive(
+            keepAliveTracker,
+            () => SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, writeLock, token),
+            token);
+
+    Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts, SemaphoreSlim writeLock) =>
+        RunKeepAlive(
+            keepAliveTracker,
+            () => SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, cts, writeLock),
+            cts.Token);
+
+    /// <summary>
+    /// Runs the transport-agnostic keep-alive loop, guaranteeing that no more than the configured
+    /// interval passes between messages sent to the client.
+    /// </summary>
+    /// <param name="keepAliveTracker">The <see cref="KeepAliveTracker"/> recording when messages were last sent.</param>
+    /// <param name="sendKeepAlive">Sends a keep-alive message over the transport.</param>
+    /// <param name="token">The <see cref="CancellationToken"/> that ends the loop.</param>
+    /// <returns>Awaitable task.</returns>
+    /// <remarks>
+    /// The loop waits until a keep-alive is actually due relative to the last message sent, rather than
+    /// waking on a fixed interval grid. A fixed grid defers the keep-alive to the next tick whenever a
+    /// data message lands mid-interval, which lets the gap between messages grow to nearly twice the
+    /// interval and causes clients watching for silence to drop an otherwise healthy connection.
+    /// </remarks>
+    async Task RunKeepAlive(KeepAliveTracker keepAliveTracker, Func<Task> sendKeepAlive, CancellationToken token)
     {
         var interval = arcOptions.Value.Query.KeepAliveInterval;
 
@@ -853,38 +885,22 @@ public class ObservableQueryDemultiplexer(
         {
             while (!token.IsCancellationRequested)
             {
-                await Task.Delay(interval, token);
+                var remaining = keepAliveTracker.GetTimeUntilNextKeepAlive(interval);
 
-                if (!token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
+                if (remaining > TimeSpan.Zero)
                 {
-                    await SendWebSocketMessage(webSocket, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, writeLock, token);
+                    await Task.Delay(remaining, token);
+                    continue;
                 }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal shutdown — nothing to report.
-        }
-    }
 
-    async Task RunSseKeepAlive(IHttpRequestContext context, KeepAliveTracker keepAliveTracker, CancellationTokenSource cts, SemaphoreSlim writeLock)
-    {
-        var interval = arcOptions.Value.Query.KeepAliveInterval;
+                await sendKeepAlive();
 
-        if (interval <= TimeSpan.Zero)
-        {
-            return;
-        }
-
-        try
-        {
-            while (!cts.Token.IsCancellationRequested)
-            {
-                await Task.Delay(interval, cts.Token);
-
-                if (!cts.Token.IsCancellationRequested && keepAliveTracker.ShouldSendKeepAlive(interval))
+                // A successful send records activity, so the next iteration waits a full interval.
+                // If the send failed without recording anything, wait one interval anyway so that a
+                // persistently failing transport cannot spin this loop.
+                if (keepAliveTracker.GetTimeUntilNextKeepAlive(interval) <= TimeSpan.Zero)
                 {
-                    await SendSseMessage(context, ObservableQueryHubMessage.CreatePing(), keepAliveTracker, cts, writeLock);
+                    await Task.Delay(interval, token);
                 }
             }
         }

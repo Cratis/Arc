@@ -33,6 +33,12 @@ export interface HubMessage {
     queryId?: string;
     payload?: any;
     timestamp?: number;
+
+    /**
+     * The server's keep-alive interval in milliseconds, or 0 when keep-alive is disabled.
+     * Only present on {@link HubMessageType.Connected} messages.
+     */
+    keepAliveIntervalMs?: number;
 }
 
 /**

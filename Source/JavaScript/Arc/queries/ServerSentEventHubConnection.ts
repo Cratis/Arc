@@ -18,6 +18,15 @@ interface ActiveSubscription {
 }
 
 /**
+ * How many keep-alive intervals of silence are tolerated before the connection is considered dead.
+ *
+ * The server guarantees a message every interval, so this is pure slack for latency and jitter.
+ * It must stay above 1 — a threshold at or below the server's own cadence makes the client and
+ * server timers race, and the client tears down connections the server considers healthy.
+ */
+const IDLE_THRESHOLD_FACTOR = 2;
+
+/**
  * A multiplexed SSE hub connection that uses EventSource for server→client streaming
  * and fetch POST requests for client→server subscribe/unsubscribe commands.
  *
@@ -45,8 +54,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
      * @param {string} _subscribeUrl The subscribe POST endpoint URL.
      * @param {string} _unsubscribeUrl The unsubscribe POST endpoint URL.
      * @param {string} _microservice The microservice name to pass as a query argument.
-     * @param {number} keepAliveIntervalMs How long without any server message before the connection
-     *   is considered stale and a reconnect is forced (default: 30 000 ms).
+     * @param {number} keepAliveIntervalMs The keep-alive cadence to assume until the server advertises
+     *   its own on the {@link HubMessageType.Connected} message (default: 30 000 ms). The connection is
+     *   considered stale after {@link IDLE_THRESHOLD_FACTOR} times this without any server message.
      * @param {number} connectTimeoutMs How long to wait for the {@link HubMessageType.Connected}
      *   message after the HTTP connection opens before giving up and retrying (default: 15 000 ms).
      * @param {IReconnectPolicy} _policy The reconnect policy to use (default: {@link ReconnectPolicy}).
@@ -64,18 +74,20 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         // inactivity — if the server stops sending messages (including its own keep-alive
         // pings) for the entire idle threshold, the connection is stale and we reconnect.
         //
-        // The idle threshold is set to 1.5× the check interval so the server's keep-alive
-        // ping (which fires on the same cadence) has time to arrive over the network before
-        // the client declares the connection dead. Without this tolerance the client's timer
-        // and the server's timer race — the client often fires first and reconnects
-        // unnecessarily.
-        const idleThresholdMs = Math.round(keepAliveIntervalMs * 1.5);
+        // The server guarantees a message at least every keep-alive interval, so the threshold
+        // only has to absorb network latency, timer jitter and server-side scheduling hiccups.
+        // A hard TCP drop surfaces immediately through `onerror`, so this watchdog only needs to
+        // catch silent black-holes — that makes a generous tolerance strictly better than a tight
+        // one, which would tear down healthy connections.
+        //
+        // The interval below is only the starting assumption; the server advertises its real
+        // cadence on the Connected message and {@link handleConnected} reconfigures from it.
         this._keepAlive = new HubConnectionKeepAlive(keepAliveIntervalMs, () => {
             if (!this._disconnected && this._subscriptions.size > 0) {
-                console.warn(`SSE hub: no messages received for ${idleThresholdMs}ms, reconnecting '${this._sseUrl}'`);
+                console.warn(`SSE hub: no messages received for ${this._keepAlive.idleThresholdMs}ms, reconnecting '${this._sseUrl}'`);
                 this.reconnect();
             }
-        }, idleThresholdMs);
+        }, keepAliveIntervalMs * IDLE_THRESHOLD_FACTOR);
     }
 
     /** @inheritdoc */
@@ -277,11 +289,34 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         // Connected message arrived — cancel the connect timeout.
         this.clearConnectTimeout();
 
+        this.applyServerKeepAliveInterval(message.keepAliveIntervalMs);
+
         // Send all pending subscriptions now that we have a connection ID.
         for (const [queryId, sub] of this._pendingSubscriptions) {
             this.sendSubscribe(queryId, sub.request);
         }
         this._pendingSubscriptions.clear();
+    }
+
+    /**
+     * Align the idle watchdog with the keep-alive cadence the server actually runs on.
+     *
+     * Without this the client assumes the default interval, so a server configured with a longer
+     * interval — or with keep-alive switched off entirely — would look silent and be reconnected
+     * on a loop even though it is perfectly healthy.
+     * @param {number | undefined} serverIntervalMs The interval advertised by the server, if any.
+     */
+    private applyServerKeepAliveInterval(serverIntervalMs?: number): void {
+        if (serverIntervalMs === undefined) return;
+
+        // Keep-alive disabled server-side: silence is expected, so watching for it would guarantee
+        // an endless reconnect loop. Hard drops still surface through `onerror`.
+        if (serverIntervalMs <= 0) {
+            this._keepAlive.stop();
+            return;
+        }
+
+        this._keepAlive.reconfigure(serverIntervalMs, serverIntervalMs * IDLE_THRESHOLD_FACTOR);
     }
 
     private handleQueryResult(message: HubMessage): void {

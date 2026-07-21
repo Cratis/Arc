@@ -22,7 +22,8 @@
 export class HubConnectionKeepAlive {
     private _lastActivityTime = Date.now();
     private _timer?: ReturnType<typeof setInterval>;
-    private readonly _idleThresholdMs: number;
+    private _intervalMs: number;
+    private _idleThresholdMs: number;
 
     /**
      * Initializes a new instance of {@link HubConnectionKeepAlive}.
@@ -35,11 +36,37 @@ export class HubConnectionKeepAlive {
      *   cadence to account for network latency and timer jitter.
      */
     constructor(
-        private readonly _intervalMs: number,
+        intervalMs: number,
         private readonly _onIdle: () => void,
         idleThresholdMs?: number,
     ) {
-        this._idleThresholdMs = idleThresholdMs ?? _intervalMs;
+        this._intervalMs = intervalMs;
+        this._idleThresholdMs = idleThresholdMs ?? intervalMs;
+    }
+
+    /**
+     * Gets how long (in milliseconds) without activity before the connection is considered idle.
+     */
+    get idleThresholdMs(): number {
+        return this._idleThresholdMs;
+    }
+
+    /**
+     * Change the check interval and idle threshold, restarting the timer when it is already running.
+     *
+     * Used when the peer advertises its actual keep-alive cadence after connecting, so the client
+     * stops relying on an assumed default that may not match the server's configuration.
+     * @param {number} intervalMs How often (in milliseconds) to check for idle connections.
+     * @param {number} idleThresholdMs How long (in milliseconds) without activity before the connection is considered idle.
+     */
+    reconfigure(intervalMs: number, idleThresholdMs: number): void {
+        const wasRunning = this._timer !== undefined;
+        this._intervalMs = intervalMs;
+        this._idleThresholdMs = idleThresholdMs;
+
+        if (wasRunning) {
+            this.start();
+        }
     }
 
     /**
