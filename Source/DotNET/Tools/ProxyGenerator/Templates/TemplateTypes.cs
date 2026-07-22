@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Text;
 using HandlebarsDotNet;
 
 namespace Cratis.Arc.ProxyGenerator.Templates;
@@ -102,8 +103,11 @@ public static class TemplateTypes
     /// <param name="pattern">The pattern to format.</param>
     /// <returns>The regular-expression literal.</returns>
     /// <remarks>
-    /// An empty pattern becomes <c>/(?:)/</c> rather than <c>//</c>, which JavaScript reads as a line comment; a
-    /// literal slash in the pattern is escaped so it does not close the literal early.
+    /// An empty pattern becomes <c>/(?:)/</c> rather than <c>//</c>, which JavaScript reads as a line comment. An
+    /// unescaped slash is escaped so it does not close the literal early, while a slash the pattern already escapes
+    /// passes through untouched — <c>\/</c> must not become <c>\\/</c>, whose escaped backslash would leave the
+    /// slash free to terminate the literal. A line terminator cannot appear in a regex literal at all, so it is
+    /// rewritten to its escape sequence.
     /// </remarks>
     static string FormatRegularExpression(string pattern)
     {
@@ -112,8 +116,50 @@ public static class TemplateTypes
             return "/(?:)/";
         }
 
-        var escaped = pattern.Replace("\r", "\\r").Replace("\n", "\\n").Replace("/", "\\/");
-        return $"/{escaped}/";
+        var literal = new StringBuilder(pattern.Length + 2);
+        var escaped = false;
+
+        foreach (var character in pattern)
+        {
+            if (character == '\\' && !escaped)
+            {
+                literal.Append('\\');
+                escaped = true;
+                continue;
+            }
+
+            switch (character)
+            {
+                case '/' when !escaped:
+                    literal.Append("\\/");
+                    break;
+                case '\r':
+                    literal.Append(escaped ? "r" : "\\r");
+                    break;
+                case '\n':
+                    literal.Append(escaped ? "n" : "\\n");
+                    break;
+                case '\u2028':
+                    literal.Append(escaped ? "u2028" : "\\u2028");
+                    break;
+                case '\u2029':
+                    literal.Append(escaped ? "u2029" : "\\u2029");
+                    break;
+                default:
+                    literal.Append(character);
+                    break;
+            }
+
+            escaped = false;
+        }
+
+        // A trailing lone backslash would escape the closing slash; doubling it keeps the literal well formed.
+        if (escaped)
+        {
+            literal.Append('\\');
+        }
+
+        return $"/{literal}/";
     }
 
     /// <summary>
