@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Commands;
 using Cratis.Arc.ModelBinding;
 using Cratis.Arc.Queries;
@@ -33,6 +34,7 @@ public static class ServiceCollectionExtensions
         var discoverableValidators = new DiscoverableValidators(types);
         services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
+        services.AddTransient<HttpRequestContextMiddleware>();
         services.AddCorrelationId();
         services
             .AddActivitySource<CommandActionFilter>(Internals.ActivitySourceName)
