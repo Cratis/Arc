@@ -290,7 +290,7 @@ public static class ValidationRulesExtractor
                     {
                         var pattern = GetConstructorArgument<string>(attributeData, 0) ?? string.Empty;
                         var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("matches", [pattern], errorMessage));
+                        rules.Add(new ValidationRuleDescriptor("matches", [new RegularExpressionPattern(pattern)], errorMessage));
                         break;
                     }
                 case "System.ComponentModel.DataAnnotations.EmailAddressAttribute":
@@ -780,6 +780,6 @@ public static class ValidationRulesExtractor
         var expressionProperty = validatorType.GetProperty("Expression");
         var pattern = expressionProperty?.GetValue(validator)?.ToString() ?? string.Empty;
 
-        return new ValidationRuleDescriptor("matches", [pattern], errorMessage);
+        return new ValidationRuleDescriptor("matches", [new RegularExpressionPattern(pattern)], errorMessage);
     }
 }

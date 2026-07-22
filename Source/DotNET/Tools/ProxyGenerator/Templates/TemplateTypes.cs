@@ -77,12 +77,14 @@ public static class TemplateTypes
     /// <param name="value">The argument value.</param>
     /// <returns>The formatted literal.</returns>
     /// <remarks>
-    /// A string argument — a <c>matches()</c> pattern in particular — has to be emitted as a quoted, escaped literal.
-    /// Writing it bare produces TypeScript that does not parse.
+    /// A string argument is emitted as a quoted, escaped literal; writing it bare produces TypeScript that does not
+    /// parse. A regular-expression pattern is emitted as a regex literal, which is what the client-side
+    /// <c>matches</c> rule expects.
     /// </remarks>
     static string FormatRuleArgument(object? value) => value switch
     {
         null => "null",
+        RegularExpressionPattern regex => FormatRegularExpression(regex.Pattern),
         string text => FormatJavaScriptString(text),
         bool flag => flag ? "true" : "false",
         byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal =>
@@ -93,6 +95,26 @@ public static class TemplateTypes
         IFormattable formattable => FormatJavaScriptString(formattable.ToString(null, CultureInfo.InvariantCulture)),
         _ => FormatJavaScriptString(value.ToString())
     };
+
+    /// <summary>
+    /// Formats a pattern as a JavaScript regular-expression literal.
+    /// </summary>
+    /// <param name="pattern">The pattern to format.</param>
+    /// <returns>The regular-expression literal.</returns>
+    /// <remarks>
+    /// An empty pattern becomes <c>/(?:)/</c> rather than <c>//</c>, which JavaScript reads as a line comment; a
+    /// literal slash in the pattern is escaped so it does not close the literal early.
+    /// </remarks>
+    static string FormatRegularExpression(string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern))
+        {
+            return "/(?:)/";
+        }
+
+        var escaped = pattern.Replace("\r", "\\r").Replace("\n", "\\n").Replace("/", "\\/");
+        return $"/{escaped}/";
+    }
 
     /// <summary>
     /// Formats a value as a single-quoted, escaped JavaScript string literal.
