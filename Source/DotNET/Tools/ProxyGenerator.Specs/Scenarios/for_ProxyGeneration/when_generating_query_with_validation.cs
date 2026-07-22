@@ -11,7 +11,7 @@ public class when_generating_query_with_validation : Specification, IDisposable
     JavaScriptRuntime _runtime = null!;
     string _generatedCode = null!;
     QueryDescriptor _descriptor = null!;
-    bool _typeScriptIsValid;
+    IReadOnlyList<string> _diagnostics = null!;
 
     void Establish()
     {
@@ -48,16 +48,7 @@ public class when_generating_query_with_validation : Specification, IDisposable
     void Because()
     {
         _generatedCode = InMemoryProxyGenerator.GenerateQuery(_descriptor);
-
-        try
-        {
-            var transpiledCode = _runtime.TranspileTypeScript(_generatedCode);
-            _typeScriptIsValid = !string.IsNullOrEmpty(transpiledCode);
-        }
-        catch
-        {
-            _typeScriptIsValid = false;
-        }
+        _diagnostics = _runtime.GetSyntacticDiagnostics(_generatedCode);
     }
 
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeEmpty();
@@ -68,7 +59,7 @@ public class when_generating_query_with_validation : Specification, IDisposable
     [Fact] void should_contain_less_than_or_equal_rule() => _generatedCode.ShouldContain(".lessThanOrEqual(150)");
     [Fact] void should_contain_rule_for_search_term() => _generatedCode.ShouldContain("this.ruleFor(c => c.searchTerm)");
     [Fact] void should_contain_min_length_rule() => _generatedCode.ShouldContain(".minLength(3)");
-    [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
+    [Fact] void should_produce_typescript_the_compiler_accepts() => _diagnostics.ShouldBeEmpty();
 
     public void Dispose() => _runtime?.Dispose();
 }

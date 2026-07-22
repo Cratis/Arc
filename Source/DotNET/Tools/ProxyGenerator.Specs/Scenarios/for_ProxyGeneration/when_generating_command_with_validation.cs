@@ -11,7 +11,7 @@ public class when_generating_command_with_validation : Specification, IDisposabl
     JavaScriptRuntime _runtime = null!;
     string _generatedCode = null!;
     CommandDescriptor _descriptor = null!;
-    bool _typeScriptIsValid;
+    IReadOnlyList<string> _diagnostics = null!;
 
     void Establish()
     {
@@ -45,16 +45,7 @@ public class when_generating_command_with_validation : Specification, IDisposabl
     void Because()
     {
         _generatedCode = InMemoryProxyGenerator.GenerateCommand(_descriptor);
-
-        try
-        {
-            var transpiledCode = _runtime.TranspileTypeScript(_generatedCode);
-            _typeScriptIsValid = !string.IsNullOrEmpty(transpiledCode);
-        }
-        catch
-        {
-            _typeScriptIsValid = false;
-        }
+        _diagnostics = _runtime.GetSyntacticDiagnostics(_generatedCode);
     }
 
     [Fact] void should_generate_code() => _generatedCode.ShouldNotBeEmpty();
@@ -69,7 +60,7 @@ public class when_generating_command_with_validation : Specification, IDisposabl
     [Fact] void should_contain_min_length_rule_for_name() => _generatedCode.ShouldContain(".minLength(2)");
     [Fact] void should_contain_max_length_rule_for_name() => _generatedCode.ShouldContain(".maxLength(50)");
     [Fact] void should_emit_the_regex_rule_as_a_regular_expression_literal() => _generatedCode.ShouldContain(@".matches(/^\d{4}$/)");
-    [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
+    [Fact] void should_produce_typescript_the_compiler_accepts() => _diagnostics.ShouldBeEmpty();
 
     public void Dispose() => _runtime?.Dispose();
 }

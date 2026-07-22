@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Microsoft.ClearScript.V8;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
@@ -49,9 +50,26 @@ public sealed class JavaScriptRuntime : IDisposable
     /// <returns>The transpiled JavaScript code.</returns>
     public string TranspileTypeScript(string typeScriptCode)
     {
-        var escapedCode = typeScriptCode.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
+        var escapedCode = EscapeForTemplateLiteral(typeScriptCode);
         var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
         return result?.ToString() ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Gets the syntactic diagnostics the TypeScript compiler reports for a piece of code.
+    /// </summary>
+    /// <param name="typeScriptCode">The TypeScript code to check.</param>
+    /// <returns>The diagnostic messages; empty when the code parses cleanly.</returns>
+    /// <remarks>
+    /// <see cref="TranspileTypeScript"/> emits best-effort output even for code that does not parse, so a non-empty
+    /// transpilation proves nothing. This surfaces what the compiler actually objects to, so a spec can assert on an
+    /// empty collection and show the offending messages when it fails.
+    /// </remarks>
+    public IReadOnlyList<string> GetSyntacticDiagnostics(string typeScriptCode)
+    {
+        var escapedCode = EscapeForTemplateLiteral(typeScriptCode);
+        var result = Evaluate($"JSON.stringify((ts.transpileModule(`{escapedCode}`, {{ compilerOptions: {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }}, reportDiagnostics: true }}).diagnostics || []).map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')))");
+        return JsonSerializer.Deserialize<string[]>(result?.ToString() ?? "[]") ?? [];
     }
 
     /// <summary>
@@ -161,6 +179,9 @@ public sealed class JavaScriptRuntime : IDisposable
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
         return File.Exists(fullPath);
     }
+
+    static string EscapeForTemplateLiteral(string code) =>
+        code.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
 
     static string? FindDirectoryInHierarchy(string startPath, string directoryName)
     {
