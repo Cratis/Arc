@@ -39,7 +39,7 @@ public class DiscoverableValidators : IDiscoverableValidators
             var interfaces = _.GetInterfaces();
             var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
             var modelType = validatorType.GetGenericArguments()[0];
-            return !_.IsAssignableTo(typeof(AbstractValidator<>).MakeGenericType(modelType));
+            return !DerivesFromAbstractValidatorOf(_, modelType);
         }).ToArray();
 
         if (invalidValidators.Length > 0)
@@ -75,6 +75,34 @@ public class DiscoverableValidators : IDiscoverableValidators
         }
 
         validator = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Determines whether a type derives from <see cref="AbstractValidator{T}"/> closed over the given model type.
+    /// </summary>
+    /// <param name="type">The candidate validator type.</param>
+    /// <param name="modelType">The model type the validator must be for.</param>
+    /// <returns>True when the type derives from <c>AbstractValidator&lt;modelType&gt;</c>; otherwise false.</returns>
+    /// <remarks>
+    /// This replaces <c>IsAssignableTo(typeof(AbstractValidator&lt;&gt;).MakeGenericType(modelType))</c>. Constructing a
+    /// closed generic through <c>MakeGenericType</c> at runtime is not statically analyzable and breaks under
+    /// NativeAOT/trimming, whereas reading the generic argument off an already-constructed base type in the chain is
+    /// AOT-safe and preserves the exact "must be an AbstractValidator for this model" semantics — including rejecting a
+    /// validator whose <see cref="AbstractValidator{T}"/> is closed over a different model type.
+    /// </remarks>
+    static bool DerivesFromAbstractValidatorOf(Type type, Type modelType)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType &&
+                current.GetGenericTypeDefinition() == typeof(AbstractValidator<>) &&
+                current.GetGenericArguments()[0] == modelType)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

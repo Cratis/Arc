@@ -30,8 +30,12 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
     {
         try
         {
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(instance.GetType());
-            var validationContext = Activator.CreateInstance(validationContextType, instance) as IValidationContext;
+            // A ValidationContext<object> wrapping the instance is enough: FluentValidation's own
+            // AbstractValidator<T>.ValidateAsync rebuilds a ValidationContext<T> from any non-generic context whose
+            // InstanceToValidate is a T. Constructing ValidationContext<object> directly keeps this statically
+            // analyzable, unlike typeof(ValidationContext<>).MakeGenericType(...) + Activator.CreateInstance which
+            // NativeAOT and trimming cannot preserve.
+            var validationContext = new ValidationContext<object>(instance);
             var validationResult = await validator.ValidateAsync(validationContext, cancellationToken);
             if (validationResult.IsValid)
             {

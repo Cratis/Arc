@@ -4,17 +4,17 @@
 namespace Cratis.Arc.Tenancy;
 
 /// <summary>
-/// Holds constants related to correlation id.
+/// Holds constants related to tenant id.
 /// </summary>
 public static class Constants
 {
     /// <summary>
-    /// Gets the header name for the correlation id.
+    /// Gets the default header name for the tenant id.
     /// </summary>
     public const string DefaultTenantIdHeader = "x-cratis-tenant-id";
 
     /// <summary>
-    /// Gets the item key for the correlation id.
+    /// Gets the item key for the tenant id.
     /// </summary>
     public const string TenantIdItemKey = "TenantId";
 }
