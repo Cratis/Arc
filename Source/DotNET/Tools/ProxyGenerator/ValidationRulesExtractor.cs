@@ -726,9 +726,11 @@ public static class ValidationRulesExtractor
 
     static ValidationRuleDescriptor ExtractExactLengthRule(object validator, string? errorMessage)
     {
+        // ExactLengthValidator has no Length property - it is a LengthValidator whose Min and Max both carry the
+        // exact length.
         var validatorType = validator.GetType();
-        var lengthProperty = validatorType.GetProperty("Length", BindingFlags.Public | BindingFlags.Instance);
-        var length = lengthProperty?.GetValue(validator) as int? ?? 0;
+        var minProperty = validatorType.GetProperty("Min", BindingFlags.Public | BindingFlags.Instance);
+        var length = minProperty?.GetValue(validator) as int? ?? 0;
         return new ValidationRuleDescriptor("length", [length, length], errorMessage);
     }
 
