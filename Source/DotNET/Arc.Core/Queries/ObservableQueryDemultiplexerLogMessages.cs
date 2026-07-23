@@ -48,4 +48,7 @@ internal static partial class ObservableQueryDemultiplexerLogMessages
 
     [LoggerMessage(LogLevel.Error, "Error in observable subscription for query id '{QueryId}'")]
     internal static partial void SubscriptionError(this ILogger<ObservableQueryDemultiplexer> logger, string queryId, Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "Emission for query id '{QueryId}' arrived after the connection was disposed — dropping it as the client has disconnected")]
+    internal static partial void EmissionAfterDisconnect(this ILogger<ObservableQueryDemultiplexer> logger, string queryId);
 }

@@ -158,15 +158,18 @@ public class ObservableQueryDemultiplexer(
         {
             _sseConnections.TryRemove(connectionId, out _);
 
+            // Signal cancellation and drain the keep-alive loop before disposing the per-subscription
+            // resources, so an in-flight emission observes the cancellation and stops touching the write lock
+            // and cancellation source before they are torn down, rather than racing against their disposal.
+            await linkedCts.CancelAsync();
+            await keepAliveTask;
+
             foreach (var subscription in state.Subscriptions.Values)
             {
                 subscription.Dispose();
             }
 
             state.Subscriptions.Clear();
-
-            await linkedCts.CancelAsync();
-            await keepAliveTask;
         }
 
         logger.SseClientDisconnected(connectionId);
@@ -588,6 +591,14 @@ public class ObservableQueryDemultiplexer(
 
         return new CompositeDisposable(subscription, emissionGate);
 
+        // This is an async void callback invoked by the subject on a background (ThreadPool) thread. Any
+        // exception that escapes it is unobserved and terminates the whole process. The connection's
+        // per-subscription resources (the emission gate, the write lock and the linked cancellation source)
+        // are disposed the moment the client disconnects, and an emission already in flight then races against
+        // that disposal — touching a disposed SemaphoreSlim or CancellationTokenSource throws
+        // ObjectDisposedException. The entire body is therefore wrapped so that nothing can propagate: the
+        // expected disconnect signals (cancellation, disposal, broken transport) become no-ops, and only a
+        // genuine failure is surfaced to the subscriber.
         async void OnEmission(T data)
         {
             if (token.IsCancellationRequested)
@@ -595,9 +606,12 @@ public class ObservableQueryDemultiplexer(
                 return;
             }
 
-            await emissionGate.WaitAsync(token);
+            var gateAcquired = false;
             try
             {
+                await emissionGate.WaitAsync(token);
+                gateAcquired = true;
+
                 var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, serviceProvider);
 
                 var isFirstEmission = previousItems is null;
@@ -648,12 +662,24 @@ public class ObservableQueryDemultiplexer(
             }
             catch (OperationCanceledException)
             {
-                // Connection cancelled — nothing to report.
+                // The connection was cancelled — expected when the client disconnects. No-op.
+                logger.EmissionAfterDisconnect(queryId);
             }
-            catch (Exception error) when (error is not IOException)
+            catch (ObjectDisposedException)
             {
-                // Transport errors (broken pipe, reset connection) indicate the client disconnected and are
-                // ignored; anything else is a genuine failure that must be surfaced to the subscriber.
+                // A per-subscription resource (emission gate / write lock / cancellation source) was disposed
+                // while this emission was in flight — expected when the client disconnects mid-emission. This
+                // must never escape an async void callback, so it is swallowed and treated as a no-op.
+                logger.EmissionAfterDisconnect(queryId);
+            }
+            catch (IOException)
+            {
+                // Transport error (broken pipe, reset connection) — the client disconnected. Ignored.
+                logger.EmissionAfterDisconnect(queryId);
+            }
+            catch (Exception error)
+            {
+                // Anything else is a genuine failure that must be surfaced to the subscriber.
                 if (!token.IsCancellationRequested)
                 {
                     logger.SubscriptionError(queryId, error);
@@ -662,7 +688,18 @@ public class ObservableQueryDemultiplexer(
             }
             finally
             {
-                emissionGate.Release();
+                if (gateAcquired)
+                {
+                    try
+                    {
+                        emissionGate.Release();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // The emission gate was disposed while this emission was in flight — expected on
+                        // client disconnect. There is nothing to release.
+                    }
+                }
             }
         }
 
@@ -746,6 +783,10 @@ public class ObservableQueryDemultiplexer(
         {
             // Transport error — client disconnected. Do not forward to the client.
         }
+        catch (ObjectDisposedException)
+        {
+            // The connection's resources were disposed while streaming — expected on client disconnect.
+        }
         catch (Exception ex)
         {
             logger.SubscriptionError(queryId, ex);
@@ -782,6 +823,11 @@ public class ObservableQueryDemultiplexer(
         {
             // Normal shutdown or token cancelled
         }
+        catch (ObjectDisposedException)
+        {
+            // The write lock or the linked cancellation source was disposed as the connection ended —
+            // expected when the client disconnects. Nothing to send.
+        }
         catch (Exception ex)
         {
             logger.ErrorSendingMessage(ex);
@@ -790,7 +836,14 @@ public class ObservableQueryDemultiplexer(
         {
             if (lockHeld)
             {
-                writeLock.Release();
+                try
+                {
+                    writeLock.Release();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The write lock was disposed while sending — expected on client disconnect.
+                }
             }
         }
     }
@@ -816,22 +869,27 @@ public class ObservableQueryDemultiplexer(
         catch (HttpListenerException)
         {
             // Client disconnected — cancel the connection token source to trigger cleanup.
-            await cts.CancelAsync();
+            await CancelQuietly(cts);
         }
         catch (IOException)
         {
             // On macOS and some .NET runtimes, HttpListener throws IOException for broken-pipe
             // instead of HttpListenerException — treat identically.
-            await cts.CancelAsync();
+            await CancelQuietly(cts);
         }
         catch (ArgumentNullException ex) when (ex.ParamName == "array")
         {
             // StreamPipeWriter can throw this during response teardown when writes race with transport shutdown.
-            await cts.CancelAsync();
+            await CancelQuietly(cts);
         }
         catch (OperationCanceledException)
         {
             // Normal shutdown — nothing to report.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The linked cancellation source (or write lock) was disposed as the connection ended — expected
+            // when the client disconnects mid-write. Nothing to send.
         }
         catch (Exception ex)
         {
@@ -841,7 +899,14 @@ public class ObservableQueryDemultiplexer(
         {
             if (writeLockHeld)
             {
-                writeLock.Release();
+                try
+                {
+                    writeLock.Release();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The write lock was disposed while sending — expected on client disconnect.
+                }
             }
         }
     }
@@ -911,6 +976,25 @@ public class ObservableQueryDemultiplexer(
     }
 
 #pragma warning disable SA1204 // Static members should appear before non-static members
+
+    /// <summary>
+    /// Cancels a <see cref="CancellationTokenSource"/> while tolerating it already having been disposed as the
+    /// connection ended — cancelling a disposed source would otherwise throw <see cref="ObjectDisposedException"/>.
+    /// </summary>
+    /// <param name="cts">The <see cref="CancellationTokenSource"/> to cancel.</param>
+    /// <returns>Awaitable task.</returns>
+    static async Task CancelQuietly(CancellationTokenSource cts)
+    {
+        try
+        {
+            await cts.CancelAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed as the connection ended — nothing to cancel.
+        }
+    }
+
     static bool IsStreamingResult(object data) =>
         data.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) ||
         data.GetType().ImplementsOpenGeneric(typeof(IAsyncEnumerable<>));
