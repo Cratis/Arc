@@ -43,7 +43,13 @@ public static class AggregateRootServiceCollectionExtensions
                     .First(m => m.Name == nameof(IAggregateRootFactory.Get) && m.IsGenericMethod);
 
                 var genericGetMethod = getMethod.MakeGenericMethod(aggregateRootType);
-                return genericGetMethod.Invoke(aggregateRootFactory, [eventSourceId, null, null])!;
+
+                // IAggregateRootFactory.Get is async (it rehydrates from the event stream), so Invoke returns a
+                // Task<TAggregateRoot>. Unwrap it here so the resolved dependency is the aggregate root itself and
+                // not the Task — the command handler argument resolver injects this value directly, without awaiting.
+                var task = (Task)genericGetMethod.Invoke(aggregateRootFactory, [eventSourceId, null, null])!;
+                task.GetAwaiter().GetResult();
+                return task.GetType().GetProperty("Result")!.GetValue(task)!;
             });
         }
 
