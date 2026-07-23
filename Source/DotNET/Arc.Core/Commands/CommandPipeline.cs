@@ -193,7 +193,13 @@ public class CommandPipeline(
             return typed;
         }
 
-        if (result.GetType() == typeof(CommandResult))
+        // The pipeline builds the result as CommandResult<runtimeTypeOfResponse>, which is not CommandResult<TResult>
+        // even when the response is assignable to TResult (generics are invariant, so CommandResult<Dog> is not a
+        // CommandResult<IAnimal>). Re-wrap when there is no response, or the response is a TResult — covering both the
+        // failure/no-response case and a TResult that is an interface or base type. Only a genuine type mismatch falls
+        // through to the cast, which still throws the documented InvalidCastException.
+        var response = result.ResponseValue;
+        if (response is null || response is TResult)
         {
             return new CommandResult<TResult>
             {
@@ -202,7 +208,8 @@ public class CommandPipeline(
                 ValidationResults = result.ValidationResults,
                 ExceptionMessages = result.ExceptionMessages,
                 ExceptionStackTrace = result.ExceptionStackTrace,
-                AuthorizationFailureReason = result.AuthorizationFailureReason
+                AuthorizationFailureReason = result.AuthorizationFailureReason,
+                Response = response is TResult typedResponse ? typedResponse : default
             };
         }
 

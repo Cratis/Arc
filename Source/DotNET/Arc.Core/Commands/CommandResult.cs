@@ -59,6 +59,12 @@ public class CommandResult
     public string AuthorizationFailureReason { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets the response value carried by this result, if any, boxed as an <see cref="object"/>. This lets a caller
+    /// read the response without knowing its concrete generic type.
+    /// </summary>
+    protected internal virtual object? ResponseValue => null;
+
+    /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing a successful command execution.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
@@ -182,6 +188,9 @@ public class CommandResult<TResponse> : CommandResult
     /// Gets or sets the optional response object that will be returned from the command handler.
     /// </summary>
     public TResponse? Response { get; set; }
+
+    /// <inheritdoc/>
+    protected internal override object? ResponseValue => Response;
 
     /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing a successful command execution.
