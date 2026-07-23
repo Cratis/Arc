@@ -101,9 +101,24 @@ public class AggregateRootCommitResult
         IUnitOfWork unitOfWork,
         IEnumerable<EventSequenceNumber> sequenceNumbers,
         IEnumerable<ValidationResult>? validationResults = default) =>
+        CreateFrom(unitOfWork, unitOfWork.GetEvents(), sequenceNumbers, validationResults);
+
+    /// <summary>
+    /// Create an <see cref="AggregateRootCommitResult"/> for a specific set of committed events.
+    /// </summary>
+    /// <param name="unitOfWork"><see cref="IUnitOfWork"/> to take violations and errors from.</param>
+    /// <param name="events">The committed events to report, corresponding one-to-one with <paramref name="sequenceNumbers"/>.</param>
+    /// <param name="sequenceNumbers">The <see cref="EventSequenceNumber"/> values assigned to each committed event, in order.</param>
+    /// <param name="validationResults">Optional collection of <see cref="ValidationResult"/> reported during processing.</param>
+    /// <returns>A new instance of <see cref="AggregateRootCommitResult"/>.</returns>
+    public static AggregateRootCommitResult CreateFrom(
+        IUnitOfWork unitOfWork,
+        IEnumerable<object> events,
+        IEnumerable<EventSequenceNumber> sequenceNumbers,
+        IEnumerable<ValidationResult>? validationResults = default) =>
         new()
         {
-            Events = unitOfWork.GetEvents().ToArray(),
+            Events = events.ToArray(),
             SequenceNumbers = sequenceNumbers.ToArray(),
             ConstraintViolations = unitOfWork.GetConstraintViolations().ToArray(),
             ConcurrencyViolations = unitOfWork.GetConcurrencyViolations().ToArray(),
