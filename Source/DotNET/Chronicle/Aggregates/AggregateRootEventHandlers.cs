@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Reactors;
 
@@ -46,19 +47,27 @@ public class AggregateRootEventHandlers : IAggregateRootEventHandlers
             var eventType = eventAndContext.Event.GetType();
             if (_methodsByEventType.TryGetValue(eventType, out var method))
             {
-                Task returnValue;
-                var parameters = method.GetParameters();
+                object[] arguments = method.GetParameters().Length == 2
+                    ? [eventAndContext.Event, eventAndContext.Context]
+                    : [eventAndContext.Event];
 
-                if (parameters.Length == 2)
+                try
                 {
-                    returnValue = (Task)method.Invoke(target, [eventAndContext.Event, eventAndContext.Context])!;
+                    var returnValue = (Task?)method.Invoke(target, arguments);
+                    if (returnValue is not null)
+                    {
+                        await returnValue;
+                    }
                 }
-                else
+                catch (TargetInvocationException ex) when (ex.InnerException is not null)
                 {
-                    returnValue = (Task)method.Invoke(target, [eventAndContext.Event])!;
+                    // A void or synchronous Task handler that throws surfaces the real exception wrapped in a
+                    // TargetInvocationException from MethodInfo.Invoke. Unwrap it — as the command handler path does
+                    // — so callers see the actual exception type and stack, not the reflection wrapper.
+                    ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                    throw;
                 }
 
-                if (returnValue is not null) await returnValue;
                 onHandledEvent?.Invoke(eventAndContext);
             }
         }
