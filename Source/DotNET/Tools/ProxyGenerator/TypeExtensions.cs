@@ -575,6 +575,21 @@ public static class TypeExtensions
                 {
                     imports.Add(new ImportStatement(property.OriginalType, "ValueMap", "@cratis/fundamentals"));
                 }
+
+                // A package-mapped key or value (for example Guid, TimeSpan, or a concept over one) still needs its
+                // own import. It is not collected into typesInvolved above (primitives/concepts are skipped), and a
+                // dictionary property's own Module is empty, so the general property import below never covers it —
+                // leaving the generated Record/ValueMap referencing an undeclared type.
+                if (resolvedKeyTargetType.FromPackage)
+                {
+                    imports.Add(new ImportStatement(resolvedKeyType, resolvedKeyTargetType.Type, resolvedKeyTargetType.Module));
+                }
+
+                var effectiveValueTargetType = effectiveValueType.GetTargetType();
+                if (effectiveValueTargetType.FromPackage)
+                {
+                    imports.Add(new ImportStatement(effectiveValueType, effectiveValueTargetType.Type, effectiveValueTargetType.Module));
+                }
             }
             if (!string.IsNullOrEmpty(property.Module))
             {
