@@ -684,7 +684,11 @@ public static class TypeExtensions
     /// <returns>Converted <see cref="EnumDescriptor"/>.</returns>
     public static EnumDescriptor ToEnumDescriptor(this Type type)
     {
-        var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
+        // Keep the underlying values boxed as-is. GetValuesAsUnderlyingType returns the enum's actual underlying
+        // type (byte, long, ...), and Cast<int> unbox-casts each element to int, which throws for any enum not
+        // backed by int — e.g. `enum X : byte` or `[Flags] enum X : long`. EnumMemberDescriptor.Value is object
+        // and the flags math uses Convert.ToInt64, so the boxed underlying value flows through unchanged.
+        var values = Enum.GetValuesAsUnderlyingType(type).Cast<object>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
         var isFlags = type.IsFlagsEnum();
