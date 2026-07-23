@@ -17,7 +17,7 @@ public class EventsCommandResponseValueHandler(IEventLog eventLog, IEventTypes e
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>
         (value is IEnumerable<object> objects) &&
-        objects.All(o => eventTypes.HasFor(o.GetType())) &&
+        objects.All(o => o is not null && eventTypes.HasFor(o.GetType())) &&
         commandContext.HasEventSourceId();
 
     /// <inheritdoc/>
