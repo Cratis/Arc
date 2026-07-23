@@ -576,7 +576,9 @@ public class ObservableQueryDemultiplexer(
         // Interception (compliance/PII release) is asynchronous. Emissions are serialized through this gate so
         // the per-emission interception and the ChangeSet's previous/current item bookkeeping stay ordered even
         // when the underlying subject delivers the next value before the previous one has finished interception.
-        var emissionGate = new SemaphoreSlim(1, 1);
+        // The gate also keeps the async-void observer callback below safe across teardown: once it is disposed or
+        // the token is cancelled, emissions are dropped rather than throwing out of the callback.
+        var emissionGate = new SerializedEmissionGate();
 
         // Capture the per-subscription query context here, while the AsyncLocal still carries the
         // context set up by the query pipeline. Observer callbacks below are invoked from the MongoDB
@@ -588,14 +590,12 @@ public class ObservableQueryDemultiplexer(
 
         return new CompositeDisposable(subscription, emissionGate);
 
-        async void OnEmission(T data)
-        {
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
+        // The subject invokes this synchronously from the change-stream thread; it must not throw. The gate runs the
+        // actual emission serialized and swallows teardown, so this is a plain hand-off that never faults.
+        void OnEmission(T data) => _ = emissionGate.Emit(() => EmitCore(data), token);
 
-            await emissionGate.WaitAsync(token);
+        async Task EmitCore(T data)
+        {
             try
             {
                 var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, serviceProvider);
@@ -659,10 +659,6 @@ public class ObservableQueryDemultiplexer(
                     logger.SubscriptionError(queryId, error);
                     _ = onError(queryId, error.Message);
                 }
-            }
-            finally
-            {
-                emissionGate.Release();
             }
         }
 
