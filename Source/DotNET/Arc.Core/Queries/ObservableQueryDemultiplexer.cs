@@ -280,6 +280,49 @@ public class ObservableQueryDemultiplexer(
         context.SetStatusCode(200);
     }
 
+    /// <summary>
+    /// Subscribes to a streaming query result — an <see cref="ISubject{T}"/> or an <see cref="IAsyncEnumerable{T}"/>
+    /// — and returns a disposable that tears the subscription down.
+    /// </summary>
+    /// <param name="streamingData">The streaming result to subscribe to.</param>
+    /// <param name="queryId">The id of the query the subscription is for.</param>
+    /// <param name="paging">The <see cref="PagingInfo"/> to report with each result.</param>
+    /// <param name="transferMode">The transfer mode (for example delta or full), or null for the default.</param>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> to stamp each result with.</param>
+    /// <param name="onNext">Callback invoked with each streamed <see cref="QueryResult"/>.</param>
+    /// <param name="onError">Callback invoked with the query id and message when the subscription errors.</param>
+    /// <param name="token">The connection's <see cref="CancellationToken"/>.</param>
+    /// <returns>An <see cref="IDisposable"/> that stops the subscription, or null when the data is not streamable.</returns>
+    internal IDisposable? SubscribeToStreamingData(
+        object streamingData,
+        string queryId,
+        PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
+        Func<QueryResult, Task> onNext,
+        Func<string, string, Task> onError,
+        CancellationToken token)
+    {
+        var type = streamingData.GetType();
+
+        if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
+        {
+            return SubscribeToSubject(streamingData, type, queryId, paging, transferMode, correlationId, onNext, onError, token);
+        }
+
+        if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
+        {
+            // Drive the background stream from a per-subscription token linked to the connection's, and hand back a
+            // disposable that cancels it. Returning null here left the stream untracked: unsubscribe could not stop
+            // it, and re-subscribing the same query started a second one while the first kept pushing results.
+            var streamCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, correlationId, onNext, onError, streamCancellationTokenSource.Token);
+            return new StreamingQuerySubscription(streamCancellationTokenSource);
+        }
+
+        return null;
+    }
+
     async Task ReadWebSocketMessages(
         IWebSocket webSocket,
         ConcurrentDictionary<string, IDisposable> subscriptions,
@@ -510,31 +553,6 @@ public class ObservableQueryDemultiplexer(
         }
 
         return SubscribeToStreamingData(streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, onNext, onError, token);
-    }
-
-    IDisposable? SubscribeToStreamingData(
-        object streamingData,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        Func<QueryResult, Task> onNext,
-        Func<string, string, Task> onError,
-        CancellationToken token)
-    {
-        var type = streamingData.GetType();
-
-        if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
-        {
-            return SubscribeToSubject(streamingData, type, queryId, paging, transferMode, correlationId, onNext, onError, token);
-        }
-
-        if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
-        {
-            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, correlationId, onNext, onError, token);
-        }
-
-        return null;
     }
 
     IDisposable SubscribeToSubject(
