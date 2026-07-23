@@ -38,3 +38,8 @@ public class TypeWithStringKeyPackageValueDictionaryProperty
 {
     public IDictionary<string, Guid> Ids { get; set; } = new Dictionary<string, Guid>();
 }
+
+public class TypeWithPackageKeyDictionaryProperty
+{
+    public IDictionary<Guid, string> Names { get; set; } = new Dictionary<Guid, string>();
+}
