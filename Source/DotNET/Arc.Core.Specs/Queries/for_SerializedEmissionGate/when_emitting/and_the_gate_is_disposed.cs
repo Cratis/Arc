@@ -20,11 +20,15 @@ public class and_the_gate_is_disposed : Specification
         _gate.Dispose();
     }
 
-    async Task Because() => _error = await Catch.Exception(() => _gate.Emit(() =>
+    async Task Because() => _error = await Catch.Exception(Emit);
+
+    Task Emit() => _gate.Emit(Run, CancellationToken.None);
+
+    Task Run()
     {
         _ran = true;
         return Task.CompletedTask;
-    }, CancellationToken.None));
+    }
 
     [Fact] void should_not_run_the_emission() => _ran.ShouldBeFalse();
     [Fact] void should_not_throw() => _error.ShouldBeNull();

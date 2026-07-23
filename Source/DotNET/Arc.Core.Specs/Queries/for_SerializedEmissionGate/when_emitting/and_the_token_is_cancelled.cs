@@ -11,11 +11,15 @@ public class and_the_token_is_cancelled : Specification
 
     void Establish() => _gate = new SerializedEmissionGate();
 
-    async Task Because() => _error = await Catch.Exception(() => _gate.Emit(() =>
+    async Task Because() => _error = await Catch.Exception(Emit);
+
+    Task Emit() => _gate.Emit(Run, new CancellationToken(canceled: true));
+
+    Task Run()
     {
         _ran = true;
         return Task.CompletedTask;
-    }, new CancellationToken(canceled: true)));
+    }
 
     [Fact] void should_not_run_the_emission() => _ran.ShouldBeFalse();
     [Fact] void should_not_throw() => _error.ShouldBeNull();

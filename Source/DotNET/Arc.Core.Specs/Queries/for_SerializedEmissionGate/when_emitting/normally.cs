@@ -10,11 +10,13 @@ public class normally : Specification
 
     void Establish() => _gate = new SerializedEmissionGate();
 
-    async Task Because() => await _gate.Emit(() =>
+    async Task Because() => await _gate.Emit(Run, CancellationToken.None);
+
+    Task Run()
     {
         _ran = true;
         return Task.CompletedTask;
-    }, CancellationToken.None);
+    }
 
     [Fact] void should_run_the_emission() => _ran.ShouldBeTrue();
 

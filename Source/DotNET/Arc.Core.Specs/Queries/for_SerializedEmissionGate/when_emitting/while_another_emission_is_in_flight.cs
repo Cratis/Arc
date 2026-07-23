@@ -14,6 +14,7 @@ public class while_another_emission_is_in_flight : Specification
     TaskCompletionSource _releaseFirst;
     Task _first;
     Task _second;
+    bool _secondRan;
     bool _secondRanWhileFirstHeldTheGate;
 
     void Establish()
@@ -25,29 +26,31 @@ public class while_another_emission_is_in_flight : Specification
 
     async Task Because()
     {
-        var secondRan = false;
-
-        _first = _gate.Emit(async () =>
-        {
-            _firstStarted.SetResult();
-            await _releaseFirst.Task;
-        }, CancellationToken.None);
+        _first = _gate.Emit(FirstEmission, CancellationToken.None);
 
         // The first emission is now holding the gate.
         await _firstStarted.Task;
 
-        _second = _gate.Emit(() =>
-        {
-            secondRan = true;
-            return Task.CompletedTask;
-        }, CancellationToken.None);
+        _second = _gate.Emit(SecondEmission, CancellationToken.None);
 
         // Give the second emission ample opportunity to run if the gate were not serializing.
         await Task.Delay(100);
-        _secondRanWhileFirstHeldTheGate = secondRan;
+        _secondRanWhileFirstHeldTheGate = _secondRan;
 
         _releaseFirst.SetResult();
         await Task.WhenAll(_first, _second);
+    }
+
+    async Task FirstEmission()
+    {
+        _firstStarted.SetResult();
+        await _releaseFirst.Task;
+    }
+
+    Task SecondEmission()
+    {
+        _secondRan = true;
+        return Task.CompletedTask;
     }
 
     [Fact] void should_hold_the_second_emission_until_the_first_releases() => _secondRanWhileFirstHeldTheGate.ShouldBeFalse();
