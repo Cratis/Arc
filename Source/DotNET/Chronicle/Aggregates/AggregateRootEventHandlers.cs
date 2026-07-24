@@ -51,21 +51,25 @@ public class AggregateRootEventHandlers : IAggregateRootEventHandlers
                     ? [eventAndContext.Event, eventAndContext.Context]
                     : [eventAndContext.Event];
 
+                Task? returnValue;
                 try
                 {
-                    var returnValue = (Task?)method.Invoke(target, arguments);
-                    if (returnValue is not null)
-                    {
-                        await returnValue;
-                    }
+                    returnValue = (Task?)method.Invoke(target, arguments);
                 }
                 catch (TargetInvocationException ex) when (ex.InnerException is not null)
                 {
-                    // A void or synchronous Task handler that throws surfaces the real exception wrapped in a
-                    // TargetInvocationException from MethodInfo.Invoke. Unwrap it — as the command handler path does
-                    // — so callers see the actual exception type and stack, not the reflection wrapper.
+                    // MethodInfo.Invoke wraps any exception thrown by a void or synchronously-throwing handler in a
+                    // TargetInvocationException. Unwrap it — as the command handler path does — so callers see the
+                    // actual exception type and stack, not the reflection wrapper. Only the invoke itself is guarded:
+                    // an async handler's own faults surface through the awaited task below, outside this catch, so a
+                    // handler that legitimately faults with a TargetInvocationException is never mis-unwrapped.
                     ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
                     throw;
+                }
+
+                if (returnValue is not null)
+                {
+                    await returnValue;
                 }
 
                 onHandledEvent?.Invoke(eventAndContext);
