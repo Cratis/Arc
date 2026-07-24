@@ -37,10 +37,26 @@ public class MongoDBWatcher(
         Expression<Func<TDocument, bool>>? filter = null)
     {
         var databaseName = databaseNameResolver.Resolve();
-        var watch = _watches.GetOrAdd(
+        var lazyWatch = _watches.GetOrAdd(
             databaseName,
             static (name, self) => new Lazy<DatabaseWatch>(() => self.StartWatch(name)),
-            this).Value;
+            this);
+
+        DatabaseWatch watch;
+        try
+        {
+            watch = lazyWatch.Value;
+        }
+        catch
+        {
+            // A Lazy in the default ExecutionAndPublication mode caches a factory exception permanently. If starting
+            // the watch failed — e.g. the client factory threw transiently — evict this exact entry so the next
+            // Observe retries a fresh connection instead of replaying the cached failure for the process lifetime.
+            // The keyed overload removes only while the stored value is still this poisoned Lazy, never a newer one.
+            _watches.TryRemove(new KeyValuePair<string, Lazy<DatabaseWatch>>(databaseName, lazyWatch));
+            throw;
+        }
+
         var collection = watch.Database.GetCollection<TDocument>();
         return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes);
     }
