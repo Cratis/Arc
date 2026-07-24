@@ -33,3 +33,13 @@ public class TypeWithStringKeyCollectionValueDictionaryProperty
 {
     public IDictionary<string, IList<ScenarioDictionaryCollectionElementType>> Slots { get; } = new Dictionary<string, IList<ScenarioDictionaryCollectionElementType>>(StringComparer.Ordinal);
 }
+
+public class TypeWithStringKeyPackageValueDictionaryProperty
+{
+    public IDictionary<string, Guid> Ids { get; set; } = new Dictionary<string, Guid>();
+}
+
+public class TypeWithPackageKeyDictionaryProperty
+{
+    public IDictionary<Guid, string> Names { get; set; } = new Dictionary<Guid, string>();
+}

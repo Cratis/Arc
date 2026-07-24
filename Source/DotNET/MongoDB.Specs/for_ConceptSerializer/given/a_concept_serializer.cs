@@ -23,4 +23,22 @@ public class a_concept_serializer : Specification
         reader.ReadEndDocument();
         return result;
     }
+
+    protected static T Roundtrip<T>(T value)
+    {
+        var document = new BsonDocument();
+        using (var writer = new BsonDocumentWriter(document))
+        {
+            writer.WriteStartDocument();
+            writer.WriteName("value");
+
+            var serializer = new ConceptSerializer<T>();
+            var context = BsonSerializationContext.CreateRoot(writer);
+            serializer.Serialize(context, new BsonSerializationArgs { NominalType = typeof(T) }, value);
+
+            writer.WriteEndDocument();
+        }
+
+        return Deserialize<T>(document["value"]);
+    }
 }

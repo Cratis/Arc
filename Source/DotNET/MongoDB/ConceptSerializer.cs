@@ -94,7 +94,9 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
         }
         else if (underlyingValueType == typeof(float))
         {
-            bsonWriter.WriteDouble((double)underlyingValue);
+            // underlyingValue is a boxed float; unboxing goes to the exact type first, then widens. A direct
+            // (double)underlyingValue unbox-casts the boxed float straight to double and throws InvalidCastException.
+            bsonWriter.WriteDouble((double)(float)underlyingValue);
         }
         else if (underlyingValueType == typeof(int))
         {
@@ -126,8 +128,11 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
         }
         else if (underlyingValueType == typeof(DateTime))
         {
+            // BSON DateTime is milliseconds since the Unix epoch, which is what the deserializer reads back with
+            // DateTimeOffset.FromUnixTimeMilliseconds. Writing ticks-since-0001 (Ticks / TicksPerMillisecond) used a
+            // different epoch, so every value read back as a wildly wrong date.
             var dateTime = (DateTime)underlyingValue;
-            bsonWriter.WriteDateTime(dateTime.ToUniversalTime().Ticks / TimeSpan.TicksPerMillisecond);
+            bsonWriter.WriteDateTime(new DateTimeOffset(dateTime.ToUniversalTime()).ToUnixTimeMilliseconds());
         }
         else if (underlyingValueType == typeof(DateTimeOffset))
         {

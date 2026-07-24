@@ -12,7 +12,7 @@ public static class TenancyOptionsExtensions
     /// Configure tenancy to use HTTP headers for resolving tenant IDs.
     /// </summary>
     /// <param name="options">The <see cref="ArcOptions"/> to configure.</param>
-    /// <param name="headerName">Optional header name to use. Defaults to 'X-Tenant-ID'.</param>
+    /// <param name="headerName">Optional header name to use. Defaults to 'x-cratis-tenant-id'.</param>
     /// <returns>The <see cref="ArcOptions"/> for continuation.</returns>
     public static ArcOptions UseHeaderTenancy(this ArcOptions options, string? headerName = null)
     {
@@ -76,7 +76,7 @@ public static class TenancyOptionsExtensions
     /// Configure tenancy to resolve the tenant ID from the request subdomain, with the HTTP header as fallback.
     /// </summary>
     /// <param name="options">The <see cref="ArcOptions"/> to configure.</param>
-    /// <param name="fallbackHeaderName">Optional header name used as fallback. Defaults to 'X-Tenant-ID'.</param>
+    /// <param name="fallbackHeaderName">Optional header name used as fallback. Defaults to 'x-cratis-tenant-id'.</param>
     /// <returns>The <see cref="ArcOptions"/> for continuation.</returns>
     public static ArcOptions UseSubdomainTenancy(this ArcOptions options, string? fallbackHeaderName = null)
     {

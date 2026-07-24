@@ -68,7 +68,7 @@ public static class TypeExtensions
         { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.JsonDocument).FullName!, ObjectTypeFinal },
-        { typeof(Uri).FullName!, _dateTargetType },
+        { typeof(Uri).FullName!, _stringTargetType },
         { "Cratis.Geospatial.Point", new(typeof(object), "Point", "Point", "@cratis/fundamentals", FromPackage: true) },
         { "Cratis.Geospatial.LineString", new(typeof(object), "LineString", "LineString", "@cratis/fundamentals", FromPackage: true) },
         { "Cratis.Geospatial.Polygon", new(typeof(object), "Polygon", "Polygon", "@cratis/fundamentals", FromPackage: true) }
@@ -575,6 +575,21 @@ public static class TypeExtensions
                 {
                     imports.Add(new ImportStatement(property.OriginalType, "ValueMap", "@cratis/fundamentals"));
                 }
+
+                // A package-mapped key or value (for example Guid, TimeSpan, or a concept over one) still needs its
+                // own import. It is not collected into typesInvolved above (primitives/concepts are skipped), and a
+                // dictionary property's own Module is empty, so the general property import below never covers it —
+                // leaving the generated Record/ValueMap referencing an undeclared type.
+                if (resolvedKeyTargetType.FromPackage)
+                {
+                    imports.Add(new ImportStatement(resolvedKeyType, resolvedKeyTargetType.Type, resolvedKeyTargetType.Module));
+                }
+
+                var effectiveValueTargetType = effectiveValueType.GetTargetType();
+                if (effectiveValueTargetType.FromPackage)
+                {
+                    imports.Add(new ImportStatement(effectiveValueType, effectiveValueTargetType.Type, effectiveValueTargetType.Module));
+                }
             }
             if (!string.IsNullOrEmpty(property.Module))
             {
@@ -684,7 +699,11 @@ public static class TypeExtensions
     /// <returns>Converted <see cref="EnumDescriptor"/>.</returns>
     public static EnumDescriptor ToEnumDescriptor(this Type type)
     {
-        var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
+        // Keep the underlying values boxed as-is. GetValuesAsUnderlyingType returns the enum's actual underlying
+        // type (byte, long, ...), and Cast<int> unbox-casts each element to int, which throws for any enum not
+        // backed by int — e.g. `enum X : byte` or `[Flags] enum X : long`. EnumMemberDescriptor.Value is object
+        // and the flags math uses Convert.ToInt64, so the boxed underlying value flows through unchanged.
+        var values = Enum.GetValuesAsUnderlyingType(type).Cast<object>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
         var isFlags = type.IsFlagsEnum();

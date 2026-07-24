@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Reactors;
 
@@ -46,19 +47,31 @@ public class AggregateRootEventHandlers : IAggregateRootEventHandlers
             var eventType = eventAndContext.Event.GetType();
             if (_methodsByEventType.TryGetValue(eventType, out var method))
             {
-                Task returnValue;
-                var parameters = method.GetParameters();
+                object[] arguments = method.GetParameters().Length == 2
+                    ? [eventAndContext.Event, eventAndContext.Context]
+                    : [eventAndContext.Event];
 
-                if (parameters.Length == 2)
+                Task? returnValue;
+                try
                 {
-                    returnValue = (Task)method.Invoke(target, [eventAndContext.Event, eventAndContext.Context])!;
+                    returnValue = (Task?)method.Invoke(target, arguments);
                 }
-                else
+                catch (TargetInvocationException ex) when (ex.InnerException is not null)
                 {
-                    returnValue = (Task)method.Invoke(target, [eventAndContext.Event])!;
+                    // MethodInfo.Invoke wraps any exception thrown by a void or synchronously-throwing handler in a
+                    // TargetInvocationException. Unwrap it — as the command handler path does — so callers see the
+                    // actual exception type and stack, not the reflection wrapper. Only the invoke itself is guarded:
+                    // an async handler's own faults surface through the awaited task below, outside this catch, so a
+                    // handler that legitimately faults with a TargetInvocationException is never mis-unwrapped.
+                    ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                    throw;
                 }
 
-                if (returnValue is not null) await returnValue;
+                if (returnValue is not null)
+                {
+                    await returnValue;
+                }
+
                 onHandledEvent?.Invoke(eventAndContext);
             }
         }
