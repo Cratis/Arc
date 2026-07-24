@@ -66,6 +66,10 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadMo
         throw new NotSupportedException("Reactors are not supported for command scenarios.");
 
     /// <inheritdoc/>
+    public IReadModelReactors ReadModelReactors =>
+        throw new NotSupportedException("Read model reactors are not supported for command scenarios.");
+
+    /// <inheritdoc/>
     public IReducers Reducers =>
         throw new NotSupportedException("Reducers are not supported for command scenarios.");
 
