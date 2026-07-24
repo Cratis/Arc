@@ -137,6 +137,8 @@ When checking for unused code, missing references, or naming consistency, prefer
 - [ ] Happy path covered
 - [ ] All validation rules covered
 - [ ] All constraint violations covered
+- [ ] Bug fixes cover the fix's perimeter — failure, async, boundary, and recovery paths — not just the reported scenario
+- [ ] Each regression spec is proven to fail against the pre-fix code (not assumed)
 - [ ] No specs for simple property getters or constructor pass-throughs
 - [ ] Chai fluent interface used in TypeScript specs (not `expect()`)
 
