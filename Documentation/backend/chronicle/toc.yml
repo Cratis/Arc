@@ -1,23 +1,25 @@
-- name: Aggregates
-  href: aggregates/toc.yml
+- name: Overview
+  href: index.md
 - name: Add event sourcing to an Arc slice
   href: add-event-sourcing.mdx
 - name: Cratis Package
   href: cratis-package.md
-- name: React to an event
-  href: react-to-an-event.md
-- name: Reactors
-  href: reactors/toc.yml
-- name: Read Models
-  href: read-models/toc.yml
 - name: Commands
   href: commands/toc.yml
 - name: Resolving EventSourceId
   href: resolving-event-source-id.md
-- name: Tenancy
-  href: tenancy.md
+- name: Read Models
+  href: read-models/toc.yml
 - name: Validation
   href: validation.md
+- name: Aggregates
+  href: aggregates/toc.yml
+- name: React to an event
+  href: react-to-an-event.md
+- name: Reactors
+  href: reactors/toc.yml
+- name: Tenancy
+  href: tenancy.md
 - name: Compliance
   href: compliance/toc.yml
 - name: Code Analysis
