@@ -1,7 +1,7 @@
 ---
-uid: Arc.Chronicle.Commands.ReturningEventSourceId
+title: Returning EventSourceId from a command
+description: Hand the generated identity back to the caller when the command is what creates the entity.
 ---
-# Returning EventSourceId from a command
 
 Return `EventSourceId` from `Handle()` when the command decides which event source to append to at runtime. This is the pattern to use when the command does not already carry the final identity as part of its input.
 

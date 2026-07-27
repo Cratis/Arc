@@ -86,7 +86,7 @@ Seed events before calling `Execute` so they are present when the command handle
 
 ## EventLog Assertion Helpers
 
-Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see <xref:Chronicle.Testing.Events.Assertions>.
+Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see the [Chronicle event assertions reference](/chronicle/testing/events/assertions/).
 
 ## Transactional Commands in Tests
 

@@ -1,4 +1,7 @@
-# ARCCHR0005: Chronicle is used but not wired up
+---
+title: "ARCCHR0005: Chronicle is used but not wired up"
+description: A project uses Chronicle features but sets Arc up without WithChronicle() or AddCratis().
+---
 
 ## Rule
 

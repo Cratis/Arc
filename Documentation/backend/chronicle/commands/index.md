@@ -1,7 +1,7 @@
 ---
-uid: Arc.Chronicle.Commands
+title: Commands
+description: How an Arc command becomes appended events — return shapes, event source identity, subject, and concurrency scoping.
 ---
-# Commands
 
 Chronicle extends the [Arc command pipeline](../../commands/index.md) with event sourcing behavior. The same [model-bound](../../commands/model-bound/index.md) command patterns work here — `[Command]` records, `Handle()` methods, `CommandValidator` — with Chronicle adding automatic event appending, event source identity resolution, and metadata-driven concurrency control.
 

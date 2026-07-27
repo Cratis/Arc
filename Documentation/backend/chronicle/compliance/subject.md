@@ -1,7 +1,7 @@
 ---
-uid: Arc.Chronicle.Commands.Subject
+title: Subject
+description: Set the compliance subject on a command so Chronicle encrypts PII under the right identity.
 ---
-# Subject
 
 The `Subject` is Chronicle's compliance identity — the value used to key per-subject material such as PII encryption keys. When you append an event that contains `[PII]`-annotated properties, Chronicle encrypts those properties under the subject's key. Selecting the correct subject on the command ensures that events land under the right encryption key so they can be decrypted later.
 
