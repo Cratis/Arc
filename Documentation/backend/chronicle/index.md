@@ -23,9 +23,10 @@ Reading that loop in code:
 
 - **A command writes by *returning*.** A `[Command]` record carries the command's inputs as its **properties**, and the decision lives in a `Handle()` method on the record. Whatever `Handle()` **returns** is what Chronicle does with it — return an `[EventType]` event and it's appended; the [return signature](commands/events.md) (a single event, several, a tuple, a `Result<,>`, or nothing) decides the outcome. You never touch an event log directly.
 - **The event source id picks the stream.** Every event belongs to one **event source** — one entity's stream of history. Chronicle resolves that id from the command: a `[Key]` parameter, a property whose type converts to `EventSourceId` (typically a `ConceptAs<Guid>` with an `implicit operator EventSourceId`), or `ICanProvideEventSourceId`. See [Resolving EventSourceId](resolving-event-source-id.md).
-- **The read model is projected, then queried.** A `[ReadModel]` record declares the shape you want; `[FromEvent<T>]`, `[SetFrom<T>]`, and `[SetValue<T>]` map events onto its properties and Chronicle keeps it **materialized** in the configured sink (MongoDB by default). An Arc query — a static method on the read model, often returning an observable so the UI stays live — serves it through the generated proxy. See [Read Models](read-models.md).
+- **The read model is projected, then queried.** A `[ReadModel]` record declares the shape you want; `[FromEvent<T>]`, `[SetFrom<T>]`, and `[SetValue<T>]` map events onto its properties and Chronicle keeps it **materialized** in the configured sink (MongoDB by default). An Arc query — a static method on the read model, often returning an observable so the UI stays live — serves it through the generated proxy. See [Read Models](read-models/index.md).
+- **The loop closes: a command can read the state it helped build.** When a decision depends on what's already true, the command doesn't query for it — Arc resolves the read model for the command's key and hands it to the validator, `Provide()`, or `Handle()` as a parameter. See [Use current state in a command](/arc/scenarios/use-current-state-in-a-command/).
 
-So the round-trip is: a fact happens (command → event), it's folded into state (projection → read model), and the UI reads it (query → proxy). Each piece is one of the topics below.
+So the round-trip is: a fact happens (command → event), it's folded into state (projection → read model), and the UI reads it (query → proxy) — and the next command can read that same state to decide. Each piece is one of the topics below.
 
 ## What it provides
 
@@ -37,7 +38,7 @@ Without this package, Arc and Chronicle are independent. With it:
 - **Tenant-aware event stores** — each tenant's event log and projections are namespaced automatically, matching Arc's tenancy model.
 - **Compliance integration** — PII-annotated properties are decrypted transparently before read models are served, and the compliance subject is set on commands from the current identity.
 - **Aggregate support** — aggregate roots are discoverable and invocable via the standard command pipeline, with Chronicle managing the event stream and rehydration.
-- **Validation with read models** — domain constraint checks can read current projected state directly inside `Handle()` without an extra query round-trip.
+- **Current state as a command dependency** — a command's `CommandValidator<>`, `Provide()`, and `Handle()` can each take the read model Chronicle projected for the command's key as an ordinary parameter, so a state-dependent decision needs no query round-trip.
 
 ## Topics
 
@@ -49,8 +50,8 @@ Without this package, Arc and Chronicle are independent. With it:
 | [React to an event](react-to-an-event.md) | Run side effects or follow-up commands from Chronicle events with reactors. |
 | [Commands](commands/index.md) | Returning events from commands, event source id resolution, and concurrency scoping. |
 | [Resolving EventSourceId](resolving-event-source-id.md) | How Chronicle resolves aggregate and read model identity from commands and query arguments. |
-| [Read Models](read-models.md) | How read models are hooked up to Chronicle projections. |
+| [Read Models](read-models/index.md) | What makes a read model injectable into a command, how it is resolved by key, and what happens when it does not exist. |
 | [Tenancy](tenancy.md) | Tenant-aware namespaces for event stores and projections. |
-| [Validation](validation.md) | Validation with read models and identity resolution conventions. |
+| [Validation](validation.md) | Validating a command against the state Chronicle already projected for its key. |
 | [Compliance](compliance/index.md) | PII decryption on read models and compliance subject resolution on commands. |
 | [Code Analysis](code-analysis/index.md) | Diagnostics and analyzers specific to the Chronicle integration. |

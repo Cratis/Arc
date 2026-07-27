@@ -9,7 +9,7 @@
 - name: Reactors
   href: reactors/toc.yml
 - name: Read Models
-  href: read-models.md
+  href: read-models/toc.yml
 - name: Commands
   href: commands/toc.yml
 - name: Resolving EventSourceId
