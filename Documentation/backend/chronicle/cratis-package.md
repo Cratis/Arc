@@ -1,4 +1,7 @@
-# Cratis Package
+---
+title: Cratis package
+description: One dependency and two calls that bring up Arc, Chronicle, MongoDB, and identity already agreeing on tenancy, serialization, and hosting.
+---
 
 Wiring an event-sourced application by hand means bringing up Arc for commands and queries, Chronicle for the event store, MongoDB for read models, and identity for authentication — and making sure they all agree on tenancy, serialization, and hosting. The `Cratis` package collapses that into one dependency and two calls.
 
@@ -234,6 +237,6 @@ Now that you have Cratis set up, you can:
 - Create [Queries](../queries/index.md) to retrieve data
 - Build [Aggregates](aggregates/index.md) to model your domain
 - Configure [MongoDB](../mongodb/index.md) for read models and projections
-- Set up [tenancy](../tenancy/overview.md) for your application
+- Set up [tenancy](../tenancy/index.md) for your application
 
 For more advanced scenarios, explore the individual Arc and Chronicle components in the documentation.

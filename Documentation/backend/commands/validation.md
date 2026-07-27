@@ -111,3 +111,11 @@ public class SubmitOrderValidator : CommandValidator<SubmitOrder>
 ```
 
 The same dependency behavior applies to dependencies on `Provide()` and `Handle()` parameters. For Chronicle read models, the analyzer rule [ARC0006](../code-analysis/ARC0006.md) warns when a command-scoped read model parameter is non-nullable in a validator, `Provide()`, or `Handle()` so the required-state choice is explicit.
+
+### Validating against projected state
+
+The `Customer?` and `OrderReadModel` dependencies above are Chronicle **read models** — current state projected from events, which Arc resolves for the command's own key and injects without a query. This is the most common reason a validator takes a dependency at all.
+
+- [Use current state in a command](../../scenarios/use-current-state-in-a-command.md) — the recipe.
+- [Read models in commands](../chronicle/read-models/injecting-into-commands.md) — the full reference for validators, `Provide()`, and `Handle()`.
+- [When read model resolution fails](../chronicle/read-models/failures.md) — including why this does not work through MVC controllers.

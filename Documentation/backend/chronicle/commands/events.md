@@ -1,7 +1,7 @@
 ---
-uid: Arc.Chronicle.Commands.Events
+title: Events
+description: What a command Handle() can return — a single event, several, a tuple, a Result, or nothing — and what Chronicle does with each.
 ---
-# Events
 
 When a [model-bound](../../commands/model-bound/index.md) command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
 

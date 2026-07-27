@@ -1,4 +1,7 @@
-# Code Analysis Rules
+---
+title: Code analysis
+description: The analyzers that catch Chronicle integration mistakes at build time rather than at runtime.
+---
 
 This section documents the code analysis rules provided by the Chronicle code analyzer for .NET.
 

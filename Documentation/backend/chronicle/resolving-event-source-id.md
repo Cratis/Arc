@@ -1,4 +1,7 @@
-# Resolving EventSourceId
+---
+title: Resolving EventSourceId
+description: "The conventions Chronicle uses to find an entity identity on a command or query argument — [Key], EventSourceId-convertible types, and ICanProvideEventSourceId."
+---
 
 Chronicle resolves an `EventSourceId` anywhere it needs an identity for an aggregate, event append, or read model lookup. The same conventions work whether the value comes from a command record or from query arguments bound from the HTTP request.
 

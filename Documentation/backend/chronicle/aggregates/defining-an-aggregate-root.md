@@ -1,4 +1,7 @@
-# Aggregate Root
+---
+title: Defining an aggregate root
+description: Write the aggregate root class itself — applying events, On methods, how state is rebuilt from the stream, and committing changes.
+---
 
 The concept of an Aggregate Root comes from [Domain Driven Design](https://martinfowler.com/bliki/DDD_Aggregate.html).
 Its role is to govern the interaction of domain objects that should be treated as a single unit.

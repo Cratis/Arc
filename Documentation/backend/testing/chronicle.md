@@ -86,7 +86,7 @@ Seed events before calling `Execute` so they are present when the command handle
 
 ## EventLog Assertion Helpers
 
-Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see <xref:Chronicle.Testing.Events.Assertions>.
+Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see the [Chronicle event assertions reference](/chronicle/testing/events/assertions/).
 
 ## Transactional Commands in Tests
 
@@ -210,7 +210,7 @@ void should_have_exactly_two_events() =>
 
 ## Testing Commands That Take Read Model Dependencies
 
-A command handler, `Provide` method, or `CommandValidator<T>` can take a read model as a parameter — Arc resolves it for the command's event source id exactly as it does at runtime (`IProjectionFor<T>`, `IReducerFor<T>`, and model-bound projections). To test such a command you need to control what that read model contains, and the awkward way is to hand-mock `IReadModels`.
+A command handler, `Provide` method, or `CommandValidator<T>` can take a read model as a parameter — Arc resolves it for the command's event source id exactly as it does at runtime (`IProjectionFor<T>`, `IReducerFor<T>`, and model-bound projections). See [Use current state in a command](/arc/scenarios/use-current-state-in-a-command/) for the production-side pattern. To test such a command you need to control what that read model contains, and the awkward way is to hand-mock `IReadModels`.
 
 `_scenario.Given.ForEventSource(id)` does it for you, two ways: seed the **events** the read model is built from, or pin a materialized **instance** directly.
 

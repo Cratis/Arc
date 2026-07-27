@@ -1,7 +1,7 @@
 ---
-uid: Arc.Chronicle.Commands.Subject
+title: Setting Subject on commands
+description: Tell Chronicle which compliance identity a command writes under, so PII is encrypted under the right key.
 ---
-# Setting Subject on commands
 
 Use `Subject` on a Chronicle command when the compliance identity for appended events is different from the event source id. Chronicle passes the resolved subject to the EventStore when it appends events automatically, and Arc uses the same resolved subject when it releases dependent read models injected into the command handler or validator.
 

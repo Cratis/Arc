@@ -1,9 +1,11 @@
 ---
 title: Reactors
-description: Topics for building reactors that react to Chronicle events and trigger side effects.
+description: Reactors turn a recorded fact into an effect — a notification, an external call, or a follow-up command in another slice.
 ---
 
-[React to an event](../react-to-an-event.md) covers the fundamentals of reactors — when to reach for one and how they observe events. The topics here go deeper on specific reactor patterns.
+A projection answers "what does this look like now?" A reactor answers "what should happen *because* of this?" When an author is registered, something has to send the welcome email, tell the search index, or kick off the next step — and none of that belongs in the command, which should only record that the fact happened.
+
+[React to an event](../react-to-an-event.md) is the place to start: when to reach for a reactor, how method dispatch works by event type, and why idempotency matters. The topics here go deeper.
 
 ## Topics
 

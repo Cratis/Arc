@@ -33,7 +33,9 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
 
    For lightweight cases, data annotations like `[Required]` on the command record work too.
 
-3. **A rule that depends on existing state → decide inside `Handle()`.** Uniqueness can't be checked against an eventually-consistent read model without a race. Instead, inject the read model Arc resolves for this command's key and return a typed error:
+3. **A rule that depends on existing state → inject the read model.** Arc resolves the read model for this command's key and hands it to whichever position asks for it — the validator, `Provide()`, or `Handle()`. Where you put the rule depends on whether it must hold under concurrency.
+
+   For an invariant that two simultaneous commands could both slip past — uniqueness is the classic one — guard it in `Handle()`, closest to the append, and return a typed error:
 
    ```csharp
    public Result<AuthorRegistered, ValidationResult> Handle(RegisteredAuthorName? existing) =>
@@ -42,7 +44,27 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
            : new AuthorRegistered(Name);
    ```
 
-   The handler isn't the only place a state-dependent rule can live. A `CommandValidator<TCommand>` is resolved through dependency injection, so it can take a collaborator and check state with FluentValidation's `MustAsync` — the rule sits with the rest of the command's rules, and `Handle()` stays focused on producing the event:
+   Even that guard is a *narrowing*, not a guarantee — for a hard invariant, enforce it with a Chronicle [constraint](/chronicle/constraints/), which is checked at append time.
+
+   Most state-dependent rules aren't races, though. "This order isn't ready to submit", "this account is frozen", "this role doesn't exist" — these are gates on projected state, and they belong in the validator, where they sit with the command's other rules and reach the UI as ordinary validation errors:
+
+   ```csharp
+   public class SubmitOrderValidator : CommandValidator<SubmitOrder>
+   {
+       public SubmitOrderValidator(OrderReadModel? order)
+       {
+           RuleFor(_ => order).NotNull().WithMessage("Order does not exist.");
+           When(_ => order is not null, () =>
+               RuleFor(_ => order!.Status)
+                   .Equal(OrderStatus.ReadyForSubmission)
+                   .WithMessage("Only orders that are ready for submission can be submitted."));
+       }
+   }
+   ```
+
+   The nullable parameter is how you say a missing projection is a business condition rather than a fault — [Use current state in a command](./use-current-state-in-a-command.md) covers that choice and all three positions in full.
+
+   A validator can also reach *outside* the command's own state. It's resolved through dependency injection, so it can take a collaborator and check with FluentValidation's `MustAsync`:
 
    ```csharp
    public class RegisterAuthorValidator : CommandValidator<RegisterAuthor>
@@ -57,7 +79,7 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
    }
    ```
 
-   A `MustAsync` rule runs on the server only — unlike the declarative rules, it can't be extracted into the generated proxy. And like any pre-handler check, it reads eventually-consistent state: keep the in-`Handle()` guard for invariants that must hold under concurrency, and use the validator when separating rule checking from event production is what you're after.
+   A `MustAsync` rule runs on the server only — unlike the declarative rules, it can't be extracted into the generated proxy.
 
 Validators are discovered by convention — you never register them. The frontend surfaces the messages automatically; see [Execute a command from React](./run-a-command-from-react.md).
 
@@ -66,3 +88,4 @@ Validators are discovered by convention — you never register them. The fronten
 - [Command Validation](/arc/backend/commands/command-validation/) and [Validation](/arc/backend/commands/validation/) — the full validation model.
 - [Make it trustworthy](/arc/tutorial/validation/) — the same ideas, taught step by step.
 - [Return a result or an error](./return-a-result-or-error.md) — the `Result<,>` return shape used above.
+- [Use current state in a command](./use-current-state-in-a-command.md) — injecting projected state into a validator, `Provide()`, or `Handle()`.

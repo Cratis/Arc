@@ -92,6 +92,19 @@ A `Provide` value that no `Handle` parameter consumes is almost always a mistake
 
 For ordinary command validation, including read-model existence checks, prefer a `CommandValidator<>`. Use `Provide()` when `Handle()` needs acquired data as an input to the decision.
 
+## Projected state is already available
+
+One thing `Provide` doesn't need to fetch: the read model for the command's own key. Arc resolves that for you, so a `Provide` method can take it as a parameter alongside the services it uses — handy when the projected state is what determines *what* to fetch:
+
+```csharp
+public Task<ShippingQuote> Provide(OrderReadModel? order, IShippingRates rates) =>
+    order is null
+        ? Task.FromResult(ShippingQuote.None)
+        : rates.Quote(order.Destination, order.TotalWeight);
+```
+
+See [Use current state in a command](./use-current-state-in-a-command.md) for how that resolution works and what a nullable parameter means.
+
 ## Cross-cutting values
 
 `Provide` is per-command. For a value that many handlers need — the current tenant's settings, say — register it as a scoped service and take it as a `Handle` parameter. Arc resolves any `Handle` or `Provide` parameter it can't otherwise supply from the container.
@@ -105,3 +118,4 @@ If `Handle` already has everything it needs from the command and its injected se
 - [Return a result or an error](./return-a-result-or-error.md) — the shapes `Handle()` itself can return.
 - [Test a command](./test-a-command.md) — testing a slice through the real pipeline.
 - [Validate a command](./validate-a-command.md) — where `ValidationResult.Error` comes from.
+- [Use current state in a command](./use-current-state-in-a-command.md) — the read model Arc resolves for you, in all three positions.

@@ -1,9 +1,9 @@
 ---
-uid: Arc.Chronicle.Commands.Concurrency
+title: Concurrency
+description: Build a concurrency scope from command metadata so appends participate in optimistic concurrency checks.
 ---
-# Concurrency
 
-Chronicle's [concurrency control](xref:Chronicle.ConcurrencyScope) prevents conflicting operations from appending events to the same event source simultaneously. A `ConcurrencyScope` defines the boundaries for that check — which stream type, stream id, and event source type form the concurrency boundary.
+Chronicle's [concurrency control](/chronicle/events/concurrency/) prevents conflicting operations from appending events to the same event source simultaneously. A `ConcurrencyScope` defines the boundaries for that check — which stream type, stream id, and event source type form the concurrency boundary.
 
 On model-bound commands, you declare concurrency intent directly on the command record using attributes and interfaces. Chronicle then builds the `ConcurrencyScope` automatically when appending the events returned by `Handle()`. No manual scope construction is required.
 

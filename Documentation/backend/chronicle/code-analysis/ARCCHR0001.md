@@ -1,4 +1,7 @@
-# ARCCHR0001: Incorrect aggregate root event handler signature
+---
+title: "ARCCHR0001: Incorrect aggregate root event handler signature"
+description: Aggregate root event handlers must follow one of the allowed On method signatures to be discovered.
+---
 
 ## Rule
 

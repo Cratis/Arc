@@ -24,7 +24,7 @@ Configure the proxy generator by adding MSBuild properties to your `.csproj` fil
 
 - `CratisProxiesOutputPath`: Specifies where the generated TypeScript files will be written. This should typically point to your frontend project directory.
 
-> **Note**: The proxy generator uses incremental generation by default — only files whose content has changed are written to disk, and timestamps of unchanged files are preserved. This means committed proxies will not be modified by a build unless their source types actually change. See [Configuration - Output Deletion Behavior](configuration.md#output-deletion-behavior) for details.
+> **Note**: The proxy generator uses incremental generation by default — only files whose content has changed are written to disk, and timestamps of unchanged files are preserved. This means committed proxies will not be modified by a build unless their source types actually change. See [Configuration - Output Behavior](Configuration/output-behavior.md) for details.
 
 ## Frontend Prerequisites
 
