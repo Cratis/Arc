@@ -1,6 +1,6 @@
 # Tenancy
 
-For tenancy concepts and tenant resolution, see the [tenancy overview](../tenancy/overview.md).
+For tenancy concepts and tenant resolution, see the [tenancy overview](../tenancy/index.md).
 
 This page focuses on MongoDB-specific tenant database naming through a custom database name resolver.
 

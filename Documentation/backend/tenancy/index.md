@@ -1,8 +1,7 @@
 ---
-uid: Arc.Tenancy
+title: Tenancy
+description: Serve multiple customers from one application while keeping their data isolated — how Arc resolves the current tenant and carries it through every request.
 ---
-
-# Tenancy Overview
 
 Tenancy means your application serves multiple customers or organizational units while keeping their data and operations isolated. A tenant could be a customer, a business unit, or any logical boundary that must remain separate from others.
 
@@ -36,7 +35,6 @@ Arc helps you establish a clear tenant boundary by resolving a tenant ID for eac
 
 ## Topics
 
-- [Tenancy overview](./overview.md)
 - [Resolving tenant IDs](./resolvers.md)
 - [Configuration](./configuration.md)
 - [Tenant context access](./tenant-context.md)

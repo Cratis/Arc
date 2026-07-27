@@ -42,7 +42,7 @@ Arc meets the rest of your stack:
 | ------- | ----------- |
 | [Core](./core/index.md) | Commands, queries, and dependency injection at the lower level. |
 | [Identity](./identity/index.md) | Who the user is — authentication and identity details. |
-| [Tenancy](./tenancy/overview.md) | Multi-tenant isolation. |
+| [Tenancy](./tenancy/index.md) | Multi-tenant isolation. |
 | [Open API](./open-api/index.md) | OpenAPI/Swagger generation. |
 | [Code Analysis](./code-analysis/index.md) | Analyzers and fixers that catch mistakes at compile time. |
 

@@ -89,11 +89,11 @@ The shape of it:
 Tenant id is sensitive. Resolve it from authenticated claims, validate membership, and never trust a raw header or query parameter — otherwise tenant isolation is one spoofed value away from breaking. In production, [Cratis AuthProxy](/authproxy/) can take this on at the edge: it strips spoofable identity and tenant headers from every inbound request, resolves the tenant after the user signs in, and validates it before the request reaches your app.
 </Aside>
 
-Set it up with [tenant resolvers](/arc/backend/tenancy/resolvers/), reach it through [tenant context](/arc/backend/tenancy/tenant-context/), and isolate storage with [database resolvers](/arc/backend/tenancy/database-resolvers/) — the [tenancy overview](/arc/backend/tenancy/overview/) ties them together.
+Set it up with [tenant resolvers](/arc/backend/tenancy/resolvers/), reach it through [tenant context](/arc/backend/tenancy/tenant-context/), and isolate storage with [database resolvers](/arc/backend/tenancy/database-resolvers/) — the [tenancy overview](/arc/backend/tenancy/) ties them together.
 
 ## Where to go next
 
 - [Identity](/arc/backend/identity/) — the provider flow, contracts, and multi-service topologies in full.
 - [Authorization](/arc/backend/core/authorization/) — every attribute, the inheritance rules, and claims-based custom logic.
-- [Tenancy](/arc/backend/tenancy/overview/) — resolvers, context, and per-tenant data isolation.
+- [Tenancy](/arc/backend/tenancy/) — resolvers, context, and per-tenant data isolation.
 - [Microsoft Identity headers](/arc/backend/asp-net-core/microsoft-identity/) — accepting the `x-ms-client-principal` family of HTTP headers from your ingress. Azure services emit them out of the box, but any identity provider or proxy can supply them.

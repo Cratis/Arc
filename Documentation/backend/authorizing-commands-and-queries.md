@@ -43,11 +43,11 @@ Roles come from the authenticated identity. Arc integrates with standard ASP.NET
 
 ## Notes
 
-- **Multi-tenancy** narrows access further: combine roles with [tenancy](./tenancy/overview) so a user only ever sees their tenant's data.
+- **Multi-tenancy** narrows access further: combine roles with [tenancy](./tenancy/index.md) so a user only ever sees their tenant's data.
 - The generated TypeScript proxies respect the same rules — an unauthorized call fails the same way it would from any client.
 
 ## See also
 
 - [Identity](./identity/) — authentication, identity details, and local-dev principals.
-- [Tenancy](./tenancy/overview) — isolating data per tenant.
+- [Tenancy](./tenancy/index.md) — isolating data per tenant.
 - [Commands](./commands/) and [Queries](./queries/) — the full model.
