@@ -39,6 +39,11 @@ public static partial class ProjectionExpressionConverter
     /// </summary>
     public const string ValuePrefix = "$value(";
 
+    /// <summary>
+    /// The prefix of the expression yielding a member of an enumeration.
+    /// </summary>
+    public const string EnumerationPrefix = "$enum(";
+
     static readonly string[] _eventContextPaths = ["occurred", "sequenceNumber", "correlationId", "eventSourceId"];
     static readonly string[] _causedByProperties = ["subject", "name", "userName"];
 
@@ -95,6 +100,14 @@ public static partial class ProjectionExpressionConverter
         if (expression.StartsWith(ValuePrefix, StringComparison.Ordinal) && expression.EndsWith(')'))
         {
             converted = ToLiteral(expression[ValuePrefix.Length..^1]);
+            return true;
+        }
+
+        // A member of an enumeration is a string naming it and nothing else, so it never goes through the guessing
+        // that turns a captured constant back into whichever kind it looks like.
+        if (expression.StartsWith(EnumerationPrefix, StringComparison.Ordinal) && expression.EndsWith(')'))
+        {
+            converted = new LiteralExpressionSyntax(expression[EnumerationPrefix.Length..^1], SourceLocation.Start);
             return true;
         }
 

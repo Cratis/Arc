@@ -9,12 +9,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Projections;
 /// <summary>
 /// Reads the mappings the properties of a model-bound read model declare, grouped by the event each one observes.
 /// </summary>
+/// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="location">Where the read model lives, for use in diagnostics.</param>
 /// <remarks>
 /// A model-bound projection is declared upside down compared to a fluent one - the read model's properties say
 /// which event they come from, rather than the event saying which properties it fills in. Regrouping them by event
 /// is what turns the declaration back into the blocks a document is written in.
 /// </remarks>
-public class ModelBoundPropertyMappings
+public class ModelBoundPropertyMappings(ScreenplayDiagnostics diagnostics, string location)
 {
     readonly Dictionary<string, Dictionary<string, string>> _byEvent = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> _every = new(StringComparer.Ordinal);
@@ -34,10 +36,12 @@ public class ModelBoundPropertyMappings
     /// Reads the mappings of a read model.
     /// </summary>
     /// <param name="readModel">The read model to read.</param>
+    /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+    /// <param name="location">Where the read model lives, for use in diagnostics.</param>
     /// <returns>The <see cref="ModelBoundPropertyMappings"/>.</returns>
-    public static ModelBoundPropertyMappings From(ITypeSymbol readModel)
+    public static ModelBoundPropertyMappings From(ITypeSymbol readModel, ScreenplayDiagnostics diagnostics, string location)
     {
-        var mappings = new ModelBoundPropertyMappings();
+        var mappings = new ModelBoundPropertyMappings(diagnostics, location);
 
         foreach (var property in readModel.DeclaredProperties())
         {
@@ -60,27 +64,6 @@ public class ModelBoundPropertyMappings
     /// </summary>
     /// <returns>The names, ordered.</returns>
     public IEnumerable<string> EventTypes() => _byEvent.Keys.Order(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Builds the expression an attribute maps a property with.
-    /// </summary>
-    /// <param name="name">The fully qualified metadata name of the attribute.</param>
-    /// <param name="attribute">The attribute to read.</param>
-    /// <param name="property">The property being mapped onto.</param>
-    /// <returns>The expression, or <see langword="null"/> when the attribute is not a mapping.</returns>
-    static string? ExpressionOf(string name, AttributeData attribute, IPropertySymbol property) => name switch
-    {
-        ModelBoundNames.SetFrom => Source(attribute, "EventPropertyName", property),
-        ModelBoundNames.SetValue => ProjectionExpressions.Value(attribute.GetArgument(0)),
-        ModelBoundNames.SetFromContext => ProjectionExpressions.EventContext(Source(attribute, "ContextPropertyName", property)),
-        ModelBoundNames.Count => ProjectionExpressions.Count,
-        ModelBoundNames.Increment => ProjectionExpressions.Increment,
-        ModelBoundNames.Decrement => ProjectionExpressions.Decrement,
-        ModelBoundNames.AddFrom => ProjectionExpressions.Add(Source(attribute, "EventPropertyName", property)),
-        ModelBoundNames.SubtractFrom => ProjectionExpressions.Subtract(Source(attribute, "EventPropertyName", property)),
-        ModelBoundNames.FromEvery or ModelBoundNames.FromAll => Ambient(attribute, property),
-        _ => null
-    };
 
     /// <summary>
     /// Builds the expression an attribute applying to every observed event maps a property with.
@@ -113,6 +96,61 @@ public class ModelBoundPropertyMappings
     /// <param name="property">The property to name.</param>
     /// <returns>The name.</returns>
     static string Named(IPropertySymbol property) => ProjectionPaths.Convert(property.Name) ?? property.Name;
+
+    /// <summary>
+    /// Builds the expression an attribute maps a property with.
+    /// </summary>
+    /// <param name="name">The fully qualified metadata name of the attribute.</param>
+    /// <param name="attribute">The attribute to read.</param>
+    /// <param name="property">The property being mapped onto.</param>
+    /// <returns>The expression, or <see langword="null"/> when the attribute is not a mapping.</returns>
+    string? ExpressionOf(string name, AttributeData attribute, IPropertySymbol property) => name switch
+    {
+        ModelBoundNames.SetFrom => Source(attribute, "EventPropertyName", property),
+        ModelBoundNames.SetValue => ConstantOf(attribute, property),
+        ModelBoundNames.SetFromContext => ProjectionExpressions.EventContext(Source(attribute, "ContextPropertyName", property)),
+        ModelBoundNames.Count => ProjectionExpressions.Count,
+        ModelBoundNames.Increment => ProjectionExpressions.Increment,
+        ModelBoundNames.Decrement => ProjectionExpressions.Decrement,
+        ModelBoundNames.AddFrom => ProjectionExpressions.Add(Source(attribute, "EventPropertyName", property)),
+        ModelBoundNames.SubtractFrom => ProjectionExpressions.Subtract(Source(attribute, "EventPropertyName", property)),
+        ModelBoundNames.FromEvery or ModelBoundNames.FromAll => Ambient(attribute, property),
+        _ => null
+    };
+
+    /// <summary>
+    /// Builds the expression a constant value maps a property with.
+    /// </summary>
+    /// <param name="attribute">The attribute carrying the value.</param>
+    /// <param name="property">The property being mapped onto.</param>
+    /// <returns>The expression.</returns>
+    /// <remarks>
+    /// A member of an enumeration arrives as the number behind it, which would have the document set the property to
+    /// a number while the concept it refers to declares names. The type the value was written as is what turns the
+    /// number back into the member, and only the attribute still knows it.
+    /// </remarks>
+    string ConstantOf(AttributeData attribute, IPropertySymbol property)
+    {
+        if (attribute.GetTypedArgument(0) is not { } argument)
+        {
+            return ProjectionExpressions.Value(null);
+        }
+
+        if (EnumConstants.TryResolve(argument.Type, argument.Value, out var member))
+        {
+            return ProjectionExpressions.Enumeration(ProjectionPaths.ConvertMember(member.Member));
+        }
+
+        if (EnumConstants.IsEnumeration(argument.Type))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnnamedEnumerationValue,
+                $"'{argument.Type!.Name}' declares no member with the value '{argument.Value}' given to '{property.Name}', so it is written as that number rather than as a name the concept declares",
+                location);
+        }
+
+        return ProjectionExpressions.Value(argument.Value);
+    }
 
     /// <summary>
     /// Reads the mappings one property declares.

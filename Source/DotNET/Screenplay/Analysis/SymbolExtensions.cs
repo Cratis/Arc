@@ -111,6 +111,19 @@ public static class SymbolExtensions
         attribute.ConstructorArguments.Length > index ? attribute.ConstructorArguments[index].Value : null;
 
     /// <summary>
+    /// Gets a constructor argument of an attribute together with the type it was written as.
+    /// </summary>
+    /// <param name="attribute">The attribute to read.</param>
+    /// <param name="index">The position of the argument.</param>
+    /// <returns>The argument, or <see langword="null"/> when it was not given.</returns>
+    /// <remarks>
+    /// The value alone is all most readers need. A constant of an enumeration is the exception - it arrives as the
+    /// number behind a member, and only the type it was written as says which enumeration that member belongs to.
+    /// </remarks>
+    public static TypedConstant? GetTypedArgument(this AttributeData attribute, int index) =>
+        attribute.ConstructorArguments.Length > index ? attribute.ConstructorArguments[index] : null;
+
+    /// <summary>
     /// Gets the public instance properties a type carries, including the ones it inherits.
     /// </summary>
     /// <param name="symbol">The type to read.</param>

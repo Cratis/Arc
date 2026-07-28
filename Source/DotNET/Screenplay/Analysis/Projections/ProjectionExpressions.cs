@@ -45,6 +45,18 @@ public static class ProjectionExpressions
     public static string Value(object? value) => $"$value({Format(value)})";
 
     /// <summary>
+    /// Builds the expression yielding a member of an enumeration.
+    /// </summary>
+    /// <param name="member">The name of the member, in the casing the concept declares it.</param>
+    /// <returns>The expression.</returns>
+    /// <remarks>
+    /// A member is always written as a string naming it, while a constant is written as whatever it is - so the two
+    /// are kept apart rather than a member being handed to <see cref="Value"/> and read back as a number or a boolean
+    /// by whichever of them its name happens to look like.
+    /// </remarks>
+    public static string Enumeration(string member) => $"$enum({member})";
+
+    /// <summary>
     /// Builds the expression adding an event property to a read model property.
     /// </summary>
     /// <param name="property">The event property.</param>

@@ -23,6 +23,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 public class PrecedingGuards(ScreenplayDiagnostics diagnostics)
 {
     readonly UnmappableConditions _unmappable = new(diagnostics);
+    readonly ConditionReader _conditions = new(diagnostics);
 
     /// <summary>
     /// Reads the guard clauses standing between the start of a block and a statement in it.
@@ -49,7 +50,7 @@ public class PrecedingGuards(ScreenplayDiagnostics diagnostics)
                 continue;
             }
 
-            var read = ConditionReader.Read(guard.Condition, scope.SemanticModel, scope.Command, scope.Bindings);
+            var read = _conditions.Read(guard.Condition, scope.SemanticModel, scope.Command, location, scope.Bindings);
             var inverted = ConditionReader.Invert(read);
             if (inverted is null)
             {

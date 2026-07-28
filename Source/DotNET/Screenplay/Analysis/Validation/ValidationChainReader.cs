@@ -76,11 +76,12 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     /// <param name="call">The call declaring the rule.</param>
     /// <param name="name">The name of the rule builder.</param>
     /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
     /// <returns>The operand, or <see langword="null"/> when the rule takes none.</returns>
-    static object? OperandOf(InvocationExpressionSyntax call, string name, SemanticModel semanticModel) =>
+    object? OperandOf(InvocationExpressionSyntax call, string name, SemanticModel semanticModel, string location) =>
         string.Equals(name, EmailAddress, StringComparison.Ordinal)
             ? ValidationRuleKinds.EmailPattern
-            : Constant(call, 0, semanticModel);
+            : Constant(call, 0, semanticModel, location);
 
     /// <summary>
     /// Reads the constant value of an argument.
@@ -88,12 +89,38 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     /// <param name="call">The call to read.</param>
     /// <param name="index">The position of the argument.</param>
     /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
     /// <returns>The value, or <see langword="null"/> when the argument is not a constant.</returns>
-    static object? Constant(InvocationExpressionSyntax call, int index, SemanticModel semanticModel)
+    /// <remarks>
+    /// A rule comparing against a member of an enumeration is given the number behind the member, which would have
+    /// the document compare a concept declaring names against a number. Naming the member is what keeps the rule
+    /// readable against the concept it is written about.
+    /// </remarks>
+    object? Constant(InvocationExpressionSyntax call, int index, SemanticModel semanticModel, string location)
     {
         var argument = InvocationChain.ArgumentOf(call, index);
+        if (argument is null)
+        {
+            return null;
+        }
 
-        return argument is null ? null : semanticModel.GetConstantValue(argument).Value;
+        var value = semanticModel.GetConstantValue(argument).Value;
+        if (EnumConstants.EnumerationOf(argument, semanticModel) is not { } enumeration)
+        {
+            return value;
+        }
+
+        if (EnumConstants.TryResolve(enumeration, value, out var member))
+        {
+            return member;
+        }
+
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnnamedEnumerationValue,
+            $"'{enumeration.Name}' declares no member with the value '{value}', so it is written as that number rather than as a name the concept declares",
+            location);
+
+        return value;
     }
 
     /// <summary>
@@ -127,8 +154,8 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
 
         if (!forEach && string.Equals(name, Length, StringComparison.Ordinal) && call.ArgumentList.Arguments.Count == 2)
         {
-            rules.Add(new(property, ValidationRuleKind.Min, Constant(call, 0, semanticModel), null));
-            rules.Add(new(property, ValidationRuleKind.Max, Constant(call, 1, semanticModel), null));
+            rules.Add(new(property, ValidationRuleKind.Min, Constant(call, 0, semanticModel, location), null));
+            rules.Add(new(property, ValidationRuleKind.Max, Constant(call, 1, semanticModel, location), null));
 
             return 2;
         }
@@ -143,7 +170,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             return 0;
         }
 
-        rules.Add(new(property, kind, OperandOf(call, name, semanticModel), null));
+        rules.Add(new(property, kind, OperandOf(call, name, semanticModel, location), null));
 
         return 1;
     }

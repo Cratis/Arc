@@ -25,6 +25,7 @@ public class ProducesConditionResolver(ScreenplayDiagnostics diagnostics)
 {
     readonly UnmappableConditions _unmappable = new(diagnostics);
     readonly PrecedingGuards _guards = new(diagnostics);
+    readonly ConditionReader _conditions = new(diagnostics);
 
     /// <summary>
     /// Resolves the condition guarding an event construction, by walking out to the body it lives in.
@@ -125,7 +126,7 @@ public class ProducesConditionResolver(ScreenplayDiagnostics diagnostics)
             return null;
         }
 
-        var condition = ConditionReader.Read(guard, scope.SemanticModel, scope.Command, scope.Bindings);
+        var condition = _conditions.Read(guard, scope.SemanticModel, scope.Command, location, scope.Bindings);
         var resolved = isPositive ? condition : ConditionReader.Invert(condition);
         if (resolved is null)
         {

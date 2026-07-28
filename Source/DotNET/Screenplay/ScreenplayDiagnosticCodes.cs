@@ -200,4 +200,15 @@ public static class ScreenplayDiagnosticCodes
     /// way and no other name describes the member, so the line is left out and what was lost is said instead.
     /// </remarks>
     public const string NameReservedByGrammar = "SP0032";
+
+    /// <summary>
+    /// A constant of an enumeration carries a value that enumeration declares no member with.
+    /// </summary>
+    /// <remarks>
+    /// A member of an enumeration is written as the name the concept declares it under - <c>"clientContact"</c> -
+    /// which is recovered from the number the compiler hands over. A number nothing is declared with is a cast or
+    /// several flags combined into one, and naming it would describe a value the application does not have, so the
+    /// number is written as it stands and what it names is left unsaid.
+    /// </remarks>
+    public const string UnnamedEnumerationValue = "SP0033";
 }

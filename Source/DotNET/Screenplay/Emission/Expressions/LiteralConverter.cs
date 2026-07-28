@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using Cratis.Arc.Screenplay.Emission.Naming;
+using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
 
@@ -45,6 +46,10 @@ public static class LiteralConverter
     {
         null => null,
         bool boolean => boolean,
+
+        // A concept declares its members in lower camel case and a value referring to one is a string matching that
+        // form exactly, so the member goes through the same conversion the declaration was written with.
+        EnumValue member => naming.ToStringLiteral(naming.ToPropertyName(member.Member)) ?? string.Empty,
         string text => naming.ToStringLiteral(text) ?? string.Empty,
         _ when IsNumeric(value) => System.Convert.ToDouble(value, CultureInfo.InvariantCulture),
         _ => naming.ToStringLiteral(value.ToString()) ?? string.Empty

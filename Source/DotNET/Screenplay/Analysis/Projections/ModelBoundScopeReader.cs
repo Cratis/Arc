@@ -104,7 +104,7 @@ public class ModelBoundScopeReader(ScreenplayDiagnostics diagnostics)
     /// <returns>The <see cref="ProjectionScopeModel"/>.</returns>
     ProjectionScopeModel Read(INamedTypeSymbol readModel, string location, IReadOnlyCollection<ISymbol> visited)
     {
-        var mappings = ModelBoundPropertyMappings.From(readModel);
+        var mappings = ModelBoundPropertyMappings.From(readModel, diagnostics, location);
 
         var scope = new ProjectionScopeModel(
             ReadFrom(readModel, mappings),

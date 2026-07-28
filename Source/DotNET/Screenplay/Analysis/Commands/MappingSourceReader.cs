@@ -11,6 +11,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <summary>
 /// Reads where the value of an expression inside a command handler comes from.
 /// </summary>
+/// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// Only two sources survive into a document - a path into the command's own input, and a constant. Anything else is
 /// code, and a mapping guessing at code would be worse than a mapping that is not there.
@@ -19,40 +20,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// parameters, so the bindings of the call site stand in for them and the value is followed back to the command.
 /// </para>
 /// </remarks>
-public static class MappingSourceReader
+public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
 {
-    /// <summary>
-    /// Reads the source of an expression.
-    /// </summary>
-    /// <param name="expression">The expression to read.</param>
-    /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
-    /// <param name="owner">The type whose properties count as the command's own input.</param>
-    /// <param name="bindings">What the call site gave the parameters of the body being read, if it is not the handler's own.</param>
-    /// <returns>The source, or <see langword="null"/> when the expression is not expressible.</returns>
-    public static MappingSourceModel? Read(
-        ExpressionSyntax expression,
-        SemanticModel semanticModel,
-        ITypeSymbol owner,
-        ParameterBindings? bindings = null)
-    {
-        var unwrapped = Unwrap(expression);
-
-        var constant = semanticModel.GetConstantValue(unwrapped);
-        if (constant.HasValue)
-        {
-            return new LiteralSource(constant.Value);
-        }
-
-        if (bindings?.Resolve(unwrapped, semanticModel) is { } bound)
-        {
-            return Read(bound.Expression, bound.SemanticModel, owner);
-        }
-
-        var path = ReadPath(unwrapped, semanticModel, owner, bindings);
-
-        return path is null ? null : new PropertyPathSource(path);
-    }
-
     /// <summary>
     /// Reads the dotted path an expression walks into the command's own input.
     /// </summary>
@@ -99,6 +68,40 @@ public static class MappingSourceReader
     }
 
     /// <summary>
+    /// Reads the source of an expression.
+    /// </summary>
+    /// <param name="expression">The expression to read.</param>
+    /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
+    /// <param name="owner">The type whose properties count as the command's own input.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read, if it is not the handler's own.</param>
+    /// <returns>The source, or <see langword="null"/> when the expression is not expressible.</returns>
+    public MappingSourceModel? Read(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        ITypeSymbol owner,
+        string location,
+        ParameterBindings? bindings = null)
+    {
+        var unwrapped = Unwrap(expression);
+
+        var constant = semanticModel.GetConstantValue(unwrapped);
+        if (constant.HasValue)
+        {
+            return new LiteralSource(ConstantOf(expression, semanticModel, constant.Value, location));
+        }
+
+        if (bindings?.Resolve(unwrapped, semanticModel) is { } bound)
+        {
+            return Read(bound.Expression, bound.SemanticModel, owner, location);
+        }
+
+        var path = ReadPath(unwrapped, semanticModel, owner, bindings);
+
+        return path is null ? null : new PropertyPathSource(path);
+    }
+
+    /// <summary>
     /// Determines whether an identifier names a property of the command itself.
     /// </summary>
     /// <param name="identifier">The identifier to check.</param>
@@ -122,4 +125,32 @@ public static class MappingSourceReader
             Unwrap(suppress.Operand),
         _ => expression
     };
+
+    /// <summary>
+    /// Recovers what a constant stands for, naming the member when it belongs to an enumeration.
+    /// </summary>
+    /// <param name="expression">The expression the constant was read from.</param>
+    /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
+    /// <param name="value">The value the compiler handed over.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <returns>The value to carry, which for an enumeration is the member it names.</returns>
+    object? ConstantOf(ExpressionSyntax expression, SemanticModel semanticModel, object? value, string location)
+    {
+        if (EnumConstants.EnumerationOf(expression, semanticModel) is not { } enumeration)
+        {
+            return value;
+        }
+
+        if (EnumConstants.TryResolve(enumeration, value, out var member))
+        {
+            return member;
+        }
+
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnnamedEnumerationValue,
+            $"'{enumeration.Name}' declares no member with the value '{value}', so it is written as that number rather than as a name the concept declares",
+            location);
+
+        return value;
+    }
 }

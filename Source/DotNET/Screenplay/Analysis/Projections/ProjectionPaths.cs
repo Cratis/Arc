@@ -35,6 +35,18 @@ public static class ProjectionPaths
         string.IsNullOrWhiteSpace(path) ? null : _naming.ToPropertyPath(path);
 
     /// <summary>
+    /// Converts the name of an enumeration member onto the casing the concept declares it in.
+    /// </summary>
+    /// <param name="member">The name to convert.</param>
+    /// <returns>The name.</returns>
+    /// <remarks>
+    /// A member is written into a projection body verbatim for the same reason an event property is, so it is cased
+    /// here rather than at the printer. What comes out has to match the value the concept declaration carries, which
+    /// emission writes through the same conversion.
+    /// </remarks>
+    public static string ConvertMember(string member) => _naming.ToPropertyName(member);
+
+    /// <summary>
     /// Reads the read model property path a lambda selects, in the casing the model declares it.
     /// </summary>
     /// <param name="expression">The lambda to read.</param>

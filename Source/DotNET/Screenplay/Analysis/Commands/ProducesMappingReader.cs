@@ -18,6 +18,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// </remarks>
 public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
 {
+    readonly MappingSourceReader _sources = new(diagnostics);
+
     /// <summary>
     /// Reads the mappings of a single event construction.
     /// </summary>
@@ -164,7 +166,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         string location,
         ParameterBindings? bindings)
     {
-        var source = MappingSourceReader.Read(expression, semanticModel, owner, bindings);
+        var source = _sources.Read(expression, semanticModel, owner, location, bindings);
         if (source is null)
         {
             Report(eventType, property, location);
