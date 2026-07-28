@@ -19,6 +19,17 @@ namespace Cratis.Arc.Screenplay.Analysis.Queries;
 public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
+    /// The types a query is handed by the host it runs in rather than by the caller it answers.
+    /// </summary>
+    public static readonly string[] InfrastructureTypes =
+    [
+        WellKnownTypeNames.CancellationToken,
+        WellKnownTypeNames.QueryContext,
+        WellKnownTypeNames.Paging,
+        WellKnownTypeNames.Sorting
+    ];
+
+    /// <summary>
     /// Determines whether a type is a model-bound read model.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -77,9 +88,14 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <returns>True when the parameter is input rather than infrastructure.</returns>
     /// <remarks>
     /// An interface parameter is a collaborator the host injects, never something a caller can send, so it is not
-    /// part of the query's shape.
+    /// part of the query's shape. Being an interface is not the whole of that though: a cancellation token, the page
+    /// asked for and the order asked for are all filled in by the host from the request rather than sent as
+    /// arguments, and all three are values rather than interfaces. Stating one as caller input puts a parameter in
+    /// the document that no caller sends, typed by a name the document never declares.
     /// </remarks>
-    static bool IsInput(IParameterSymbol parameter) => parameter.Type.TypeKind != TypeKind.Interface;
+    static bool IsInput(IParameterSymbol parameter) =>
+        parameter.Type.TypeKind != TypeKind.Interface &&
+        !Array.Exists(InfrastructureTypes, parameter.Type.Is);
 
     /// <summary>
     /// Determines whether a method returns the read model declaring it.

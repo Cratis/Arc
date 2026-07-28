@@ -116,4 +116,16 @@ public static class WellKnownTypeNames
 
     /// <summary>The transport level result carrying the value a controller method really returns.</summary>
     public const string ActionResultOfT = "Microsoft.AspNetCore.Mvc.ActionResult`1";
+
+    /// <summary>The token a query is handed to observe cancellation through.</summary>
+    public const string CancellationToken = "System.Threading.CancellationToken";
+
+    /// <summary>The everything a query is performed with, which the host fills in.</summary>
+    public const string QueryContext = "Cratis.Arc.Queries.QueryContext";
+
+    /// <summary>The page of a result a query is performed for, which the host fills in from the request.</summary>
+    public const string Paging = "Cratis.Arc.Queries.Paging";
+
+    /// <summary>The order a result is returned in, which the host fills in from the request.</summary>
+    public const string Sorting = "Cratis.Arc.Queries.Sorting";
 }
