@@ -5,6 +5,7 @@ using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -56,6 +57,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             .OfType<SliceModel>()
             .ToList();
 
+        slices = Specified(compilation, catalog, slices, diagnostics);
+
         ConceptValidations.Link(catalog, readers);
         readers.AggregateRoots.Report(diagnostics);
         elsewhere.Report(diagnostics);
@@ -89,6 +92,25 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 Imports = imports
             },
             diagnostics.All);
+    }
+
+    /// <summary>
+    /// Puts every scenario the application specifies its slices by under the slice it belongs to.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="catalog">The catalogue of everything the compilation declares.</param>
+    /// <param name="slices">The slices recovered so far.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <returns>The slices, each carrying the scenarios it is specified by.</returns>
+    static List<SliceModel> Specified(
+        Compilation compilation,
+        ArtifactCatalog catalog,
+        List<SliceModel> slices,
+        ScreenplayDiagnostics diagnostics)
+    {
+        var specifications = SpecificationCatalog.Read(compilation, catalog, slices.Select(_ => _.Namespace), diagnostics);
+
+        return [.. slices.Select(slice => slice with { Specifications = [.. specifications.For(slice.Namespace)] })];
     }
 
     /// <summary>
