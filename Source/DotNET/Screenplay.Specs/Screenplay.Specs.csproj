@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Screenplay.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <!-- The source every analysis specification compiles is written as raw string literals, which carry line
+             endings implicitly and are handed to the compiler exactly as written. -->
+        <NoWarn>$(NoWarn);MA0136</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The shared spec global usings pull in Cratis.Types, which the package under specification does not need. -->
+        <PackageReference Include="Cratis.Fundamentals" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Screenplay/Screenplay.csproj" />
+        <!-- Source analysis is specified against the real Arc and Chronicle artifacts, so the assemblies declaring
+             them have to be loadable as metadata references. The package under specification references neither. -->
+        <ProjectReference Include="../Chronicle/Chronicle.csproj" />
+    </ItemGroup>
+</Project>
