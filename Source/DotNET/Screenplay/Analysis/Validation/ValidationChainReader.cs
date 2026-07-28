@@ -1,0 +1,175 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Screenplay.Model;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Cratis.Arc.Screenplay.Analysis.Validation;
+
+/// <summary>
+/// Reads the rules one chain of a validator's constructor declares for one property.
+/// </summary>
+/// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <remarks>
+/// A chain names a property once and then declares rule after rule on it, with messages attaching to whichever rule
+/// they were written after. Counting what each call declared is what lets a message find the right rule.
+/// </remarks>
+public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
+{
+    /// <summary>
+    /// The call carrying the message shown when a rule is broken.
+    /// </summary>
+    public const string WithMessage = "WithMessage";
+
+    /// <summary>
+    /// The call constraining the length of a value, which in its two argument form is a range.
+    /// </summary>
+    public const string Length = "Length";
+
+    /// <summary>
+    /// The call constraining a value to look like an email address.
+    /// </summary>
+    public const string EmailAddress = "EmailAddress";
+
+    /// <summary>
+    /// Reads one rule chain.
+    /// </summary>
+    /// <param name="chain">The chain to read.</param>
+    /// <param name="forEach">Whether the rules were declared for each element of a collection.</param>
+    /// <param name="semanticModel">The semantic model of the tree the chain lives in.</param>
+    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
+    /// <param name="rules">The rules collected so far.</param>
+    public void Read(
+        InvocationChain chain,
+        bool forEach,
+        SemanticModel semanticModel,
+        string location,
+        IList<ValidationRuleModel> rules)
+    {
+        var property = LambdaPaths.Read(InvocationChain.ArgumentOf(chain.Root));
+        if (property is null)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                $"'{chain.Root}' does not name a property directly, so the rules declared on it were left out",
+                location);
+
+            return;
+        }
+
+        var declared = 0;
+
+        foreach (var call in chain.Calls)
+        {
+            declared += ReadCall(call, property, forEach, semanticModel, location, rules, declared);
+        }
+    }
+
+    /// <summary>
+    /// Reads the operand a rule compares against.
+    /// </summary>
+    /// <param name="call">The call declaring the rule.</param>
+    /// <param name="name">The name of the rule builder.</param>
+    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <returns>The operand, or <see langword="null"/> when the rule takes none.</returns>
+    static object? OperandOf(InvocationExpressionSyntax call, string name, SemanticModel semanticModel) =>
+        string.Equals(name, EmailAddress, StringComparison.Ordinal)
+            ? ValidationRuleKinds.EmailPattern
+            : Constant(call, 0, semanticModel);
+
+    /// <summary>
+    /// Reads the constant value of an argument.
+    /// </summary>
+    /// <param name="call">The call to read.</param>
+    /// <param name="index">The position of the argument.</param>
+    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <returns>The value, or <see langword="null"/> when the argument is not a constant.</returns>
+    static object? Constant(InvocationExpressionSyntax call, int index, SemanticModel semanticModel)
+    {
+        var argument = InvocationChain.ArgumentOf(call, index);
+
+        return argument is null ? null : semanticModel.GetConstantValue(argument).Value;
+    }
+
+    /// <summary>
+    /// Reads one call of a rule chain.
+    /// </summary>
+    /// <param name="call">The call to read.</param>
+    /// <param name="property">The property the chain declares rules for.</param>
+    /// <param name="forEach">Whether the rules were declared for each element of a collection.</param>
+    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
+    /// <param name="rules">The rules collected so far.</param>
+    /// <param name="declared">The number of rules the chain has declared so far.</param>
+    /// <returns>The number of rules the call added.</returns>
+    int ReadCall(
+        InvocationExpressionSyntax call,
+        string property,
+        bool forEach,
+        SemanticModel semanticModel,
+        string location,
+        IList<ValidationRuleModel> rules,
+        int declared)
+    {
+        var name = InvocationChain.NameOf(call);
+
+        if (string.Equals(name, WithMessage, StringComparison.Ordinal))
+        {
+            ApplyMessage(call, semanticModel, rules, declared, location);
+
+            return 0;
+        }
+
+        if (!forEach && string.Equals(name, Length, StringComparison.Ordinal) && call.ArgumentList.Arguments.Count == 2)
+        {
+            rules.Add(new(property, ValidationRuleKind.Min, Constant(call, 0, semanticModel), null));
+            rules.Add(new(property, ValidationRuleKind.Max, Constant(call, 1, semanticModel), null));
+
+            return 2;
+        }
+
+        if (!ValidationRuleKinds.TryResolve(name, forEach, out var kind))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                $"The '{name}' rule on '{property}' lives in code and has no declarative counterpart, so it was left out",
+                location);
+
+            return 0;
+        }
+
+        rules.Add(new(property, kind, OperandOf(call, name, semanticModel), null));
+
+        return 1;
+    }
+
+    /// <summary>
+    /// Applies a message to the rule it was written after.
+    /// </summary>
+    /// <param name="call">The call carrying the message.</param>
+    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <param name="rules">The rules collected so far.</param>
+    /// <param name="declared">The number of rules the chain has declared so far.</param>
+    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
+    void ApplyMessage(
+        InvocationExpressionSyntax call,
+        SemanticModel semanticModel,
+        IList<ValidationRuleModel> rules,
+        int declared,
+        string location)
+    {
+        var message = InvocationChain.ArgumentOf(call) is { } argument ? semanticModel.GetConstantValue(argument).Value as string : null;
+        if (message is null || declared == 0)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                "A message was declared without a constant value or without a rule preceding it, and was left out",
+                location);
+
+            return;
+        }
+
+        rules[^1] = rules[^1] with { Message = message };
+    }
+}
