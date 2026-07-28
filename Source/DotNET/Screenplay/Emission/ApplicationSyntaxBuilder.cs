@@ -112,7 +112,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics),
-            new ScreenSyntaxBuilder(naming));
+            new ScreenSyntaxBuilder(naming, _types));
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.

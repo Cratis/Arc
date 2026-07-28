@@ -12,20 +12,30 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <param name="files">The <see cref="IUserInterfaceFiles"/> telling what sits alongside the source.</param>
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of each file.</param>
 /// <param name="ambiguity">The <see cref="AmbiguousScreens"/> anything uncertain is reported to.</param>
+/// <param name="data">The <see cref="ScreenDataReader"/> reading which of the slice's queries a screen binds.</param>
 /// <remarks>
-/// Only the file realizing a screen is recovered, never its structure. A screen's structure is TypeScript and JSX,
-/// and inferring <c>data</c>, <c>table</c> or <c>action</c> directives would mean reading a language this generator
-/// does not read - so it says the one thing it actually knows, which is which file a reader should open.
+/// Two things about a screen are recovered and no more: the file realizing it, which is what a reader opens, and the
+/// queries it binds, which are names the model already holds and can be held against what the slice really declares.
+/// The rest of a screen is JSX, and a guessed table or column would be a confident falsehood in a document whose
+/// entire value is that it is true.
 /// </remarks>
-public class ScreenReader(IUserInterfaceFiles files, SourcePaths paths, AmbiguousScreens ambiguity)
+public class ScreenReader(
+    IUserInterfaceFiles files,
+    SourcePaths paths,
+    AmbiguousScreens ambiguity,
+    ScreenDataReader data)
 {
     /// <summary>
     /// Reads the screens of a slice.
     /// </summary>
     /// <param name="namespace">The namespace of the slice.</param>
     /// <param name="types">The types the slice is declared by.</param>
+    /// <param name="queries">The queries the slice declares, under the names it declares them.</param>
     /// <returns>The screens, ordered by name.</returns>
-    public IEnumerable<ScreenModel> Read(string @namespace, IEnumerable<INamedTypeSymbol> types)
+    public IEnumerable<ScreenModel> Read(
+        string @namespace,
+        IEnumerable<INamedTypeSymbol> types,
+        IReadOnlyCollection<QueryModel> queries)
     {
         var directories = SliceDirectories.Of(types);
         if (directories.Count == 0)
@@ -35,7 +45,7 @@ public class ScreenReader(IUserInterfaceFiles files, SourcePaths paths, Ambiguou
 
         ambiguity.ReportDirectories(@namespace, directories);
 
-        return Named(@namespace, Found(directories));
+        return Named(@namespace, Found(directories), queries);
     }
 
     /// <summary>
@@ -55,12 +65,13 @@ public class ScreenReader(IUserInterfaceFiles files, SourcePaths paths, Ambiguou
     /// </summary>
     /// <param name="namespace">The namespace of the slice.</param>
     /// <param name="found">The paths found alongside the source.</param>
+    /// <param name="queries">The queries the slice declares.</param>
     /// <returns>The screens, ordered by name.</returns>
     /// <remarks>
     /// A name is what one screen is told apart from another by, so two files claiming the same one leave a document
     /// that says the same word twice and means it differently. The first is kept and the rest are reported.
     /// </remarks>
-    IEnumerable<ScreenModel> Named(string @namespace, IEnumerable<string> found)
+    IEnumerable<ScreenModel> Named(string @namespace, IEnumerable<string> found, IReadOnlyCollection<QueryModel> queries)
     {
         var screens = new Dictionary<string, ScreenModel>(StringComparer.Ordinal);
 
@@ -77,7 +88,10 @@ public class ScreenReader(IUserInterfaceFiles files, SourcePaths paths, Ambiguou
                 continue;
             }
 
-            screens.Add(name, new(name, paths.Relative(path) ?? path));
+            screens.Add(name, new(name, paths.Relative(path) ?? path)
+            {
+                Data = [.. data.Read(@namespace, name, path, queries)]
+            });
         }
 
         return [.. screens.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];

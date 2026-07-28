@@ -4,36 +4,46 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Cratis.Arc.Screenplay.Analysis.Projections;
+namespace Cratis.Arc.Screenplay.Analysis;
 
 /// <summary>
-/// Gets the attributes declared on the members of a model-bound read model.
+/// Gets the attributes that apply to a member of a type.
 /// </summary>
 /// <remarks>
-/// A read model is nearly always a positional record, and an attribute written on a positional parameter belongs to
-/// the parameter rather than to the property it produces. Reading only the properties would therefore miss every
-/// mapping the most common way of writing a read model declares.
+/// Commands, events and read models are nearly always positional records, and an attribute written on a positional
+/// parameter belongs to the parameter rather than to the property it produces. Reading only the properties would
+/// therefore miss every attribute the most common way of writing them declares - which is why this is asked once,
+/// here, rather than by each recognizer in turn.
 /// </remarks>
-public static class ModelBoundMembers
+public static class MemberAttributes
 {
     /// <summary>
-    /// Gets the attributes applying to a member of a read model.
+    /// Gets the attributes applying to a member.
     /// </summary>
     /// <param name="property">The property to read.</param>
     /// <returns>The attributes, those of the property first.</returns>
-    public static IEnumerable<AttributeData> AttributesOf(IPropertySymbol property) =>
+    public static IEnumerable<AttributeData> Of(IPropertySymbol property) =>
         ParameterOf(property) is { } parameter
             ? property.GetAttributes().Concat(parameter.GetAttributes())
             : property.GetAttributes();
 
     /// <summary>
-    /// Determines whether an attribute of a given type applies to a member of a read model.
+    /// Gets every attribute of a given type applying to a member.
+    /// </summary>
+    /// <param name="property">The property to read.</param>
+    /// <param name="fullMetadataName">The fully qualified metadata name of the attribute.</param>
+    /// <returns>The attributes.</returns>
+    public static IEnumerable<AttributeData> Of(IPropertySymbol property, string fullMetadataName) =>
+        Of(property).Where(_ => _.AttributeClass.Is(fullMetadataName));
+
+    /// <summary>
+    /// Determines whether an attribute of a given type applies to a member.
     /// </summary>
     /// <param name="property">The property to check.</param>
     /// <param name="fullMetadataName">The fully qualified metadata name of the attribute.</param>
     /// <returns>True when the attribute applies.</returns>
-    public static bool HasAttribute(IPropertySymbol property, string fullMetadataName) =>
-        AttributesOf(property).Any(_ => _.AttributeClass.Is(fullMetadataName));
+    public static bool Has(IPropertySymbol property, string fullMetadataName) =>
+        Of(property).Any(_ => _.AttributeClass.Is(fullMetadataName));
 
     /// <summary>
     /// Gets the positional parameter a property was produced from.

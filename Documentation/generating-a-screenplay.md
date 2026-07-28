@@ -55,17 +55,25 @@ Diagnostics come in three severities. **Information** means something is worth k
 A [vertical slice](./vertical-slices.md) puts the React component that realizes a slice's screen in the same folder as its C#. Roslyn syntax trees carry real file paths, so the generator knows where each slice's source lives and declares a `screen` for every `.tsx` component sitting next to it, named after the file:
 
 ```text
-slice StateChange Registration
-  command RegisterAuthor
-    name : AuthorName
+slice StateView Listing
+  query AllAuthors => Author[]
+  query AuthorById(id : String) => Author
 
-  screen AddAuthor
-    file Authors/Registration/AddAuthor.tsx
+  screen AuthorList
+    file Authors/Listing/AuthorList.tsx
+    data Author[] via query AllAuthors
+    data Author via query AuthorById by id
 ```
 
-That is the whole of it — the `file` form and nothing else. The declarative form (`data … via query …`, `section`, `table`, `summary`, `action`, `navigate to`) is never inferred, because it would have to be read out of TypeScript rather than out of the compilation, and a guess at a screen's structure is worse than a pointer to the file that actually is it. Write those directives by hand if you want them, and expect a regeneration to leave them out.
+Two things about a screen are recovered, and both come from something that can be checked.
 
-Two rules keep the result honest:
+**The `file` reference** says which file realizes the screen. It is what a reader opens, and no directive replaces it, so it stays on the screen even when directives sit beside it.
+
+**The `data` directives** say which of the slice's queries the screen reads through. Arc generates a TypeScript proxy per query and a component imports that proxy by name, so the component's `import` statements name candidates — and a candidate is kept only when it matches a query the slice really declares. Nothing about the binding comes from the component beyond that name: the read model, whether there is one or many of it, and the parameter it is keyed by all come from the C# query. An import naming anything else — a package, a command, a sibling component, a type-only import — leaves nothing behind.
+
+Everything else in the declarative form — `title`, `section`, `table` and `summary` with their columns and fields, `action`, `navigate to`, `layout` — is **never inferred**. That is structure expressed in JSX and component properties, and a guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Every screen reports `SP0028` to say so. Write those directives by hand if you want them, and expect a regeneration to leave them out.
+
+Two more rules keep the result honest:
 
 - **Components only, no descending.** A file carrying a second extension — `AddAuthor.stories.tsx`, `AddAuthor.spec.tsx` — is a companion of a component, not a screen. A folder *inside* a slice folder is a slice of its own under the same convention, so its files belong to it.
 - **Anything uncertain is reported.** The relationship between a file and a slice comes entirely from where the file sits, so `SP0025` is reported whenever sitting there says less than usual: a slice whose source is spread over several folders, one folder holding the source of several slices, or two files claiming a single screen name.
@@ -83,7 +91,7 @@ These are part of the language, but nothing in C# says them, so a generated docu
 | `capture` | Describes ingesting an external system. Nothing in an Arc application declares one. |
 | `persona` | Who uses the system is a product decision, not a code artifact. |
 | `seed` | Sample data is a modeling concern, not something the source states. |
-| The declarative form of `screen` | What a screen shows and does is written in TypeScript and JSX. Only the `file` reference is generated — see [Screens](#screens). |
+| The widgets of a `screen` — `title`, `section`, `table`, `summary`, `action`, `navigate to`, `layout` | What a screen *shows and does* is JSX. Its `file` reference and its `data` bindings are generated; the rest would be a guess — see [Screens](#screens). |
 | `@sensitive` | Only `[PII]` has a counterpart. Other sensitivity levels are not declared in Arc. |
 
 ### Detail Screenplay cannot represent
@@ -95,6 +103,7 @@ These exist in your application and have no counterpart in the language. Each is
 | Event generations, `[Tombstone]`, `[CompensationFor]` | Screenplay describes the current shape of an event. It has no notion of versioning, of a deletion marker, or of one event compensating another. |
 | Reducer folds (`IReducerFor<T>`) | The fold is code. The read model and the events it observes are recovered; the logic that combines them is not. |
 | Aggregate roots no command reaches | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. |
+| A behavior deciding on the state an aggregate root holds | A `produces when` condition compares the input of the command, which is all a document knows at the moment the command is issued. A behavior refusing to act on what it has already seen is a real decision with nowhere to go, so the event is stated unconditionally and `SP0027` reports the decision. A behavior deciding on one of its own *parameters* is recovered, because the call site says which command input that parameter was given. |
 | Inline `policy` code and requirements built in code | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole` and `RequireClaim` are recovered; the rest is reported. |
 | The event source id from a `(TKey, TEvent)` handler | The event is recovered; the identifier saying *which* event source it goes to has no counterpart. |
 | Read model tags, query paging and sorting, custom routes | These are transport and storage concerns. The document describes the model, not how it is served. |

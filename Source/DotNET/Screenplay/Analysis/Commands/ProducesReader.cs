@@ -51,7 +51,7 @@ public class ProducesReader(Compilation compilation, AggregateRootCatalog aggreg
                 foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, compilation))
                 {
                     aggregates.Reached(behavior.AggregateRoot);
-                    ReadBody(command, behavior.Body, location, produces, behavior.Bindings);
+                    ReadBody(command, behavior.Body, location, produces, behavior);
                 }
             }
         }
@@ -97,15 +97,16 @@ public class ProducesReader(Compilation compilation, AggregateRootCatalog aggreg
     /// <param name="body">The body to read.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="produces">The productions collected so far.</param>
-    /// <param name="bindings">What the handler gave the body's parameters, when the body is one it called.</param>
+    /// <param name="behavior">The behavior the body belongs to, when the handler reached it through an aggregate root.</param>
     void ReadBody(
         INamedTypeSymbol command,
         SyntaxNode body,
         string location,
         List<ProducesModel> produces,
-        ParameterBindings? bindings)
+        AggregateRootInvocation? behavior)
     {
         var semanticModel = compilation.GetSemanticModel(body.SyntaxTree);
+        var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot);
 
         foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
         {
@@ -116,8 +117,8 @@ public class ProducesReader(Compilation compilation, AggregateRootCatalog aggreg
 
             produces.Add(new(
                 type.Name,
-                _conditions.Resolve(creation, body, semanticModel, command, type, location),
-                _mappings.Read(creation, semanticModel, command, type, location, bindings)));
+                _conditions.Resolve(creation, body, scope, type, location),
+                _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings)));
         }
     }
 

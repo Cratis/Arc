@@ -40,7 +40,12 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var failedToCompile = ReportCompilationErrors(compilation, diagnostics);
         var catalog = ArtifactCatalog.From(compilation);
         var readers = ArtifactReaders.For(compilation, catalog, diagnostics);
-        var screens = new ScreenReader(userInterfaceFiles, SourcePaths.For(compilation), new(diagnostics));
+        var screens = new ScreenReader(
+            userInterfaceFiles,
+            SourcePaths.For(compilation, catalog),
+            new(diagnostics),
+            new(userInterfaceFiles, diagnostics));
+
         var reader = new SliceReader(readers, diagnostics, screens);
 
         var slices = catalog.Namespaces
@@ -50,6 +55,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
 
         ConceptValidations.Link(catalog, readers);
         readers.AggregateRoots.Report(diagnostics);
+        ReportTypesTheDocumentCannotName(readers, diagnostics, compilation.AssemblyName);
         ReportEventsFromOutside(slices, diagnostics);
         ReportNamespacesWithoutStructure(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
@@ -107,6 +113,36 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     /// <returns>The authorizations.</returns>
     static IEnumerable<AuthorizationModel> AuthorizationsIn(SliceModel slice) =>
         slice.Commands.Select(_ => _.Authorization).Concat(slice.Queries.Select(_ => _.Authorization)).OfType<AuthorizationModel>();
+
+    /// <summary>
+    /// Reports every type the document had to refer to by a name that does not say what it is.
+    /// </summary>
+    /// <param name="readers">The readers holding the types encountered.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="location">Where to report against.</param>
+    /// <remarks>
+    /// A Screenplay type reference is a single identifier, so a type the grammar cannot hold is written as whatever
+    /// of its name survives - and the property then claims a type nothing declares. Saying which types those were is
+    /// the difference between a document with a known gap and a document that is quietly wrong.
+    /// </remarks>
+    static void ReportTypesTheDocumentCannotName(ArtifactReaders readers, ScreenplayDiagnostics diagnostics, string? location)
+    {
+        foreach (var type in readers.Types.Unmappable)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableTypeReference,
+                $"'{type}' has no Screenplay counterpart, so it is referred to by a name the document never declares",
+                location);
+        }
+
+        foreach (var type in readers.Types.Ambiguous)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.AmbiguousConceptName,
+                $"'{type}' shares its simple name with a concept the document already declares, so what it is is described by the first one instead",
+                location);
+        }
+    }
 
     /// <summary>
     /// Reports every event the application refers to but does not declare.

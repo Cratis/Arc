@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -15,6 +16,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// Screenplay has no parentheses in conditions, so a combined condition only survives a round trip when the tree is
 /// left associative and shallow. Anything deeper, and anything that is not a comparison against the command's own
 /// input, is reported rather than approximated.
+/// <para>
+/// A condition written inside a body the handler called names that body's parameters, so the bindings of the call
+/// site stand in for them and the comparison is followed back to the input it really compares.
+/// </para>
 /// </remarks>
 public static class ConditionReader
 {
@@ -24,25 +29,30 @@ public static class ConditionReader
     /// <param name="expression">The expression to read.</param>
     /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
     /// <param name="owner">The type whose properties count as the command's own input.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read, if it is not the handler's own.</param>
     /// <returns>The condition, or <see langword="null"/> when it is not expressible.</returns>
-    public static ConditionModel? Read(ExpressionSyntax expression, SemanticModel semanticModel, ITypeSymbol owner)
+    public static ConditionModel? Read(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        ITypeSymbol owner,
+        ParameterBindings? bindings = null)
     {
         switch (expression)
         {
             case ParenthesizedExpressionSyntax parenthesized:
-                return Read(parenthesized.Expression, semanticModel, owner);
+                return Read(parenthesized.Expression, semanticModel, owner, bindings);
 
             case PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalNotExpression } negation:
-                return Invert(Read(negation.Operand, semanticModel, owner));
+                return Invert(Read(negation.Operand, semanticModel, owner, bindings));
 
             case BinaryExpressionSyntax binary when IsLogical(binary):
-                return ReadLogical(binary, semanticModel, owner);
+                return ReadLogical(binary, semanticModel, owner, bindings);
 
-            case BinaryExpressionSyntax binary when ToComparison(binary.Kind()) is { } comparison:
-                return ReadComparison(binary, comparison, semanticModel, owner);
+            case BinaryExpressionSyntax binary when ComparisonKinds.Of(binary.Kind()) is { } comparison:
+                return ReadComparison(binary, comparison, semanticModel, owner, bindings);
 
             default:
-                return ReadTruthy(expression, semanticModel, owner);
+                return ReadTruthy(expression, semanticModel, owner, bindings);
         }
     }
 
@@ -53,7 +63,7 @@ public static class ConditionReader
     /// <returns>The inverted condition, or <see langword="null"/> when it cannot be inverted.</returns>
     public static ConditionModel? Invert(ConditionModel? condition) => condition switch
     {
-        ComparisonCondition comparison => comparison with { Operator = Opposite(comparison.Operator) },
+        ComparisonCondition comparison => comparison with { Operator = ComparisonKinds.Opposite(comparison.Operator) },
         LogicalCondition logical when Invert(logical.Left) is { } left && Invert(logical.Right) is { } right =>
             new LogicalCondition(left, !logical.IsOr, right),
         _ => null
@@ -73,11 +83,16 @@ public static class ConditionReader
     /// <param name="binary">The expression to read.</param>
     /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
     /// <param name="owner">The type whose properties count as the command's own input.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     /// <returns>The condition, or <see langword="null"/> when either side is not expressible.</returns>
-    static LogicalCondition? ReadLogical(BinaryExpressionSyntax binary, SemanticModel semanticModel, ITypeSymbol owner)
+    static LogicalCondition? ReadLogical(
+        BinaryExpressionSyntax binary,
+        SemanticModel semanticModel,
+        ITypeSymbol owner,
+        ParameterBindings? bindings)
     {
-        var left = Read(binary.Left, semanticModel, owner);
-        var right = Read(binary.Right, semanticModel, owner);
+        var left = Read(binary.Left, semanticModel, owner, bindings);
+        var right = Read(binary.Right, semanticModel, owner, bindings);
 
         return left is null || right is null ? null : new LogicalCondition(left, binary.IsKind(SyntaxKind.LogicalOrExpression), right);
     }
@@ -89,30 +104,32 @@ public static class ConditionReader
     /// <param name="comparison">The comparison being made.</param>
     /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
     /// <param name="owner">The type whose properties count as the command's own input.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     /// <returns>The condition, or <see langword="null"/> when either side is not expressible.</returns>
     static ComparisonCondition? ReadComparison(
         BinaryExpressionSyntax binary,
         ComparisonKind comparison,
         SemanticModel semanticModel,
-        ITypeSymbol owner)
+        ITypeSymbol owner,
+        ParameterBindings? bindings)
     {
-        var left = MappingSourceReader.ReadPath(binary.Left, semanticModel, owner);
+        var left = MappingSourceReader.ReadPath(binary.Left, semanticModel, owner, bindings);
         if (left is not null)
         {
-            var right = MappingSourceReader.Read(binary.Right, semanticModel, owner);
+            var right = MappingSourceReader.Read(binary.Right, semanticModel, owner, bindings);
 
             return right is null ? null : new ComparisonCondition(left, comparison, right);
         }
 
-        var mirrored = MappingSourceReader.ReadPath(binary.Right, semanticModel, owner);
+        var mirrored = MappingSourceReader.ReadPath(binary.Right, semanticModel, owner, bindings);
         if (mirrored is null)
         {
             return null;
         }
 
-        var value = MappingSourceReader.Read(binary.Left, semanticModel, owner);
+        var value = MappingSourceReader.Read(binary.Left, semanticModel, owner, bindings);
 
-        return value is null ? null : new ComparisonCondition(mirrored, Mirror(comparison), value);
+        return value is null ? null : new ComparisonCondition(mirrored, ComparisonKinds.Mirrored(comparison), value);
     }
 
     /// <summary>
@@ -121,61 +138,21 @@ public static class ConditionReader
     /// <param name="expression">The expression to read.</param>
     /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
     /// <param name="owner">The type whose properties count as the command's own input.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     /// <returns>The condition, or <see langword="null"/> when the expression is not a boolean input.</returns>
-    static ComparisonCondition? ReadTruthy(ExpressionSyntax expression, SemanticModel semanticModel, ITypeSymbol owner)
+    static ComparisonCondition? ReadTruthy(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        ITypeSymbol owner,
+        ParameterBindings? bindings)
     {
         if (semanticModel.GetTypeInfo(expression).Type?.SpecialType != SpecialType.System_Boolean)
         {
             return null;
         }
 
-        var path = MappingSourceReader.ReadPath(expression, semanticModel, owner);
+        var path = MappingSourceReader.ReadPath(expression, semanticModel, owner, bindings);
 
         return path is null ? null : new ComparisonCondition(path, ComparisonKind.Equal, new LiteralSource(true));
     }
-
-    /// <summary>
-    /// Converts a syntax kind into the comparison it makes.
-    /// </summary>
-    /// <param name="kind">The kind to convert.</param>
-    /// <returns>The comparison, or <see langword="null"/> when the kind is not a comparison.</returns>
-    static ComparisonKind? ToComparison(SyntaxKind kind) => kind switch
-    {
-        SyntaxKind.EqualsExpression => ComparisonKind.Equal,
-        SyntaxKind.NotEqualsExpression => ComparisonKind.NotEqual,
-        SyntaxKind.GreaterThanExpression => ComparisonKind.GreaterThan,
-        SyntaxKind.GreaterThanOrEqualExpression => ComparisonKind.GreaterThanOrEqual,
-        SyntaxKind.LessThanExpression => ComparisonKind.LessThan,
-        SyntaxKind.LessThanOrEqualExpression => ComparisonKind.LessThanOrEqual,
-        _ => null
-    };
-
-    /// <summary>
-    /// Gets the comparison meaning the same thing with the operands the other way round.
-    /// </summary>
-    /// <param name="kind">The comparison to mirror.</param>
-    /// <returns>The mirrored comparison.</returns>
-    static ComparisonKind Mirror(ComparisonKind kind) => kind switch
-    {
-        ComparisonKind.GreaterThan => ComparisonKind.LessThan,
-        ComparisonKind.GreaterThanOrEqual => ComparisonKind.LessThanOrEqual,
-        ComparisonKind.LessThan => ComparisonKind.GreaterThan,
-        ComparisonKind.LessThanOrEqual => ComparisonKind.GreaterThanOrEqual,
-        _ => kind
-    };
-
-    /// <summary>
-    /// Gets the comparison that is true exactly when another is false.
-    /// </summary>
-    /// <param name="kind">The comparison to negate.</param>
-    /// <returns>The negated comparison.</returns>
-    static ComparisonKind Opposite(ComparisonKind kind) => kind switch
-    {
-        ComparisonKind.Equal => ComparisonKind.NotEqual,
-        ComparisonKind.NotEqual => ComparisonKind.Equal,
-        ComparisonKind.GreaterThan => ComparisonKind.LessThanOrEqual,
-        ComparisonKind.GreaterThanOrEqual => ComparisonKind.LessThan,
-        ComparisonKind.LessThan => ComparisonKind.GreaterThanOrEqual,
-        _ => ComparisonKind.GreaterThan
-    };
 }

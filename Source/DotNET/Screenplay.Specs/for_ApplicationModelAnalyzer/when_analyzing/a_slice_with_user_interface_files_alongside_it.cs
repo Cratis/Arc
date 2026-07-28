@@ -56,5 +56,6 @@ public class a_slice_with_user_interface_files_alongside_it : Specification
     [Fact] void should_leave_out_the_companions_of_a_component() => _screens.Select(_ => _.Name).ShouldNotContain("AddAuthor.stories");
     [Fact] void should_leave_out_a_file_belonging_to_the_feature_above() => _screens.Select(_ => _.Name).ShouldNotContain("Authors");
     [Fact] void should_leave_out_a_file_belonging_to_a_folder_below() => _screens.Select(_ => _.Name).ShouldNotContain("Step");
-    [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_only_what_no_screen_states() => _analysis.Diagnostics.Select(_ => _.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred]);
+    [Fact] void should_say_so_once_per_screen() => _analysis.Diagnostics.Count.ShouldEqual(2);
 }

@@ -45,8 +45,13 @@ public class a_folder_holding_the_source_of_several_slices : Specification
     static readonly DeclaredUserInterfaceFiles _files = new("Library/Authors/Authors.tsx");
 
     ApplicationModelAnalysis _analysis;
+    IReadOnlyList<ScreenplayDiagnostic> _shared;
 
-    void Establish() => _analysis = Analyzed.Source(_files, ("Library/Authors/Authors.cs", Source));
+    void Establish()
+    {
+        _analysis = Analyzed.Source(_files, ("Library/Authors/Authors.cs", Source));
+        _shared = [.. _analysis.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.AmbiguousScreenFile)];
+    }
 
     IEnumerable<ScreenModel> ScreensOf(string @namespace) =>
         _analysis.Model.Slices.Single(_ => _.Namespace == @namespace).Screens;
@@ -54,8 +59,8 @@ public class a_folder_holding_the_source_of_several_slices : Specification
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Authors/Authors.cs", Source)).ShouldBeEmpty();
     [Fact] void should_end_the_first_slice_in_the_screen() => ScreensOf("Library.Authors.Registration").Select(_ => _.Name).ShouldContainOnly(["Authors"]);
     [Fact] void should_end_the_second_slice_in_the_screen_as_well() => ScreensOf("Library.Authors.Retirement").Select(_ => _.Name).ShouldContainOnly(["Authors"]);
-    [Fact] void should_report_the_folder_as_shared() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.AmbiguousScreenFile]);
-    [Fact] void should_report_it_once() => _analysis.Diagnostics.Count.ShouldEqual(1);
-    [Fact] void should_locate_the_report_at_the_slice_that_found_it_taken() => _analysis.Diagnostics.Single().Location.ShouldEqual("Library.Authors.Retirement");
-    [Fact] void should_name_the_slice_that_claimed_it_first() => _analysis.Diagnostics.Single().Message.Contains("Library.Authors.Registration", StringComparison.Ordinal).ShouldBeTrue();
+    [Fact] void should_report_the_folder_as_shared() => _shared.ShouldNotBeEmpty();
+    [Fact] void should_report_it_once() => _shared.Count.ShouldEqual(1);
+    [Fact] void should_locate_the_report_at_the_slice_that_found_it_taken() => _shared[0].Location.ShouldEqual("Library.Authors.Retirement");
+    [Fact] void should_name_the_slice_that_claimed_it_first() => _shared[0].Message.Contains("Library.Authors.Registration", StringComparison.Ordinal).ShouldBeTrue();
 }

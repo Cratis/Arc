@@ -20,7 +20,13 @@ public class PropertyReader(TypeRegistry types)
     /// <returns>The properties.</returns>
     /// <remarks>
     /// Declaration order is kept rather than sorted, because the order of a record's positional parameters is what
-    /// the developer wrote and is stable for a given compilation.
+    /// the developer wrote.
+    /// <para>
+    /// Whether a value is personally identifiable is asked of the member rather than of the property alone, because
+    /// the canonical way of writing an event is a positional record, and an attribute written there belongs to the
+    /// parameter. Chronicle reads it from the constructor parameter too, so reading only the property would leave
+    /// the document saying a value is not sensitive when the runtime encrypts it.
+    /// </para>
     /// </remarks>
     public IEnumerable<PropertyModel> Read(ITypeSymbol type)
     {
@@ -28,7 +34,7 @@ public class PropertyReader(TypeRegistry types)
 
         foreach (var property in type.DeclaredProperties())
         {
-            if (property.HasAttribute(WellKnownTypeNames.PiiAttribute))
+            if (MemberAttributes.Has(property, WellKnownTypeNames.PiiAttribute))
             {
                 types.MarkAsPii(property.Type);
             }

@@ -120,7 +120,7 @@ public class ModelBoundPropertyMappings
     /// <param name="property">The property to read.</param>
     void ReadProperty(IPropertySymbol property)
     {
-        foreach (var attribute in ModelBoundMembers.AttributesOf(property))
+        foreach (var attribute in MemberAttributes.Of(property))
         {
             var name = attribute.AttributeClass is null ? string.Empty : attribute.AttributeClass.FullMetadataName();
             var expression = ExpressionOf(name, attribute, property);

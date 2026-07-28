@@ -24,4 +24,21 @@ public interface IUserInterfaceFiles
     /// slice convention, and its files belong to it rather than to the slice above.
     /// </remarks>
     IEnumerable<string> In(string directory);
+
+    /// <summary>
+    /// Gets the text of a user interface file.
+    /// </summary>
+    /// <param name="path">The path of the file, spelled exactly as <see cref="In"/> gave it.</param>
+    /// <returns>The text, or <see langword="null"/> when the file cannot be read.</returns>
+    /// <remarks>
+    /// A component's import statements name the queries it binds, which is the one thing about a screen the model
+    /// already knows enough to check. Asking for the text through the same seam that answered which files exist is
+    /// what keeps every specification hermetic - a specification answers both questions itself, and nothing in
+    /// analysis ever reaches around to a disk.
+    /// <para>
+    /// A file listed a moment ago may be unreadable now, and a host may know the paths without holding the text at
+    /// all. Neither is an error - the screen is then recovered from its file reference alone.
+    /// </para>
+    /// </remarks>
+    string? Contents(string path);
 }

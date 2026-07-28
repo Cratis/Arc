@@ -20,6 +20,18 @@ public class TypeRegistry
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
+    readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
+    readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the full name of every type that had to be referred to by a name that does not say what it is.
+    /// </summary>
+    public IEnumerable<string> Unmappable => _unmappable.Order(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the full name of every type whose simple name a concept was already declared under.
+    /// </summary>
+    public IEnumerable<string> Ambiguous => _ambiguous.Order(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets every concept referenced by the application, ordered by name.
@@ -127,19 +139,39 @@ public class TypeRegistry
 
         if (type.TypeKind == TypeKind.Enum)
         {
-            Register(new(type.Name, ScreenplayPrimitive.Enum, false, ValuesOf(type), []));
+            Register(type, new(type.Name, ScreenplayPrimitive.Enum, false, ValuesOf(type), []));
 
             return type.Name;
         }
 
         if (type.FindBase(WellKnownTypeNames.ConceptAs) is { } concept)
         {
-            Register(ToConcept(type, concept.TypeArguments[0]));
+            Register(type, ToConcept(type, concept.TypeArguments[0]));
 
             return type.Name;
         }
 
+        ReportWhatTheNameLoses(type);
+
         return type.Name;
+    }
+
+    /// <summary>
+    /// Records a type whose simple name says less than the type does.
+    /// </summary>
+    /// <param name="type">The type being named.</param>
+    /// <remarks>
+    /// A read model or a nested object referred to by its own name is exactly right. A constructed generic is not -
+    /// writing <c>IDictionary&lt;string, string&gt;</c> as the single identifier the grammar allows leaves the word
+    /// <c>KeyValuePair</c> behind, which says nothing and which the document never declares. Same for a type
+    /// parameter, whose name is a placeholder rather than a type.
+    /// </remarks>
+    void ReportWhatTheNameLoses(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { TypeArguments.Length: > 0 } or { TypeKind: TypeKind.TypeParameter })
+        {
+            _unmappable.Add(type.ToDisplayString());
+        }
     }
 
     /// <summary>
@@ -167,12 +199,25 @@ public class TypeRegistry
     /// <summary>
     /// Registers a concept, keeping the first declaration of a given name.
     /// </summary>
+    /// <param name="type">The type the concept was read from.</param>
     /// <param name="concept">The concept to register.</param>
-    void Register(ConceptModel concept)
+    /// <remarks>
+    /// A concept is declared once at the top of the document and referenced by its simple name, so two types sharing
+    /// that name cannot both be described. Keeping the first is the only choice left, and saying so is what stops the
+    /// document from quietly claiming the second one is something it is not.
+    /// </remarks>
+    void Register(ITypeSymbol type, ConceptModel concept)
     {
-        if (!_concepts.ContainsKey(concept.Name))
+        if (!_concepts.TryGetValue(concept.Name, out var existing))
         {
             _concepts[concept.Name] = concept;
+
+            return;
+        }
+
+        if (existing.Primitive != concept.Primitive || !existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal))
+        {
+            _ambiguous.Add(type.ToDisplayString());
         }
     }
 }

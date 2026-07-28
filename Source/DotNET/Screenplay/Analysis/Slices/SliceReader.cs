@@ -44,6 +44,7 @@ public class SliceReader(ArtifactReaders readers, ScreenplayDiagnostics diagnost
 
         var commands = content.Commands.OrderBy(_ => _.Name, StringComparer.Ordinal).ToList();
         var reactors = content.Reactors.OrderBy(_ => _.Name, StringComparer.Ordinal).ToList();
+        var queries = QueryNames.Resolve(content.Queries, diagnostics, @namespace).OrderBy(_ => _.Name, StringComparer.Ordinal).ToList();
 
         return new(
             @namespace,
@@ -52,12 +53,12 @@ public class SliceReader(ArtifactReaders readers, ScreenplayDiagnostics diagnost
             null,
             commands,
             [.. content.Events.OrderBy(_ => _.Name, StringComparer.Ordinal)],
-            [.. QueryNames.Resolve(content.Queries, diagnostics, @namespace).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            queries,
             content.Projection,
             reactors,
             [.. content.Constraints.OrderBy(_ => _.Name, StringComparer.Ordinal)])
         {
-            Screens = [.. screens.Read(@namespace, types)]
+            Screens = [.. screens.Read(@namespace, types, queries)]
         };
     }
 

@@ -30,11 +30,18 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="type">The read model to read.</param>
     /// <returns>The methods, ordered so that the same read model always reads the same way.</returns>
+    /// <remarks>
+    /// Arc exposes a static method on a read model as a query when it returns that read model - one of it or many of
+    /// it, however the return type dresses that up - and its accessibility never enters into it. Both halves of that
+    /// matter: a read model routinely carries static helpers returning something else, and stating them as endpoints
+    /// would put routes in the document that no application serves, while a query that happens not to be public is a
+    /// route the application really does serve.
+    /// </remarks>
     public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type) =>
         type.GetMembers()
             .OfType<IMethodSymbol>()
-            .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: true, DeclaredAccessibility: Accessibility.Public } &&
-                !_.ReturnsVoid && _.TypeParameters.Length == 0)
+            .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: true } &&
+                !_.ReturnsVoid && _.TypeParameters.Length == 0 && Returns(_, type))
             .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
 
     /// <summary>
@@ -73,6 +80,19 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// part of the query's shape.
     /// </remarks>
     static bool IsInput(IParameterSymbol parameter) => parameter.Type.TypeKind != TypeKind.Interface;
+
+    /// <summary>
+    /// Determines whether a method returns the read model declaring it.
+    /// </summary>
+    /// <param name="method">The method to check.</param>
+    /// <param name="readModel">The read model declaring it.</param>
+    /// <returns>True when the method returns the read model.</returns>
+    static bool Returns(IMethodSymbol method, INamedTypeSymbol readModel)
+    {
+        var collection = false;
+
+        return SymbolEqualityComparer.Default.Equals(QueryReturnTypes.Unwrap(method.ReturnType, ref collection), readModel);
+    }
 
     /// <summary>
     /// Reads the type a query returns, stripping every wrapper that only says how it arrives.

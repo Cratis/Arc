@@ -73,7 +73,7 @@ public class ScreenplayNaming : IScreenplayNaming
             return null;
         }
 
-        var sanitized = value.Replace(Quote, '\'').Trim();
+        var sanitized = OnOneLine(value.Replace(Quote, '\''));
 
         return sanitized.Length == 0 ? null : sanitized;
     }
@@ -86,9 +86,44 @@ public class ScreenplayNaming : IScreenplayNaming
             return null;
         }
 
-        var sanitized = path.Replace('\\', '/').Replace(Quote, '\'').Trim();
+        var sanitized = OnOneLine(path.Replace('\\', '/').Replace(Quote, '\''));
 
         return sanitized.Length == 0 ? null : sanitized;
+    }
+
+    /// <summary>
+    /// Reduces a value to the single line every Screenplay construct is written on.
+    /// </summary>
+    /// <param name="value">The value to reduce.</param>
+    /// <returns>The value on one line.</returns>
+    /// <remarks>
+    /// The language is line based and the printer never escapes, so a line break inside a string literal ends the
+    /// construct halfway through and everything after it is read as a new declaration - a document that does not
+    /// compile. Every run of whitespace, control character included, therefore becomes a single space.
+    /// </remarks>
+    static string OnOneLine(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        var separated = false;
+
+        foreach (var character in value)
+        {
+            if (char.IsWhiteSpace(character) || char.IsControl(character))
+            {
+                separated = builder.Length > 0;
+                continue;
+            }
+
+            if (separated)
+            {
+                builder.Append(' ');
+                separated = false;
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>

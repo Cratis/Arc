@@ -111,24 +111,51 @@ public static class SymbolExtensions
         attribute.ConstructorArguments.Length > index ? attribute.ConstructorArguments[index].Value : null;
 
     /// <summary>
-    /// Gets the public instance properties a type declares itself.
+    /// Gets the public instance properties a type carries, including the ones it inherits.
     /// </summary>
     /// <param name="symbol">The type to read.</param>
-    /// <returns>The properties, in declaration order.</returns>
-    public static IEnumerable<IPropertySymbol> DeclaredProperties(this ITypeSymbol symbol) =>
-        symbol.GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer && _.Name != "EqualityContract");
+    /// <returns>The properties, base types first and in declaration order within each type.</returns>
+    /// <remarks>
+    /// A property declared on a base record is part of what the type carries just as much as one declared on the type
+    /// itself - it is serialized, it is sent, and a document leaving it out describes a shape that does not exist.
+    /// <para>
+    /// Within one type the order the source declares them in is kept, since that is what the developer wrote. Roslyn
+    /// returns the members of a type split across several partial declarations in the order the syntax trees were
+    /// handed to the compiler, which a build is free to vary, so the declarations are ordered by the file they live
+    /// in first. That is what makes the same source produce the same document however it was globbed.
+    /// </para>
+    /// </remarks>
+    public static IEnumerable<IPropertySymbol> DeclaredProperties(this ITypeSymbol symbol)
+    {
+        var declaring = new List<ITypeSymbol>();
+        for (var current = symbol; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
+        {
+            declaring.Insert(0, current);
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        return declaring
+            .SelectMany(InDeclarationOrder)
+            .Where(_ => seen.Add(_.Name));
+    }
 
     /// <summary>
     /// Gets the path of the file a symbol is declared in.
     /// </summary>
     /// <param name="symbol">The symbol to locate.</param>
     /// <returns>The path, or <see langword="null"/> when the symbol has no source.</returns>
+    /// <remarks>
+    /// A type declared across several files has as many paths as it has declarations, and which one Roslyn hands over
+    /// first follows the order the syntax trees arrived in. The first in order is taken so that the document names
+    /// the same file every time.
+    /// </remarks>
     public static string? SourceFilePath(this ISymbol symbol) =>
         symbol.DeclaringSyntaxReferences
             .Select(_ => _.SyntaxTree.FilePath)
-            .FirstOrDefault(_ => !string.IsNullOrWhiteSpace(_));
+            .Where(_ => !string.IsNullOrWhiteSpace(_))
+            .Order(StringComparer.Ordinal)
+            .FirstOrDefault();
 
     /// <summary>
     /// Gets the namespace a symbol lives in.
@@ -137,4 +164,22 @@ public static class SymbolExtensions
     /// <returns>The namespace, empty for the global namespace.</returns>
     public static string Namespace(this ISymbol symbol) =>
         symbol.ContainingNamespace is { IsGlobalNamespace: false } @namespace ? @namespace.ToDisplayString() : string.Empty;
+
+    /// <summary>
+    /// Gets the public instance properties one type declares, in the order its source declares them.
+    /// </summary>
+    /// <param name="symbol">The type to read.</param>
+    /// <returns>The properties.</returns>
+    static IEnumerable<IPropertySymbol> InDeclarationOrder(ITypeSymbol symbol) =>
+        symbol.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer && _.Name != "EqualityContract")
+            .OrderBy(DeclaredIn, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the file a property is declared in, for ordering the members of a type declared across several of them.
+    /// </summary>
+    /// <param name="property">The property to locate.</param>
+    /// <returns>The path, empty when the property has no source.</returns>
+    static string DeclaredIn(IPropertySymbol property) => property.SourceFilePath() ?? string.Empty;
 }

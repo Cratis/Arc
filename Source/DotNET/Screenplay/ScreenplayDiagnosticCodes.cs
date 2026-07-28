@@ -135,13 +135,9 @@ public static class ScreenplayDiagnosticCodes
     /// A user interface file sits alongside the source of a slice whose relationship to it is not certain.
     /// </summary>
     /// <remarks>
-    /// A screen is recovered as a <c>file</c> reference and nothing more. The declarative form - <c>data</c> via a
-    /// query, <c>section</c>, <c>table</c> and <c>summary</c> with their columns and fields, <c>action</c> and
-    /// <c>navigate to</c> - is never inferred, because it would have to be read out of TypeScript and JSX rather
-    /// than out of the compilation, and a guess at a screen's structure is worse than saying which file realizes it.
-    /// Which file that is comes from where the file sits, so this reports every case where sitting there says less
-    /// than usual: source spread over several folders, one folder holding the source of several slices, and two
-    /// files claiming one screen name.
+    /// Which file realizes a screen comes from where the file sits, so this reports every case where sitting there
+    /// says less than usual: source spread over several folders, one folder holding the source of several slices,
+    /// and two files claiming one screen name.
     /// </remarks>
     public const string AmbiguousScreenFile = "SP0025";
 
@@ -154,4 +150,42 @@ public static class ScreenplayDiagnosticCodes
     /// to something undeclared is a document that warns - but it declares the least it can say rather than a guess.
     /// </remarks>
     public const string PolicyRequirementsUnrecoverable = "SP0026";
+
+    /// <summary>
+    /// An event is produced from a branch guarded by the state an aggregate root holds.
+    /// </summary>
+    /// <remarks>
+    /// A <c>produces when</c> condition compares the input of the command and nothing else, because the input is all
+    /// a document knows about at the moment a command is issued. An aggregate root deciding on what it has already
+    /// seen is a real decision with nowhere in the language to go, which is a different thing from a guard that could
+    /// not be read - so it is reported apart from one, and the production is stated unconditionally.
+    /// </remarks>
+    public const string UnmappableAggregateStateCondition = "SP0027";
+
+    /// <summary>
+    /// The declarative body of a screen beyond the queries it binds is not inferred.
+    /// </summary>
+    /// <remarks>
+    /// A <c>data</c> directive is recovered, because the query a component imports is a name the model already knows
+    /// and can be checked against. Everything else a screen declares - <c>title</c>, <c>section</c>, <c>table</c> and
+    /// <c>summary</c> with their columns and fields, <c>action</c> and <c>navigate to</c> - is structure expressed in
+    /// JSX and component properties, which this generator does not read. A guessed column is worse than an absent
+    /// one, so none of it is inferred and every screen says so.
+    /// </remarks>
+    public const string ScreenStructureNotInferred = "SP0028";
+
+    /// <summary>
+    /// A type is referred to by a name that does not say what it is, because Screenplay cannot express it.
+    /// </summary>
+    /// <remarks>
+    /// A Screenplay type reference is a single identifier. A constructed generic loses its arguments the moment it is
+    /// written as one - a map of names to values becomes the word <c>KeyValuePair</c> - and the document then refers
+    /// to a type it never declares. Nothing better can be written, so what was lost is said instead.
+    /// </remarks>
+    public const string UnmappableTypeReference = "SP0030";
+
+    /// <summary>
+    /// Two types share the simple name a concept is declared under, so only the first of them is described.
+    /// </summary>
+    public const string AmbiguousConceptName = "SP0031";
 }

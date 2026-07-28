@@ -95,7 +95,7 @@ public class ArtifactReaders
     {
         var types = new TypeRegistry();
         var properties = new PropertyReader(types);
-        var paths = SourcePaths.For(compilation);
+        var paths = SourcePaths.For(compilation, catalog);
         var aggregates = new AggregateRootCatalog();
         var produces = new ProducesReader(compilation, aggregates, diagnostics);
         var validators = ValidatorCatalog.From(catalog, new(compilation, diagnostics));

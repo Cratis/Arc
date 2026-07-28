@@ -73,7 +73,7 @@ public class ModelBoundChildren(ScreenplayDiagnostics diagnostics)
     {
         var nested = new List<ModelBoundChild>();
 
-        foreach (var property in readModel.DeclaredProperties().Where(_ => ModelBoundMembers.HasAttribute(_, ModelBoundNames.Nested)))
+        foreach (var property in readModel.DeclaredProperties().Where(_ => MemberAttributes.Has(_, ModelBoundNames.Nested)))
         {
             if (UnderlyingOf(property.Type) is not { } type)
             {
@@ -94,7 +94,7 @@ public class ModelBoundChildren(ScreenplayDiagnostics diagnostics)
     /// <param name="fullMetadataName">The fully qualified metadata name of the attribute.</param>
     /// <returns>The attributes, in declaration order.</returns>
     static List<AttributeData> Declarations(IPropertySymbol property, string fullMetadataName) =>
-        [.. ModelBoundMembers.AttributesOf(property).Where(_ => _.AttributeClass.Is(fullMetadataName))];
+        [.. MemberAttributes.Of(property).Where(_ => _.AttributeClass.Is(fullMetadataName))];
 
     /// <summary>
     /// Builds the block bringing an instance of a child into being.
@@ -131,7 +131,7 @@ public class ModelBoundChildren(ScreenplayDiagnostics diagnostics)
     /// <param name="type">The type to read.</param>
     /// <returns>The name, or <see langword="null"/> when the type names none.</returns>
     static string? KeyPropertyOf(ITypeSymbol type) =>
-        type.DeclaredProperties().FirstOrDefault(_ => ModelBoundMembers.HasAttribute(_, ModelBoundNames.Key))?.Name ??
+        type.DeclaredProperties().FirstOrDefault(_ => MemberAttributes.Has(_, ModelBoundNames.Key))?.Name ??
         type.DeclaredProperties().FirstOrDefault(_ => string.Equals(_.Name, ConventionalKey, StringComparison.OrdinalIgnoreCase))?.Name;
 
     /// <summary>
@@ -178,7 +178,7 @@ public class ModelBoundChildren(ScreenplayDiagnostics diagnostics)
     /// </remarks>
     void ReportRemovals(IPropertySymbol property, string location)
     {
-        foreach (var attribute in ModelBoundMembers.AttributesOf(property)
+        foreach (var attribute in MemberAttributes.Of(property)
             .Where(_ => _.AttributeClass.Is(ModelBoundNames.RemovedWith) || _.AttributeClass.Is(ModelBoundNames.RemovedWithJoin)))
         {
             diagnostics.Warning(

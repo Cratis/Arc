@@ -26,4 +26,26 @@ public class UserInterfaceFiles : IUserInterfaceFiles
             .EnumerateFiles(directory, $"*{ScreenFiles.Extension}", SearchOption.TopDirectoryOnly)
             .Where(ScreenFiles.IsUserInterfaceFile);
     }
+
+    /// <inheritdoc/>
+    public string? Contents(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.ReadAllText(path);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 }

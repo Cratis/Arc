@@ -64,10 +64,15 @@ public class ReactorReader(Compilation compilation, SourcePaths paths)
     /// </summary>
     /// <param name="type">The type declaring the reactor.</param>
     /// <returns>The handlers, ordered so that the same reactor always reads the same way.</returns>
+    /// <remarks>
+    /// Accessibility says nothing about whether a method handles an event. Chronicle dispatches to every instance
+    /// method whose first parameter is an event type, public or not, so a reactor whose handlers are private observes
+    /// those events at runtime and the document has to say so.
+    /// </remarks>
     static IEnumerable<IMethodSymbol> Handlers(INamedTypeSymbol type) =>
         type.GetMembers()
             .OfType<IMethodSymbol>()
-            .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: false, DeclaredAccessibility: Accessibility.Public } &&
+            .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: false } &&
                 _.Parameters.Length > 0 && EventReader.IsEvent(_.Parameters[0].Type))
             .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
 
