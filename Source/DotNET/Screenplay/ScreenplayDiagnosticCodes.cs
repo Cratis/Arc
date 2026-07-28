@@ -285,4 +285,30 @@ public static class ScreenplayDiagnosticCodes
     /// the binding the document is missing, and what turns it into one the moment a reference can carry the slice.
     /// </remarks>
     public const string CrossSliceQueryBinding = "SP0036";
+
+    /// <summary>
+    /// A scenario a slice is specified by states a step that could not be read, so the whole scenario was left out.
+    /// </summary>
+    /// <remarks>
+    /// A specification is one concrete example, and an example missing the command it issues, the state it started
+    /// from or the outcome it expects is not that example - it is a different one nobody wrote. So unlike a mapping,
+    /// which stands on its own and can be left out while the rest of the block still says something true, a step that
+    /// cannot be read takes the scenario with it. What made it unreadable is said, because the difference between a
+    /// scenario resting on a value computed at run time and one resting on a helper the reader could inline is the
+    /// difference between a gap that will always be there and one an afternoon closes.
+    /// </remarks>
+    public const string UnreadableSpecification = "SP0037";
+
+    /// <summary>
+    /// A value a scenario states is code rather than a constant, so the scenario states everything but that value.
+    /// </summary>
+    /// <remarks>
+    /// A scenario is written in the host language, where the identity two steps agree on is routinely a fresh
+    /// identifier held in a field rather than something written down twice. Screenplay states values and has no way
+    /// to name one, so such a value is left out and the rest of the scenario stands: which events had happened, which
+    /// command was issued and what followed are all still exactly what the source says. This is reported per value
+    /// rather than per scenario for the same reason a produces mapping is - a reader counting what a scenario states
+    /// against what the source states otherwise has no way of knowing which of the two it is looking at.
+    /// </remarks>
+    public const string UnreadableSpecificationValue = "SP0038";
 }

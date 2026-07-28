@@ -123,6 +123,21 @@ public static class WellKnownTypeNames
     /// <summary>The everything a query is performed with, which the host fills in.</summary>
     public const string QueryContext = "Cratis.Arc.Queries.QueryContext";
 
+    /// <summary>The sequence a specification appends the events it starts from to.</summary>
+    public const string EventSequence = "Cratis.Chronicle.EventSequences.IEventSequence";
+
+    /// <summary>The scenario a specification issues a command through in process.</summary>
+    public const string CommandScenario = "Cratis.Arc.Testing.Commands.CommandScenario`1";
+
+    /// <summary>The builder a specification states the state of one event source with.</summary>
+    public const string CommandScenarioSourceGivenBuilder = "Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioSourceGivenBuilder`1";
+
+    /// <summary>The extensions a specification issues a command through over HTTP.</summary>
+    public const string HttpClientExtensions = "Cratis.Chronicle.XUnit.Integration.HttpClientExtensions";
+
+    /// <summary>The attribute marking a method as one assertion of a specification.</summary>
+    public const string FactAttribute = "Xunit.FactAttribute";
+
     /// <summary>The page of a result a query is performed for, which the host fills in from the request.</summary>
     public const string Paging = "Cratis.Arc.Queries.Paging";
 
