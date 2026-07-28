@@ -86,12 +86,22 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
     /// <remarks>
     /// A pattern that is a bare word - <c>email</c> is the one the grammar knows - is written unquoted, because that
     /// is how the named patterns are referenced. Everything else is a string literal.
+    /// <para>
+    /// A rule comparing against another property of the same command carries the path it names rather than a value,
+    /// and a rule operand is a host expression, so the path is written as one - <c>endDate &gt;= startDate</c> reads
+    /// as what the developer wrote, where a literal would read as a comparison against the word.
+    /// </para>
     /// </remarks>
     ExpressionSyntax? ToOperand(ValidationRuleModel rule)
     {
         if (rule.Value is null)
         {
             return null;
+        }
+
+        if (rule.Value is PropertyPathSource property)
+        {
+            return new PathExpressionSyntax(naming.ToPropertyPath(property.Path), SourceLocation.Start);
         }
 
         if (rule.Kind == ModelRuleKind.Matches && rule.Value is string pattern && ScreenplayIdentifier.IsBareIdentifier(pattern))
