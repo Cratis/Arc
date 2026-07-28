@@ -74,6 +74,11 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>
     /// A command handler yields the identifier of the event source it appends to, which Screenplay cannot express.
     /// </summary>
+    /// <remarks>
+    /// A <c>produces</c> line names the event and says nothing about where it lands, so a handler returning the event
+    /// source alongside it is stating exactly what that line cannot carry (Cratis/Screenplay#33). The production is
+    /// written as it stands, because what the handler produces is right even while where it produces it is unsaid.
+    /// </remarks>
     public const string UnmappableEventSourceIdResult = "SP0013";
 
     /// <summary>
@@ -84,11 +89,26 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>
     /// A projection declares something the projection definition language has no counterpart for.
     /// </summary>
+    /// <remarks>
+    /// Most of what this reports is a construct the language has no word for. One case is not: a slice holding a
+    /// second projection has that projection turned away because a slice declares at most one, which drops a read
+    /// model the application really builds (Cratis/Screenplay#30). Reporting it stays the right thing to do until a
+    /// slice can hold more than one - the projection is left out either way, and a reader counting read models
+    /// against the application otherwise has no way of seeing which one went missing.
+    /// </remarks>
     public const string UnmappableProjectionConstruct = "SP0015";
 
     /// <summary>
     /// A validator declares a rule that could not be expressed declaratively.
     /// </summary>
+    /// <remarks>
+    /// A rule living in code, a chain rooted in something that does not name a property, and a message either put
+    /// together while the request runs or following no rule to attach it to are all read as far as they go and then
+    /// left out. A rule held to a <c>When</c> or an <c>Unless</c> is different: it is written down, but as though
+    /// nothing held it, because a rule carries no condition of its own (Cratis/Screenplay#32). That is a difference
+    /// between the document and the application rather than an omission from it, which is why the report names the
+    /// condition the rule was held to rather than only the call carrying it.
+    /// </remarks>
     public const string UnmappableValidationRule = "SP0016";
 
     /// <summary>
@@ -109,6 +129,12 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>
     /// A reducer folds events into a read model, which Screenplay has no counterpart for.
     /// </summary>
+    /// <remarks>
+    /// A projection says what each event does to the read model it builds. A reducer says the same thing as code,
+    /// and the language has no construct to fold one value into another (Cratis/Screenplay#39). The events it
+    /// observes are read from its signatures and are real, so the document states which events reach the read model
+    /// while leaving unsaid what they do to it.
+    /// </remarks>
     public const string ReducerWithoutCounterpart = "SP0020";
 
     /// <summary>
