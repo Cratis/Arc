@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { GetHttpHeaders } from './GetHttpHeaders';
+import { EventSourceFactory } from './EventSourceFactory';
 import { QueryTransportMethod } from './queries/QueryTransportMethod';
 import { QueryHttpMethod } from './queries/QueryHttpMethod';
 import { QueryHttpMethodResolver } from './queries/QueryHttpMethodResolver';
@@ -67,6 +68,13 @@ export interface IGlobals {
      * (e.g. SSE subscribe/unsubscribe POST calls).
      */
     httpHeadersCallback: GetHttpHeaders;
+    /**
+     * Optional factory used to create the {@link EventSource} instances that back SSE
+     * observable query connections. Falls back to the global {@link EventSource}
+     * constructor when not set — override it to supply a custom SSE client (e.g. a
+     * native implementation on React Native, where the global constructor is unavailable).
+     */
+    eventSourceFactory?: EventSourceFactory;
     /**
      * How long in milliseconds to retain a query cache entry after the last subscriber
      * releases it before evicting the subscription and the cached data.

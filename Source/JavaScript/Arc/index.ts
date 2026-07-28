@@ -13,6 +13,7 @@ export * from './deepEqual';
 export * from './Globals';
 export * from './ICanBeConfigured';
 export * from './GetHttpHeaders';
+export * from './EventSourceFactory';
 
 export {
     commands,
