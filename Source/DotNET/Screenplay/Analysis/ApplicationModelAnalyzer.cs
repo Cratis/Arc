@@ -38,7 +38,6 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     public ApplicationModelAnalysis Analyze(Compilation compilation, ScreenplayOptions options)
     {
         var diagnostics = new ScreenplayDiagnostics();
-        var failedToCompile = ReportCompilationErrors(compilation, diagnostics);
         var catalog = ArtifactCatalog.From(compilation);
         var readers = ArtifactReaders.For(compilation, catalog, diagnostics);
         var screens = new ScreenReader(
@@ -47,7 +46,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             new(diagnostics),
             new(userInterfaceFiles, diagnostics));
 
-        var reader = new SliceReader(readers, diagnostics, screens);
+        var recovered = new RecoveredArtifacts();
+        var reader = new SliceReader(readers, diagnostics, screens, recovered);
 
         var slices = catalog.Namespaces
             .Select(@namespace => reader.Read(@namespace, catalog.In(@namespace)))
@@ -59,6 +59,13 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         ReportTypesTheDocumentCannotName(readers, diagnostics, compilation.AssemblyName);
         var imports = ExternalEvents.Resolve(compilation, slices, diagnostics);
         ReportNamespacesWithoutStructure(slices, diagnostics, options.SegmentsToSkip ?? 0);
+
+        // How serious source that did not compile is depends on how much survived it, so it is reported once the
+        // slices are in rather than on the way in. Source that did not compile still suppresses "declares nothing" -
+        // an empty document from a broken build is the broken build, not an application with nothing in it - and
+        // when it is reported as a warning the suppression can never apply, because a warning is only ever reached
+        // when something was recovered and something recovered is a slice.
+        var failedToCompile = CompilationErrors.Report(compilation, recovered, diagnostics);
 
         if (slices.Count == 0 && !failedToCompile)
         {
@@ -79,35 +86,6 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 Imports = imports
             },
             diagnostics.All);
-    }
-
-    /// <summary>
-    /// Reports source that did not compile, which nothing recovered from it can be relied on past.
-    /// </summary>
-    /// <param name="compilation">The compilation to check.</param>
-    /// <param name="diagnostics">The diagnostics to report to.</param>
-    /// <returns>True when the source did not compile.</returns>
-    /// <remarks>
-    /// A compilation that does not build still yields symbols, and analyzing them produces a document that looks
-    /// like an answer while describing an application that does not exist. Reporting it as an error rather than a
-    /// warning is what makes a host exit non zero, because a nearly empty document and a success code is the one
-    /// outcome nobody can act on. The model is still returned - what was recovered is worth seeing, as long as
-    /// nobody is told it is trustworthy.
-    /// </remarks>
-    static bool ReportCompilationErrors(Compilation compilation, ScreenplayDiagnostics diagnostics)
-    {
-        var errors = compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ToList();
-        if (errors.Count == 0)
-        {
-            return false;
-        }
-
-        diagnostics.Error(
-            ScreenplayDiagnosticCodes.SourceDidNotCompile,
-            $"The source did not compile - {errors.Count} error(s), the first being '{errors[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture)}'. Nothing recovered from it describes the application reliably",
-            compilation.AssemblyName);
-
-        return true;
     }
 
     /// <summary>

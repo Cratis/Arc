@@ -133,8 +133,31 @@ public static class ScreenplayDiagnosticCodes
     public const string NamespaceWithoutStructure = "SP0023";
 
     /// <summary>
-    /// The source did not compile, so nothing recovered from it can be relied on.
+    /// The source did not compile, and how far what was recovered from it can be relied on is what the severity says.
     /// </summary>
+    /// <remarks>
+    /// This is the one code whose severity is decided rather than fixed, because "the source did not compile" covers
+    /// two outcomes that could not be further apart. A host handing over a compilation assembled without the compile
+    /// items a build generates leaves every reference to a generated type unresolved - hundreds of errors, none of
+    /// them anywhere near an artifact - while every command, event and reactor is read exactly as written. Calling
+    /// that an error says something untrue about a document that is entirely correct, and makes the host throw it
+    /// away.
+    /// <para>
+    /// So the severity follows how many artifacts were recovered from a declaration no compilation error sits inside.
+    /// None - because nothing was recovered at all, or because every declaration something came out of is one the
+    /// compiler could not make sense of - is an error, and nothing in the document is worth trusting. Any at all is a
+    /// warning saying how many came through, because an artifact read from source the compiler accepted describes
+    /// what that source states regardless of what failed elsewhere.
+    /// </para>
+    /// <para>
+    /// As an error it suppresses <see cref="AnalysisUnavailable"/> and <see cref="DocumentDidNotCompile"/>, both for
+    /// the same reason: a model recovered from symbols the compiler never accepted describes an application that does
+    /// not exist, so an empty document and a rejected one are consequences of the broken build rather than defects of
+    /// their own. As a warning it suppresses neither - it can never coincide with the first, since a warning is only
+    /// reached when something was recovered, and suppressing the second would hand back a document the language
+    /// rejects with nothing wrong reported.
+    /// </para>
+    /// </remarks>
     public const string SourceDidNotCompile = "SP0024";
 
     /// <summary>
