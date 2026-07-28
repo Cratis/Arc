@@ -35,7 +35,7 @@ The generator is used through the Cratis CLI, which ships separately from Arc:
 cratis screenplay generate ./MyApp/MyApp.csproj --file MyApp.play
 ```
 
-Point it at a project or a solution. Anything the generator could not express is reported on the way out, and a run that reports an error exits non-zero — so a broken build never quietly produces a document that looks fine.
+Point it at a project or a solution. Anything the generator could not express is reported on the way out, and a run that reports an error exits non-zero — so a document nothing trustworthy went into never quietly looks fine. What the CLI has to do before it hands the source over is covered in [what the generator expects of its host](#what-the-generator-expects-of-its-host).
 
 Because output is reproducible, a CI step can regenerate and fail when the committed `.play` no longer matches the source.
 
@@ -48,7 +48,49 @@ Warning SP0019: The query 'Raw' returns 'IActionResult', which says how the resu
 transported rather than what it is, so the query was left out (Library.Messaging.Feed)
 ```
 
-Diagnostics come in three severities. **Information** means something is worth knowing but the document is complete. **Warning** means something was left out. **Error** means the document should not be trusted at all — the most common cause being source that did not compile.
+Diagnostics come in three severities. **Information** means something is worth knowing but the document is complete. **Warning** means something was left out. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
+
+## What the generator expects of its host
+
+The generator takes a Roslyn `Compilation` and nothing else. It never opens a project file or loads a workspace, which is what lets it be driven from a CLI, from a specification, or from an editor. The other side of that bargain is that **assembling the compilation the way a real build would is the caller's job** — the generator reads what it is handed and cannot tell a missing type from a type that was never written.
+
+The part hosts get wrong is source generators. `MSBuildWorkspace.GetCompilationAsync()` does not run them, and neither does any loading mode that stops at the compile items the project file lists. An Arc application leans on generation heavily — `[LoggerMessage]` partial classes, strongly-typed resource designer classes, the proxy and metrics generators — so a compilation loaded that way is missing every type those emit, and every reference to one becomes an unresolved-symbol error. This is the common case rather than an edge case.
+
+A host should run the project's generators before handing the compilation over:
+
+```csharp
+var driver = CSharpGeneratorDriver.Create(
+    generators: project.AnalyzerReferences
+        .SelectMany(reference => reference.GetGenerators(LanguageNames.CSharp))
+        .Select(GeneratorExtensions.AsSourceGenerator),
+    parseOptions: (CSharpParseOptions)project.ParseOptions!);
+
+driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out _);
+```
+
+Then generate from `generated` rather than from `compilation`.
+
+### What happens when it does not
+
+Nothing is hidden, and nothing correct is thrown away. A compilation carrying errors is still analyzed, and `SP0024` says what happened — how many errors there were, the first of them, and how many artifacts came through anyway:
+
+```text
+Warning SP0024: The source did not compile - 607 error(s), the first being 'The name
+'AccountsMessages' does not exist in the current context'. 341 artifact(s) were recovered
+anyway, 341 of them from a declaration no error sits inside, so the document describes those
+exactly as the source states them - a missing type named like 'SomethingMessages' or a
+designer class usually means the compilation was handed over without the compile items a
+build generates (Accounts)
+```
+
+Its **severity is decided rather than fixed**, because "the source did not compile" covers two outcomes that could not be further apart:
+
+- **Warning** when at least one artifact was recovered from a declaration no compilation error sits inside. Those artifacts are described exactly as their source states them whatever failed elsewhere, so the run is successful and the document is worth keeping. A compilation missing its generated symbols lands here — the errors sit in code that declares no artifact, and the model is unaffected.
+- **Error** when none were, either because nothing was recovered at all or because every declaration something came out of is one the compiler could not make sense of. There is then no part of the document a reader could trust, and a host following the contract exits non-zero.
+
+A count is used rather than a proportion deliberately: any threshold would make the same recovery pass for a large application and fail for a small one, and zero is the only number that means recovery was *prevented* rather than merely dented.
+
+Either way the document is written out, so what was recovered can be read.
 
 ## The generator checks its own output
 
@@ -65,7 +107,9 @@ and the document is returned as it stands so the line can be read (Library)
 
 The document is still written out, so you can open it at the reported line and see what happened. If you hit this, it is a bug worth [reporting](https://github.com/Cratis/Arc/issues) — include the line, and the C# declaration it came from.
 
-Source that did not compile (`SP0024`) suppresses `SP0034`. A model recovered from symbols the compiler never accepted describes an application that does not exist, so a poor document made from it is a consequence of the broken build rather than a second, separate defect. Fix the build and generate again.
+Source that did not compile (`SP0024`) suppresses `SP0034` **when it is reported as an error** — a model recovered from symbols the compiler never accepted describes an application that does not exist, so a poor document made from it is a consequence of the broken build rather than a second, separate defect. Fix the build and generate again.
+
+As a warning it suppresses nothing. That severity says the model stands, and a document built from a model that stands is exactly what the check exists for — suppressing it there would hand back a `.play` the language rejects with nothing wrong reported.
 
 ## Screens
 
