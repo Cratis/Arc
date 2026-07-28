@@ -40,14 +40,27 @@ public class SourcePaths(string root)
     /// nobody committed a line to.
     /// </para>
     /// </remarks>
-    public static SourcePaths For(Compilation compilation, ArtifactCatalog catalog)
+    public static SourcePaths For(Compilation compilation, ArtifactCatalog catalog) => new(RootOf(compilation, catalog));
+
+    /// <summary>
+    /// Resolves the directory the source of one project sits under.
+    /// </summary>
+    /// <param name="compilation">The compilation to read.</param>
+    /// <param name="catalog">The catalogue of everything the compilation declares.</param>
+    /// <returns>The directory, empty when there is none to write anything relative to.</returns>
+    /// <remarks>
+    /// This is what <see cref="For(Compilation, ArtifactCatalog)"/> resolves, said as a directory rather than as the
+    /// paths built from it, because an application written as several projects has one of these per project and a
+    /// single directory to write all of them relative to is worked out from them together.
+    /// </remarks>
+    public static string RootOf(Compilation compilation, ArtifactCatalog catalog)
     {
         var declared = DirectoriesOf(GeneratedSource.Excluded(catalog.Types.Select(_ => _.SourceFilePath())));
         var anchor = DeepestSharedBy(declared);
         var project = Rooted(declared, anchor);
         var root = Rooted(DirectoriesOf(compilation.SyntaxTrees.Select(_ => _.FilePath)), project);
 
-        return new(IsFileSystemRoot(root) ? string.Empty : root);
+        return Directories.IsFileSystemRoot(root) ? string.Empty : root;
     }
 
     /// <summary>
@@ -62,7 +75,7 @@ public class SourcePaths(string root)
             return null;
         }
 
-        var normalized = Normalize(path);
+        var normalized = Directories.Normalize(path);
 
         return root.Length > 0 && normalized.StartsWith(root, StringComparison.Ordinal)
             ? normalized[root.Length..]
@@ -111,7 +124,7 @@ public class SourcePaths(string root)
     {
         var onThePath = directories.Where(_ => OnTheSamePath(_, anchor)).ToList();
 
-        return onThePath.Count == 0 ? string.Empty : CommonPrefix(onThePath);
+        return Directories.SharedPrefixOf(onThePath);
     }
 
     /// <summary>
@@ -123,7 +136,7 @@ public class SourcePaths(string root)
     [
         .. paths
             .Where(_ => !string.IsNullOrWhiteSpace(_))
-            .Select(_ => Normalize(_!))
+            .Select(_ => Directories.Normalize(_!))
             .Select(_ => _[..(_.LastIndexOf('/') + 1)])
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
@@ -139,48 +152,4 @@ public class SourcePaths(string root)
         project.Length == 0 ||
         directory.StartsWith(project, StringComparison.Ordinal) ||
         project.StartsWith(directory, StringComparison.Ordinal);
-
-    /// <summary>
-    /// Determines whether a directory is the root of a file system rather than a directory within one.
-    /// </summary>
-    /// <param name="directory">The directory to check.</param>
-    /// <returns>True when it is a file system root.</returns>
-    /// <remarks>
-    /// Writing a path relative to <c>/</c> is not writing it relative to anything - it removes one character and
-    /// leaves the machine's own layout behind, looking like a relative path while being nothing of the sort.
-    /// </remarks>
-    static bool IsFileSystemRoot(string directory) =>
-        string.Equals(directory, "/", StringComparison.Ordinal) || (directory.Length == 3 && directory[1] == ':' && directory[2] == '/');
-
-    /// <summary>
-    /// Normalizes a path onto forward slashes.
-    /// </summary>
-    /// <param name="path">The path to normalize.</param>
-    /// <returns>The normalized path.</returns>
-    static string Normalize(string path) => path.Replace('\\', '/');
-
-    /// <summary>
-    /// Finds the longest directory prefix every path shares.
-    /// </summary>
-    /// <param name="directories">The directories to compare.</param>
-    /// <returns>The shared prefix, ending in a separator.</returns>
-    static string CommonPrefix(List<string> directories)
-    {
-        var prefix = directories[0];
-
-        foreach (var directory in directories.Skip(1))
-        {
-            var length = 0;
-            while (length < prefix.Length && length < directory.Length && prefix[length] == directory[length])
-            {
-                length++;
-            }
-
-            prefix = prefix[..length];
-        }
-
-        var separator = prefix.LastIndexOf('/');
-
-        return separator < 0 ? string.Empty : prefix[..(separator + 1)];
-    }
 }
