@@ -127,10 +127,19 @@ public class ScreenplayNaming : IScreenplayNaming
     }
 
     /// <summary>
-    /// Strips everything that is not a valid identifier character, including generic type arity suffixes.
+    /// Reduces a name to the identifier the Screenplay grammar accepts, including generic type arity suffixes.
     /// </summary>
     /// <param name="name">The name to sanitize.</param>
     /// <returns>The sanitized name.</returns>
+    /// <remarks>
+    /// An identifier is <c>[A-Za-z_]\w*</c>, so a name carrying separators has to be transformed - and a runtime name
+    /// is routinely written with them, kebab case being idiomatic for a Chronicle constraint. Deleting them is the
+    /// least readable answer available: <c>unique-timesheet-start</c> becomes one run-together word and the word
+    /// boundaries the source stated are thrown away. Each separator is therefore read as the boundary it is and the
+    /// words either side of it are joined in Pascal case, which is what the grammar accepts and what a reader would
+    /// have written by hand. A name carrying no separator at all is left exactly as it is, because its casing is
+    /// already whatever the application chose.
+    /// </remarks>
     static string Sanitize(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -139,17 +148,59 @@ public class ScreenplayNaming : IScreenplayNaming
         }
 
         var backTick = name.IndexOf('`', StringComparison.Ordinal);
-        var candidate = backTick > 0 ? name[..backTick] : name;
-        var builder = new StringBuilder(candidate.Length);
+        var words = WordsIn(backTick > 0 ? name[..backTick] : name);
 
-        foreach (var character in candidate)
+        var identifier = words.Count switch
         {
-            if (char.IsLetterOrDigit(character) || character == '_')
+            0 => string.Empty,
+            1 => words[0],
+            _ => string.Concat(words.Select(Capitalized))
+        };
+
+        return identifier.Normalize(NormalizationForm.FormC);
+    }
+
+    /// <summary>
+    /// Splits a name into the words the characters that cannot be written in an identifier separate.
+    /// </summary>
+    /// <param name="name">The name to split.</param>
+    /// <returns>The words, in order, none of them empty.</returns>
+    /// <remarks>
+    /// An underscore separates words as surely as a hyphen does, and is treated as one even though the grammar would
+    /// accept it, so that every way of writing a name apart comes out the same way.
+    /// </remarks>
+    static List<string> WordsIn(string name)
+    {
+        var words = new List<string>();
+        var word = new StringBuilder(name.Length);
+
+        foreach (var character in name)
+        {
+            if (char.IsLetterOrDigit(character))
             {
-                builder.Append(character);
+                word.Append(character);
+                continue;
+            }
+
+            if (word.Length > 0)
+            {
+                words.Add(word.ToString());
+                word.Clear();
             }
         }
 
-        return builder.ToString().Normalize(NormalizationForm.FormC);
+        if (word.Length > 0)
+        {
+            words.Add(word.ToString());
+        }
+
+        return words;
     }
+
+    /// <summary>
+    /// Raises the first character of a word, leaving the rest of it as the application wrote it.
+    /// </summary>
+    /// <param name="word">The word to raise.</param>
+    /// <returns>The raised word.</returns>
+    static string Capitalized(string word) => $"{char.ToUpperInvariant(word[0])}{word[1..]}";
 }
