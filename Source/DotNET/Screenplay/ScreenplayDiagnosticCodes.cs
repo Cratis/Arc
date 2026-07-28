@@ -125,4 +125,9 @@ public static class ScreenplayDiagnosticCodes
     /// A namespace carries no structure to arrange the document by, so several levels take the same name.
     /// </summary>
     public const string NamespaceWithoutStructure = "SP0023";
+
+    /// <summary>
+    /// The source did not compile, so nothing recovered from it can be relied on.
+    /// </summary>
+    public const string SourceDidNotCompile = "SP0024";
 }

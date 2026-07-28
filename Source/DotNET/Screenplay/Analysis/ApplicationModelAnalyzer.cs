@@ -20,6 +20,7 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
     public ApplicationModelAnalysis Analyze(Compilation compilation, ScreenplayOptions options)
     {
         var diagnostics = new ScreenplayDiagnostics();
+        var failedToCompile = ReportCompilationErrors(compilation, diagnostics);
         var catalog = ArtifactCatalog.From(compilation);
         var readers = ArtifactReaders.For(compilation, catalog, diagnostics);
         var reader = new SliceReader(readers, diagnostics);
@@ -33,7 +34,7 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
         ReportEventsFromOutside(slices, diagnostics);
         ReportNamespacesWithoutStructure(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
-        if (slices.Count == 0)
+        if (slices.Count == 0 && !failedToCompile)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.AnalysisUnavailable,
@@ -49,6 +50,35 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
                 Policies(slices),
                 slices),
             diagnostics.All);
+    }
+
+    /// <summary>
+    /// Reports source that did not compile, which nothing recovered from it can be relied on past.
+    /// </summary>
+    /// <param name="compilation">The compilation to check.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <returns>True when the source did not compile.</returns>
+    /// <remarks>
+    /// A compilation that does not build still yields symbols, and analyzing them produces a document that looks
+    /// like an answer while describing an application that does not exist. Reporting it as an error rather than a
+    /// warning is what makes a host exit non zero, because a nearly empty document and a success code is the one
+    /// outcome nobody can act on. The model is still returned - what was recovered is worth seeing, as long as
+    /// nobody is told it is trustworthy.
+    /// </remarks>
+    static bool ReportCompilationErrors(Compilation compilation, ScreenplayDiagnostics diagnostics)
+    {
+        var errors = compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ToList();
+        if (errors.Count == 0)
+        {
+            return false;
+        }
+
+        diagnostics.Error(
+            ScreenplayDiagnosticCodes.SourceDidNotCompile,
+            $"The source did not compile - {errors.Count} error(s), the first being '{errors[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture)}'. Nothing recovered from it describes the application reliably",
+            compilation.AssemblyName);
+
+        return true;
     }
 
     /// <summary>
