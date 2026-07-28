@@ -30,6 +30,8 @@
         <Project Path="Source\DotNET\Swagger\Swagger.csproj" />
         <Project Path="Source\DotNET\OpenApi\OpenApi.csproj" />
         <Project Path="Source\DotNET\OpenApi.Specs\OpenApi.Specs.csproj" />
+        <Project Path="Source\DotNET\Screenplay\Screenplay.csproj" />
+        <Project Path="Source\DotNET\Screenplay.Specs\Screenplay.Specs.csproj" />
     </Folder>
     <Folder Name="/Source/DotNET/Tools/">
         <Project Path="Source\DotNET\Tools\ProxyGenerator\ProxyGenerator.csproj" />

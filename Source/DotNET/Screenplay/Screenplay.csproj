@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Screenplay</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay</RootNamespace>
+        <Description>Generates a Cratis Screenplay .play file from the source of a Cratis Arc application</Description>
+        <PackageTags>cratis;arc;screenplay;event-modeling;play</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.Screenplay.Specs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cratis.Screenplay" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+</Project>
