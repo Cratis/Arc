@@ -55,27 +55,27 @@ public class TypeRegistry
     public TypeReferenceModel Resolve(ITypeSymbol type)
     {
         var optional = false;
-        var current = Unwrap(type, ref optional);
-        var collection = CollectionElements.ElementOf(current);
-        if (collection is not null)
-        {
-            current = Unwrap(collection, ref optional);
-        }
+        var collection = false;
 
-        return new(NameOf(current), collection is not null, optional);
+        return new(NameOf(Underlying(type, ref optional, ref collection)), collection, optional);
     }
 
     /// <summary>
     /// Records that a value of a concept carries personally identifiable information.
     /// </summary>
     /// <param name="type">The type of the value.</param>
+    /// <remarks>
+    /// The concept a value is marked under has to be the one it is referenced under, or the mark lands on a name no
+    /// concept is declared with and the document says a value is not sensitive while the runtime encrypts it. Both
+    /// therefore strip the same wrappers - a collection of an optional concept says one thing about the value and
+    /// three things about how many there are and whether it may be absent.
+    /// </remarks>
     public void MarkAsPii(ITypeSymbol type)
     {
         var optional = false;
-        var current = Unwrap(type, ref optional);
-        var collection = CollectionElements.ElementOf(current);
+        var collection = false;
 
-        _pii.Add((collection ?? current).Name);
+        _pii.Add(Underlying(type, ref optional, ref collection).Name);
     }
 
     /// <summary>
@@ -92,6 +92,27 @@ public class TypeRegistry
         }
 
         declared.AddRange(rules);
+    }
+
+    /// <summary>
+    /// Strips everything a value is wrapped in that says how many there are or whether it may be absent.
+    /// </summary>
+    /// <param name="type">The type to strip.</param>
+    /// <param name="optional">Set when a wrapper said the value may be absent.</param>
+    /// <param name="collection">Set when the value is a collection of what is left.</param>
+    /// <returns>The type of the value itself.</returns>
+    static ITypeSymbol Underlying(ITypeSymbol type, ref bool optional, ref bool collection)
+    {
+        var current = Unwrap(type, ref optional);
+        var element = CollectionElements.ElementOf(current);
+        if (element is null)
+        {
+            return current;
+        }
+
+        collection = true;
+
+        return Unwrap(element, ref optional);
     }
 
     /// <summary>
