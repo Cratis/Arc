@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Emission;
+using Cratis.Arc.Screenplay.Verification;
 using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayEmitter.when_emitting;

@@ -3,25 +3,34 @@
 
 using Cratis.Screenplay.Diagnostics;
 
-namespace Cratis.Arc.Screenplay;
+namespace Cratis.Arc.Screenplay.Verification;
 
 /// <summary>
 /// Represents the outcome of printing, compiling and reprinting a document.
 /// </summary>
-/// <param name="Printed">The printed source.</param>
-/// <param name="Reprinted">The source printed from the recompiled document.</param>
-/// <param name="Diagnostics">Everything the compiler reported.</param>
-public record RoundTripResult(string Printed, string Reprinted, IEnumerable<Diagnostic> Diagnostics)
+/// <param name="Verification">What reading the printed text back produced.</param>
+/// <param name="Reprinted">The text printed from the recompiled document.</param>
+public record RoundTripResult(ScreenplayVerification Verification, string Reprinted)
 {
+    /// <summary>
+    /// Gets the printed text.
+    /// </summary>
+    public string Printed => Verification.Source;
+
+    /// <summary>
+    /// Gets everything the compiler reported.
+    /// </summary>
+    public IReadOnlyList<Diagnostic> Diagnostics => Verification.Diagnostics;
+
     /// <summary>
     /// Gets everything the compiler reported as an error.
     /// </summary>
-    public IEnumerable<Diagnostic> Errors => Diagnostics.Where(_ => _.Severity == DiagnosticSeverity.Error);
+    public IReadOnlyList<Diagnostic> Errors => Verification.Errors;
 
     /// <summary>
-    /// Gets a value indicating whether the printed source compiles.
+    /// Gets a value indicating whether the printed text compiles.
     /// </summary>
-    public bool Compiles => !Errors.Any();
+    public bool Compiles => Verification.Compiles;
 
     /// <summary>
     /// Gets a value indicating whether the second print is identical to the first.
