@@ -50,6 +50,23 @@ transported rather than what it is, so the query was left out (Library.Messaging
 
 Diagnostics come in three severities. **Information** means something is worth knowing but the document is complete. **Warning** means something was left out. **Error** means the document should not be trusted at all — the most common cause being source that did not compile.
 
+## The generator checks its own output
+
+Every diagnostic above names something *your application* declared that the language cannot hold. There is one that names a defect in the generator instead.
+
+After the document is written, the generator hands it straight back to the Screenplay compiler. If the compiler rejects it, `SP0034` is reported as an error — because a `.play` that does not compile is output nobody can use, and there is no way of writing an application that avoids it. This is not a mode you turn on: it runs on every generation, since the only way a rejected document is ever found is by reading each one back.
+
+```text
+Error SP0034: The generated document did not compile - 1 error(s), the first being
+'Invalid description 'description RequestDescription' - expected 'description "<text>"''
+on line 6. That is the generator being wrong rather than anything the source declared,
+and the document is returned as it stands so the line can be read (Library)
+```
+
+The document is still written out, so you can open it at the reported line and see what happened. If you hit this, it is a bug worth [reporting](https://github.com/Cratis/Arc/issues) — include the line, and the C# declaration it came from.
+
+Source that did not compile (`SP0024`) suppresses `SP0034`. A model recovered from symbols the compiler never accepted describes an application that does not exist, so a poor document made from it is a consequence of the broken build rather than a second, separate defect. Fix the build and generate again.
+
 ## Screens
 
 A [vertical slice](./vertical-slices.md) puts the React component that realizes a slice's screen in the same folder as its C#. Roslyn syntax trees carry real file paths, so the generator knows where each slice's source lives and declares a `screen` for every `.tsx` component sitting next to it, named after the file:

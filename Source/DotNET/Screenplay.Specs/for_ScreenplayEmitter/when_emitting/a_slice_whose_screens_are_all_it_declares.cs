@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Emission;
 using Cratis.Arc.Screenplay.Library;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Arc.Screenplay.Verification;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayEmitter.when_emitting;
 

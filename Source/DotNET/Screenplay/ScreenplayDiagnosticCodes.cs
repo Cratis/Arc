@@ -211,4 +211,17 @@ public static class ScreenplayDiagnosticCodes
     /// number is written as it stands and what it names is left unsaid.
     /// </remarks>
     public const string UnnamedEnumerationValue = "SP0033";
+
+    /// <summary>
+    /// The document that was generated does not compile, which is the generator being wrong rather than the source.
+    /// </summary>
+    /// <remarks>
+    /// Every other code here names something the application declared that the language has no counterpart for,
+    /// which is a gap the reader can see and work around. This one names a defect in the generator - a document the
+    /// Screenplay compiler rejects is output nobody can use, and no way of writing an application avoids it. It
+    /// exists because such a document is only ever found by reading every generated one back: a property named
+    /// after a directive shipped once precisely because no fixture happened to use that name. The text is returned
+    /// as it stands so the line that was rejected can be read.
+    /// </remarks>
+    public const string DocumentDidNotCompile = "SP0034";
 }
