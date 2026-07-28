@@ -35,7 +35,7 @@ public static partial class ScreenImports
             return names;
         }
 
-        foreach (var statement in StatementRegex().Matches(text).Cast<Match>())
+        foreach (var statement in StatementRegex().Matches(WithoutComments(text)).Cast<Match>())
         {
             var clause = statement.Groups["clause"].Value;
             if (!IsRelative(statement.Groups["module"].Value) || IsTypeOnly(clause))
@@ -51,6 +51,20 @@ public static partial class ScreenImports
 
         return names;
     }
+
+    /// <summary>
+    /// Removes everything a comment holds, leaving the lines around it where they were.
+    /// </summary>
+    /// <param name="text">The text of the file.</param>
+    /// <returns>The text with nothing commented out left in it.</returns>
+    /// <remarks>
+    /// An import that has been commented out is an import the file does not make, and binding a screen to a query it
+    /// no longer calls is a plain untruth of exactly the kind this reader exists to avoid. The line breaks a comment
+    /// spans are kept, because a statement is recognized by starting a line and joining it to the line before would
+    /// hide a real import rather than a commented one.
+    /// </remarks>
+    static string WithoutComments(string text) =>
+        CommentRegex().Replace(text, match => new string('\n', match.Value.Count(_ => _ == '\n')));
 
     /// <summary>
     /// Determines whether a module specifier names a file sitting alongside the one importing it.
@@ -113,6 +127,13 @@ public static partial class ScreenImports
 
         return exported is not null && IdentifierRegex().IsMatch(exported) ? exported : null;
     }
+
+    /// <summary>
+    /// Gets the pattern a comment has to match.
+    /// </summary>
+    /// <returns>The compiled regular expression.</returns>
+    [GeneratedRegex(@"/\*[\s\S]*?\*/|//[^\r\n]*", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex CommentRegex();
 
     /// <summary>
     /// Gets the pattern an import statement naming a module has to match.
