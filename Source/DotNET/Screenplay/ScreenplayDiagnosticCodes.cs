@@ -112,8 +112,14 @@ public static class ScreenplayDiagnosticCodes
     public const string ReducerWithoutCounterpart = "SP0020";
 
     /// <summary>
-    /// An event referenced by the application is declared outside the compilation being analyzed.
+    /// An event the application refers to is declared neither by it nor by anything it references.
     /// </summary>
+    /// <remarks>
+    /// An event a referenced package declares is real and can be stated - an <c>import</c> names it and the compiler
+    /// then reads it as an event that is known - so that case is written rather than reported. This is what is left:
+    /// a name nothing at all resolves to, where inventing a declaration would describe an event the application does
+    /// not have and staying silent would leave a document referring to something it never introduces.
+    /// </remarks>
     public const string EventDeclaredOutsideCompilation = "SP0021";
 
     /// <summary>

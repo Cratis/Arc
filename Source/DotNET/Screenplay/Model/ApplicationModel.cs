@@ -22,4 +22,13 @@ public record ApplicationModel(
     /// Represents an application that declares nothing at all.
     /// </summary>
     public static readonly ApplicationModel Empty = new(string.Empty, string.Empty, [], [], []);
+
+    /// <summary>
+    /// Gets the fully qualified name of every event the application refers to that something it references declares.
+    /// </summary>
+    /// <remarks>
+    /// An event a sibling bounded context publishes is real, but nothing here declares it, so the document states the
+    /// dependency outright rather than referring to a name it never introduces.
+    /// </remarks>
+    public IEnumerable<string> Imports { get; init; } = [];
 }

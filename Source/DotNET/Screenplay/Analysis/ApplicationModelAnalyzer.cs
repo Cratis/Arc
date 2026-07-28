@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
@@ -56,7 +57,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         ConceptValidations.Link(catalog, readers);
         readers.AggregateRoots.Report(diagnostics);
         ReportTypesTheDocumentCannotName(readers, diagnostics, compilation.AssemblyName);
-        ReportEventsFromOutside(slices, diagnostics);
+        var imports = ExternalEvents.Resolve(compilation, slices, diagnostics);
         ReportNamespacesWithoutStructure(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
         if (slices.Count == 0 && !failedToCompile)
@@ -73,7 +74,10 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
                 readers.Types.Concepts,
                 new PolicyCatalog(compilation, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
-                slices),
+                slices)
+            {
+                Imports = imports
+            },
             diagnostics.All);
     }
 
@@ -145,31 +149,6 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     }
 
     /// <summary>
-    /// Reports every event the application refers to but does not declare.
-    /// </summary>
-    /// <param name="slices">The slices to check.</param>
-    /// <param name="diagnostics">The diagnostics to report to.</param>
-    /// <remarks>
-    /// An event living in a referenced package is real, but nothing in the compilation declares it, so the document
-    /// would refer to something it never introduces. Saying so is better than inventing a declaration for it.
-    /// </remarks>
-    static void ReportEventsFromOutside(IReadOnlyList<SliceModel> slices, ScreenplayDiagnostics diagnostics)
-    {
-        var declared = slices.SelectMany(_ => _.Events).Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
-
-        foreach (var slice in slices)
-        {
-            foreach (var name in ReferencedEvents(slice).Where(_ => !declared.Contains(_)).Order(StringComparer.Ordinal))
-            {
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.EventDeclaredOutsideCompilation,
-                    $"'{name}' is referred to but declared outside the compilation, so the document refers to an event it never introduces",
-                    slice.Namespace);
-            }
-        }
-    }
-
-    /// <summary>
     /// Reports a namespace that carries nothing to arrange the document by.
     /// </summary>
     /// <param name="slices">The slices to check.</param>
@@ -203,28 +182,4 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     /// <returns>The number of segments.</returns>
     static int Segments(string @namespace, int segmentsToSkip) =>
         @namespace.Split('.', StringSplitOptions.RemoveEmptyEntries).Length - segmentsToSkip;
-
-    /// <summary>
-    /// Gets the names of every event a slice refers to.
-    /// </summary>
-    /// <param name="slice">The slice to read.</param>
-    /// <returns>The names, distinct.</returns>
-    static IEnumerable<string> ReferencedEvents(SliceModel slice) =>
-        slice.Commands.SelectMany(_ => _.Produces).Select(_ => _.EventName)
-            .Concat(slice.Reactors.SelectMany(_ => _.ObservedEvents))
-            .Concat(slice.Constraints.SelectMany(EventsOf))
-            .Concat(ProjectionEvents.In(slice.Projection))
-            .Distinct(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Gets the names of the events a constraint refers to.
-    /// </summary>
-    /// <param name="constraint">The constraint to read.</param>
-    /// <returns>The names.</returns>
-    static IEnumerable<string> EventsOf(ConstraintModel constraint) => constraint switch
-    {
-        UniquePropertyConstraintModel unique => [unique.EventName],
-        UniqueEventConstraintModel unique => [unique.EventName],
-        _ => []
-    };
 }

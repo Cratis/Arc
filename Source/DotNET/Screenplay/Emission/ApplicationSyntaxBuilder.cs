@@ -54,13 +54,39 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
-            [],
+            [.. BuildImports(model)],
             [.. concepts],
             [.. policies],
             [.. modules],
             SourceLocation.Start,
             new DomainSyntax(domain, SourceLocation.Start));
     }
+
+    /// <summary>
+    /// Builds the imports naming every event the application refers to without declaring it.
+    /// </summary>
+    /// <param name="model">The model to build from.</param>
+    /// <returns>The imports, ordered.</returns>
+    /// <remarks>
+    /// The Screenplay compiler reads the last segment of an import as the name of an event that is known, so the
+    /// segment naming the event is written exactly as every reference to it is written - through the same conversion
+    /// - or the document would import one name and refer to another.
+    /// </remarks>
+    IEnumerable<ImportSyntax> BuildImports(ApplicationModel model) =>
+        model.Imports
+            .Select(ToQualifiedName)
+            .Where(_ => _.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .Select(_ => new ImportSyntax(_, SourceLocation.Start));
+
+    /// <summary>
+    /// Sanitizes every segment of a dotted name.
+    /// </summary>
+    /// <param name="name">The name to sanitize.</param>
+    /// <returns>The sanitized name.</returns>
+    string ToQualifiedName(string name) =>
+        string.Join('.', name.Split('.', StringSplitOptions.RemoveEmptyEntries).Select(naming.ToDeclarationName));
 
     /// <summary>
     /// Builds the modules holding every slice that declares something.
