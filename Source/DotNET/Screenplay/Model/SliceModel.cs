@@ -29,6 +29,15 @@ public record SliceModel(
     IEnumerable<ConstraintModel> Constraints)
 {
     /// <summary>
+    /// Gets the screens the slice ends in.
+    /// </summary>
+    /// <remarks>
+    /// Screens are the only part of a slice that is not recovered from the compilation, so they are carried
+    /// alongside what is rather than within it - a slice that nothing knows the screens of is still a slice.
+    /// </remarks>
+    public IEnumerable<ScreenModel> Screens { get; init; } = [];
+
+    /// <summary>
     /// Creates a slice that declares nothing, for use as a starting point.
     /// </summary>
     /// <param name="namespace">The full namespace the slice lives in.</param>

@@ -2,13 +2,15 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// An aggregate root decides what happened in code, applying events from inside its own methods. A document says what
-/// a command produces declaratively, and there is no honest way to state a decision that lives in a class. Saying so
-/// is the difference between a document that is incomplete and one that is quietly wrong.
+/// An aggregate root states what it produces through the command that hands its work to it. One that no command
+/// reaches has nothing to state it through - a document has no construct for a class that decides on its own - so
+/// what it applies is reported rather than left unsaid. The slice is still a state change, because governing a change
+/// is what an aggregate root is for.
 /// </summary>
 public class an_aggregate_root : Specification
 {
@@ -38,6 +40,7 @@ public class an_aggregate_root : Specification
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_still_declare_the_event_it_applies() => _analysis.Slice().Events.Single().Name.ShouldEqual("BookReserved");
-    [Fact] void should_report_that_what_it_produces_is_not_stated() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.AggregateRootWithoutCounterpart]);
+    [Fact] void should_call_the_slice_a_state_change() => _analysis.Slice().Kind.ShouldEqual(SliceKind.StateChange);
+    [Fact] void should_report_that_nothing_states_what_it_produces() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.AggregateRootWithoutCounterpart]);
     [Fact] void should_name_the_aggregate_root_in_the_report() => _analysis.Diagnostics.Single().Message.Contains("Reservation", StringComparison.Ordinal).ShouldBeTrue();
 }

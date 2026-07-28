@@ -64,4 +64,7 @@ public static class ModelBoundNames
 
     /// <summary>The attribute turning automatic property mapping off.</summary>
     public const string NoAutoMap = "Cratis.Chronicle.Projections.NoAutoMapAttribute";
+
+    /// <summary>The attribute naming the property a read model is identified by.</summary>
+    public const string Key = "Cratis.Chronicle.Keys.KeyAttribute";
 }

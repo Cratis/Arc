@@ -21,8 +21,17 @@ public static class SliceKindInference
     /// </summary>
     /// <param name="commands">The commands the slice declares.</param>
     /// <param name="reactors">The reactors the slice declares.</param>
+    /// <param name="hasAggregateRoot">Whether the slice declares an aggregate root.</param>
     /// <returns>The inferred <see cref="SliceKind"/>.</returns>
-    public static SliceKind Infer(IEnumerable<CommandModel> commands, IEnumerable<ReactorModel> reactors)
+    /// <remarks>
+    /// An aggregate root governs a change to the system just as a command does, so a slice holding one is a state
+    /// change whether or not a command sits beside it. Calling such a slice a state view would say the opposite of
+    /// what it is.
+    /// </remarks>
+    public static SliceKind Infer(
+        IEnumerable<CommandModel> commands,
+        IEnumerable<ReactorModel> reactors,
+        bool hasAggregateRoot = false)
     {
         var declaredReactors = reactors as IReadOnlyCollection<ReactorModel> ?? [.. reactors];
 
@@ -36,6 +45,6 @@ public static class SliceKindInference
             return SliceKind.Automation;
         }
 
-        return commands.Any() ? SliceKind.StateChange : SliceKind.StateView;
+        return commands.Any() || hasAggregateRoot ? SliceKind.StateChange : SliceKind.StateView;
     }
 }

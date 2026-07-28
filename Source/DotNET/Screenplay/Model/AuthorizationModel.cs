@@ -14,4 +14,14 @@ public record AuthorizationModel(bool RequiresAuthentication, IEnumerable<string
     /// Represents an artifact that is open to anonymous callers.
     /// </summary>
     public static readonly AuthorizationModel None = new(false, []);
+
+    /// <summary>
+    /// Gets the named policies the caller has to satisfy, all of them.
+    /// </summary>
+    /// <remarks>
+    /// A policy is named on the artifact but declared where the application is composed, so the name is all the
+    /// artifact itself says. Carrying it is what keeps a document from flattening every policy into the one thing
+    /// they all have in common, which is that somebody has to be there at all.
+    /// </remarks>
+    public IEnumerable<string> Policies { get; init; } = [];
 }

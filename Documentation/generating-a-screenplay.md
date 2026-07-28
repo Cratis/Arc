@@ -50,6 +50,26 @@ transported rather than what it is, so the query was left out (Library.Messaging
 
 Diagnostics come in three severities. **Information** means something is worth knowing but the document is complete. **Warning** means something was left out. **Error** means the document should not be trusted at all — the most common cause being source that did not compile.
 
+## Screens
+
+A [vertical slice](./vertical-slices.md) puts the React component that realizes a slice's screen in the same folder as its C#. Roslyn syntax trees carry real file paths, so the generator knows where each slice's source lives and declares a `screen` for every `.tsx` component sitting next to it, named after the file:
+
+```text
+slice StateChange Registration
+  command RegisterAuthor
+    name : AuthorName
+
+  screen AddAuthor
+    file Authors/Registration/AddAuthor.tsx
+```
+
+That is the whole of it — the `file` form and nothing else. The declarative form (`data … via query …`, `section`, `table`, `summary`, `action`, `navigate to`) is never inferred, because it would have to be read out of TypeScript rather than out of the compilation, and a guess at a screen's structure is worse than a pointer to the file that actually is it. Write those directives by hand if you want them, and expect a regeneration to leave them out.
+
+Two rules keep the result honest:
+
+- **Components only, no descending.** A file carrying a second extension — `AddAuthor.stories.tsx`, `AddAuthor.spec.tsx` — is a companion of a component, not a screen. A folder *inside* a slice folder is a slice of its own under the same convention, so its files belong to it.
+- **Anything uncertain is reported.** The relationship between a file and a slice comes entirely from where the file sits, so `SP0025` is reported whenever sitting there says less than usual: a slice whose source is spread over several folders, one folder holding the source of several slices, or two files claiming a single screen name.
+
 ## What is not expressed
 
 A `.play` is a description of an application, not a second copy of it. **It does not round-trip back to code**, and reading one will not tell you everything the code does. The losses run in both directions.
@@ -63,9 +83,8 @@ These are part of the language, but nothing in C# says them, so a generated docu
 | `capture` | Describes ingesting an external system. Nothing in an Arc application declares one. |
 | `persona` | Who uses the system is a product decision, not a code artifact. |
 | `seed` | Sample data is a modeling concern, not something the source states. |
-| `screen` | Screens are React components; their structure is not recoverable from C#. |
+| The declarative form of `screen` | What a screen shows and does is written in TypeScript and JSX. Only the `file` reference is generated — see [Screens](#screens). |
 | `@sensitive` | Only `[PII]` has a counterpart. Other sensitivity levels are not declared in Arc. |
-| Named authorization policies | `[Authorize(Policy = "…")]` names a policy whose rule lives in host configuration, not in the attribute. Roles are recovered; policy bodies are not. |
 
 ### Detail Screenplay cannot represent
 
@@ -75,7 +94,8 @@ These exist in your application and have no counterpart in the language. Each is
 |---|---|
 | Event generations, `[Tombstone]`, `[CompensationFor]` | Screenplay describes the current shape of an event. It has no notion of versioning, of a deletion marker, or of one event compensating another. |
 | Reducer folds (`IReducerFor<T>`) | The fold is code. The read model and the events it observes are recovered; the logic that combines them is not. |
-| Aggregate roots | Events are applied from inside methods. There is no honest declarative rendering of a decision that lives in a class. |
+| Aggregate roots no command reaches | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. |
+| Inline `policy` code and requirements built in code | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole` and `RequireClaim` are recovered; the rest is reported. |
 | The event source id from a `(TKey, TEvent)` handler | The event is recovered; the identifier saying *which* event source it goes to has no counterpart. |
 | Read model tags, query paging and sorting, custom routes | These are transport and storage concerns. The document describes the model, not how it is served. |
 | Child and nested objects declared with model-bound attributes | Not read back yet. The fluent form of the same projection is. |

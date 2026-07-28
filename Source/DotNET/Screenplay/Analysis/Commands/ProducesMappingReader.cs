@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,19 +26,21 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="owner">The type whose properties count as the command's own input.</param>
     /// <param name="eventType">The type of the event being constructed.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read, if it is not the handler's own.</param>
     /// <returns>The mappings, in the order the source declares them.</returns>
     public IEnumerable<PropertyMappingModel> Read(
         BaseObjectCreationExpressionSyntax creation,
         SemanticModel semanticModel,
         ITypeSymbol owner,
         ITypeSymbol eventType,
-        string location)
+        string location,
+        ParameterBindings? bindings = null)
     {
         var mappings = new List<PropertyMappingModel>();
         var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
 
-        ReadArguments(creation, constructor, semanticModel, owner, eventType, location, mappings);
-        ReadInitializer(creation, semanticModel, owner, eventType, location, mappings);
+        ReadArguments(creation, constructor, semanticModel, owner, eventType, location, mappings, bindings);
+        ReadInitializer(creation, semanticModel, owner, eventType, location, mappings, bindings);
 
         return mappings;
     }
@@ -78,6 +81,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="eventType">The type of the event being constructed.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="mappings">The mappings collected so far.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     void ReadArguments(
         BaseObjectCreationExpressionSyntax creation,
         IMethodSymbol? constructor,
@@ -85,7 +89,8 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         ITypeSymbol owner,
         ITypeSymbol eventType,
         string location,
-        List<PropertyMappingModel> mappings)
+        List<PropertyMappingModel> mappings,
+        ParameterBindings? bindings)
     {
         var arguments = creation.ArgumentList?.Arguments;
         if (arguments is null)
@@ -103,7 +108,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
                 continue;
             }
 
-            Add(mappings, PropertyOf(eventType, name), argument.Expression, semanticModel, owner, eventType, location);
+            Add(mappings, PropertyOf(eventType, name), argument.Expression, semanticModel, owner, eventType, location, bindings);
         }
     }
 
@@ -116,13 +121,15 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="eventType">The type of the event being constructed.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="mappings">The mappings collected so far.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     void ReadInitializer(
         BaseObjectCreationExpressionSyntax creation,
         SemanticModel semanticModel,
         ITypeSymbol owner,
         ITypeSymbol eventType,
         string location,
-        List<PropertyMappingModel> mappings)
+        List<PropertyMappingModel> mappings,
+        ParameterBindings? bindings)
     {
         foreach (var assignment in creation.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>() ?? [])
         {
@@ -132,7 +139,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
                 continue;
             }
 
-            Add(mappings, PropertyOf(eventType, identifier.Identifier.ValueText), assignment.Right, semanticModel, owner, eventType, location);
+            Add(mappings, PropertyOf(eventType, identifier.Identifier.ValueText), assignment.Right, semanticModel, owner, eventType, location, bindings);
         }
     }
 
@@ -146,6 +153,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="owner">The type whose properties count as the command's own input.</param>
     /// <param name="eventType">The type of the event being constructed.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     void Add(
         List<PropertyMappingModel> mappings,
         string property,
@@ -153,9 +161,10 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         SemanticModel semanticModel,
         ITypeSymbol owner,
         ITypeSymbol eventType,
-        string location)
+        string location,
+        ParameterBindings? bindings)
     {
-        var source = MappingSourceReader.Read(expression, semanticModel, owner);
+        var source = MappingSourceReader.Read(expression, semanticModel, owner, bindings);
         if (source is null)
         {
             Report(eventType, property, location);

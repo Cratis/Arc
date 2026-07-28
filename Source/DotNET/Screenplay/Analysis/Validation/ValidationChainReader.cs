@@ -58,11 +58,15 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             return;
         }
 
-        var declared = 0;
+        var preceding = 0;
 
         foreach (var call in chain.Calls)
         {
-            declared += ReadCall(call, property, forEach, semanticModel, location, rules, declared);
+            var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding);
+            if (added > 0)
+            {
+                preceding = added;
+            }
         }
     }
 
@@ -101,7 +105,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
     /// <param name="location">Where the validator lives, for use in diagnostics.</param>
     /// <param name="rules">The rules collected so far.</param>
-    /// <param name="declared">The number of rules the chain has declared so far.</param>
+    /// <param name="preceding">The number of rules the call before this one declared.</param>
     /// <returns>The number of rules the call added.</returns>
     int ReadCall(
         InvocationExpressionSyntax call,
@@ -110,13 +114,13 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
         SemanticModel semanticModel,
         string location,
         IList<ValidationRuleModel> rules,
-        int declared)
+        int preceding)
     {
         var name = InvocationChain.NameOf(call);
 
         if (string.Equals(name, WithMessage, StringComparison.Ordinal))
         {
-            ApplyMessage(call, semanticModel, rules, declared, location);
+            ApplyMessage(call, semanticModel, rules, preceding, location);
 
             return 0;
         }
@@ -145,22 +149,27 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     }
 
     /// <summary>
-    /// Applies a message to the rule it was written after.
+    /// Applies a message to every rule the call before it declared.
     /// </summary>
     /// <param name="call">The call carrying the message.</param>
     /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
     /// <param name="rules">The rules collected so far.</param>
-    /// <param name="declared">The number of rules the chain has declared so far.</param>
+    /// <param name="preceding">The number of rules the call before this one declared.</param>
     /// <param name="location">Where the validator lives, for use in diagnostics.</param>
+    /// <remarks>
+    /// One call can declare more than one rule - a length range is a lower bound and an upper bound - and a message
+    /// written after it was written about the range rather than about its upper half. Attaching it to the last rule
+    /// alone would leave the lower bound reporting a message the developer never wrote.
+    /// </remarks>
     void ApplyMessage(
         InvocationExpressionSyntax call,
         SemanticModel semanticModel,
         IList<ValidationRuleModel> rules,
-        int declared,
+        int preceding,
         string location)
     {
         var message = InvocationChain.ArgumentOf(call) is { } argument ? semanticModel.GetConstantValue(argument).Value as string : null;
-        if (message is null || declared == 0)
+        if (message is null || preceding == 0)
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableValidationRule,
@@ -170,6 +179,9 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             return;
         }
 
-        rules[^1] = rules[^1] with { Message = message };
+        for (var index = rules.Count - preceding; index < rules.Count; index++)
+        {
+            rules[index] = rules[index] with { Message = message };
+        }
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Constraints;
 using Cratis.Arc.Screenplay.Analysis.Controllers;
@@ -21,6 +22,7 @@ public class ArtifactReaders
 {
     ArtifactReaders(
         TypeRegistry types,
+        AggregateRootCatalog aggregates,
         ValidatorCatalog validators,
         EventReader events,
         CommandReader commands,
@@ -33,6 +35,7 @@ public class ArtifactReaders
         ConstraintReader constraints)
     {
         Types = types;
+        AggregateRoots = aggregates;
         Validators = validators;
         Events = events;
         Commands = commands;
@@ -47,6 +50,9 @@ public class ArtifactReaders
 
     /// <summary>Gets the registry collecting the concepts every artifact refers to.</summary>
     public TypeRegistry Types { get; }
+
+    /// <summary>Gets the aggregate roots the compilation declares, and which of them a command reaches.</summary>
+    public AggregateRootCatalog AggregateRoots { get; }
 
     /// <summary>Gets the rules every validator in the compilation declares.</summary>
     public ValidatorCatalog Validators { get; }
@@ -90,11 +96,13 @@ public class ArtifactReaders
         var types = new TypeRegistry();
         var properties = new PropertyReader(types);
         var paths = SourcePaths.For(compilation);
-        var produces = new ProducesReader(compilation, diagnostics);
+        var aggregates = new AggregateRootCatalog();
+        var produces = new ProducesReader(compilation, aggregates, diagnostics);
         var validators = ValidatorCatalog.From(catalog, new(compilation, diagnostics));
 
         return new(
             types,
+            aggregates,
             validators,
             new EventReader(properties, diagnostics),
             new CommandReader(properties, produces, validators, paths),

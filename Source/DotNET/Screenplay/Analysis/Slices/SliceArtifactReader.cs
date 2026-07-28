@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Constraints;
 using Cratis.Arc.Screenplay.Analysis.Controllers;
@@ -69,8 +70,13 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
             content.Constraints.AddRange(readers.Constraints.Read(type, @namespace));
         }
 
+        if (AggregateRoots.IsDeclaredByApplication(type))
+        {
+            content.HasAggregateRoot = true;
+            readers.AggregateRoots.Declare(type, @namespace);
+        }
+
         ReadController(type, @namespace, content);
-        ReportAggregateRoot(type, @namespace);
     }
 
     /// <summary>
@@ -141,21 +147,5 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
         }
 
         content.Projection = projection;
-    }
-
-    /// <summary>
-    /// Reports an aggregate root, which produces events from code a document cannot describe.
-    /// </summary>
-    /// <param name="type">The type to check.</param>
-    /// <param name="namespace">The namespace the slice lives in.</param>
-    void ReportAggregateRoot(INamedTypeSymbol type, string @namespace)
-    {
-        if (type.FindBase(WellKnownTypeNames.AggregateRoot) is not null)
-        {
-            diagnostics.Warning(
-                ScreenplayDiagnosticCodes.AggregateRootWithoutCounterpart,
-                $"'{type.Name}' is an aggregate root, whose events are produced by code rather than declaratively, so what it produces is not stated",
-                @namespace);
-        }
     }
 }

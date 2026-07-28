@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -11,11 +12,13 @@ namespace Cratis.Arc.Screenplay.Analysis.Slices;
 /// </summary>
 /// <param name="readers">The <see cref="ArtifactReaders"/> reading each kind of artifact.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="screens">The <see cref="ScreenReader"/> reading what the slice ends in.</param>
 /// <remarks>
 /// A namespace is the unit a slice is recovered from, because that is what the vertical slice convention makes it -
-/// everything belonging to one behavior lives together, and nothing else does.
+/// everything belonging to one behavior lives together, and nothing else does. The same convention puts the file
+/// realizing a screen in that folder too, which is why screens are read here rather than discovered separately.
 /// </remarks>
-public class SliceReader(ArtifactReaders readers, ScreenplayDiagnostics diagnostics)
+public class SliceReader(ArtifactReaders readers, ScreenplayDiagnostics diagnostics, ScreenReader screens)
 {
     readonly SliceArtifactReader _artifacts = new(readers, diagnostics);
 
@@ -45,14 +48,17 @@ public class SliceReader(ArtifactReaders readers, ScreenplayDiagnostics diagnost
         return new(
             @namespace,
             NameOf(@namespace),
-            SliceKindInference.Infer(commands, reactors),
+            SliceKindInference.Infer(commands, reactors, content.HasAggregateRoot),
             null,
             commands,
             [.. content.Events.OrderBy(_ => _.Name, StringComparer.Ordinal)],
             [.. QueryNames.Resolve(content.Queries, diagnostics, @namespace).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             content.Projection,
             reactors,
-            [.. content.Constraints.OrderBy(_ => _.Name, StringComparer.Ordinal)]);
+            [.. content.Constraints.OrderBy(_ => _.Name, StringComparer.Ordinal)])
+        {
+            Screens = [.. screens.Read(@namespace, types)]
+        };
     }
 
     /// <summary>

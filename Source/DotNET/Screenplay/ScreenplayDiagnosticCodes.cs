@@ -130,4 +130,28 @@ public static class ScreenplayDiagnosticCodes
     /// The source did not compile, so nothing recovered from it can be relied on.
     /// </summary>
     public const string SourceDidNotCompile = "SP0024";
+
+    /// <summary>
+    /// A user interface file sits alongside the source of a slice whose relationship to it is not certain.
+    /// </summary>
+    /// <remarks>
+    /// A screen is recovered as a <c>file</c> reference and nothing more. The declarative form - <c>data</c> via a
+    /// query, <c>section</c>, <c>table</c> and <c>summary</c> with their columns and fields, <c>action</c> and
+    /// <c>navigate to</c> - is never inferred, because it would have to be read out of TypeScript and JSX rather
+    /// than out of the compilation, and a guess at a screen's structure is worse than saying which file realizes it.
+    /// Which file that is comes from where the file sits, so this reports every case where sitting there says less
+    /// than usual: source spread over several folders, one folder holding the source of several slices, and two
+    /// files claiming one screen name.
+    /// </remarks>
+    public const string AmbiguousScreenFile = "SP0025";
+
+    /// <summary>
+    /// A named authorization policy is referred to, but what it requires of the caller could not be recovered.
+    /// </summary>
+    /// <remarks>
+    /// The name of a policy sits on the artifact, while what it requires sits where the application is composed.
+    /// When the registration cannot be found or cannot be read, the document still declares the policy - a reference
+    /// to something undeclared is a document that warns - but it declares the least it can say rather than a guess.
+    /// </remarks>
+    public const string PolicyRequirementsUnrecoverable = "SP0026";
 }

@@ -27,6 +27,15 @@ public static class WellKnownTypeNames
     /// <summary>The attribute allowing anonymous callers.</summary>
     public const string AllowAnonymousAttribute = "Cratis.Arc.Authorization.AllowAnonymousAttribute";
 
+    /// <summary>The options every named authorization policy is registered on.</summary>
+    public const string AuthorizationOptions = "Microsoft.AspNetCore.Authorization.AuthorizationOptions";
+
+    /// <summary>The builder every named authorization policy can also be registered on.</summary>
+    public const string AuthorizationBuilder = "Microsoft.AspNetCore.Authorization.AuthorizationBuilder";
+
+    /// <summary>The builder the requirements of a named authorization policy are declared against.</summary>
+    public const string AuthorizationPolicyBuilder = "Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder";
+
     /// <summary>The interface a command pipeline is executed through.</summary>
     public const string CommandPipeline = "Cratis.Arc.Commands.ICommandPipeline";
 
@@ -86,6 +95,9 @@ public static class WellKnownTypeNames
 
     /// <summary>The base type an aggregate root derives from.</summary>
     public const string AggregateRoot = "Cratis.Arc.Chronicle.Aggregates.AggregateRoot";
+
+    /// <summary>The interface every aggregate root implements.</summary>
+    public const string AggregateRootInterface = "Cratis.Arc.Chronicle.Aggregates.IAggregateRoot";
 
     /// <summary>The base type every FluentValidation validator derives from.</summary>
     public const string AbstractValidator = "FluentValidation.AbstractValidator`1";

@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Policies;
+using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -10,12 +12,27 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// <summary>
 /// Represents an <see cref="IApplicationModelAnalyzer"/> that recovers the model from the source of an application.
 /// </summary>
+/// <param name="userInterfaceFiles">The <see cref="IUserInterfaceFiles"/> the screens of a slice are found through.</param>
 /// <remarks>
 /// Namespaces are read in order and everything within a slice is ordered explicitly, so the same compilation always
 /// yields the same model - which is what makes the document it produces something worth committing.
 /// </remarks>
-public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
+public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : IApplicationModelAnalyzer
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ApplicationModelAnalyzer"/> class reading the file system the
+    /// source was built from.
+    /// </summary>
+    /// <remarks>
+    /// A compilation answers for everything but the file realizing a screen, which is why that one question is
+    /// asked of a collaborator. This is the single place the answer comes from a real disk, so a host that wants a
+    /// compilation analyzed without one substitutes it and everything else stays as it is.
+    /// </remarks>
+    public ApplicationModelAnalyzer()
+        : this(new UserInterfaceFiles())
+    {
+    }
+
     /// <inheritdoc/>
     public ApplicationModelAnalysis Analyze(Compilation compilation, ScreenplayOptions options)
     {
@@ -23,7 +40,8 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
         var failedToCompile = ReportCompilationErrors(compilation, diagnostics);
         var catalog = ArtifactCatalog.From(compilation);
         var readers = ArtifactReaders.For(compilation, catalog, diagnostics);
-        var reader = new SliceReader(readers, diagnostics);
+        var screens = new ScreenReader(userInterfaceFiles, SourcePaths.For(compilation), new(diagnostics));
+        var reader = new SliceReader(readers, diagnostics, screens);
 
         var slices = catalog.Namespaces
             .Select(@namespace => reader.Read(@namespace, catalog.In(@namespace)))
@@ -31,6 +49,7 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
             .ToList();
 
         ConceptValidations.Link(catalog, readers);
+        readers.AggregateRoots.Report(diagnostics);
         ReportEventsFromOutside(slices, diagnostics);
         ReportNamespacesWithoutStructure(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
@@ -47,7 +66,7 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
                 options.Domain ?? compilation.AssemblyName ?? ScreenplayOptions.DefaultName,
                 options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
                 readers.Types.Concepts,
-                Policies(slices),
+                new PolicyCatalog(compilation, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
                 slices),
             diagnostics.All);
     }
@@ -80,21 +99,6 @@ public class ApplicationModelAnalyzer : IApplicationModelAnalyzer
 
         return true;
     }
-
-    /// <summary>
-    /// Declares a policy for every role the application names.
-    /// </summary>
-    /// <param name="slices">The slices to read.</param>
-    /// <returns>The policies, ordered by name.</returns>
-    static IEnumerable<PolicyModel> Policies(IEnumerable<SliceModel> slices) =>
-    [
-        .. slices
-            .SelectMany(AuthorizationsIn)
-            .SelectMany(_ => _.Roles)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .Select(_ => new PolicyModel(_, true, _))
-    ];
 
     /// <summary>
     /// Gets everything within a slice that requires something of the caller.

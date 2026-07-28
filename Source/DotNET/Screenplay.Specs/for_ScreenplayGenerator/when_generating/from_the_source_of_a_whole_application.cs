@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Emission;
 using Cratis.Screenplay;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
@@ -26,7 +28,10 @@ public class from_the_source_of_a_whole_application : Specification
 
     void Because()
     {
-        _result = new ScreenplayGenerator().Generate(Analyzed.Compile(_sources), new ScreenplayOptions());
+        _result = new ScreenplayGenerator(
+                new ApplicationModelAnalyzer(DeclaredUserInterfaceFiles.None),
+                new ScreenplayEmitter())
+            .Generate(Analyzed.Compile(_sources), new ScreenplayOptions());
         _compiled = new ScreenplayCompiler().Compile(_result.Source);
         _reprinted = _compiled.Value is null ? string.Empty : new Cratis.Screenplay.Printing.ScreenplayPrinter().Print(_compiled.Value);
     }

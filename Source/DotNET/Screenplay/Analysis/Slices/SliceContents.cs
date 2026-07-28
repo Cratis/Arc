@@ -41,6 +41,15 @@ public class SliceContents
     public ProjectionModel? Projection { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the slice declares an aggregate root.
+    /// </summary>
+    /// <remarks>
+    /// An aggregate root governs a change to the system, which is what a state change slice is, so a slice holding
+    /// one is a state change even when no command sits beside it.
+    /// </remarks>
+    public bool HasAggregateRoot { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether the slice declares nothing at all.
     /// </summary>
     public bool IsEmpty =>

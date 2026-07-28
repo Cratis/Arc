@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -24,6 +25,11 @@ public static class Analyzed
     public const string AssemblyName = "Library";
 
     /// <summary>
+    /// The path a single source file is compiled as.
+    /// </summary>
+    public const string SlicePath = "Library/Feature/Slice/Slice.cs";
+
+    /// <summary>
     /// The file every compilation carries so that paths in the document start at the root of the project.
     /// </summary>
     /// <remarks>
@@ -41,19 +47,40 @@ public static class Analyzed
     ];
 
     /// <summary>
-    /// Compiles source and recovers the model it describes.
+    /// Compiles source and recovers the model it describes, with nothing sitting alongside it.
     /// </summary>
     /// <param name="sources">The source files, keyed by the path each one is compiled as.</param>
     /// <returns>The <see cref="ApplicationModelAnalysis"/>.</returns>
     public static ApplicationModelAnalysis Source(params (string Path, string Text)[] sources) =>
-        new ApplicationModelAnalyzer().Analyze(Compile(sources), new ScreenplayOptions().WithDefaults(AssemblyName));
+        Source(DeclaredUserInterfaceFiles.None, sources);
+
+    /// <summary>
+    /// Compiles source and recovers the model it describes.
+    /// </summary>
+    /// <param name="files">The user interface files sitting alongside the source.</param>
+    /// <param name="sources">The source files, keyed by the path each one is compiled as.</param>
+    /// <returns>The <see cref="ApplicationModelAnalysis"/>.</returns>
+    /// <remarks>
+    /// The files a screen is recovered from are declared rather than written to a disk, so that a specification
+    /// about screens is exactly as hermetic as every other one.
+    /// </remarks>
+    public static ApplicationModelAnalysis Source(IUserInterfaceFiles files, params (string Path, string Text)[] sources) =>
+        new ApplicationModelAnalyzer(files).Analyze(Compile(sources), new ScreenplayOptions().WithDefaults(AssemblyName));
+
+    /// <summary>
+    /// Compiles a single source file and recovers the model it describes, with nothing sitting alongside it.
+    /// </summary>
+    /// <param name="text">The source.</param>
+    /// <returns>The <see cref="ApplicationModelAnalysis"/>.</returns>
+    public static ApplicationModelAnalysis Source(string text) => Source((SlicePath, text));
 
     /// <summary>
     /// Compiles a single source file and recovers the model it describes.
     /// </summary>
+    /// <param name="files">The user interface files sitting alongside the source.</param>
     /// <param name="text">The source.</param>
     /// <returns>The <see cref="ApplicationModelAnalysis"/>.</returns>
-    public static ApplicationModelAnalysis Source(string text) => Source(("Library/Feature/Slice/Slice.cs", text));
+    public static ApplicationModelAnalysis Source(IUserInterfaceFiles files, string text) => Source(files, (SlicePath, text));
 
     /// <summary>
     /// Compiles source into a compilation.

@@ -43,6 +43,6 @@ public static class LibraryConcepts
     /// </remarks>
     public static IEnumerable<PolicyModel> Policies() =>
     [
-        new("Librarian", true, "Librarian")
+        PolicyModel.ForRole("Librarian")
     ];
 }

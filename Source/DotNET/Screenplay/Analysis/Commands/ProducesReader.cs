@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -12,13 +13,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// Reads the events a command produces, from the body of its handler.
 /// </summary>
 /// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="aggregates">The <see cref="AggregateRootCatalog"/> recording which aggregate roots a command reaches.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// Every event the handler constructs is a production, wherever in the body it happens - returned directly, wrapped
 /// in a result, appended to a log or handed to a collection. Reading the construction is what gives the mappings
 /// their values, rather than pairing names up and hoping.
+/// <para>
+/// A handler that governs its change through an aggregate root constructs nothing itself, so the behaviors it calls
+/// are read as well. Both ways of writing an Arc command then describe the same thing in the document.
+/// </para>
 /// </remarks>
-public class ProducesReader(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class ProducesReader(Compilation compilation, AggregateRootCatalog aggregates, ScreenplayDiagnostics diagnostics)
 {
     readonly ProducesMappingReader _mappings = new(diagnostics);
     readonly ProducesConditionResolver _conditions = new(diagnostics);
@@ -40,7 +46,13 @@ public class ProducesReader(Compilation compilation, ScreenplayDiagnostics diagn
 
             foreach (var body in HandlerBodies.Of(handler))
             {
-                ReadBody(command, body, location, produces);
+                ReadBody(command, body, location, produces, null);
+
+                foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, compilation))
+                {
+                    aggregates.Reached(behavior.AggregateRoot);
+                    ReadBody(command, behavior.Body, location, produces, behavior.Bindings);
+                }
             }
         }
 
@@ -85,7 +97,13 @@ public class ProducesReader(Compilation compilation, ScreenplayDiagnostics diagn
     /// <param name="body">The body to read.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="produces">The productions collected so far.</param>
-    void ReadBody(INamedTypeSymbol command, SyntaxNode body, string location, List<ProducesModel> produces)
+    /// <param name="bindings">What the handler gave the body's parameters, when the body is one it called.</param>
+    void ReadBody(
+        INamedTypeSymbol command,
+        SyntaxNode body,
+        string location,
+        List<ProducesModel> produces,
+        ParameterBindings? bindings)
     {
         var semanticModel = compilation.GetSemanticModel(body.SyntaxTree);
 
@@ -99,7 +117,7 @@ public class ProducesReader(Compilation compilation, ScreenplayDiagnostics diagn
             produces.Add(new(
                 type.Name,
                 _conditions.Resolve(creation, body, semanticModel, command, type, location),
-                _mappings.Read(creation, semanticModel, command, type, location)));
+                _mappings.Read(creation, semanticModel, command, type, location, bindings)));
         }
     }
 

@@ -14,6 +14,8 @@ namespace Cratis.Arc.Screenplay.Emission.Policies;
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 public class PolicySyntaxBuilder(IScreenplayNaming naming)
 {
+    readonly PolicyConditionConverter _conditions = new(naming);
+
     /// <summary>
     /// Builds every policy the document declares.
     /// </summary>
@@ -31,13 +33,13 @@ public class PolicySyntaxBuilder(IScreenplayNaming naming)
 
         foreach (var policy in declared)
         {
-            var name = naming.ToDeclarationName(policy.Name);
-            if (name.Length <= 1 || policies.ContainsKey(name))
+            var name = PolicyNames.For(policy.Name);
+            if (name.Length == 0 || policies.ContainsKey(name))
             {
                 continue;
             }
 
-            policies[name] = new(name, ToCondition(policy), null, SourceLocation.Start);
+            policies[name] = new(name, _conditions.Convert(policy.Requirement), null, SourceLocation.Start);
         }
 
         foreach (var name in referenced.Where(_ => !policies.ContainsKey(_)))
@@ -57,22 +59,4 @@ public class PolicySyntaxBuilder(IScreenplayNaming naming)
         string.Equals(name, AuthorizeSyntaxBuilder.AuthenticatedPolicy, StringComparison.Ordinal)
             ? new AuthenticatedConditionSyntax(SourceLocation.Start)
             : new RoleConditionSyntax(name, SourceLocation.Start);
-
-    /// <summary>
-    /// Converts what a declared policy requires into the condition expressing it.
-    /// </summary>
-    /// <param name="policy">The policy to convert.</param>
-    /// <returns>The condition.</returns>
-    /// <remarks>
-    /// A policy declaring a role implies an authenticated caller, so the role alone is emitted rather than the two
-    /// combined - the flattened form would read as if the two were independent.
-    /// </remarks>
-    PolicyConditionSyntax ToCondition(PolicyModel policy)
-    {
-        var role = policy.Role is null ? string.Empty : naming.ToDeclarationName(policy.Role);
-
-        return role.Length > 1
-            ? new RoleConditionSyntax(role, SourceLocation.Start)
-            : new AuthenticatedConditionSyntax(SourceLocation.Start);
-    }
 }

@@ -13,6 +13,7 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// Roles are declared in two shapes - the constructor form <c>[Roles("Librarian")]</c> and the named argument form
 /// <c>[Authorize(Roles = "Librarian")]</c> - and both are read. Reading only one of them silently drops half the
 /// authorization in an application, which is a bug the proxy generator has and this deliberately does not repeat.
+/// A named policy is carried by its name alone, because the attribute says nothing else about it.
 /// </remarks>
 public static class AuthorizationReader
 {
@@ -20,6 +21,11 @@ public static class AuthorizationReader
     /// The name of the property carrying a comma separated list of roles.
     /// </summary>
     public const string RolesProperty = "Roles";
+
+    /// <summary>
+    /// The name of the property naming the policy the caller has to satisfy.
+    /// </summary>
+    public const string PolicyProperty = "Policy";
 
     /// <summary>
     /// Reads what an artifact and the type declaring it require of the caller.
@@ -47,7 +53,16 @@ public static class AuthorizationReader
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        return new(true, roles);
+        var policies = attributes
+            .Select(_ => _.GetNamedArgument(PolicyProperty) as string)
+            .OfType<string>()
+            .Where(_ => _.Trim().Length > 0)
+            .Select(_ => _.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        return new(true, roles) { Policies = policies };
     }
 
     /// <summary>

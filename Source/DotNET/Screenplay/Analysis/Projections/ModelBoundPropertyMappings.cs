@@ -62,14 +62,6 @@ public class ModelBoundPropertyMappings
     public IEnumerable<string> EventTypes() => _byEvent.Keys.Order(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets the name of the event type an attribute is bound to.
-    /// </summary>
-    /// <param name="attribute">The attribute to read.</param>
-    /// <returns>The name, or <see langword="null"/> when the attribute names none.</returns>
-    static string? EventTypeOf(AttributeData attribute) =>
-        attribute.AttributeClass?.TypeArguments.FirstOrDefault()?.Name;
-
-    /// <summary>
     /// Builds the expression an attribute maps a property with.
     /// </summary>
     /// <param name="name">The fully qualified metadata name of the attribute.</param>
@@ -98,9 +90,11 @@ public class ModelBoundPropertyMappings
     /// <returns>The expression.</returns>
     static string Ambient(AttributeData attribute, IPropertySymbol property)
     {
-        var context = Argument(attribute, "ContextProperty", 1);
+        var context = ModelBoundAttributes.Path(attribute, "ContextProperty", 1);
 
-        return context is null ? Argument(attribute, "Property", 0) ?? property.Name : ProjectionExpressions.EventContext(context);
+        return context is null
+            ? ModelBoundAttributes.Path(attribute, "Property", 0) ?? Named(property)
+            : ProjectionExpressions.EventContext(context);
     }
 
     /// <summary>
@@ -109,19 +103,16 @@ public class ModelBoundPropertyMappings
     /// <param name="attribute">The attribute to read.</param>
     /// <param name="argument">The name of the argument carrying the source.</param>
     /// <param name="property">The property being mapped onto.</param>
-    /// <returns>The source.</returns>
+    /// <returns>The source, in the casing a projection body references it by.</returns>
     static string Source(AttributeData attribute, string argument, IPropertySymbol property) =>
-        Argument(attribute, argument, 0) ?? property.Name;
+        ModelBoundAttributes.Path(attribute, argument, 0) ?? Named(property);
 
     /// <summary>
-    /// Gets an argument of an attribute, in either the named or the positional form.
+    /// Gets the name of a property in the casing a projection body references it by.
     /// </summary>
-    /// <param name="attribute">The attribute to read.</param>
-    /// <param name="name">The name of the argument.</param>
-    /// <param name="index">The position of the argument.</param>
-    /// <returns>The value, or <see langword="null"/> when the argument carries nothing.</returns>
-    static string? Argument(AttributeData attribute, string name, int index) =>
-        (attribute.GetNamedArgument(name) ?? attribute.GetArgument(index)) as string is { Length: > 0 } value ? value : null;
+    /// <param name="property">The property to name.</param>
+    /// <returns>The name.</returns>
+    static string Named(IPropertySymbol property) => ProjectionPaths.Convert(property.Name) ?? property.Name;
 
     /// <summary>
     /// Reads the mappings one property declares.
@@ -129,12 +120,12 @@ public class ModelBoundPropertyMappings
     /// <param name="property">The property to read.</param>
     void ReadProperty(IPropertySymbol property)
     {
-        foreach (var attribute in property.GetAttributes())
+        foreach (var attribute in ModelBoundMembers.AttributesOf(property))
         {
             var name = attribute.AttributeClass is null ? string.Empty : attribute.AttributeClass.FullMetadataName();
             var expression = ExpressionOf(name, attribute, property);
 
-            if (expression is not null && EventTypeOf(attribute) is { } eventType)
+            if (expression is not null && ModelBoundAttributes.EventTypeOf(attribute) is { } eventType)
             {
                 Add(eventType, property.Name, expression);
             }
@@ -156,12 +147,12 @@ public class ModelBoundPropertyMappings
     /// <param name="property">The property holding the joined data.</param>
     void ReadJoin(AttributeData attribute, IPropertySymbol property)
     {
-        var on = Argument(attribute, "On", 0) ?? string.Empty;
-        var source = Argument(attribute, "EventPropertyName", 1) ?? property.Name;
+        var on = ModelBoundAttributes.Argument(attribute, "On", 0) ?? string.Empty;
+        var source = ModelBoundAttributes.Path(attribute, "EventPropertyName", 1) ?? Named(property);
 
         _joins.Add(new(
             property.Name,
-            EventTypeOf(attribute) ?? string.Empty,
+            ModelBoundAttributes.EventTypeOf(attribute) ?? string.Empty,
             on,
             new Dictionary<string, string>(StringComparer.Ordinal) { [property.Name] = source }));
     }

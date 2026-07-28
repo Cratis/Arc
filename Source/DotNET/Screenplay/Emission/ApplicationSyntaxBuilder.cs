@@ -10,6 +10,7 @@ using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Emission.Projections;
 using Cratis.Arc.Screenplay.Emission.Queries;
 using Cratis.Arc.Screenplay.Emission.Reactors;
+using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Slices;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Emission.Validation;
@@ -31,7 +32,7 @@ namespace Cratis.Arc.Screenplay.Emission;
 /// </remarks>
 public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
 {
-    readonly AuthorizeSyntaxBuilder _authorize = new(naming);
+    readonly AuthorizeSyntaxBuilder _authorize = new();
     readonly ValidationSyntaxBuilder _validations = new(naming, diagnostics);
     readonly TypeReferenceConverter _types = new(naming);
 
@@ -110,7 +111,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new QuerySyntaxBuilder(naming, _types, _authorize),
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics),
-            new ProjectionSyntaxBuilder(naming, diagnostics));
+            new ProjectionSyntaxBuilder(naming, diagnostics),
+            new ScreenSyntaxBuilder(naming));
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.
