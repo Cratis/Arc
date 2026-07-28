@@ -188,4 +188,16 @@ public static class ScreenplayDiagnosticCodes
     /// Two types share the simple name a concept is declared under, so only the first of them is described.
     /// </summary>
     public const string AmbiguousConceptName = "SP0031";
+
+    /// <summary>
+    /// A name is one the block it is written in reads as a directive of its own, so the line carrying it is left out.
+    /// </summary>
+    /// <remarks>
+    /// Screenplay is line based and every block decides what a line is from its first word. A command property called
+    /// <c>Description</c> is written as <c>description RequestDescription</c>, which the command body reads as the
+    /// description of the command and rejects; an event property called <c>Tag</c> is written as <c>tag Something</c>,
+    /// which the event body reads as a tag and quietly swallows. The language has no escape for a name colliding this
+    /// way and no other name describes the member, so the line is left out and what was lost is said instead.
+    /// </remarks>
+    public const string NameReservedByGrammar = "SP0032";
 }

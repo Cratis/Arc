@@ -14,7 +14,8 @@ namespace Cratis.Arc.Screenplay.Emission.Projections;
 /// </summary>
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
-public partial class ProjectionSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
+/// <param name="names">The <see cref="NameAvailability"/> deciding which properties a block can map onto.</param>
+public partial class ProjectionSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics, NameAvailability names)
 {
     /// <summary>
     /// The identifier of the default event sequence, which is never written out.
@@ -30,7 +31,7 @@ public partial class ProjectionSyntaxBuilder(IScreenplayNaming naming, Screenpla
     public ProjectionSyntax? Build(ProjectionModel projection, string location)
     {
         var readModel = naming.ToDeclarationName(projection.ReadModel);
-        var blocks = new ProjectionBlockConverter(naming, readModel, diagnostics, location)
+        var blocks = new ProjectionBlockConverter(naming, readModel, diagnostics, location, names)
             .Convert(projection.Scope, projection.SubscribesToAllEvents)
             .ToList();
 

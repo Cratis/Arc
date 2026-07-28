@@ -20,13 +20,15 @@ namespace Cratis.Arc.Screenplay.Emission.Commands;
 /// <param name="validations">The <see cref="ValidationSyntaxBuilder"/> used for the validate blocks.</param>
 /// <param name="produces">The <see cref="ProducesSyntaxBuilder"/> used for the produces blocks.</param>
 /// <param name="concurrency">The <see cref="ConcurrencySyntaxBuilder"/> used for the concurrency block.</param>
+/// <param name="names">The <see cref="NameAvailability"/> deciding which property names the body can carry.</param>
 public class CommandSyntaxBuilder(
     IScreenplayNaming naming,
     TypeReferenceConverter types,
     AuthorizeSyntaxBuilder authorize,
     ValidationSyntaxBuilder validations,
     ProducesSyntaxBuilder produces,
-    ConcurrencySyntaxBuilder concurrency)
+    ConcurrencySyntaxBuilder concurrency,
+    NameAvailability names)
 {
     /// <summary>
     /// Builds the command declaration.
@@ -36,11 +38,11 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
-        var produced = produces.Build(command.Produces).ToList();
+        var produced = produces.Build(command.Produces, location).ToList();
 
         return new(
             naming.ToDeclarationName(command.Name),
-            [.. command.Properties.Select(ToProperty)],
+            [.. ToProperties(command, location)],
             authorize.Build(command.Authorization),
             [.. validations.Build(command.Validations, location)],
             produced,
@@ -49,6 +51,17 @@ public class CommandSyntaxBuilder(
             concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));
     }
+
+    /// <summary>
+    /// Converts the properties of the command, leaving out every name the command body reads as a directive.
+    /// </summary>
+    /// <param name="command">The command to convert the properties of.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <returns>The properties the body can carry.</returns>
+    IEnumerable<PropertySyntax> ToProperties(CommandModel command, string location) =>
+        command.Properties
+            .Where(_ => names.Allows(_.Name, ReservedWords.InCommand, command.Name, location))
+            .Select(ToProperty);
 
     /// <summary>
     /// Converts a property of the command.

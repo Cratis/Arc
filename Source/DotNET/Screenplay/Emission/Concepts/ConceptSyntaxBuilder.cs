@@ -16,10 +16,12 @@ namespace Cratis.Arc.Screenplay.Emission.Concepts;
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 /// <param name="validations">The <see cref="ValidationSyntaxBuilder"/> used for the validate blocks.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="names">The <see cref="NameAvailability"/> deciding which value names the body can carry.</param>
 public class ConceptSyntaxBuilder(
     IScreenplayNaming naming,
     ValidationSyntaxBuilder validations,
-    ScreenplayDiagnostics diagnostics)
+    ScreenplayDiagnostics diagnostics,
+    NameAvailability names)
 {
     /// <summary>
     /// The Screenplay attribute marking a concept as personally identifiable information.
@@ -71,8 +73,18 @@ public class ConceptSyntaxBuilder(
     /// </summary>
     /// <param name="concept">The concept to read the values of.</param>
     /// <returns>The values, empty when the concept is not an enumeration.</returns>
+    /// <remarks>
+    /// A value is written on a line of its own, so a value named after a word the concept body reads as a directive
+    /// is swallowed by that directive rather than declared, and is left out instead.
+    /// </remarks>
     List<string> ToValues(ConceptModel concept) =>
         concept.Primitive == ScreenplayPrimitive.Enum
-            ? [.. concept.EnumValues.Select(naming.ToPropertyName).Distinct(StringComparer.Ordinal)]
+            ?
+            [
+                .. concept.EnumValues
+                    .Where(_ => names.Allows(_, ReservedWords.InConcept, concept.Name, concept.Name))
+                    .Select(naming.ToPropertyName)
+                    .Distinct(StringComparer.Ordinal)
+            ]
             : [];
 }

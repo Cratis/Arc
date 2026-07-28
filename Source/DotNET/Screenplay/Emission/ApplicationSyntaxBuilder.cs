@@ -35,6 +35,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     readonly AuthorizeSyntaxBuilder _authorize = new();
     readonly ValidationSyntaxBuilder _validations = new(naming, diagnostics);
     readonly TypeReferenceConverter _types = new(naming);
+    readonly NameAvailability _names = new(naming, diagnostics);
 
     /// <summary>
     /// Builds the document.
@@ -49,7 +50,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var module = ToName(model.Module, resolved.Module);
 
         var modules = BuildModules(model, module, resolved.SegmentsToSkip ?? 0);
-        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics).Build(model.Concepts);
+        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts);
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
@@ -105,13 +106,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 _types,
                 _authorize,
                 _validations,
-                new ProducesSyntaxBuilder(naming),
-                new ConcurrencySyntaxBuilder(naming, diagnostics)),
-            new EventSyntaxBuilder(naming, _types),
+                new ProducesSyntaxBuilder(naming, _names),
+                new ConcurrencySyntaxBuilder(naming, diagnostics),
+                _names),
+            new EventSyntaxBuilder(naming, _types, _names),
             new QuerySyntaxBuilder(naming, _types, _authorize),
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics),
-            new ProjectionSyntaxBuilder(naming, diagnostics),
+            new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types));
 
     /// <summary>

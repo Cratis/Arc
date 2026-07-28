@@ -64,6 +64,6 @@ public class ProjectionJoinConverter(
         new(
             naming.ToDeclarationName(join.EventType),
             AutoMapMode.Inherit,
-            mappings.Convert(join.Properties),
+            mappings.Convert(join.Properties, ReservedWords.None),
             SourceLocation.Start);
 }

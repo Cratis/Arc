@@ -13,7 +13,14 @@ namespace Cratis.Arc.Screenplay.Emission.Projections;
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <param name="location">Where the projection lives, for use in diagnostics.</param>
-public class ProjectionMappingConverter(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics, string location)
+/// <param name="readModelName">The name of the read model the mappings fill in, for use in diagnostics.</param>
+/// <param name="names">The <see cref="NameAvailability"/> deciding which properties a block can map onto.</param>
+public class ProjectionMappingConverter(
+    IScreenplayNaming naming,
+    ScreenplayDiagnostics diagnostics,
+    string location,
+    string readModelName,
+    NameAvailability names)
 {
     /// <summary>
     /// The expression incrementing a read model property.
@@ -44,8 +51,13 @@ public class ProjectionMappingConverter(IScreenplayNaming naming, ScreenplayDiag
     /// Converts a property map into mapping lines, reporting everything Screenplay cannot express.
     /// </summary>
     /// <param name="properties">The property map of the projection.</param>
+    /// <param name="reserved">The <see cref="ReservedWords"/> of the block the mappings are written in.</param>
     /// <returns>The mapping lines, ordered by property.</returns>
-    public IEnumerable<MappingSyntax> Convert(IReadOnlyDictionary<string, string> properties)
+    /// <remarks>
+    /// Only a plain assignment leads with the property it fills in - <c>increment</c>, <c>count</c>, <c>add</c> and
+    /// their kind lead with the operation - so a name the block reserves is only a problem for the former.
+    /// </remarks>
+    public IEnumerable<MappingSyntax> Convert(IReadOnlyDictionary<string, string> properties, ReservedWords reserved)
     {
         var mappings = new List<MappingSyntax>();
 
@@ -59,6 +71,11 @@ public class ProjectionMappingConverter(IScreenplayNaming naming, ScreenplayDiag
                     ScreenplayDiagnosticCodes.UnmappableProjectionExpression,
                     $"The expression '{expression}' mapped onto '{rawProperty}' has no counterpart in the projection definition language",
                     location);
+                continue;
+            }
+
+            if (mapping is SetMappingSyntax && !names.Allows(rawProperty, reserved, readModelName, location))
+            {
                 continue;
             }
 

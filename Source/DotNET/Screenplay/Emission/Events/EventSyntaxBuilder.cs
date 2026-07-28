@@ -14,19 +14,32 @@ namespace Cratis.Arc.Screenplay.Emission.Events;
 /// </summary>
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 /// <param name="types">The <see cref="TypeReferenceConverter"/> used for property types.</param>
-public class EventSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverter types)
+/// <param name="names">The <see cref="NameAvailability"/> deciding which property names the body can carry.</param>
+public class EventSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverter types, NameAvailability names)
 {
     /// <summary>
     /// Builds the event declaration.
     /// </summary>
     /// <param name="event">The event to build for.</param>
+    /// <param name="location">Where the event lives, for use in diagnostics.</param>
     /// <returns>The <see cref="EventSyntax"/>.</returns>
-    public EventSyntax Build(EventModel @event) =>
+    public EventSyntax Build(EventModel @event, string location) =>
         new(
             naming.ToDeclarationName(@event.Name),
-            [.. @event.Properties.Select(ToProperty)],
+            [.. ToProperties(@event, location)],
             SourceLocation.Start,
             BuildTags(@event));
+
+    /// <summary>
+    /// Converts the properties of the event, leaving out every name the event body reads as a directive.
+    /// </summary>
+    /// <param name="event">The event to convert the properties of.</param>
+    /// <param name="location">Where the event lives, for use in diagnostics.</param>
+    /// <returns>The properties the body can carry.</returns>
+    IEnumerable<PropertySyntax> ToProperties(EventModel @event, string location) =>
+        @event.Properties
+            .Where(_ => names.Allows(_.Name, ReservedWords.InEvent, @event.Name, location))
+            .Select(ToProperty);
 
     /// <summary>
     /// Converts a property of the event.

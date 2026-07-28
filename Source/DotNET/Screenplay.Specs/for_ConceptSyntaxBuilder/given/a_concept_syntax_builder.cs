@@ -16,6 +16,6 @@ public class a_concept_syntax_builder : Specification
     {
         var naming = new ScreenplayNaming();
         _diagnostics = new();
-        _builder = new(naming, new ValidationSyntaxBuilder(naming, _diagnostics), _diagnostics);
+        _builder = new(naming, new ValidationSyntaxBuilder(naming, _diagnostics), _diagnostics, new NameAvailability(naming, _diagnostics));
     }
 }

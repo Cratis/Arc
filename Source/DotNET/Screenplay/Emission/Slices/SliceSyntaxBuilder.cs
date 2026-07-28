@@ -51,7 +51,7 @@ public class SliceSyntaxBuilder(
         new(
             SliceTypes.Convert(slice.Kind),
             GetName(slice),
-            [.. slice.Events.Select(events.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            [.. slice.Events.Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             [.. slice.Commands.Select(_ => commands.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             [.. slice.Queries.Select(queries.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             BuildProjection(slice),

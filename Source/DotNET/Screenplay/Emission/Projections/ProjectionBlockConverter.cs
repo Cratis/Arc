@@ -16,14 +16,16 @@ namespace Cratis.Arc.Screenplay.Emission.Projections;
 /// <param name="readModelName">The name of the read model, used when a composite key carries no type name.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <param name="location">Where the projection lives, for use in diagnostics.</param>
+/// <param name="names">The <see cref="NameAvailability"/> deciding which properties a block can map onto.</param>
 public class ProjectionBlockConverter(
     IScreenplayNaming naming,
     string readModelName,
     ScreenplayDiagnostics diagnostics,
-    string location)
+    string location,
+    NameAvailability names)
 {
-    readonly ProjectionMappingConverter _mappings = new(naming, diagnostics, location);
-    readonly ProjectionJoinConverter _joins = new(naming, new(naming, diagnostics, location), diagnostics, location);
+    readonly ProjectionMappingConverter _mappings = new(naming, diagnostics, location, readModelName, names);
+    readonly ProjectionJoinConverter _joins = new(naming, new(naming, diagnostics, location, readModelName, names), diagnostics, location);
 
     /// <summary>
     /// Converts the model's auto map setting into the Screenplay one.
@@ -79,7 +81,7 @@ public class ProjectionBlockConverter(
             return;
         }
 
-        var mappings = _mappings.Convert(every.Properties);
+        var mappings = _mappings.Convert(every.Properties, ReservedWords.None);
         var autoMap = ToAutoMapMode(every.AutoMap);
 
         blocks.Add(subscribesToAllEvents
@@ -97,7 +99,7 @@ public class ProjectionBlockConverter(
             [.. from.EventTypes.Select(_ => new EventSpecSyntax(naming.ToDeclarationName(_), null, SourceLocation.Start))],
             ConvertKey(from.Key),
             ProjectionKeyConverter.ConvertParent(from.ParentKey),
-            _mappings.Convert(from.Properties),
+            _mappings.Convert(from.Properties, ReservedWords.InFrom),
             SourceLocation.Start);
 
     /// <summary>
