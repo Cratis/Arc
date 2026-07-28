@@ -40,11 +40,13 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var diagnostics = new ScreenplayDiagnostics();
         var catalog = ArtifactCatalog.From(compilation);
         var readers = ArtifactReaders.For(compilation, catalog, diagnostics);
+        var elsewhere = new CrossSliceQueries();
         var screens = new ScreenReader(
             userInterfaceFiles,
             SourcePaths.For(compilation, catalog),
             new(diagnostics),
-            new(userInterfaceFiles, diagnostics));
+            new(userInterfaceFiles, diagnostics, elsewhere),
+            elsewhere);
 
         var recovered = new RecoveredArtifacts();
         var reader = new SliceReader(readers, diagnostics, screens, recovered);
@@ -56,6 +58,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
 
         ConceptValidations.Link(catalog, readers);
         readers.AggregateRoots.Report(diagnostics);
+        elsewhere.Report(diagnostics);
         ReportTypesTheDocumentCannotName(readers, diagnostics, compilation.AssemblyName);
         var imports = ExternalEvents.Resolve(compilation, slices, diagnostics);
         ReportNamespacesWithoutStructure(slices, diagnostics, options.SegmentsToSkip ?? 0);

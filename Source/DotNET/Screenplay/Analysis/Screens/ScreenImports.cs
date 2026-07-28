@@ -27,29 +27,40 @@ public static partial class ScreenImports
     /// slice, so that is the shape every real binding has, and the shapes that are left out - a default import, a
     /// namespace import, an import of a package - cannot be tied to an exported name with any certainty.
     /// </remarks>
-    public static IReadOnlyCollection<string> In(string? text)
+    public static IReadOnlyCollection<string> In(string? text) =>
+        new HashSet<string>(Statements(text).Select(_ => _.Name), StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the names a file imports from a module sitting alongside it, together with the module each came from.
+    /// </summary>
+    /// <param name="text">The text of the file, or <see langword="null"/> when it could not be read.</param>
+    /// <returns>The imports, in the order the file writes them.</returns>
+    /// <remarks>
+    /// Source order is kept rather than sorted, because it is the order the file was written in and nothing else is
+    /// any more meaningful - and keeping it is what makes the same file always read the same way.
+    /// </remarks>
+    public static IReadOnlyList<ScreenImport> Statements(string? text)
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var imports = new List<ScreenImport>();
+        var seen = new HashSet<ScreenImport>();
         if (string.IsNullOrWhiteSpace(text))
         {
-            return names;
+            return imports;
         }
 
         foreach (var statement in StatementRegex().Matches(WithoutComments(text)).Cast<Match>())
         {
             var clause = statement.Groups["clause"].Value;
-            if (!IsRelative(statement.Groups["module"].Value) || IsTypeOnly(clause))
+            var module = statement.Groups["module"].Value;
+            if (!IsRelative(module) || IsTypeOnly(clause))
             {
                 continue;
             }
 
-            foreach (var name in NamedIn(clause))
-            {
-                names.Add(name);
-            }
+            imports.AddRange(NamedIn(clause).Select(_ => new ScreenImport(_, module)).Where(seen.Add));
         }
 
-        return names;
+        return imports;
     }
 
     /// <summary>

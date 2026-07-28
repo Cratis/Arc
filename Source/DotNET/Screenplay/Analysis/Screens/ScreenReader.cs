@@ -13,6 +13,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of each file.</param>
 /// <param name="ambiguity">The <see cref="AmbiguousScreens"/> anything uncertain is reported to.</param>
 /// <param name="data">The <see cref="ScreenDataReader"/> reading which of the slice's queries a screen binds.</param>
+/// <param name="elsewhere">The <see cref="CrossSliceQueries"/> told what each slice declares and where it lives.</param>
 /// <remarks>
 /// Two things about a screen are recovered and no more: the file realizing it, which is what a reader opens, and the
 /// queries it binds, which are names the model already holds and can be held against what the slice really declares.
@@ -23,7 +24,8 @@ public class ScreenReader(
     IUserInterfaceFiles files,
     SourcePaths paths,
     AmbiguousScreens ambiguity,
-    ScreenDataReader data)
+    ScreenDataReader data,
+    CrossSliceQueries elsewhere)
 {
     /// <summary>
     /// Reads the screens of a slice.
@@ -38,6 +40,8 @@ public class ScreenReader(
         IReadOnlyCollection<QueryModel> queries)
     {
         var directories = SliceDirectories.Of(types);
+        elsewhere.Declare(@namespace, directories, queries);
+
         if (directories.Count == 0)
         {
             return [];
