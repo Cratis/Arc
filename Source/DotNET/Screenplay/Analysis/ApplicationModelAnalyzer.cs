@@ -124,6 +124,14 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 $"'{type}' shares its simple name with a concept the document already declares, so what it is is described by the first one instead",
                 location);
         }
+
+        foreach (var shape in readers.Types.Shapes)
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UndeclarableShape,
+                $"'{shape}' is a record an artifact carries, and there is no way to declare what a record holds, so the document names it without saying what is in it - the concepts it carries are declared, the shape itself is not",
+                location);
+        }
     }
 
     /// <summary>

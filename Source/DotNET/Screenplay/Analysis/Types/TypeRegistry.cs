@@ -22,11 +22,17 @@ public class TypeRegistry
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
+    readonly HashSet<string> _shapes = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type that had to be referred to by a name that does not say what it is.
     /// </summary>
     public IEnumerable<string> Unmappable => _unmappable.Order(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the full name of every record a property carries whose shape no declaration can hold.
+    /// </summary>
+    public IEnumerable<string> Shapes => _shapes.Order(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type whose simple name a concept was already declared under.
@@ -57,7 +63,32 @@ public class TypeRegistry
         var optional = false;
         var collection = false;
 
-        return new(NameOf(Underlying(type, ref optional, ref collection)), collection, optional);
+        return new(NameOf(UnderlyingTypes.Of(type, ref optional, ref collection)), collection, optional);
+    }
+
+    /// <summary>
+    /// Resolves the Screenplay type reference of a value an artifact carries.
+    /// </summary>
+    /// <param name="type">The type to resolve.</param>
+    /// <returns>The <see cref="TypeReferenceModel"/>.</returns>
+    /// <remarks>
+    /// A property is where a record the document has no way to declare is really referred to - the line carrying it
+    /// names a shape nothing in the document introduces. That is asked here rather than everywhere a type is resolved,
+    /// because a query returning a read model refers to something the slice around it already describes, while a
+    /// property carrying a record refers to a shape stated nowhere at all.
+    /// </remarks>
+    public TypeReferenceModel ResolveCarried(ITypeSymbol type)
+    {
+        var optional = false;
+        var collection = false;
+        var carried = UnderlyingTypes.Of(type, ref optional, ref collection);
+
+        if (CarriedTypes.IsRecord(carried))
+        {
+            _shapes.Add(carried.ToDisplayString());
+        }
+
+        return new(NameOf(carried), collection, optional);
     }
 
     /// <summary>
@@ -70,13 +101,7 @@ public class TypeRegistry
     /// therefore strip the same wrappers - a collection of an optional concept says one thing about the value and
     /// three things about how many there are and whether it may be absent.
     /// </remarks>
-    public void MarkAsPii(ITypeSymbol type)
-    {
-        var optional = false;
-        var collection = false;
-
-        _pii.Add(Underlying(type, ref optional, ref collection).Name);
-    }
+    public void MarkAsPii(ITypeSymbol type) => _pii.Add(UnderlyingTypes.Of(type).Name);
 
     /// <summary>
     /// Records the validation rules a concept declares for itself.
@@ -92,50 +117,6 @@ public class TypeRegistry
         }
 
         declared.AddRange(rules);
-    }
-
-    /// <summary>
-    /// Strips everything a value is wrapped in that says how many there are or whether it may be absent.
-    /// </summary>
-    /// <param name="type">The type to strip.</param>
-    /// <param name="optional">Set when a wrapper said the value may be absent.</param>
-    /// <param name="collection">Set when the value is a collection of what is left.</param>
-    /// <returns>The type of the value itself.</returns>
-    static ITypeSymbol Underlying(ITypeSymbol type, ref bool optional, ref bool collection)
-    {
-        var current = Unwrap(type, ref optional);
-        var element = CollectionElements.ElementOf(current);
-        if (element is null)
-        {
-            return current;
-        }
-
-        collection = true;
-
-        return Unwrap(element, ref optional);
-    }
-
-    /// <summary>
-    /// Strips the wrappers that only say whether a value may be absent.
-    /// </summary>
-    /// <param name="type">The type to strip.</param>
-    /// <param name="optional">Set when a wrapper said the value may be absent.</param>
-    /// <returns>The wrapped type.</returns>
-    static ITypeSymbol Unwrap(ITypeSymbol type, ref bool optional)
-    {
-        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
-        {
-            optional = true;
-
-            return nullable.TypeArguments[0];
-        }
-
-        if (type.NullableAnnotation == NullableAnnotation.Annotated && type.IsReferenceType)
-        {
-            optional = true;
-        }
-
-        return type;
     }
 
     /// <summary>
@@ -172,9 +153,35 @@ public class TypeRegistry
             return type.Name;
         }
 
+        RegisterWhatItCarries(type);
         ReportWhatTheNameLoses(type);
 
         return type.Name;
+    }
+
+    /// <summary>
+    /// Registers every concept a record carries, however far down it is carried.
+    /// </summary>
+    /// <param name="type">The type being named.</param>
+    /// <remarks>
+    /// A record is referred to by name and never declared, so nothing inside it is ever named on its own - which left
+    /// every concept reached only through a line of a timesheet or a property of a read model out of the document
+    /// entirely. A concept can be declared wherever it was reached from, so it is, and the shape carrying it waits on
+    /// the language.
+    /// </remarks>
+    void RegisterWhatItCarries(ITypeSymbol type)
+    {
+        foreach (var carried in CarriedTypes.Within(type))
+        {
+            if (carried.TypeKind == TypeKind.Enum)
+            {
+                Register(carried, new(carried.Name, ScreenplayPrimitive.Enum, false, ValuesOf(carried), []));
+            }
+            else if (carried.FindBase(WellKnownTypeNames.ConceptAs) is { } concept)
+            {
+                Register(carried, ToConcept(carried, concept.TypeArguments[0]));
+            }
+        }
     }
 
     /// <summary>
