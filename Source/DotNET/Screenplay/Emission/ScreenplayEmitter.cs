@@ -23,10 +23,16 @@ public class ScreenplayEmitter(IScreenplayPrinter printer, IScreenplayNaming nam
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// This is where the options an emission runs with are resolved, and the only place. What a name falls back to
+    /// is a question only an entry point can answer - a host that emits a model it already holds has nothing to fall
+    /// back on but the domain of that model - so resolving deeper down meant resolving twice on the way through a
+    /// generation, against two answers that only happen to agree.
+    /// </remarks>
     public ScreenplayEmission Emit(ApplicationModel model, ScreenplayOptions options)
     {
         var diagnostics = new ScreenplayDiagnostics();
-        var application = new ApplicationSyntaxBuilder(naming, diagnostics).Build(model, options);
+        var application = new ApplicationSyntaxBuilder(naming, diagnostics).Build(model, options.WithDefaults(model.Domain));
 
         return new(printer.Print(application), application, diagnostics.All);
     }

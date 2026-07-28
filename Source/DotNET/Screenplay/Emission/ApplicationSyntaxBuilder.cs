@@ -41,15 +41,20 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// Builds the document.
     /// </summary>
     /// <param name="model">The model to build from.</param>
-    /// <param name="options">The options to build with.</param>
+    /// <param name="options">The options to build with, already resolved.</param>
     /// <returns>The <see cref="ApplicationSyntax"/>.</returns>
+    /// <remarks>
+    /// The options arrive resolved rather than being resolved here. What a name falls back to depends on how the
+    /// document was asked for - the assembly being analyzed when a generation asked for it, the domain of the model
+    /// when a host emitted one it already had - so resolving where neither of those is known meant resolving a
+    /// second time against a different answer and letting one of them quietly win.
+    /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
-        var resolved = options.WithDefaults(model.Domain);
-        var domain = ToName(model.Domain, resolved.Domain);
-        var module = ToName(model.Module, resolved.Module);
+        var domain = ToName(model.Domain, options.Domain);
+        var module = ToName(model.Module, options.Module);
 
-        var modules = BuildModules(model, module, resolved.SegmentsToSkip ?? 0);
+        var modules = BuildModules(model, module, options.SegmentsToSkip ?? 0);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts);
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
