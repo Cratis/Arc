@@ -12,6 +12,7 @@ using Cratis.Arc.Screenplay.Emission.Queries;
 using Cratis.Arc.Screenplay.Emission.Reactors;
 using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Slices;
+using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Emission.Validation;
 using Cratis.Arc.Screenplay.Model;
@@ -145,7 +146,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
-            new ScreenSyntaxBuilder(naming, _types));
+            new ScreenSyntaxBuilder(naming, _types),
+            new SpecificationSyntaxBuilder(naming));
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.
