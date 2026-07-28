@@ -12,11 +12,17 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// This is what a syntax tree buys that metadata never could - a real path - and it is the whole reason a screen can
 /// be recovered at all. The vertical slice convention puts the file realizing a screen next to the source of the
 /// slice it belongs to, so where the source lives is where to look.
+/// <para>
+/// What a source generator emitted is not where the source lives. A logging generator writing partial members into
+/// the intermediate folder of the build contributes symbols to the slice and nothing at all to the question of where
+/// its screens are, so a slice sitting in one folder would otherwise be reported as spread over two and its screens
+/// looked for in a build folder.
+/// </para>
 /// </remarks>
 public static class SliceDirectories
 {
     /// <summary>
-    /// Gets the directories a set of types is declared across.
+    /// Gets the directories a set of types is written across.
     /// </summary>
     /// <param name="types">The types to locate.</param>
     /// <returns>The directories, distinct and ordered.</returns>
@@ -25,7 +31,7 @@ public static class SliceDirectories
         .. types
             .SelectMany(_ => _.DeclaringSyntaxReferences)
             .Select(_ => _.SyntaxTree.FilePath)
-            .Where(_ => !string.IsNullOrWhiteSpace(_))
+            .Where(_ => !string.IsNullOrWhiteSpace(_) && !GeneratedSource.Is(_))
             .Select(ScreenFiles.DirectoryOf)
             .Where(_ => _.Length > 0)
             .Distinct(StringComparer.Ordinal)

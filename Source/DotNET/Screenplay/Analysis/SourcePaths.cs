@@ -34,10 +34,15 @@ public class SourcePaths(string root)
     /// belongs to the project too and widens the root; a file sharing nothing with them but the file system root
     /// belongs to somebody else and is left out of the question entirely.
     /// </para>
+    /// <para>
+    /// What a source generator emitted is left out of that vote. It is compiled from the intermediate folder of the
+    /// build rather than from anywhere the application is written, so counting it moves the answer towards a folder
+    /// nobody committed a line to.
+    /// </para>
     /// </remarks>
     public static SourcePaths For(Compilation compilation, ArtifactCatalog catalog)
     {
-        var declared = DirectoriesOf(catalog.Types.Select(_ => _.SourceFilePath()));
+        var declared = DirectoriesOf(GeneratedSource.Excluded(catalog.Types.Select(_ => _.SourceFilePath())));
         var anchor = DeepestSharedBy(declared);
         var project = Rooted(declared, anchor);
         var root = Rooted(DirectoriesOf(compilation.SyntaxTrees.Select(_ => _.FilePath)), project);
