@@ -180,6 +180,11 @@ public static class ScreenplayDiagnosticCodes
     /// </remarks>
     public const string ScreenStructureNotInferred = "SP0028";
 
+    // SP0029 is deliberately unused. It was assigned to a code that was retired before the first release, and the
+    // sequence is left with the gap rather than closed up: a code is what a consumer suppresses and groups on, so
+    // handing this number to something else would silently change what an existing suppression means. Nothing is to
+    // be declared with it.
+
     /// <summary>
     /// A type is referred to by a name that does not say what it is, because Screenplay cannot express it.
     /// </summary>
