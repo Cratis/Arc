@@ -139,6 +139,12 @@ public class ScreenplayNaming : IScreenplayNaming
     /// words either side of it are joined in Pascal case, which is what the grammar accepts and what a reader would
     /// have written by hand. A name carrying no separator at all is left exactly as it is, because its casing is
     /// already whatever the application chose.
+    /// <para>
+    /// Composing the name is the first thing done to it rather than the last. An accented letter can be written as
+    /// one character or as a letter followed by a combining mark, and the two are canonically the same name - but a
+    /// combining mark is not a letter, so stripping before composing keeps one of them and quietly unaccents the
+    /// other. Two source files saying the same thing would then produce two different documents.
+    /// </para>
     /// </remarks>
     static string Sanitize(string name)
     {
@@ -147,17 +153,16 @@ public class ScreenplayNaming : IScreenplayNaming
             return string.Empty;
         }
 
-        var backTick = name.IndexOf('`', StringComparison.Ordinal);
-        var words = WordsIn(backTick > 0 ? name[..backTick] : name);
+        var composed = name.Normalize(NormalizationForm.FormC);
+        var backTick = composed.IndexOf('`', StringComparison.Ordinal);
+        var words = WordsIn(backTick > 0 ? composed[..backTick] : composed);
 
-        var identifier = words.Count switch
+        return words.Count switch
         {
             0 => string.Empty,
             1 => words[0],
             _ => string.Concat(words.Select(Capitalized))
         };
-
-        return identifier.Normalize(NormalizationForm.FormC);
     }
 
     /// <summary>
