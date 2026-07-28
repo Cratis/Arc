@@ -176,6 +176,57 @@ jobs:
       - name: Test (${{ matrix.project }})
         run: dotnet test ${{ matrix.project }} --no-build --configuration Release --framework net10.0
 
+  # Every Screenplay specification builds its compilation from source strings, which is what makes them hermetic -
+  # and what puts a whole class of defect out of their reach by construction. A compilation built that way has no
+  # intermediate folder, no source generator output on disk and no referenced package declaring an event, so a
+  # generator that mis-attributes one of those produces a wrong document that every specification still passes. Two
+  # shipped that way. This reads a real project through MSBuild and holds the document it generates to the compiler
+  # the language ships - it has to come back with nothing to say, warnings included.
+  screenplay-end-to-end:
+    needs: [dotnet-build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup .Net
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ env.DOTNET8_VERSION }}
+            ${{ env.DOTNET9_VERSION }}
+            ${{ env.DOTNET10_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Extract build output
+        run: tar -xzf build-output.tar.gz
+
+      # The build output artifact carries bin folders only, and reading a project through MSBuild needs the assets
+      # file that restore writes to obj.
+      - name: Restore the application to generate from
+        run: dotnet restore TestApps/AspNetCore/AspNetCore.csproj
+
+      - name: Generate and read back the document of a real application
+        run: |
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+            TestApps/AspNetCore/AspNetCore.csproj \
+            "${RUNNER_TEMP}/AspNetCore.play"
+
   proxy-specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
