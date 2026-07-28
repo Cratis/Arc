@@ -23,6 +23,11 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// until they have all been read.
 /// </para>
 /// <para>
+/// What a view model beside the component imports counts as what the component imports, because where components are
+/// written that way the query is named there and the component names only the view model - see
+/// <see cref="ViewModelImports"/> for how far that is followed.
+/// </para>
+/// <para>
 /// Every screen also reports what stays out. The rest of the declarative form is JSX structure, and the cost of
 /// guessing it wrong is a document that states something about the application that is not so - which is worse than
 /// a document that says less. Saying so per screen is what turns that limit from a silence into an answer.
@@ -44,7 +49,8 @@ public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics d
         string path,
         IReadOnlyCollection<QueryModel> queries)
     {
-        var imports = ScreenImports.Statements(files.Contents(path));
+        var written = ScreenImports.Statements(files.Contents(path));
+        var imports = written.Concat(ViewModelImports.Of(path, written, files)).Distinct().ToList();
         var imported = new HashSet<string>(imports.Select(_ => _.Name), StringComparer.Ordinal);
 
         ReportUninferredStructure(@namespace, name);
