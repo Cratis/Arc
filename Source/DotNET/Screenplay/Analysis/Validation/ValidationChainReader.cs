@@ -195,12 +195,24 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
         int preceding,
         string location)
     {
-        var message = InvocationChain.ArgumentOf(call) is { } argument ? semanticModel.GetConstantValue(argument).Value as string : null;
-        if (message is null || preceding == 0)
+        var argument = InvocationChain.ArgumentOf(call);
+        var message = ValidationMessages.Read(argument, semanticModel);
+
+        if (message is null)
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                "A message was declared without a constant value or without a rule preceding it, and was left out",
+                $"The message '{argument}' is put together while the request runs rather than written down, so the rule it belongs to states none",
+                location);
+
+            return;
+        }
+
+        if (preceding == 0)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                $"The message '{message}' follows nothing the document states a rule for, so there is nothing to attach it to and it was left out",
                 location);
 
             return;
