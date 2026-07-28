@@ -285,4 +285,34 @@ public static class ScreenplayDiagnosticCodes
     /// the binding the document is missing, and what turns it into one the moment a reference can carry the slice.
     /// </remarks>
     public const string CrossSliceQueryBinding = "SP0036";
+
+    /// <summary>
+    /// Two projects of one application declare an artifact of the same name in the same slice.
+    /// </summary>
+    /// <remarks>
+    /// A slice is recovered from a namespace, and a namespace an application declares from two projects is one slice
+    /// written in two places - the contracts of a bounded context sitting beside the handlers acting on them is the
+    /// ordinary case. Everything both projects contribute belongs to that one slice, and everything within a slice is
+    /// named once: a document declaring two commands called <c>PlaceOrder</c> in one slice says the same word twice
+    /// and means it differently. The first is kept, because the projects are read in assembly name order and no other
+    /// order is available to prefer by, and the second is reported rather than dropped where nobody would see it.
+    /// </remarks>
+    public const string RepeatedDeclarationAcrossProjects = "SP0037";
+
+    /// <summary>
+    /// The projects of an application are written in directories that share none above the root of the file system.
+    /// </summary>
+    /// <remarks>
+    /// Every path in a document is written relative to a directory, because a document carrying the absolute layout of
+    /// the machine that generated it is one nobody can commit or diff. With several projects that directory is the one
+    /// they are all written under - a <c>Source</c> folder holding a project each - and a path relative to it says
+    /// which project a file belongs to as well as where it sits within that project.
+    /// <para>
+    /// Projects checked out beside each other in unrelated places share nothing but the root of the file system, which
+    /// is not a directory to write anything relative to. Each project's paths are therefore written relative to its own
+    /// root, which keeps every one of them relative and still says where a file sits within its project - and says
+    /// nothing about which project that is, so two files can come out as the same path. That is what this reports.
+    /// </para>
+    /// </remarks>
+    public const string ProjectsWithoutASharedRoot = "SP0038";
 }

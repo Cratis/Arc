@@ -37,16 +37,21 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     }
 
     /// <inheritdoc/>
-    public ScreenplayGenerationResult Generate(Compilation compilation, ScreenplayOptions options)
+    public ScreenplayGenerationResult Generate(Compilation compilation, ScreenplayOptions options) =>
+        Generate([compilation], options);
+
+    /// <inheritdoc/>
+    public ScreenplayGenerationResult Generate(IReadOnlyList<Compilation> compilations, ScreenplayOptions options)
     {
-        var resolved = options.WithDefaults(compilation.AssemblyName);
-        var analysis = analyzer.Analyze(compilation, resolved);
+        var ordered = AnalyzedCompilations.Ordered(compilations);
+        var resolved = options.WithDefaults(AnalyzedCompilations.NameOf(ordered));
+        var analysis = analyzer.Analyze(ordered, resolved);
         var emission = emitter.Emit(analysis.Model, resolved);
 
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
-        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, compilation.AssemblyName);
+        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain);
 
         return new(emission.Source, analysis.Model, diagnostics.All);
     }

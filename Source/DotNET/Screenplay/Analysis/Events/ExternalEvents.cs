@@ -28,11 +28,30 @@ public static class ExternalEvents
     public static IReadOnlyList<string> Resolve(
         Compilation compilation,
         IReadOnlyList<SliceModel> slices,
+        ScreenplayDiagnostics diagnostics) =>
+        Resolve([compilation], slices, diagnostics);
+
+    /// <summary>
+    /// Resolves the events an application written as several projects refers to without declaring them.
+    /// </summary>
+    /// <param name="compilations">The compilations being analyzed, ordered.</param>
+    /// <param name="slices">The slices to read, joined across every project.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <returns>The fully qualified name of every event to import, ordered.</returns>
+    /// <remarks>
+    /// An import states a dependency on something outside the application, and a project of the application is not
+    /// outside it. One project referencing another puts the events they share in a referenced assembly, which is
+    /// exactly what an import looks in, so the assemblies being analyzed are left out of the search - an event a
+    /// sibling project declares is declared in the document rather than imported into it.
+    /// </remarks>
+    public static IReadOnlyList<string> Resolve(
+        IReadOnlyList<Compilation> compilations,
+        IReadOnlyList<SliceModel> slices,
         ScreenplayDiagnostics diagnostics)
     {
         var declared = slices.SelectMany(_ => _.Events).Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
         var undeclared = slices.SelectMany(ReferredToBy).Where(_ => !declared.Contains(_)).ToHashSet(StringComparer.Ordinal);
-        var imported = DeclaredByAReference(compilation, undeclared);
+        var imported = DeclaredByAReference(compilations, undeclared);
 
         foreach (var slice in slices)
         {
@@ -77,7 +96,7 @@ public static class ExternalEvents
     /// <summary>
     /// Finds the event a referenced assembly declares under each of a set of names.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="compilations">The compilations being analyzed.</param>
     /// <param name="names">The names to look for.</param>
     /// <returns>The fully qualified name each one was found under, keyed by the name it is referred to by.</returns>
     /// <remarks>
@@ -85,8 +104,14 @@ public static class ExternalEvents
     /// the few that could answer. Assemblies and namespaces are both walked in name order and the first declaration
     /// of a name wins, because two packages declaring an event under one name is a document that would otherwise
     /// depend on the order the compiler happened to hand its references over.
+    /// <para>
+    /// The references of every project are searched together, and ordering them by name across all of them rather
+    /// than project by project is what keeps the answer the same whichever project happens to be read first. The
+    /// assemblies the projects themselves build are excluded, because they are the application rather than something
+    /// it depends on.
+    /// </para>
     /// </remarks>
-    static Dictionary<string, string> DeclaredByAReference(Compilation compilation, HashSet<string> names)
+    static Dictionary<string, string> DeclaredByAReference(IReadOnlyList<Compilation> compilations, HashSet<string> names)
     {
         var found = new Dictionary<string, string>(StringComparer.Ordinal);
         if (names.Count == 0)
@@ -94,7 +119,12 @@ public static class ExternalEvents
             return found;
         }
 
-        foreach (var assembly in compilation.SourceModule.ReferencedAssemblySymbols
+        var analyzed = compilations.Select(_ => _.AssemblyName).OfType<string>().ToHashSet(StringComparer.Ordinal);
+
+        foreach (var assembly in compilations
+            .SelectMany(_ => _.SourceModule.ReferencedAssemblySymbols)
+            .Where(_ => !analyzed.Contains(_.Identity.Name))
+            .DistinctBy(_ => _.Identity.GetDisplayName(), StringComparer.Ordinal)
             .OrderBy(_ => _.Identity.GetDisplayName(), StringComparer.Ordinal))
         {
             if (names.Any(assembly.TypeNames.Contains))

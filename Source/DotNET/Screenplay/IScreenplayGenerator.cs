@@ -22,4 +22,24 @@ public interface IScreenplayGenerator
     /// <param name="options">The options to generate with.</param>
     /// <returns>The <see cref="ScreenplayGenerationResult"/>.</returns>
     ScreenplayGenerationResult Generate(Compilation compilation, ScreenplayOptions options);
+
+    /// <summary>
+    /// Generates the Screenplay document describing an application written as several projects.
+    /// </summary>
+    /// <param name="compilations">The compilations to generate from.</param>
+    /// <param name="options">The options to generate with.</param>
+    /// <returns>The <see cref="ScreenplayGenerationResult"/>.</returns>
+    /// <remarks>
+    /// A layered application - domain, application and api, or a host beside the bounded contexts it serves - is not
+    /// described by any one of its projects. Each compilation contributes what its own assembly declares and the
+    /// document holds all of it: a namespace two projects declare into is one slice, a concept referred to from three
+    /// of them is declared once, and an event a sibling project declares is one the application has rather than one
+    /// it imports.
+    /// <para>
+    /// The order the list arrives in does not reach the document. Nothing decides what order a host enumerates the
+    /// projects of a solution in, so they are put into assembly name order before anything is read and the same
+    /// projects always print the same bytes.
+    /// </para>
+    /// </remarks>
+    ScreenplayGenerationResult Generate(IReadOnlyList<Compilation> compilations, ScreenplayOptions options);
 }
