@@ -14,12 +14,17 @@ namespace Cratis.Arc.MongoDB;
 public class DefaultMongoDatabaseNameResolver(IOptionsMonitor<MongoDBOptions> options, ITenantIdAccessor tenantIdAccessor) : IMongoDatabaseNameResolver
 {
     /// <inheritdoc/>
+    /// <remarks>
+    /// The default tenant — unset, or named <see cref="TenantId.Default"/> — resolves the bare database name.
+    /// Suffixing it instead would address a database that nothing writes to, and a read of a database that does
+    /// not exist returns no rows rather than failing, so the mistake surfaces as silently empty results.
+    /// </remarks>
     public string Resolve()
     {
         var databaseName = options.CurrentValue.Database;
         var tenantId = tenantIdAccessor.Current;
 
-        if (tenantId == TenantId.NotSet)
+        if (tenantId.IsDefault)
         {
             return databaseName;
         }
