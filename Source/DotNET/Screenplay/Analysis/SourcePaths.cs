@@ -37,10 +37,10 @@ public class SourcePaths(string root)
     /// </remarks>
     public static SourcePaths For(Compilation compilation, ArtifactCatalog catalog)
     {
-        var declared = DirectoriesOf(catalog.Types.Select(_ => _.SourceFilePath()));
+        var declared = DirectoriesOf(catalog.Types.Select(_ => _.SourceFilePath()).Where(_ => !GeneratedSource.Is(_)));
         var anchor = DeepestSharedBy(declared);
         var project = Rooted(declared, anchor);
-        var root = Rooted(DirectoriesOf(compilation.SyntaxTrees.Select(_ => _.FilePath)), project);
+        var root = Rooted(DirectoriesOf(compilation.SyntaxTrees.Select(_ => _.FilePath).Where(_ => !GeneratedSource.Is(_))), project);
 
         return new(IsFileSystemRoot(root) ? string.Empty : root);
     }

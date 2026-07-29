@@ -26,6 +26,7 @@ public static class SliceDirectories
             .SelectMany(_ => _.DeclaringSyntaxReferences)
             .Select(_ => _.SyntaxTree.FilePath)
             .Where(_ => !string.IsNullOrWhiteSpace(_))
+            .Where(_ => !GeneratedSource.Is(_))
             .Select(ScreenFiles.DirectoryOf)
             .Where(_ => _.Length > 0)
             .Distinct(StringComparer.Ordinal)
