@@ -19,6 +19,13 @@ public class EntityFrameworkReadModelForCommandResolver(IReadOnlyDictionary<Type
     /// <inheritdoc/>
     public IEnumerable<Type> ReadModelTypes { get; } = [.. readModelToDbContext.Keys];
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// A <see cref="DbSet{TEntity}"/> on a read model <see cref="ReadOnlyDbContext"/> in the application carries each of
+    /// these read models, which is what makes Entity Framework Core own them.
+    /// </remarks>
+    public ReadModelForCommandOwnership Ownership => ReadModelForCommandOwnership.Declared;
+
     /// <summary>
     /// Discovers the read model entity types carried by the given DbContext types and maps each to its owning DbContext.
     /// </summary>

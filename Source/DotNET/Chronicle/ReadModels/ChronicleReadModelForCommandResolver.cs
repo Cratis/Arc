@@ -19,6 +19,14 @@ public class ChronicleReadModelForCommandResolver(IEnumerable<Type> readModelTyp
     public IEnumerable<Type> ReadModelTypes { get; } = readModelTypes;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// A Chronicle projection, model-bound projection, or reducer in the application targets each of these read models,
+    /// which is what makes Chronicle own them — and what makes Chronicle the provider that has to resolve them, since it
+    /// is the only one that releases their compliance-protected values.
+    /// </remarks>
+    public ReadModelForCommandOwnership Ownership => ReadModelForCommandOwnership.Declared;
+
+    /// <inheritdoc/>
     public Task<object?> Resolve(Type readModelType, CommandContext commandContext)
     {
         var readModels = commandContext.ServiceProvider!.GetRequiredService<IReadModels>();

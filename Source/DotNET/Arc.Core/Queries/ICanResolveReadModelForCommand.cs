@@ -14,7 +14,8 @@ namespace Cratis.Arc.Queries;
 /// <c>Handle()</c>) because it is resolvable by the command's resolved key. The command pipeline resolves each read model
 /// dependency from DI by type, and a provider contributes a command-scoped, by-key resolver for the read model types it
 /// owns through this abstraction. Providers coexist without claiming each other's read model types — each reports only
-/// the types it can resolve through <see cref="ReadModelTypes"/>.
+/// the types it can resolve through <see cref="ReadModelTypes"/>, and how strongly it claims them through
+/// <see cref="Ownership"/>.
 /// </remarks>
 public interface ICanResolveReadModelForCommand
 {
@@ -22,6 +23,11 @@ public interface ICanResolveReadModelForCommand
     /// Gets the read model types this provider can resolve by key for a command.
     /// </summary>
     IEnumerable<Type> ReadModelTypes { get; }
+
+    /// <summary>
+    /// Gets how strongly this provider claims the read model types it reports.
+    /// </summary>
+    ReadModelForCommandOwnership Ownership { get; }
 
     /// <summary>
     /// Resolves the read model of the given type for the current command context, keyed by the command's resolved key.
