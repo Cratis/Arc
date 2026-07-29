@@ -71,6 +71,26 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     }
 
     /// <summary>
+    /// Reads the expression a message is carried by, unwrapping the lambda form <c>WithMessage</c> is idiomatically
+    /// given.
+    /// </summary>
+    /// <param name="argument">The argument the message was declared with.</param>
+    /// <returns>The expression whose constant value is the message.</returns>
+    /// <remarks>
+    /// FluentValidation lets a message be a value or a lambda producing one, and the lambda form pointing at a
+    /// message constant - <c>WithMessage(_ =&gt; Messages.NameRequired)</c> - is the common way an application keeps its
+    /// messages in one place. The lambda body is a plain reference the semantic model reads a compile-time constant
+    /// from, so the body is what the constant is asked of; a message computed at runtime - an interpolation, a call,
+    /// a culture-dependent lookup - has no constant to read and is left out as before.
+    /// </remarks>
+    static ExpressionSyntax MessageExpression(ExpressionSyntax argument) => argument switch
+    {
+        SimpleLambdaExpressionSyntax { ExpressionBody: { } body } => body,
+        ParenthesizedLambdaExpressionSyntax { ExpressionBody: { } body } => body,
+        _ => argument
+    };
+
+    /// <summary>
     /// Reads the operand a rule compares against.
     /// </summary>
     /// <param name="call">The call declaring the rule.</param>
@@ -213,24 +233,4 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             rules[index] = rules[index] with { Message = message };
         }
     }
-
-    /// <summary>
-    /// Reads the expression a message is carried by, unwrapping the lambda form <c>WithMessage</c> is idiomatically
-    /// given.
-    /// </summary>
-    /// <param name="argument">The argument the message was declared with.</param>
-    /// <returns>The expression whose constant value is the message.</returns>
-    /// <remarks>
-    /// FluentValidation lets a message be a value or a lambda producing one, and the lambda form pointing at a
-    /// message constant - <c>WithMessage(_ =&gt; Messages.NameRequired)</c> - is the common way an application keeps its
-    /// messages in one place. The lambda body is a plain reference the semantic model reads a compile-time constant
-    /// from, so the body is what the constant is asked of; a message computed at runtime - an interpolation, a call,
-    /// a culture-dependent lookup - has no constant to read and is left out as before.
-    /// </remarks>
-    static ExpressionSyntax MessageExpression(ExpressionSyntax argument) => argument switch
-    {
-        SimpleLambdaExpressionSyntax { ExpressionBody: { } body } => body,
-        ParenthesizedLambdaExpressionSyntax { ExpressionBody: { } body } => body,
-        _ => argument
-    };
 }

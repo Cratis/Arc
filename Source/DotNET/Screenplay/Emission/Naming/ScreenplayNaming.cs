@@ -158,8 +158,9 @@ public class ScreenplayNaming : IScreenplayNaming
         var builder = new StringBuilder(candidate.Length);
         foreach (var segment in segments)
         {
-            builder.Append(char.ToUpperInvariant(segment[0]));
-            builder.Append(segment, 1, segment.Length - 1);
+            builder
+                .Append(char.ToUpperInvariant(segment[0]))
+                .Append(segment, 1, segment.Length - 1);
         }
 
         return builder.ToString().Normalize(NormalizationForm.FormC);

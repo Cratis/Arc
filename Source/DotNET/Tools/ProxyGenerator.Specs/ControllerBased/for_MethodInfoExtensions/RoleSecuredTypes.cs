@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Authorization;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Cratis.Arc.ProxyGenerator.ControllerBased.for_MethodInfoExtensions;
 
@@ -14,10 +13,10 @@ public class RoleSecuredTypes
     [Roles("Librarian", "Admin")]
     public void MultipleRolesFromConstructor() { }
 
-    [Authorize(Roles = "Librarian")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Librarian")]
     public void RoleFromNamedArgument() { }
 
     [Roles("Librarian")]
-    [Authorize(Roles = "Librarian")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Librarian")]
     public void RoleFromBothForms() { }
 }
