@@ -58,7 +58,7 @@ public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics 
         var draft = new SpecificationDraft();
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(compilation, new(stated));
+        var reader = new SpecificationStepReader(compilation, new(stated, new GeneratedIdentities(compilation)));
         reader.ReadGiven(steps, draft, name, location);
         reader.ReadWhen(steps, draft, name, location);
         new SpecificationOutcomeReader(compilation, stated).Read(type, draft, name, location);

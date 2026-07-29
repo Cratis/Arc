@@ -12,12 +12,13 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// Reads the values a specification states for one artifact, from the construction stating them.
 /// </summary>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
+/// <param name="identities">The <see cref="GeneratedIdentities"/> telling an identity that was made from a value that was computed.</param>
 /// <remarks>
 /// A specification is closed - it refers to nothing outside itself - so a constant is the only source of a value
 /// there is. That is the same discipline a produces mapping is read with, one source shorter: a produces mapping may
 /// also name the input of the command being handled, and a scenario has no input to name.
 /// </remarks>
-public class SpecificationValues(ScreenplayDiagnostics diagnostics)
+public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIdentities identities)
 {
     readonly MappingSourceReader _sources = new(diagnostics);
 
@@ -112,6 +113,11 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics)
     /// <param name="type">The type being constructed.</param>
     /// <param name="specification">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
+    /// <remarks>
+    /// An identity made on the spot is left out without a word, because there is no value for the document to have
+    /// missed - see <see cref="GeneratedIdentities"/>. Every other value that cannot be read is one the source states
+    /// and the document does not, which is the difference worth reading.
+    /// </remarks>
     void Add(
         List<PropertyMappingModel> values,
         string property,
@@ -124,6 +130,11 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics)
         if (_sources.Read(expression, semanticModel, type, location) is LiteralSource literal)
         {
             values.Add(new(property, literal));
+            return;
+        }
+
+        if (identities.Yields(expression, semanticModel))
+        {
             return;
         }
 

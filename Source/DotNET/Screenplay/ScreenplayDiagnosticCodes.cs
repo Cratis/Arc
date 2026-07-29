@@ -359,12 +359,20 @@ public static class ScreenplayDiagnosticCodes
     /// A value a scenario states is code rather than a constant, so the scenario states everything but that value.
     /// </summary>
     /// <remarks>
-    /// A scenario is written in the host language, where the identity two steps agree on is routinely a fresh
-    /// identifier held in a field rather than something written down twice. Screenplay states values and has no way
-    /// to name one, so such a value is left out and the rest of the scenario stands: which events had happened, which
-    /// command was issued and what followed are all still exactly what the source says. This is reported per value
-    /// rather than per scenario for the same reason a produces mapping is - a reader counting what a scenario states
-    /// against what the source states otherwise has no way of knowing which of the two it is looking at.
+    /// A scenario is written in the host language, where a value is routinely worked out at run time rather than
+    /// written down. Screenplay states values and has no way to name one, so such a value is left out and the rest of
+    /// the scenario stands: which events had happened, which command was issued and what followed are all still
+    /// exactly what the source says. This is reported per value rather than per scenario for the same reason a
+    /// produces mapping is - a reader counting what a scenario states against what the source states otherwise has no
+    /// way of knowing which of the two it is looking at.
+    /// <para>
+    /// The identity two steps agree on is the exception, and it is the reason reporting per value is bearable at all.
+    /// A fresh identity has no value to state, so a document leaving one out says exactly as much as the source does
+    /// and there is no difference to report; on a real application that is the majority of everything this code ever
+    /// said. It is recognized rather than guessed at, and narrowly - what counts as one is in
+    /// <c>GeneratedIdentities</c> - so an identity derived from something, which is a value the source really states,
+    /// is still reported.
+    /// </para>
     /// </remarks>
     public const string UnreadableSpecificationValue = "SP0040";
 }
