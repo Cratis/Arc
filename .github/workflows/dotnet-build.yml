@@ -218,14 +218,25 @@ jobs:
 
       # The build output artifact carries bin folders only, and reading a project through MSBuild needs the assets
       # file that restore writes to obj.
-      - name: Restore the application to generate from
-        run: dotnet restore TestApps/AspNetCore/AspNetCore.csproj
+      - name: Restore the applications to generate from
+        run: |
+          dotnet restore TestApps/AspNetCore/AspNetCore.csproj
+          dotnet restore TestApps/Chronicle/Chronicle.csproj
 
       - name: Generate and read back the document of a real application
         run: |
           dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
             TestApps/AspNetCore/AspNetCore.csproj \
             "${RUNNER_TEMP}/AspNetCore.play"
+
+      # Everything an event sourced application declares - events, the constants a projection sets and the scenarios
+      # a slice is specified by - lives in the Chronicle application, which is a second application rather than more
+      # of the first one, so its document is generated and read back on its own.
+      - name: Generate and read back the document of a real event sourced application
+        run: |
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+            TestApps/Chronicle/Chronicle.csproj \
+            "${RUNNER_TEMP}/Chronicle.play"
 
   proxy-specs:
     needs: [dotnet-build]
