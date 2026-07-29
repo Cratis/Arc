@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Arc.Screenplay.Analysis;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -18,13 +19,23 @@ namespace Cratis.Arc.Screenplay.EndToEnd;
 /// package that declares an event, so a defect that only shows in one of those is invisible to a specification by
 /// construction. Two shipped that way.
 /// <para>
-/// A solution is read as every project it holds that is not a specification project, which is what an application
-/// written as several projects really is. Whether a project is one is decided by its name, the convention a solution
-/// is laid out by.
+/// A solution is read as every project it holds that could hold part of the application, which is what an application
+/// written as several projects really is. Whether a project could is asked of what it can see rather than of what it
+/// is called: an artifact is declared with an attribute the framework ships, so a project resolving neither the Arc
+/// nor the Chronicle one cannot declare a single thing the document is made of. A Roslyn analyzer beside the
+/// application is exactly that project, and reading its <c>netstandard2.0</c> compilation in as though it were part
+/// of the application says something about the solution that is not true.
+/// </para>
+/// <para>
+/// The specifications of an application are turned away separately and by name, because nothing about what a
+/// specification project can see tells them apart - it references the same framework the application does, which is
+/// the whole point of it. That leaves the name the solution lays them out by, which is a weaker signal and is asked
+/// second, of the projects that got past the first.
 /// </para>
 /// </remarks>
 public static class ProjectCompilation
 {
+    static readonly string[] _artifacts = [WellKnownTypeNames.CommandAttribute, WellKnownTypeNames.EventTypeAttribute];
     static readonly string[] _specifications = ["Specs", "Tests", "Specs.AppHost"];
     static readonly string[] _solutions = [".sln", ".slnx", ".slnf"];
 
@@ -95,7 +106,7 @@ public static class ProjectCompilation
             .Where(_ => !IsSpecifications(_.Name))
             .OrderBy(_ => _.Name, StringComparer.Ordinal))
         {
-            if (await project.GetCompilationAsync() is { } compilation)
+            if (await project.GetCompilationAsync() is { } compilation && CanDeclareAnArtifact(compilation))
             {
                 compilations.Add(compilation);
             }
@@ -103,6 +114,21 @@ public static class ProjectCompilation
 
         return compilations;
     }
+
+    /// <summary>
+    /// Determines whether a compilation could declare any of what the document is made of.
+    /// </summary>
+    /// <param name="compilation">The compilation to check.</param>
+    /// <returns>True when it could.</returns>
+    /// <remarks>
+    /// Every artifact is declared with an attribute the framework ships, so resolving one of those attributes is the
+    /// least a project has to be able to do to hold part of the application. What this misses is a project that can
+    /// see the framework and declares nothing - a host wiring the application up - which is read and contributes an
+    /// empty model, and a project holding types the application carries without referencing either framework, whose
+    /// types are reached through the artifacts referring to them rather than through the project declaring them.
+    /// </remarks>
+    static bool CanDeclareAnArtifact(Compilation compilation) =>
+        Array.Exists(_artifacts, _ => compilation.GetTypeByMetadataName(_) is not null);
 
     /// <summary>
     /// Determines whether a project holds specifications rather than part of the application.
