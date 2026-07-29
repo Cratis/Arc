@@ -224,4 +224,18 @@ public static class ScreenplayDiagnosticCodes
     /// as it stands so the line that was rejected can be read.
     /// </remarks>
     public const string DocumentDidNotCompile = "SP0034";
+
+    /// <summary>
+    /// A value an artifact carries is a record, whose shape no declaration in the language can hold.
+    /// </summary>
+    /// <remarks>
+    /// A concept is one value with a name, and every concept the application refers to is declared. A record carrying
+    /// several values is a different thing: an event property written as <c>days ApprovedDayLine[]</c> names a shape
+    /// the document has no construct to introduce, so what that line holds is stated nowhere - including anything
+    /// within it the application marks as personal data. The concepts inside it are recovered and declared, because a
+    /// concept can be declared wherever it was reached from; the shape itself waits on the language
+    /// (Cratis/Screenplay#29). This is reported rather than left unsaid because a reader counting what the document
+    /// declares against what the application holds otherwise has no way of knowing where the difference went.
+    /// </remarks>
+    public const string UndeclarableShape = "SP0035";
 }

@@ -39,7 +39,7 @@ public class PropertyReader(TypeRegistry types)
                 types.MarkAsPii(property.Type);
             }
 
-            properties.Add(new(property.Name, types.Resolve(property.Type)));
+            properties.Add(new(property.Name, types.ResolveCarried(property.Type)));
         }
 
         return properties;
