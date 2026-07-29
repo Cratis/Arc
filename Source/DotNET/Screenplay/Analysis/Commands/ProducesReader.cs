@@ -12,7 +12,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <summary>
 /// Reads the events a command produces, from the body of its handler.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="aggregates">The <see cref="AggregateRootCatalog"/> recording which aggregate roots a command reaches.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
@@ -23,8 +23,13 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// A handler that governs its change through an aggregate root constructs nothing itself, so the behaviors it calls
 /// are read as well. Both ways of writing an Arc command then describe the same thing in the document.
 /// </para>
+/// <para>
+/// That behavior is the one body here that need not belong to the project the command does - an aggregate root in a
+/// domain project called from the project above it is the ordinary layered arrangement - so which model reads it is
+/// asked rather than assumed.
+/// </para>
 /// </remarks>
-public class ProducesReader(Compilation compilation, AggregateRootCatalog aggregates, ScreenplayDiagnostics diagnostics)
+public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregates, ScreenplayDiagnostics diagnostics)
 {
     readonly ProducesMappingReader _mappings = new(diagnostics);
     readonly ProducesConditionResolver _conditions = new(diagnostics);
@@ -46,17 +51,22 @@ public class ProducesReader(Compilation compilation, AggregateRootCatalog aggreg
 
             foreach (var body in HandlerBodies.Of(handler))
             {
-                ReadBody(command, body, location, produces, null);
+                if (models.For(body.SyntaxTree) is not { } semanticModel)
+                {
+                    continue;
+                }
 
-                foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, compilation))
+                ReadBody(command, body, semanticModel, location, produces, null);
+
+                foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, semanticModel))
                 {
                     aggregates.Reached(behavior.AggregateRoot);
-                    ReadBody(command, behavior.Body, location, produces, behavior);
+                    ReadBehavior(command, behavior, location, produces);
                 }
             }
         }
 
-        return produces.Count > 0 ? Deduplicate(produces) : FromSignatures(handlers, location);
+        return produces.Count > 0 ? Deduplicate(produces) : ProducedBySignature.Of(handlers, location, diagnostics);
     }
 
     /// <summary>
@@ -95,17 +105,18 @@ public class ProducesReader(Compilation compilation, AggregateRootCatalog aggreg
     /// </summary>
     /// <param name="command">The type declaring the command.</param>
     /// <param name="body">The body to read.</param>
+    /// <param name="semanticModel">The model the body is read through.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="produces">The productions collected so far.</param>
     /// <param name="behavior">The behavior the body belongs to, when the handler reached it through an aggregate root.</param>
     void ReadBody(
         INamedTypeSymbol command,
         SyntaxNode body,
+        SemanticModel semanticModel,
         string location,
         List<ProducesModel> produces,
         AggregateRootInvocation? behavior)
     {
-        var semanticModel = compilation.GetSemanticModel(body.SyntaxTree);
         var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot);
 
         foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
@@ -123,29 +134,34 @@ public class ProducesReader(Compilation compilation, AggregateRootCatalog aggreg
     }
 
     /// <summary>
-    /// Falls back to what the signatures of the handlers promise when no body could be read.
+    /// Reads what a behavior of an aggregate root the handler reached produces.
     /// </summary>
-    /// <param name="handlers">The handler methods to read.</param>
+    /// <param name="command">The type declaring the command.</param>
+    /// <param name="behavior">The behavior the handler reached.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
-    /// <returns>The productions, without mappings.</returns>
-    IEnumerable<ProducesModel> FromSignatures(IReadOnlyList<IMethodSymbol> handlers, string location)
+    /// <param name="produces">The productions collected so far.</param>
+    /// <remarks>
+    /// The behavior is written wherever the aggregate root is, and a project that was not handed over is one whose
+    /// source cannot be read at all. Saying so is the difference between a command stated as producing nothing and a
+    /// reader who knows a project is missing from what the document was generated from.
+    /// </remarks>
+    void ReadBehavior(
+        INamedTypeSymbol command,
+        AggregateRootInvocation behavior,
+        string location,
+        List<ProducesModel> produces)
     {
-        var events = handlers
-            .SelectMany(_ => HandlerBodies.EventTypesIn(_.ReturnType))
-            .Select(_ => _.Name)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToList();
-
-        foreach (var name in events)
+        if (models.For(behavior.Body.SyntaxTree) is { } semanticModel)
         {
-            diagnostics.Warning(
-                ScreenplayDiagnosticCodes.UnmappableCommandProduction,
-                $"'{name}' is named by the handler's signature but never constructed in a body that could be read, so it is stated without mappings",
-                location);
+            ReadBody(command, behavior.Body, semanticModel, location, produces, behavior);
+
+            return;
         }
 
-        return [.. events.Select(_ => new ProducesModel(_, null, []))];
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnmappableCommandProduction,
+            $"The command hands its work to '{behavior.AggregateRoot.Name}', which is written in a project the document was not generated from, so what it applies is not stated",
+            location);
     }
 
     /// <summary>

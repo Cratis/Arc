@@ -5,15 +5,15 @@ using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Screenplay;
 using Microsoft.CodeAnalysis;
 
-namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
+namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating.and_the_source_it_read_did_not_compile;
 
 /// <summary>
-/// Source the compiler never accepted still yields symbols, and a model recovered from them describes an application
-/// that does not exist - so a document made from it being poor is the consequence already reported rather than a
-/// second defect. Saying both would send whoever reads the diagnostics hunting for a bug in the generator when the
-/// thing to fix is the build, which is why the same suppression the empty document already gets applies here.
+/// Source the compiler never accepted that yielded no artifact leaves a model describing an application that does not
+/// exist - so a document made from it being poor is the consequence already reported rather than a second defect.
+/// Saying both would send whoever reads the diagnostics hunting for a bug in the generator when the thing to fix is
+/// the build, which is why the same suppression the empty document already gets applies here.
 /// </summary>
-public class and_the_source_it_read_did_not_compile : given.a_document_the_language_rejects
+public class and_nothing_was_recovered_from_it : given.a_document_the_language_rejects
 {
     const string Source = """
         namespace Library.Authors.Registration;
@@ -36,9 +36,12 @@ public class and_the_source_it_read_did_not_compile : given.a_document_the_langu
 
     void Because() => _result = _generator.Generate(_compilation, new ScreenplayOptions());
 
+    ScreenplayDiagnostic Reported => _result.Diagnostics.First(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile);
+
     [Fact] void should_be_generating_from_source_that_really_does_not_compile() => Analyzed.ErrorsIn((Analyzed.SlicePath, Source)).ShouldNotBeEmpty();
     [Fact] void should_be_printing_a_document_the_language_really_rejects() => new ScreenplayCompiler().Compile(Rejected).Success.ShouldBeFalse();
     [Fact] void should_report_that_the_source_did_not_compile() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(ScreenplayDiagnosticCodes.SourceDidNotCompile);
+    [Fact] void should_report_it_as_an_error() => Reported.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Error);
     [Fact] void should_not_report_the_document_on_top_of_it() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotCompile);
     [Fact] void should_still_return_the_document() => _result.Source.ShouldEqual(Rejected);
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();

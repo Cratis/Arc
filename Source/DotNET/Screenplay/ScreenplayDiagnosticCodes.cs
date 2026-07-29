@@ -74,6 +74,11 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>
     /// A command handler yields the identifier of the event source it appends to, which Screenplay cannot express.
     /// </summary>
+    /// <remarks>
+    /// A <c>produces</c> line names the event and says nothing about where it lands, so a handler returning the event
+    /// source alongside it is stating exactly what that line cannot carry (Cratis/Screenplay#33). The production is
+    /// written as it stands, because what the handler produces is right even while where it produces it is unsaid.
+    /// </remarks>
     public const string UnmappableEventSourceIdResult = "SP0013";
 
     /// <summary>
@@ -84,11 +89,26 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>
     /// A projection declares something the projection definition language has no counterpart for.
     /// </summary>
+    /// <remarks>
+    /// Most of what this reports is a construct the language has no word for. One case is not: a slice holding a
+    /// second projection has that projection turned away because a slice declares at most one, which drops a read
+    /// model the application really builds (Cratis/Screenplay#30). Reporting it stays the right thing to do until a
+    /// slice can hold more than one - the projection is left out either way, and a reader counting read models
+    /// against the application otherwise has no way of seeing which one went missing.
+    /// </remarks>
     public const string UnmappableProjectionConstruct = "SP0015";
 
     /// <summary>
     /// A validator declares a rule that could not be expressed declaratively.
     /// </summary>
+    /// <remarks>
+    /// A rule living in code, a chain rooted in something that does not name a property, and a message either put
+    /// together while the request runs or following no rule to attach it to are all read as far as they go and then
+    /// left out. A rule held to a <c>When</c> or an <c>Unless</c> is different: it is written down, but as though
+    /// nothing held it, because a rule carries no condition of its own (Cratis/Screenplay#32). That is a difference
+    /// between the document and the application rather than an omission from it, which is why the report names the
+    /// condition the rule was held to rather than only the call carrying it.
+    /// </remarks>
     public const string UnmappableValidationRule = "SP0016";
 
     /// <summary>
@@ -109,11 +129,23 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>
     /// A reducer folds events into a read model, which Screenplay has no counterpart for.
     /// </summary>
+    /// <remarks>
+    /// A projection says what each event does to the read model it builds. A reducer says the same thing as code,
+    /// and the language has no construct to fold one value into another (Cratis/Screenplay#39). The events it
+    /// observes are read from its signatures and are real, so the document states which events reach the read model
+    /// while leaving unsaid what they do to it.
+    /// </remarks>
     public const string ReducerWithoutCounterpart = "SP0020";
 
     /// <summary>
-    /// An event referenced by the application is declared outside the compilation being analyzed.
+    /// An event the application refers to is declared neither by it nor by anything it references.
     /// </summary>
+    /// <remarks>
+    /// An event a referenced package declares is real and can be stated - an <c>import</c> names it and the compiler
+    /// then reads it as an event that is known - so that case is written rather than reported. This is what is left:
+    /// a name nothing at all resolves to, where inventing a declaration would describe an event the application does
+    /// not have and staying silent would leave a document referring to something it never introduces.
+    /// </remarks>
     public const string EventDeclaredOutsideCompilation = "SP0021";
 
     /// <summary>
@@ -127,8 +159,31 @@ public static class ScreenplayDiagnosticCodes
     public const string NamespaceWithoutStructure = "SP0023";
 
     /// <summary>
-    /// The source did not compile, so nothing recovered from it can be relied on.
+    /// The source did not compile, and how far what was recovered from it can be relied on is what the severity says.
     /// </summary>
+    /// <remarks>
+    /// This is the one code whose severity is decided rather than fixed, because "the source did not compile" covers
+    /// two outcomes that could not be further apart. A host handing over a compilation assembled without the compile
+    /// items a build generates leaves every reference to a generated type unresolved - hundreds of errors, none of
+    /// them anywhere near an artifact - while every command, event and reactor is read exactly as written. Calling
+    /// that an error says something untrue about a document that is entirely correct, and makes the host throw it
+    /// away.
+    /// <para>
+    /// So the severity follows how many artifacts were recovered from a declaration no compilation error sits inside.
+    /// None - because nothing was recovered at all, or because every declaration something came out of is one the
+    /// compiler could not make sense of - is an error, and nothing in the document is worth trusting. Any at all is a
+    /// warning saying how many came through, because an artifact read from source the compiler accepted describes
+    /// what that source states regardless of what failed elsewhere.
+    /// </para>
+    /// <para>
+    /// As an error it suppresses <see cref="AnalysisUnavailable"/> and <see cref="DocumentDidNotCompile"/>, both for
+    /// the same reason: a model recovered from symbols the compiler never accepted describes an application that does
+    /// not exist, so an empty document and a rejected one are consequences of the broken build rather than defects of
+    /// their own. As a warning it suppresses neither - it can never coincide with the first, since a warning is only
+    /// reached when something was recovered, and suppressing the second would hand back a document the language
+    /// rejects with nothing wrong reported.
+    /// </para>
+    /// </remarks>
     public const string SourceDidNotCompile = "SP0024";
 
     /// <summary>
@@ -173,6 +228,11 @@ public static class ScreenplayDiagnosticCodes
     /// one, so none of it is inferred and every screen says so.
     /// </remarks>
     public const string ScreenStructureNotInferred = "SP0028";
+
+    // SP0029 is deliberately unused. It was assigned to a code that was retired before the first release, and the
+    // sequence is left with the gap rather than closed up: a code is what a consumer suppresses and groups on, so
+    // handing this number to something else would silently change what an existing suppression means. Nothing is to
+    // be declared with it.
 
     /// <summary>
     /// A type is referred to by a name that does not say what it is, because Screenplay cannot express it.
@@ -224,4 +284,95 @@ public static class ScreenplayDiagnosticCodes
     /// as it stands so the line that was rejected can be read.
     /// </remarks>
     public const string DocumentDidNotCompile = "SP0034";
+
+    /// <summary>
+    /// A value an artifact carries is a record, whose shape no declaration in the language can hold.
+    /// </summary>
+    /// <remarks>
+    /// A concept is one value with a name, and every concept the application refers to is declared. A record carrying
+    /// several values is a different thing: an event property written as <c>days ApprovedDayLine[]</c> names a shape
+    /// the document has no construct to introduce, so what that line holds is stated nowhere - including anything
+    /// within it the application marks as personal data. The concepts inside it are recovered and declared, because a
+    /// concept can be declared wherever it was reached from; the shape itself waits on the language
+    /// (Cratis/Screenplay#29). This is reported rather than left unsaid because a reader counting what the document
+    /// declares against what the application holds otherwise has no way of knowing where the difference went.
+    /// </remarks>
+    public const string UndeclarableShape = "SP0035";
+
+    /// <summary>
+    /// A screen reads through a query a different slice of the application declares.
+    /// </summary>
+    /// <remarks>
+    /// A screen aggregating several read models is what an Event Modeling screen routinely is, and an import naming a
+    /// query the model really holds is a binding rather than the noise every other unmatched import is. A <c>data</c>
+    /// directive names a query by the bare name its slice declares it under, though, and an application declares
+    /// <c>All</c> once per read model, so writing one down would say which query only by accident
+    /// (Cratis/Screenplay#28). Naming the screen, the query and the slice declaring it is what a reader needs to see
+    /// the binding the document is missing, and what turns it into one the moment a reference can carry the slice.
+    /// </remarks>
+    public const string CrossSliceQueryBinding = "SP0036";
+
+    /// <summary>
+    /// Two projects of one application declare an artifact of the same name in the same slice.
+    /// </summary>
+    /// <remarks>
+    /// A slice is recovered from a namespace, and a namespace an application declares from two projects is one slice
+    /// written in two places - the contracts of a bounded context sitting beside the handlers acting on them is the
+    /// ordinary case. Everything both projects contribute belongs to that one slice, and everything within a slice is
+    /// named once: a document declaring two commands called <c>PlaceOrder</c> in one slice says the same word twice
+    /// and means it differently. The first is kept, because the projects are read in assembly name order and no other
+    /// order is available to prefer by, and the second is reported rather than dropped where nobody would see it.
+    /// </remarks>
+    public const string RepeatedDeclarationAcrossProjects = "SP0037";
+
+    /// <summary>
+    /// The projects of an application are written in directories that share none above the root of the file system.
+    /// </summary>
+    /// <remarks>
+    /// Every path in a document is written relative to a directory, because a document carrying the absolute layout of
+    /// the machine that generated it is one nobody can commit or diff. With several projects that directory is the one
+    /// they are all written under - a <c>Source</c> folder holding a project each - and a path relative to it says
+    /// which project a file belongs to as well as where it sits within that project.
+    /// <para>
+    /// Projects checked out beside each other in unrelated places share nothing but the root of the file system, which
+    /// is not a directory to write anything relative to. Each project's paths are therefore written relative to its own
+    /// root, which keeps every one of them relative and still says where a file sits within its project - and says
+    /// nothing about which project that is, so two files can come out as the same path. That is what this reports.
+    /// </para>
+    /// </remarks>
+    public const string ProjectsWithoutASharedRoot = "SP0038";
+
+    /// <summary>
+    /// A scenario a slice is specified by states a step that could not be read, so the whole scenario was left out.
+    /// </summary>
+    /// <remarks>
+    /// A specification is one concrete example, and an example missing the command it issues, the state it started
+    /// from or the outcome it expects is not that example - it is a different one nobody wrote. So unlike a mapping,
+    /// which stands on its own and can be left out while the rest of the block still says something true, a step that
+    /// cannot be read takes the scenario with it. What made it unreadable is said, because the difference between a
+    /// scenario resting on a value computed at run time and one resting on a helper the reader could inline is the
+    /// difference between a gap that will always be there and one an afternoon closes.
+    /// </remarks>
+    public const string UnreadableSpecification = "SP0039";
+
+    /// <summary>
+    /// A value a scenario states is code rather than a constant, so the scenario states everything but that value.
+    /// </summary>
+    /// <remarks>
+    /// A scenario is written in the host language, where a value is routinely worked out at run time rather than
+    /// written down. Screenplay states values and has no way to name one, so such a value is left out and the rest of
+    /// the scenario stands: which events had happened, which command was issued and what followed are all still
+    /// exactly what the source says. This is reported per value rather than per scenario for the same reason a
+    /// produces mapping is - a reader counting what a scenario states against what the source states otherwise has no
+    /// way of knowing which of the two it is looking at.
+    /// <para>
+    /// The identity two steps agree on is the exception, and it is the reason reporting per value is bearable at all.
+    /// A fresh identity has no value to state, so a document leaving one out says exactly as much as the source does
+    /// and there is no difference to report; on a real application that is the majority of everything this code ever
+    /// said. It is recognized rather than guessed at, and narrowly - what counts as one is in
+    /// <c>GeneratedIdentities</c> - so an identity derived from something, which is a value the source really states,
+    /// is still reported.
+    /// </para>
+    /// </remarks>
+    public const string UnreadableSpecificationValue = "SP0040";
 }

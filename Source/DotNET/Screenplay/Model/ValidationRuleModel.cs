@@ -12,5 +12,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Message">The message shown when the rule is broken, or <see langword="null"/> for the default.</param>
 /// <remarks>
 /// A message starting with <c>$strings.</c> is a localization key and is emitted unquoted.
+/// <para>
+/// An operand is a value the compiler held, except when the rule compares against another property of the same
+/// command - an end date on or after the start date it was sent with - where it is a <see cref="PropertyPathSource"/>
+/// naming that property and is written as the path rather than as text.
+/// </para>
 /// </remarks>
 public record ValidationRuleModel(string Property, ValidationRuleKind Kind, object? Value, string? Message);

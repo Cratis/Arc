@@ -9,6 +9,7 @@ using Cratis.Arc.Screenplay.Emission.Projections;
 using Cratis.Arc.Screenplay.Emission.Queries;
 using Cratis.Arc.Screenplay.Emission.Reactors;
 using Cratis.Arc.Screenplay.Emission.Screens;
+using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
@@ -27,6 +28,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// <param name="reactors">The <see cref="ReactorSyntaxBuilder"/> for the reactors of the slice.</param>
 /// <param name="projections">The <see cref="ProjectionSyntaxBuilder"/> for the projection of the slice.</param>
 /// <param name="screens">The <see cref="ScreenSyntaxBuilder"/> for the screens of the slice.</param>
+/// <param name="specifications">The <see cref="SpecificationSyntaxBuilder"/> for the scenarios the slice is specified by.</param>
 public class SliceSyntaxBuilder(
     IScreenplayNaming naming,
     CommandSyntaxBuilder commands,
@@ -35,7 +37,8 @@ public class SliceSyntaxBuilder(
     ConstraintSyntaxBuilder constraints,
     ReactorSyntaxBuilder reactors,
     ProjectionSyntaxBuilder projections,
-    ScreenSyntaxBuilder screens)
+    ScreenSyntaxBuilder screens,
+    SpecificationSyntaxBuilder specifications)
 {
     /// <summary>
     /// The name given to a slice whose own name yields nothing usable.
@@ -73,7 +76,7 @@ public class SliceSyntaxBuilder(
                     .Select(_ => constraints.Build(_, slice.Namespace))
                     .OrderBy(_ => _.Name, StringComparer.Ordinal)
             ],
-            [],
+            [.. specifications.Build(slice.Specifications)],
             SourceLocation.Start,
             naming.ToStringLiteral(slice.Description));
 

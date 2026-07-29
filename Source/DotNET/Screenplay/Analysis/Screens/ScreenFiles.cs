@@ -67,7 +67,7 @@ public static class ScreenFiles
     /// </summary>
     /// <param name="path">The path to read.</param>
     /// <returns>The file name.</returns>
-    static string FileNameOf(string path)
+    public static string FileNameOf(string path)
     {
         var normalized = Normalize(path);
 

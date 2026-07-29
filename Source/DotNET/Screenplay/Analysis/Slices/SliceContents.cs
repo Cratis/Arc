@@ -50,13 +50,22 @@ public class SliceContents
     public bool HasAggregateRoot { get; set; }
 
     /// <summary>
+    /// Gets the number of artifacts collected so far.
+    /// </summary>
+    /// <remarks>
+    /// What one type contributed is the difference between this before it was read and after, which is how a
+    /// declaration is tied to what came out of it without every recognizer having to say so itself.
+    /// </remarks>
+    public int Count =>
+        Commands.Count +
+        Events.Count +
+        Queries.Count +
+        Reactors.Count +
+        Constraints.Count +
+        (Projection is null ? 0 : 1);
+
+    /// <summary>
     /// Gets a value indicating whether the slice declares nothing at all.
     /// </summary>
-    public bool IsEmpty =>
-        Commands.Count == 0 &&
-        Events.Count == 0 &&
-        Queries.Count == 0 &&
-        Reactors.Count == 0 &&
-        Constraints.Count == 0 &&
-        Projection is null;
+    public bool IsEmpty => Count == 0;
 }

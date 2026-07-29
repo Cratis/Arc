@@ -27,30 +27,55 @@ public static partial class ScreenImports
     /// slice, so that is the shape every real binding has, and the shapes that are left out - a default import, a
     /// namespace import, an import of a package - cannot be tied to an exported name with any certainty.
     /// </remarks>
-    public static IReadOnlyCollection<string> In(string? text)
+    public static IReadOnlyCollection<string> In(string? text) =>
+        new HashSet<string>(Statements(text).Select(_ => _.Name), StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the names a file imports from a module sitting alongside it, together with the module each came from.
+    /// </summary>
+    /// <param name="text">The text of the file, or <see langword="null"/> when it could not be read.</param>
+    /// <returns>The imports, in the order the file writes them.</returns>
+    /// <remarks>
+    /// Source order is kept rather than sorted, because it is the order the file was written in and nothing else is
+    /// any more meaningful - and keeping it is what makes the same file always read the same way.
+    /// </remarks>
+    public static IReadOnlyList<ScreenImport> Statements(string? text)
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var imports = new List<ScreenImport>();
+        var seen = new HashSet<ScreenImport>();
         if (string.IsNullOrWhiteSpace(text))
         {
-            return names;
+            return imports;
         }
 
-        foreach (var statement in StatementRegex().Matches(text).Cast<Match>())
+        foreach (var statement in StatementRegex().Matches(WithoutComments(text)).Cast<Match>())
         {
             var clause = statement.Groups["clause"].Value;
-            if (!IsRelative(statement.Groups["module"].Value) || IsTypeOnly(clause))
+            var module = statement.Groups["module"].Value;
+            if (!IsRelative(module) || IsTypeOnly(clause))
             {
                 continue;
             }
 
-            foreach (var name in NamedIn(clause))
-            {
-                names.Add(name);
-            }
+            imports.AddRange(NamedIn(clause).Select(_ => new ScreenImport(_, module)).Where(seen.Add));
         }
 
-        return names;
+        return imports;
     }
+
+    /// <summary>
+    /// Removes everything a comment holds, leaving the lines around it where they were.
+    /// </summary>
+    /// <param name="text">The text of the file.</param>
+    /// <returns>The text with nothing commented out left in it.</returns>
+    /// <remarks>
+    /// An import that has been commented out is an import the file does not make, and binding a screen to a query it
+    /// no longer calls is a plain untruth of exactly the kind this reader exists to avoid. The line breaks a comment
+    /// spans are kept, because a statement is recognized by starting a line and joining it to the line before would
+    /// hide a real import rather than a commented one.
+    /// </remarks>
+    static string WithoutComments(string text) =>
+        CommentRegex().Replace(text, match => new string('\n', match.Value.Count(_ => _ == '\n')));
 
     /// <summary>
     /// Determines whether a module specifier names a file sitting alongside the one importing it.
@@ -113,6 +138,13 @@ public static partial class ScreenImports
 
         return exported is not null && IdentifierRegex().IsMatch(exported) ? exported : null;
     }
+
+    /// <summary>
+    /// Gets the pattern a comment has to match.
+    /// </summary>
+    /// <returns>The compiled regular expression.</returns>
+    [GeneratedRegex(@"/\*[\s\S]*?\*/|//[^\r\n]*", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex CommentRegex();
 
     /// <summary>
     /// Gets the pattern an import statement naming a module has to match.

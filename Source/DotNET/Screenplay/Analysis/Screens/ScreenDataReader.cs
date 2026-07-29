@@ -10,18 +10,30 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// </summary>
 /// <param name="files">The <see cref="IUserInterfaceFiles"/> the text of a component is asked of.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything not inferred is reported to.</param>
+/// <param name="elsewhere">The <see cref="CrossSliceQueries"/> a name matching no query of the slice is held by.</param>
 /// <remarks>
 /// Arc generates a proxy per query and a component imports it by name, so an import is a name the model can be held
-/// against rather than a reading of a user interface. A name matching a query the slice declares is a binding; a
-/// name matching nothing is dropped, whatever the component does with it. Nothing about the binding is taken from
-/// the component beyond the name - the type and the key come from the query, which is C#.
+/// against rather than a reading of a user interface. A name matching a query the slice declares is a binding.
+/// Nothing about the binding is taken from the component beyond the name - the type and the key come from the query,
+/// which is C#.
+/// <para>
+/// A name matching nothing the slice declares is handed on rather than dropped, because a query another slice
+/// declares is a binding too and the only reason it cannot be written down is that a reference has no way to say
+/// which slice it belongs to. What that name means depends on every slice the application has, so answering it waits
+/// until they have all been read.
+/// </para>
+/// <para>
+/// What a view model beside the component imports counts as what the component imports, because where components are
+/// written that way the query is named there and the component names only the view model - see
+/// <see cref="ViewModelImports"/> for how far that is followed.
+/// </para>
 /// <para>
 /// Every screen also reports what stays out. The rest of the declarative form is JSX structure, and the cost of
 /// guessing it wrong is a document that states something about the application that is not so - which is worse than
 /// a document that says less. Saying so per screen is what turns that limit from a silence into an answer.
 /// </para>
 /// </remarks>
-public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics diagnostics)
+public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics diagnostics, CrossSliceQueries elsewhere)
 {
     /// <summary>
     /// Reads the bindings of one screen.
@@ -37,9 +49,12 @@ public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics d
         string path,
         IReadOnlyCollection<QueryModel> queries)
     {
-        var imported = ScreenImports.In(files.Contents(path));
+        var written = ScreenImports.Statements(files.Contents(path));
+        var imports = written.Concat(ViewModelImports.Of(path, written, files)).Distinct().ToList();
+        var imported = new HashSet<string>(imports.Select(_ => _.Name), StringComparer.Ordinal);
 
         ReportUninferredStructure(@namespace, name);
+        elsewhere.Record(@namespace, name, path, imports);
 
         return
         [

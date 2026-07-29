@@ -19,11 +19,12 @@ namespace Cratis.Arc.Screenplay.Analysis.Slices;
 /// </summary>
 /// <param name="readers">The <see cref="ArtifactReaders"/> reading each kind of artifact.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="recovered">The <see cref="RecoveredArtifacts"/> holding what each declaration yielded.</param>
 /// <remarks>
 /// A type can be more than one thing at once - a read model with queries is also the declaration of a projection -
 /// so every recognizer is asked in turn rather than the first match winning.
 /// </remarks>
-public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics diagnostics)
+public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics diagnostics, RecoveredArtifacts recovered)
 {
     /// <summary>
     /// Reads everything one type contributes.
@@ -31,7 +32,26 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
     /// <param name="type">The type to read.</param>
     /// <param name="namespace">The namespace the slice lives in.</param>
     /// <param name="content">The content collected so far.</param>
+    /// <remarks>
+    /// What the type yielded is taken as the difference it made to the content rather than recorded by each
+    /// recognizer, so a recognizer added later is tied to its declaration without anyone remembering to say so.
+    /// </remarks>
     public void Read(INamedTypeSymbol type, string @namespace, SliceContents content)
+    {
+        var before = content.Count;
+
+        ReadInto(type, @namespace, content);
+
+        recovered.Declare(type, content.Count - before);
+    }
+
+    /// <summary>
+    /// Asks every recognizer what the type is.
+    /// </summary>
+    /// <param name="type">The type to read.</param>
+    /// <param name="namespace">The namespace the slice lives in.</param>
+    /// <param name="content">The content collected so far.</param>
+    void ReadInto(INamedTypeSymbol type, string @namespace, SliceContents content)
     {
         if (EventReader.IsEvent(type))
         {

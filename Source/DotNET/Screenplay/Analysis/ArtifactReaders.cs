@@ -91,18 +91,39 @@ public class ArtifactReaders
     /// <param name="catalog">The catalogue of everything the compilation declares.</param>
     /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
     /// <returns>The <see cref="ArtifactReaders"/>.</returns>
-    public static ArtifactReaders For(Compilation compilation, ArtifactCatalog catalog, ScreenplayDiagnostics diagnostics)
+    public static ArtifactReaders For(Compilation compilation, ArtifactCatalog catalog, ScreenplayDiagnostics diagnostics) =>
+        For(compilation, catalog, SourcePaths.For(compilation, catalog), WholeApplication.Of(compilation, diagnostics));
+
+    /// <summary>
+    /// Composes every reader for one project of an application, sharing what belongs to the application as a whole.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="catalog">The catalogue of everything the compilation declares.</param>
+    /// <param name="paths">The <see cref="SourcePaths"/> the paths of this project are written relative to.</param>
+    /// <param name="whole">What the application as a whole holds.</param>
+    /// <returns>The <see cref="ArtifactReaders"/>.</returns>
+    /// <remarks>
+    /// A concept is declared once at the top of a document however many projects refer to it, an aggregate root one
+    /// project declares is handed its work by a command another project may hold, and the body of that aggregate
+    /// root's behavior is read through the project it was written in rather than the one calling it. Everything else
+    /// here reads a declaration the project itself catalogued, which is why there is a set of readers per project at
+    /// all.
+    /// </remarks>
+    public static ArtifactReaders For(
+        Compilation compilation,
+        ArtifactCatalog catalog,
+        SourcePaths paths,
+        WholeApplication whole)
     {
-        var types = new TypeRegistry();
+        var types = whole.Types;
+        var diagnostics = whole.Diagnostics;
         var properties = new PropertyReader(types);
-        var paths = SourcePaths.For(compilation, catalog);
-        var aggregates = new AggregateRootCatalog();
-        var produces = new ProducesReader(compilation, aggregates, diagnostics);
+        var produces = new ProducesReader(whole.Models, whole.AggregateRoots, diagnostics);
         var validators = ValidatorCatalog.From(catalog, new(compilation, diagnostics));
 
         return new(
             types,
-            aggregates,
+            whole.AggregateRoots,
             validators,
             new EventReader(properties, diagnostics),
             new CommandReader(properties, produces, validators, paths),

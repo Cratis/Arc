@@ -37,16 +37,21 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     }
 
     /// <inheritdoc/>
-    public ScreenplayGenerationResult Generate(Compilation compilation, ScreenplayOptions options)
+    public ScreenplayGenerationResult Generate(Compilation compilation, ScreenplayOptions options) =>
+        Generate([compilation], options);
+
+    /// <inheritdoc/>
+    public ScreenplayGenerationResult Generate(IReadOnlyList<Compilation> compilations, ScreenplayOptions options)
     {
-        var resolved = options.WithDefaults(compilation.AssemblyName);
-        var analysis = analyzer.Analyze(compilation, resolved);
+        var ordered = AnalyzedCompilations.Ordered(compilations);
+        var resolved = options.WithDefaults(AnalyzedCompilations.NameOf(ordered));
+        var analysis = analyzer.Analyze(ordered, resolved);
         var emission = emitter.Emit(analysis.Model, resolved);
 
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
-        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, compilation.AssemblyName);
+        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain);
 
         return new(emission.Source, analysis.Model, diagnostics.All);
     }
@@ -68,6 +73,13 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     /// way it suppresses <see cref="ScreenplayDiagnosticCodes.AnalysisUnavailable"/>: a model recovered from symbols
     /// the compiler never accepted describes an application that does not exist, so a poor document made from it is
     /// the consequence already reported rather than a second defect.
+    /// <para>
+    /// The suppression follows the severity that code was reported at rather than the code alone. As an error it
+    /// says nothing recovered can be trusted, which is the whole reason a document built from it says nothing
+    /// either. As a warning it says the opposite - that what was recovered stands - and a document built from a
+    /// model that stands is exactly what this check is for. Suppressing it there would hand back a document the
+    /// language rejects with nothing wrong reported, which is the one outcome this exists to make impossible.
+    /// </para>
     /// </remarks>
     void ReportDocumentThatDoesNotCompile(
         string source,
@@ -75,7 +87,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         ScreenplayDiagnostics diagnostics,
         string? location)
     {
-        if (analyzed.Any(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile))
+        if (analyzed.Any(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile && _.Severity == ScreenplayDiagnosticSeverity.Error))
         {
             return;
         }

@@ -12,6 +12,7 @@ using Cratis.Arc.Screenplay.Emission.Queries;
 using Cratis.Arc.Screenplay.Emission.Reactors;
 using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Slices;
+using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Emission.Validation;
 using Cratis.Arc.Screenplay.Model;
@@ -41,26 +42,57 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// Builds the document.
     /// </summary>
     /// <param name="model">The model to build from.</param>
-    /// <param name="options">The options to build with.</param>
+    /// <param name="options">The options to build with, already resolved.</param>
     /// <returns>The <see cref="ApplicationSyntax"/>.</returns>
+    /// <remarks>
+    /// The options arrive resolved rather than being resolved here. What a name falls back to depends on how the
+    /// document was asked for - the assembly being analyzed when a generation asked for it, the domain of the model
+    /// when a host emitted one it already had - so resolving where neither of those is known meant resolving a
+    /// second time against a different answer and letting one of them quietly win.
+    /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
-        var resolved = options.WithDefaults(model.Domain);
-        var domain = ToName(model.Domain, resolved.Domain);
-        var module = ToName(model.Module, resolved.Module);
+        var domain = ToName(model.Domain, options.Domain);
+        var module = ToName(model.Module, options.Module);
 
-        var modules = BuildModules(model, module, resolved.SegmentsToSkip ?? 0);
+        var modules = BuildModules(model, module, options.SegmentsToSkip ?? 0);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts);
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
-            [],
+            [.. BuildImports(model)],
             [.. concepts],
             [.. policies],
             [.. modules],
             SourceLocation.Start,
             new DomainSyntax(domain, SourceLocation.Start));
     }
+
+    /// <summary>
+    /// Builds the imports naming every event the application refers to without declaring it.
+    /// </summary>
+    /// <param name="model">The model to build from.</param>
+    /// <returns>The imports, ordered.</returns>
+    /// <remarks>
+    /// The Screenplay compiler reads the last segment of an import as the name of an event that is known, so the
+    /// segment naming the event is written exactly as every reference to it is written - through the same conversion
+    /// - or the document would import one name and refer to another.
+    /// </remarks>
+    IEnumerable<ImportSyntax> BuildImports(ApplicationModel model) =>
+        model.Imports
+            .Select(ToQualifiedName)
+            .Where(_ => _.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .Select(_ => new ImportSyntax(_, SourceLocation.Start));
+
+    /// <summary>
+    /// Sanitizes every segment of a dotted name.
+    /// </summary>
+    /// <param name="name">The name to sanitize.</param>
+    /// <returns>The sanitized name.</returns>
+    string ToQualifiedName(string name) =>
+        string.Join('.', name.Split('.', StringSplitOptions.RemoveEmptyEntries).Select(naming.ToDeclarationName));
 
     /// <summary>
     /// Builds the modules holding every slice that declares something.
@@ -114,7 +146,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
-            new ScreenSyntaxBuilder(naming, _types));
+            new ScreenSyntaxBuilder(naming, _types),
+            new SpecificationSyntaxBuilder(naming));
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.
