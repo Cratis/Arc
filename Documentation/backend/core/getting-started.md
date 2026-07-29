@@ -195,7 +195,7 @@ Arc.Core supports standard .NET configuration:
         "HttpHeader": "X-Correlation-ID"
       },
       "Tenancy": {
-        "HttpHeader": "X-Tenant-ID"
+        "HttpHeader": "X-Custom-Tenant"
       }
     }
   },

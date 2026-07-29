@@ -11,7 +11,7 @@ Resolves the tenant ID from an HTTP header.
 ```csharp
 builder.AddCratisArcCore(options =>
 {
-    options.UseHeaderTenancy("X-Tenant-ID");
+    options.UseHeaderTenancy("X-Custom-Tenant");
 });
 ```
 
@@ -50,11 +50,11 @@ Resolves the tenant ID from the first segment of the request hostname. When the 
 ```csharp
 builder.AddCratisArcCore(options =>
 {
-    options.UseSubdomainTenancy("X-Tenant-ID");
+    options.UseSubdomainTenancy("X-Custom-Tenant");
 });
 ```
 
-A request to `acme.myapp.com` resolves the tenant as `acme`. A request to `myapp.com` falls back to the `X-Tenant-ID` header. This pattern is useful for SaaS applications where each tenant is routed through its own subdomain.
+A request to `acme.myapp.com` resolves the tenant as `acme`. A request to `myapp.com` falls back to the `X-Custom-Tenant` header. This pattern is useful for SaaS applications where each tenant is routed through its own subdomain.
 
 Default fallback header: `x-cratis-tenant-id`
 
