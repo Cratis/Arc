@@ -8,6 +8,8 @@ namespace Cratis.Arc.Queries.for_ReadModelForCommandServiceCollectionExtensions;
 /// <summary>
 /// A test <see cref="ICanResolveReadModelForCommand"/> that resolves pinned instances for the read model types it owns.
 /// </summary>
+/// <param name="readModelTypes">The read model types this resolver owns.</param>
+/// <param name="instances">The pinned instances to resolve, keyed by read model type; a type with no entry resolves to null.</param>
 public class a_read_model_resolver(IEnumerable<Type> readModelTypes, IReadOnlyDictionary<Type, object?>? instances = null) : ICanResolveReadModelForCommand
 {
     readonly IReadOnlyDictionary<Type, object?> _instances = instances ?? new Dictionary<Type, object?>();

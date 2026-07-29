@@ -50,7 +50,7 @@ public class EntityFrameworkReadModelForCommandResolver(IReadOnlyDictionary<Type
     /// <inheritdoc/>
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command carries no usable key to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
     /// <exception cref="EntityDoesNotHavePrimaryKey">Thrown when the read model entity has no single-property primary key to resolve by.</exception>
-    public Task<object?> Resolve(Type readModelType, CommandContext commandContext)
+    public async Task<object?> Resolve(Type readModelType, CommandContext commandContext)
     {
         var resolvedKey = commandContext.GetResolvedKey();
         if (string.IsNullOrEmpty(resolvedKey))
@@ -73,6 +73,6 @@ public class EntityFrameworkReadModelForCommandResolver(IReadOnlyDictionary<Type
 
         // A never-materialized read model resolves to null; command-side code can inject a nullable read model and
         // treat null as "does not exist", while a non-nullable dependency is surfaced as a validation failure (HTTP 400).
-        return Task.FromResult(dbContext.Find(readModelType, key));
+        return await dbContext.FindAsync(readModelType, key);
     }
 }
