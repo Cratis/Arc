@@ -47,4 +47,33 @@ public static class SliceKindInference
 
         return commands.Any() || hasAggregateRoot ? SliceKind.StateChange : SliceKind.StateView;
     }
+
+    /// <summary>
+    /// Infers the kind of a slice that several projects each declare a part of, from the kind of each part.
+    /// </summary>
+    /// <param name="kinds">The kind each part was inferred to be.</param>
+    /// <returns>The inferred <see cref="SliceKind"/>.</returns>
+    /// <remarks>
+    /// This is <see cref="Infer"/> applied to everything the parts hold together, said in terms of the kinds rather
+    /// than of the contents, and it answers identically. A part is a translation exactly when it holds a translating
+    /// reactor, an automation exactly when it holds a reactor and no translating one, and a state change exactly when
+    /// it holds a command or an aggregate root and no reactor at all - so taking the first of those that any part is
+    /// is the same first match the joined contents would have produced.
+    /// </remarks>
+    public static SliceKind Combine(IEnumerable<SliceKind> kinds)
+    {
+        var declared = kinds as IReadOnlyCollection<SliceKind> ?? [.. kinds];
+
+        if (declared.Contains(SliceKind.Translate))
+        {
+            return SliceKind.Translate;
+        }
+
+        if (declared.Contains(SliceKind.Automation))
+        {
+            return SliceKind.Automation;
+        }
+
+        return declared.Contains(SliceKind.StateChange) ? SliceKind.StateChange : SliceKind.StateView;
+    }
 }

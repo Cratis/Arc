@@ -31,13 +31,29 @@ public static class PolicyRegistrations
     /// The first registration of a name wins, which is the framework's own behavior for the options form and is the
     /// only choice that keeps the same compilation yielding the same document.
     /// </remarks>
-    public static IReadOnlyDictionary<string, PolicyRegistration> In(Compilation compilation)
+    public static IReadOnlyDictionary<string, PolicyRegistration> In(Compilation compilation) => In([compilation]);
+
+    /// <summary>
+    /// Finds every policy the projects of an application register.
+    /// </summary>
+    /// <param name="compilations">The compilations to read, ordered.</param>
+    /// <returns>The registrations, keyed by the name each policy is registered under.</returns>
+    /// <remarks>
+    /// An artifact naming a policy and the composition root registering it routinely sit in different projects - that
+    /// the host is not where the behavior lives is the whole point of layering an application - so every project is
+    /// read and the registrations of all of them form one set. The first registration of a name still wins, and the
+    /// projects arrive already ordered, so which one that is does not depend on how the caller listed them.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, PolicyRegistration> In(IReadOnlyList<Compilation> compilations)
     {
         var registrations = new Dictionary<string, PolicyRegistration>(StringComparer.Ordinal);
 
-        foreach (var tree in compilation.SyntaxTrees.OrderBy(_ => _.FilePath, StringComparer.Ordinal))
+        foreach (var compilation in compilations)
         {
-            Collect(compilation.GetSemanticModel(tree), tree, registrations);
+            foreach (var tree in compilation.SyntaxTrees.OrderBy(_ => _.FilePath, StringComparer.Ordinal))
+            {
+                Collect(compilation.GetSemanticModel(tree), tree, registrations);
+            }
         }
 
         return registrations;

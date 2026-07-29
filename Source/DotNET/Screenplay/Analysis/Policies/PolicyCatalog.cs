@@ -9,16 +9,32 @@ namespace Cratis.Arc.Screenplay.Analysis.Policies;
 /// <summary>
 /// Declares a policy for everything the application asks of its callers.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="compilations">The compilations being analyzed, ordered.</param>
+/// <param name="location">Where a policy nothing registers is reported against.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unrecoverable is reported to.</param>
 /// <remarks>
 /// Only what something refers to is declared. A role named by an artifact is a policy whose rule is the role itself;
 /// a policy named by an artifact has its rule looked up where the application registers it. Declaring the ones that
 /// nothing refers to would fill the document with rules it never uses.
+/// <para>
+/// Where the application registers it is any of its projects. An artifact naming a policy is written where the
+/// behavior is, and the registration where the host is composed, which is a different project as soon as an
+/// application has more than one.
+/// </para>
 /// </remarks>
-public class PolicyCatalog(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class PolicyCatalog(IReadOnlyList<Compilation> compilations, string? location, ScreenplayDiagnostics diagnostics)
 {
     readonly PolicyRequirementReader _requirements = new(diagnostics);
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PolicyCatalog"/> class for an application of a single project.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unrecoverable is reported to.</param>
+    public PolicyCatalog(Compilation compilation, ScreenplayDiagnostics diagnostics)
+        : this([compilation], compilation.AssemblyName, diagnostics)
+    {
+    }
 
     /// <summary>
     /// Declares a policy for every role and every named policy the slices refer to.
@@ -28,7 +44,7 @@ public class PolicyCatalog(Compilation compilation, ScreenplayDiagnostics diagno
     public IEnumerable<PolicyModel> Declare(IEnumerable<AuthorizationModel> authorizations)
     {
         var declared = authorizations as IReadOnlyCollection<AuthorizationModel> ?? [.. authorizations];
-        var registrations = PolicyRegistrations.In(compilation);
+        var registrations = PolicyRegistrations.In(compilations);
         var policies = new Dictionary<string, PolicyModel>(StringComparer.Ordinal);
 
         foreach (var name in Names(declared, _ => _.Policies))
@@ -74,7 +90,7 @@ public class PolicyCatalog(Compilation compilation, ScreenplayDiagnostics diagno
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.PolicyRequirementsUnrecoverable,
             $"The policy '{name}' is referred to, but nothing in the compilation registers it, so what it requires is not stated",
-            compilation.AssemblyName);
+            location);
 
         return null;
     }

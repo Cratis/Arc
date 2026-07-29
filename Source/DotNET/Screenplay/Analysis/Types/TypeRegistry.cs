@@ -11,17 +11,20 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 /// Resolves the type of a property, a parameter or a return value, collecting the concepts encountered along the way.
 /// </summary>
 /// <remarks>
-/// A concept is declared once at the top of the document and referenced by name from there on, so every concept an
-/// artifact refers to has to be registered while its type is resolved. Only concepts that are actually referenced
-/// are declared, which keeps the document to what the application uses.
+/// Resolving a type is answering two questions at once. The first is what to write - a single identifier, whether
+/// there is one of it or many, and whether it may be absent. The second is what naming it commits the document to,
+/// because every concept reached on the way has to be declared before it can be referenced, and every name that says
+/// less than the type does has to be reported rather than passed off as a description.
+/// <para>
+/// The first question is answered here. The second is split: what a name loses and which shapes no declaration can
+/// hold are kept here because they are consequences of writing the name, while the concepts themselves are kept by a
+/// <see cref="ConceptRegistry"/>, which decides what a concept is and what happens when two of them share a name.
+/// </para>
 /// </remarks>
 public class TypeRegistry
 {
-    readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
-    readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
-    readonly HashSet<string> _pii = new(StringComparer.Ordinal);
+    readonly ConceptRegistry _concepts = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
-    readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
     readonly HashSet<string> _shapes = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -37,21 +40,12 @@ public class TypeRegistry
     /// <summary>
     /// Gets the full name of every type whose simple name a concept was already declared under.
     /// </summary>
-    public IEnumerable<string> Ambiguous => _ambiguous.Order(StringComparer.Ordinal);
+    public IEnumerable<string> Ambiguous => _concepts.Ambiguous;
 
     /// <summary>
     /// Gets every concept referenced by the application, ordered by name.
     /// </summary>
-    public IEnumerable<ConceptModel> Concepts =>
-    [
-        .. _concepts.Values
-            .Select(_ => _ with
-            {
-                IsPii = _.IsPii || _pii.Contains(_.Name),
-                Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : []
-            })
-            .OrderBy(_ => _.Name, StringComparer.Ordinal)
-    ];
+    public IEnumerable<ConceptModel> Concepts => _concepts.Concepts;
 
     /// <summary>
     /// Resolves the Screenplay type reference a symbol corresponds to.
@@ -95,37 +89,15 @@ public class TypeRegistry
     /// Records that a value of a concept carries personally identifiable information.
     /// </summary>
     /// <param name="type">The type of the value.</param>
-    /// <remarks>
-    /// The concept a value is marked under has to be the one it is referenced under, or the mark lands on a name no
-    /// concept is declared with and the document says a value is not sensitive while the runtime encrypts it. Both
-    /// therefore strip the same wrappers - a collection of an optional concept says one thing about the value and
-    /// three things about how many there are and whether it may be absent.
-    /// </remarks>
-    public void MarkAsPii(ITypeSymbol type) => _pii.Add(UnderlyingTypes.Of(type).Name);
+    public void MarkAsPii(ITypeSymbol type) => _concepts.MarkAsPii(type);
 
     /// <summary>
     /// Records the validation rules a concept declares for itself.
     /// </summary>
     /// <param name="conceptName">The name of the concept.</param>
     /// <param name="rules">The rules to record.</param>
-    public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules)
-    {
-        if (!_validations.TryGetValue(conceptName, out var declared))
-        {
-            declared = [];
-            _validations[conceptName] = declared;
-        }
-
-        declared.AddRange(rules);
-    }
-
-    /// <summary>
-    /// Gets the values of an enumeration, in declaration order.
-    /// </summary>
-    /// <param name="type">The enumeration to read.</param>
-    /// <returns>The value names.</returns>
-    static IEnumerable<string> ValuesOf(ITypeSymbol type) =>
-        [.. type.GetMembers().OfType<IFieldSymbol>().Where(_ => _.HasConstantValue).Select(_ => _.Name)];
+    public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules) =>
+        _concepts.AddValidations(conceptName, rules);
 
     /// <summary>
     /// Resolves the name a type is referenced by, registering it as a concept when it is one.
@@ -139,17 +111,8 @@ public class TypeRegistry
             return ScreenplayPrimitiveTypes.GetName(primitive);
         }
 
-        if (type.TypeKind == TypeKind.Enum)
+        if (_concepts.TryRegister(type))
         {
-            Register(type, new(type.Name, ScreenplayPrimitive.Enum, false, ValuesOf(type), []));
-
-            return type.Name;
-        }
-
-        if (type.FindBase(WellKnownTypeNames.ConceptAs) is { } concept)
-        {
-            Register(type, ToConcept(type, concept.TypeArguments[0]));
-
             return type.Name;
         }
 
@@ -173,14 +136,7 @@ public class TypeRegistry
     {
         foreach (var carried in CarriedTypes.Within(type))
         {
-            if (carried.TypeKind == TypeKind.Enum)
-            {
-                Register(carried, new(carried.Name, ScreenplayPrimitive.Enum, false, ValuesOf(carried), []));
-            }
-            else if (carried.FindBase(WellKnownTypeNames.ConceptAs) is { } concept)
-            {
-                Register(carried, ToConcept(carried, concept.TypeArguments[0]));
-            }
+            _concepts.TryRegister(carried);
         }
     }
 
@@ -199,53 +155,6 @@ public class TypeRegistry
         if (type is INamedTypeSymbol { TypeArguments.Length: > 0 } or { TypeKind: TypeKind.TypeParameter })
         {
             _unmappable.Add(type.ToDisplayString());
-        }
-    }
-
-    /// <summary>
-    /// Builds the concept a type backed by <c>ConceptAs</c> declares.
-    /// </summary>
-    /// <param name="type">The concept type.</param>
-    /// <param name="backing">The type the concept is backed by.</param>
-    /// <returns>The <see cref="ConceptModel"/>.</returns>
-    ConceptModel ToConcept(ITypeSymbol type, ITypeSymbol backing)
-    {
-        var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
-
-        if (backing.TypeKind == TypeKind.Enum)
-        {
-            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []);
-        }
-
-        var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
-            ? primitive
-            : ScreenplayPrimitive.String;
-
-        return new(type.Name, resolved, pii, [], []);
-    }
-
-    /// <summary>
-    /// Registers a concept, keeping the first declaration of a given name.
-    /// </summary>
-    /// <param name="type">The type the concept was read from.</param>
-    /// <param name="concept">The concept to register.</param>
-    /// <remarks>
-    /// A concept is declared once at the top of the document and referenced by its simple name, so two types sharing
-    /// that name cannot both be described. Keeping the first is the only choice left, and saying so is what stops the
-    /// document from quietly claiming the second one is something it is not.
-    /// </remarks>
-    void Register(ITypeSymbol type, ConceptModel concept)
-    {
-        if (!_concepts.TryGetValue(concept.Name, out var existing))
-        {
-            _concepts[concept.Name] = concept;
-
-            return;
-        }
-
-        if (existing.Primitive != concept.Primitive || !existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal))
-        {
-            _ambiguous.Add(type.ToDisplayString());
         }
     }
 }

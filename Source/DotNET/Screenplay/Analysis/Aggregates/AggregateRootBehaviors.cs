@@ -26,11 +26,10 @@ public static class AggregateRootBehaviors
     /// Finds the behaviors a handler body reaches.
     /// </summary>
     /// <param name="body">The body of the handler.</param>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="semanticModel">The model the body is read through.</param>
     /// <returns>The behaviors, in the order the handler calls them.</returns>
-    public static IEnumerable<AggregateRootInvocation> ReachedFrom(SyntaxNode body, Compilation compilation)
+    public static IEnumerable<AggregateRootInvocation> ReachedFrom(SyntaxNode body, SemanticModel semanticModel)
     {
-        var semanticModel = compilation.GetSemanticModel(body.SyntaxTree);
         var reached = new List<AggregateRootInvocation>();
 
         foreach (var call in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())

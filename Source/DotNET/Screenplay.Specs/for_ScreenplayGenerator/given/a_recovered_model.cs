@@ -20,7 +20,11 @@ public class a_recovered_model(ApplicationModel model, params ScreenplayDiagnost
     public ScreenplayOptions? Options { get; private set; }
 
     /// <inheritdoc/>
-    public ApplicationModelAnalysis Analyze(Compilation compilation, ScreenplayOptions options)
+    public ApplicationModelAnalysis Analyze(Compilation compilation, ScreenplayOptions options) =>
+        Analyze([compilation], options);
+
+    /// <inheritdoc/>
+    public ApplicationModelAnalysis Analyze(IReadOnlyList<Compilation> compilations, ScreenplayOptions options)
     {
         Options = options;
 

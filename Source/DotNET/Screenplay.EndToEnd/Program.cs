@@ -8,7 +8,7 @@ using Cratis.Screenplay;
 if (args.Length < 2)
 {
     Console.WriteLine("Usage:");
-    Console.WriteLine("  Cratis.Arc.Screenplay.EndToEnd <project> <output-file>");
+    Console.WriteLine("  Cratis.Arc.Screenplay.EndToEnd <project-or-solution> <output-file>");
 
     return 2;
 }
@@ -19,21 +19,26 @@ var output = Path.GetFullPath(args[1]);
 Console.WriteLine($"Generating the Screenplay document of '{project}'");
 
 var failures = new List<string>();
-var compilation = await ProjectCompilation.Of(project, failures);
+var compilations = await ProjectCompilation.Of(project, failures);
 
 foreach (var failure in failures)
 {
     Console.WriteLine($"  workspace: {failure}");
 }
 
-if (compilation is null)
+if (compilations.Count == 0)
 {
     Console.WriteLine($"'{project}' yielded no compilation, so there is nothing to generate from");
 
     return 1;
 }
 
-var generated = new ScreenplayGenerator().Generate(compilation, new ScreenplayOptions());
+foreach (var loaded in compilations)
+{
+    Console.WriteLine($"  project: {loaded.AssemblyName}");
+}
+
+var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions());
 
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, generated.Source);
