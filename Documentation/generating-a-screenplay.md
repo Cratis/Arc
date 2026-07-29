@@ -240,7 +240,7 @@ These are part of the language, but nothing in C# says them, so a generated docu
 
 ### Detail Screenplay cannot represent
 
-These exist in your application and do not reach the document — most of them because the language has no counterpart. Almost all are reported as a diagnostic when encountered, so the document tells you it is silent about them. The two rows naming no code are the exception: nothing is reported for those.
+These exist in your application and do not reach the document, because the language has no counterpart. Each is reported as a diagnostic when encountered, so the document tells you it is silent about them.
 
 | In Arc or Chronicle | Why it is not in the document |
 |---|---|
@@ -251,8 +251,8 @@ These exist in your application and do not reach the document — most of them b
 | Inline `policy` code and requirements built in code | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole`, and `RequireClaim` given the values it accepts are recovered; the rest is reported as `SP0026` — including a `RequireClaim` naming only a claim type, which a policy condition has no way to state. |
 | The event source id from a `(TKey, TEvent)` handler | The event is recovered; the identifier saying *which* event source it goes to has no counterpart. `SP0013`. |
 | Emptying a scope with `[ClearWith]`; removing a child with `[RemovedWith]` on the property holding it | Nothing in the model a projection is built from carries a scope being emptied again, so `[ClearWith]` has nowhere to go (`SP0015`). A removal does have somewhere — but it is read from the type of the child, alongside the events filling that child in, so the same removal written beside the collection is reported as `SP0007` instead. |
-| Read model tags | A read model has no declaration of its own — it appears as the type a query returns — so there is nowhere to hang a tag. Tags on *events* are recovered and written out. |
-| Query paging and sorting, custom routes | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template has no counterpart. |
+| Read model tags | A read model has no declaration of its own — it appears as the type a query returns — so there is nowhere to hang a tag. Tags on *events* are recovered and written out. `SP0042`. |
+| Query paging and sorting, custom routes | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template — `[Path]`, `[Route]`, or a template on an HTTP verb — has no counterpart. `SP0041`. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.
 
