@@ -73,10 +73,13 @@ public static class DbContextServiceCollectionExtensions
     {
         var addDbContextMethod = typeof(ReadOnlyDbContextExtensions).GetMethod(nameof(ReadOnlyDbContextExtensions.AddReadOnlyDbContext), BindingFlags.Static | BindingFlags.Public)!;
 
-        foreach (var dbContext in DiscoverAndFilterDbContextTypes<ReadOnlyDbContext>(assemblies))
+        var dbContextTypes = DiscoverAndFilterDbContextTypes<ReadOnlyDbContext>(assemblies).ToArray();
+        foreach (var dbContext in dbContextTypes)
         {
             addDbContextMethod.MakeGenericMethod(dbContext).Invoke(null, [services, optionsAction]);
         }
+
+        AddReadModelCommandResolution(services, dbContextTypes);
         return services;
     }
 
@@ -94,11 +97,30 @@ public static class DbContextServiceCollectionExtensions
     {
         var addDbContextMethod = typeof(ReadOnlyDbContextExtensions).GetMethod(nameof(ReadOnlyDbContextExtensions.AddReadOnlyDbContextWithConnectionString), BindingFlags.Static | BindingFlags.Public)!;
 
-        foreach (var dbContext in DiscoverAndFilterDbContextTypes<ReadOnlyDbContext>(assemblies))
+        var dbContextTypes = DiscoverAndFilterDbContextTypes<ReadOnlyDbContext>(assemblies).ToArray();
+        foreach (var dbContext in dbContextTypes)
         {
             addDbContextMethod.MakeGenericMethod(dbContext).Invoke(null, [services, connectionString, optionsAction]);
         }
+
+        AddReadModelCommandResolution(services, dbContextTypes);
         return services;
+    }
+
+    /// <summary>
+    /// Registers command-scoped, by-key resolution for the read model entities owned by the given DbContext types.
+    /// </summary>
+    /// <param name="services">The service collection to register with.</param>
+    /// <param name="dbContextTypes">The read model DbContext types to discover read model entities from.</param>
+    internal static void AddReadModelCommandResolution(IServiceCollection services, IEnumerable<Type> dbContextTypes)
+    {
+        var readModelToDbContext = EntityFrameworkReadModelForCommandResolver.DiscoverReadModelTypes(dbContextTypes);
+        if (readModelToDbContext.Count == 0)
+        {
+            return;
+        }
+
+        services.AddReadModelsForCommand(new EntityFrameworkReadModelForCommandResolver(readModelToDbContext));
     }
 
     /// <summary>

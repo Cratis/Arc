@@ -2,15 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Validation;
-using Cratis.Chronicle.Events;
 
-namespace Cratis.Arc.Chronicle.ReadModels.for_ReadModelUnresolvableDependencyClassifier.when_classifying;
+namespace Cratis.Arc.Queries.for_ReadModelUnresolvableDependencyClassifier.when_classifying;
 
-public class and_the_dependency_is_a_registered_read_model_with_a_valid_id : given.a_classifier
+public class and_the_dependency_is_a_registered_read_model_with_a_valid_key : given.a_classifier
 {
     IServiceProvider _serviceProvider;
 
-    void Establish() => _serviceProvider = ServiceProviderWith(registerReadModel: true, EventSourceId.New());
+    void Establish() => _serviceProvider = ServiceProviderWith(registerReadModel: true, resolvedKey: "some-key");
 
     void Because() => _result = _classifier.TryClassifyAsClientInput(_parameter, _serviceProvider, out _failure);
 
