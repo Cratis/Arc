@@ -43,9 +43,14 @@ echo "This may take a few minutes to check all links..."
 echo ""
 
 set +e
-OUTPUT=$(npx --yes "linkinator@$LINKINATOR_VERSION" \
-    "Documentation/**/*.md" \
-    "Documentation/**/*.mdx" \
+# One glob covering both extensions rather than one per extension: linkinator
+# aborts on any glob that matches nothing, so a separate .mdx glob would fail a
+# repository whose pages are all .md while every link in it is fine.
+#
+# NO_COLOR keeps the scan summary free of escape codes, so the link count below
+# can be read out of it.
+OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
+    "Documentation/**/*.{md,mdx}" \
     --markdown \
     --recurse \
     --directory-listing \
@@ -59,7 +64,17 @@ echo "$OUTPUT"
 
 # How many links were actually looked at. A check that scans nothing reports
 # success while verifying nothing, which reads exactly like a passing check.
-SCANNED=$(echo "$OUTPUT" | grep -oE 'canned [0-9]+ link' | grep -oE '[0-9]+' | tail -1)
+#
+# Matched mid-word on purpose: linkinator writes "Successfully scanned N links"
+# when every link resolved and "Scanned N links" when one did not, and the count
+# has to be read out of either.
+#
+# The color codes are stripped first. linkinator wraps the count in them whenever
+# it decides the output is a terminal, and FORCE_COLOR makes it decide that no
+# matter what NO_COLOR says - which would leave the count unreadable and report a
+# real link failure as "the globs matched nothing".
+ESC=$(printf '\033')
+SCANNED=$(echo "$OUTPUT" | sed -E "s/${ESC}\[[0-9;]*m//g" | grep -oE 'canned [0-9]+ link' | grep -oE '[0-9]+' | tail -1)
 
 echo ""
 
