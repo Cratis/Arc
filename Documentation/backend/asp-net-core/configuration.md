@@ -126,7 +126,7 @@ builder.AddCratisArc(options =>
     options.CorrelationId.HttpHeader = "X-My-Correlation-ID";
 
     // Configure tenancy
-    options.Tenancy.HttpHeader = "X-Tenant-ID";
+    options.Tenancy.HttpHeader = "X-Custom-Tenant";
 
     // Configure generated APIs
     options.GeneratedApis.RoutePrefix = "myapi";
