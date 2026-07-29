@@ -179,6 +179,38 @@ public record AddItemToCart([Key] Guid CartId, Guid ProductId, int Quantity)
 
 Read models never emit events. If the decision must hold under concurrency, drive it from the aggregate or from a Chronicle [constraint](/chronicle/constraints/) rather than from projected state — read models are eventually consistent.
 
+## Read models from other providers
+
+Injection is not Chronicle-only. Any provider that owns a read model's storage can make its `[ReadModel]` types injectable into a command, resolved by the same key, so a validator, `Provide()`, or `Handle()` takes the read model exactly as it would a Chronicle-backed one.
+
+The Entity Framework Core integration does this for you. A `[ReadModel]` entity carried by a `ReadOnlyDbContext` becomes injectable once the context is registered — there is nothing extra to wire up:
+
+```csharp
+[ReadModel]
+public class Customer
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class CustomerDbContext(DbContextOptions<CustomerDbContext> options) : ReadOnlyDbContext(options)
+{
+    public DbSet<Customer> Customers => Set<Customer>();
+}
+```
+
+```csharp
+[Command]
+public record RenameCustomer([Key] Guid CustomerId, string NewName)
+{
+    public CustomerRenamed Handle(Customer customer) => new(customer.Id, NewName);
+}
+```
+
+`WithEntityFrameworkCore()` discovers the `ReadOnlyDbContext`, and the command's resolved key (here the `[Key]` on `CustomerId`) loads the entity by its primary key. The primary key may be a `Guid`, `int`, `long`, `string`, or a `ConceptAs<T>` wrapping one of those.
+
+The nullable rules are identical: a nullable `Customer?` receives `null` when no row exists, and a non-nullable `Customer` fails the command with [`ReadModelDoesNotExistForCommand`](./failures.md#readmodeldoesnotexistforcommand). Chronicle-backed and EF-backed read models coexist in the same application and never claim each other's types.
+
 ## Testing
 
 Seed the state the command should see with the `Given` builder — either the events behind it or a pinned instance — and execute through the real pipeline. See [Testing with Chronicle](../../testing/chronicle.md#testing-commands-that-take-read-model-dependencies).
