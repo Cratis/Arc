@@ -38,6 +38,16 @@ public record SliceModel(
     public IEnumerable<ScreenModel> Screens { get; init; } = [];
 
     /// <summary>
+    /// Gets the scenarios the slice is specified by.
+    /// </summary>
+    /// <remarks>
+    /// A scenario is recovered from a namespace beneath the slice's own rather than from the slice's, so it arrives
+    /// once every namespace has been read and which of them declare a slice is known - which is after the slice
+    /// itself exists.
+    /// </remarks>
+    public IEnumerable<SpecificationModel> Specifications { get; init; } = [];
+
+    /// <summary>
     /// Creates a slice that declares nothing, for use as a starting point.
     /// </summary>
     /// <param name="namespace">The full namespace the slice lives in.</param>

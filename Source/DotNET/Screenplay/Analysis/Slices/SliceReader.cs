@@ -13,14 +13,19 @@ namespace Cratis.Arc.Screenplay.Analysis.Slices;
 /// <param name="readers">The <see cref="ArtifactReaders"/> reading each kind of artifact.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <param name="screens">The <see cref="ScreenReader"/> reading what the slice ends in.</param>
+/// <param name="recovered">The <see cref="RecoveredArtifacts"/> holding what each declaration yielded.</param>
 /// <remarks>
 /// A namespace is the unit a slice is recovered from, because that is what the vertical slice convention makes it -
 /// everything belonging to one behavior lives together, and nothing else does. The same convention puts the file
 /// realizing a screen in that folder too, which is why screens are read here rather than discovered separately.
 /// </remarks>
-public class SliceReader(ArtifactReaders readers, ScreenplayDiagnostics diagnostics, ScreenReader screens)
+public class SliceReader(
+    ArtifactReaders readers,
+    ScreenplayDiagnostics diagnostics,
+    ScreenReader screens,
+    RecoveredArtifacts recovered)
 {
-    readonly SliceArtifactReader _artifacts = new(readers, diagnostics);
+    readonly SliceArtifactReader _artifacts = new(readers, diagnostics, recovered);
 
     /// <summary>
     /// Reads the slice a namespace declares.

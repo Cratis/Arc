@@ -28,9 +28,16 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     public const string Length = "Length";
 
     /// <summary>
-    /// The call constraining a value to look like an email address.
+    /// The call holding the rules before it to a condition.
     /// </summary>
-    public const string EmailAddress = "EmailAddress";
+    public const string When = "When";
+
+    /// <summary>
+    /// The call holding the rules before it to a condition being false.
+    /// </summary>
+    public const string Unless = "Unless";
+
+    readonly ValidationOperands _operands = new(diagnostics);
 
     /// <summary>
     /// Reads one rule chain.
@@ -71,59 +78,6 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     }
 
     /// <summary>
-    /// Reads the operand a rule compares against.
-    /// </summary>
-    /// <param name="call">The call declaring the rule.</param>
-    /// <param name="name">The name of the rule builder.</param>
-    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
-    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
-    /// <returns>The operand, or <see langword="null"/> when the rule takes none.</returns>
-    object? OperandOf(InvocationExpressionSyntax call, string name, SemanticModel semanticModel, string location) =>
-        string.Equals(name, EmailAddress, StringComparison.Ordinal)
-            ? ValidationRuleKinds.EmailPattern
-            : Constant(call, 0, semanticModel, location);
-
-    /// <summary>
-    /// Reads the constant value of an argument.
-    /// </summary>
-    /// <param name="call">The call to read.</param>
-    /// <param name="index">The position of the argument.</param>
-    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
-    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
-    /// <returns>The value, or <see langword="null"/> when the argument is not a constant.</returns>
-    /// <remarks>
-    /// A rule comparing against a member of an enumeration is given the number behind the member, which would have
-    /// the document compare a concept declaring names against a number. Naming the member is what keeps the rule
-    /// readable against the concept it is written about.
-    /// </remarks>
-    object? Constant(InvocationExpressionSyntax call, int index, SemanticModel semanticModel, string location)
-    {
-        var argument = InvocationChain.ArgumentOf(call, index);
-        if (argument is null)
-        {
-            return null;
-        }
-
-        var value = semanticModel.GetConstantValue(argument).Value;
-        if (EnumConstants.EnumerationOf(argument, semanticModel) is not { } enumeration)
-        {
-            return value;
-        }
-
-        if (EnumConstants.TryResolve(enumeration, value, out var member))
-        {
-            return member;
-        }
-
-        diagnostics.Warning(
-            ScreenplayDiagnosticCodes.UnnamedEnumerationValue,
-            $"'{enumeration.Name}' declares no member with the value '{value}', so it is written as that number rather than as a name the concept declares",
-            location);
-
-        return value;
-    }
-
-    /// <summary>
     /// Reads one call of a rule chain.
     /// </summary>
     /// <param name="call">The call to read.</param>
@@ -152,10 +106,17 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             return 0;
         }
 
+        if (string.Equals(name, When, StringComparison.Ordinal) || string.Equals(name, Unless, StringComparison.Ordinal))
+        {
+            ReportCondition(call, name, property, location);
+
+            return 0;
+        }
+
         if (!forEach && string.Equals(name, Length, StringComparison.Ordinal) && call.ArgumentList.Arguments.Count == 2)
         {
-            rules.Add(new(property, ValidationRuleKind.Min, Constant(call, 0, semanticModel, location), null));
-            rules.Add(new(property, ValidationRuleKind.Max, Constant(call, 1, semanticModel, location), null));
+            rules.Add(new(property, ValidationRuleKind.Min, _operands.Constant(call, 0, semanticModel, location), null));
+            rules.Add(new(property, ValidationRuleKind.Max, _operands.Constant(call, 1, semanticModel, location), null));
 
             return 2;
         }
@@ -170,10 +131,30 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             return 0;
         }
 
-        rules.Add(new(property, kind, OperandOf(call, name, semanticModel, location), null));
+        rules.Add(new(property, kind, _operands.Read(call, name, semanticModel, location), null));
 
         return 1;
     }
+
+    /// <summary>
+    /// Reports the condition the rules declared before it are held to.
+    /// </summary>
+    /// <param name="call">The call carrying the condition.</param>
+    /// <param name="name">The name of the call.</param>
+    /// <param name="property">The property the chain declares rules for.</param>
+    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
+    /// <remarks>
+    /// A rule that only holds sometimes is stated as though it always holds, because a rule carries no condition of
+    /// its own yet (Cratis/Screenplay#32). That is a real difference between the document and the application, so the
+    /// condition is written into the report rather than only its absence - a reader who can see what the rule was
+    /// held to can tell one that hardly ever applies from one that nearly always does, and a report naming only the
+    /// call says neither.
+    /// </remarks>
+    void ReportCondition(InvocationExpressionSyntax call, string name, string property, string location) =>
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnmappableValidationRule,
+            $"The rules on '{property}' are held to '{name}{call.ArgumentList}', and a rule carries no condition, so they are stated as though nothing held them",
+            location);
 
     /// <summary>
     /// Applies a message to every rule the call before it declared.
@@ -195,12 +176,24 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
         int preceding,
         string location)
     {
-        var message = InvocationChain.ArgumentOf(call) is { } argument ? semanticModel.GetConstantValue(argument).Value as string : null;
-        if (message is null || preceding == 0)
+        var argument = InvocationChain.ArgumentOf(call);
+        var message = ValidationMessages.Read(argument, semanticModel);
+
+        if (message is null)
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                "A message was declared without a constant value or without a rule preceding it, and was left out",
+                $"The message '{argument}' is put together while the request runs rather than written down, so the rule it belongs to states none",
+                location);
+
+            return;
+        }
+
+        if (preceding == 0)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                $"The message '{message}' follows nothing the document states a rule for, so there is nothing to attach it to and it was left out",
                 location);
 
             return;

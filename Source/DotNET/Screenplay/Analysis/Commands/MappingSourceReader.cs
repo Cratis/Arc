@@ -68,6 +68,20 @@ public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
     }
 
     /// <summary>
+    /// Strips the wrappers that do not change what an expression yields.
+    /// </summary>
+    /// <param name="expression">The expression to strip.</param>
+    /// <returns>The wrapped expression.</returns>
+    public static ExpressionSyntax Unwrap(ExpressionSyntax expression) => expression switch
+    {
+        ParenthesizedExpressionSyntax parenthesized => Unwrap(parenthesized.Expression),
+        CastExpressionSyntax cast => Unwrap(cast.Expression),
+        PostfixUnaryExpressionSyntax { RawKind: (int)Microsoft.CodeAnalysis.CSharp.SyntaxKind.SuppressNullableWarningExpression } suppress =>
+            Unwrap(suppress.Operand),
+        _ => expression
+    };
+
+    /// <summary>
     /// Reads the source of an expression.
     /// </summary>
     /// <param name="expression">The expression to read.</param>
@@ -111,20 +125,6 @@ public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
     static bool IsOwnInput(IdentifierNameSyntax identifier, SemanticModel semanticModel, ITypeSymbol owner) =>
         semanticModel.GetSymbolInfo(identifier).Symbol is IPropertySymbol property &&
         SymbolEqualityComparer.Default.Equals(property.ContainingType, owner);
-
-    /// <summary>
-    /// Strips the wrappers that do not change what an expression yields.
-    /// </summary>
-    /// <param name="expression">The expression to strip.</param>
-    /// <returns>The wrapped expression.</returns>
-    static ExpressionSyntax Unwrap(ExpressionSyntax expression) => expression switch
-    {
-        ParenthesizedExpressionSyntax parenthesized => Unwrap(parenthesized.Expression),
-        CastExpressionSyntax cast => Unwrap(cast.Expression),
-        PostfixUnaryExpressionSyntax { RawKind: (int)Microsoft.CodeAnalysis.CSharp.SyntaxKind.SuppressNullableWarningExpression } suppress =>
-            Unwrap(suppress.Operand),
-        _ => expression
-    };
 
     /// <summary>
     /// Recovers what a constant stands for, naming the member when it belongs to an enumeration.
