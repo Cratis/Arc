@@ -127,10 +127,18 @@ public class ScreenplayNaming : IScreenplayNaming
     }
 
     /// <summary>
-    /// Strips everything that is not a valid identifier character, including generic type arity suffixes.
+    /// Strips everything that is not a valid identifier character, including generic type arity suffixes, and joins
+    /// separator-carrying names into a readable identifier.
     /// </summary>
     /// <param name="name">The name to sanitize.</param>
     /// <returns>The sanitized name.</returns>
+    /// <remarks>
+    /// A runtime name is idiomatically written with separators - a Chronicle constraint named <c>unique-timesheet-start</c>
+    /// is the common case. A Screenplay identifier cannot hold a separator, so the segments a separator marks are
+    /// PascalCased and joined rather than run together, which is the difference between <c>UniqueTimesheetStart</c> and
+    /// an unreadable <c>uniquetimesheetstart</c>. A name that carries no separator is left exactly as it was, so a
+    /// name already shaped like an identifier - and the acronym casing another step relies on - is untouched.
+    /// </remarks>
     static string Sanitize(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -140,6 +148,64 @@ public class ScreenplayNaming : IScreenplayNaming
 
         var backTick = name.IndexOf('`', StringComparison.Ordinal);
         var candidate = backTick > 0 ? name[..backTick] : name;
+        var segments = Segments(candidate);
+
+        if (segments.Count <= 1)
+        {
+            return StripToIdentifier(candidate).Normalize(NormalizationForm.FormC);
+        }
+
+        var builder = new StringBuilder(candidate.Length);
+        foreach (var segment in segments)
+        {
+            builder.Append(char.ToUpperInvariant(segment[0]));
+            builder.Append(segment, 1, segment.Length - 1);
+        }
+
+        return builder.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+    /// <summary>
+    /// Splits a name into the runs of letters and digits the separators between them mark as words.
+    /// </summary>
+    /// <param name="candidate">The name to split.</param>
+    /// <returns>The segments, in order.</returns>
+    static List<string> Segments(string candidate)
+    {
+        var segments = new List<string>();
+        var builder = new StringBuilder(candidate.Length);
+
+        foreach (var character in candidate)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(character);
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                segments.Add(builder.ToString());
+                builder.Clear();
+            }
+        }
+
+        if (builder.Length > 0)
+        {
+            segments.Add(builder.ToString());
+        }
+
+        return segments;
+    }
+
+    /// <summary>
+    /// Keeps only the characters a single-segment name is allowed to carry, preserving the historical shape of a name
+    /// that carries no separator to bridge.
+    /// </summary>
+    /// <param name="candidate">The name to strip.</param>
+    /// <returns>The stripped name.</returns>
+    static string StripToIdentifier(string candidate)
+    {
         var builder = new StringBuilder(candidate.Length);
 
         foreach (var character in candidate)
@@ -150,6 +216,6 @@ public class ScreenplayNaming : IScreenplayNaming
             }
         }
 
-        return builder.ToString().Normalize(NormalizationForm.FormC);
+        return builder.ToString();
     }
 }
