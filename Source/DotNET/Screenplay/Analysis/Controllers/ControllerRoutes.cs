@@ -50,6 +50,22 @@ public static class ControllerRoutes
     public static bool IsQuery(IMethodSymbol method) => Carries(method, "HttpGetAttribute");
 
     /// <summary>
+    /// Gets the route a controller or one of its methods is served at.
+    /// </summary>
+    /// <param name="symbol">The controller or method to read.</param>
+    /// <returns>The route template, or <see langword="null"/> when the conventional route is used.</returns>
+    /// <remarks>
+    /// A template appears either as the argument of the verb attribute or as a route attribute of its own, and both
+    /// say the same thing. Neither has a counterpart in a Screenplay, which says what an application is rather than
+    /// where it answers.
+    /// </remarks>
+    public static string? RouteOf(ISymbol symbol) =>
+        symbol.GetAttributes()
+            .Where(_ => IsRouting(_.AttributeClass))
+            .Select(_ => _.GetArgument(0) as string)
+            .FirstOrDefault(_ => !string.IsNullOrWhiteSpace(_));
+
+    /// <summary>
     /// Gets the routable methods a controller declares.
     /// </summary>
     /// <param name="type">The controller to read.</param>
@@ -68,4 +84,13 @@ public static class ControllerRoutes
     /// <returns>True when the attribute is applied.</returns>
     static bool Carries(IMethodSymbol method, string attributeName) =>
         method.HasAttribute($"{MvcNamespace}.{attributeName}");
+
+    /// <summary>
+    /// Determines whether an attribute is one that says where something is served.
+    /// </summary>
+    /// <param name="attribute">The attribute to check.</param>
+    /// <returns>True when the attribute carries a route template.</returns>
+    static bool IsRouting(INamedTypeSymbol? attribute) =>
+        attribute?.ContainingNamespace?.ToDisplayString() == MvcNamespace &&
+        (attribute.Name == "RouteAttribute" || attribute.Name == "HttpGetAttribute" || Array.Exists(_mutating, verb => verb == attribute.Name));
 }

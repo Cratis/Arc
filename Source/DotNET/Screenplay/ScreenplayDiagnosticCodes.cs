@@ -375,4 +375,31 @@ public static class ScreenplayDiagnosticCodes
     /// </para>
     /// </remarks>
     public const string UnreadableSpecificationValue = "SP0040";
+
+    /// <summary>
+    /// The application says how an artifact is served, which a Screenplay does not describe.
+    /// </summary>
+    /// <remarks>
+    /// A Screenplay says what an application is, never how a caller reaches it. Paging, sorting and a route template
+    /// are all real declarations about the running application, and all three concern the request rather than the
+    /// model - so there is nothing in the document they could be written into, and nothing to gain from inventing
+    /// somewhere. What is worth having is the reader knowing the question was asked at all: a document silent about
+    /// paging reads exactly like an application that does not page. The three share one code because they share one
+    /// reason, and a reader who does not want to hear about how the application is served suppresses all of it at
+    /// once.
+    /// </remarks>
+    public const string ServingConcernWithoutCounterpart = "SP0041";
+
+    /// <summary>
+    /// A read model declares something the document has nowhere to hold.
+    /// </summary>
+    /// <remarks>
+    /// A read model is never declared in a Screenplay in its own right - it appears only as the type a query answers
+    /// with - so anything it carries beyond its shape has nowhere to go. Tags are the case that matters, and they
+    /// matter because an event's tags <em>are</em> printed: a reader seeing tags throughout the events and none on
+    /// the read models would reasonably conclude that the read models carry none. This is separate from
+    /// <see cref="ServingConcernWithoutCounterpart"/> because the reason is different - the declaration says nothing
+    /// about the request, it is a declaration the document does not make at all.
+    /// </remarks>
+    public const string ReadModelFeatureWithoutCounterpart = "SP0042";
 }

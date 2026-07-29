@@ -143,4 +143,7 @@ public static class WellKnownTypeNames
 
     /// <summary>The order a result is returned in, which the host fills in from the request.</summary>
     public const string Sorting = "Cratis.Arc.Queries.Sorting";
+
+    /// <summary>The attribute giving a read model or a query a route of its own rather than the conventional one.</summary>
+    public const string PathAttribute = "Cratis.Arc.Queries.ModelBound.PathAttribute";
 }
