@@ -50,20 +50,31 @@ public static class ControllerRoutes
     public static bool IsQuery(IMethodSymbol method) => Carries(method, "HttpGetAttribute");
 
     /// <summary>
-    /// Gets the route a controller or one of its methods is served at.
+    /// Gets the routes a controller or one of its methods is served at.
     /// </summary>
     /// <param name="symbol">The controller or method to read.</param>
-    /// <returns>The route template, or <see langword="null"/> when the conventional route is used.</returns>
+    /// <returns>The route templates, empty when the conventional route is used.</returns>
     /// <remarks>
     /// A template appears either as the argument of the verb attribute or as a route attribute of its own, and both
-    /// say the same thing. Neither has a counterpart in a Screenplay, which says what an application is rather than
-    /// where it answers.
+    /// say the same thing. None of them has a counterpart in a Screenplay, which says what an application is rather
+    /// than where it answers.
+    /// <para>
+    /// Every one is read, not just the first: the route and the verb attributes all allow being applied more than once,
+    /// and two templates on the same controller are two routes the application really serves. The declarations a symbol
+    /// inherits count too - ASP.NET Core honors a route declared on a base controller or on an overridden action, and an
+    /// abstract base is never read on its own because it is not a controller.
+    /// </para>
     /// </remarks>
-    public static string? RouteOf(ISymbol symbol) =>
-        symbol.GetAttributes()
+    public static IEnumerable<string> RoutesOf(ISymbol symbol) =>
+    [
+        .. Declarations(symbol)
+            .SelectMany(_ => _.GetAttributes())
             .Where(_ => IsRouting(_.AttributeClass))
             .Select(_ => _.GetArgument(0) as string)
-            .FirstOrDefault(_ => !string.IsNullOrWhiteSpace(_));
+            .Where(_ => !string.IsNullOrWhiteSpace(_))
+            .Select(_ => _!)
+            .Distinct(StringComparer.Ordinal)
+    ];
 
     /// <summary>
     /// Gets the routable methods a controller declares.
@@ -75,6 +86,31 @@ public static class ControllerRoutes
             .OfType<IMethodSymbol>()
             .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: false, DeclaredAccessibility: Accessibility.Public })
             .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
+
+    /// <summary>
+    /// Walks a symbol and everything it inherits its declarations from.
+    /// </summary>
+    /// <param name="symbol">The symbol to walk from.</param>
+    /// <returns>The symbol first, then each one it inherits from, nearest first.</returns>
+    static IEnumerable<ISymbol> Declarations(ISymbol symbol)
+    {
+        for (var current = symbol; current is not null; current = Inherited(current))
+        {
+            yield return current;
+        }
+    }
+
+    /// <summary>
+    /// Gets the declaration a symbol inherits its attributes from.
+    /// </summary>
+    /// <param name="symbol">The symbol to read.</param>
+    /// <returns>The base type or the overridden method, or <see langword="null"/> when there is none.</returns>
+    static ISymbol? Inherited(ISymbol symbol) => symbol switch
+    {
+        INamedTypeSymbol type => type.BaseType,
+        IMethodSymbol method => method.OverriddenMethod,
+        _ => null
+    };
 
     /// <summary>
     /// Determines whether a method carries an attribute of a given name from the MVC namespace.

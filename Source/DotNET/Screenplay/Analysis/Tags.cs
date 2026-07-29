@@ -19,7 +19,7 @@ public static class Tags
     /// </summary>
     /// <param name="symbol">The declaration to read.</param>
     /// <returns>The tags, ordered, without duplicates.</returns>
-    public static IEnumerable<string> Of(ISymbol symbol) =>
+    public static string[] Of(ISymbol symbol) =>
     [
         .. symbol.GetAttributes()
             .Where(_ => _.AttributeClass.Is(WellKnownTypeNames.TagAttribute) || _.AttributeClass.Is(WellKnownTypeNames.TagsAttribute))

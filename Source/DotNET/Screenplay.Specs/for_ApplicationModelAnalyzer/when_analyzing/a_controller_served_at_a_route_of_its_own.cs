@@ -78,6 +78,7 @@ public class a_controller_served_at_a_route_of_its_own : Specification
         ("Framework.cs", WebFramework),
         ("Library/Authors/Registration/Registration.cs", Source));
 
+    [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Framework.cs", WebFramework), ("Library/Authors/Registration/Registration.cs", Source)).ShouldBeEmpty();
     [Fact] void should_still_recover_the_command() => _analysis.Slice().Commands.Single().Name.ShouldEqual("RegisterAuthor");
     [Fact] void should_name_the_command_the_way_the_document_does() => _analysis.Diagnostics.Single(_ => _.Message.Contains("register-author'", StringComparison.Ordinal)).Message.ShouldContain("'RegisterAuthor'");
     [Fact] void should_still_recover_the_query() => _analysis.Slice().Queries.Single().Name.ShouldEqual("All");

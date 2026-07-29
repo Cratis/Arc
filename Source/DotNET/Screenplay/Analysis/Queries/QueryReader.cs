@@ -120,10 +120,20 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <remarks>
     /// Paging and sorting are left out of the query's shape because no caller sends them as arguments, and that is
     /// the right reading - but a query that pages is a real thing the application does, and a document that says
-    /// nothing at all reads exactly like a query that does not page.
+    /// nothing at all reads exactly like a query that does not page. Which query pages is decided the way Arc decides
+    /// it, by the return type being a queryable; a paging or sorting parameter is read as well, for a signature that
+    /// says it means to be served that way even though Arc fills neither in.
     /// </remarks>
     void ReportHowItIsServed(IMethodSymbol method, string location)
     {
+        if (QueryReturnTypes.IsPagedByTheHost(method.ReturnType))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"The query '{method.Name}' hands back a queryable, so the host pages and sorts it on the caller's behalf, which says how the result is asked for rather than what it is, and Screenplay has no counterpart for it",
+                location);
+        }
+
         foreach (var served in method.Parameters
             .Where(_ => _.Type.Is(WellKnownTypeNames.Paging) || _.Type.Is(WellKnownTypeNames.Sorting))
             .Select(_ => _.Type.Name)
@@ -136,7 +146,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
                 location);
         }
 
-        if (method.GetAttribute(WellKnownTypeNames.PathAttribute)?.GetArgument(0) is string path && path.Length > 0)
+        if (method.GetAttribute(WellKnownTypeNames.PathAttribute)?.GetArgument(0) is string path && !string.IsNullOrWhiteSpace(path))
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,

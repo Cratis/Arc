@@ -113,7 +113,7 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
             return;
         }
 
-        ReportRoute(ControllerRoutes.RouteOf(type), $"The controller '{type.Name}'", @namespace);
+        ReportRoutes(ControllerRoutes.RoutesOf(type), $"The controller '{type.Name}'", @namespace);
 
         foreach (var method in ControllerRoutes.MethodsOf(type))
         {
@@ -121,12 +121,12 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
             {
                 var command = readers.ControllerCommands.Read(type, method, @namespace);
                 content.Commands.Add(command);
-                ReportRoute(ControllerRoutes.RouteOf(method), $"The command '{command.Name}'", @namespace);
+                ReportRoutes(ControllerRoutes.RoutesOf(method), $"The command '{command.Name}'", @namespace);
             }
             else if (ControllerRoutes.IsQuery(method))
             {
                 AddQueries(content, type, [method], @namespace);
-                ReportRoute(ControllerRoutes.RouteOf(method), $"The query '{method.Name}'", @namespace);
+                ReportRoutes(ControllerRoutes.RoutesOf(method), $"The query '{method.Name}'", @namespace);
             }
         }
     }
@@ -143,7 +143,7 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
     /// </remarks>
     void ReportWhatTheReadModelCannotSay(INamedTypeSymbol type, string location)
     {
-        var tags = Tags.Of(type).ToArray();
+        var tags = Tags.Of(type);
         if (tags.Length > 0)
         {
             diagnostics.Information(
@@ -152,26 +152,30 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
                 location);
         }
 
-        ReportRoute(type.GetAttribute(WellKnownTypeNames.PathAttribute)?.GetArgument(0) as string, $"The read model '{type.Name}'", location);
+        // A path on a query replaces the read model's outright rather than extending it, so the read model's own path is
+        // only a route the application serves while some query still falls back to it. Reporting it regardless would
+        // name a route nothing answers at.
+        if (QueryReader.MethodsOf(type).Any(method => !method.HasAttribute(WellKnownTypeNames.PathAttribute)))
+        {
+            ReportRoutes([type.GetAttribute(WellKnownTypeNames.PathAttribute)?.GetArgument(0) as string], $"The read model '{type.Name}'", location);
+        }
     }
 
     /// <summary>
-    /// Reports a route the application serves an artifact at.
+    /// Reports each route the application serves an artifact at.
     /// </summary>
-    /// <param name="route">The route, when one was declared.</param>
-    /// <param name="what">What declares it, as it reads at the start of the message.</param>
+    /// <param name="routes">The routes that were declared, if any.</param>
+    /// <param name="what">What declares them, as it reads at the start of the message.</param>
     /// <param name="location">Where it lives.</param>
-    void ReportRoute(string? route, string what, string location)
+    void ReportRoutes(IEnumerable<string?> routes, string what, string location)
     {
-        if (string.IsNullOrWhiteSpace(route))
+        foreach (var route in routes.Where(_ => !string.IsNullOrWhiteSpace(_)))
         {
-            return;
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"{what} is served at '{route}' rather than the conventional route, which Screenplay has no counterpart for",
+                location);
         }
-
-        diagnostics.Information(
-            ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
-            $"{what} is served at '{route}' rather than the conventional route, which Screenplay has no counterpart for",
-            location);
     }
 
     /// <summary>
