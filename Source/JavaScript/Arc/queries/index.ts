@@ -36,6 +36,7 @@ export * from './WebSocketMessage';
 export * from './QueryTransportMethod';
 export * from './QueryInstanceCache';
 export * from './reconcileQueryData';
+export * from './deserializeQueryModel';
 export * from './IQueryProvider';
 export * from './QueryProvider';
 export * from './QueryValidator';
