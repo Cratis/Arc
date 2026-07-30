@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResultWithState, IObservableQueryFor, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
+import { QueryResultWithState, IObservableQueryFor, Sorting, Paging, ChangeSet, isPrimitiveModelType } from '@cratis/arc/queries';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { SetSorting } from './SetSorting';
@@ -80,21 +80,45 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
     return [...result, ...changeSet.added] as T[];
 }
 
+/**
+ * Deserializes a payload collection into its model type, passing primitives through untouched.
+ *
+ * A query whose backend returns a primitive collection - `IEnumerable<string>`, `IEnumerable<int>` -
+ * generates a proxy with `String`, `Number` or `Boolean` as its model type, and
+ * {@link JsonSerializer.deserializeArrayFromInstance} is destructive for those: it constructs
+ * `new String()` per item and copies declared fields onto it, discarding the value and leaving an
+ * empty wrapper object behind.
+ *
+ * Only the primitive check itself is shared with `@cratis/arc` - the deserialization must run
+ * through this package's own {@link JsonSerializer}, whose converter registry is module state and
+ * therefore only knows the `Guid`, `Date` and concept types registered in this package's copy.
+ * @param {Constructor} modelType The instance type of the items to deserialize into.
+ * @param {unknown[]} items The items to deserialize.
+ * @returns {unknown[]} The deserialized items, or the items unchanged for primitive model types.
+ */
+function deserializeItems(modelType: Constructor | null, items: unknown[]): unknown[] {
+    if (!modelType || modelType === Object || isPrimitiveModelType(modelType)) {
+        return Array.from(items);
+    }
+
+    return JsonSerializer.deserializeArrayFromInstance(modelType, items);
+}
+
 function deserializeChangeSet(changeSet: ChangeSet<unknown>, modelType: Constructor): ChangeSet<unknown> {
     return {
-        added: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.added ?? []),
-        replaced: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.replaced ?? []),
-        removed: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.removed ?? []),
+        added: deserializeItems(modelType, changeSet.added ?? []),
+        replaced: deserializeItems(modelType, changeSet.replaced ?? []),
+        removed: deserializeItems(modelType, changeSet.removed ?? []),
     };
 }
 
 function deserializeResponseData<TDataType>(data: unknown, modelType: Constructor | null): TDataType {
-    // If data is an array and we have a model type, deserialize each item
-    if (Array.isArray(data) && modelType && modelType !== Object) {
-        return JsonSerializer.deserializeArrayFromInstance(modelType, data) as TDataType;
+    // Non-array payloads (null, undefined, a single value) are passed through untouched.
+    if (!Array.isArray(data)) {
+        return data as TDataType;
     }
-    // Otherwise return data as-is (could be null, undefined, or non-array type)
-    return data as TDataType;
+
+    return deserializeItems(modelType, data) as TDataType;
 }
 
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
