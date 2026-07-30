@@ -1,11 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Constructor, JsonSerializer } from '@cratis/fundamentals';
+import { Constructor } from '@cratis/fundamentals';
 import { ValidationResult } from '../validation/ValidationResult';
 import { IQueryResult } from './IQueryResult';
 import { PagingInfo } from './PagingInfo';
 import { ChangeSet } from './ChangeSet';
+import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel';
 
 type ServerQueryResult = {
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -162,37 +163,18 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         this.paging.totalPages = result.paging.totalPages;
 
         if (result.data) {
-            let data: object = result.data;
-            const isPrimitive = instanceType === String || instanceType === Number || instanceType === Boolean;
-            if (enumerable) {
-                if (Array.isArray(result.data)) {
-                    data = isPrimitive
-                        ? Array.from(result.data)
-                        : JsonSerializer.deserializeArrayFromInstance(instanceType, data);
-                } else {
-                    data = [];
-                }
-            } else {
-                data = isPrimitive ? data : JsonSerializer.deserializeFromInstance(instanceType, data);
-            }
-
-            this.data = data as TDataType;
+            this.data = (enumerable
+                ? deserializeQueryModels(instanceType, result.data)
+                : deserializeQueryModel(instanceType, result.data)) as TDataType;
         } else {
             this.data = (enumerable ? [] : null) as TDataType;
         }
 
         if (enumerable && result.changeSet) {
-            const isPrimitive = instanceType === String || instanceType === Number || instanceType === Boolean;
             this.changeSet = {
-                added: isPrimitive
-                    ? Array.from(result.changeSet.added ?? [])
-                    : JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.added ?? []),
-                replaced: isPrimitive
-                    ? Array.from(result.changeSet.replaced ?? [])
-                    : JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.replaced ?? []),
-                removed: isPrimitive
-                    ? Array.from(result.changeSet.removed ?? [])
-                    : JsonSerializer.deserializeArrayFromInstance(instanceType, result.changeSet.removed ?? []),
+                added: deserializeQueryModels(instanceType, result.changeSet.added ?? []),
+                replaced: deserializeQueryModels(instanceType, result.changeSet.replaced ?? []),
+                removed: deserializeQueryModels(instanceType, result.changeSet.removed ?? []),
             } as ChangeSet<unknown>;
         }
     }
