@@ -61,7 +61,7 @@ public record RenameAuthor([property: Key] AuthorId Id, AuthorName NewName)
 }
 ```
 
-This works the same for a read model held in MongoDB and one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means and how to [declare the key](./backend/chronicle/read-models/injecting-into-commands.md#declaring-the-key-without-chronicle) when it is not a single property.
+This works the same for a read model held in MongoDB and one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
 
 That's the backend. Register MongoDB once at startup:
 

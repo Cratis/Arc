@@ -61,4 +61,4 @@ The two attributes are also easy to reach for by accident. The data annotations 
 
 ## See also
 
-- [Read models in commands](../read-models/injecting-into-commands.md) — declaring a command's key with and without Chronicle
+- [Read models from other providers](../read-models/other-providers.md#declaring-the-key-without-chronicle) — declaring a command's key with and without Chronicle

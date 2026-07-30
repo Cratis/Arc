@@ -35,7 +35,7 @@ This is not "the entity does not exist" — it is a command that could never res
 | Setup | Declare the key by |
 |---|---|
 | With Chronicle | marking a property with `Cratis.Chronicle.Keys.KeyAttribute`, using a property whose type converts to `EventSourceId` (typically a `ConceptAs<Guid>` with an `implicit operator EventSourceId`), or implementing `ICanProvideEventSourceId` — see [Resolving EventSourceId](../resolving-event-source-id.md) |
-| Without Chronicle | marking a property with `System.ComponentModel.DataAnnotations.KeyAttribute`, or implementing `ICanProvideKeyForCommand` — see [Declaring the key without Chronicle](./injecting-into-commands.md#declaring-the-key-without-chronicle) |
+| Without Chronicle | marking a property with `System.ComponentModel.DataAnnotations.KeyAttribute`, or implementing `ICanProvideKeyForCommand` — see [Declaring the key without Chronicle](./other-providers.md#declaring-the-key-without-chronicle) |
 
 A command that marks the data annotations attribute in a Chronicle application fails this way while looking correct — [ARCCHR0008](../code-analysis/ARCCHR0008.md) reports it at build time.
 
