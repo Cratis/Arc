@@ -1,7 +1,13 @@
 name: .NET Build
 
+# The build runs on pull_request_target, where github.ref is the branch being merged into rather than the pull
+# request - refs/heads/main for every one of them. Grouping on it therefore put every open pull request in one
+# group, and cancel-in-progress made each new one cancel the build of whichever was already running. The pull
+# request that lost was left with a cancelled run and no failing job, which reads as though it is still going
+# rather than as though anything is wrong. So the group is the pull request when there is one, and the ref only
+# for the manual runs that have no pull request to name.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
