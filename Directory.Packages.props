@@ -14,9 +14,9 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="16.10.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.10.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.10.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="16.11.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.11.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.11.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.16.6" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.6" />
     <PackageVersion Include="Cratis.Screenplay" Version="1.5.2" />
