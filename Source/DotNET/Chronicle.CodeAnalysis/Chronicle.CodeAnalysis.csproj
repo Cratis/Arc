@@ -17,6 +17,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     </ItemGroup>
 
     <ItemGroup>

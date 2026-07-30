@@ -62,9 +62,15 @@ public class CommandDataAnnotationsKeyAnalyzer : DiagnosticAnalyzer
 
         foreach (var property in command.GetMembers().OfType<IPropertySymbol>().Where(IsMarkedWithDataAnnotationsKeyOnly))
         {
+            // Reported on the attribute rather than the property, so the squiggle sits on the thing to change and the
+            // code fix has the attribute to rewrite.
+            var attribute = property.GetAttributes().First(_ =>
+                _.AttributeClass?.Name == KeyAttributeName &&
+                _.AttributeClass?.ContainingNamespace?.ToDisplayString() == DataAnnotationsNamespace);
+
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARCCHR0008_CommandKeyMarkedWithDataAnnotationsKey,
-                property.Locations[0],
+                attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? property.Locations[0],
                 command.Name,
                 property.Name));
         }

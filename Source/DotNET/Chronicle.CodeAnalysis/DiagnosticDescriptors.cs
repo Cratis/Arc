@@ -101,7 +101,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0008_CommandKeyMarkedWithDataAnnotationsKey = new(
         id: "ARCCHR0008",
         title: "Command key marked with the data annotations Key attribute",
-        messageFormat: "Command '{0}' marks '{1}' with System.ComponentModel.DataAnnotations.KeyAttribute, which Chronicle does not resolve keys from. Use Cratis.Chronicle.Keys.KeyAttribute instead.",
+        messageFormat: "Command '{0}' marks '{1}' with System.ComponentModel.DataAnnotations.KeyAttribute. Chronicle resolves keys from Cratis.Chronicle.Keys.KeyAttribute, so it will resolve a new event source id for every '{0}' and every read model keyed by it will resolve to nothing. Use Cratis.Chronicle.Keys.KeyAttribute instead.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
