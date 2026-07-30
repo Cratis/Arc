@@ -39,6 +39,24 @@ public record ScreenplayOptions
     public int? SegmentsToSkip { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the modules of the document are taken from the outermost namespace segment of
+    /// each slice rather than from one name.
+    /// </summary>
+    /// <remarks>
+    /// Resolved rather than configured. It is reached when nothing named a module and no single assembly names the
+    /// application, which is how an application written as several projects arrives. The reasoning that leaves the
+    /// domain unnamed there holds for the module too: none of the projects is the application, so one module would
+    /// carry a name that belongs to nobody and would gather every project under it. The namespaces already say what
+    /// the modules are. Naming a module still collapses the document into that one, which is the way to ask for it.
+    /// <para>
+    /// Once resolved it stays resolved. Emission resolves a second time against the domain of the model, which by
+    /// then is known, and without this the module would quietly be filled in from it and the document would come
+    /// back as one module after all.
+    /// </para>
+    /// </remarks>
+    public bool ModulesFromNamespaceRoots { get; init; }
+
+    /// <summary>
     /// Resolves the options with every value filled in.
     /// </summary>
     /// <param name="fallbackName">The name to use for the domain when none is configured.</param>
@@ -46,12 +64,15 @@ public record ScreenplayOptions
     public ScreenplayOptions WithDefaults(string? fallbackName)
     {
         var domain = Coalesce(Domain, Coalesce(fallbackName, DefaultName));
+        var fromNamespaceRoots = ModulesFromNamespaceRoots ||
+            (string.IsNullOrWhiteSpace(Module) && string.IsNullOrWhiteSpace(fallbackName));
 
         return this with
         {
             Domain = domain,
-            Module = Coalesce(Module, domain),
-            SegmentsToSkip = SegmentsToSkip ?? 0
+            Module = fromNamespaceRoots ? null : Coalesce(Module, domain),
+            SegmentsToSkip = SegmentsToSkip ?? 0,
+            ModulesFromNamespaceRoots = fromNamespaceRoots
         };
     }
 

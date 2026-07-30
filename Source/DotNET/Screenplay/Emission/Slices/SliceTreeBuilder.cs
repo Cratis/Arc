@@ -36,6 +36,44 @@ public class SliceTreeBuilder(IScreenplayNaming naming)
     }
 
     /// <summary>
+    /// Builds one module per outermost namespace segment, nesting features after the segments below it.
+    /// </summary>
+    /// <param name="slices">The slices to arrange, keyed on the namespace they live in.</param>
+    /// <param name="fallbackName">The name a slice with nothing left of its namespace is gathered under.</param>
+    /// <param name="segmentsToSkip">The number of leading namespace segments to skip.</param>
+    /// <returns>The modules of the document, ordered by name.</returns>
+    /// <remarks>
+    /// A slice belongs to a namespace rather than to a project - the same namespace is deliberately joined across
+    /// every project declaring a part of it - so the outermost segment is what an application written as several
+    /// projects is actually divided by, and the assembly names are not. It is also the division a reader already
+    /// sees, because the segment every namespace of one bounded context begins with is the name that context goes by.
+    /// </remarks>
+    public IEnumerable<ModuleSyntax> BuildPerNamespaceRoot(IEnumerable<PlacedSlice> slices, string fallbackName, int segmentsToSkip) =>
+    [
+        .. slices
+            .GroupBy(_ => RootOf(_.Namespace, fallbackName, segmentsToSkip), StringComparer.Ordinal)
+            .OrderBy(_ => _.Key, StringComparer.Ordinal)
+            .SelectMany(group => Build([.. group], group.Key, segmentsToSkip))
+    ];
+
+    /// <summary>
+    /// Resolves the module a slice is gathered under.
+    /// </summary>
+    /// <param name="namespace">The namespace of the slice.</param>
+    /// <param name="fallbackName">The name to use when the namespace has no segment left.</param>
+    /// <param name="segmentsToSkip">The number of leading namespace segments to skip.</param>
+    /// <returns>The name of the module.</returns>
+    string RootOf(string @namespace, string fallbackName, int segmentsToSkip)
+    {
+        var segments = @namespace
+            .Split('.', StringSplitOptions.RemoveEmptyEntries)
+            .Skip(segmentsToSkip)
+            .ToArray();
+
+        return segments.Length == 0 ? fallbackName : naming.ToDeclarationName(segments[0]);
+    }
+
+    /// <summary>
     /// Resolves the feature path a slice is placed under, excluding the slice itself.
     /// </summary>
     /// <param name="namespace">The namespace of the slice.</param>
