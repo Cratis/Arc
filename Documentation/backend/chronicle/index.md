@@ -45,7 +45,7 @@ Without this package, Arc and Chronicle are independent. With it:
 | Topic | Description |
 | ----- | ----------- |
 | [Aggregates](aggregates/index.md) | Working with aggregate roots and event sourcing. |
-| [Add event sourcing to an Arc slice](add-event-sourcing.md) | Move one database-backed slice to Chronicle while keeping its query and React screen in place. |
+| [Add event sourcing to an Arc slice](add-event-sourcing.mdx) | Move one database-backed slice to Chronicle while keeping its query and React screen in place. |
 | [Cratis Package](cratis-package.md) | The convenience package for Arc + Chronicle applications. |
 | [React to an event](react-to-an-event.md) | Run side effects or follow-up commands from Chronicle events with reactors. |
 | [Commands](commands/index.md) | Returning events from commands, event source id resolution, and concurrency scoping. |

@@ -28,6 +28,15 @@ on:
     paths:
       - "Source/DotNET/**"
       - "Specifications/**"
+      - "TestApps/**"
+      # What the build compiles against, not only what it compiles. A package
+      # version bump touches none of the paths above, so it used to reach main
+      # without ever having been built - which is how a Chronicle release that
+      # added members to an interface Arc implements got merged unbuilt.
+      - "Directory.Build.props"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - "Arc.slnx"
       - ".github/workflows/dotnet-build.yml"
 
 jobs:

@@ -40,25 +40,8 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     {
         ReportWhatIsLost(type, location);
 
-        return new(type.Name, properties.Read(type), Tags(type));
+        return new(type.Name, properties.Read(type), Tags.Of(type));
     }
-
-    /// <summary>
-    /// Gets the tags an event is classified by.
-    /// </summary>
-    /// <param name="type">The type declaring the event.</param>
-    /// <returns>The tags, ordered.</returns>
-    static IEnumerable<string> Tags(ISymbol type) =>
-    [
-        .. type.GetAttributes()
-            .Where(_ => _.AttributeClass.Is(WellKnownTypeNames.TagAttribute) || _.AttributeClass.Is(WellKnownTypeNames.TagsAttribute))
-            .SelectMany(_ => _.ConstructorArguments)
-            .SelectMany(_ => _.Kind == TypedConstantKind.Array ? _.Values.Select(value => value.Value) : [_.Value])
-            .OfType<string>()
-            .Where(_ => _.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-    ];
 
     /// <summary>
     /// Reports everything an event declares that the document cannot say.

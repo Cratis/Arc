@@ -3,17 +3,17 @@
 
 using Cratis.Arc.Validation;
 
-namespace Cratis.Arc.Chronicle.ReadModels;
+namespace Cratis.Arc.Queries;
 
 /// <summary>
 /// Exception that gets thrown when not being able to resolve a read model from command context.
 /// </summary>
 /// <param name="readModelType">Type of read model that could not be resolved.</param>
 /// <remarks>
-/// A read model is keyed by the command's event source id, so a command that carries no usable identifier can never
-/// resolve one — that is invalid client input, not a server fault. This implements <see cref="IValidationFailure"/> so
-/// the command pipeline surfaces it as a validation failure (HTTP 400). The detailed message (naming the read model
-/// type) is for server logs only; the client sees the generic validation message.
+/// A read model is keyed by the command's resolved key, so a command that carries no usable identifier can never resolve
+/// one — that is invalid client input, not a server fault. This implements <see cref="IValidationFailure"/> so the
+/// command pipeline surfaces it as a validation failure (HTTP 400). The detailed message (naming the read model type) is
+/// for server logs only; the client sees the generic validation message.
 /// </remarks>
 public class UnableToResolveReadModelFromCommandContext(Type readModelType)
     : Exception($"Unable to resolve read model of type '{readModelType.FullName}' from command context. Make sure the command has a property that is assignable to EventSourceId or marked with [Key] attribute"),

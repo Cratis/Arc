@@ -7,7 +7,7 @@ Get an Arc backend up and building features. These first pages use a plain datab
 
 Once you have a project:
 
-- **[Your first command and query](./your-first-command.md)** — build a backend slice end to end: a command with `Handle()`, the read model it writes, and the live query that serves it.
+- **[Your first command and query](./your-first-command.mdx)** — build a backend slice end to end: a command with `Handle()`, the read model it writes, and the live query that serves it.
 - **[MongoDB integration](../mongodb/index.md)** — configure Arc over MongoDB collections and observable change streams.
 - **[Entity Framework integration](../entity-framework/getting-started.md)** — configure Arc over DbContexts and observed DbSets.
 

@@ -30,6 +30,39 @@ public static class QueryReturnTypes
         "System.Linq.IQueryable`1"
     ];
 
+    static readonly string[] _queryables =
+    [
+        "Cratis.Arc.Queries.IQueryable`1",
+        "System.Linq.IQueryable`1"
+    ];
+
+    /// <summary>
+    /// Determines whether the host pages and sorts a query's result on the caller's behalf.
+    /// </summary>
+    /// <param name="type">The return type to check.</param>
+    /// <returns>True when the query hands back a queryable.</returns>
+    /// <remarks>
+    /// Handing back a queryable rather than a materialized result is how a query tells Arc it may take the page and the
+    /// order off the request and apply them - the caller never passes either as an argument. That is the whole of what
+    /// makes a query paged, so it is what the return type is read for rather than any parameter.
+    /// </remarks>
+    public static bool IsPagedByTheHost(ITypeSymbol type)
+    {
+        var current = type;
+
+        while (current is INamedTypeSymbol named && named.TypeArguments.Length == 1)
+        {
+            if (Matches(named, _queryables))
+            {
+                return true;
+            }
+
+            current = named.TypeArguments[0];
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Determines whether a type says only how a result was transported, and nothing about what it is.
     /// </summary>

@@ -33,12 +33,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check links in Documentation
-        uses: JustinBeckwith/linkinator-action@v1
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          paths: 'Documentation/**/*.md'
-          markdown: true
-          recurse: true
-          redirects: allow
-          statusCodes: '403:ok'
-          linksToSkip: '^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(\/|$)'
+          node-version: 23.x
+
+      # The same script contributors run locally, so that what CI checks and
+      # what verify-markdown.sh checks cannot drift apart.
+      - name: Check links in Documentation
+        run: ./Documentation/verify-links.sh

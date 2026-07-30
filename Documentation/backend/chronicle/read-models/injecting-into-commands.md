@@ -179,6 +179,77 @@ public record AddItemToCart([Key] Guid CartId, Guid ProductId, int Quantity)
 
 Read models never emit events. If the decision must hold under concurrency, drive it from the aggregate or from a Chronicle [constraint](/chronicle/constraints/) rather than from projected state — read models are eventually consistent.
 
+## Read models from other providers
+
+Injection is not Chronicle-only. Any provider that owns a read model's storage can make its `[ReadModel]` types injectable into a command, resolved by the same key, so a validator, `Provide()`, or `Handle()` takes the read model exactly as it would a Chronicle-backed one.
+
+### Entity Framework Core
+
+A `[ReadModel]` entity carried by a `ReadOnlyDbContext` becomes injectable once the context is registered — there is nothing extra to wire up:
+
+```csharp
+[ReadModel]
+public class Customer
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class CustomerDbContext(DbContextOptions<CustomerDbContext> options) : ReadOnlyDbContext(options)
+{
+    public DbSet<Customer> Customers => Set<Customer>();
+}
+```
+
+```csharp
+[Command]
+public record RenameCustomer([Key] Guid CustomerId, string NewName)
+{
+    public CustomerRenamed Handle(Customer customer) => new(customer.Id, NewName);
+}
+```
+
+`WithEntityFrameworkCore()` discovers the `ReadOnlyDbContext`, and the command's resolved key (here the `[Key]` on `CustomerId`) loads the entity by its primary key. The primary key may be a `Guid`, `int`, `long`, `string`, or a `ConceptAs<T>` wrapping one of those.
+
+The nullable rules are identical: a nullable `Customer?` receives `null` when no row exists, and a non-nullable `Customer` fails the command with [`ReadModelDoesNotExistForCommand`](./failures.md#readmodeldoesnotexistforcommand).
+
+### MongoDB
+
+`WithMongoDB()` does the same for the read models MongoDB holds. There is nothing to declare — a `[ReadModel]` becomes injectable, resolved by the document `_id`:
+
+```csharp
+[ReadModel]
+public record Customer(Guid Id, string Name)
+{
+    public static IEnumerable<Customer> AllCustomers(IMongoCollection<Customer> collection) =>
+        collection.Find(_ => true).ToList();
+}
+```
+
+```csharp
+[Command]
+public record RenameCustomer([Key] Guid CustomerId, string NewName)
+{
+    public CustomerRenamed Handle(Customer customer) => new(customer.Id, NewName);
+}
+```
+
+The id member is whichever one MongoDB maps to `_id` — a member named `Id` by convention, or the one marked `[BsonId]`. Like the EF primary key it may be a `Guid`, `int`, `long`, `string`, or a `ConceptAs<T>` wrapping one of those. A read model with no member mapped to `_id` cannot be resolved by key, and injecting it fails with `MissingIdMapping`.
+
+### Which provider resolves a read model
+
+More than one provider can be able to load the same read model, and the order an application registers them in should not decide the outcome. What decides it is whether an artifact in the application says the provider *owns* the read model:
+
+| Provider | Owns a read model when | Claims it as |
+|---|---|---|
+| Chronicle | a projection, model-bound projection, or reducer targets it | declared |
+| Entity Framework Core | a `DbSet` on a `ReadOnlyDbContext` carries it | declared |
+| MongoDB | — a collection is served for any read model | fallback |
+
+A declaring provider always wins, in either registration order. MongoDB claims only what nothing else resolves, and it also leaves your own registration of a read model type alone. This matters beyond tidiness: Chronicle is the provider that releases a read model's compliance-protected values, so a read model Chronicle projects has to be resolved by Chronicle.
+
+To contribute a provider of your own, implement `ICanResolveReadModelForCommand` — reporting the types it resolves, the `ReadModelForCommandOwnership` it claims them with, and how to load one by key — and register it with `services.AddReadModelsForCommand(...)`.
+
 ## Testing
 
 Seed the state the command should see with the `Given` builder — either the events behind it or a pinned instance — and execute through the real pipeline. See [Testing with Chronicle](../../testing/chronicle.md#testing-commands-that-take-read-model-dependencies).

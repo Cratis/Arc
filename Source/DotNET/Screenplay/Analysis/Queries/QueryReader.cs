@@ -70,6 +70,8 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             return null;
         }
 
+        ReportHowItIsServed(method, location);
+
         var parameters = method.Parameters.Where(IsInput).ToList();
         var required = parameters.Find(_ => !_.HasExplicitDefaultValue);
 
@@ -108,6 +110,49 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         var collection = false;
 
         return SymbolEqualityComparer.Default.Equals(QueryReturnTypes.Unwrap(method.ReturnType, ref collection), readModel);
+    }
+
+    /// <summary>
+    /// Reports what a query says about how it is served, which the document does not describe.
+    /// </summary>
+    /// <param name="method">The method exposing the query.</param>
+    /// <param name="location">Where the query lives.</param>
+    /// <remarks>
+    /// Paging and sorting are left out of the query's shape because no caller sends them as arguments, and that is
+    /// the right reading - but a query that pages is a real thing the application does, and a document that says
+    /// nothing at all reads exactly like a query that does not page. Which query pages is decided the way Arc decides
+    /// it, by the return type being a queryable; a paging or sorting parameter is read as well, for a signature that
+    /// says it means to be served that way even though Arc fills neither in.
+    /// </remarks>
+    void ReportHowItIsServed(IMethodSymbol method, string location)
+    {
+        if (QueryReturnTypes.IsPagedByTheHost(method.ReturnType))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"The query '{method.Name}' hands back a queryable, so the host pages and sorts it on the caller's behalf, which says how the result is asked for rather than what it is, and Screenplay has no counterpart for it",
+                location);
+        }
+
+        foreach (var served in method.Parameters
+            .Where(_ => _.Type.Is(WellKnownTypeNames.Paging) || _.Type.Is(WellKnownTypeNames.Sorting))
+            .Select(_ => _.Type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"The query '{method.Name}' is served with {served.ToLowerInvariant()}, which says how the result is asked for rather than what it is, and Screenplay has no counterpart for it",
+                location);
+        }
+
+        if (method.GetAttribute(WellKnownTypeNames.PathAttribute)?.GetArgument(0) is string path && !string.IsNullOrWhiteSpace(path))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"The query '{method.Name}' is served at '{path}' rather than the conventional route, which Screenplay has no counterpart for",
+                location);
+        }
     }
 
     /// <summary>

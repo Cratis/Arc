@@ -62,19 +62,11 @@ public static class ReadModelServiceCollectionExtensions
             .Concat(ReadModelTargetsFrom(clientArtifactsProvider.Reducers, typeof(IReducerFor<>)))
             .Distinct()
             .ToArray();
-        foreach (var readModelType in readModelTypes)
-        {
-            services.RemoveAll(readModelType);
-            services.AddScoped(readModelType, serviceProvider => ResolveReadModel(
-                readModelType,
-                serviceProvider.GetRequiredService<CommandContext>(),
-                serviceProvider.GetRequiredService<IReadModels>())!);
-        }
 
-        // Register the set of read model types so a command-scoped resolution failure for a non-nullable read model
-        // can be told apart from an unrelated missing dependency and surfaced as a validation failure (HTTP 400).
-        services.RemoveAll<RegisteredReadModelTypes>();
-        services.AddSingleton(new RegisteredReadModelTypes(readModelTypes));
+        // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
+        // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
+        // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
+        services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
 
         return services;
     }

@@ -46,5 +46,5 @@ Arc meets the rest of your stack:
 | [Open API](./open-api/index.md) | OpenAPI/Swagger generation. |
 | [Code Analysis](./code-analysis/index.md) | Analyzers and fixers that catch mistakes at compile time. |
 
-Building the UI on top? Head to the [frontend](../frontend/index.md), which consumes everything here
+Building the UI on top? Head to the [frontend](../frontend/index.mdx), which consumes everything here
 through the generated proxies.

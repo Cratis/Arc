@@ -3,26 +3,24 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
-using Cratis.Chronicle.Events;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Chronicle.ReadModels;
+namespace Cratis.Arc.Queries;
 
 /// <summary>
 /// Represents an <see cref="IUnresolvableDependencyClassifier"/> that recognizes a non-nullable read model dependency
-/// which does not exist for the command's event source id as invalid client input rather than a server fault.
+/// which does not exist for the command's resolved key as invalid client input rather than a server fault.
 /// </summary>
 /// <remarks>
-/// The classifier only runs when a non-nullable dependency resolved to null. For a read model that is invoked through
-/// <see cref="ReadModelServiceCollectionExtensions.ResolveReadModel"/>, a null result can only mean the entity does not
-/// exist for a valid event source id: an unspecified id throws <see cref="UnableToResolveReadModelFromCommandContext"/>
-/// before this point. It therefore classifies a registered read model dependency with a valid event source id as a
+/// The classifier only runs when a non-nullable dependency resolved to null. For a read model resolved through an
+/// <see cref="ICanResolveReadModelForCommand"/>, a null result can only mean the entity does not exist for a usable key:
+/// a command carrying no usable key throws <see cref="UnableToResolveReadModelFromCommandContext"/> inside the resolver
+/// before this point. It therefore classifies a registered read model dependency with a usable resolved key as a
 /// <see cref="ReadModelDoesNotExistForCommand"/> (HTTP 400). Any dependency that is not a registered read model, or where
-/// no event source id is available, is left for the default server-error behavior so misconfigurations are not masked.
+/// no usable key is available, is left for the default server-error behavior so misconfigurations are not masked.
 /// </remarks>
 [Singleton]
 public class ReadModelUnresolvableDependencyClassifier : IUnresolvableDependencyClassifier
@@ -39,7 +37,7 @@ public class ReadModelUnresolvableDependencyClassifier : IUnresolvableDependency
         }
 
         var commandContext = serviceProvider.GetService<CommandContext>();
-        if (commandContext is null || commandContext.GetEventSourceId() == EventSourceId.Unspecified)
+        if (commandContext is null || string.IsNullOrEmpty(commandContext.GetResolvedKey()))
         {
             return false;
         }

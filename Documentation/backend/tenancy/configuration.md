@@ -23,7 +23,7 @@ builder.AddCratisArcCore(options =>
     "Arc": {
       "Tenancy": {
         "ResolverType": "Header",
-        "HttpHeader": "X-Tenant-ID"
+        "HttpHeader": "X-Custom-Tenant"
       }
     }
   }

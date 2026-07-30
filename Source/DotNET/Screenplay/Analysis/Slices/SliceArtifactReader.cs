@@ -66,6 +66,7 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
 
         if (QueryReader.IsReadModel(type))
         {
+            ReportWhatTheReadModelCannotSay(type, @namespace);
             AddQueries(content, type, QueryReader.MethodsOf(type), @namespace);
             Assign(content, readers.ModelBoundProjections.Read(type, @namespace), @namespace);
         }
@@ -112,16 +113,68 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
             return;
         }
 
+        ReportRoutes(ControllerRoutes.RoutesOf(type), $"The controller '{type.Name}'", @namespace);
+
         foreach (var method in ControllerRoutes.MethodsOf(type))
         {
             if (ControllerRoutes.IsCommand(method))
             {
-                content.Commands.Add(readers.ControllerCommands.Read(type, method, @namespace));
+                var command = readers.ControllerCommands.Read(type, method, @namespace);
+                content.Commands.Add(command);
+                ReportRoutes(ControllerRoutes.RoutesOf(method), $"The command '{command.Name}'", @namespace);
             }
             else if (ControllerRoutes.IsQuery(method))
             {
                 AddQueries(content, type, [method], @namespace);
+                ReportRoutes(ControllerRoutes.RoutesOf(method), $"The query '{method.Name}'", @namespace);
             }
+        }
+    }
+
+    /// <summary>
+    /// Reports everything a read model declares that the document has nowhere to hold.
+    /// </summary>
+    /// <param name="type">The read model.</param>
+    /// <param name="location">Where it lives.</param>
+    /// <remarks>
+    /// A read model appears in the document only as the type a query answers with, so a tag on one has nowhere to go
+    /// - while a tag on an event is printed. Saying so is what keeps a reader from taking the difference for the
+    /// application's own.
+    /// </remarks>
+    void ReportWhatTheReadModelCannotSay(INamedTypeSymbol type, string location)
+    {
+        var tags = Tags.Of(type);
+        if (tags.Length > 0)
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ReadModelFeatureWithoutCounterpart,
+                $"The read model '{type.Name}' is tagged {string.Join(", ", tags.Select(tag => $"'{tag}'"))}, and a read model is named in the document only as what a query answers with, so it has nowhere to carry them",
+                location);
+        }
+
+        // A path on a query replaces the read model's outright rather than extending it, so the read model's own path is
+        // only a route the application serves while some query still falls back to it. Reporting it regardless would
+        // name a route nothing answers at.
+        if (QueryReader.MethodsOf(type).Any(method => !method.HasAttribute(WellKnownTypeNames.PathAttribute)))
+        {
+            ReportRoutes([type.GetAttribute(WellKnownTypeNames.PathAttribute)?.GetArgument(0) as string], $"The read model '{type.Name}'", location);
+        }
+    }
+
+    /// <summary>
+    /// Reports each route the application serves an artifact at.
+    /// </summary>
+    /// <param name="routes">The routes that were declared, if any.</param>
+    /// <param name="what">What declares them, as it reads at the start of the message.</param>
+    /// <param name="location">Where it lives.</param>
+    void ReportRoutes(IEnumerable<string?> routes, string what, string location)
+    {
+        foreach (var route in routes.Where(_ => !string.IsNullOrWhiteSpace(_)))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"{what} is served at '{route}' rather than the conventional route, which Screenplay has no counterpart for",
+                location);
         }
     }
 

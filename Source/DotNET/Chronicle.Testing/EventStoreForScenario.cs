@@ -8,6 +8,8 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventStoreSubscriptions;
+using Cratis.Chronicle.ExternalServices;
+using Cratis.Chronicle.Identities;
 using Cratis.Chronicle.Jobs;
 using Cratis.Chronicle.Observation;
 using Cratis.Chronicle.Projections;
@@ -95,6 +97,14 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadMo
     /// <inheritdoc/>
     public IEventSeeding Seeding =>
         throw new NotSupportedException("Seeding is not supported for command scenarios.");
+
+    /// <inheritdoc/>
+    public IIdentityManager Identities =>
+        throw new NotSupportedException("Identity management is not supported for command scenarios.");
+
+    /// <inheritdoc/>
+    public IExternalServices ExternalServices =>
+        throw new NotSupportedException("External services are not supported for command scenarios.");
 
     /// <inheritdoc/>
     public Task DiscoverAll() => Task.CompletedTask;
