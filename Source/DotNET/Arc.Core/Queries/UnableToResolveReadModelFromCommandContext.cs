@@ -16,7 +16,7 @@ namespace Cratis.Arc.Queries;
 /// for server logs only; the client sees the generic validation message.
 /// </remarks>
 public class UnableToResolveReadModelFromCommandContext(Type readModelType)
-    : Exception($"Unable to resolve read model of type '{readModelType.FullName}' from command context. Make sure the command has a property that is assignable to EventSourceId or marked with [Key] attribute"),
+    : Exception($"Unable to resolve read model of type '{readModelType.FullName}' from command context. Make sure the command declares its key: with Chronicle, a property assignable to EventSourceId or carrying Cratis.Chronicle.Keys.KeyAttribute; without it, a property carrying System.ComponentModel.DataAnnotations.KeyAttribute, or an ICanProvideKeyForCommand implementation"),
       IValidationFailure
 {
     /// <summary>
