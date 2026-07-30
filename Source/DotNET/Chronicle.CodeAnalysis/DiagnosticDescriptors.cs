@@ -95,5 +95,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A command expresses appends by returning events from its Handle method (a single event, a tuple of event and result, a Result, or a collection). Injecting IEventLog into the handler bypasses Arc's append pipeline and its correlation and ordering guarantees. Return the events instead of appending through IEventLog directly.");
 
+    /// <summary>
+    /// ARCCHR0008: Command key marked with the data annotations Key attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0008_CommandKeyMarkedWithDataAnnotationsKey = new(
+        id: "ARCCHR0008",
+        title: "Command key marked with the data annotations Key attribute",
+        messageFormat: "Command '{0}' marks '{1}' with System.ComponentModel.DataAnnotations.KeyAttribute, which Chronicle does not resolve keys from. Use Cratis.Chronicle.Keys.KeyAttribute instead.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Two attributes are spelled [Key]. Chronicle resolves a command's event source id from Cratis.Chronicle.Keys.KeyAttribute; Arc reads System.ComponentModel.DataAnnotations.KeyAttribute, but only in an application that has no Chronicle. Marking the data annotations one in an application that uses Chronicle compiles and reads correctly while doing nothing: Chronicle finds no key property, invents a fresh event source id, and every read model keyed by the command resolves to nothing.");
+
     const string Category = "Arc.Chronicle";
 }

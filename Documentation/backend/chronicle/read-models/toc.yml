@@ -2,5 +2,7 @@
   href: index.md
 - name: Read models in commands
   href: injecting-into-commands.md
+- name: Read models from other providers
+  href: other-providers.md
 - name: When resolution fails
   href: failures.md
