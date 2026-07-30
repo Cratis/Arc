@@ -53,9 +53,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
         var domain = ToName(model.Domain, options.Domain);
-        var module = ToName(model.Module, options.Module);
-
-        var modules = BuildModules(model, module, options.SegmentsToSkip ?? 0);
+        var modules = BuildModules(model, options, domain);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts);
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
@@ -98,13 +96,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// Builds the modules holding every slice that declares something.
     /// </summary>
     /// <param name="model">The model to build from.</param>
-    /// <param name="module">The name of the module.</param>
-    /// <param name="segmentsToSkip">The number of leading namespace segments to skip.</param>
+    /// <param name="options">The options to build with, already resolved.</param>
+    /// <param name="domain">The name of the domain, which a slice with no namespace left is gathered under.</param>
     /// <returns>The modules.</returns>
-    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, string module, int segmentsToSkip)
+    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
     {
         var sliceBuilder = CreateSliceBuilder();
         var placed = new List<PlacedSlice>();
+        var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
         foreach (var slice in model.Slices
             .OrderBy(_ => _.Namespace, StringComparer.Ordinal)
@@ -123,7 +122,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             placed.Add(new(slice.Namespace, built));
         }
 
-        return new SliceTreeBuilder(naming).Build(placed, module, segmentsToSkip);
+        var builder = new SliceTreeBuilder(naming);
+
+        return options.ModulesFromNamespaceRoots
+            ? builder.BuildPerNamespaceRoot(placed, domain, segmentsToSkip)
+            : builder.Build(placed, ToName(model.Module, options.Module), segmentsToSkip);
     }
 
     /// <summary>
