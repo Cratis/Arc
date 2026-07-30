@@ -18,7 +18,8 @@ public class with_any_command_at_all : Specification
     List<CommandContextValues> _results;
 
     void Establish() => _builder = new CommandContextValuesBuilder(
-        new KnownInstancesOf<ICommandContextValuesProvider>([new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>())]));
+        new KnownInstancesOf<ICommandContextValuesProvider>([new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>())]),
+        new CommandKeys(new KnownInstancesOf<ICanResolveKeyForCommand>([new DefaultKeyForCommandResolver()])));
 
     void Because() => _results =
     [
