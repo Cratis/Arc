@@ -1,7 +1,9 @@
 name: PR Prerelase
 
+# This only ever runs on pull_request_target, where github.ref names the branch being merged into rather than the
+# pull request, so grouping on it made every open pull request share one group and cancel each other's prerelease.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
