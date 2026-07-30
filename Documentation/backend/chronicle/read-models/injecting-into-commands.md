@@ -250,6 +250,42 @@ A declaring provider always wins, in either registration order. MongoDB claims o
 
 To contribute a provider of your own, implement `ICanResolveReadModelForCommand` — reporting the types it resolves, the `ReadModelForCommandOwnership` it claims them with, and how to load one by key — and register it with `services.AddReadModelsForCommand(...)`.
 
+### Declaring the key without Chronicle
+
+Every provider loads a read model by the command's key, and Chronicle is what resolves that key — from `ICanProvideEventSourceId`, from a property assignable to `EventSourceId`, or from one carrying `Cratis.Chronicle.Keys.KeyAttribute`.
+
+An application without Chronicle has none of those, so Arc reads the key from the command itself. Mark the property holding it with the data annotations `[Key]`:
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+[Command]
+public record RenameCustomer([property: Key] Guid CustomerId, string NewName)
+{
+    public CustomerRenamed Handle(Customer customer) => new(customer.Id, NewName);
+}
+```
+
+The key may be a `Guid`, `int`, `long`, `string`, or a `ConceptAs<T>` wrapping one of those — a concept resolves to the value it wraps rather than to its own `ToString()`.
+
+When the key is not one property — a composite of two, or a value derived from them — the command declares it:
+
+```csharp
+[Command]
+public record MoveItem(Guid CartId, Guid ItemId) : ICanProvideKeyForCommand
+{
+    public string GetKey() => $"{CartId}/{ItemId}";
+}
+```
+
+Nothing is inferred from the shape of a command. One carrying two identifiers and marking neither resolves no key, and injection fails as a validation error rather than silently picking one of them.
+
+To key commands your own way across an application, implement `ICanResolveKeyForCommand`. It is discovered automatically and asked before the rule Arc ships, whichever order the two happen to be discovered in.
+
+:::warning[Two attributes are spelled `[Key]`]
+In an application **with** Chronicle, the data annotations `[Key]` does nothing. Chronicle resolves keys from `Cratis.Chronicle.Keys.KeyAttribute`, invents a fresh event source id when it finds no key property, and every read model keyed by that command then resolves to nothing. `ARCCHR0008` reports it, so this is a build warning rather than a puzzling "the entity does not exist" at runtime.
+:::
+
 ## Testing
 
 Seed the state the command should see with the `Given` builder — either the events behind it or a pinned instance — and execute through the real pipeline. See [Testing with Chronicle](../../testing/chronicle.md#testing-commands-that-take-read-model-dependencies).
