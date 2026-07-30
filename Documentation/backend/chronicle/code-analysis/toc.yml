@@ -4,3 +4,5 @@
   href: ARCCHR0001.md
 - name: ARCCHR0005 - Chronicle is used but not wired up
   href: ARCCHR0005.md
+- name: ARCCHR0008 - Command key marked with the data annotations Key attribute
+  href: ARCCHR0008.md

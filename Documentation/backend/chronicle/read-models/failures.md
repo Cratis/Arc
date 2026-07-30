@@ -16,11 +16,11 @@ In every case the detailed message — which names the read model type — goes 
 
 ## UnableToResolveReadModelFromCommandContext
 
-The command context carried no usable event source id, so there is no key to resolve a read model by. This happens when the command has no identity at all, or when the resolved identity is `EventSourceId.Unspecified`.
+The command carried no usable key, so there is nothing to resolve a read model by. With Chronicle that means the resolved identity is `EventSourceId.Unspecified`; without it, that no rule recognized a key on the command.
 
 ```csharp
-// No key: no [Key] property, no EventSourceId-convertible property,
-// no ICanProvideEventSourceId — nothing to resolve a read model by.
+// No key: nothing marks one, and the command composes none —
+// so there is nothing to resolve a read model by.
 [Command]
 public record InvalidCommand(string SomeProperty)
 {
@@ -30,7 +30,14 @@ public record InvalidCommand(string SomeProperty)
 
 This is not "the entity does not exist" — it is a command that could never resolve one, for a nullable and a non-nullable parameter alike. Making the parameter nullable does **not** suppress it.
 
-**Fix:** give the command a key. Mark a property with `[Key]`, use a property whose type converts to `EventSourceId` (typically a `ConceptAs<Guid>` with an `implicit operator EventSourceId`), or implement `ICanProvideEventSourceId`. See [Resolving EventSourceId](../resolving-event-source-id.md).
+**Fix:** give the command a key. What counts as one depends on whether the application has Chronicle:
+
+| Setup | Declare the key by |
+|---|---|
+| With Chronicle | marking a property with `Cratis.Chronicle.Keys.KeyAttribute`, using a property whose type converts to `EventSourceId` (typically a `ConceptAs<Guid>` with an `implicit operator EventSourceId`), or implementing `ICanProvideEventSourceId` — see [Resolving EventSourceId](../resolving-event-source-id.md) |
+| Without Chronicle | marking a property with `System.ComponentModel.DataAnnotations.KeyAttribute`, or implementing `ICanProvideKeyForCommand` — see [Declaring the key without Chronicle](./injecting-into-commands.md#declaring-the-key-without-chronicle) |
+
+A command that marks the data annotations attribute in a Chronicle application fails this way while looking correct — [ARCCHR0008](../code-analysis/ARCCHR0008.md) reports it at build time.
 
 ## ReadModelDoesNotExistForCommand
 

@@ -48,6 +48,21 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 }
 ```
 
+**A command can take the read model it acts on.** Mark the property holding the key and Arc loads the document, so the command decides against current state instead of fetching it first:
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+[Command]
+public record RenameAuthor([property: Key] AuthorId Id, AuthorName NewName)
+{
+    public Task Handle(Author author, IMongoCollection<Author> authors) =>
+        authors.ReplaceOneAsync(_ => _.Id == author.Id, author with { Name = NewName });
+}
+```
+
+This works the same for a read model held in MongoDB and one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means and how to [declare the key](./backend/chronicle/read-models/injecting-into-commands.md#declaring-the-key-without-chronicle) when it is not a single property.
+
 That's the backend. Register MongoDB once at startup:
 
 ```csharp
