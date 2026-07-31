@@ -1,0 +1,6 @@
+root = false
+
+[*.cs]
+# Analyzers and their code fixes share this assembly, so it references Microsoft.CodeAnalysis.Workspaces.
+# RS1038 warns against that combination; it is the accepted trade-off for co-locating fixes with analyzers.
+dotnet_diagnostic.RS1038.severity = none

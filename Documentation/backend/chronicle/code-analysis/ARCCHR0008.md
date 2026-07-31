@@ -49,6 +49,12 @@ public record RenameCustomer([property: Key] Guid CustomerId, string NewName)
 
 A command whose key is not one property implements `ICanProvideEventSourceId` instead.
 
+## Quick Fix
+
+**Use the Chronicle Key attribute** rewrites the attribute for you.
+
+It writes the attribute out in full rather than adding a using: the file already has one for the data annotations namespace, and with both in scope a bare `[Key]` is ambiguous (`CS0104`). Remove the data annotations using yourself if nothing else in the file needs it, and the name shortens to `[Key]`.
+
 ## Why This Rule Exists
 
 The mistake is invisible without it. The code compiles, and it reads exactly like a command that declares its key — but Chronicle finds no key property, invents a fresh event source id for the command, and every read model keyed by it resolves to nothing. What reaches the client is [`ReadModelDoesNotExistForCommand`](../read-models/failures.md#readmodeldoesnotexistforcommand) — "The command targets an entity that does not exist" — which points at the data rather than at the attribute, on a request whose entity exists perfectly well.

@@ -19,7 +19,11 @@ All rules follow the identifier format `ARCCHR####` where the numbers are sequen
 
 ## Quick Fixes
 
-No automatic code fixes are currently provided for these rules.
+| Rule ID | Quick fix |
+| --- | --- |
+| [ARCCHR0008](ARCCHR0008.md) | **Use the Chronicle Key attribute** — rewrites the attribute to the one Chronicle resolves keys from. |
+
+The other rules have no automatic code fix.
 
 ## Installation
 

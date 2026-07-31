@@ -20,7 +20,7 @@ namespace TestNamespace
     public record CustomerRenamed(string Name);
 
     [Command]
-    public record RenameCustomer([property: Key] Guid {|#0:CustomerId|}, string NewName)
+    public record RenameCustomer([{|#0:property: Key|}] Guid CustomerId, string NewName)
     {
         public CustomerRenamed Handle() => new(NewName);
     }

@@ -36,10 +36,8 @@ public class ReadModelUnresolvableDependencyClassifier : IUnresolvableDependency
             return false;
         }
 
-        // The command context registered in DI carries no service provider of its own, so the key is read through the
-        // one classifying — the same scope the read model failed to resolve in.
         var commandContext = serviceProvider.GetService<CommandContext>();
-        if (commandContext is null || string.IsNullOrEmpty(commandContext.GetResolvedKey(serviceProvider)))
+        if (commandContext is null || string.IsNullOrEmpty(commandContext.GetResolvedKey()))
         {
             return false;
         }
