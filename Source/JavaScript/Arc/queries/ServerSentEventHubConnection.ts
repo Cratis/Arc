@@ -192,7 +192,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         }
 
         this._connectionId = undefined;
-        this._eventSource = new EventSource(url);
+        this._eventSource = Globals.eventSourceFactory ? Globals.eventSourceFactory(url) : new EventSource(url);
 
         this._eventSource.onopen = () => {
             if (this._disconnected) return;

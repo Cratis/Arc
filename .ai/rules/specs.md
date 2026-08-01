@@ -1,5 +1,8 @@
 ---
 applyTo: "**/for_*/**/*.*, **/when_*/**/*.*"
+paths:
+  - "**/for_*/**/*.*"
+  - "**/when_*/**/*.*"
 ---
 
 # How to Write Specs
@@ -94,19 +97,6 @@ The goal is to cover *decisions and transformations* — code where bugs hide. S
 
 **Avoid file names starting with:** `when_getting_*`, `when_returning_*` — if a spec name starts with "getting" or "returning", it's probably testing a simple getter, which is not worth specifying.
 
-## Specs for Bug Fixes — Cover the Fix's Perimeter
-
-A bug fix has a perimeter, not just a center. The spec that reproduces the reported scenario is necessary but rarely sufficient — a fix touches paths the reporter never hit, and that is exactly where the next bug hides. Most "missing spec" gaps come from specifying only the motivating case and leaving the fix's own edges unproven.
-
-After writing the spec for the reported scenario, spec the fix's own boundaries:
-
-- **The failure path** — what the fix does when the operation it guards throws or yields nothing (a transient connection failure, a cache miss, an empty result).
-- **The async path** — if the fix touches exception handling or control flow, exercise both the synchronous and asynchronous variants; they often diverge.
-- **Boundary inputs** — the null element, the empty collection, the min/max value, the far-future date.
-- **The recovery path** — if the fix guards a resource, prove it recovers on the next attempt rather than staying broken.
-
-Every one of these specs must **fail against the pre-fix code**. A spec that passes with or without the fix proves nothing. A fix whose only spec is the happy path is a fix with an unproven perimeter.
-
 ## Multiple Outcomes
 
 Each distinct outcome deserves its own spec file. This keeps specs small, focused, and independently verifiable. When a spec fails, you immediately know *which* outcome broke — no debugging through a multi-assertion file.
@@ -131,3 +121,12 @@ Contexts capture the "given" part of a specification — the world as it exists 
 
 - Keep assertions concise — prefer single-line assertions where the logic is readable.
 - Don't add blank lines between related assertions for the same behavior.
+
+## Language-specific guides
+
+This file is the shared base. For the concrete patterns:
+
+- [specs.csharp.md](./specs.csharp.md) — C#: the universal `Cratis.Specifications` base + NSubstitute (both profiles; this is what framework/library specs use).
+- [specs.scenarios.csharp.md](./specs.scenarios.csharp.md) — C# **application** profile: the in-process scenario family (`CommandScenario`, `EventScenario`, `ReadModelScenario`, `ReactorScenario`) + out-of-process Chronicle integration.
+- [specs.typescript.md](./specs.typescript.md) — TypeScript framework-package specs (`given()` helper).
+- [frontend-testing.md](./frontend-testing.md) — application frontend specs (view models, React components).

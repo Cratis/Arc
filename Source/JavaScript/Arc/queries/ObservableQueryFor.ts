@@ -9,7 +9,7 @@ import { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
 import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
 import { Constructor } from '@cratis/fundamentals';
-import { JsonSerializer } from '@cratis/fundamentals';
+import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel';
 import { QueryResult } from './QueryResult';
 import { Sorting } from './Sorting';
 import { Paging } from './Paging';
@@ -219,13 +219,9 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
     private deserializeResult(result: any): void {
         if (this.enumerable) {
-            if (Array.isArray(result.data)) {
-                result.data = JsonSerializer.deserializeArrayFromInstance(this.modelType, result.data);
-            } else {
-                result.data = [];
-            }
+            result.data = deserializeQueryModels(this.modelType, result.data);
         } else if (result.data) {
-            result.data = JsonSerializer.deserializeFromInstance(this.modelType, result.data);
+            result.data = deserializeQueryModel(this.modelType, result.data);
         }
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import { Globals } from '../Globals';
 import { IObservableQueryConnection } from './IObservableQueryConnection';
 import { DataReceived } from './ObservableQueryConnection';
 import { QueryResult } from './QueryResult';
@@ -39,8 +40,9 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
     connect(dataReceived: DataReceived<TDataType>, queryArguments?: object): void {
         if (this._disconnected) return;
 
-        // Guard against environments where EventSource is not available (e.g. Node.js, SSR).
-        if (typeof EventSource === 'undefined') {
+        // Guard against environments where EventSource is not available (e.g. Node.js, SSR)
+        // and no custom factory has been supplied to substitute it.
+        if (!Globals.eventSourceFactory && typeof EventSource === 'undefined') {
             return;
         }
 
@@ -56,7 +58,7 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
             }
         }
 
-        this._eventSource = new EventSource(url);
+        this._eventSource = Globals.eventSourceFactory ? Globals.eventSourceFactory(url) : new EventSource(url);
 
         this._eventSource.onmessage = (event: MessageEvent) => {
             if (this._disconnected) return;

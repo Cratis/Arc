@@ -14,6 +14,7 @@ Configure query behavior centrally through the `<Arc />` component instead of pe
 | `queryConnectionCount` | `number` | `1` | Number of observable query hub connection slots. |
 | `observableQueryTransferMode` | `ObservableQueryTransferMode` | `Delta` | Controls how `useChangeStream()` processes incoming snapshots and deltas. |
 | `queryCacheRetentionMs` | `number` | `30000` | How long to keep cached query data alive after the last subscriber unmounts. |
+| `eventSourceFactory` | `(url: string) => EventSource` | `undefined` | Custom factory for creating the `EventSource` instances used by SSE observable query connections. Falls back to the global `EventSource` constructor when not set. |
 
 ## Example
 
@@ -75,6 +76,33 @@ Globals.queryCacheRetentionMs = 60_000;
 Use `queryTransportMethod`, `queryDirectMode`, and `queryConnectionCount` to control observable query connection behavior.
 
 For transport semantics, hub behavior, SSE limits, and pooling details, see [Observable Query Multiplexing](./observable-query-multiplexing.md).
+
+## Custom EventSource Factory
+
+By default, SSE observable query connections create their transport with the global `EventSource` constructor. Some environments either lack a native `EventSource` — React Native does not ship one — or ship one with unreliable streaming behavior. JS-based polyfills built on `XMLHttpRequest` are known to deliver messages in bulk instead of streaming them, silently drop connections when the app is backgrounded, and provide no reliable way to detect a dead connection on Android.
+
+Set `eventSourceFactory` to substitute your own SSE client without changing anything else about how observable queries work:
+
+```tsx
+import { Arc } from '@cratis/arc.react';
+import RNEventSource from 'react-native-nitro-sse';
+
+export const App = () => (
+    <Arc eventSourceFactory={(url) => new RNEventSource(url)}>
+        <MyRoutes />
+    </Arc>
+);
+```
+
+The factory receives the fully-qualified connection URL and must return an object implementing the standard `EventSource` interface (`onmessage`, `onerror`, `close()`, `readyState`). This applies to both direct-mode and hub-mode SSE connections.
+
+The default can also be set globally without the React component:
+
+```typescript
+import { Globals } from '@cratis/arc';
+
+Globals.eventSourceFactory = (url) => new RNEventSource(url);
+```
 
 ## Change Stream Transfer Mode
 

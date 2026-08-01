@@ -15,10 +15,15 @@ All rules follow the identifier format `ARCCHR####` where the numbers are sequen
 | --- | --- | --- | --- |
 | [ARCCHR0001](ARCCHR0001.md) | Incorrect aggregate root event handler signature | Error | Aggregate root event handlers must follow allowed `On` method signatures. |
 | [ARCCHR0005](ARCCHR0005.md) | Chronicle is used but not wired up | Warning | A project uses Chronicle features but sets up Arc without `WithChronicle()` or `AddCratis()`. |
+| [ARCCHR0008](ARCCHR0008.md) | Command key marked with the data annotations Key attribute | Warning | A command marks its key with an attribute Chronicle does not resolve keys from. |
 
 ## Quick Fixes
 
-No automatic code fixes are currently provided for these rules.
+| Rule ID | Quick fix |
+| --- | --- |
+| [ARCCHR0008](ARCCHR0008.md) | **Use the Chronicle Key attribute** — rewrites the attribute to the one Chronicle resolves keys from. |
+
+The other rules have no automatic code fix.
 
 ## Installation
 

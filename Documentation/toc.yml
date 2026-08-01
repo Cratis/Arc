@@ -14,6 +14,8 @@
   href: understanding-the-proxy-boundary.mdx
 - name: Understanding identity and access
   href: understanding-identity-and-access.mdx
+- name: Generating a Screenplay
+  href: generating-a-screenplay.md
 - name: Scenarios
   href: scenarios/toc.yml
 - name: Backend

@@ -90,4 +90,5 @@ If correctness depends on source-of-truth state under concurrency, prefer aggreg
 | Topic | Description |
 | ----- | ----------- |
 | [Read models in commands](./injecting-into-commands.md) | Injecting into a validator, `Provide()`, and `Handle()`, and what nullability means. |
+| [Read models from other providers](./other-providers.md) | Injecting one backed by Entity Framework Core or MongoDB, and declaring the key without Chronicle. |
 | [When resolution fails](./failures.md) | Every failure mode, what it means, and how to fix it. |

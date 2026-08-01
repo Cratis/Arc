@@ -7,12 +7,14 @@ public class a_command_context_values_builder : Specification
 {
     protected CommandContextValuesBuilder _builder;
     protected IInstancesOf<ICommandContextValuesProvider> _providers;
+    protected ICommandKeys _commandKeys;
     protected object _command;
 
     void Establish()
     {
         _providers = Substitute.For<IInstancesOf<ICommandContextValuesProvider>>();
-        _builder = new CommandContextValuesBuilder(_providers);
+        _commandKeys = Substitute.For<ICommandKeys>();
+        _builder = new CommandContextValuesBuilder(_providers, _commandKeys);
         _command = new { Name = "TestCommand", Value = 42 };
     }
 }

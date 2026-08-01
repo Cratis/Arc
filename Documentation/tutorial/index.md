@@ -68,10 +68,10 @@ An Arc project running locally with a database. The [Get started](/arc/backend/g
 
 ## The tour
 
-1. **[Your first full-stack slice](./first-slice)** — register an author from C# all the way to a live React screen, fully typed.
-2. **[Make it trustworthy](./validation)** — reject bad input with a validator and a uniqueness rule, and show the reason in the form.
-3. **[Relate your slices](./books-and-relationships)** — add books that belong to an author, and read them back.
-4. **[Make it live](./real-time)** — observable queries that update the screen the moment the data changes.
-5. **[Decide who can do what](./authorization)** — lock the catalog down with role-based authorization.
+1. **[Your first full-stack slice](./first-slice.mdx)** — register an author from C# all the way to a live React screen, fully typed.
+2. **[Make it trustworthy](./validation.mdx)** — reject bad input with a validator and a uniqueness rule, and show the reason in the form.
+3. **[Relate your slices](./books-and-relationships.mdx)** — add books that belong to an author, and read them back.
+4. **[Make it live](./real-time.mdx)** — observable queries that update the screen the moment the data changes.
+5. **[Decide who can do what](./authorization.mdx)** — lock the catalog down with role-based authorization.
 
-Each chapter ends where the next begins. By the end you'll have a real full-stack feature — and the model to build your own. Ready? [Let's build the first slice →](./first-slice)
+Each chapter ends where the next begins. By the end you'll have a real full-stack feature — and the model to build your own. Ready? [Let's build the first slice →](./first-slice.mdx)

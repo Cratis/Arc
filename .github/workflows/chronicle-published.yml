@@ -59,6 +59,19 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
 
+      # Read before the pins are rewritten - it is the lower bound of the range of Chronicle
+      # releases this update picks up, and it tells the supersede step which open pull
+      # requests main has already moved past.
+      - name: Read the currently pinned Chronicle version
+        id: pinned
+        run: |
+          pinned=$(grep -oE 'Include="Cratis\.Chronicle" Version="[^"]+"' Directory.Packages.props \
+            | head -1 \
+            | grep -oE 'Version="[^"]+"' \
+            | cut -d'"' -f2)
+          echo "Currently pinned at ${pinned:-<unknown>}."
+          echo "version=$pinned" >> "$GITHUB_OUTPUT"
+
       - name: Update Chronicle package pins
         id: bump
         run: |
@@ -72,6 +85,19 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
             git diff -- "$file"
           fi
+
+      # The pull request body is published verbatim as Arc's release notes when the pull
+      # request merges, so it is composed to follow pull_request_template.md and carries
+      # nothing about CI - that goes into a comment further down.
+      - name: Compose release notes
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+        run: |
+          python3 .github/scripts/compose-chronicle-release-notes.py \
+            --previous "${{ steps.pinned.outputs.version }}" \
+            --target "${{ steps.inputs.outputs.version }}" \
+            --output "${{ runner.temp }}/release-notes.md"
 
       - name: Setup .Net
         if: steps.bump.outputs.changed == 'true'
@@ -154,28 +180,115 @@ jobs:
           commit-message: "Update Cratis.Chronicle to ${{ steps.inputs.outputs.version }}"
           title: "Update Cratis.Chronicle to ${{ steps.inputs.outputs.version }}"
           labels: ${{ steps.inputs.outputs.bump }}
-          body: |
-            Automated update of `Cratis.Chronicle`, `Cratis.Chronicle.AspNetCore` and `Cratis.Chronicle.Testing` to `${{ steps.inputs.outputs.version }}`, triggered by a Chronicle release.
+          body-path: ${{ runner.temp }}/release-notes.md
 
-            ### Verification gate
+      # Only the newest Chronicle update is worth reviewing - each one pins the same three
+      # packages, so an older one has nothing left to contribute once a newer one exists.
+      # Runs whether or not this run produced a pull request, so that an update landing on
+      # main also clears out the open pull requests it made redundant.
+      - name: Supersede older Chronicle updates
+        id: supersede
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          REPOSITORY: ${{ github.repository }}
+          PINNED: ${{ steps.pinned.outputs.version }}
+        run: |
+          set -euo pipefail
 
-            | Step | Result |
-            |------|--------|
-            | Build | `${{ steps.build.outcome }}` |
-            | Specs | `${{ steps.specs.outcome }}` |
+          # Whether $1 is greater than $2, semantically rather than lexically (16.10.0 > 16.9.0).
+          is_newer_than() {
+            [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
+          }
 
-            ${{ (steps.gate.outputs.verified == 'true' && steps.inputs.outputs.bump != 'major') && '✅ All specs passed — auto-merge enabled.' || '⚠️ Requires human review before merging (verification failed or a major bump).' }}
+          close_with_comment() {
+            local number="$1" branch="$2" reason="$3"
+            echo "Closing #$number — $reason"
+            gh pr close "$number" --repo "$REPOSITORY" --comment "$reason"
+            # The pull request is what matters; a lingering branch must not fail the run.
+            gh api -X DELETE "repos/$REPOSITORY/git/refs/heads/$branch" >/dev/null 2>&1 || true
+          }
+
+          # Assigned rather than piped, so that a failing `gh` fails the step instead of
+          # silently looking like "there is nothing open to supersede".
+          open_updates=$(gh pr list --repo "$REPOSITORY" --state open --limit 100 \
+            --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("chronicle-update/"))
+                      | "\(.number) \(.headRefName | sub("^chronicle-update/"; "")) \(.headRefName)"')
+
+          winner_number=""
+          winner_version=""
+          candidates=()
+
+          while read -r number version branch; do
+            [ -n "${number:-}" ] || continue
+
+            # main already carries this version or newer, so the pull request has nothing to add.
+            if [ -n "$PINNED" ] && ! is_newer_than "$version" "$PINNED"; then
+              close_with_comment "$number" "$branch" \
+                "\`Cratis.Chronicle\` is already at \`$PINNED\` on \`main\`, so this update no longer changes anything. Closing it."
+              continue
+            fi
+
+            candidates+=("$number $version $branch")
+            if [ -z "$winner_version" ] || is_newer_than "$version" "$winner_version"; then
+              winner_number="$number"
+              winner_version="$version"
+            fi
+          done <<< "$open_updates"
+
+          for candidate in "${candidates[@]:-}"; do
+            [ -n "$candidate" ] || continue
+            read -r number version branch <<< "$candidate"
+            if [ "$number" != "$winner_number" ]; then
+              close_with_comment "$number" "$branch" \
+                "Superseded by #$winner_number, which updates \`Cratis.Chronicle\` to \`$winner_version\` and includes everything this update carried. Closing it so only the newest Chronicle update stays open."
+            fi
+          done
+
+          echo "winner=$winner_number" >> "$GITHUB_OUTPUT"
+          echo "Newest open Chronicle update: ${winner_number:-none} (${winner_version:-n/a})."
+
+      # The verification result is CI bookkeeping, not release notes - it belongs in a
+      # comment so that it never reaches the published Arc release.
+      - name: Report the verification gate
+        if: steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          SUPERSEDED: ${{ steps.supersede.outputs.winner != steps.pr.outputs.pull-request-number }}
+        run: |
+          if [ "$SUPERSEDED" = "true" ]; then
+            outcome="⏭️ Superseded by a newer Chronicle update — not auto-merged."
+          elif [ "${{ steps.gate.outputs.verified }}" != "true" ]; then
+            outcome="⚠️ Requires human review before merging — verification failed."
+          elif [ "${{ steps.inputs.outputs.bump }}" = "major" ]; then
+            outcome="⚠️ Requires human review before merging — major bump."
+          else
+            outcome="✅ All specs passed — auto-merge enabled."
+          fi
+
+          cat > "$RUNNER_TEMP/verification-gate.md" <<EOF
+          ### Verification gate
+
+          | Step | Result |
+          |------|--------|
+          | Build | \`${{ steps.build.outcome }}\` |
+          | Specs | \`${{ steps.specs.outcome }}\` |
+          | Bump | \`${{ steps.inputs.outputs.bump }}\` |
+
+          $outcome
+          EOF
+
+          gh pr comment "${{ steps.pr.outputs.pull-request-number }}" \
+            --repo "${{ github.repository }}" \
+            --body-file "$RUNNER_TEMP/verification-gate.md"
 
       - name: Enable auto-merge
-        if: steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number && steps.gate.outputs.verified == 'true' && steps.inputs.outputs.bump != 'major'
+        if: >-
+          steps.bump.outputs.changed == 'true' &&
+          steps.pr.outputs.pull-request-number &&
+          steps.supersede.outputs.winner == steps.pr.outputs.pull-request-number &&
+          steps.gate.outputs.verified == 'true' &&
+          steps.inputs.outputs.bump != 'major'
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
         run: gh pr merge --auto --squash "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }}
-
-      - name: Comment when review is required
-        if: steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number && (steps.gate.outputs.verified != 'true' || steps.inputs.outputs.bump == 'major')
-        env:
-          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
-        run: |
-          gh pr comment "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }} --body \
-            "This Chronicle update was **not** auto-merged. Build outcome: \`${{ steps.build.outcome }}\`, specs outcome: \`${{ steps.specs.outcome }}\`, bump: \`${{ steps.inputs.outputs.bump }}\`. Please review before merging."

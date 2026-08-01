@@ -15,7 +15,7 @@ For simple pages, MVVM is optional — use regular hooks directly in the compone
 Install packages if not already present:
 
 ```
-npm install @cratis/arc.react.mvvm tsyringe
+npm install @cratis/arc.react.mvvm tsyringe reflect-metadata
 ```
 
 Ensure `tsconfig.json` enables decorators:
@@ -29,8 +29,11 @@ Ensure `tsconfig.json` enables decorators:
 }
 ```
 
-The `Reflect` metadata API that Tsyringe relies on is polyfilled automatically by `@cratis/arc` (via `@cratis/fundamentals`),
-so there is nothing extra to install or set up.
+Import `reflect-metadata` once, at the entry point of your app:
+
+```tsx
+import 'reflect-metadata';
+```
 
 ## View model class
 

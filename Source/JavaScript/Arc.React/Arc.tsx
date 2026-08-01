@@ -5,7 +5,7 @@ import { CommandScope } from './commands';
 import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
-import { GetHttpHeaders, Globals, ObservableQueryTransferMode } from '@cratis/arc';
+import { GetHttpHeaders, EventSourceFactory, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
 import { ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
@@ -25,6 +25,13 @@ export interface ArcProps {
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    /**
+     * Optional factory used to create the {@link EventSource} instances that back SSE
+     * observable query connections. Falls back to the global {@link EventSource}
+     * constructor when not set — override it to supply a custom SSE client (e.g. a
+     * native implementation on React Native, where the global constructor is unavailable).
+     */
+    eventSourceFactory?: EventSourceFactory;
     /**
      * The transport method used for observable query subscriptions.
      * Defaults to {@link QueryTransportMethod.ServerSentEvents}.
@@ -99,6 +106,7 @@ export const Arc = (props: ArcProps) => {
         basePath: props.basePath ?? '',
         apiBasePath: props.apiBasePath ?? '',
         httpHeadersCallback: props.httpHeadersCallback,
+        eventSourceFactory: props.eventSourceFactory,
         queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
         queryConnectionCount: props.queryConnectionCount ?? 1,
         queryDirectMode: props.queryDirectMode ?? false,
@@ -117,7 +125,8 @@ export const Arc = (props: ArcProps) => {
         configuration.queryTransportMethod,
         configuration.queryConnectionCount,
         configuration.queryDirectMode,
-        configuration.observableQueryTransferMode);
+        configuration.observableQueryTransferMode,
+        configuration.eventSourceFactory);
 
     useEffect(() => {
         const cache = queryInstanceCache.current;

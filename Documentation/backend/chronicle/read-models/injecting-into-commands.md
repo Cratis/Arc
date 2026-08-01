@@ -179,6 +179,12 @@ public record AddItemToCart([Key] Guid CartId, Guid ProductId, int Quantity)
 
 Read models never emit events. If the decision must hold under concurrency, drive it from the aggregate or from a Chronicle [constraint](/chronicle/constraints/) rather than from projected state — read models are eventually consistent.
 
+## Read models from other providers
+
+Injection is not Chronicle-only. A read model backed by Entity Framework Core or MongoDB is injected into a command exactly the same way, and everything on this page — the three positions, and what nullability means — applies unchanged.
+
+What differs is where the read model is loaded from and what key loads it, including how a command declares its key when there is no Chronicle to resolve one. See [Read models from other providers](./other-providers.md).
+
 ## Testing
 
 Seed the state the command should see with the `Given` builder — either the events behind it or a pinned instance — and execute through the real pipeline. See [Testing with Chronicle](../../testing/chronicle.md#testing-commands-that-take-read-model-dependencies).

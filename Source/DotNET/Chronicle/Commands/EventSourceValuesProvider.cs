@@ -16,12 +16,36 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
+        var eventSourceId = ResolveEventSourceId(command);
+
+        // Also expose the id as the provider-neutral resolved key so a read model backing provider that does not depend
+        // on Chronicle (for example Entity Framework Core) can load a read model by the same key. An unspecified id
+        // carries no usable key, so the neutral key is empty in that case.
+        return new CommandContextValues
+        {
+            { WellKnownCommandContextKeys.EventSourceId, eventSourceId },
+            { Cratis.Arc.Commands.CommandContextKeys.ResolvedKey, NeutralKeyFrom(eventSourceId) }
+        };
+    }
+
+    /// <summary>
+    /// Converts an event source id into the provider-neutral resolved key string.
+    /// </summary>
+    /// <param name="eventSourceId">The event source id to convert.</param>
+    /// <returns>The id value as a string, or an empty string when the id is unspecified.</returns>
+    static string NeutralKeyFrom(EventSourceId eventSourceId) =>
+        eventSourceId == EventSourceId.Unspecified ? string.Empty : eventSourceId.Value;
+
+    /// <summary>
+    /// Resolves the event source id for a command, from a self-composing command or from a key property.
+    /// </summary>
+    /// <param name="command">The command to resolve the event source id for.</param>
+    /// <returns>The resolved event source id, or <see cref="EventSourceId.Unspecified"/> when none could be composed.</returns>
+    EventSourceId ResolveEventSourceId(object command)
+    {
         if (command is ICanProvideEventSourceId provider)
         {
-            return new CommandContextValues
-            {
-                { WellKnownCommandContextKeys.EventSourceId, ProvidedEventSourceIdOrUnspecified(provider) }
-            };
+            return ProvidedEventSourceIdOrUnspecified(provider);
         }
 
         var eventSourceId = EventSourceId.New();
@@ -30,10 +54,7 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
             eventSourceId = command.GetEventSourceId();
         }
 
-        return new CommandContextValues
-        {
-            { WellKnownCommandContextKeys.EventSourceId, eventSourceId }
-        };
+        return eventSourceId;
     }
 
     /// <summary>
