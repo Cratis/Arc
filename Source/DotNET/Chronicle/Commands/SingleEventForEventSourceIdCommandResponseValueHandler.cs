@@ -4,6 +4,7 @@
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -12,7 +13,11 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </summary>
 /// <param name="eventLog">The event log to append events to.</param>
 /// <param name="eventTypes">The event types.</param>
-public class SingleEventForEventSourceIdCommandResponseValueHandler(IEventLog eventLog, IEventTypes eventTypes) : ICommandResponseValueHandler
+/// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
+public class SingleEventForEventSourceIdCommandResponseValueHandler(
+    IEventLog eventLog,
+    IEventTypes eventTypes,
+    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>
@@ -23,7 +28,12 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(IEventLog ev
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var eventForEventSourceId = (EventForEventSourceId)value;
-        var concurrencyScope = ConcurrencyScopeBuilder.BuildFromCommandContext(commandContext);
+
+        // The scope belongs to the stream being written to, not to the command's own event source.
+        var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(
+            commandContext,
+            concurrencyScopeStrategies.GetFor(eventLog),
+            eventForEventSourceId.EventSourceId);
         if (!eventLog.TryEnrollForCommand(eventForEventSourceId.EventSourceId, eventForEventSourceId.Event, commandContext, concurrencyScope))
         {
             var result = await eventLog.Append(

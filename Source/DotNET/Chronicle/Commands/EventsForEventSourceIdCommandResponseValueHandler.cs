@@ -5,6 +5,7 @@ using System.Collections;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -15,6 +16,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </summary>
 /// <param name="eventLog">The event log to append events to.</param>
 /// <param name="eventTypes">The event types.</param>
+/// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
 /// <remarks>
 /// The match is based on the runtime type of each element rather than the static type of the collection, so a
 /// collection boxed as <see cref="IEnumerable{T}"/> of <see cref="object"/> — or a mixed collection of plain events
@@ -22,7 +24,10 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// silently serialized as the response payload. Each wrapper is appended to its own event source id; each plain event
 /// is appended to the command's event source id.
 /// </remarks>
-public class EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLog, IEventTypes eventTypes) : ICommandResponseValueHandler
+public class EventsForEventSourceIdCommandResponseValueHandler(
+    IEventLog eventLog,
+    IEventTypes eventTypes,
+    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value)
@@ -70,13 +75,23 @@ public class EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLo
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var items = ((IEnumerable)value).Cast<object>();
-        var concurrencyScope = ConcurrencyScopeBuilder.BuildFromCommandContext(commandContext);
+        var strategy = concurrencyScopeStrategies.GetFor(eventLog);
+
+        // A scope carries the expected tail of one stream, so it cannot be shared across the streams a
+        // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
+        var concurrencyScopesByEventSourceId = new Dictionary<EventSourceId, ConcurrencyScope?>();
 
         foreach (var item in items)
         {
             var (eventSourceId, @event) = item is EventForEventSourceId wrapped
                 ? (wrapped.EventSourceId, wrapped.Event)
                 : (commandContext.GetEventSourceId(), item);
+
+            if (!concurrencyScopesByEventSourceId.TryGetValue(eventSourceId, out var concurrencyScope))
+            {
+                concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, eventSourceId);
+                concurrencyScopesByEventSourceId[eventSourceId] = concurrencyScope;
+            }
 
             if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope))
             {

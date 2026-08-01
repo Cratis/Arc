@@ -26,6 +26,7 @@ public class a_command_pipeline_with_event_handlers : Specification
     protected IServiceScopeFactory _serviceScopeFactory;
     protected IEventLog _eventLog;
     protected IEventTypes _eventTypes;
+    protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
     protected CommandPipeline _commandPipeline;
     protected CorrelationId _correlationId;
     protected SingleEventCommandResponseValueHandler _singleEventHandler;
@@ -59,11 +60,13 @@ public class a_command_pipeline_with_event_handlers : Specification
         // Set up event handling infrastructure
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
-        _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes);
-        _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes);
+        _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
+        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(Substitute.For<IConcurrencyScopeStrategy>());
+        _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
+        _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _subjectHandler = new SubjectCommandResponseValueHandler();
-        _singleEventForEventSourceIdHandler = new SingleEventForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes);
-        _eventsForEventSourceIdHandler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes);
+        _singleEventForEventSourceIdHandler = new SingleEventForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
+        _eventsForEventSourceIdHandler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
 
         // Set up successful append results
         var successfulAppendResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);

@@ -16,12 +16,18 @@ public class a_single_event_command_response_value_handler : Specification
     protected IEventTypes _eventTypes;
     protected CommandContext _commandContext;
     protected CorrelationId _correlationId;
+    protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
+    protected IConcurrencyScopeStrategy _concurrencyScopeStrategy;
 
     void Establish()
     {
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
-        _handler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes);
+        _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
+        _concurrencyScopeStrategy = Substitute.For<IConcurrencyScopeStrategy>();
+        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(_concurrencyScopeStrategy);
+        _concurrencyScopeStrategy.StandInForAnOptimisticStrategy();
+        _handler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
 
         _correlationId = Guid.NewGuid();
         var command = new TestCommand { EventSourceId = EventSourceId.New() };

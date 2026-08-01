@@ -98,7 +98,7 @@ public record CustomerDisplayNameChanged(EventSourceId CustomerId, string Displa
 public record CustomerEmailChanged(EventSourceId CustomerId, string Email);
 ```
 
-If no attribute has `concurrency: true`, Chronicle does not include a concurrency scope when appending events. Event appends proceed without optimistic concurrency checks.
+If no attribute has `concurrency: true`, the command contributes no scope of its own and the append is left to the concurrency strategy configured on the event sequence — by default the optimistic one, which resolves the expected tail for the event source being appended to.
 
 ## Dynamic Event Stream Id
 
@@ -131,4 +131,9 @@ The event source id used when appending is resolved from the command by conventi
 
 ## How the Scope Is Built
 
-When `Handle()` returns events, Chronicle inspects the command type for the three concurrency attributes. It reads the resolved metadata values from the command context and constructs a `ConcurrencyScope` that includes only the metadata where `concurrency: true` was set. The scope uses the metadata values (stream id, stream type, event source type) as the concurrency boundary — not the event source id itself. Chronicle then passes this scope to the event log when appending.
+When `Handle()` returns events, Chronicle inspects the command type for the three concurrency attributes. It reads the resolved metadata values from the command context and builds a `ConcurrencyScope` covering only the metadata where `concurrency: true` was set.
+
+Two properties of that scope decide whether the check actually happens, and both are resolved per append rather than once per command:
+
+- **It carries an expected sequence number**, resolved by the same concurrency strategy an unscoped append would use. A scope without one is skipped by the kernel — there is nothing to compare against — so the append would proceed unchecked.
+- **It is bound to the event source being appended to.** A command that appends across streams gets a scope per target, because an expected tail belongs to exactly one stream; applying one stream's tail to another would be wrong for both.

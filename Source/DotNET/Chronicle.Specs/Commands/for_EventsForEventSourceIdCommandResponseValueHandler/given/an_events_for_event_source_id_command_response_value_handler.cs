@@ -16,12 +16,18 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
     protected IEventTypes _eventTypes;
     protected CommandContext _commandContext;
     protected CorrelationId _correlationId;
+    protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
+    protected IConcurrencyScopeStrategy _concurrencyScopeStrategy;
 
     void Establish()
     {
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
-        _handler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes);
+        _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
+        _concurrencyScopeStrategy = Substitute.For<IConcurrencyScopeStrategy>();
+        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(_concurrencyScopeStrategy);
+        _concurrencyScopeStrategy.StandInForAnOptimisticStrategy();
+        _handler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
 
         _correlationId = Guid.NewGuid();
         var command = new TestCommand();
