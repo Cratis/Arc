@@ -8,6 +8,8 @@
   href: commands.md
 - name: Queries
   href: queries.md
+- name: Type Mapping
+  href: type-mapping.md
 - name: Validation
   href: validation.md
 - name: Identity Details
