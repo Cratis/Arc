@@ -22,6 +22,8 @@ public static class CommandResultShouldExtensions
             var reasons = BuildFailureReasons(result);
             throw new CommandResultAssertionException($"Expected command to be successful, but it was not.{reasons}");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -35,6 +37,8 @@ public static class CommandResultShouldExtensions
         {
             throw new CommandResultAssertionException("Expected command to not be successful, but it was.");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -49,6 +53,8 @@ public static class CommandResultShouldExtensions
             var errors = string.Join(", ", result.ValidationResults.Select(v => v.Message));
             throw new CommandResultAssertionException($"Expected command to be valid, but it had validation errors: {errors}");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -62,6 +68,8 @@ public static class CommandResultShouldExtensions
         {
             throw new CommandResultAssertionException("Expected command to have validation errors, but it had none.");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -78,6 +86,8 @@ public static class CommandResultShouldExtensions
             throw new CommandResultAssertionException(
                 $"Expected command to have a validation error containing '{message}', but no matching error was found. Actual errors: {errors}");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -91,6 +101,8 @@ public static class CommandResultShouldExtensions
         {
             throw new CommandResultAssertionException($"Expected command to be authorized, but it was not. Reason: {result.AuthorizationFailureReason}");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -104,6 +116,8 @@ public static class CommandResultShouldExtensions
         {
             throw new CommandResultAssertionException("Expected command to not be authorized, but it was.");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -118,6 +132,8 @@ public static class CommandResultShouldExtensions
             var messages = string.Join(", ", result.ExceptionMessages);
             throw new CommandResultAssertionException($"Expected command to have no exceptions, but it had: {messages}");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     /// <summary>
@@ -131,6 +147,8 @@ public static class CommandResultShouldExtensions
         {
             throw new CommandResultAssertionException("Expected command to have exceptions, but it had none.");
         }
+
+        CommandResultAssertionPolicies.Apply(result);
     }
 
     static string BuildFailureReasons(CommandResult result)
