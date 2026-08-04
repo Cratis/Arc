@@ -4,7 +4,7 @@
 /**
  * The `displayName` a command form field carries.
  * @remarks
- * Exported so a consumer recognising a field has a constant to compare against rather than a duplicated string
+ * Exported so a consumer recognizing a field has a constant to compare against rather than a duplicated string
  * literal, and so the two values below have one definition between them.
  */
 export const CommandFormFieldDisplayName = 'CommandFormField';
