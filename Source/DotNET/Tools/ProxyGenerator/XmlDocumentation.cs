@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Text;
 using System.Xml.Linq;
 
 namespace Cratis.Arc.ProxyGenerator;
@@ -78,7 +79,7 @@ public static class XmlDocumentation
 
         if (paramElement is null) return null;
 
-        return paramElement.Value.Trim();
+        return Render(paramElement);
     }
 
     /// <summary>
@@ -101,7 +102,7 @@ public static class XmlDocumentation
         var summary = element.Element("summary");
         if (summary is null) return null;
 
-        return summary.Value.Trim();
+        return Render(summary);
     }
 
     static XDocument? GetXmlDocument(Assembly assembly)
@@ -135,14 +136,181 @@ public static class XmlDocumentation
     static string ConvertXmlToJsDoc(XElement element)
     {
         var summary = element.Element("summary");
-        if (summary is null) return string.Empty;
+        return summary is null ? string.Empty : Render(summary);
+    }
 
-        var lines = summary.Value
-            .Split(['\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Trim())
-            .Where(line => !string.IsNullOrWhiteSpace(line));
+    /// <summary>
+    /// Render a documentation element as the single line of JSDoc prose the templates emit.
+    /// </summary>
+    /// <param name="element">The documentation element to render.</param>
+    /// <returns>The rendered prose.</returns>
+    /// <remarks>
+    /// Reading <see cref="XElement.Value"/> instead would concatenate the text content of the element and all its
+    /// descendants - which silently deletes every element whose payload lives in an attribute rather than in a text
+    /// child. That is exactly the set the .NET documentation conventions ask authors to use: a self-closing
+    /// <c>see cref</c>, <c>paramref</c>, <c>typeparamref</c> or <c>see langword</c> has no text child at all, so the
+    /// prose fuses around the hole and reads as a finished sentence that has lost its subject. The better the source
+    /// is documented, the more of it disappears - and the artifact is generated, so nobody sees it happen.
+    /// <para>
+    /// All three documentation entry points route through here, so a param, a property summary and a type summary
+    /// can no longer be rendered three different ways.
+    /// </para>
+    /// </remarks>
+    static string Render(XElement element)
+    {
+        var builder = new StringBuilder();
+        AppendNodes(element, builder);
+        return CollapseWhitespace(builder.ToString());
+    }
 
-        return string.Join(' ', lines);
+    static void AppendNodes(XElement element, StringBuilder builder)
+    {
+        foreach (var node in element.Nodes())
+        {
+            switch (node)
+            {
+                case XText text:
+                    builder.Append(text.Value);
+                    break;
+
+                case XElement child:
+                    AppendElement(child, builder);
+                    break;
+            }
+        }
+    }
+
+    static void AppendElement(XElement element, StringBuilder builder)
+    {
+        switch (element.Name.LocalName)
+        {
+            case "see":
+            case "seealso":
+                AppendReference(element, builder);
+                break;
+
+            case "paramref":
+            case "typeparamref":
+                AppendCode(element.Attribute("name")?.Value, builder);
+                break;
+
+            case "c":
+            case "code":
+                AppendCode(element.Value, builder);
+                break;
+
+            default:
+                // para, b, i, list, and anything else the author wrote: the element itself carries no meaning the
+                // one-line JSDoc can express, but its prose does, so keep walking rather than dropping it.
+                AppendNodes(element, builder);
+                break;
+        }
+    }
+
+    static void AppendReference(XElement element, StringBuilder builder)
+    {
+        // An explicit label wins - the author already said how they wanted it read.
+        var label = element.Value.Trim();
+        if (!string.IsNullOrEmpty(label))
+        {
+            builder.Append(label);
+            return;
+        }
+
+        if (element.Attribute("langword")?.Value is { Length: > 0 } langword)
+        {
+            AppendCode(langword, builder);
+            return;
+        }
+
+        if (element.Attribute("cref")?.Value is { Length: > 0 } cref)
+        {
+            builder.Append("{@link ").Append(SimpleNameFrom(cref)).Append('}');
+            return;
+        }
+
+        if (element.Attribute("href")?.Value is { Length: > 0 } href)
+        {
+            builder.Append(href);
+        }
+    }
+
+    static void AppendCode(string? value, StringBuilder builder)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return;
+
+        builder.Append('`').Append(trimmed).Append('`');
+    }
+
+    /// <summary>
+    /// Reduce a documentation cref to the name a reader recognizes.
+    /// </summary>
+    /// <param name="cref">The cref as the compiler wrote it, e.g. <c>T:Some.Namespace.Widget</c>.</param>
+    /// <returns>The simple name, e.g. <c>Widget</c>.</returns>
+    static string SimpleNameFrom(string cref)
+    {
+        var name = cref;
+
+        // The compiler prefixes a resolved cref with its member kind - T:, M:, P:, F:, E:, N: - and writes !: when
+        // it could not resolve one at all.
+        if (name.Length > 2 && name[1] == ':')
+        {
+            name = name[2..];
+        }
+
+        // A method cref carries its parameter list, which is not part of the name.
+        var parameters = name.IndexOf('(');
+        if (parameters >= 0)
+        {
+            name = name[..parameters];
+        }
+
+        var lastSegment = name.LastIndexOf('.');
+        if (lastSegment >= 0)
+        {
+            name = name[(lastSegment + 1)..];
+        }
+
+        // A generic type is written with its arity, as in Widget`1.
+        var arity = name.IndexOf('`');
+        return arity >= 0 ? name[..arity] : name;
+    }
+
+    /// <summary>
+    /// Collapse every run of whitespace to a single space.
+    /// </summary>
+    /// <param name="value">The rendered prose.</param>
+    /// <returns>The prose as one line.</returns>
+    /// <remarks>
+    /// The templates emit documentation on a single line, so the newlines an author wrapped their comment at have to
+    /// go. Doing it here rather than per call site is also what keeps a rendered-away element from leaving the two
+    /// spaces that surrounded it behind as a visible seam.
+    /// </remarks>
+    static string CollapseWhitespace(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        var pendingSpace = false;
+
+        foreach (var character in value)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                // Held rather than written, so a run of whitespace costs one space and a trailing run costs none.
+                pendingSpace = builder.Length > 0;
+                continue;
+            }
+
+            if (pendingSpace)
+            {
+                builder.Append(' ');
+                pendingSpace = false;
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     static string GetMemberName(MemberInfo member)
