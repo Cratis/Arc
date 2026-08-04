@@ -72,6 +72,24 @@ The second parameter to `asCommandFormField` is a configuration object:
 | `defaultValue` | `TValue` | Yes | Default value when the field is empty/undefined |
 | `extractValue` | `(event: unknown) => TValue` | No | Function to extract the value from change events. If omitted, the event itself is used as the value. |
 
+## How a field is recognized
+
+`asCommandFormField` marks the component it returns so `CommandForm` can pick its fields out of its children. The marker is a static `isCommandFormField` property, and the component's `displayName` is set to `CommandFormField` as well, which is what a version of `@cratis/components` that predates the marker still reads.
+
+:::caution
+**Do not overwrite `displayName` on a command form field**, and do not strip static properties from one. A build transform that does either can unbind the field from its command — the form renders, the input accepts typing, and nothing reaches the command. There is no error and no warning.
+
+The most likely source is Storybook's `reactDocgen: 'react-docgen-typescript'` setting, whose plugin rewrites `displayName` by default. The `isCommandFormField` marker is there to survive exactly that, so a field keeps working under it — but a transform that removes both loses the binding.
+:::
+
+If you build a field by hand rather than through `asCommandFormField`, mark it with `markAsCommandFormField` rather than assigning `displayName` yourself:
+
+```tsx
+import { markAsCommandFormField } from '@cratis/arc.react/commands';
+
+markAsCommandFormField(MyHandRolledField);
+```
+
 ## Example: PrimeReact InputText
 
 Here's a complete example of creating a custom field using PrimeReact's `InputText` component:
