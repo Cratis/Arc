@@ -20,12 +20,17 @@ public static class ConstraintViolationExtensions
     /// </summary>
     /// <param name="violation">The <see cref="ConstraintViolation"/> to convert.</param>
     /// <returns>A <see cref="ValidationResult"/> representing the violation.</returns>
+    /// <remarks>
+    /// The result carries <see cref="ValidationResultReason.ConstraintViolation"/>: the message is the constraint's,
+    /// not an authored rule's, and a client that treats the two the same cannot tell a store-level rejection from
+    /// one its own domain rules produced.
+    /// </remarks>
     public static ValidationResult ToValidationResult(this ConstraintViolation violation)
     {
         string[] members = violation.Details is { } details && details.TryGetValue(WellKnownConstraintDetailKeys.PropertyName, out var propertyName)
             ? [propertyName.ToCamelCase()]
             : [];
 
-        return ValidationResult.Error(violation.Message.Value, members);
+        return ValidationResult.Error(violation.Message.Value, members, reason: ValidationResultReason.ConstraintViolation);
     }
 }
