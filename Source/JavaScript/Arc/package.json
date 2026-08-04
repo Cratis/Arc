@@ -72,7 +72,7 @@
         "rxjs": "^7.8.2"
     },
     "peerDependencies": {
-        "@cratis/fundamentals": "^7"
+        "@cratis/fundamentals": "^7.16.0"
     },
     "devDependencies": {
         "@cratis/fundamentals": "7.16.0"
