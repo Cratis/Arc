@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import { markAsCommandFormField } from './commandFormMarkers';
+
 /**
  * Props for the CommandFormField marker component.
  *
@@ -32,4 +34,4 @@ export const CommandFormField = <TCommand = unknown,>(_props: CommandFormFieldPr
     return <></>;
 };
 
-CommandFormField.displayName = 'CommandFormField';
+markAsCommandFormField(CommandFormField);

@@ -4,6 +4,7 @@
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import React, { ComponentType } from 'react';
 import { useCommandFormContext } from './CommandForm';
+import { markAsCommandFormField } from './commandFormMarkers';
 
 /**
  * Props that will be injected by CommandFormFields into your wrapped component
@@ -159,7 +160,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
         return <Component {...wrappedProps} />;
     };
 
-    WrappedField.displayName = 'CommandFormField';
+    markAsCommandFormField(WrappedField);
 
     return WrappedField;
 }
