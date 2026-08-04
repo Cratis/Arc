@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -37,4 +38,10 @@ public class with_concurrency_violation : given.all_dependencies
     [Fact] void should_include_concurrency_violation_message() => _result.ValidationResults.First().Message.ShouldContain("Concurrency violation");
     [Fact] void should_include_expected_sequence_number() => _result.ValidationResults.First().Message.ShouldContain("10");
     [Fact] void should_include_actual_sequence_number() => _result.ValidationResults.First().Message.ShouldContain("15");
+
+    /// <summary>
+    /// A concurrency violation is retryable and an ordinary rule rejection is not, and the client has to be able to
+    /// tell them apart to offer the retry. Without this the only difference between the two is the English sentence.
+    /// </summary>
+    [Fact] void should_say_the_rejection_is_a_concurrency_violation() => _result.ValidationResults.First().Reason.ShouldEqual(ValidationResultReason.ConcurrencyViolation);
 }
