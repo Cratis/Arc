@@ -76,11 +76,16 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                     context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value, validationInfo);
                 }
 
-                // Always run silent validation after every value change.
-                // This is the sole driver of context.isValid — it runs regardless of
-                // validateOn so isValid is always accurate. It only hits the server when
-                // autoServerValidate is enabled; otherwise it stays client-side only.
-                const validationResult = await runCommandValidation(context.commandInstance, context.autoServerValidate);
+                // Always run silent validation after every value change. This is the immediate driver of
+                // context.isValid — it runs regardless of validateOn so isValid is always accurate.
+                //
+                // Client-side only, deliberately. This fires once per keystroke, and asking the server that
+                // often is a round trip per character with nothing to damp it — autoServerValidateThrottle
+                // governs the effect in CommandForm, not this call. That effect is the single server path:
+                // it debounces behind the throttle and feeds its result back into the same silent state, so
+                // the server still has the final say on isValid, just once the typing stops rather than
+                // once per character.
+                const validationResult = await runCommandValidation(context.commandInstance, false);
                 if (validationResult) {
                     context.setSilentValidationResult(validationResult);
                 }

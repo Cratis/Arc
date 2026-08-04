@@ -186,12 +186,10 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             // Wait for throttle to complete after last change
             await waitForUpdates(400);
             
-            // Throttle should reduce the number of calls significantly.
-            // With validateOn='change' each valid change fires a client-side validate() fetch
-            // call (4 valid changes → up to 4 calls). The throttled autoServerValidate fires
-            // once more after all rapid changes settle, bringing the max to 5.
-            expect(serverValidateCallCount).toBeLessThanOrEqual(5);
-            expect(serverValidateCallCount).toBeGreaterThan(0);
+            // The throttled effect is the only server path, so a burst of changes costs exactly one
+            // request no matter how many changes it contained. This used to assert an upper bound of
+            // five, which is what let a round trip per change hide underneath it.
+            expect(serverValidateCallCount).toBe(1);
         });
     });
 
