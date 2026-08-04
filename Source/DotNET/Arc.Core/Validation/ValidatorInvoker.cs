@@ -52,8 +52,13 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             // input. Surface it as a validation failure (HTTP 400) rather than letting it propagate to a server
             // error (HTTP 500). The detail is logged server-side and never returned to the client. Cancellation
             // is deliberately excluded so a cancelled request is not mistaken for invalid input.
+            //
+            // The result is marked as a validator failure because this substitutes for the validator's *entire*
+            // result set: every message the author wrote is gone, and what replaces it is shaped exactly like a
+            // genuine rejection. Without the reason a client could only tell the two apart by matching the
+            // message, which is a developer diagnostic it should not have been reading in the first place.
             logger.ValidatorThrew(instance.GetType().FullName ?? instance.GetType().Name, ex);
-            return [ValidationResult.Error(CouldNotValidateMessage)];
+            return [ValidationResult.Error(CouldNotValidateMessage, reason: ValidationResultReason.ValidatorFailed)];
         }
     }
 
