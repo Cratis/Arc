@@ -32,6 +32,7 @@ public static class Generator
     /// <param name="excludedTypeNames">Fully qualified type names that should be excluded from proxy generation.</param>
     /// <param name="excludedNamespacePatterns">Namespace glob patterns (supports <c>*</c> as wildcard) whose matching types are excluded from generation.</param>
     /// <param name="namespaceRoots">Pairs of (namespace, base folder) used as roots. When a type's namespace begins with a root the root is stripped and the remainder is placed under the base folder.</param>
+    /// <param name="typeMappings">Triples of (fully qualified type name, TypeScript type, package) declaring how a type crosses the wire. Consulted ahead of the built-in map, so it can correct an existing mapping as well as add an unknown one.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -49,7 +50,8 @@ public static class Generator
         IReadOnlyDictionary<string, string>? assemblyPackageMappings = null,
         IReadOnlyCollection<string>? excludedTypeNames = null,
         IReadOnlyCollection<string>? excludedNamespacePatterns = null,
-        IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null)
+        IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null,
+        IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -68,6 +70,7 @@ public static class Generator
         TypeExtensions.SetAssemblyPackageMappings(assemblyPackageMappings ?? new Dictionary<string, string>());
         TypeExtensions.SetExcludedTypes(excludedTypeNames ?? [], excludedNamespacePatterns ?? []);
         TypeExtensions.SetNamespaceRoots(namespaceRoots ?? []);
+        TypeExtensions.SetTypeMappings(typeMappings ?? []);
         TypeExtensions.InitializeProjectAssemblies(assemblyFile, message, errorMessage);
 
         var commands = new List<CommandDescriptor>();

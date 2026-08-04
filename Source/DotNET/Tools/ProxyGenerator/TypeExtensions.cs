@@ -83,6 +83,7 @@ public static class TypeExtensions
     ];
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
+    static Dictionary<string, TargetType> _typeMappings = [];
     static HashSet<string> _excludedTypeNames = [];
     static List<string> _excludedNamespacePatterns = [];
     static List<(string Namespace, string Folder)> _namespaceRoots = [];
@@ -102,6 +103,36 @@ public static class TypeExtensions
     public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
     {
         _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Sets explicit mappings from a .NET type to the TypeScript type it should cross the wire as.
+    /// </summary>
+    /// <param name="mappings">Triples of (fully qualified type name, TypeScript type, package the type is imported from).</param>
+    /// <remarks>
+    /// <para>
+    /// Consulted ahead of the built-in map, so a consumer can correct how an existing type is generated
+    /// as well as declare one the generator has never seen. Nothing is mapped unless asked for, so a
+    /// build that passes no mappings generates exactly what it generated before.
+    /// </para>
+    /// <para>
+    /// A mapping with no package generates a bare TypeScript type and emits no import; one with a
+    /// package emits the package as a bare specifier, the way <c>Guid</c> and <c>TimeSpan</c> are
+    /// imported from <c>@cratis/fundamentals</c>.
+    /// </para>
+    /// </remarks>
+    public static void SetTypeMappings(IReadOnlyCollection<(string TypeName, string TsType, string Package)> mappings)
+    {
+        _typeMappings = mappings.ToDictionary(
+            static mapping => mapping.TypeName,
+            static mapping => new TargetType(
+                typeof(object),
+                mapping.TsType,
+                mapping.TsType,
+                mapping.Package,
+                Final: true,
+                FromPackage: !string.IsNullOrEmpty(mapping.Package)),
+            StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -506,6 +537,13 @@ public static class TypeExtensions
         {
             var underlyingType = type.GetGenericArguments()[0];
             return underlyingType.GetTargetType();
+        }
+
+        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than
+        // only add an unknown one. The built-in map is still what answers when nothing was configured.
+        if (type.FullName is not null && _typeMappings.TryGetValue(type.FullName, out var mapped))
+        {
+            return mapped with { OriginalType = type };
         }
 
         if (type.FullName is not null && _primitiveTypeMap.TryGetValue(type.FullName, out var value))
