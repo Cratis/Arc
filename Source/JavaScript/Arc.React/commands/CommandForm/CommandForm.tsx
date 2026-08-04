@@ -253,6 +253,13 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                         const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
                         if (validationResult) {
                             setCommandResult(validationResult);
+
+                            // This is the only server round trip a typing burst makes, so its verdict has to
+                            // reach isValid too. The per-keystroke validation in CommandFormFields is
+                            // client-side only; without this, a rule the client cannot express - a uniqueness
+                            // check, anything reading a read model - would leave the form reading as valid
+                            // right up until submit failed.
+                            setSilentValidationResult(validationResult);
                         }
                     } catch (error) {
                         // Silently handle validation errors - they'll be in the result
