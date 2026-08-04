@@ -50,11 +50,25 @@ var excludedNamespacePatterns = args
 var typeMappings = new List<(string TypeName, string TsType, string Package)>();
 foreach (var entry in args.Where(_ => _.StartsWith("--type-to-ts=")).Select(_ => _["--type-to-ts=".Length..]))
 {
-    var parts = entry.Split('=');
+    // Bounded to three parts so an '=' inside the TypeScript type stays part of the type rather than being
+    // read as the package separator, the way --assembly-to-package and --namespace-root already slice to the
+    // end. An unbounded Split dropped everything past the third field without saying so.
+    var parts = entry.Split('=', 3);
     if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[0]) && !string.IsNullOrWhiteSpace(parts[1]))
     {
         typeMappings.Add((parts[0], parts[1], parts.Length > 2 ? parts[2] : string.Empty));
+        continue;
     }
+
+    // Named rather than dropped. A mapping that does not apply produces the generator's built-in type instead,
+    // which is a plausible-looking result for a declaration that never took effect - the failure is only
+    // visible in generated output nobody reads until it is wrong.
+    //
+    // On stdout, not stderr: the build invokes this through Exec, which treats what arrives on stderr as build
+    // errors, so an ignorable entry would fail the build outright. Exec sets ConsoleToMsBuild, so stdout is
+    // carried into the build log either way.
+    Console.WriteLine(
+        $"warning: ignoring unusable --type-to-ts entry '{entry}'. Expected <FullyQualifiedTypeName>=<TsType>[=<Package>] with both a type name and a TypeScript type.");
 }
 
 var namespaceRoots = new List<(string Namespace, string Folder)>();
