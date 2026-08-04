@@ -1,5 +1,27 @@
 # Ada upstream backlog — Arc
 
+> ## ✅ All 13 items worked — see [`ADA-UPSTREAM-RESPONSE.md`](ADA-UPSTREAM-RESPONSE.md)
+>
+> On branch `ada-upstream-backlog`. **No report was refuted** — every one was confirmed on its central claim. Five carried something wrong or understated in the detail, and those corrections are the part worth reading.
+>
+> | Item | Outcome |
+> |---|---|
+> | 1 · ARC-23 | ✅ Fixed — `DateOnly`/`TimeOnly` → `string`. ⚠️ **`TimeOnly` was worse than reported**: `Invalid Date`, not a shifted instant |
+> | 2 · ARC-21 | ✅ Fixed — the factory is no longer resolved. ⚠️ Does **not** close the localization symptom; the client falls back to its own English default |
+> | 3a · ARC-20 | ✅ Fixed — new `ValidationResultReason`. IMP-2's ruling was made here |
+> | 3b · ARC-22 | ✅ Fixed — one line, once 3a landed |
+> | 4 · ARC-24 | ✅ Fixed — **measured**: 11 requests per 10 keystrokes, now 1. Arc's own docs already promised the fixed behaviour |
+> | 5 · ARC-26 | ✅ Fixed — reproduced the report's own `A  and a gadget.` byte-for-byte |
+> | 6 · ARC-27 | ✅ Fixed — five doc and spec edits. **Arc's half is now measured**, closing the last owed link |
+> | 7 · IMP-18 | ✅ Done — and EF Core's path, recorded as owed, established |
+> | 8 · IMP-8 | ✅ Done — `ARC0015`, with all three open questions ruled |
+> | 9 · IMP-1 | ✅ Done — discovered policy seam, plus a net-new `Testing.Specs` |
+> | 10 · IMP-2 | ✅ Done — provenance axis across every producer |
+> | 11 · IMP-3 | ✅ Done — option 2 unblocked by option 1 and taken |
+> | 12 · IMP-14 | ⚠️ Arc half only — options 1 + 3. The `Symbol` and the Components half stay Cratis's call |
+>
+> ⚠️ Worked as **one branch and one commit per item**, at the repository owner's instruction, rather than the branch-per-item this file asks for.
+
 **13 open items: 7 defect reports and 6 improvement proposals**, plus four cross-repo items with an Arc half. All were found while building **Ada**, a large production Cratis application — event-sourced backend on .NET 10, React/TypeScript frontend. Nothing here has been handed over upstream yet; you are the first reader.
 
 **To work this list:** tell your agent *"work through `ADA-UPSTREAM.md`"*. Take the items in the order given, one at a time. Complete each — verify, reproduce, fix, gate, report — before starting the next. Do not batch items into one branch or one commit.
