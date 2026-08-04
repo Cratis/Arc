@@ -3,6 +3,7 @@
 
 namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 
+[Collection(TypeMappingCollection.Name)]
 public class when_a_type_mapping_is_configured : given.no_type_mappings
 {
     TargetType _result = null!;

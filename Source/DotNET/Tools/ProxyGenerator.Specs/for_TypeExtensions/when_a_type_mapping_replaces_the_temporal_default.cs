@@ -15,6 +15,7 @@ namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 /// wants a real calendar-date type. A default that could not be overridden would force a fork; a seam that had to
 /// be configured before the common case was correct would be a wrong default with extra steps.
 /// </remarks>
+[Collection(TypeMappingCollection.Name)]
 public class when_a_type_mapping_replaces_the_temporal_default : given.no_type_mappings
 {
     TargetType _dateOnlyByDefault = null!;

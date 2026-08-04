@@ -51,7 +51,9 @@ const localMidnight = new Date(year, month - 1, day);
 ```
 
 > [!NOTE]
-> Because both map to `string`, a `DateOnly` property is not distinguishable from an ordinary `string` property by its TypeScript type alone. If your application wants a real calendar-date type, map it — see below.
+> Because both map to `string`, a `DateOnly` property is not distinguishable from an ordinary `string` property by its TypeScript type alone. The string is correct — it is exactly what the server sent — but it is not descriptive.
+>
+> This is a floor, not the destination. A first-class `DateOnly` type is the better answer, and when one ships these entries move to it; the wire payload is the same either way, so that will not be a breaking change for anyone reading the value. If you want a real calendar-date type before then, declare one — see below.
 
 ## Declaring how your own types cross the wire
 

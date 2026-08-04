@@ -8,6 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 /// existing type crosses the wire rather than only declare one the generator has never seen. Without
 /// that ordering the seam could only ever add.
 /// </summary>
+[Collection(TypeMappingCollection.Name)]
 public class when_a_type_mapping_overrides_a_built_in_one : given.no_type_mappings
 {
     TargetType _before = null!;

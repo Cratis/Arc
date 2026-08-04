@@ -15,6 +15,7 @@ namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions;
 /// built-in mappings themselves. The built-in map is what the rest of this suite already covers, and
 /// pinning individual values here would cement whichever ones happen to be under discussion.
 /// </remarks>
+[Collection(TypeMappingCollection.Name)]
 public class when_no_type_mappings_are_configured : given.no_type_mappings
 {
     TargetType _beforeAnyMapping = null!;
