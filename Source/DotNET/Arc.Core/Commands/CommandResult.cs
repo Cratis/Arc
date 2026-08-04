@@ -107,7 +107,9 @@ public class CommandResult
     public static CommandResult InvalidBody(CorrelationId correlationId) => new()
     {
         CorrelationId = correlationId,
-        ValidationResults = [ValidationResult.Error("The request body could not be read or is not valid for this command.")]
+        ValidationResults = [ValidationResult.Error(
+            "The request body could not be read or is not valid for this command.",
+            reason: ValidationResultReason.MalformedRequest)]
     };
 
     /// <summary>

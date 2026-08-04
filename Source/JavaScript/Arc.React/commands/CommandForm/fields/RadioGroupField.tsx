@@ -3,6 +3,7 @@
 
 import React from 'react';
 import type { BaseCommandFormFieldProps, InjectedCommandFormFieldProps } from '../asCommandFormField';
+import { markAsCommandFormField } from '../commandFormMarkers';
 
 type RadioValueAccessor = (instance: never) => unknown;
 type CommandType<TAccessor extends RadioValueAccessor> = Parameters<TAccessor>[0];
@@ -76,4 +77,4 @@ export function RadioGroupField<TAccessor extends RadioValueAccessor>(props: Rad
     );
 }
 
-RadioGroupField.displayName = 'CommandFormField';
+markAsCommandFormField(RadioGroupField);

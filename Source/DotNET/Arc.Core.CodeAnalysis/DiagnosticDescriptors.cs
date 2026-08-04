@@ -178,5 +178,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A static method on a read model is discovered as a query by its return type alone, so a generic composition helper that happens to return the read model's query shape is registered and routed as an endpoint. A query is invoked with arguments resolved from the request, which leaves nothing to close the method's type parameters with, so every call fails. Make the method non-generic, or move it off the read model.");
 
+    /// <summary>
+    /// ARC0015: Query parameter converted to a concept in the method body.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0015_QueryParameterShouldBeConcept = new(
+        id: "ARC0015",
+        title: "Query parameter converted to a concept in the method body",
+        messageFormat: "Parameter '{0}' is declared as '{1}' and converted to '{2}' inside the method, so Arc never runs {2}'s validator on the incoming value. Declare the parameter as '{2}'.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Arc coerces a query argument to the declared parameter type before validation runs, and resolves a ConceptAs<T>'s validator by the value's runtime type — so a parameter declared as the concept is validated, and one declared as a raw string or Guid is not. Converting inside the body produces the concept the query wanted while skipping the rules that guard it, silently and with nothing in the build, the lint step or the spec suite to notice. Declare the parameter as the concept. Two things change when you do: an omitted argument deserializes to null rather than to the concept's NotSet, so a null-safe guard over the raw value has to be made null-aware rather than deleted; and the concept's validator becomes reachable, which is what is wanted for a keyed lookup and may be too strict for free-text search — suppress the rule at those sites.");
+
     const string Category = "Arc";
 }

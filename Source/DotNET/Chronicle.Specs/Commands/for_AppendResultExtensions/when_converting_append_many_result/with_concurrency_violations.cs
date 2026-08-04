@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -41,4 +42,5 @@ public class with_concurrency_violations : given.all_dependencies
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_two_validation_results() => _result.ValidationResults.Count().ShouldEqual(2);
     [Fact] void should_include_concurrency_violation_messages() => _result.ValidationResults.All(r => r.Message.Contains("Concurrency violation")).ShouldBeTrue();
+    [Fact] void should_say_every_rejection_is_a_concurrency_violation() => _result.ValidationResults.Select(_ => _.Reason).ShouldContainOnly(ValidationResultReason.ConcurrencyViolation, ValidationResultReason.ConcurrencyViolation);
 }

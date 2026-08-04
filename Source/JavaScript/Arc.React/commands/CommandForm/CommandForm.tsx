@@ -14,6 +14,7 @@ import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
 import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { useIdentity } from '../../identity';
+import { isCommandFormColumn, isCommandFormField, markAsCommandFormColumn } from './commandFormMarkers';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
@@ -98,13 +99,13 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
         const component = child.type as React.ComponentType<unknown>;
 
         // Check if child is a CommandFormColumn
-        if (component.displayName === 'CommandFormColumn') {
+        if (isCommandFormColumn(component)) {
             hasColumns = true;
             const childProps = child.props as { children?: React.ReactNode };
             const columnFields = React.Children.toArray(childProps.children).filter(child => {
                 if (React.isValidElement(child)) {
                     const comp = child.type as React.ComponentType<unknown>;
-                    if (comp.displayName === 'CommandFormField') {
+                    if (isCommandFormField(comp)) {
                         extractInitialValue(child as React.ReactElement);
                         return true;
                     }
@@ -114,7 +115,7 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
             columns.push({ fields: columnFields as React.ReactElement<CommandFormFieldProps>[] });
         }
         // Check if child is a CommandFormField (direct child)
-        else if (component.displayName === 'CommandFormField') {
+        else if (isCommandFormField(component)) {
             extractInitialValue(child as React.ReactElement);
             fields.push(child as React.ReactElement<CommandFormFieldProps>);
             orderedChildren.push({ type: 'field', content: child, index: fieldIndex++ });
@@ -253,6 +254,13 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                         const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
                         if (validationResult) {
                             setCommandResult(validationResult);
+
+                            // This is the only server round trip a typing burst makes, so its verdict has to
+                            // reach isValid too. The per-keystroke validation in CommandFormFields is
+                            // client-side only; without this, a rule the client cannot express - a uniqueness
+                            // check, anything reading a read model - would leave the form reading as valid
+                            // right up until submit failed.
+                            setSilentValidationResult(validationResult);
                         }
                     } catch (error) {
                         // Silently handle validation errors - they'll be in the result
@@ -421,7 +429,7 @@ const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
             {children.map((child, index) => {
                 if (React.isValidElement(child)) {
                     const component = child.type as React.ComponentType<unknown>;
-                    if (component.displayName === 'CommandFormField') {
+                    if (isCommandFormField(component)) {
                         return (
                             <CommandFormFieldWrapper
                                 key={`column-field-${index}`}
@@ -437,7 +445,7 @@ const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
     );
 };
 
-CommandFormColumnComponent.displayName = 'CommandFormColumn';
+markAsCommandFormColumn(CommandFormColumnComponent);
 
 // Export as function to enable proper type inference from command prop
 export function CommandForm<TCommand extends object = object, TResponse = object>(

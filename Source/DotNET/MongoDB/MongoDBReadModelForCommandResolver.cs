@@ -32,6 +32,12 @@ public class MongoDBReadModelForCommandResolver(IEnumerable<Type> readModelTypes
     public IEnumerable<Type> ReadModelTypes { get; } = [.. readModelTypes];
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Claiming as a fallback means a read model another provider owns is resolved by that provider instead — and
+    /// therefore materialized across that provider's serialization boundary rather than the driver's. MongoDB
+    /// serialization customization reaches a command-side read model only where this resolver is the one that claimed
+    /// it, which in an application whose read models are Chronicle- or Entity Framework Core-owned is nowhere.
+    /// </remarks>
     public ReadModelForCommandOwnership Ownership => ReadModelForCommandOwnership.Fallback;
 
     /// <summary>
