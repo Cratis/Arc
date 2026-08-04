@@ -30,6 +30,20 @@ public static class ReadModelForCommandServiceCollectionExtensions
     /// <see cref="ReadModelForCommandOwnership.Fallback"/> provider claims only the types nothing else resolves yet, and a
     /// declaring provider registered after it still takes those over — so a declaring provider wins either way round.
     /// </para>
+    /// <para>
+    /// The provider that wins also decides which serialization boundary the injected instance crosses, and the shipped
+    /// providers cross entirely different ones: Chronicle deserializes a JSON payload with <c>System.Text.Json</c>,
+    /// Entity Framework Core materializes through its own entity model, and MongoDB materializes through the driver's
+    /// <c>BsonClassMap</c> and convention machinery. Whatever customization belongs to one of those boundaries — a
+    /// convention pack, a class-map customization, an element rename, a custom serializer, a JSON converter — applies
+    /// on the command side only when its own provider is the one that claimed the read model type.
+    /// </para>
+    /// <para>
+    /// Chronicle and Entity Framework Core both declare, so in an application whose read models are owned by either,
+    /// MongoDB never claims a command-side read model and no MongoDB serialization customization reaches one — however
+    /// the MongoDB integration is configured, and in whatever order anything is registered. The same customization can
+    /// still be plainly at work on the query side, which is what makes this worth stating rather than discovering.
+    /// </para>
     /// </remarks>
     public static IServiceCollection AddReadModelsForCommand(this IServiceCollection services, ICanResolveReadModelForCommand resolver)
     {
