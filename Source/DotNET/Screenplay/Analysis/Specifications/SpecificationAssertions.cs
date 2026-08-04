@@ -46,6 +46,7 @@ public static class SpecificationAssertions
     [
         "ShouldHaveConstraintViolation",
         "ShouldHaveConstraintViolationFor",
+        "ShouldHaveValidationErrorBecauseOf",
         "ShouldHaveValidationErrorFor"
     ];
 

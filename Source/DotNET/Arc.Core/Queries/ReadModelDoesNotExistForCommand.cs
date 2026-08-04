@@ -26,5 +26,12 @@ public class ReadModelDoesNotExistForCommand(Type readModelType)
     public Type ReadModelType { get; } = readModelType;
 
     /// <inheritdoc/>
-    public ValidationResult ValidationResult { get; } = ValidationResult.Error("The command targets an entity that does not exist.");
+    /// <remarks>
+    /// Carries <see cref="ValidationResultReason.DependencyUnavailable"/> because no rule rejected anything - the
+    /// command was never evaluated against its rules at all. Without that, this is indistinguishable from a domain
+    /// rejection, and a spec asserting only that the command was rejected passes with every rule neutered.
+    /// </remarks>
+    public ValidationResult ValidationResult { get; } = ValidationResult.Error(
+        "The command targets an entity that does not exist.",
+        reason: ValidationResultReason.DependencyUnavailable);
 }

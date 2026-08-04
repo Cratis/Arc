@@ -33,7 +33,19 @@ export const ValidationResultReason = {
      * A validator threw, and the framework substituted this result for the one the validator would have produced.
      * Nothing the author wrote survives, so the message is not theirs to show.
      */
-    ValidatorFailed: 'validatorFailed'
+    ValidatorFailed: 'validatorFailed',
+
+    /**
+     * Something the command needed in order to be evaluated was not available, most often the read model a
+     * validator depends on. Raised before any rule ran, so nothing about the command's own rules was decided.
+     */
+    DependencyUnavailable: 'dependencyUnavailable',
+
+    /**
+     * The request itself could not be read - a malformed body, or a value that could not be bound. No rule was
+     * reached.
+     */
+    MalformedRequest: 'malformedRequest'
 } as const;
 
 /**

@@ -42,4 +42,21 @@ public record ValidationResultReason(string Value) : ConceptAs<string>(Value)
     /// developer diagnostic in place of an authored reason.
     /// </summary>
     public static readonly ValidationResultReason ValidatorFailed = new("validatorFailed");
+
+    /// <summary>
+    /// Something the command needed in order to be evaluated was not available - most often the read model a
+    /// validator depends on, which could not be resolved from the command's key.
+    /// </summary>
+    /// <remarks>
+    /// This is raised <em>before</em> any rule runs, so no rule rejected anything: the command was never evaluated
+    /// against them at all. That is a different fact from a rule rejection and wants a different response, and it is
+    /// the one most easily mistaken for a domain rejection because the message reads like one.
+    /// </remarks>
+    public static readonly ValidationResultReason DependencyUnavailable = new("dependencyUnavailable");
+
+    /// <summary>
+    /// The request itself could not be read - a malformed body, or a value that could not be bound to the member it
+    /// was sent for. No rule was reached.
+    /// </summary>
+    public static readonly ValidationResultReason MalformedRequest = new("malformedRequest");
 }
