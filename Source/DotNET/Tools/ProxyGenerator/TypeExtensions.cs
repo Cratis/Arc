@@ -62,8 +62,15 @@ public static class TypeExtensions
         { typeof(DateTimeOffset).FullName!, _dateTargetType },
         { typeof(Guid).FullName!, new(typeof(Guid), "Guid", "Guid", "@cratis/fundamentals", FromPackage: true) },
         { typeof(TimeSpan).FullName!, new(typeof(TimeSpan), "TimeSpan", "TimeSpan", "@cratis/fundamentals", FromPackage: true) },
-        { typeof(DateOnly).FullName!, _dateTargetType },
-        { typeof(TimeOnly).FullName!, _dateTargetType },
+
+        // A calendar date and a time of day are not instants, and a JavaScript Date can only be one. Mapping them
+        // onto Date invents an instant that was never sent - `new Date("2026-05-12")` is UTC midnight, which every
+        // browser-local getter west of UTC reads back as the 11th, and `new Date("14:30:45")` is not a date at all
+        // and yields Invalid Date. Both already cross the wire as their ISO-8601 string, so carrying that string
+        // through is the faithful mapping: nothing is invented, nothing is lost, and the timezone decision moves to
+        // the call site that actually needs one instead of being made silently by the deserializer.
+        { typeof(DateOnly).FullName!, _stringTargetType },
+        { typeof(TimeOnly).FullName!, _stringTargetType },
         { typeof(System.Text.Json.Nodes.JsonNode).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },
