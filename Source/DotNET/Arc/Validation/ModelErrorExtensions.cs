@@ -20,6 +20,12 @@ public static class ModelErrorExtensions
     public static ValidationResult ToValidationResult(this ModelError error, string member)
     {
         member = string.Join('.', member.Split('.').Select(_ => _.ToCamelCase()));
-        return new ValidationResult(ValidationResultSeverity.Error, error.ErrorMessage, [member], new object());
+
+        // A model error is the binder failing to read the value that was sent, not a rule rejecting the value that
+        // was read - no rule was reached at all.
+        return new ValidationResult(ValidationResultSeverity.Error, error.ErrorMessage, [member], new object())
+        {
+            Reason = ValidationResultReason.MalformedRequest
+        };
     }
 }

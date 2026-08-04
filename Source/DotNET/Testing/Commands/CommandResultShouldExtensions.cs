@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Testing.Commands;
 
@@ -85,6 +86,30 @@ public static class CommandResultShouldExtensions
             var errors = string.Join(", ", result.ValidationResults.Select(v => v.Message));
             throw new CommandResultAssertionException(
                 $"Expected command to have a validation error containing '{message}', but no matching error was found. Actual errors: {errors}");
+        }
+
+        CommandResultAssertionPolicies.Apply(result);
+    }
+
+    /// <summary>
+    /// Asserts that the <see cref="CommandResult"/> was rejected for the given reason.
+    /// </summary>
+    /// <param name="result">The <see cref="CommandResult"/> to assert.</param>
+    /// <param name="reason">The expected <see cref="ValidationResultReason"/>.</param>
+    /// <exception cref="CommandResultAssertionException">Thrown when no validation error carries that reason.</exception>
+    /// <remarks>
+    /// The named counterpart to <see cref="ShouldHaveValidationErrors"/>, which passes for any rejection whatever
+    /// produced it — a domain rule, a constraint, a race, a validator that threw, or a dependency the pipeline could
+    /// not resolve all satisfy it equally. Asserting the reason is what separates a spec that pins why a command was
+    /// rejected from one that only pins that it was.
+    /// </remarks>
+    public static void ShouldHaveValidationErrorBecauseOf(this CommandResult result, ValidationResultReason reason)
+    {
+        if (!result.ValidationResults.Any(_ => _.Reason == reason))
+        {
+            var reasons = string.Join(", ", result.ValidationResults.Select(_ => $"{_.Reason} ('{_.Message}')"));
+            throw new CommandResultAssertionException(
+                $"Expected command to have a validation error with reason '{reason}', but none did. Actual: {(reasons.Length > 0 ? reasons : "no validation errors at all")}");
         }
 
         CommandResultAssertionPolicies.Apply(result);
