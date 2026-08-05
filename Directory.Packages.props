@@ -17,7 +17,7 @@
     <PackageVersion Include="Cratis.Chronicle" Version="16.13.3" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.13.3" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.13.3" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.16.8" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.17.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.16.8" />
     <PackageVersion Include="Cratis.Screenplay" Version="1.5.2" />
     <!-- MAUI -->
