@@ -37,4 +37,5 @@ public class a_result_with_constraint_violations : given.all_dependencies
     [Fact] void should_have_one_validation_result() => _result.ValidationResults.Count().ShouldEqual(1);
     [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual("Constraint was violated");
     [Fact] void should_attribute_the_violation_to_the_camel_cased_member() => _result.ValidationResults.First().Members.ShouldContain("organizationNumber");
+    [Fact] void should_say_the_rejection_is_a_constraint_violation() => _result.ValidationResults.First().Reason.ShouldEqual(Validation.ValidationResultReason.ConstraintViolation);
 }

@@ -17,6 +17,7 @@ import {
     SelectField 
 } from './fields';
 import { Command, CommandValidator, CommandResult } from '@cratis/arc/commands';
+import { ValidationResultReason } from '@cratis/arc/validation';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { StoryContainer, StoryBadge } from '../../stories';
 import type { FieldDecoratorProps, ErrorDisplayProps, TooltipWrapperProps } from './CommandFormContext';
@@ -1862,7 +1863,8 @@ class ServerValidatedCommand extends Command {
                     severity: 0,
                     message: 'This username is reserved and cannot be used.',
                     members: ['username'],
-                    state: {}
+                    state: {},
+                    reason: ValidationResultReason.Rule
                 }
             ]);
             return validationResult;
@@ -1876,7 +1878,8 @@ class ServerValidatedCommand extends Command {
                     severity: 0,
                     message: 'This email address is already registered.',
                     members: ['email'],
-                    state: {}
+                    state: {},
+                    reason: ValidationResultReason.Rule
                 }
             ]);
         }

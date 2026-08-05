@@ -138,7 +138,7 @@ using Cratis.Chronicle.Events;
 public record RegisterCustomer(EventSourceId CustomerId, string Email);
 ```
 
-These metadata attributes tag the appended events without affecting concurrency control. To additionally participate in [concurrency scoping](./concurrency.md), set `concurrency: true` on the attribute.
+These metadata attributes categorize and identify the appended events. Because the append carries them, the concurrency strategy configured on the event sequence resolves its expected tail with the same narrowing — so a routing-only tag already bounds the concurrency check, without any attribute opting in. Setting `concurrency: true` chooses which dimensions bound it explicitly; see [concurrency scoping](./concurrency.md).
 
 ## Events for Specific Event Sources
 
@@ -214,4 +214,4 @@ public record OrderAccepted(EventSourceId OrderId);
 public record CustomerOrderAccepted(EventSourceId OrderId);
 ```
 
-> `EventForEventSourceId` does not inherit the concurrency scope from the command context. Each append uses the stream metadata from the command (stream id, stream type, event source type) but targets the event source id you supply explicitly.
+> `EventForEventSourceId` does not share one concurrency scope across targets — a scope carries a single stream's expected tail, so it cannot be reused for another stream. The command's concurrency declaration still applies: one scope is built per target event source, with that target's own expected tail. Each append also uses the stream metadata from the command (stream id, stream type, event source type) while targeting the event source id you supply explicitly.

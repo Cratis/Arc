@@ -16,6 +16,7 @@ using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.Reactors;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Reducers;
+using Cratis.Chronicle.Registrations;
 using Cratis.Chronicle.Seeding;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.EventSequences;
@@ -47,6 +48,14 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadMo
 
     /// <inheritdoc/>
     public IEventTypes EventTypes => Defaults.Instance.EventTypes;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// A scenario declares its artifacts up front rather than registering them against a kernel, so registration
+    /// never runs here. <see cref="RegistrationOutcome.NotRun"/> says exactly that, where throwing would make a
+    /// specification that merely reads the outcome fail for a reason that has nothing to do with what it asserts.
+    /// </remarks>
+    public RegistrationOutcome Registration => RegistrationOutcome.NotRun;
 
     /// <inheritdoc/>
     public IConstraints Constraints =>

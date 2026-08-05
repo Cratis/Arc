@@ -62,8 +62,20 @@ public static class TypeExtensions
         { typeof(DateTimeOffset).FullName!, _dateTargetType },
         { typeof(Guid).FullName!, new(typeof(Guid), "Guid", "Guid", "@cratis/fundamentals", FromPackage: true) },
         { typeof(TimeSpan).FullName!, new(typeof(TimeSpan), "TimeSpan", "TimeSpan", "@cratis/fundamentals", FromPackage: true) },
-        { typeof(DateOnly).FullName!, _dateTargetType },
-        { typeof(TimeOnly).FullName!, _dateTargetType },
+
+        // A calendar date and a time of day are not instants, and a JavaScript Date can only be one. Mapping them
+        // onto Date invents an instant that was never sent - `new Date("2026-05-12")` is UTC midnight, which every
+        // browser-local getter west of UTC reads back as the 11th, and `new Date("14:30:45")` is not a date at all
+        // and yields Invalid Date. Both already cross the wire as their ISO-8601 string, so carrying that string
+        // through is the faithful mapping: nothing is invented, nothing is lost, and the timezone decision moves to
+        // the call site that actually needs one instead of being made silently by the deserializer.
+        //
+        // They map to first-class types rather than to string for the same reason Guid and TimeSpan do two lines
+        // above: a string would be correct but say nothing about what it holds, leaving a calendar date
+        // indistinguishable from any other string. Both carry converters in @cratis/fundamentals, so the value
+        // arrives as the type rather than as text a call site has to parse.
+        { typeof(DateOnly).FullName!, new(typeof(DateOnly), "DateOnly", "DateOnly", "@cratis/fundamentals", FromPackage: true) },
+        { typeof(TimeOnly).FullName!, new(typeof(TimeOnly), "TimeOnly", "TimeOnly", "@cratis/fundamentals", FromPackage: true) },
         { typeof(System.Text.Json.Nodes.JsonNode).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },
@@ -83,6 +95,7 @@ public static class TypeExtensions
     ];
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
+    static Dictionary<string, TargetType> _typeMappings = [];
     static HashSet<string> _excludedTypeNames = [];
     static List<string> _excludedNamespacePatterns = [];
     static List<(string Namespace, string Folder)> _namespaceRoots = [];
@@ -102,6 +115,36 @@ public static class TypeExtensions
     public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
     {
         _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Sets explicit mappings from a .NET type to the TypeScript type it should cross the wire as.
+    /// </summary>
+    /// <param name="mappings">Triples of (fully qualified type name, TypeScript type, package the type is imported from).</param>
+    /// <remarks>
+    /// <para>
+    /// Consulted ahead of the built-in map, so a consumer can correct how an existing type is generated
+    /// as well as declare one the generator has never seen. Nothing is mapped unless asked for, so a
+    /// build that passes no mappings generates exactly what it generated before.
+    /// </para>
+    /// <para>
+    /// A mapping with no package generates a bare TypeScript type and emits no import; one with a
+    /// package emits the package as a bare specifier, the way <c>Guid</c> and <c>TimeSpan</c> are
+    /// imported from <c>@cratis/fundamentals</c>.
+    /// </para>
+    /// </remarks>
+    public static void SetTypeMappings(IReadOnlyCollection<(string TypeName, string TsType, string Package)> mappings)
+    {
+        _typeMappings = mappings.ToDictionary(
+            static mapping => mapping.TypeName,
+            static mapping => new TargetType(
+                typeof(object),
+                mapping.TsType,
+                mapping.TsType,
+                mapping.Package,
+                Final: true,
+                FromPackage: !string.IsNullOrEmpty(mapping.Package)),
+            StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -506,6 +549,13 @@ public static class TypeExtensions
         {
             var underlyingType = type.GetGenericArguments()[0];
             return underlyingType.GetTargetType();
+        }
+
+        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than
+        // only add an unknown one. The built-in map is still what answers when nothing was configured.
+        if (type.FullName is not null && _typeMappings.TryGetValue(type.FullName, out var mapped))
+        {
+            return mapped with { OriginalType = type };
         }
 
         if (type.FullName is not null && _primitiveTypeMap.TryGetValue(type.FullName, out var value))

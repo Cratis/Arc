@@ -71,7 +71,7 @@ public record CustomerRegistered(EventSourceId CustomerId, string Email);
 
 ## Combining Attributes
 
-You can combine multiple concurrency attributes to build a precise scope. Only the attributes with `concurrency: true` contribute to the scope; others still tag the events but do not affect concurrency.
+You can combine multiple concurrency attributes to build a precise scope. Only the attributes with `concurrency: true` contribute to the scope the command declares — but the others still tag the appended events, and the fallback strategy narrows by whatever tags an append carries, so they are not concurrency-inert either. See [what a routing-only tag already does](#what-a-routing-only-tag-already-does) below.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -98,7 +98,21 @@ public record CustomerDisplayNameChanged(EventSourceId CustomerId, string Displa
 public record CustomerEmailChanged(EventSourceId CustomerId, string Email);
 ```
 
-If no attribute has `concurrency: true`, the command contributes no scope of its own and the append is left to the concurrency strategy configured on the event sequence — by default the optimistic one, which resolves the expected tail for the event source being appended to.
+If no attribute has `concurrency: true`, the command contributes no scope of its own and the append is left to the concurrency strategy configured on the event sequence — by default the optimistic one, which resolves the expected tail for the event source being appended to, **narrowed by whatever routing metadata the command carries**.
+
+## What a routing-only tag already does
+
+A metadata attribute declared *without* `concurrency: true` still narrows the concurrency check. Its value reaches the append regardless of the flag, and the fallback strategy resolves the expected tail with the same narrowing — so the flag governs whether the command **declares** a scope, while the tag governs what the check is **narrowed by**. Both are true at once.
+
+Three consequences follow, and the third is the surprising one:
+
+- **A routing-only tag silently narrows every concurrency check on that command.** `[EventStreamType("Attachments")]` with no flag restricts the expected tail to `Attachments` events, so a concurrent append to the same event source under a different stream type is invisible to the check.
+- **Declaring `concurrency: true` on *every* metadata attribute a command carries is behaviorally identical to declaring it on none.** The declared scope passes the context values; the fallback passes the same values, with a sentinel standing in for anything absent — and a sentinel adds no filter. Same filter set, same expected tail.
+- **Declaring it on a *subset* produces a strictly broader scope than declaring it on none.** The declared scope passes `null` for every dimension that did not opt in, while the fallback would have passed its real value. Declaring it on `[EventStreamType]` alone, on a command that also carries `[EventSourceType("X")]`, **drops** the `EventSourceType == "X"` filter and widens the check.
+
+:::note
+The practical reading: reach for `concurrency: true` to state intent and to pin which dimensions bound the check, not because its absence leaves the check unbounded. If you want a check bounded by the whole event source, do not tag the command at all.
+:::
 
 ## Dynamic Event Stream Id
 

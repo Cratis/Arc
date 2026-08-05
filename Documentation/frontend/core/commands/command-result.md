@@ -171,6 +171,7 @@ if (!result.isValid) {
         console.log(`Message: ${error.message}`);
         console.log(`Members: ${error.members.join('.')}`);
         console.log(`State: ${JSON.stringify(error.state)}`);
+        console.log(`Reason: ${error.reason}`);
     });
 }
 ```
@@ -178,9 +179,39 @@ if (!result.isValid) {
 Each `ValidationResult` contains:
 
 - `severity`: The severity level of the validation error
-- `message`: Human-readable error message
+- `message`: A developer-facing message. Only meant to be shown to a user when `reason` is `rule`
 - `members`: Array of property names that failed validation
-- `state`: Additional context about the validation failure
+- `state`: Additional context, set by whoever authored the rule (FluentValidation's `WithState`)
+- `reason`: What composed the result — see below
+
+### Telling one kind of rejection from another
+
+A rejection your own rules produced and one the framework composed on your behalf arrive in the same array, in the same shape. `reason` is what separates them, so you never have to match the message text:
+
+| `reason` | What happened | What to do |
+|---|---|---|
+| `rule` | A rule you authored rejected the input. The default. | Show `message` — it is your copy |
+| `concurrencyViolation` | The event source moved on since it was read | Offer a retry; `state` carries the violation |
+| `constraintViolation` | A constraint on the event store rejected the append | Show your own copy for that constraint |
+| `validatorFailed` | A validator threw; nothing the author wrote survives | Show your own generic copy, and check the server log |
+
+```typescript
+import { ValidationResultReason } from '@cratis/arc';
+
+const result = await command.execute();
+
+if (result.validationResults.some(_ => _.reason === ValidationResultReason.ConcurrencyViolation)) {
+    // Someone else changed this while the form was open. Re-read and resubmit — the
+    // input was never the problem, so do not put an error on any field.
+    return retry();
+}
+```
+
+:::note
+`reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Treat an unrecognized value the way you treat `rule`, and never `switch` over it exhaustively.
+
+Only `rule` means the message is yours to show. Everything else is Cratis-authored developer text: it is in English, it is not localized, and it describes framework state rather than the user's situation. Map those to your own copy.
+:::
 
 ### Exception Details
 

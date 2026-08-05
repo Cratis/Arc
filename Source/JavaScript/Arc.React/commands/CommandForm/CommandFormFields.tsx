@@ -76,19 +76,26 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
                     context.onFieldChange(context.commandInstance as Record<string, unknown>, propertyName, oldValue, value, validationInfo);
                 }
 
-                // Always run silent validation after every value change.
-                // This is the sole driver of context.isValid — it runs regardless of
-                // validateOn so isValid is always accurate. It only hits the server when
-                // autoServerValidate is enabled; otherwise it stays client-side only.
-                const validationResult = await runCommandValidation(context.commandInstance, context.autoServerValidate);
-                if (validationResult) {
-                    context.setSilentValidationResult(validationResult);
-                }
+                // Always run silent validation after every value change. This is the immediate driver of
+                // context.isValid — it runs regardless of validateOn so isValid is always accurate.
+                //
+                // Client-side only, deliberately. This fires once per keystroke, and asking the server that
+                // often is a round trip per character with nothing to damp it — autoServerValidateThrottle
+                // governs the effect in CommandForm, not this call. That effect is the single server path:
+                // it debounces behind the throttle and feeds its result back into the same silent state, so
+                // the server still has the final say on isValid, just once the typing stops rather than
+                // once per character.
+                // Claimed before the run starts, so a burst of keystrokes resolving out of order applies
+                // the newest verdict rather than the last one to arrive - see beginSilentValidation.
+                const issue = context.beginSilentValidation();
+                const validationResult = await runCommandValidation(context.commandInstance, false);
+                const describesCurrentValues = validationResult !== undefined && context.setSilentValidationResult(validationResult, issue);
 
                 // Show validation error messages based on the validateOn setting.
-                // This is purely a display concern and does NOT affect isValid.
+                // This is purely a display concern and does NOT affect isValid, but a message describing
+                // values the field no longer holds is as wrong on screen as it is in isValid.
                 const shouldValidateOnChange = context.validateOn === 'change' || context.validateOn === 'both';
-                if (shouldValidateOnChange && validationResult) {
+                if (shouldValidateOnChange && describesCurrentValues && validationResult) {
                     if (context.validateAllFieldsOnChange) {
                         context.setCommandResult(validationResult);
                     } else {
@@ -117,13 +124,14 @@ const CommandFormFieldWrapper = ({ field }: { field: React.ReactElement<CommandF
 
                 let validationResult: ICommandResult<unknown> | undefined = undefined;
                 if (shouldValidateOnBlur) {
+                    // With autoServerValidate this run crosses the network, which makes it the one most
+                    // likely to be overtaken by a client-side run issued after it.
+                    const issue = context.beginSilentValidation();
                     validationResult = await runCommandValidation(context.commandInstance, context.autoServerValidate);
 
-                    if (validationResult) {
-                        // Keep silent result current (covers edge cases where blur fires
-                        // without a preceding onChange, e.g. clipboard paste in some browsers).
-                        context.setSilentValidationResult(validationResult);
-
+                    // Keep silent result current (covers edge cases where blur fires
+                    // without a preceding onChange, e.g. clipboard paste in some browsers).
+                    if (validationResult && context.setSilentValidationResult(validationResult, issue)) {
                         if (context.validateAllFieldsOnChange) {
                             context.setCommandResult(validationResult);
                         } else {

@@ -13,7 +13,7 @@ The validation extraction provides:
 
 - **Automatic Rule Extraction**: Discovers and extracts both FluentValidation rules and DataAnnotations attributes using reflection
 - **Type-Safe Generation**: Generates type-safe TypeScript validators for commands and queries
-- **Custom Message Preservation**: Extracts and carries over custom error messages to the frontend
+- **Custom Message Preservation**: Extracts and carries over custom error messages declared as literals; messages declared as a factory are left to the server to resolve
 - **Multiple Validation Styles**: Support for both FluentValidation class-based and DataAnnotations attribute-based validation
 - **Version Independence**: Uses reflection-based type checking without hard dependencies on FluentValidation
 
@@ -23,7 +23,7 @@ The ProxyGenerator uses reflection to:
 
 1. **Discover Validators**: Find all `AbstractValidator<T>` implementations and properties with DataAnnotations attributes for command and query types
 2. **Extract Rules**: Analyze validation rules from both FluentValidation and DataAnnotations without requiring package references
-3. **Generate TypeScript**: Create validators with the same rules and messages as the backend
+3. **Generate TypeScript**: Create validators with the same rules as the backend, and with the messages it can know at build time
 4. **Integrate Automatically**: Generated validators run before server calls
 
 ## FluentValidation Support
@@ -228,6 +228,28 @@ this.ruleFor(c => c.email)
     .notEmpty()
     .withMessage('Email address is required');
 ```
+
+### Deferred messages are not projected
+
+FluentValidation also accepts a message as a factory — `.WithMessage(_ => Messages.EmailRequired)` — which is the form a message read from a resource, a tenant setting or any other ambient state takes. **The generator does not project those.** The rule still crosses to the client; only the message stays behind:
+
+```csharp
+// C# with a deferred message
+RuleFor(x => x.Email)
+    .NotEmpty()
+    .WithMessage(_ => Messages.EmailRequired);
+
+// Generated TypeScript — the rule mirrors, the message does not
+this.ruleFor(c => c.email)
+    .notEmpty();
+// The client rule falls back to its own default: "'email' must not be empty."
+```
+
+A factory is deferred because its value is not known yet. The generator runs on a build machine, in a different process from the browser that will show the message, at a different time and under different ambient state — so any value it obtained by calling the factory would be an answer for the wrong conditions, frozen into an artifact nobody reviews. A delegate is opaque, so the generator cannot tell a factory that returns a constant from one that reads the culture, and it does not guess.
+
+:::note
+This matters more than it looks, because a generated client rule that fails **suppresses the request**. Had the message been projected, the build machine's answer would be the one the user sees and the server that would have resolved it correctly would never be asked. Where a rule's exact wording must reach the user, either declare it as a literal — which genuinely is context-free — or express the rule in a shape the generator does not mirror (`Must`, `MustAsync`, or a check in `Handle()`), so that it is the server that rejects and messages it.
+:::
 
 ## Query Validation
 

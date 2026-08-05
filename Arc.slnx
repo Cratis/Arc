@@ -13,6 +13,7 @@
         <Project Path="Source\DotNET\Arc\Arc.csproj" />
         <Project Path="Source\DotNET\Arc.Specs\Arc.Specs.csproj" />
         <Project Path="Source\DotNET\Testing\Testing.csproj" />
+        <Project Path="Source\DotNET\Testing.Specs\Testing.Specs.csproj" />
         <Project Path="Source\DotNET\Chronicle.Testing\Chronicle.Testing.csproj" />
         <Project Path="Source\DotNET\Cratis.Testing\Cratis.Testing.csproj" />
         <Project Path="Source\DotNET\Cratis\Cratis.csproj" />
