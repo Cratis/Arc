@@ -32,7 +32,7 @@
         "postinstall": "node ./link-eslint-typescript.js"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "7.17.0",
+        "@cratis/fundamentals": "7.17.1",
         "@eslint/eslintrc": "3.3.5",
         "@eslint/js": "10.0.1",
         "@swc/core": "^1.15.43",
