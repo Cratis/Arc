@@ -70,15 +70,12 @@ public static class TypeExtensions
         // through is the faithful mapping: nothing is invented, nothing is lost, and the timezone decision moves to
         // the call site that actually needs one instead of being made silently by the deserializer.
         //
-        // This is a floor rather than the destination. A string is correct but not descriptive: it does not say the
-        // value is a calendar date, so nothing stops a reader treating it as any other string. The better answer is
-        // a first-class DateOnly/TimeOnly in @cratis/fundamentals carrying converters of their own, the way Guid and
-        // TimeSpan are handled two lines above - but the type has to exist and be released before this map can name
-        // it, or every generated proxy references an export that is not there. When it does, these two entries
-        // become FromPackage entries and nothing else here changes. A consumer wanting it sooner maps it themselves
-        // with SetTypeMappings.
-        { typeof(DateOnly).FullName!, _stringTargetType },
-        { typeof(TimeOnly).FullName!, _stringTargetType },
+        // They map to first-class types rather than to string for the same reason Guid and TimeSpan do two lines
+        // above: a string would be correct but say nothing about what it holds, leaving a calendar date
+        // indistinguishable from any other string. Both carry converters in @cratis/fundamentals, so the value
+        // arrives as the type rather than as text a call site has to parse.
+        { typeof(DateOnly).FullName!, new(typeof(DateOnly), "DateOnly", "DateOnly", "@cratis/fundamentals", FromPackage: true) },
+        { typeof(TimeOnly).FullName!, new(typeof(TimeOnly), "TimeOnly", "TimeOnly", "@cratis/fundamentals", FromPackage: true) },
         { typeof(System.Text.Json.Nodes.JsonNode).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },

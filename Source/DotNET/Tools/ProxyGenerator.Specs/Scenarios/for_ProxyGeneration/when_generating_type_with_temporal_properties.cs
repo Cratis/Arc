@@ -10,8 +10,9 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration;
 /// A <see cref="DateOnly"/> is a calendar date and a <see cref="TimeOnly"/> is a time of day; neither denotes an
 /// instant. Emitting them as a JavaScript <c>Date</c> invents one - the wire value <c>"2026-05-12"</c> becomes
 /// <c>2026-05-12T00:00:00.000Z</c>, and every browser-local getter west of UTC then reads it back as the previous
-/// day. Both cross the wire as their ISO-8601 string already, so the generated proxy must carry the string through
-/// rather than coerce it, and must stay distinguishable from the two instant types that legitimately are dates.
+/// day. Both cross the wire as their ISO-8601 string, and each has a type of its own in <c>@cratis/fundamentals</c>
+/// that holds exactly that - so the generated proxy names the type rather than coercing the value into an instant,
+/// and stays distinguishable both from a plain string and from the two instant types that legitimately are dates.
 /// </summary>
 public class when_generating_type_with_temporal_properties : Specification, IDisposable
 {
@@ -46,8 +47,10 @@ public class when_generating_type_with_temporal_properties : Specification, IDis
     [Fact] void should_emit_date_time_as_an_instant() => _generatedCode.ShouldContain("@field(Date)\n    dateTimeValue!: Date;");
     [Fact] void should_emit_date_time_offset_as_an_instant() => _generatedCode.ShouldContain("@field(Date)\n    dateTimeOffsetValue!: Date;");
 
-    [Fact] void should_not_coerce_a_calendar_date_into_an_instant() => _generatedCode.ShouldContain("@field(String)\n    dateOnlyValue!: string;");
-    [Fact] void should_not_coerce_a_time_of_day_into_an_instant() => _generatedCode.ShouldContain("@field(String)\n    timeOnlyValue!: string;");
+    [Fact] void should_not_coerce_a_calendar_date_into_an_instant() => _generatedCode.ShouldContain("@field(DateOnly)\n    dateOnlyValue!: DateOnly;");
+    [Fact] void should_not_coerce_a_time_of_day_into_an_instant() => _generatedCode.ShouldContain("@field(TimeOnly)\n    timeOnlyValue!: TimeOnly;");
+    [Fact] void should_import_the_calendar_date_type() => _generatedCode.ShouldContain("import { DateOnly } from '@cratis/fundamentals'");
+    [Fact] void should_import_the_time_of_day_type() => _generatedCode.ShouldContain("import { TimeOnly } from '@cratis/fundamentals'");
 
     [Fact] void should_be_valid_typescript() => _typeScriptIsValid.ShouldBeTrue();
 
