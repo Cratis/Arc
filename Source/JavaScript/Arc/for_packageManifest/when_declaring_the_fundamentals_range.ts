@@ -32,10 +32,12 @@ describe('when declaring the fundamentals range', () => {
 
     /**
      * Not a peer. A peer dependency is for a singleton the consuming application owns and has a view on - React is
-     * the example this package itself gets right. Fundamentals is an implementation detail of Arc: the application
-     * never imports it, so requiring it to name a version makes it declare something it has no opinion about - and
-     * a peer does not reach it transitively through `@cratis/arc.react` anyway, so the declaration lands on the
-     * consumer as a warning to silence rather than a choice to make.
+     * the example `@cratis/arc.react` gets right. Fundamentals is the other kind. The application does import it -
+     * the proxy generator emits `import { Guid } from '@cratis/fundamentals'` straight into application code - but
+     * it never chose it and has no view on which version is right. Arc does, because Arc's own generated output is
+     * what has to compile against it, so requiring the consumer to name a version makes it declare something it has
+     * no opinion about - and a peer does not reach it transitively through `@cratis/arc.react` anyway, so the
+     * declaration lands on the consumer as a warning to silence rather than a choice to make.
      */
     it('should not require the consumer to declare it', () =>
         (manifest.peerDependencies?.['@cratis/fundamentals'] === undefined).should.be.true);
