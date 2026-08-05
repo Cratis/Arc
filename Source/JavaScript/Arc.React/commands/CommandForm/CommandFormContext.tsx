@@ -45,7 +45,21 @@ export interface CommandFormContextValue<TCommand> {
     getFieldError: (propertyName: string) => string | undefined;
     isValid: boolean;
     isAuthorized: boolean;
-    setSilentValidationResult: (result: ICommandResult<unknown>) => void;
+    /**
+     * Claims a token for a silent validation that is about to be issued. Several validations are
+     * legitimately in flight at once, so hand the token back to {@link setSilentValidationResult} and a
+     * result that a later one has already overtaken is discarded instead of overwriting it.
+     */
+    beginSilentValidation: () => number;
+
+    /**
+     * Applies a silent validation result, which is what drives {@link isValid}.
+     * @param result The result to apply.
+     * @param issue The token claimed from {@link beginSilentValidation} before the validation was issued.
+     * Omitting it applies the result unconditionally and marks every validation still in flight as stale.
+     * @returns True when the result was applied, false when a later one had already been.
+     */
+    setSilentValidationResult: (result: ICommandResult<unknown>, issue?: number) => boolean;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;

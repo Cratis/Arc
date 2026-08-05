@@ -174,16 +174,44 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const initializedRef = React.useRef(false);
     const lastServerValidateVersion = React.useRef<number>(-1);
     const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
+    const silentValidationIssue = React.useRef(0);
+    const lastAppliedSilentValidationIssue = React.useRef(-1);
+
+    // Validation is asynchronous and several runs are legitimately in flight at once: the init effect
+    // below, the per-keystroke run in CommandFormFields, and the throttled server round trip. Writing
+    // whichever one resolves last makes the winner arrival order rather than issue order, so a slower
+    // run describing values the form no longer holds lands after a faster run describing the current
+    // ones and overwrites it. isValid is derived from this single slot and nothing recomputes it, so a
+    // stale rejection greys out submit permanently - with every field valid and no message shown -
+    // until some unrelated interaction happens to schedule another validation.
+    //
+    // Each run claims a token before it starts and hands it back with its result; a result is applied
+    // only when no later one has been applied already. Ordering is restored without cancelling
+    // anything, so a run that is still the newest always lands even when it is the slow one.
+    const beginSilentValidation = useCallback(() => silentValidationIssue.current++, []);
+
+    const applySilentValidationResult = useCallback((validationResult: ICommandResult<unknown>, issue?: number) => {
+        if (issue === undefined) {
+            // An unguarded write - a custom field going through the context - is taken as current, so
+            // anything issued before it is stale from here on.
+            lastAppliedSilentValidationIssue.current = silentValidationIssue.current;
+        } else {
+            if (issue < lastAppliedSilentValidationIssue.current) return false;
+            lastAppliedSilentValidationIssue.current = issue;
+        }
+        setSilentValidationResult(validationResult);
+        return true;
+    }, []);
 
     const validateSilently = useCallback(async (showErrors: boolean) => {
+        const issue = beginSilentValidation();
         const validationResult = await runCommandValidation(commandInstance, props.autoServerValidate ?? false);
-        if (validationResult) {
-            setSilentValidationResult(validationResult);
-            if (showErrors) {
-                setCommandResult(validationResult);
-            }
+        if (!validationResult) return;
+        if (!applySilentValidationResult(validationResult, issue)) return;
+        if (showErrors) {
+            setCommandResult(validationResult);
         }
-    }, [commandInstance, props.autoServerValidate]);
+    }, [commandInstance, props.autoServerValidate, beginSilentValidation, applySilentValidationResult]);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
     // When using currentValues, always update when they change (reactive mode for editing)
@@ -249,18 +277,19 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         if (allFieldsValid && !alreadyValidatedThisVersion && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
             const performValidation = () => {
                 lastServerValidateVersion.current = commandVersion;
+                const issue = beginSilentValidation();
                 void (async () => {
                     try {
                         const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
                         if (validationResult) {
-                            setCommandResult(validationResult);
-
                             // This is the only server round trip a typing burst makes, so its verdict has to
                             // reach isValid too. The per-keystroke validation in CommandFormFields is
                             // client-side only; without this, a rule the client cannot express - a uniqueness
                             // check, anything reading a read model - would leave the form reading as valid
-                            // right up until submit failed.
-                            setSilentValidationResult(validationResult);
+                            // right up until submit failed. It is also the slowest run there is, so it is the
+                            // one most likely to be overtaken - hence the token.
+                            if (!applySilentValidationResult(validationResult, issue)) return;
+                            setCommandResult(validationResult);
                         }
                     } catch (error) {
                         // Silently handle validation errors - they'll be in the result
@@ -284,7 +313,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 serverValidateThrottleTimer.current = null;
             }
         };
-    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, silentValidationResult]);
+    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, silentValidationResult, beginSilentValidation, applySilentValidationResult]);
 
     const setCustomFieldError = useCallback((fieldName: string, error: string | undefined) => {
         setCustomFieldErrors(prev => {
@@ -372,7 +401,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         getFieldError,
         isValid,
         isAuthorized,
-        setSilentValidationResult,
+        beginSilentValidation,
+        setSilentValidationResult: applySilentValidationResult,
         onFieldValidate: props.onFieldValidate,
         onFieldChange: props.onFieldChange,
         onBeforeExecute: props.onBeforeExecute,
