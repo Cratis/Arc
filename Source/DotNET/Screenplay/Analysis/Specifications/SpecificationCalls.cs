@@ -57,7 +57,7 @@ public static class SpecificationCalls
     /// <returns>True when the call states events.</returns>
     public static bool IsGivenEvents(IMethodSymbol method) =>
         (IsOn(method, WellKnownTypeNames.EventSequence) && (Named(method, AppendMethod) || Named(method, AppendManyMethod))) ||
-        (IsOn(method, WellKnownTypeNames.CommandScenarioSourceGivenBuilder) && Named(method, EventsMethod));
+        (OnAGivenBuilder(method) && Named(method, EventsMethod));
 
     /// <summary>
     /// Determines whether a call pins the read model a specification starts from.
@@ -65,7 +65,7 @@ public static class SpecificationCalls
     /// <param name="method">The method being called.</param>
     /// <returns>True when the call pins a read model.</returns>
     public static bool IsGivenReadModel(IMethodSymbol method) =>
-        IsOn(method, WellKnownTypeNames.CommandScenarioSourceGivenBuilder) && Named(method, ReadModelMethod);
+        OnAGivenBuilder(method) && Named(method, ReadModelMethod);
 
     /// <summary>
     /// Determines whether a call issues the command a specification is about.
@@ -100,6 +100,20 @@ public static class SpecificationCalls
 
         return Named(method, AppendMethod) ? EventParameter : EventsParameter;
     }
+
+    /// <summary>
+    /// Determines whether a method belongs to a builder stating what one event source had already seen.
+    /// </summary>
+    /// <param name="method">The method to check.</param>
+    /// <returns>True when the method belongs to one of them.</returns>
+    /// <remarks>
+    /// Both testing packages state the world the same way, through a builder reached from the scenario for one event
+    /// source, and the two builders differ only in which scenario handed them over. What a step says is the same
+    /// either way, so both are recognized here rather than each scenario reading its own.
+    /// </remarks>
+    static bool OnAGivenBuilder(IMethodSymbol method) =>
+        IsOn(method, WellKnownTypeNames.CommandScenarioSourceGivenBuilder) ||
+        IsOn(method, WellKnownTypeNames.ReadModelSourceGivenBuilder);
 
     /// <summary>
     /// Determines whether a method carries a name.

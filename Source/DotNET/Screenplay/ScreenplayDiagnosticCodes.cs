@@ -403,4 +403,28 @@ public static class ScreenplayDiagnosticCodes
     /// about the request, it is a declaration the document does not make at all.
     /// </remarks>
     public const string ReadModelFeatureWithoutCounterpart = "SP0042";
+
+    /// <summary>
+    /// A slice is specified by a scenario of a kind the language has nowhere to put, so the whole of it is left out.
+    /// </summary>
+    /// <remarks>
+    /// An application specifies its slices through four scenarios, and a <c>specification</c> holds two of them. One
+    /// issuing a command is a <c>when</c>; one driving a read model is <c>given</c> the events and then the
+    /// <c>readmodel</c> they built. The other two have nowhere to go, for reasons of their own rather than one
+    /// shared reason.
+    /// <para>
+    /// A scenario appending an event states the append as its action, and a <c>when</c> names a command and nothing
+    /// else - so writing the appended event as something that followed would state the action as an outcome, and
+    /// writing only the rejection would say a scenario was rejected without saying what was. A scenario driving a
+    /// reactor says what a collaborator was asked to do, which is a statement about the inside of a slice in the same
+    /// way a unit level specification is, and is left out for the same reason.
+    /// </para>
+    /// <para>
+    /// This is reported rather than passed over precisely because those two are not unit level specifications. They
+    /// hold a scenario, which is what says a specification is about the behavior of the slice - so a document silent
+    /// about them reads exactly like a slice specified by nothing, and on a real application that is a large fraction
+    /// of everything the slice is specified by.
+    /// </para>
+    /// </remarks>
+    public const string ScenarioWithoutCounterpart = "SP0043";
 }
