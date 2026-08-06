@@ -16,7 +16,6 @@ import baseConfig from './vite.config';
 export default mergeConfig(baseConfig, defineConfig({
     build: {
         outDir: 'dist-minified',
-        assetsDir: '',
         minify: 'esbuild',
     },
     esbuild: {
