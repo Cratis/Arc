@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Queries.ModelBound;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
@@ -74,6 +75,17 @@ public static class MongoDBDefaults
 
             RegisterConventionAsPack(conventionPackFilters, NamingPolicyNameConvention.ConventionName, new NamingPolicyNameConvention());
             RegisterConventionAsPack(conventionPackFilters, ConventionPacks.IgnoreExtraElements, new IgnoreExtraElementsConvention(true));
+
+            // Scoped to read models rather than every BSON type in the process: a collection that materializes as empty
+            // instead of null is what a read model's own declaration already promises its callers, while for an
+            // arbitrary document type it would be a change to what null means. Registered here, before RegisterClassMaps
+            // below and before anything can deserialize, because a class map freezes its conventions the first time it
+            // is built.
+            RegisterConventionAsPack(
+                conventionPackFilters,
+                ConventionPacks.ReadModelCollectionsNeverNull,
+                new ReadModelCollectionsNeverNullConvention(),
+                type => type.IsReadModel());
 
             RegisterDerivedTypeDiscriminatorConventions();
             RegisterClassMaps(builder);
@@ -153,10 +165,13 @@ public static class MongoDBDefaults
         classMap.ApplyConventions();
     }
 
-    static void RegisterConventionAsPack(IEnumerable<ICanFilterMongoDBConventionPacksForType> conventionPackFilters, string name, IConvention convention)
+    static void RegisterConventionAsPack(IEnumerable<ICanFilterMongoDBConventionPacksForType> conventionPackFilters, string name, IConvention convention, Func<Type, bool>? appliesTo = default)
     {
         var pack = new ConventionPack { convention };
-        ConventionRegistry.Register(name, pack, type => ShouldInclude(conventionPackFilters, name, pack, type));
+        ConventionRegistry.Register(
+            name,
+            pack,
+            type => (appliesTo?.Invoke(type) ?? true) && ShouldInclude(conventionPackFilters, name, pack, type));
     }
 
     static bool ShouldInclude(IEnumerable<ICanFilterMongoDBConventionPacksForType> conventionPackFilters, string conventionPackName, IConventionPack conventionPack, Type type)
