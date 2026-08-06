@@ -30,7 +30,8 @@ public static class LibraryApplication
             Name,
             LibraryConcepts.All(),
             LibraryConcepts.Policies(),
-            Slices());
+            Slices(),
+            []);
 
     /// <summary>
     /// Declares every slice of the application.

@@ -286,16 +286,17 @@ public static class ScreenplayDiagnosticCodes
     public const string DocumentDidNotCompile = "SP0034";
 
     /// <summary>
-    /// A value an artifact carries is a record, whose shape no declaration in the language can hold.
+    /// A value an artifact carries is a record no <c>type</c> declaration could be written for.
     /// </summary>
     /// <remarks>
-    /// A concept is one value with a name, and every concept the application refers to is declared. A record carrying
-    /// several values is a different thing: an event property written as <c>days ApprovedDayLine[]</c> names a shape
-    /// the document has no construct to introduce, so what that line holds is stated nowhere - including anything
-    /// within it the application marks as personal data. The concepts inside it are recovered and declared, because a
-    /// concept can be declared wherever it was reached from; the shape itself waits on the language
-    /// (Cratis/Screenplay#29). This is reported rather than left unsaid because a reader counting what the document
-    /// declares against what the application holds otherwise has no way of knowing where the difference went.
+    /// A record carrying several values is what a <c>type</c> declares, so an event property written as
+    /// <c>days ApprovedDayLine[]</c> names a shape the document introduces and the line resolves. What is left is the
+    /// handful of records no declaration can be written for: one carrying no value at all, and one whose simple name a
+    /// concept or another record already holds - a document is one namespace of declarations, and the second of two
+    /// names cannot be written twice. The concepts inside such a record are still recovered and declared, because a
+    /// concept can be declared wherever it was reached from; the shape is not, so the property naming it refers to
+    /// something the document never introduces. That is what this reports, and why it says which of the reasons it
+    /// was: only one of them is closed by renaming something.
     /// </remarks>
     public const string UndeclarableShape = "SP0035";
 
