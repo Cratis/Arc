@@ -41,6 +41,93 @@ RegisterConventionAsPack(
 );
 ```
 
+### Read Model Collections Never Null
+
+Materializes a `[ReadModel]`'s declared **non-nullable** collection members as empty collections instead of `null`:
+
+```csharp
+// Registered automatically with name: "Read model collections never null convention",
+// scoped to types marked with [ReadModel]
+RegisterConventionAsPack(
+    conventionPackFilters,
+    ConventionPacks.ReadModelCollectionsNeverNull,
+    new ReadModelCollectionsNeverNullConvention(),
+    type => type.IsReadModel()
+);
+```
+
+#### Why it exists — the driver is a separate boundary from Chronicle
+
+A read model that declares a child collection as a non-nullable `IEnumerable<T>` promises the type system that the
+value is there. The store is free to disagree. Chronicle's read model sink writes **no field at all** for a child
+collection that has never had an element, and can write an **explicit `null`** for one whose last element went away.
+Nullable reference analysis has already concluded the member can never be `null`, so nothing warns, and an unguarded
+`.Any()` / `.All()` / `.Select()` throws at runtime.
+
+Chronicle closes this for **its own reader** with a `JsonTypeInfo` modifier on its client's `JsonSerializerOptions`.
+That fix lives at Chronicle's serialization boundary and **does not reach the MongoDB driver**. Reading a read model
+through `IMongoCollection<T>` — the sanctioned way to query by anything other than the key, and what Arc's own
+server-side paging runs on — goes through the driver instead. This convention is the same guarantee, restated where
+the driver can honor it.
+
+#### What it covers
+
+Both shapes a store can leave behind, through two different mechanisms:
+
+| Stored shape | Mechanism | Result for a non-nullable member |
+|---|---|---|
+| The field is **absent** from the document | a default value on the member map | an empty collection |
+| The field is present and holds **`null`** | a serializer wrapping the member's own | an empty collection |
+
+Both halves are needed: the driver never invokes a member's serializer for an element that is not in the document, and
+a default value is never consulted for one that is.
+
+#### What it deliberately leaves alone
+
+- **Nullable collections.** A member declared `IEnumerable<T>?` keeps the distinction between "no collection" and "an
+  empty collection", because that model asked for it. Absent stays `null`; a stored `null` stays `null`.
+- **Dictionaries.** `IDictionary<TKey, TValue>`, `IReadOnlyDictionary<TKey, TValue>`, and `Dictionary<TKey, TValue>`
+  are untouched.
+- **`string`.** It is an `IEnumerable<char>`, and the classic trap here would be handing it an empty list.
+- **Types without `[ReadModel]`.** The scoping is what keeps this from redefining what `null` means for every BSON
+  type in the process.
+- **Writing.** Serialization is unchanged — a collection that is `null` in memory is still written as `null`.
+
+#### Supported collection shapes
+
+`IEnumerable<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `List<T>`,
+`ISet<T>`, `IReadOnlySet<T>`, `HashSet<T>`, and single-dimension arrays `T[]`. Interface-typed members are filled with
+a `List<T>` (or a `HashSet<T>` for the set interfaces). Any other collection type is left as the driver would leave
+it — the empty value is assigned straight into the member, so a shape that cannot be constructed safely is not guessed
+at.
+
+#### Opting out
+
+Per type, through the standard mechanism:
+
+```csharp
+[IgnoreConventions(ConventionPacks.ReadModelCollectionsNeverNull)]
+[ReadModel]
+public record RawProjection(string Id, IEnumerable<Child> Children);
+```
+
+Per member, by stating the default the member wants — the convention skips any member carrying a
+`[BsonDefaultValue]`, for an absent element and a stored `null` alike:
+
+```csharp
+[ReadModel]
+public record Parent(string Id, [property: BsonDefaultValue(null)] IEnumerable<Child> Children);
+```
+
+#### Things to know
+
+- **The default replaces whatever a property initializer set.** A member written as
+  `public IEnumerable<Child> Children { get; set; } = [];` still comes back empty, but as a `List<Child>` rather than
+  the `Child[]` the collection expression produced. A member whose initializer sets a **meaningful non-empty** default
+  would be silently emptied — use one of the opt-outs above for that member.
+- **Registration order matters.** A class map freezes its conventions the first time it is built, so this is
+  registered during `AddCratisMongoDB`, before anything can deserialize.
+
 ## Creating Convention Pack Providers
 
 To provide your own convention packs, implement `ICanProvideMongoDBConventionPacks`:
@@ -256,6 +343,7 @@ The framework defines constants for well-known convention pack names:
 public static class ConventionPacks
 {
     public const string IgnoreExtraElements = "Ignore extra elements convention";
+    public const string ReadModelCollectionsNeverNull = "Read model collections never null convention";
 }
 
 public class NamingPolicyNameConvention
