@@ -26,6 +26,7 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     const string ReactorInterfaceName = "IReactor";
     const string ReactorsNamespace = "Cratis.Chronicle.Reactors";
     const string EventLogInterfaceName = "IEventLog";
+    const string EventSequenceInterfaceName = "IEventSequence";
     const string EventSequencesNamespace = "Cratis.Chronicle.EventSequences";
     const string EventStoreInterfaceName = "IEventStore";
     const string ChronicleNamespace = "Cratis.Chronicle";
@@ -35,6 +36,7 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     const string DefaultEventLogFieldName = "Log";
     const string DefaultEventLogId = "event-log";
     const string AppendMethodPrefix = "Append";
+    const string TransactionalPropertyName = "Transactional";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticDescriptors.ARCCHR0003_ReactorMustNotReachEventLog];
@@ -103,7 +105,7 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
 
     static void ReportWhenAppendingInsideReactor(SyntaxNodeAnalysisContext context, ExpressionSyntax eventLogAccess)
     {
-        if (!IsAppendedTo(eventLogAccess) || !IsTheReactorsOwnEventStore(context.SemanticModel, eventLogAccess))
+        if (!IsAppendedTo(context.SemanticModel, eventLogAccess) || !IsTheReactorsOwnEventStore(context.SemanticModel, eventLogAccess))
         {
             return;
         }
@@ -121,11 +123,44 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
             eventLogAccess.ToString()));
     }
 
-    static bool IsAppendedTo(ExpressionSyntax eventLogAccess) =>
-        eventLogAccess.Parent is MemberAccessExpressionSyntax memberAccess &&
-        memberAccess.Expression == eventLogAccess &&
-        memberAccess.Name.Identifier.ValueText.StartsWith(AppendMethodPrefix, StringComparison.Ordinal) &&
-        memberAccess.Parent is InvocationExpressionSyntax;
+    /// <summary>
+    /// Determines whether the sequence is appended to, following the chain past members that hand back the
+    /// same sequence.
+    /// </summary>
+    /// <param name="semanticModel">The <see cref="SemanticModel"/> to resolve symbols with.</param>
+    /// <param name="eventLogAccess">The event log or event sequence access to inspect.</param>
+    /// <returns>True if the sequence is appended to, false otherwise.</returns>
+    /// <remarks>
+    /// <c>Transactional</c> hands back the very same sequence enlisted in a unit of work, so
+    /// <c>EventLog.Transactional.Append(...)</c> is the identical write with one more member in the chain — the
+    /// shape Chronicle steers authors toward, and the one this rule has to see.
+    /// </remarks>
+    static bool IsAppendedTo(SemanticModel semanticModel, ExpressionSyntax eventLogAccess)
+    {
+        var current = eventLogAccess;
+
+        while (current.Parent is MemberAccessExpressionSyntax member && member.Expression == current)
+        {
+            if (member.Name.Identifier.ValueText.StartsWith(AppendMethodPrefix, StringComparison.Ordinal))
+            {
+                return member.Parent is InvocationExpressionSyntax;
+            }
+
+            if (!IsTransactionalEventSequence(semanticModel, member))
+            {
+                return false;
+            }
+
+            current = member;
+        }
+
+        return false;
+    }
+
+    static bool IsTransactionalEventSequence(SemanticModel semanticModel, MemberAccessExpressionSyntax member) =>
+        member.Name.Identifier.ValueText == TransactionalPropertyName &&
+        semanticModel.GetSymbolInfo(member).Symbol is IPropertySymbol property &&
+        IsEventSequence(property.ContainingType);
 
     /// <summary>
     /// Determines whether the sequence is reached through the event store the reactor was handed.
@@ -179,6 +214,11 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     static bool IsEventLog(ITypeSymbol type) =>
         IsInterface(type, EventLogInterfaceName, EventSequencesNamespace) ||
         type.AllInterfaces.Any(@interface => IsInterface(@interface, EventLogInterfaceName, EventSequencesNamespace));
+
+    static bool IsEventSequence(ITypeSymbol? type) =>
+        type is not null &&
+        (IsInterface(type, EventSequenceInterfaceName, EventSequencesNamespace) ||
+         type.AllInterfaces.Any(@interface => IsInterface(@interface, EventSequenceInterfaceName, EventSequencesNamespace)));
 
     static bool IsEventStore(ITypeSymbol? type) =>
         type is not null &&

@@ -7,13 +7,16 @@ description: A reactor appends to the default event log directly instead of retu
 
 A reactor produces side-effect events by **returning** them from its handler method — Chronicle appends what a handler returns. Reaching the default event log yourself performs the same write, but outside the side-effect pipeline.
 
-This rule fires on both ways of reaching it:
+This rule fires on every way of reaching it:
 
 | Shape | What it looks like |
 |---|---|
 | Injected event log | `MyReactor(IEventLog eventLog) : IReactor` |
 | Event log through the store | `eventStore.EventLog.Append(...)` |
 | Default log named explicitly | `eventStore.GetEventSequence(EventSequenceId.Log).Append(...)` |
+| Enlisted in a unit of work | `eventStore.EventLog.Transactional.Append(...)` |
+
+`Transactional` hands back the same sequence enlisted in a unit of work, so the write is identical — the chain is simply one member longer. Every `Append*` overload counts, `AppendMany` included.
 
 ## Severity
 
