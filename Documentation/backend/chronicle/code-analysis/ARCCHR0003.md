@@ -15,8 +15,9 @@ This rule fires on every way of reaching it:
 | Event log through the store | `eventStore.EventLog.Append(...)` |
 | Default log named explicitly | `eventStore.GetEventSequence(EventSequenceId.Log).Append(...)` |
 | Enlisted in a unit of work | `eventStore.EventLog.Transactional.Append(...)` |
+| Reached with a null-conditional | `eventStore?.EventLog.Append(...)` |
 
-`Transactional` hands back the same sequence enlisted in a unit of work, so the write is identical — the chain is simply one member longer. Every `Append*` overload counts, `AppendMany` included.
+`Transactional` hands back the same sequence enlisted in a unit of work, so the write is identical — the chain is simply one member longer. Every `Append*` overload counts, `AppendMany` included, and `?.` anywhere in the chain changes nothing.
 
 ## Severity
 
