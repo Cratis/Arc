@@ -216,10 +216,23 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
             ? Unwrap(conditional.Expression)
             : null;
 
+    /// <summary>
+    /// Renders the event log access for the diagnostic message on a single line.
+    /// </summary>
+    /// <param name="eventLogAccess">The event log or event sequence access to render.</param>
+    /// <returns>The source text of the access, with its own line breaks and indentation removed.</returns>
+    /// <remarks>
+    /// A fluent call spread over several lines carries those line breaks and their indentation into its source
+    /// text, and a diagnostic message is rendered on one line by the CLI, by SARIF readers, and by every IDE
+    /// error list.
+    /// </remarks>
     static string Describe(ExpressionSyntax eventLogAccess) =>
         AccessorOf(eventLogAccess) is MemberBindingExpressionSyntax binding && ConditionalReceiverOf(binding) is { } receiver
-            ? $"{receiver}?{eventLogAccess}"
-            : eventLogAccess.ToString();
+            ? $"{OnOneLine(receiver)}?{OnOneLine(eventLogAccess)}"
+            : OnOneLine(eventLogAccess);
+
+    static string OnOneLine(SyntaxNode node) =>
+        node.NormalizeWhitespace(indentation: string.Empty, eol: " ").ToString();
 
     static ExpressionSyntax Unwrap(ExpressionSyntax expression) => expression switch
     {
