@@ -12,13 +12,11 @@ namespace Cratis.Arc.Queries;
 /// <typeparam name="T">Type of data being observed.</typeparam>
 /// <param name="enumerable">The <see cref="IAsyncEnumerable{T}"/> to use for streaming.</param>
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
-/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientEnumerableObservable<T>(
     IAsyncEnumerable<T> enumerable,
     IReadModelInterceptors readModelInterceptors,
-    IServiceProvider serviceProvider,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
@@ -44,7 +42,10 @@ public class ClientEnumerableObservable<T>(
                         continue;
                     }
 
-                    queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), item, serviceProvider);
+                    // Resolve through the connection's own request-scoped provider — captured here via closure —
+                    // rather than the root, so the interceptor releases compliance/PII data under this
+                    // subscription's tenant instead of whichever tenant happened to resolve first.
+                    queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), item, context.RequestServices);
                     var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                     if (error is null)
                     {

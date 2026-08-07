@@ -86,7 +86,15 @@ public class and_connection_is_known_and_read_models_are_intercepted_per_emissio
     }
 
     [Fact] void should_intercept_each_emission_with_the_read_model_element_type() =>
-        _readModelInterceptors.Received().Intercept(typeof(string), Arg.Any<IEnumerable<object>>(), _serviceProvider);
+        _readModelInterceptors.Received().Intercept(typeof(string), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>());
+
+    /// <summary>
+    /// Regression guard for the bug this fixes: interception must run against a scope created for this
+    /// subscription, never the root container directly — resolving scoped Chronicle services from root would
+    /// cache whichever tenant subscribed first and reuse it for every subscription thereafter.
+    /// </summary>
+    [Fact] void should_not_intercept_with_the_root_service_provider() =>
+        _readModelInterceptors.Received().Intercept(typeof(string), Arg.Any<IEnumerable<object>>(), Arg.Is<IServiceProvider>(sp => sp != _serviceProvider));
 
     [Fact] void should_send_the_released_value_to_the_client() =>
         string.Concat(_messages).Contains("item-a-released", StringComparison.Ordinal).ShouldBeTrue();

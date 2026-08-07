@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,7 +34,10 @@ public class an_observable_query_demultiplexer : Specification
         _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
-        _serviceProvider = Substitute.For<IServiceProvider>();
+
+        // A real container — the hub creates a per-subscription IServiceScope from this, which a bare
+        // NSubstitute mock cannot satisfy (it has no working IServiceScopeFactory to resolve).
+        _serviceProvider = new ServiceCollection().BuildServiceProvider();
 
         _arcOptions = Options.Create(new ArcOptions());
         _logger = Substitute.For<ILogger<ObservableQueryDemultiplexer>>();

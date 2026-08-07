@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Arc.Http;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer;
@@ -26,6 +27,7 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
     async Task Because()
     {
         _subscription = _hub.SubscribeToStreamingData(
+            Substitute.For<IHttpRequestContext>(),
             Stream(),
             "q1",
             new PagingInfo(0, 0, 0),

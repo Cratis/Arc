@@ -22,6 +22,7 @@ public class and_complete_and_next_race
 
         var httpContext = Substitute.For<IHttpRequestContext>();
         httpContext.WebSockets.Returns(webSocketContext);
+        httpContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
 
         var hostLifetime = Substitute.For<IHostApplicationLifetime>();
         hostLifetime.ApplicationStopping.Returns(CancellationToken.None);
@@ -56,7 +57,7 @@ public class and_complete_and_next_race
             queryContext,
             subject,
             Substitute.For<IReadModelInterceptors>(),
-            Substitute.For<IServiceProvider>(),
+            Substitute.For<IHttpRequestContextAccessor>(),
             webSocketConnectionHandler,
             hostLifetime,
             logger);
@@ -97,6 +98,7 @@ public class and_complete_and_next_race
 
         var httpContext = Substitute.For<IHttpRequestContext>();
         httpContext.WebSockets.Returns(webSocketContext);
+        httpContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
 
         var hostLifetime = Substitute.For<IHostApplicationLifetime>();
         hostLifetime.ApplicationStopping.Returns(CancellationToken.None);
@@ -130,7 +132,7 @@ public class and_complete_and_next_race
             queryContext,
             subject,
             Substitute.For<IReadModelInterceptors>(),
-            Substitute.For<IServiceProvider>(),
+            Substitute.For<IHttpRequestContextAccessor>(),
             webSocketConnectionHandler,
             hostLifetime,
             logger);
