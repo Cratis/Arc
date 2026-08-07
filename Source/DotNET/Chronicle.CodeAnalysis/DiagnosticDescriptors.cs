@@ -35,16 +35,16 @@ static class DiagnosticDescriptors
         description: "When a command exposes more than one property that can resolve to an EventSourceId (an EventSourceId, an EventSourceId<T>, a type with an implicit conversion to EventSourceId, or a [Key]-marked property), the framework resolves the event source id from the first matching property, which is ambiguous. Implement ICanProvideEventSourceId to declare which value to use. This is not required when the command's Handle method returns only EventForEventSourceId events, since each such event carries its own event source id.");
 
     /// <summary>
-    /// ARCCHR0003: Reactor must not inject IEventLog.
+    /// ARCCHR0003: Reactor must not reach the default event log.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0003_ReactorMustNotInjectEventLog = new(
+    public static readonly DiagnosticDescriptor ARCCHR0003_ReactorMustNotReachEventLog = new(
         id: "ARCCHR0003",
-        title: "Reactor must not inject IEventLog",
-        messageFormat: "Reactor '{0}' injects IEventLog through parameter '{1}'. Return events from the handler method (Task<TEvent>, Task<ReactorSideEffect>, or a collection) instead of appending through IEventLog directly.",
+        title: "Reactor must not reach the default event log",
+        messageFormat: "Reactor '{0}' reaches the default event log through '{1}'. Return the events from the handler method — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers — instead of appending directly.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Reactors observe events and produce side effects; they must not append to the event log directly. To produce new events, return them from the handler method as Task<TEvent>, Task<ReactorSideEffect>, or a collection thereof. To trigger work in another slice, inject ICommandPipeline and execute a command. Injecting IEventLog couples the reactor to the event log and bypasses the side-effect pipeline.");
+        description: "Reactors observe events and produce side effects; they must not append to the default event log directly, whether by injecting IEventLog or by appending through an injected IEventStore (its EventLog property or GetEventSequence(EventSequenceId.Log)). Both write to the sequence the handler's return type already targets, so return the events instead — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers for another event source. To trigger work in another slice, inject ICommandPipeline and execute a command. Routing to a different sequence, such as GetEventSequence(EventSequenceId.Outbox), is not reported: a returned event cannot target a sequence other than the default log.");
 
     /// <summary>
     /// ARCCHR0004: [EventType] should not specify an explicit id.
