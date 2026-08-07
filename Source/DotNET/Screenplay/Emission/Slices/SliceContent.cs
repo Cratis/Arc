@@ -24,7 +24,7 @@ public static class SliceContent
         !slice.Events.Any() &&
         !slice.Commands.Any() &&
         !slice.Queries.Any() &&
-        slice.Projection is null &&
+        !slice.Projections.Any() &&
         !slice.Captures.Any() &&
         !slice.Reactors.Any() &&
         !slice.Screens.Any() &&
