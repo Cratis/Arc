@@ -18,6 +18,7 @@ public class and_concurrent_emissions_and_disposal_occur
         // Arrange
         var subject = new Subject<int>();
         var httpContext = Substitute.For<IHttpRequestContext>();
+        httpContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
         var arcOptions = Substitute.For<IOptions<ArcOptions>>();
         var options = new ArcOptions();
         arcOptions.Value.Returns(options);
@@ -40,7 +41,7 @@ public class and_concurrent_emissions_and_disposal_occur
             queryContext,
             subject,
             Substitute.For<IReadModelInterceptors>(),
-            Substitute.For<IServiceProvider>(),
+            Substitute.For<IHttpRequestContextAccessor>(),
             arcOptions,
             hostLifetime,
             logger);
@@ -79,6 +80,7 @@ public class and_concurrent_emissions_and_disposal_occur
         // Arrange
         var subject = new Subject<int>();
         var httpContext = Substitute.For<IHttpRequestContext>();
+        httpContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
         var arcOptions = Substitute.For<IOptions<ArcOptions>>();
         var options = new ArcOptions();
         arcOptions.Value.Returns(options);
@@ -101,7 +103,7 @@ public class and_concurrent_emissions_and_disposal_occur
             queryContext,
             subject,
             Substitute.For<IReadModelInterceptors>(),
-            Substitute.For<IServiceProvider>(),
+            Substitute.For<IHttpRequestContextAccessor>(),
             arcOptions,
             hostLifetime,
             logger);

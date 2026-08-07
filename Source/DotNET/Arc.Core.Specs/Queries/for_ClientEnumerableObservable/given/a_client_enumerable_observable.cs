@@ -9,7 +9,6 @@ public class a_client_enumerable_observable : Specification
 {
     protected TestAsyncEnumerable _enumerable;
     protected IReadModelInterceptors _readModelInterceptors;
-    protected IServiceProvider _serviceProvider;
     protected IWebSocketConnectionHandler _webSocketConnectionHandler;
     protected ILogger<IClientObservable> _logger;
     protected ClientEnumerableObservable<TestData> _clientEnumerableObservable;
@@ -18,14 +17,12 @@ public class a_client_enumerable_observable : Specification
     {
         _enumerable = new TestAsyncEnumerable();
         _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
-        _serviceProvider = Substitute.For<IServiceProvider>();
         _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
         _logger = Substitute.For<ILogger<IClientObservable>>();
 
         _clientEnumerableObservable = new ClientEnumerableObservable<TestData>(
             _enumerable,
             _readModelInterceptors,
-            _serviceProvider,
             _webSocketConnectionHandler,
             _logger);
     }

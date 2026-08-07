@@ -17,13 +17,11 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 /// <param name="enumerable">The <see cref="IAsyncEnumerable{T}"/> to use for streaming.</param>
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
-/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientEnumerableObservableSSE<T>(
     IAsyncEnumerable<T> enumerable,
     IReadModelInterceptors readModelInterceptors,
-    IServiceProvider serviceProvider,
     IOptions<ArcOptions> arcOptions,
     ILogger<IClientObservable> logger)
     : IClientEnumerableObservable
@@ -48,7 +46,10 @@ public class ClientEnumerableObservableSSE<T>(
                     continue;
                 }
 
-                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), item, serviceProvider);
+                // Resolve through the connection's own request-scoped provider rather than the root, so the
+                // interceptor releases compliance/PII data under this subscription's tenant instead of
+                // whichever tenant happened to resolve first.
+                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), item, context.RequestServices);
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";
 

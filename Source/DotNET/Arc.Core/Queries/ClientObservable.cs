@@ -18,7 +18,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryContext">The <see cref="QueryContext"/> the observable is for.</param>
 /// <param name="subject">The <see cref="ISubject{T}"/> the observable wraps.</param>
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
-/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
+/// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> restored around each emission so tenant resolution sees the subscribing connection, not whatever ambient context the emitting thread happens to carry.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
@@ -26,7 +26,7 @@ public class ClientObservable<T>(
     QueryContext queryContext,
     ISubject<T> subject,
     IReadModelInterceptors readModelInterceptors,
-    IServiceProvider serviceProvider,
+    IHttpRequestContextAccessor httpRequestContextAccessor,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     IHostApplicationLifetime hostApplicationLifetime,
     ILogger<ClientObservable<T>> logger) : ClientObservableBase<T>(subject)
@@ -81,7 +81,14 @@ public class ClientObservable<T>(
                 }
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, serviceProvider);
+
+                // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
+                // context set up for this connection does not flow. Restoring it here — and resolving through
+                // the connection's own request-scoped provider rather than the root — ensures the interceptor
+                // releases compliance/PII data under this subscription's tenant, not whichever tenant happened
+                // to resolve first.
+                httpRequestContextAccessor.Current = context;
+                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
 
                 var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                 if (error is not null && !cts.IsCancellationRequested)

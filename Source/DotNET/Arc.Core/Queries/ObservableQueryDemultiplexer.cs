@@ -13,6 +13,7 @@ using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Reflection;
 using Cratis.Strings;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,13 +36,22 @@ namespace Cratis.Arc.Queries;
 /// The WebSocket transport uses bidirectional frames; the SSE transport uses separate POST
 /// endpoints for subscribe/unsubscribe, correlated via a server-assigned connection identifier.
 /// </para>
+/// <para>
+/// Each subject-backed subscription gets its own <see cref="IServiceScope"/>, created at subscribe time from
+/// <paramref name="serviceProvider"/> and disposed when the subscription ends. Chronicle's client services are
+/// registered scoped, resolving the current tenant's namespace the first time they are used within a scope and
+/// caching it for the scope's lifetime — resolving them from the root container instead would cache whichever
+/// tenant asked first and reuse it for every subscription thereafter. Emissions arrive on the subject's own
+/// producer thread, where the AsyncLocal tenant context does not flow, so <see cref="IHttpRequestContextAccessor.Current"/>
+/// is restored to the subscribing connection immediately before each interception call.
+/// </para>
 /// </remarks>
 /// <param name="queryPipeline">The <see cref="IQueryPipeline"/> used to perform and authorize queries.</param>
 /// <param name="queryContextManager">The <see cref="IQueryContextManager"/> for managing query contexts.</param>
-/// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> used to propagate the caller's identity into the authorization pipeline.</param>
+/// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> used to propagate the caller's identity into the authorization pipeline, and restored around each emission so tenant resolution sees the subscribing connection.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/> used to cancel connections on shutdown.</param>
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> used to intercept (e.g. decrypt compliance/PII properties on) each emitted read model before it is sent to the client.</param>
-/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors. The root provider is used because subscriptions outlive the short-lived subscribe request scope.</param>
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to create a per-subscription <see cref="IServiceScope"/> for resolving interceptors — see remarks.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/> used for JSON serialization.</param>
 /// <param name="healthTracker">The <see cref="IQueryHealthTracker"/> used to track subscription health.</param>
 /// <param name="logger">The logger.</param>
@@ -287,6 +297,7 @@ public class ObservableQueryDemultiplexer(
     /// Subscribes to a streaming query result — an <see cref="ISubject{T}"/> or an <see cref="IAsyncEnumerable{T}"/>
     /// — and returns a disposable that tears the subscription down.
     /// </summary>
+    /// <param name="context">The subscribing connection's <see cref="IHttpRequestContext"/>.</param>
     /// <param name="streamingData">The streaming result to subscribe to.</param>
     /// <param name="queryId">The id of the query the subscription is for.</param>
     /// <param name="paging">The <see cref="PagingInfo"/> to report with each result.</param>
@@ -297,6 +308,7 @@ public class ObservableQueryDemultiplexer(
     /// <param name="token">The connection's <see cref="CancellationToken"/>.</param>
     /// <returns>An <see cref="IDisposable"/> that stops the subscription, or null when the data is not streamable.</returns>
     internal IDisposable? SubscribeToStreamingData(
+        IHttpRequestContext context,
         object streamingData,
         string queryId,
         PagingInfo paging,
@@ -310,7 +322,7 @@ public class ObservableQueryDemultiplexer(
 
         if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
         {
-            return SubscribeToSubject(streamingData, type, queryId, paging, transferMode, correlationId, onNext, onError, token);
+            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, onNext, onError, token);
         }
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
@@ -555,10 +567,11 @@ public class ObservableQueryDemultiplexer(
             return null;
         }
 
-        return SubscribeToStreamingData(streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, onNext, onError, token);
+        return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, onNext, onError, token);
     }
 
     IDisposable SubscribeToSubject(
+        IHttpRequestContext context,
         object subject,
         Type subjectType,
         string queryId,
@@ -577,10 +590,11 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        return (IDisposable)method.Invoke(this, [subject, queryId, paging, transferMode, correlationId, onNext, onError, token])!;
+        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, onNext, onError, token])!;
     }
 
     CompositeDisposable SubscribeToSubjectOfType<T>(
+        IHttpRequestContext context,
         ISubject<T> subject,
         string queryId,
         PagingInfo paging,
@@ -605,9 +619,13 @@ public class ObservableQueryDemultiplexer(
         // inside the callback would return QueryContext.NotSet and overwrite the real paging info.
         var subscriptionQueryContext = queryContextManager.Current;
 
+        // A scope of its own per subscription — see the class remarks — so this subscription's Chronicle
+        // namespace resolution is never shared with (or overwritten by) another subscription's tenant.
+        var interceptionScope = serviceProvider.CreateScope();
+
         var subscription = subject.Subscribe(OnEmission, OnSubscriptionError);
 
-        return new CompositeDisposable(subscription, emissionGate);
+        return new CompositeDisposable(subscription, emissionGate, interceptionScope);
 
         // This is an async void callback invoked by the subject on a background (ThreadPool) thread. Any
         // exception that escapes it is unobserved and terminates the whole process. The connection's
@@ -630,7 +648,11 @@ public class ObservableQueryDemultiplexer(
                 await emissionGate.WaitAsync(token);
                 gateAcquired = true;
 
-                var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, serviceProvider);
+                // Restore the subscribing connection's context — this callback runs on the subject's own
+                // producer thread, where the AsyncLocal tenant context set up when the subscription was
+                // created does not flow (see the class remarks).
+                httpRequestContextAccessor.Current = context;
+                var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, interceptionScope.ServiceProvider);
 
                 var isFirstEmission = previousItems is null;
 
