@@ -4,7 +4,6 @@
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc;
 
@@ -52,32 +51,7 @@ public static class ArcApplicationBuilderExtensions
         builder.Services.AddSingleton<Http.IHttpRequestContextAccessor, Http.HttpRequestContextAccessor>();
         builder.Services.AddTransient<IObservableQueryHandler, ObservableQueryHandler>();
         builder.Services.AddIdentityProvider();
-        builder.SkipEagerServiceProviderValidation();
 
         return builder;
     }
-
-    /// <summary>
-    /// Turns off eager service-provider validation without discarding the other options the host applied.
-    /// </summary>
-    /// <param name="builder">The <see cref="ArcApplicationBuilder"/> to configure.</param>
-    /// <remarks>
-    /// <para>
-    /// Arc supplies registrations contextually — <see cref="IHostApplicationBuilder"/>, the type a convention
-    /// binding is for, values only an executing command or an in-flight request can hand over. Eager validation
-    /// constructs every registration up front and can resolve none of them, so an Arc application would fail
-    /// <see cref="ArcApplicationBuilder.Build"/> outright in Development, where the host turns
-    /// <see cref="ServiceProviderOptions.ValidateOnBuild"/> on.
-    /// </para>
-    /// <para>
-    /// <see cref="ServiceProviderOptions.ValidateScopes"/> is restated from the environment so that turning eager
-    /// validation off does not also take the host's Development-time captive-dependency detection with it.
-    /// </para>
-    /// </remarks>
-    static void SkipEagerServiceProviderValidation(this ArcApplicationBuilder builder) =>
-        builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
-        {
-            ValidateScopes = builder.Environment.IsDevelopment(),
-            ValidateOnBuild = false
-        }));
 }
