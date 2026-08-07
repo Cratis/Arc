@@ -49,20 +49,42 @@ public record ScreenplayOptions
     /// carry a name that belongs to nobody and would gather every project under it. The namespaces already say what
     /// the modules are. Naming a module still collapses the document into that one, which is the way to ask for it.
     /// <para>
-    /// Once resolved it stays resolved. Emission resolves a second time against the domain of the model, which by
-    /// then is known, and without this the module would quietly be filled in from it and the document would come
-    /// back as one module after all.
+    /// It is decided where the options resolve and carried from there, so the emission half reads the decision the
+    /// entry point made rather than working one out again from a module that is empty because of that decision -
+    /// which would fill the module in from the domain and hand back a document of one module after all.
     /// </para>
     /// </remarks>
     public bool ModulesFromNamespaceRoots { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether every value has been filled in already.
+    /// </summary>
+    /// <remarks>
+    /// Carried so that the options themselves say whether they have been resolved, rather than every reader working
+    /// it out from the values it happens to look at.
+    /// </remarks>
+    private bool Resolved { get; init; }
 
     /// <summary>
     /// Resolves the options with every value filled in.
     /// </summary>
     /// <param name="fallbackName">The name to use for the domain when none is configured.</param>
     /// <returns>The resolved options.</returns>
+    /// <remarks>
+    /// Options resolve once, at whichever entry point sees them first, and every later call answers with the same
+    /// options rather than resolving them again. What a name falls back to is a question only an entry point can
+    /// answer - the assembly being analyzed when a generation asked for the document, the domain of the model when a
+    /// host emitted one it already had - and a generation passes through both halves, so without this the emission
+    /// half would resolve a second time against a fallback the analysis half never saw. The two answers agree today,
+    /// which is the only reason nothing showed; agreeing is not something either half promises the other.
+    /// </remarks>
     public ScreenplayOptions WithDefaults(string? fallbackName)
     {
+        if (Resolved)
+        {
+            return this;
+        }
+
         var domain = Coalesce(Domain, Coalesce(fallbackName, DefaultName));
         var fromNamespaceRoots = ModulesFromNamespaceRoots ||
             (string.IsNullOrWhiteSpace(Module) && string.IsNullOrWhiteSpace(fallbackName));
@@ -72,7 +94,8 @@ public record ScreenplayOptions
             Domain = domain,
             Module = fromNamespaceRoots ? null : Coalesce(Module, domain),
             SegmentsToSkip = SegmentsToSkip ?? 0,
-            ModulesFromNamespaceRoots = fromNamespaceRoots
+            ModulesFromNamespaceRoots = fromNamespaceRoots,
+            Resolved = true
         };
     }
 

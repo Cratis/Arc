@@ -16,6 +16,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <param name="values">The <see cref="SpecificationValues"/> reading the values each step states.</param>
 public class SpecificationStepReader(Compilation compilation, SpecificationValues values)
 {
+    readonly HeldValues _held = new(compilation);
+
     /// <summary>
     /// Reads what a specification had already seen when it issued its command.
     /// </summary>
@@ -76,8 +78,9 @@ public class SpecificationStepReader(Compilation compilation, SpecificationValue
             }
 
             var stated = CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty).ToList();
-            if (stated is not [BaseObjectCreationExpressionSyntax creation] ||
-                semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol command)
+            if (stated is not [var issued] ||
+                _held.ConstructionOf(issued, semanticModel) is not { } construction ||
+                construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol command)
             {
                 draft.CannotRead("the command it issues is put together somewhere this cannot read");
                 return;
@@ -89,7 +92,10 @@ public class SpecificationStepReader(Compilation compilation, SpecificationValue
                 return;
             }
 
-            draft.When = new(command.Name, SpecificationStateKind.Command, values.Read(creation, semanticModel, command, name, location));
+            draft.When = new(
+                command.Name,
+                SpecificationStateKind.Command,
+                values.Read(construction.Creation, construction.SemanticModel, command, name, location));
         }
     }
 
@@ -136,8 +142,8 @@ public class SpecificationStepReader(Compilation compilation, SpecificationValue
         string name,
         string location)
     {
-        if (stated is not BaseObjectCreationExpressionSyntax creation ||
-            semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol type)
+        if (_held.ConstructionOf(stated, semanticModel) is not { } construction ||
+            construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol type)
         {
             draft.CannotRead("what it starts from is put together somewhere this cannot read");
             return;
@@ -149,6 +155,6 @@ public class SpecificationStepReader(Compilation compilation, SpecificationValue
             return;
         }
 
-        states.Add(new(type.Name, kind, values.Read(creation, semanticModel, type, name, location)));
+        states.Add(new(type.Name, kind, values.Read(construction.Creation, construction.SemanticModel, type, name, location)));
     }
 }

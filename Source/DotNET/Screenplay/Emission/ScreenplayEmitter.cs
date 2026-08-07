@@ -24,10 +24,11 @@ public class ScreenplayEmitter(IScreenplayPrinter printer, IScreenplayNaming nam
 
     /// <inheritdoc/>
     /// <remarks>
-    /// This is where the options an emission runs with are resolved, and the only place. What a name falls back to
-    /// is a question only an entry point can answer - a host that emits a model it already holds has nothing to fall
-    /// back on but the domain of that model - so resolving deeper down meant resolving twice on the way through a
-    /// generation, against two answers that only happen to agree.
+    /// Emitting is an entry point of its own, so the options are resolved here for a host that hands over a model it
+    /// already holds - such a host has nothing to fall back on but the domain of that model. A generation is the
+    /// other entry point and has already resolved against the assembly it was reading, and options that are resolved
+    /// answer with themselves, so one generation still resolves exactly once and the fallback the analysis half used
+    /// is the fallback the document is named after.
     /// </remarks>
     public ScreenplayEmission Emit(ApplicationModel model, ScreenplayOptions options)
     {
