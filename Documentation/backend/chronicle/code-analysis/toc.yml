@@ -2,6 +2,8 @@
   href: index.md
 - name: ARCCHR0001 - Incorrect aggregate root event handler signature
   href: ARCCHR0001.md
+- name: ARCCHR0003 - Reactor must not reach the default event log
+  href: ARCCHR0003.md
 - name: ARCCHR0005 - Chronicle is used but not wired up
   href: ARCCHR0005.md
 - name: ARCCHR0008 - Command key marked with the data annotations Key attribute
