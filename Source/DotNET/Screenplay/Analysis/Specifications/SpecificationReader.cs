@@ -29,15 +29,40 @@ public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics 
     /// <returns>True when the type is a specification of the kind this reads.</returns>
     public bool IsSpecification(INamedTypeSymbol type)
     {
-        if (type is not { TypeKind: TypeKind.Class, IsAbstract: false, ContainingType: null })
+        if (!IsWrittenAsOne(type))
         {
             return false;
         }
 
         var steps = SpecificationMembers.StepsOf(type);
 
-        return SpecificationMembers.MethodsIn(steps, SpecificationMembers.BecauseMethod).Any() &&
-            (SpecificationMembers.HoldsAScenario(steps) || DrivesASlice(steps));
+        return SpecificationMembers.HoldsAScenario(steps) ||
+            SpecificationMembers.ReadModelOf(steps) is not null ||
+            DrivesASlice(steps);
+    }
+
+    /// <summary>
+    /// Gets the scenario a type specifies a slice by that Screenplay has no way to hold.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>The name of the scenario, or <see langword="null"/> when there is nothing to report.</returns>
+    /// <remarks>
+    /// A specification holding one of these is specifying the slice as much as any other - what it does is real, and
+    /// leaving it out without a word is the one thing the catalogue of codes exists to prevent. Two of the four
+    /// scenarios an application is written with have nowhere to go: a scenario appending an event states the append
+    /// itself as its action, and a <c>when</c> names a command and nothing else; a scenario driving a reactor says
+    /// what a collaborator was asked to do, which is a statement about the inside of the slice. Both are said rather
+    /// than recovered, because a document quietly missing four specifications in ten reads exactly like an
+    /// application that has none.
+    /// </remarks>
+    public string? ScenarioWithoutCounterpart(INamedTypeSymbol type)
+    {
+        if (!IsWrittenAsOne(type) || IsSpecification(type))
+        {
+            return null;
+        }
+
+        return SpecificationMembers.ScenarioWithoutCounterpart(SpecificationMembers.StepsOf(type));
     }
 
     /// <summary>
@@ -55,15 +80,20 @@ public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics 
     {
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
+        var readModel = SpecificationMembers.ReadModelOf(steps);
         var draft = new SpecificationDraft();
         var stated = new ScreenplayDiagnostics();
 
         var reader = new SpecificationStepReader(compilation, new(stated, new GeneratedIdentities(compilation)));
-        reader.ReadGiven(steps, draft, name, location);
+        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         reader.ReadWhen(steps, draft, name, location);
         new SpecificationOutcomeReader(compilation, stated).Read(type, draft, name, location);
 
-        if (draft.When is null)
+        if (readModel is not null && draft.When is null)
+        {
+            ReadStateOfTheReadModel(readModel, draft);
+        }
+        else if (draft.When is null)
         {
             draft.CannotRead("the command it issues is put together somewhere this cannot read");
         }
@@ -85,6 +115,42 @@ public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics 
         diagnostics.AddRange(stated.All);
 
         return new(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+    }
+
+    /// <summary>
+    /// Determines whether a type is written the way a specification is, whatever it turns out to specify.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>True when the type is shaped like a specification.</returns>
+    static bool IsWrittenAsOne(INamedTypeSymbol type) =>
+        type is { TypeKind: TypeKind.Class, IsAbstract: false, ContainingType: null } &&
+        SpecificationMembers.MethodsIn(SpecificationMembers.StepsOf(type), SpecificationMembers.BecauseMethod).Any();
+
+    /// <summary>
+    /// States the read model a scenario is about as what followed the events it started from.
+    /// </summary>
+    /// <param name="readModel">The read model the scenario is of.</param>
+    /// <param name="draft">The scenario collected so far.</param>
+    /// <remarks>
+    /// A scenario of a read model has no command to issue - the events are what happened and the model is what they
+    /// built - so what it says is the two halves the language already holds: <c>given</c> the events, and then the
+    /// <c>readmodel</c> they left behind. Which values the model ended up with is asserted in the host language
+    /// against the instance the scenario holds, and stays unsaid for the same reason the values of an event do.
+    /// <para>
+    /// A scenario stating nothing that had happened is left out rather than written, because a read model with no
+    /// events behind it is the empty one every read model starts as, and saying so describes nothing the application
+    /// does.
+    /// </para>
+    /// </remarks>
+    static void ReadStateOfTheReadModel(ITypeSymbol readModel, SpecificationDraft draft)
+    {
+        if (draft.Given.Count == 0)
+        {
+            draft.CannotRead("it states nothing that had happened, and what a read model holds is what happened before it");
+            return;
+        }
+
+        draft.Then.Add(new(readModel.Name, SpecificationStateKind.ReadModel, []));
     }
 
     /// <summary>

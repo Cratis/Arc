@@ -63,7 +63,7 @@ public class when_converting_a_number : Specification
                     SourceLocation.Start)
             ],
             [],
-            null,
+            [],
             [],
             [],
             [],

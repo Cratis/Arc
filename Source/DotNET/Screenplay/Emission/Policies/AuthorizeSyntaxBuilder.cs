@@ -16,7 +16,7 @@ namespace Cratis.Arc.Screenplay.Emission.Policies;
 /// a generated document nobody trusts.
 /// <para>
 /// Roles are alternatives to each other - holding any one of them is enough - while a named policy is an additional
-/// demand, so roles are combined with <c>or</c> and policies follow them without one.
+/// demand, so roles are combined with <c>or</c> and the policies with <c>and</c>.
 /// </para>
 /// </remarks>
 public class AuthorizeSyntaxBuilder
@@ -58,13 +58,50 @@ public class AuthorizeSyntaxBuilder
             _referenced.Add(policy);
         }
 
-        return new(
-            [
-                .. roles.Select((role, index) => new PolicyReferenceSyntax(role, index > 0, SourceLocation.Start)),
-                .. named.Select(policy => new PolicyReferenceSyntax(policy, false, SourceLocation.Start))
-            ],
-            SourceLocation.Start);
+        return new(Require(roles, named), SourceLocation.Start);
     }
+
+    /// <summary>
+    /// Combines the roles and the named policies into the single requirement the caller has to satisfy.
+    /// </summary>
+    /// <param name="roles">The roles, any one of which is enough.</param>
+    /// <param name="named">The named policies, every one of which is demanded.</param>
+    /// <returns>The <see cref="PolicyRequirementSyntax"/>.</returns>
+    /// <remarks>
+    /// The two groups are joined into a tree rather than laid out in a list, because <c>and</c> binds tighter than
+    /// <c>or</c>. "Any librarian, who is also senior staff" written flat reads back as "any librarian, or anyone who
+    /// is senior staff", which admits a caller neither the roles nor the policy admits on its own. Nesting the
+    /// alternatives under the demand says what was meant, and the printer parenthesizes it because the operators
+    /// differ.
+    /// </remarks>
+    static PolicyRequirementSyntax Require(IEnumerable<string> roles, IEnumerable<string> named)
+    {
+        var anyRole = Combine(roles, LogicalOperator.Or);
+        var everyPolicy = Combine(named, LogicalOperator.And);
+
+        if (anyRole is not null && everyPolicy is not null)
+        {
+            return new LogicalPolicyRequirementSyntax(anyRole, LogicalOperator.And, everyPolicy, SourceLocation.Start);
+        }
+
+        // Build never leaves both groups empty - it stands in with the authenticated policy - so one of them is here.
+        return anyRole ?? everyPolicy ?? new PolicyReferenceSyntax(AuthenticatedPolicy, SourceLocation.Start);
+    }
+
+    /// <summary>
+    /// Folds names into one requirement combined with a single operator.
+    /// </summary>
+    /// <param name="names">The names to fold.</param>
+    /// <param name="operator">The <see cref="LogicalOperator"/> combining them.</param>
+    /// <returns>The requirement, or <see langword="null"/> when there are no names to fold.</returns>
+    static PolicyRequirementSyntax? Combine(IEnumerable<string> names, LogicalOperator @operator) =>
+        names
+            .Select(name => (PolicyRequirementSyntax)new PolicyReferenceSyntax(name, SourceLocation.Start))
+            .Aggregate(
+                default(PolicyRequirementSyntax),
+                (left, right) => left is null
+                    ? right
+                    : new LogicalPolicyRequirementSyntax(left, @operator, right, SourceLocation.Start));
 
     /// <summary>
     /// Converts names into the form a policy reference takes, leaving out anything nothing is left of.
