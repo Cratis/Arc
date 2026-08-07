@@ -4,9 +4,9 @@
 using Microsoft.CodeAnalysis;
 using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.Chronicle.CodeAnalysis.ReactorEventLogAccessAnalyzer>;
 
-namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorEventLogAccessAnalyzer.when_validating_reactor_dependencies;
+namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorEventLogAccessAnalyzer.when_validating_an_append_through_an_event_store;
 
-public class and_reactor_appends_through_a_null_conditional_event_log : Specification
+public class and_reactor_appends_through_an_event_store_field : Specification
 {
     Exception _result;
 
@@ -19,16 +19,20 @@ namespace TestNamespace
 {
     public record AuthorRegistered(string Name);
 
-    public class AuthorNotifier(IEventStore eventStore) : IReactor
+    public class AuthorNotifier : IReactor
     {
+        readonly IEventStore _eventStore;
+
+        public AuthorNotifier(IEventStore eventStore) => _eventStore = eventStore;
+
         public Task On(AuthorRegistered @event) =>
-            {|#0:eventStore?.EventLog|}.Append(""some-author"", @event);
+            {|#0:_eventStore.EventLog|}.Append(""some-author"", @event);
     }
 }",
                 VerifyCS.Diagnostic("ARCCHR0003")
                     .WithSeverity(DiagnosticSeverity.Warning)
                     .WithLocation(0)
-                    .WithArguments("AuthorNotifier", "eventStore?.EventLog")));
+                    .WithArguments("AuthorNotifier", "_eventStore.EventLog")));
 
     [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }

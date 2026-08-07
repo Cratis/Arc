@@ -3,28 +3,26 @@
 
 using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.Chronicle.CodeAnalysis.ReactorEventLogAccessAnalyzer>;
 
-namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorEventLogAccessAnalyzer.when_validating_reactor_dependencies;
+namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorEventLogAccessAnalyzer.when_validating_an_append_through_an_event_store;
 
-public class and_reactor_appends_to_another_event_store : Specification
+public class and_reactor_routes_to_outbox_through_event_store : Specification
 {
     Exception _result;
 
     async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using System.Threading.Tasks;
 using Cratis.Chronicle;
+using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Reactors;
 
 namespace TestNamespace
 {
     public record AuthorRegistered(string Name);
 
-    public class AuthorNotifier(IChronicleClient client) : IReactor
+    public class AuthorOutbox(IEventStore eventStore) : IReactor
     {
-        public async Task On(AuthorRegistered @event)
-        {
-            var other = await client.GetEventStore(""Other"", ""tenant-x"");
-            await other.EventLog.Append(""some-author"", @event);
-        }
+        public Task On(AuthorRegistered @event) =>
+            eventStore.GetEventSequence(EventSequenceId.Outbox).Append(""some-author"", @event);
     }
 }"));
 
