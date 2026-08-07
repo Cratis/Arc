@@ -19,7 +19,7 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 /// reported, because a returned event cannot target a sequence other than the default log.
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public class ReactorEventLogInjectionAnalyzer : DiagnosticAnalyzer
+public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
 {
     const string ReactorInterfaceName = "IReactor";
     const string ReactorsNamespace = "Cratis.Chronicle.Reactors";
