@@ -77,7 +77,7 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     {
         var eventLogAccess = (ExpressionSyntax)context.Node;
 
-        if (AccessedName(eventLogAccess)?.Identifier.ValueText != EventLogPropertyName ||
+        if (MemberAccessChain.NameOf(eventLogAccess)?.Identifier.ValueText != EventLogPropertyName ||
             context.SemanticModel.GetSymbolInfo(eventLogAccess).Symbol is not IPropertySymbol property ||
             !IsEventStore(property.ContainingType))
         {
@@ -120,7 +120,7 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
             DiagnosticDescriptors.ARCCHR0003_ReactorMustNotReachEventLog,
             eventLogAccess.GetLocation(),
             containingType.Name,
-            Describe(eventLogAccess)));
+            MemberAccessChain.Describe(eventLogAccess)));
     }
 
     /// <summary>
@@ -139,9 +139,9 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     {
         var current = eventLogAccess;
 
-        while (NextAccessOn(current) is { } next)
+        while (MemberAccessChain.Next(current) is { } next)
         {
-            if (AccessedName(next)!.Identifier.ValueText.StartsWith(AppendMethodPrefix, StringComparison.Ordinal))
+            if (MemberAccessChain.NameOf(next)!.Identifier.ValueText.StartsWith(AppendMethodPrefix, StringComparison.Ordinal))
             {
                 return next.Parent is InvocationExpressionSyntax;
             }
@@ -158,32 +158,9 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     }
 
     static bool IsTransactionalEventSequence(SemanticModel semanticModel, ExpressionSyntax access) =>
-        AccessedName(access)?.Identifier.ValueText == TransactionalPropertyName &&
+        MemberAccessChain.NameOf(access)?.Identifier.ValueText == TransactionalPropertyName &&
         semanticModel.GetSymbolInfo(access).Symbol is IPropertySymbol property &&
         IsEventSequence(property.ContainingType);
-
-    static ExpressionSyntax? NextAccessOn(ExpressionSyntax expression) => expression.Parent switch
-    {
-        MemberAccessExpressionSyntax member when member.Expression == expression => member,
-        ConditionalAccessExpressionSyntax conditional when conditional.Expression == expression => LeadingBindingOf(conditional.WhenNotNull),
-        _ => null
-    };
-
-    static MemberBindingExpressionSyntax? LeadingBindingOf(ExpressionSyntax expression) => expression switch
-    {
-        MemberBindingExpressionSyntax binding => binding,
-        MemberAccessExpressionSyntax member => LeadingBindingOf(member.Expression),
-        InvocationExpressionSyntax invocation => LeadingBindingOf(invocation.Expression),
-        ConditionalAccessExpressionSyntax conditional => LeadingBindingOf(conditional.Expression),
-        _ => null
-    };
-
-    static SimpleNameSyntax? AccessedName(ExpressionSyntax expression) => expression switch
-    {
-        MemberAccessExpressionSyntax member => member.Name,
-        MemberBindingExpressionSyntax binding => binding.Name,
-        _ => null
-    };
 
     /// <summary>
     /// Determines whether the sequence is reached through the event store the reactor was handed.
@@ -198,48 +175,8 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     /// the wrong place. Only a store held as a parameter, field, or property counts as the reactor's own.
     /// </remarks>
     static bool IsTheReactorsOwnEventStore(SemanticModel semanticModel, ExpressionSyntax eventLogAccess) =>
-        EventStoreExpression(eventLogAccess) is { } eventStore &&
+        MemberAccessChain.ReceiverOf(eventLogAccess) is { } eventStore &&
         semanticModel.GetSymbolInfo(eventStore).Symbol is IParameterSymbol or IFieldSymbol or IPropertySymbol;
-
-    static ExpressionSyntax? EventStoreExpression(ExpressionSyntax eventLogAccess) => AccessorOf(eventLogAccess) switch
-    {
-        MemberAccessExpressionSyntax member => Unwrap(member.Expression),
-        MemberBindingExpressionSyntax binding => ConditionalReceiverOf(binding),
-        _ => null
-    };
-
-    static ExpressionSyntax AccessorOf(ExpressionSyntax eventLogAccess) =>
-        eventLogAccess is InvocationExpressionSyntax invocation ? invocation.Expression : eventLogAccess;
-
-    static ExpressionSyntax? ConditionalReceiverOf(MemberBindingExpressionSyntax binding) =>
-        binding.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault() is { } conditional
-            ? Unwrap(conditional.Expression)
-            : null;
-
-    /// <summary>
-    /// Renders the event log access for the diagnostic message on a single line.
-    /// </summary>
-    /// <param name="eventLogAccess">The event log or event sequence access to render.</param>
-    /// <returns>The source text of the access, with its own line breaks and indentation removed.</returns>
-    /// <remarks>
-    /// A fluent call spread over several lines carries those line breaks and their indentation into its source
-    /// text, and a diagnostic message is rendered on one line by the CLI, by SARIF readers, and by every IDE
-    /// error list.
-    /// </remarks>
-    static string Describe(ExpressionSyntax eventLogAccess) =>
-        AccessorOf(eventLogAccess) is MemberBindingExpressionSyntax binding && ConditionalReceiverOf(binding) is { } receiver
-            ? $"{OnOneLine(receiver)}?{OnOneLine(eventLogAccess)}"
-            : OnOneLine(eventLogAccess);
-
-    static string OnOneLine(SyntaxNode node) =>
-        node.NormalizeWhitespace(indentation: string.Empty, eol: " ").ToString();
-
-    static ExpressionSyntax Unwrap(ExpressionSyntax expression) => expression switch
-    {
-        ParenthesizedExpressionSyntax parenthesized => Unwrap(parenthesized.Expression),
-        PostfixUnaryExpressionSyntax postfix when postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression) => Unwrap(postfix.Operand),
-        _ => expression
-    };
 
     static bool IsDefaultEventLog(SemanticModel semanticModel, ExpressionSyntax expression)
     {
