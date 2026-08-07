@@ -66,6 +66,23 @@ public class AcceptanceOutbox(IEventStore eventStore) : IReactor
 
 A returned side-effect event is always appended to the **default event log** — neither a bare event nor an `EventForEventSourceId` carries an `EventSequenceId` — so the outbox is not expressible as a return value and the store is the only way to reach it. The rule stays silent whenever `GetEventSequence` names anything other than the default log, including a sequence resolved at runtime.
 
+**Another event store is the same kind of exception.** A returned event goes to *this* reactor's own store, in *this* namespace. A store the reactor obtains at runtime targets a different one, so the rule's advice would send the event somewhere else entirely:
+
+```csharp
+[Reactor]
+public class AuthorReplicator(IChronicleClient client) : IReactor
+{
+    [OnceOnly]
+    public async Task On(AuthorRegistered @event, EventContext context)
+    {
+        var other = await client.GetEventStore("Reporting", "tenant-x");
+        await other.EventLog.Append(context.EventSourceId, @event);
+    }
+}
+```
+
+The rule reports an append only through the event store the reactor **holds** — a constructor parameter, a field, or a property. Anything else is treated as a store the reactor went and found.
+
 ## Why This Rule Exists
 
 The two shapes write the same event to the same sequence, so the rule's reason applies to both: replay and side-effect semantics stay Chronicle's concern only while the append goes through the return type.

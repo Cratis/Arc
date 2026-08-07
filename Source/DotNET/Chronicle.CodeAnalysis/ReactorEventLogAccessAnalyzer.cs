@@ -15,8 +15,10 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 /// <remarks>
 /// Two shapes reach the same sequence: injecting <c>IEventLog</c>, and appending through an injected
 /// <c>IEventStore</c> — either its <c>EventLog</c> property or <c>GetEventSequence(EventSequenceId.Log)</c>.
-/// Routing to any other sequence through <c>GetEventSequence</c> — the outbox in particular — is not
-/// reported, because a returned event cannot target a sequence other than the default log.
+/// Two shapes are deliberately left alone, because a returned side-effect event cannot express either of them:
+/// routing to another sequence through <c>GetEventSequence</c> — the outbox in particular — and appending to an
+/// event store other than the one the reactor was handed, such as one obtained from
+/// <c>IChronicleClient.GetEventStore</c>.
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
@@ -101,7 +103,7 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
 
     static void ReportWhenAppendingInsideReactor(SyntaxNodeAnalysisContext context, ExpressionSyntax eventLogAccess)
     {
-        if (!IsAppendedTo(eventLogAccess))
+        if (!IsAppendedTo(eventLogAccess) || !IsTheReactorsOwnEventStore(context.SemanticModel, eventLogAccess))
         {
             return;
         }
@@ -124,6 +126,36 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
         memberAccess.Expression == eventLogAccess &&
         memberAccess.Name.Identifier.ValueText.StartsWith(AppendMethodPrefix, StringComparison.Ordinal) &&
         memberAccess.Parent is InvocationExpressionSyntax;
+
+    /// <summary>
+    /// Determines whether the sequence is reached through the event store the reactor was handed.
+    /// </summary>
+    /// <param name="semanticModel">The <see cref="SemanticModel"/> to resolve symbols with.</param>
+    /// <param name="eventLogAccess">The event log or event sequence access to inspect.</param>
+    /// <returns>True if the store is one the reactor holds, false otherwise.</returns>
+    /// <remarks>
+    /// The rule's advice — return the events instead — only appends to the reactor's own store's default log.
+    /// A store the reactor obtained at runtime, from <c>IChronicleClient.GetEventStore</c>, is a different store
+    /// in a namespace of its own that no returned event can reach, so following the advice there would write to
+    /// the wrong place. Only a store held as a parameter, field, or property counts as the reactor's own.
+    /// </remarks>
+    static bool IsTheReactorsOwnEventStore(SemanticModel semanticModel, ExpressionSyntax eventLogAccess) =>
+        EventStoreExpression(eventLogAccess) is { } eventStore &&
+        semanticModel.GetSymbolInfo(eventStore).Symbol is IParameterSymbol or IFieldSymbol or IPropertySymbol;
+
+    static ExpressionSyntax? EventStoreExpression(ExpressionSyntax eventLogAccess)
+    {
+        var accessor = eventLogAccess is InvocationExpressionSyntax invocation ? invocation.Expression : eventLogAccess;
+
+        return accessor is MemberAccessExpressionSyntax member ? Unwrap(member.Expression) : null;
+    }
+
+    static ExpressionSyntax Unwrap(ExpressionSyntax expression) => expression switch
+    {
+        ParenthesizedExpressionSyntax parenthesized => Unwrap(parenthesized.Expression),
+        PostfixUnaryExpressionSyntax postfix when postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression) => Unwrap(postfix.Operand),
+        _ => expression
+    };
 
     static bool IsDefaultEventLog(SemanticModel semanticModel, ExpressionSyntax expression)
     {
