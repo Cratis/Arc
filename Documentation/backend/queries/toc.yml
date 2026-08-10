@@ -4,6 +4,8 @@
   href: model-bound/toc.yml
 - name: Observable Query Demultiplexer
   href: observable-query-demultiplexer.md
+- name: Observable Query Emission Guards
+  href: observable-query-emission-guards.md
 - name: Query Health Endpoint
   href: query-health.md
 - name: Use the HTTP QUERY method

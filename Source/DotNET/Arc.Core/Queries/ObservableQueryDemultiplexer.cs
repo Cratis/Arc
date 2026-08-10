@@ -45,6 +45,13 @@ namespace Cratis.Arc.Queries;
 /// producer thread, where the AsyncLocal tenant context does not flow, so <see cref="IHttpRequestContextAccessor.Current"/>
 /// is restored to the subscribing connection immediately before each interception call.
 /// </para>
+/// <para>
+/// The subscription-time authorization verdict gates <em>obtaining</em> the stream, not the stream itself. An
+/// application that needs the verdict re-checked while a subscription is running implements an
+/// <see cref="IGuardObservableQueryEmission"/>; it is then consulted for every emission, and can withhold a single
+/// emission or terminate the subscription. With no guard implemented nothing is dispatched and emissions take exactly
+/// the path they always did.
+/// </para>
 /// </remarks>
 /// <param name="queryPipeline">The <see cref="IQueryPipeline"/> used to perform and authorize queries.</param>
 /// <param name="queryContextManager">The <see cref="IQueryContextManager"/> for managing query contexts.</param>
@@ -54,6 +61,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to create a per-subscription <see cref="IServiceScope"/> for resolving interceptors — see remarks.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/> used for JSON serialization.</param>
 /// <param name="healthTracker">The <see cref="IQueryHealthTracker"/> used to track subscription health.</param>
+/// <param name="emissionGuards">The <see cref="IObservableQueryEmissionGuards"/> consulted per emission when an application opts in with an <see cref="IGuardObservableQueryEmission"/>.</param>
 /// <param name="logger">The logger.</param>
 [Singleton]
 public class ObservableQueryDemultiplexer(
@@ -65,6 +73,7 @@ public class ObservableQueryDemultiplexer(
     IServiceProvider serviceProvider,
     IOptions<ArcOptions> arcOptions,
     IQueryHealthTracker healthTracker,
+    IObservableQueryEmissionGuards emissionGuards,
     ILogger<ObservableQueryDemultiplexer> logger) : IObservableQueryDemultiplexer
 {
     const int WebSocketBufferSize = 1024 * 4;
@@ -243,6 +252,11 @@ public class ObservableQueryDemultiplexer(
                 wasUnauthorized = true;
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
                 await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock);
+
+                // Reached at subscribe time (nothing is tracked yet, so this is a no-op) and again when an emission
+                // guard denies the running stream. Only this query's entry is torn down — every sibling subscription
+                // on the same connection keeps streaming.
+                TerminateSubscription(state.Subscriptions, body.ConnectionId, id);
             },
             state.CancellationTokenSource.Token);
 
@@ -303,8 +317,10 @@ public class ObservableQueryDemultiplexer(
     /// <param name="paging">The <see cref="PagingInfo"/> to report with each result.</param>
     /// <param name="transferMode">The transfer mode (for example delta or full), or null for the default.</param>
     /// <param name="correlationId">The <see cref="CorrelationId"/> to stamp each result with.</param>
+    /// <param name="identity">The <see cref="ObservableQuerySubscriptionIdentity"/> describing the query and the caller that established the subscription.</param>
     /// <param name="onNext">Callback invoked with each streamed <see cref="QueryResult"/>.</param>
     /// <param name="onError">Callback invoked with the query id and message when the subscription errors.</param>
+    /// <param name="onUnauthorized">Callback invoked with the query id when an emission guard denies the stream, ending the subscription.</param>
     /// <param name="token">The connection's <see cref="CancellationToken"/>.</param>
     /// <returns>An <see cref="IDisposable"/> that stops the subscription, or null when the data is not streamable.</returns>
     internal IDisposable? SubscribeToStreamingData(
@@ -314,15 +330,17 @@ public class ObservableQueryDemultiplexer(
         PagingInfo paging,
         string? transferMode,
         CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
+        Func<string, Task> onUnauthorized,
         CancellationToken token)
     {
         var type = streamingData.GetType();
 
         if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
         {
-            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, onNext, onError, token);
+            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, token);
         }
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
@@ -331,8 +349,24 @@ public class ObservableQueryDemultiplexer(
             // disposable that cancels it. Returning null here left the stream untracked: unsubscribe could not stop
             // it, and re-subscribing the same query started a second one while the first kept pushing results.
             var streamCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
-            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, correlationId, onNext, onError, streamCancellationTokenSource.Token);
-            return new StreamingQuerySubscription(streamCancellationTokenSource);
+
+            IDisposable subscription = new StreamingQuerySubscription(streamCancellationTokenSource);
+            IServiceScope? guardScope = null;
+
+            // A scope of this subscription's own for the emission guards to resolve from — created only when a guard
+            // exists, so a stream without one keeps exactly the shape (and cost) it had before guards were a thing.
+            // Ownership moves to the composite, which the connection disposes together with the subscription.
+            if (emissionGuards.HasGuards)
+            {
+#pragma warning disable CA2000 // guardScope's ownership is transferred to the returned CompositeDisposable
+                guardScope = serviceProvider.CreateScope();
+#pragma warning restore CA2000
+                subscription = new CompositeDisposable(subscription, guardScope);
+            }
+
+            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, correlationId, identity, guardScope?.ServiceProvider, onNext, onError, onUnauthorized, streamCancellationTokenSource.Token);
+
+            return subscription;
         }
 
         return null;
@@ -480,6 +514,11 @@ public class ObservableQueryDemultiplexer(
             {
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
                 await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, token);
+
+                // Reached at subscribe time (nothing is tracked yet, so this is a no-op) and again when an emission
+                // guard denies the running stream. Only this query's entry is torn down — every sibling subscription
+                // on the same connection keeps streaming.
+                TerminateSubscription(subscriptions, connectionId, id);
             },
             token);
 
@@ -490,6 +529,21 @@ public class ObservableQueryDemultiplexer(
             // Register subscription with health tracker
             var metadata = CreateSubscriptionMetadata(queryId, request, context, "WebSocket");
             healthTracker.RegisterSubscription(connectionId, "WebSocket", metadata);
+        }
+    }
+
+    /// <summary>
+    /// Tears down a single tracked subscription, leaving every other subscription on the connection untouched.
+    /// </summary>
+    /// <param name="subscriptions">The connection's tracked subscriptions.</param>
+    /// <param name="connectionId">The id of the connection the subscription belongs to.</param>
+    /// <param name="queryId">The id of the query whose subscription is torn down.</param>
+    void TerminateSubscription(ConcurrentDictionary<string, IDisposable> subscriptions, string connectionId, string queryId)
+    {
+        if (subscriptions.TryRemove(queryId, out var subscription))
+        {
+            subscription.Dispose();
+            healthTracker.UnregisterSubscription(connectionId, queryId);
         }
     }
 
@@ -567,7 +621,16 @@ public class ObservableQueryDemultiplexer(
             return null;
         }
 
-        return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, onNext, onError, token);
+        // The pipeline coerces the raw string arguments to their declared parameter types and publishes them on the
+        // query context. Take them from there so an emission guard sees the same typed arguments the query itself ran
+        // with, rather than the unconverted strings that came in over the wire.
+        var performedQueryContext = queryContextManager.Current;
+        var identity = new ObservableQuerySubscriptionIdentity(
+            fullyQualifiedName,
+            performedQueryContext?.Arguments ?? arguments,
+            context.User);
+
+        return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, token);
     }
 
     IDisposable SubscribeToSubject(
@@ -578,8 +641,10 @@ public class ObservableQueryDemultiplexer(
         PagingInfo paging,
         string? transferMode,
         CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
+        Func<string, Task> onUnauthorized,
         CancellationToken token)
     {
         var elementType = subjectType.GetInterfaces()
@@ -590,7 +655,7 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, onNext, onError, token])!;
+        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, token])!;
     }
 
     CompositeDisposable SubscribeToSubjectOfType<T>(
@@ -600,11 +665,15 @@ public class ObservableQueryDemultiplexer(
         PagingInfo paging,
         string? transferMode,
         CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
+        Func<string, Task> onUnauthorized,
         CancellationToken token)
     {
         IEnumerable<object>? previousItems = null;
+        var hasDeliveredEmission = false;
+        var isTerminated = false;
         var isDeltaMode = string.Equals(transferMode, "delta", StringComparison.OrdinalIgnoreCase);
         var isFullMode = string.Equals(transferMode, "full", StringComparison.OrdinalIgnoreCase);
 
@@ -648,11 +717,47 @@ public class ObservableQueryDemultiplexer(
                 await emissionGate.WaitAsync(token);
                 gateAcquired = true;
 
+                // An emission that was already queued behind the gate when a guard terminated the subscription must
+                // not still be written — the client has been told it is no longer authorized.
+                if (isTerminated)
+                {
+                    return;
+                }
+
                 // Restore the subscribing connection's context — this callback runs on the subject's own
                 // producer thread, where the AsyncLocal tenant context set up when the subscription was
                 // created does not flow (see the class remarks).
                 httpRequestContextAccessor.Current = context;
                 var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, interceptionScope.ServiceProvider);
+
+                // Ask the emission guards before the delta baseline below moves. Advancing the baseline first would
+                // fold a withheld emission's changes into "already delivered", so a later allowed emission would
+                // compute its ChangeSet against state the client never received and silently lose those changes.
+                if (emissionGuards.HasGuards)
+                {
+                    var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
+                        identity.QueryName,
+                        identity.Arguments,
+                        identity.Principal,
+                        correlationId,
+                        interceptionScope.ServiceProvider,
+                        !hasDeliveredEmission,
+                        token));
+
+                    if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
+                    {
+                        isTerminated = true;
+                        logger.EmissionDenied(queryId);
+                        await onUnauthorized(queryId);
+                        return;
+                    }
+
+                    if (verdict == ObservableQueryEmissionVerdict.Suppress)
+                    {
+                        logger.EmissionSuppressed(queryId);
+                        return;
+                    }
+                }
 
                 var isFirstEmission = previousItems is null;
 
@@ -699,6 +804,7 @@ public class ObservableQueryDemultiplexer(
                 }
 
                 await onNext(result);
+                hasDeliveredEmission = true;
             }
             catch (OperationCanceledException)
             {
@@ -768,8 +874,11 @@ public class ObservableQueryDemultiplexer(
         string queryId,
         PagingInfo paging,
         CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
+        IServiceProvider? guardServiceProvider,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
+        Func<string, Task> onUnauthorized,
         CancellationToken token)
     {
         var elementType = enumerableType.GetInterfaces()
@@ -780,7 +889,7 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(StreamAsyncEnumerableOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        await (Task)method.Invoke(this, [enumerable, queryId, paging, correlationId, onNext, onError, token])!;
+        await (Task)method.Invoke(this, [enumerable, queryId, paging, correlationId, identity, guardServiceProvider, onNext, onError, onUnauthorized, token])!;
     }
 
     async Task StreamAsyncEnumerableOfType<T>(
@@ -788,10 +897,15 @@ public class ObservableQueryDemultiplexer(
         string queryId,
         PagingInfo paging,
         CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
+        IServiceProvider? guardServiceProvider,
         Func<QueryResult, Task> onNext,
         Func<string, string, Task> onError,
+        Func<string, Task> onUnauthorized,
         CancellationToken token)
     {
+        var hasDeliveredEmission = false;
+
         try
         {
             await foreach (var item in enumerable.WithCancellation(token))
@@ -799,6 +913,31 @@ public class ObservableQueryDemultiplexer(
                 if (token.IsCancellationRequested)
                 {
                     break;
+                }
+
+                if (guardServiceProvider is not null)
+                {
+                    var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
+                        identity.QueryName,
+                        identity.Arguments,
+                        identity.Principal,
+                        correlationId,
+                        guardServiceProvider,
+                        !hasDeliveredEmission,
+                        token));
+
+                    if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
+                    {
+                        logger.EmissionDenied(queryId);
+                        await onUnauthorized(queryId);
+                        return;
+                    }
+
+                    if (verdict == ObservableQueryEmissionVerdict.Suppress)
+                    {
+                        logger.EmissionSuppressed(queryId);
+                        continue;
+                    }
                 }
 
                 var result = new QueryResult
@@ -813,6 +952,7 @@ public class ObservableQueryDemultiplexer(
                 };
 
                 await onNext(result);
+                hasDeliveredEmission = true;
             }
         }
         catch (OperationCanceledException)

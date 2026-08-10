@@ -23,6 +23,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> restored around each emission so tenant resolution sees the subscribing connection, not whatever ambient context the emitting thread happens to carry.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
+/// <param name="emissionGuards">The <see cref="IObservableQueryEmissionGuards"/> consulted per emission when an application opts in with an <see cref="IGuardObservableQueryEmission"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservableSSE<T>(
     QueryContext queryContext,
@@ -31,6 +32,7 @@ public class ClientObservableSSE<T>(
     IHttpRequestContextAccessor httpRequestContextAccessor,
     IOptions<ArcOptions> arcOptions,
     IHostApplicationLifetime hostApplicationLifetime,
+    IObservableQueryEmissionGuards emissionGuards,
     ILogger<ClientObservableSSE<T>> logger) : ClientObservableBase<T>(subject)
 {
     /// <inheritdoc/>
@@ -40,6 +42,7 @@ public class ClientObservableSSE<T>(
 
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
+        var hasDeliveredEmission = false;
         using var cts = new CancellationTokenSource();
 
         using var subscription = Subject.Subscribe(Next, Error, Complete);
@@ -88,12 +91,18 @@ public class ClientObservableSSE<T>(
                 httpRequestContextAccessor.Current = context;
                 queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
 
+                if (emissionGuards.HasGuards && !await IsEmissionAllowed())
+                {
+                    return;
+                }
+
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";
 
                 try
                 {
                     await context.Write(sseMessage, cts.Token);
+                    hasDeliveredEmission = true;
                 }
                 catch (Exception ex)
                 {
@@ -110,6 +119,42 @@ public class ClientObservableSSE<T>(
                     Subject.OnError(ex);
                 }
             }
+        }
+
+        // Returns true when the emission may be written. A denial also tells the client it is no longer authorized
+        // and ends the stream; a suppression only withholds this one emission and leaves the stream running.
+        async Task<bool> IsEmissionAllowed()
+        {
+            var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
+                queryContext.Name,
+                queryContext.Arguments ?? QueryArguments.Empty,
+                context.User,
+                queryContext.CorrelationId,
+                context.RequestServices,
+                !hasDeliveredEmission,
+                cts.Token));
+
+            if (verdict == ObservableQueryEmissionVerdict.Allow)
+            {
+                return true;
+            }
+
+            if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
+            {
+                logger.ObservableEmissionDenied();
+
+                // Send the terminal unauthorized result before the stream goes away — a client that only sees the
+                // stream end reads it as a transport hiccup and reconnects straight into the same denial.
+                var unauthorizedJson = JsonSerializer.Serialize(QueryResult.Unauthorized(queryContext.CorrelationId), arcOptions.Value.JsonSerializerOptions);
+                await context.Write($"data: {unauthorizedJson}\n\n", cts.Token);
+                Complete();
+            }
+            else
+            {
+                logger.ObservableEmissionSuppressed();
+            }
+
+            return false;
         }
 
         void Error(Exception error)

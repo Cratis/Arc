@@ -187,11 +187,15 @@ public class ObservableQueryHandler(
         var enumerableType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
         var elementType = enumerableType.GetGenericArguments()[0];
 
+        // Get the current query context
+        var queryContext = queryContextManager.Current;
+
         // Create ClientEnumerableObservableSSE using ActivatorUtilities to get proper dependency injection
         var clientEnumerableObservableType = typeof(ClientEnumerableObservableSSE<>).MakeGenericType(elementType);
         var clientEnumerableObservable = ActivatorUtilities.CreateInstance(
             serviceProvider,
             clientEnumerableObservableType,
+            queryContext,
             streamingData) as IClientObservable;
 
         await clientEnumerableObservable!.HandleConnection(context);

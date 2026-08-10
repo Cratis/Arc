@@ -107,7 +107,7 @@ public static class ObservableQueryExtensions
     {
         var type = objectResult.Value!.GetType();
         var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(type.GetGenericArguments()[0]);
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, objectResult.Value) as IClientEnumerableObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, CurrentQueryContext(serviceProvider), objectResult.Value) as IClientEnumerableObservable)!;
     }
 
     /// <summary>
@@ -140,7 +140,7 @@ public static class ObservableQueryExtensions
     {
         var type = objectResult.Value!.GetType();
         var clientEnumerableObservableType = typeof(ClientEnumerableObservableSSE<>).MakeGenericType(type.GetGenericArguments()[0]);
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, objectResult.Value) as IClientEnumerableObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, CurrentQueryContext(serviceProvider), objectResult.Value) as IClientEnumerableObservable)!;
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public static class ObservableQueryExtensions
         IAsyncEnumerable<T> enumerable)
     {
         var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(typeof(T));
-        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, enumerable) as IClientEnumerableObservable)!;
+        return (ActivatorUtilities.CreateInstance(serviceProvider, clientEnumerableObservableType, CurrentQueryContext(serviceProvider), enumerable) as IClientEnumerableObservable)!;
     }
 
     /// <summary>
@@ -174,4 +174,17 @@ public static class ObservableQueryExtensions
         var clientObservableType = typeof(ClientObservableSSE<>).MakeGenericType(typeof(T));
         return (ActivatorUtilities.CreateInstance(serviceProvider, clientObservableType, queryContext, subject) as IClientObservable)!;
     }
+
+    /// <summary>
+    /// Gets the <see cref="QueryContext"/> the current query is running under.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider to resolve the <see cref="IQueryContextManager"/> from.</param>
+    /// <returns>The current <see cref="QueryContext"/>.</returns>
+    /// <remarks>
+    /// The enumerable observables need the query context to identify the query and its caller to an
+    /// <see cref="IGuardObservableQueryEmission"/>. It is resolved here rather than taken as a parameter so the
+    /// public factory signatures stay exactly as they were for every existing caller.
+    /// </remarks>
+    static QueryContext CurrentQueryContext(IServiceProvider serviceProvider) =>
+        serviceProvider.GetService<IQueryContextManager>()?.Current ?? QueryContext.NotSet;
 }
