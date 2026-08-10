@@ -3,7 +3,6 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Execution;
-using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 
 namespace Cratis.Arc.MongoDB.for_MongoDBReadModelForCommandResolver.when_resolving.given;
@@ -14,14 +13,6 @@ public class a_resolver : Specification
 
     void Establish()
     {
-        // Resolving looks up the class map for a read model, and mapping one reaches for process-wide state that only
-        // AddCratisMongoDB() establishes: the naming policy the member name convention reads, and the Cratis
-        // serializers, which cannot be registered once the driver has cached its own for a Guid. An application always
-        // has both in place long before a command resolves anything, so the specification puts them there the same way
-        // rather than assembling the pieces itself - assembling them is what left this passing only when some other
-        // specification had run AddCratisMongoDB() first.
-        new ServiceCollection().AddCratisMongoDB();
-
         _resolver = new([typeof(Customer), typeof(Account), typeof(Preferences)]);
     }
 
