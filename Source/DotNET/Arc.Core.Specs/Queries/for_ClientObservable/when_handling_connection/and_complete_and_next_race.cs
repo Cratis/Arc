@@ -60,6 +60,7 @@ public class and_complete_and_next_race
             Substitute.For<IHttpRequestContextAccessor>(),
             webSocketConnectionHandler,
             hostLifetime,
+            Substitute.For<IObservableQueryEmissionGuards>(),
             logger);
 
         // Act — run connection in background, then trigger the races
@@ -135,6 +136,7 @@ public class and_complete_and_next_race
             Substitute.For<IHttpRequestContextAccessor>(),
             webSocketConnectionHandler,
             hostLifetime,
+            Substitute.For<IObservableQueryEmissionGuards>(),
             logger);
 
         var connectionTask = Task.Run(() => observable.HandleConnection(httpContext));

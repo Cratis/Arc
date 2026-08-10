@@ -21,6 +21,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> restored around each emission so tenant resolution sees the subscribing connection, not whatever ambient context the emitting thread happens to carry.</param>
 /// <param name="webSocketConnectionHandler">The <see cref="IWebSocketConnectionHandler"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
+/// <param name="emissionGuards">The <see cref="IObservableQueryEmissionGuards"/> consulted per emission when an application opts in with an <see cref="IGuardObservableQueryEmission"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservable<T>(
     QueryContext queryContext,
@@ -29,6 +30,7 @@ public class ClientObservable<T>(
     IHttpRequestContextAccessor httpRequestContextAccessor,
     IWebSocketConnectionHandler webSocketConnectionHandler,
     IHostApplicationLifetime hostApplicationLifetime,
+    IObservableQueryEmissionGuards emissionGuards,
     ILogger<ClientObservable<T>> logger) : ClientObservableBase<T>(subject)
 {
     /// <summary>
@@ -43,6 +45,8 @@ public class ClientObservable<T>(
         var webSocket = await context.WebSockets.AcceptWebSocket();
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
+        var hasDeliveredEmission = false;
+        var isTerminated = false;
         using var cts = new CancellationTokenSource();
         using var writeLock = new SemaphoreSlim(1, 1);
 
@@ -67,7 +71,7 @@ public class ClientObservable<T>(
 
         async void Next(T data)
         {
-            if (cts.IsCancellationRequested)
+            if (cts.IsCancellationRequested || isTerminated)
             {
                 return;
             }
@@ -90,11 +94,33 @@ public class ClientObservable<T>(
                 httpRequestContextAccessor.Current = context;
                 queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
 
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
-                if (error is not null && !cts.IsCancellationRequested)
+                if (emissionGuards.HasGuards && !await IsEmissionAllowed())
                 {
-                    Subject.OnError(error);
+                    return;
                 }
+
+                // A guard evaluating a concurrent emission may have terminated the connection while this one was
+                // being intercepted and evaluated. The terminal unauthorized frame has already gone out, so nothing
+                // may be written behind it.
+                if (isTerminated)
+                {
+                    return;
+                }
+
+                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
+                if (error is not null)
+                {
+                    if (!cts.IsCancellationRequested)
+                    {
+                        Subject.OnError(error);
+                    }
+
+                    return;
+                }
+
+                // Only a write that actually reached the client counts as delivered — a guard asking whether this is
+                // the first emission must not be told the client already has one it never received.
+                hasDeliveredEmission = true;
             }
             catch (Exception ex)
             {
@@ -103,6 +129,42 @@ public class ClientObservable<T>(
                     Subject.OnError(ex);
                 }
             }
+        }
+
+        // Returns true when the emission may be written. A denial also tells the client it is no longer authorized
+        // and ends the connection; a suppression only withholds this one emission and leaves the stream running.
+        async Task<bool> IsEmissionAllowed()
+        {
+            var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
+                queryContext.Name,
+                queryContext.Arguments ?? QueryArguments.Empty,
+                context.User,
+                queryContext.CorrelationId,
+                context.RequestServices,
+                !hasDeliveredEmission,
+                cts.Token));
+
+            if (verdict == ObservableQueryEmissionVerdict.Allow)
+            {
+                return true;
+            }
+
+            if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
+            {
+                logger.ObservableEmissionDenied();
+                isTerminated = true;
+
+                // Send the terminal unauthorized result before the stream goes away — a client that only sees the
+                // socket close reads it as a transport hiccup and reconnects straight into the same denial.
+                await webSocketConnectionHandler.SendMessage(webSocket, QueryResult.Unauthorized(queryContext.CorrelationId), writeLock, cts.Token);
+                Complete();
+            }
+            else
+            {
+                logger.ObservableEmissionSuppressed();
+            }
+
+            return false;
         }
         void Error(Exception error)
         {

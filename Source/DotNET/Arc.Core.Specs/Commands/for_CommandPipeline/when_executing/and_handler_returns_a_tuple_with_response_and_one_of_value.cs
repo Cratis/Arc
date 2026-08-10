@@ -28,7 +28,7 @@ public class and_handler_returns_a_tuple_with_response_and_one_of_value : given.
 
     [Fact] void should_call_value_handlers() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), _tuple.Item2.Value);
     [Fact] void should_set_response_on_command_context() => _commandResponseValueHandlers.Received(1).Handle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_tuple.Item1)), _tuple.Item2.Value);
-    [Fact] void should_return_response_in_command_result() => _result.Response.ShouldEqual(_tuple.Item1);
+    [Fact] void should_not_carry_the_response_for_the_failed_command() => _result.Response.ShouldBeNull();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
     [Fact] void should_return_error_from_value_handlers() => _result.ExceptionMessages.First().ShouldEqual(_errorMessage);
 }

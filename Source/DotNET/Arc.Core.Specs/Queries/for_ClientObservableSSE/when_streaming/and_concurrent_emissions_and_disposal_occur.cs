@@ -44,6 +44,7 @@ public class and_concurrent_emissions_and_disposal_occur
             Substitute.For<IHttpRequestContextAccessor>(),
             arcOptions,
             hostLifetime,
+            Substitute.For<IObservableQueryEmissionGuards>(),
             logger);
 
         // Act & Assert: Rapid emissions followed by disposal should not throw
@@ -106,6 +107,7 @@ public class and_concurrent_emissions_and_disposal_occur
             Substitute.For<IHttpRequestContextAccessor>(),
             arcOptions,
             hostLifetime,
+            Substitute.For<IObservableQueryEmissionGuards>(),
             logger);
 
         // Act: Start connection

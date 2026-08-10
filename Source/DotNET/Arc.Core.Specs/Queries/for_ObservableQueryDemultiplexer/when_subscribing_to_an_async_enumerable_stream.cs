@@ -33,8 +33,10 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
             new PagingInfo(0, 0, 0),
             null,
             CorrelationId.New(),
+            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
             OnNext,
             OnError,
+            OnUnauthorized,
             CancellationToken.None);
 
         // The stream has emitted its first item and is now parked, so cancelling it exercises a real stop.
@@ -55,6 +57,8 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
     }
 
     Task OnError(string queryId, string message) => Task.CompletedTask;
+
+    Task OnUnauthorized(string queryId) => Task.CompletedTask;
 
     async IAsyncEnumerable<int> Stream([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

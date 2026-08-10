@@ -24,6 +24,8 @@ public class all_dependencies : Specification
         services.AddSingleton(Substitute.For<Microsoft.Extensions.Hosting.IHostApplicationLifetime>());
         services.AddSingleton(Substitute.For<IReadModelInterceptors>());
         services.AddSingleton(Substitute.For<IHttpRequestContextAccessor>());
+        services.AddSingleton(Substitute.For<IObservableQueryEmissionGuards>());
+        services.AddSingleton(Substitute.For<IQueryContextManager>());
         services.AddLogging();
 
         _serviceProvider = services.BuildServiceProvider();

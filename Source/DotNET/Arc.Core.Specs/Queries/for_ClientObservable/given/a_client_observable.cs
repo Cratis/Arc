@@ -17,6 +17,7 @@ public class a_client_observable : Specification
     protected IHttpRequestContextAccessor _httpRequestContextAccessor;
     protected IWebSocketConnectionHandler _webSocketConnectionHandler;
     protected IHostApplicationLifetime _hostApplicationLifetime;
+    protected IObservableQueryEmissionGuards _emissionGuards;
     protected ILogger<ClientObservable<TestData>> _logger;
     protected ClientObservable<TestData> _clientObservable;
 
@@ -28,6 +29,7 @@ public class a_client_observable : Specification
         _httpRequestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
         _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
         _hostApplicationLifetime = Substitute.For<IHostApplicationLifetime>();
+        _emissionGuards = Substitute.For<IObservableQueryEmissionGuards>();
         _logger = Substitute.For<ILogger<ClientObservable<TestData>>>();
 
         _clientObservable = new ClientObservable<TestData>(
@@ -37,6 +39,7 @@ public class a_client_observable : Specification
             _httpRequestContextAccessor,
             _webSocketConnectionHandler,
             _hostApplicationLifetime,
+            _emissionGuards,
             _logger);
     }
 
