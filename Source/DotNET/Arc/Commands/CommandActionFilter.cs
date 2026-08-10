@@ -74,13 +74,20 @@ public class CommandActionFilter(
                 }
             }
 
+            var blockingValidationResults = FilterValidationResults(validationResult, treatWarningsAsErrors, ignoreWarnings);
+
+            // A response describes what the command produced. A controller action that threw, or whose input was
+            // rejected, produced nothing the caller may act on - so its response must never travel back in the error
+            // response body. This mirrors what the command pipeline does for model-bound commands.
+            var isFailed = exceptionMessages.Count != 0 || blockingValidationResults.Length != 0;
+
             var commandResult = new CommandResult<object>
             {
                 CorrelationId = context.HttpContext.GetCorrelationId(),
-                ValidationResults = FilterValidationResults(validationResult, treatWarningsAsErrors, ignoreWarnings),
+                ValidationResults = blockingValidationResults,
                 ExceptionMessages = [.. exceptionMessages],
                 ExceptionStackTrace = exceptionStackTrace ?? string.Empty,
-                Response = response
+                Response = isFailed ? null : response
             };
 
             context.HttpContext.Response.SetResponseStatusCode(commandResult);

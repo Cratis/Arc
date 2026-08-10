@@ -176,6 +176,15 @@ public class CommandPipeline(
                 }
             }
 
+            // A response describes what the command produced, and it is bound onto the result as soon as the handler
+            // returns it - before the scopes above complete, and therefore before a transaction has committed. Once
+            // every scope has had its say, a command that did not succeed produced nothing the caller may act on, so
+            // the response is taken back rather than serialized into an error response body.
+            if (!commandResult.IsSuccess)
+            {
+                commandResult.ClearResponse();
+            }
+
             return commandResult;
         }
     }
