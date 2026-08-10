@@ -46,6 +46,7 @@ public class ClientObservable<T>(
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
+        var isTerminated = false;
         using var cts = new CancellationTokenSource();
         using var writeLock = new SemaphoreSlim(1, 1);
 
@@ -70,7 +71,7 @@ public class ClientObservable<T>(
 
         async void Next(T data)
         {
-            if (cts.IsCancellationRequested)
+            if (cts.IsCancellationRequested || isTerminated)
             {
                 return;
             }
@@ -98,11 +99,27 @@ public class ClientObservable<T>(
                     return;
                 }
 
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
-                if (error is not null && !cts.IsCancellationRequested)
+                // A guard evaluating a concurrent emission may have terminated the connection while this one was
+                // being intercepted and evaluated. The terminal unauthorized frame has already gone out, so nothing
+                // may be written behind it.
+                if (isTerminated)
                 {
-                    Subject.OnError(error);
+                    return;
                 }
+
+                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
+                if (error is not null)
+                {
+                    if (!cts.IsCancellationRequested)
+                    {
+                        Subject.OnError(error);
+                    }
+
+                    return;
+                }
+
+                // Only a write that actually reached the client counts as delivered — a guard asking whether this is
+                // the first emission must not be told the client already has one it never received.
                 hasDeliveredEmission = true;
             }
             catch (Exception ex)
@@ -135,6 +152,7 @@ public class ClientObservable<T>(
             if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
             {
                 logger.ObservableEmissionDenied();
+                isTerminated = true;
 
                 // Send the terminal unauthorized result before the stream goes away — a client that only sees the
                 // socket close reads it as a transport hiccup and reconnects straight into the same denial.

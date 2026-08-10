@@ -38,7 +38,7 @@ That is the whole opt-in. Guards are discovered by convention — no registratio
 
 `Suppress` does **not** move the delta baseline. The client never saw the withheld emission, so the next delivered `ChangeSet` is still computed against the last state it actually received — nothing goes missing.
 
-`DenyAndTerminate` ends only the subscription it was given. Every sibling subscription on the same multiplexed connection keeps streaming. On the hub the client receives an `unauthorized` message for that query id; on a direct connection it receives a final `QueryResult` with `IsAuthorized` false and the stream closes. The client does not reconnect after that — a reconnect would only be denied again.
+`DenyAndTerminate` ends only the subscription it was given. Every sibling subscription on the same multiplexed connection keeps streaming. On the hub the client receives an `unauthorized` message for that query id and the subscription is deleted; on a direct connection it receives a final `QueryResult` with `IsAuthorized` false and the stream closes. In both cases the Arc client latches the denial and stops reconnecting — a reconnect would only be denied again, and on a direct SSE connection the browser would otherwise re-establish the stream every few seconds and re-run the whole query for each attempt.
 
 ## What the guard is told
 
@@ -52,13 +52,19 @@ Every guard is asked, and the most restrictive verdict wins: `DenyAndTerminate` 
 
 ## Failing closed
 
-A guard that throws is treated as `DenyAndTerminate`. The failure is logged and never rethrown.
+A guard that throws is treated as `DenyAndTerminate`. The failure is logged at `Error` and never rethrown.
 
 This is deliberate. A guard that failed open would leave an application believing its stream is protected while it keeps flowing — which is worse than having no guard at all, because nobody goes looking.
+
+Know the blast radius before you write one. The aggregator is a process-wide singleton over every discovered guard type, so a single guard that cannot be constructed at all — an open generic, or one whose constructor takes something the subscription scope cannot resolve — denies **every** observable query in the application, on every transport, for as long as the process runs. The only symptom is the `Error` log; clients simply see their subscriptions end as unauthorized. Cover a new guard with a spec that exercises its real constructor.
+
+One exception is carved out: if the subscription's own `CancellationToken` is cancelled while the guard is running, the resulting `OperationCanceledException` is the client going away, not a guard failing. The emission is still withheld and the subscription still ends, but nothing is logged as a failure — otherwise every closed tab would produce an authorization error.
 
 ## Cost
 
 The guard runs on **every** emission of **every** subscription. Keep it fast: prefer cached state, a local revocation list, or a short-TTL lookup over a network round trip per emission.
+
+**The guard instance itself is constructed per emission.** Guards are resolved with `GetServiceOrCreateInstance`, and Arc's `IFoo → Foo` convention does not match a guard named for what it decides (`SessionMustStillBeActive` implements `IGuardObservableQueryEmission`, not `ISessionMustStillBeActive`), so unless the application registers the type explicitly it is newly constructed — constructor and all — for every emission, and never disposed. Keep the constructor trivial, and put any cache in an injected singleton rather than in a field on the guard, where it would be thrown away and rebuilt each time.
 
 Resolve collaborators through the constructor. They come from the subscription's own scope and are disposed with it, so a guard can safely hold a scoped session store or tenant-aware service.
 

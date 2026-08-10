@@ -43,6 +43,7 @@ public class ClientObservableSSE<T>(
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
+        var isTerminated = false;
         using var cts = new CancellationTokenSource();
 
         using var subscription = Subject.Subscribe(Next, Error, Complete);
@@ -68,7 +69,7 @@ public class ClientObservableSSE<T>(
 
         async void Next(T data)
         {
-            if (cts.IsCancellationRequested)
+            if (cts.IsCancellationRequested || isTerminated)
             {
                 return;
             }
@@ -92,6 +93,14 @@ public class ClientObservableSSE<T>(
                 queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
 
                 if (emissionGuards.HasGuards && !await IsEmissionAllowed())
+                {
+                    return;
+                }
+
+                // A guard evaluating a concurrent emission may have terminated the stream while this one was being
+                // intercepted and evaluated. The terminal unauthorized frame has already gone out, so nothing may be
+                // written behind it.
+                if (isTerminated)
                 {
                     return;
                 }
@@ -142,6 +151,7 @@ public class ClientObservableSSE<T>(
             if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
             {
                 logger.ObservableEmissionDenied();
+                isTerminated = true;
 
                 // Send the terminal unauthorized result before the stream goes away — a client that only sees the
                 // stream end reads it as a transport hiccup and reconnects straight into the same denial.

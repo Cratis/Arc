@@ -15,7 +15,10 @@ namespace Cratis.Arc.Queries;
 /// <param name="Principal">The <see cref="ClaimsPrincipal"/> of the caller that established the subscription, or null when the subscription is anonymous.</param>
 /// <param name="CorrelationId">The <see cref="CorrelationId"/> the subscription stamps every emission with.</param>
 /// <param name="ServiceProvider">The per-subscription <see cref="IServiceProvider"/> to resolve guard dependencies from.</param>
-/// <param name="IsFirstEmission">Whether this is the first emission delivered on the subscription.</param>
+/// <param name="IsFirstEmission">Whether this is the first emission delivered on the subscription. On the direct
+/// (non-multiplexed) transports this is best-effort: emissions are dispatched from an <c>async void</c> observer with
+/// no serializing gate, so two emissions racing each other can both be told they are the first. Treat it as a hint for
+/// doing extra work once, never as the sole basis for a security decision.</param>
 /// <param name="CancellationToken">The <see cref="CancellationToken"/> that is cancelled when the subscription ends.</param>
 /// <remarks>
 /// The principal is passed explicitly rather than resolved ambiently. Emissions arrive on the producing stream's own

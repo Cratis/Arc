@@ -260,12 +260,6 @@ public class ObservableQueryDemultiplexer(
             },
             state.CancellationTokenSource.Token);
 
-        if (wasUnauthorized)
-        {
-            context.SetStatusCode(401);
-            return;
-        }
-
         if (subscription is not null)
         {
             state.Subscriptions[body.QueryId] = subscription;
@@ -273,6 +267,19 @@ public class ObservableQueryDemultiplexer(
             // Register subscription with health tracker
             var metadata = CreateSubscriptionMetadata(body.QueryId, body.Request, context, "SSE");
             healthTracker.RegisterSubscription(body.ConnectionId, "SSE", metadata);
+        }
+
+        if (wasUnauthorized)
+        {
+            // A replaying subject hands its buffered value to the observer from inside Subscribe, so a guard can deny
+            // — and run the teardown above — before this method ever had a subscription to track. Tracking it first
+            // and then tearing it down here routes every teardown through TerminateSubscription, rather than
+            // returning with the composite (its service scope, emission gate and subject subscription) dropped on the
+            // floor. When the denial came from subscribe-time authorization there is no subscription and this is the
+            // no-op it always was.
+            TerminateSubscription(state.Subscriptions, body.ConnectionId, body.QueryId);
+            context.SetStatusCode(401);
+            return;
         }
 
         context.SetStatusCode(200);
@@ -494,6 +501,7 @@ public class ObservableQueryDemultiplexer(
         }
 
         var queryId = message.QueryId ?? Guid.NewGuid().ToString();
+        var wasUnauthorized = false;
 
         var subscription = await CreateSubscription(
             context,
@@ -512,6 +520,7 @@ public class ObservableQueryDemultiplexer(
             },
             async id =>
             {
+                wasUnauthorized = true;
                 var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
                 await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, token);
 
@@ -529,6 +538,15 @@ public class ObservableQueryDemultiplexer(
             // Register subscription with health tracker
             var metadata = CreateSubscriptionMetadata(queryId, request, context, "WebSocket");
             healthTracker.RegisterSubscription(connectionId, "WebSocket", metadata);
+        }
+
+        if (wasUnauthorized)
+        {
+            // A replaying subject hands its buffered value to the observer from inside Subscribe, so a guard can deny
+            // — and run the teardown above — before this method ever had a subscription to track. Without this the
+            // connection would keep reporting a live subscription that will never serve a byte, and hold its service
+            // scope until the whole connection ends.
+            TerminateSubscription(subscriptions, connectionId, queryId);
         }
     }
 

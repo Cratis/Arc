@@ -170,13 +170,15 @@ public class ObservableQueryHandler(
         // Get the current query context
         var queryContext = queryContextManager.Current;
 
-        // Create ClientEnumerableObservable using ActivatorUtilities to get proper dependency injection
+        // Create ClientEnumerableObservable using ActivatorUtilities to get proper dependency injection.
+        // The enumerable observables implement IClientEnumerableObservable, which is unrelated to IClientObservable —
+        // casting to the latter silently yielded null and made the very next line throw a NullReferenceException.
         var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(elementType);
         var clientEnumerableObservable = ActivatorUtilities.CreateInstance(
             serviceProvider,
             clientEnumerableObservableType,
             queryContext,
-            streamingData) as IClientObservable;
+            streamingData) as IClientEnumerableObservable;
 
         await clientEnumerableObservable!.HandleConnection(context);
     }
@@ -190,13 +192,15 @@ public class ObservableQueryHandler(
         // Get the current query context
         var queryContext = queryContextManager.Current;
 
-        // Create ClientEnumerableObservableSSE using ActivatorUtilities to get proper dependency injection
+        // Create ClientEnumerableObservableSSE using ActivatorUtilities to get proper dependency injection.
+        // The enumerable observables implement IClientEnumerableObservable, which is unrelated to IClientObservable —
+        // casting to the latter silently yielded null and made the very next line throw a NullReferenceException.
         var clientEnumerableObservableType = typeof(ClientEnumerableObservableSSE<>).MakeGenericType(elementType);
         var clientEnumerableObservable = ActivatorUtilities.CreateInstance(
             serviceProvider,
             clientEnumerableObservableType,
             queryContext,
-            streamingData) as IClientObservable;
+            streamingData) as IClientEnumerableObservable;
 
         await clientEnumerableObservable!.HandleConnection(context);
     }

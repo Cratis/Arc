@@ -88,7 +88,7 @@ public class a_guarded_websocket_connection : a_guarded_connection
             {
                 Type = ObservableQueryHubMessageType.Subscribe,
                 QueryId = _queryIds[_receiveCount++],
-                Payload = new ObservableQuerySubscriptionRequest(QueryName)
+                Payload = new ObservableQuerySubscriptionRequest(QueryName, RawArguments)
             };
 
             var bytes = JsonSerializer.SerializeToUtf8Bytes(subscribe, _arcOptions.Value.JsonSerializerOptions);

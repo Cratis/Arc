@@ -84,7 +84,7 @@ public class a_guarded_sse_connection : a_guarded_connection
             .Returns(_ => Task.FromResult<object?>(new ObservableQuerySSESubscribeRequest(
                 _connectionId,
                 queryId,
-                new ObservableQuerySubscriptionRequest(QueryName))));
+                new ObservableQuerySubscriptionRequest(QueryName, RawArguments))));
         subscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
             .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
         return subscribeContext;

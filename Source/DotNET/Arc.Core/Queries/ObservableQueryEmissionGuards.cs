@@ -41,6 +41,14 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
                 var guard = (IGuardObservableQueryEmission)ActivatorUtilities.GetServiceOrCreateInstance(context.ServiceProvider, guardType);
                 verdict = await guard.Guard(context);
             }
+            catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+            {
+                // The subscription ended while the guard was running — a closed tab, not a security failure. The
+                // guard is told to observe this token and the documentation tells its author to, so logging an
+                // ordinary teardown as "your authorization guard failed" would turn every disconnect into an Error.
+                // The verdict is still the closed one: there is nothing left to write to.
+                return ObservableQueryEmissionVerdict.DenyAndTerminate;
+            }
             catch (Exception error)
             {
                 // Fail closed. A guard that cannot answer must not become an implicit allow — the application would

@@ -22,6 +22,17 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     protected const string FirstQueryId = "query-1";
     protected const string SecondQueryId = "query-2";
 
+    /// <summary>
+    /// What the client actually puts on the wire — strings, because a query string cannot carry anything else.
+    /// </summary>
+    protected static readonly Dictionary<string, string?> RawArguments = new() { ["id"] = "42" };
+
+    /// <summary>
+    /// What the query pipeline publishes on the query context after coercing <see cref="RawArguments"/> to the
+    /// declared parameter types. A guard has to be told these, not the strings that came in over the wire.
+    /// </summary>
+    protected static readonly QueryArguments CoercedArguments = new() { ["id"] = 42 };
+
     protected ConcurrentQueue<ObservableQueryEmissionContext> _guardCalls;
     protected ConcurrentQueue<CorrelationId> _correlationIds;
     protected Subject<IEnumerable<string>> _subject;
@@ -56,6 +67,16 @@ public class a_guarded_connection : an_observable_query_demultiplexer
         types.FindMultiple<IGuardObservableQueryEmission>().Returns(guardTypes.ToArray());
         var guards = new ObservableQueryEmissionGuards(types, Substitute.For<ILogger<ObservableQueryEmissionGuards>>());
 
+        // Performing a query publishes the coerced arguments on the query context, which is where the demultiplexer
+        // reads them from. A bare substitute answers null here, and a null answer sends every spec down the fallback
+        // to the raw wire strings — leaving the coerced lookup, and the whole point of it, unexercised.
+        _queryContextManager.Current.Returns(new QueryContext(
+            QueryName,
+            CorrelationId.New(),
+            Paging.NotPaged,
+            Sorting.None,
+            CoercedArguments));
+
         _queryPipeline.Perform(
                 Arg.Any<FullyQualifiedQueryName>(),
                 Arg.Any<QueryArguments>(),
@@ -75,6 +96,15 @@ public class a_guarded_connection : an_observable_query_demultiplexer
 
         // Rebuild the hub over the guarded container and the real guards — the base context wires a substitute that
         // reports no guards, which is the fast path every other spec runs on.
+        UseGuards(guards);
+    }
+
+    /// <summary>
+    /// Rebuilds the hub over a different set of emission guards, so a spec can run the very same connection script
+    /// on the no-guard fast path.
+    /// </summary>
+    /// <param name="guards">The <see cref="IObservableQueryEmissionGuards"/> the hub consults.</param>
+    protected void UseGuards(IObservableQueryEmissionGuards guards) =>
         _hub = new ObservableQueryDemultiplexer(
             _queryPipeline,
             _queryContextManager,
@@ -86,7 +116,6 @@ public class a_guarded_connection : an_observable_query_demultiplexer
             _healthTracker,
             guards,
             _logger);
-    }
 
     /// <summary>
     /// Lets a spec add its own guard — and the services that guard needs — to the application's container.
