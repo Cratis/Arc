@@ -54,9 +54,13 @@ public class PolicyConditionConverter(IScreenplayNaming naming)
     /// </summary>
     /// <param name="claim">The requirement to convert.</param>
     /// <returns>The condition, or <see langword="null"/> when either part cannot be written.</returns>
+    /// <remarks>
+    /// The value a claim is matched against is an expression rather than bare text, so it is written as the string
+    /// literal it is. A bare word would read as a path naming something else in scope, which is a different claim.
+    /// </remarks>
     ClaimConditionSyntax? Claim(ClaimRequirement claim) =>
         naming.ToStringLiteral(claim.Claim) is { } name && naming.ToStringLiteral(claim.Value) is { } value
-            ? new ClaimConditionSyntax(name, false, value, SourceLocation.Start)
+            ? new ClaimConditionSyntax(name, false, new LiteralExpressionSyntax(value, SourceLocation.Start), SourceLocation.Start)
             : null;
 
     /// <summary>

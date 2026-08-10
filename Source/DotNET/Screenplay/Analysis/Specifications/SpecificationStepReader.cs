@@ -23,9 +23,21 @@ public class SpecificationStepReader(Compilation compilation, SpecificationValue
     /// <param name="draft">The scenario collected so far.</param>
     /// <param name="name">The name of the specification.</param>
     /// <param name="location">Where the specification lives, for use in diagnostics.</param>
-    public void ReadGiven(INamedTypeSymbol steps, SpecificationDraft draft, string name, string location)
+    /// <param name="alsoWhereTheActionIs">Whether to read the method performing the action as well.</param>
+    /// <remarks>
+    /// Where the world a scenario starts from is written depends on what the scenario is. One issuing a command sets
+    /// the world up first and issues the command as its action, so the world is in <c>Establish</c> and reading the
+    /// action would take the command's own events for events that had already happened. One about a read model has no
+    /// command: the events are the action, and are routinely written straight into it. So the action is read only
+    /// when there is no command to confuse them with.
+    /// </remarks>
+    public void ReadGiven(INamedTypeSymbol steps, SpecificationDraft draft, string name, string location, bool alsoWhereTheActionIs = false)
     {
-        foreach (var (invocation, method, semanticModel, always) in CallsIn(steps, SpecificationMembers.EstablishMethod))
+        var calls = alsoWhereTheActionIs
+            ? CallsIn(steps, SpecificationMembers.EstablishMethod).Concat(CallsIn(steps, SpecificationMembers.BecauseMethod))
+            : CallsIn(steps, SpecificationMembers.EstablishMethod);
+
+        foreach (var (invocation, method, semanticModel, always) in calls)
         {
             if (!SpecificationCalls.IsGivenEvents(method) && !SpecificationCalls.IsGivenReadModel(method))
             {

@@ -87,10 +87,50 @@ public static class SpecificationMembers
     /// exactly why it is asked: a specification that holds a scenario and issues its command through a helper is one
     /// this cannot read, and saying so is the difference between a known gap and a silent one.
     /// </remarks>
-    public static bool HoldsAScenario(INamedTypeSymbol type) =>
+    public static bool HoldsAScenario(INamedTypeSymbol type) => Holds(type, WellKnownTypeNames.CommandScenario) is not null;
+
+    /// <summary>
+    /// Gets the read model a type is written as a scenario of.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>The read model, or <see langword="null"/> when the type holds no read model scenario.</returns>
+    /// <remarks>
+    /// A read model scenario says which read model it is about in its own type argument, which is the whole of what
+    /// the outcome of such a specification is: the events went in and this is what they built. Nothing in the body
+    /// has to be read to know it, so a scenario whose assertions are written in a way this cannot follow still says
+    /// exactly as much as the language holds for it.
+    /// </remarks>
+    public static ITypeSymbol? ReadModelOf(INamedTypeSymbol type) =>
+        Holds(type, WellKnownTypeNames.ReadModelScenario) is INamedTypeSymbol { TypeArguments.Length: 1 } scenario
+            ? scenario.TypeArguments[0]
+            : null;
+
+    /// <summary>
+    /// Gets the scenario a type holds of a kind Screenplay has no way to read.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>The name of the scenario, or <see langword="null"/> when the type holds none of them.</returns>
+    /// <remarks>
+    /// A scenario is what tells a specification of a slice apart from a unit level one about a collaborator, so a
+    /// type holding one is specifying the slice whether or not this can express what it says. Which of them it holds
+    /// is what the report needs: the gap between an append that is rejected and a reactor asked what it did is not
+    /// one gap, and a reader cannot act on being told only that something was left out.
+    /// </remarks>
+    public static string? ScenarioWithoutCounterpart(INamedTypeSymbol type) =>
+        Holds(type, WellKnownTypeNames.EventScenario)?.Name ??
+        Holds(type, WellKnownTypeNames.ReactorScenario)?.Name;
+
+    /// <summary>
+    /// Gets the scenario of a kind a type holds.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <param name="fullMetadataName">The fully qualified metadata name of the scenario.</param>
+    /// <returns>The type of the scenario held, or <see langword="null"/> when the type holds none.</returns>
+    static ITypeSymbol? Holds(INamedTypeSymbol type, string fullMetadataName) =>
         ChainOf(type)
             .SelectMany(_ => _.GetMembers())
-            .Any(member => TypeOf(member).Is(WellKnownTypeNames.CommandScenario));
+            .Select(TypeOf)
+            .FirstOrDefault(held => held.Is(fullMetadataName));
 
     /// <summary>
     /// Determines whether a type declares a method itself.

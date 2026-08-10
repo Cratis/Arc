@@ -94,7 +94,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
                 whole.Types.Concepts,
                 new PolicyCatalog(ordered, domain, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
-                slices)
+                slices,
+                whole.Types.Types)
             {
                 Imports = imports
             },

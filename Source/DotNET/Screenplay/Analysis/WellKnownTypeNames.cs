@@ -132,6 +132,18 @@ public static class WellKnownTypeNames
     /// <summary>The builder a specification states the state of one event source with.</summary>
     public const string CommandScenarioSourceGivenBuilder = "Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioSourceGivenBuilder`1";
 
+    /// <summary>The scenario a specification drives a read model through in process.</summary>
+    public const string ReadModelScenario = "Cratis.Chronicle.Testing.ReadModels.ReadModelScenario`1";
+
+    /// <summary>The builder a specification states the events one event source had seen with.</summary>
+    public const string ReadModelSourceGivenBuilder = "Cratis.Chronicle.Testing.ReadModels.ReadModelSourceGivenBuilder`1";
+
+    /// <summary>The scenario a specification appends events through in process, without a command pipeline.</summary>
+    public const string EventScenario = "Cratis.Chronicle.Testing.EventSequences.EventScenario";
+
+    /// <summary>The scenario a specification drives a reactor through in process.</summary>
+    public const string ReactorScenario = "Cratis.Chronicle.Testing.Reactors.ReactorScenario`1";
+
     /// <summary>The extensions a specification issues a command through over HTTP.</summary>
     public const string HttpClientExtensions = "Cratis.Chronicle.XUnit.Integration.HttpClientExtensions";
 

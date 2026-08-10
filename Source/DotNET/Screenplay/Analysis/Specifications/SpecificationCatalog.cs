@@ -38,8 +38,14 @@ public class SpecificationCatalog
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 
-        foreach (var type in catalog.Types.Where(reader.IsSpecification))
+        foreach (var type in catalog.Types)
         {
+            if (!reader.IsSpecification(type))
+            {
+                Report(reader.ScenarioWithoutCounterpart(type), type, diagnostics);
+                continue;
+            }
+
             if (placement.SliceOf(type) is not { } slice)
             {
                 diagnostics.Warning(
@@ -68,6 +74,30 @@ public class SpecificationCatalog
         _bySlice.TryGetValue(@namespace, out var specifications)
             ? specifications.OrderBy(_ => _.Name, StringComparer.Ordinal)
             : [];
+
+    /// <summary>
+    /// Reports a scenario a slice is specified by that the language has nowhere to put.
+    /// </summary>
+    /// <param name="scenario">The name of the scenario, or <see langword="null"/> when there is nothing to report.</param>
+    /// <param name="type">The type declaring the specification.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <remarks>
+    /// This is said before the specification is placed under a slice rather than after, because where it belongs is
+    /// beside the point: nothing of it is going into the document either way, and a scenario nobody hears about is
+    /// exactly as lost whichever namespace it sits in.
+    /// </remarks>
+    static void Report(string? scenario, INamedTypeSymbol type, ScreenplayDiagnostics diagnostics)
+    {
+        if (scenario is null)
+        {
+            return;
+        }
+
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart,
+            $"The scenario '{type.Name}' is written as a {scenario}, which specifies the slice through something the language has nowhere to hold, so the whole of it was left out",
+            type.ToDisplayString());
+    }
 
     /// <summary>
     /// Adds a specification under the slice it belongs to.

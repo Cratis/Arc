@@ -57,7 +57,7 @@ public class SliceSyntaxBuilder(
             [.. slice.Events.Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             [.. slice.Commands.Select(_ => commands.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             [.. slice.Queries.Select(queries.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
-            BuildProjection(slice),
+            BuildProjections(slice),
             [],
             [
                 .. slice.Reactors
@@ -81,12 +81,21 @@ public class SliceSyntaxBuilder(
             naming.ToStringLiteral(slice.Description));
 
     /// <summary>
-    /// Builds the single projection a slice may declare.
+    /// Builds the projections a slice declares.
     /// </summary>
     /// <param name="slice">The slice to build for.</param>
-    /// <returns>The projection, or <see langword="null"/> when the slice has none.</returns>
-    ProjectionSyntax? BuildProjection(SliceModel slice) =>
-        slice.Projection is null ? null : projections.Build(slice.Projection, slice.Namespace);
+    /// <returns>The projections, empty when the slice declares none.</returns>
+    /// <remarks>
+    /// A slice can now hold several projections, while the model recovered from source still holds at most one -
+    /// a second one is turned away during analysis and reported. This yields what the model has, so widening the
+    /// analysis is the only thing left to do to carry them all.
+    /// <para>
+    /// A projection nothing could be expressed of yields nothing rather than an absent entry, so a slice left with
+    /// no other content is still recognized as empty and dropped.
+    /// </para>
+    /// </remarks>
+    IEnumerable<ProjectionSyntax> BuildProjections(SliceModel slice) =>
+        slice.Projection is { } projection && projections.Build(projection, slice.Namespace) is { } built ? [built] : [];
 
     /// <summary>
     /// Gets the name of the slice, falling back to the last segment of its namespace.

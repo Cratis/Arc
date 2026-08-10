@@ -16,16 +16,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 /// because every concept reached on the way has to be declared before it can be referenced, and every name that says
 /// less than the type does has to be reported rather than passed off as a description.
 /// <para>
-/// The first question is answered here. The second is split: what a name loses and which shapes no declaration can
-/// hold are kept here because they are consequences of writing the name, while the concepts themselves are kept by a
-/// <see cref="ConceptRegistry"/>, which decides what a concept is and what happens when two of them share a name.
+/// The first question is answered here. The second is split: what a name loses is kept here because it is a
+/// consequence of writing the name, while the declarations it commits the document to are kept by a
+/// <see cref="ConceptRegistry"/> and a <see cref="ShapeRegistry"/>, each of which decides what it holds and what
+/// happens when two of them share a name. The two are asked together on the way out, because a concept and a shape
+/// are declared side by side and cannot share one.
 /// </para>
 /// </remarks>
 public class TypeRegistry
 {
     readonly ConceptRegistry _concepts = new();
+    readonly ShapeRegistry _shapes = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
-    readonly HashSet<string> _shapes = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type that had to be referred to by a name that does not say what it is.
@@ -33,9 +35,14 @@ public class TypeRegistry
     public IEnumerable<string> Unmappable => _unmappable.Order(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets the full name of every record a property carries whose shape no declaration can hold.
+    /// Gets every record a property carries whose shape no declaration could be written for.
     /// </summary>
-    public IEnumerable<string> Shapes => _shapes.Order(StringComparer.Ordinal);
+    public IEnumerable<UndeclarableShape> Shapes => _shapes.Undeclarable(_concepts.Names);
+
+    /// <summary>
+    /// Gets every shape referenced by the application, ordered by name.
+    /// </summary>
+    public IEnumerable<TypeModel> Types => _shapes.Declared(_concepts.Names);
 
     /// <summary>
     /// Gets the full name of every type whose simple name a concept was already declared under.
@@ -66,10 +73,10 @@ public class TypeRegistry
     /// <param name="type">The type to resolve.</param>
     /// <returns>The <see cref="TypeReferenceModel"/>.</returns>
     /// <remarks>
-    /// A property is where a record the document has no way to declare is really referred to - the line carrying it
-    /// names a shape nothing in the document introduces. That is asked here rather than everywhere a type is resolved,
-    /// because a query returning a read model refers to something the slice around it already describes, while a
-    /// property carrying a record refers to a shape stated nowhere at all.
+    /// A property is where a record is really referred to - the line carrying it names a shape, and the document has
+    /// to introduce that shape or the name resolves to nothing. That is asked here rather than everywhere a type is
+    /// resolved, because a query returning a read model refers to something the slice around it already describes,
+    /// while a property carrying a record refers to a shape declared nowhere else.
     /// </remarks>
     public TypeReferenceModel ResolveCarried(ITypeSymbol type)
     {
@@ -79,7 +86,7 @@ public class TypeRegistry
 
         if (CarriedTypes.IsRecord(carried))
         {
-            _shapes.Add(carried.ToDisplayString());
+            _shapes.Register(carried, ResolveCarried);
         }
 
         return new(NameOf(carried), collection, optional);
@@ -127,10 +134,10 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The type being named.</param>
     /// <remarks>
-    /// A record is referred to by name and never declared, so nothing inside it is ever named on its own - which left
-    /// every concept reached only through a line of a timesheet or a property of a read model out of the document
-    /// entirely. A concept can be declared wherever it was reached from, so it is, and the shape carrying it waits on
-    /// the language.
+    /// A concept can be declared wherever it was reached from, so one reached only through a line of a timesheet or a
+    /// property of a read model is declared just as one written straight onto an event is. A record carried by an
+    /// artifact reaches its own concepts through <see cref="ResolveCarried"/> as it is declared; this is what covers
+    /// the rest - a type named somewhere no declaration follows from, such as the read model a query answers with.
     /// </remarks>
     void RegisterWhatItCarries(ITypeSymbol type)
     {
