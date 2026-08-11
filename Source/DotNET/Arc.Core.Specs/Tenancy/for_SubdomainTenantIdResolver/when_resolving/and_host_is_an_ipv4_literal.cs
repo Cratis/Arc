@@ -3,17 +3,13 @@
 
 namespace Cratis.Arc.Tenancy.for_SubdomainTenantIdResolver.when_resolving;
 
-public class and_request_has_no_subdomain : given.a_subdomain_tenant_id_resolver
+public class and_host_is_an_ipv4_literal : given.a_subdomain_tenant_id_resolver
 {
     string _result;
 
-    void Establish()
-    {
-        _context.Host.Returns("localhost");
-        _headers["X-Tenant-Id"] = "header-tenant";
-    }
+    void Establish() => _context.Host.Returns("10.0.0.5");
 
     void Because() => _result = _resolver.Resolve();
 
-    [Fact] void should_fallback_to_tenant_header() => _result.ShouldEqual("header-tenant");
+    [Fact] void should_fall_back_to_the_tenant_header() => _result.ShouldEqual(HeaderTenantId);
 }
