@@ -45,6 +45,45 @@ app.UseAuthentication();
 app.UseAuthorization();
 ```
 
+## Knowing which identity provider signed the caller in
+
+The `x-ms-client-principal` payload carries an `identityProvider` field describing the provider the ingress
+authenticated the caller with. Without it, everything downstream sees is a set of claims that look the same whether
+they came from Entra ID or GitHub — so the application has no way to tell one federation apart from another.
+
+Arc keeps that value on the reconstructed principal as a claim, so both normal request authorization and the
+`/.cratis/me` identity resolution can read it:
+
+```csharp
+using Cratis.Arc.Identity;
+using Microsoft.AspNetCore.Http;
+
+public class IdentityProviderReader(IHttpContextAccessor httpContextAccessor)
+{
+    public string? Current =>
+        httpContextAccessor.HttpContext?.User.FindFirst(MicrosoftIdentityPlatformClaims.IdentityProvider)?.Value;
+}
+```
+
+| Aspect | Detail |
+| ------ | ------ |
+| Claim type | `urn:cratis:arc:identity:provider` — use the `MicrosoftIdentityPlatformClaims.IdentityProvider` constant |
+| Value | The exact `identityProvider` value the ingress forwarded, for example `aad` or `github` |
+| When absent | The forwarded principal carried no identity provider |
+
+The claim type is **reserved for Arc**. The `x-ms-client-principal` header is base64, not a signature, so any caller
+that can reach the application can put whatever it likes in the serialized `claims` array — including a claim of this
+very type. Arc therefore removes every claim of the reserved type from the deserialized payload, ignoring casing,
+*before* writing its own value. A caller cannot smuggle in an identity provider of its own choosing, and when the
+forwarded principal carries no identity provider the claim is simply absent rather than attacker-supplied.
+
+> [!IMPORTANT]
+> This value is authentication-scheme metadata and is typically derived from a provider display name. It is useful for
+> diagnostics, for telling federations apart, and for provider-aware behavior — but it is not a stable provider
+> registration key, and renaming a provider can change it. Do not use it as a durable identity, membership or storage
+> key. An ingress that needs a stable key emits its own claim for that purpose, and Arc copies such claims through
+> untouched.
+
 ## Identity Details
 
 For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity/index.md).

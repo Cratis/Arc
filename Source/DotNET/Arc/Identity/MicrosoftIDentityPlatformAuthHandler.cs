@@ -55,10 +55,19 @@ public class MicrosoftIDentityPlatformAuthHandler(
 
         var claims = clientPrincipal.GetClaims().ToList();
 
-        claims.RemoveAll(claim => claim.Type == ClaimTypes.NameIdentifier || claim.Type == "sub");
+        claims.RemoveAll(claim =>
+            claim.Type == ClaimTypes.NameIdentifier ||
+            claim.Type == "sub" ||
+            claim.Type.Equals(MicrosoftIdentityPlatformClaims.IdentityProvider, StringComparison.OrdinalIgnoreCase));
         claims.Add(new Claim(ClaimTypes.Name, clientPrincipal.UserDetails));
         claims.Add(new Claim(ClaimTypes.NameIdentifier, Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString()));
         claims.Add(new Claim("sub", Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString()));
+
+        if (!string.IsNullOrEmpty(clientPrincipal.IdentityProvider))
+        {
+            claims.Add(new Claim(MicrosoftIdentityPlatformClaims.IdentityProvider, clientPrincipal.IdentityProvider));
+        }
+
         claims.AddRange(clientPrincipal.UserRoles.Select(_ => new Claim(ClaimTypes.Role, _)));
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);

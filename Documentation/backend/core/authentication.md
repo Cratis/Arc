@@ -46,7 +46,12 @@ This registers `MicrosoftIDentityPlatformAuthHandler`, which reads the standard 
 | `x-ms-client-principal-name` | Display name |
 | `x-ms-client-principal` | Base64-encoded JSON payload with roles and claims |
 
-See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for the full setup guide, including how to test locally with a generated principal.
+The reconstructed principal also carries the identity provider the ingress authenticated the caller with, as the
+reserved `MicrosoftIdentityPlatformClaims.IdentityProvider` (`urn:cratis:arc:identity:provider`) claim. Arc strips any
+claim of that type out of the forwarded payload before writing its own value, so a caller cannot forge it.
+
+See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for the full setup guide, including how the
+identity provider claim behaves and how to test locally with a generated principal.
 
 ### Arc.Core (non-ASP.NET Core)
 
