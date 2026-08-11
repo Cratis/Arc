@@ -77,7 +77,7 @@ Default fallback header: `x-cratis-tenant-id`
 
 #### The base domain is required
 
-The base domain is what separates a tenant host from any other host on the internet, so the resolver refuses to start without a usable one. `UseSubdomainTenancy` throws `BaseDomainIsNotADomainName` when the value is empty, is a single label, is an address literal, or is not made of letter-digit-hyphen labels:
+The base domain is what separates a tenant host from any other host on the internet, so your application refuses to start without a usable one. `UseSubdomainTenancy` throws `BaseDomainIsNotADomainName` when the value is empty, is a single label, is an address literal, or is not made of letter-digit-hyphen labels:
 
 ```csharp
 options.UseSubdomainTenancy("myapp.com");       // fine
@@ -86,7 +86,9 @@ options.UseSubdomainTenancy("localhost");       // throws — a single label is 
 options.UseSubdomainTenancy("192.168.1.10");    // throws — an address identifies no domain
 ```
 
-Failing to start is deliberate. Without a base domain no host would ever resolve a tenant, and every request would silently take its tenant from the fallback header instead — which any client can set.
+Selecting the subdomain resolver in `appsettings.json` gets the same treatment: Arc validates `Tenancy` while the host is starting, so `"ResolverType": "Subdomain"` with a missing or unusable `BaseDomain` throws the same exception out of host startup, before the application accepts its first request.
+
+Failing to start is deliberate. Without a base domain no host would ever resolve a tenant, and every request would silently take its tenant from the fallback header instead — which any client can set. Failing on the first request instead would mean a real user finds the mistake, on a process that already reported itself healthy.
 
 **Configure the registrable domain your application is served from, and nothing broader.** A bare top-level domain such as `com` is refused because it is a single label, but the check cannot know that `co.uk` is a public suffix: with `co.uk` as the base domain, anyone who registers `evil.co.uk` becomes the tenant `evil`. Pick the domain you actually own.
 

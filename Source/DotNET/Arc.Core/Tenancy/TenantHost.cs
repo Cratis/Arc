@@ -32,7 +32,9 @@ internal static partial class TenantHost
     /// of label-shaped parts, so without it <c>192.168.1.10</c> would pass as a domain name and turn every
     /// <c>anything.192.168.1.10</c> host into a tenant. Trailing dots are removed after the punycode conversion
     /// because <see cref="IdnMapping.GetAscii(string)"/> maps U+3002, U+FF0E and U+FF61 to a label separator, so a
-    /// host that carries no ASCII dot at all can still end in one.
+    /// host that carries no ASCII dot at all can still end in one. The address rejection is therefore applied to the
+    /// normalized value rather than to the raw one: <c>192.168.1.10.</c> and <c>１９２.168.1.10</c> are the same
+    /// address written differently, and only one of the two would be caught by a check that ran first.
     /// </remarks>
     internal static string Normalize(string value)
     {
@@ -42,13 +44,13 @@ internal static partial class TenantHost
             return string.Empty;
         }
 
-        if (IPAddress.TryParse(host, out _))
+        var normalized = ToAscii(host.Trim('.').ToLowerInvariant()).Trim('.');
+        if (IPAddress.TryParse(normalized, out _))
         {
             return string.Empty;
         }
 
-        var lowercased = host.Trim('.').ToLowerInvariant();
-        return ToAscii(lowercased).Trim('.');
+        return normalized;
     }
 
     /// <summary>

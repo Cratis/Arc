@@ -26,7 +26,7 @@ namespace Cratis.Arc.Tenancy;
 [IgnoreConvention]
 public class SubdomainTenantIdResolver(IHttpRequestContextAccessor httpRequestContextAccessor, IOptions<ArcOptions> options) : ITenantIdResolver
 {
-    BaseDomainSuffix _suffix = BaseDomainSuffix.ForConfigured(options.Value.Tenancy.BaseDomain);
+    readonly string _suffix = SuffixFor(options.Value.Tenancy.BaseDomain);
 
     /// <inheritdoc/>
     public string Resolve()
@@ -37,13 +37,13 @@ public class SubdomainTenantIdResolver(IHttpRequestContextAccessor httpRequestCo
             return string.Empty;
         }
 
-        var tenancy = options.Value.Tenancy;
-        var tenantId = ResolveFromHost(context.Host, tenancy.BaseDomain);
+        var tenantId = ResolveFromHost(context.Host);
         if (tenantId.Length > 0)
         {
             return tenantId;
         }
 
+        var tenancy = options.Value.Tenancy;
         if (string.IsNullOrWhiteSpace(tenancy.HttpHeader))
         {
             return string.Empty;
@@ -52,76 +52,34 @@ public class SubdomainTenantIdResolver(IHttpRequestContextAccessor httpRequestCo
         return context.Headers.TryGetValue(tenancy.HttpHeader, out var fallbackTenantId) ? fallbackTenantId : string.Empty;
     }
 
-    string ResolveFromHost(string host, string baseDomain)
-    {
-        var suffix = SuffixFor(baseDomain);
-        if (suffix.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        var normalizedHost = TenantHost.Normalize(host);
-        if (!normalizedHost.EndsWith(suffix, StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        var subdomain = normalizedHost[..^suffix.Length];
-        return TenantHost.IsLabel(subdomain) ? subdomain : string.Empty;
-    }
-
-    string SuffixFor(string baseDomain)
-    {
-        var cached = _suffix;
-        if (cached.WasBuiltFor(baseDomain))
-        {
-            return cached.Suffix;
-        }
-
-        var rebuilt = BaseDomainSuffix.For(baseDomain);
-        _suffix = rebuilt;
-        return rebuilt.Suffix;
-    }
-
     /// <summary>
-    /// Represents the suffix a tenant host is matched against, remembered for the base domain it was built from.
+    /// Builds the suffix a tenant host is matched against from the base domain subdomain tenancy is configured with.
     /// </summary>
-    /// <param name="BaseDomain">The base domain the suffix was built from.</param>
-    /// <param name="Suffix">The suffix a tenant host ends with, or an empty string when the base domain matches nothing.</param>
+    /// <param name="baseDomain">The configured base domain.</param>
+    /// <returns>The suffix a tenant host ends with.</returns>
+    /// <exception cref="BaseDomainIsNotADomainName">Thrown when the base domain is not a domain name.</exception>
     /// <remarks>
-    /// Normalizing the base domain and allocating the suffix on every request is pure repetition, and the resolver is
-    /// a singleton, so the pair is kept as one immutable value that can be swapped in a single reference assignment.
+    /// The suffix is built once, from the base domain the guard accepted, and never rebuilt. Normalizing the base
+    /// domain on every request would be pure repetition for a singleton, and rebuilding it from whatever
+    /// <see cref="TenancyOptions.BaseDomain"/> holds at the time would let a base domain written after construction
+    /// past the guard - the resolver would silently stop matching hosts and hand every request to the client-supplied
+    /// header instead. <see cref="IOptions{TOptions}"/> is a snapshot, so there is nothing to rebuild for anyway.
     /// </remarks>
-    sealed record BaseDomainSuffix(string BaseDomain, string Suffix)
+    static string SuffixFor(string baseDomain)
     {
-        /// <summary>
-        /// Builds the suffix for the base domain subdomain tenancy was configured with.
-        /// </summary>
-        /// <param name="baseDomain">The configured base domain.</param>
-        /// <returns>The <see cref="BaseDomainSuffix"/> for the base domain.</returns>
-        /// <exception cref="BaseDomainIsNotADomainName">Thrown when the base domain is not a domain name.</exception>
-        internal static BaseDomainSuffix ForConfigured(string baseDomain)
+        BaseDomainIsNotADomainName.ThrowIfNotADomainName(baseDomain);
+        return $".{TenantHost.Normalize(baseDomain)}";
+    }
+
+    string ResolveFromHost(string host)
+    {
+        var normalizedHost = TenantHost.Normalize(host);
+        if (!normalizedHost.EndsWith(_suffix, StringComparison.Ordinal))
         {
-            BaseDomainIsNotADomainName.ThrowIfNotADomainName(baseDomain);
-            return For(baseDomain);
+            return string.Empty;
         }
 
-        /// <summary>
-        /// Builds the suffix for a base domain.
-        /// </summary>
-        /// <param name="baseDomain">The base domain to build the suffix for.</param>
-        /// <returns>The <see cref="BaseDomainSuffix"/> for the base domain.</returns>
-        internal static BaseDomainSuffix For(string baseDomain)
-        {
-            var normalized = TenantHost.Normalize(baseDomain);
-            return new(baseDomain, normalized.Length == 0 ? string.Empty : $".{normalized}");
-        }
-
-        /// <summary>
-        /// Checks whether the suffix was built from a base domain.
-        /// </summary>
-        /// <param name="baseDomain">The base domain to check against.</param>
-        /// <returns>True when the suffix was built from the base domain, false otherwise.</returns>
-        internal bool WasBuiltFor(string baseDomain) => string.Equals(BaseDomain, baseDomain, StringComparison.Ordinal);
+        var subdomain = normalizedHost[..^_suffix.Length];
+        return TenantHost.IsLabel(subdomain) ? subdomain : string.Empty;
     }
 }

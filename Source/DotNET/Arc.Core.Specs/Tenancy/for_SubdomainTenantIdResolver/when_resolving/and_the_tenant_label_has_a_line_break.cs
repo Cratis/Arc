@@ -16,5 +16,11 @@ public class and_the_tenant_label_has_a_line_break : given.a_subdomain_tenant_id
     void Because() => _result = _resolver.Resolve();
 
     [Fact] void should_fall_back_to_the_tenant_header() => _result.ShouldEqual(HeaderTenantId);
+
+    /// <summary>
+    /// Restates the assertion above in the terms of the attack, for a reader scanning the spec names. It is implied
+    /// by that assertion - the fallback header value and the label are different strings, so it cannot fail while the
+    /// assertion above passes - and is documentation rather than separate evidence.
+    /// </summary>
     [Fact] void should_not_read_the_label_as_a_tenant() => _result.ShouldNotEqual("acme\n");
 }

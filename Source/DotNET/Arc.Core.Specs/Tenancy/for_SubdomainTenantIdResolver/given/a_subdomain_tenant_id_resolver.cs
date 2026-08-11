@@ -35,4 +35,20 @@ public class a_subdomain_tenant_id_resolver : Specification
 
         _resolver = new SubdomainTenantIdResolver(_httpRequestContextAccessor, _options);
     }
+
+    /// <summary>
+    /// Configures a different base domain and creates the resolver again for it.
+    /// </summary>
+    /// <param name="baseDomain">The base domain to resolve tenants in front of.</param>
+    /// <remarks>
+    /// The base domain is read once, when the resolver is created, so writing the option on its own changes nothing -
+    /// which is the point of <c>and_the_base_domain_is_changed_after_the_resolver_was_created</c>. A spec that wants
+    /// to resolve against a different base domain has to configure it the way an application does, before the
+    /// resolver exists.
+    /// </remarks>
+    protected void ConfigureBaseDomain(string baseDomain)
+    {
+        _arcOptions.Tenancy.BaseDomain = baseDomain;
+        _resolver = new SubdomainTenantIdResolver(_httpRequestContextAccessor, _options);
+    }
 }
