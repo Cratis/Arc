@@ -23,18 +23,23 @@ public class SpecificationCatalog
     /// <summary>
     /// Reads every specification the compilation declares.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
     /// <param name="catalog">The catalogue of everything the compilation declares.</param>
     /// <param name="slices">The namespaces a slice was recovered from.</param>
     /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
     /// <returns>The <see cref="SpecificationCatalog"/>.</returns>
+    /// <remarks>
+    /// Which scenarios are read is decided by the catalogue of one project, because a scenario is declared where it is
+    /// written. What each of them states is read through the models of the whole application, because the values it
+    /// states are routinely declared somewhere else entirely.
+    /// </remarks>
     public static SpecificationCatalog Read(
-        Compilation compilation,
+        SemanticModels models,
         ArtifactCatalog catalog,
         IEnumerable<string> slices,
         ScreenplayDiagnostics diagnostics)
     {
-        var reader = new SpecificationReader(compilation, diagnostics);
+        var reader = new SpecificationReader(models, diagnostics);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 

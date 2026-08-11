@@ -11,7 +11,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Reads the scenario one type specifies a slice by.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
 /// <remarks>
 /// Only a specification driving a command through the real pipeline is read. A unit level one stands a collaborator
@@ -20,7 +20,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// the other is decided by what it touches: holding a scenario the pipeline runs in, or reaching the event log, is
 /// what an integration specification does and nothing else does.
 /// </remarks>
-public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
     /// Determines whether a type specifies a slice by driving a command through the pipeline.
@@ -84,10 +84,10 @@ public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics 
         var draft = new SpecificationDraft();
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(compilation, new(stated, new GeneratedIdentities(compilation)));
+        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)));
         reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         reader.ReadWhen(steps, draft, name, location);
-        new SpecificationOutcomeReader(compilation, stated).Read(type, draft, name, location);
+        new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
 
         if (readModel is not null && draft.When is null)
         {
@@ -186,10 +186,13 @@ public class SpecificationReader(Compilation compilation, ScreenplayDiagnostics 
     /// Gets every call a body resolves to.
     /// </summary>
     /// <param name="body">The body to walk.</param>
-    /// <returns>The methods called.</returns>
+    /// <returns>The methods called, empty when the project the body was written in was not handed over.</returns>
     IEnumerable<IMethodSymbol> CallsIn(SyntaxNode body)
     {
-        var semanticModel = compilation.GetSemanticModel(body.SyntaxTree);
+        if (models.For(body.SyntaxTree) is not { } semanticModel)
+        {
+            return [];
+        }
 
         return body.DescendantNodesAndSelf()
             .OfType<InvocationExpressionSyntax>()

@@ -10,13 +10,17 @@ namespace Cratis.Arc.Screenplay.Analysis.Validation;
 /// <summary>
 /// Finds the rule chains a validator's constructor declares.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every constructor is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// Reading the constructor recovers what the runtime rule descriptor loses - which rules were declared for each
 /// element of a collection, and which comparisons were made against something other than a number.
+/// <para>
+/// A validator declaring rules for a concept the project below it holds is written wherever it is, so which model
+/// reads its constructor is asked rather than assumed.
+/// </para>
 /// </remarks>
-public class ValidationReader(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
     /// The call declaring a rule for a property.
@@ -67,7 +71,10 @@ public class ValidationReader(Compilation compilation, ScreenplayDiagnostics dia
     /// <param name="rules">The rules collected so far.</param>
     void ReadDeclaration(SyntaxNode declaration, string location, List<ValidationRuleModel> rules)
     {
-        var semanticModel = compilation.GetSemanticModel(declaration.SyntaxTree);
+        if (models.For(declaration.SyntaxTree) is not { } semanticModel)
+        {
+            return;
+        }
 
         foreach (var statement in declaration.DescendantNodes().OfType<ExpressionStatementSyntax>())
         {
