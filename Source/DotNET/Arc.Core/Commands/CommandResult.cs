@@ -143,6 +143,11 @@ public class CommandResult
     public void MergeWith(params CommandResult[] commandResults)
     {
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
+        if (string.IsNullOrEmpty(AuthorizationFailureReason))
+        {
+            AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
+        }
+
         ValidationResults = [.. ValidationResults, .. commandResults.SelectMany(r => r.ValidationResults)];
         ExceptionMessages = [.. ExceptionMessages, .. commandResults.SelectMany(r => r.ExceptionMessages)];
         ExceptionStackTrace = string.Join(Environment.NewLine, new[] { ExceptionStackTrace }.Concat(commandResults.Select(r => r.ExceptionStackTrace)));
