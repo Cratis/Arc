@@ -12,14 +12,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Reads what a specification says followed from the command it issued.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
 /// <remarks>
 /// Each assertion is one sentence about the outcome, and several of them routinely say the same sentence about a
 /// different part of the same event - once for each value it carries. Screenplay says an event followed once, so a
 /// sentence already said is passed over rather than repeated.
+/// <para>
+/// An assertion inherited from a base context is written wherever that context is, which need not be the project the
+/// scenario is - so which model reads a body is asked rather than assumed.
+/// </para>
 /// </remarks>
-public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
     /// Reads what a specification says followed.
@@ -34,7 +38,10 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
         {
             foreach (var body in HandlerBodies.Of(assertion))
             {
-                ReadBody(body, compilation.GetSemanticModel(body.SyntaxTree), draft, name, location);
+                if (models.For(body.SyntaxTree) is { } semanticModel)
+                {
+                    ReadBody(body, semanticModel, draft, name, location);
+                }
             }
         }
     }

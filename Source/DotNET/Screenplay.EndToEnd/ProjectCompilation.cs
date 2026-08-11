@@ -20,7 +20,9 @@ namespace Cratis.Arc.Screenplay.EndToEnd;
 /// construction. Two shipped that way.
 /// <para>
 /// A solution is read as every project it holds that could hold part of the application, which is what an application
-/// written as several projects really is. Whether a project could is asked of what it can see rather than of what it
+/// written as several projects really is. A single project is read the same way, because opening one opens everything
+/// it references too - an application is no less written as several projects for having been named by its topmost one.
+/// Whether a project could hold part of it is asked of what it can see rather than of what it
 /// is called: an artifact is declared with an attribute the framework ships, so a project resolving neither the Arc
 /// nor the Chronicle one cannot declare a single thing the document is made of. A Roslyn analyzer beside the
 /// application is exactly that project, and reading its <c>netstandard2.0</c> compilation in as though it were part
@@ -69,11 +71,18 @@ public static class ProjectCompilation
         Array.Exists(_solutions, extension => string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Loads a single project.
+    /// Loads a single project, and every project it references.
     /// </summary>
     /// <param name="path">The full path of the project file.</param>
     /// <param name="failures">Everything the workspace reported while loading.</param>
-    /// <returns>The compilation, empty when the project yielded none.</returns>
+    /// <returns>The compilations, empty when nothing yielded one.</returns>
+    /// <remarks>
+    /// Opening a project opens everything it references along with it, and wires each one in as the compilation the
+    /// workspace built rather than as an assembly on disk. A type a referenced project declares is therefore a type
+    /// with source behind it, and that source belongs to a compilation of its own - so handing over only the project
+    /// that was named leaves every one of those declarations unreadable while looking exactly like an application
+    /// that has none. What the workspace already built is handed over instead.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.NoInlining)]
     static async Task<IReadOnlyList<Compilation>> LoadProject(string path, ICollection<string> failures)
     {
@@ -83,7 +92,7 @@ public static class ProjectCompilation
 
         var project = await workspace.OpenProjectAsync(path);
 
-        return await project.GetCompilationAsync() is { } compilation ? [compilation] : [];
+        return await CompilationsOf(project.Solution);
     }
 
     /// <summary>
@@ -99,7 +108,16 @@ public static class ProjectCompilation
         using var workspace = MSBuildWorkspace.Create();
         using var subscription = workspace.RegisterWorkspaceFailedHandler(args => Report(args, reported, failures));
 
-        var solution = await workspace.OpenSolutionAsync(path);
+        return await CompilationsOf(await workspace.OpenSolutionAsync(path));
+    }
+
+    /// <summary>
+    /// Gets the compilation of every loaded project that holds part of the application.
+    /// </summary>
+    /// <param name="solution">The projects the workspace loaded.</param>
+    /// <returns>The compilations, ordered by the name of the project each one came from.</returns>
+    static async Task<IReadOnlyList<Compilation>> CompilationsOf(Solution solution)
+    {
         var compilations = new List<Compilation>();
 
         foreach (var project in solution.Projects

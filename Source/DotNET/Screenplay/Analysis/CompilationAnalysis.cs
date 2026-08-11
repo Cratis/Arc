@@ -24,12 +24,14 @@ public class CompilationAnalysis
     readonly ArtifactCatalog _catalog;
     readonly ArtifactReaders _readers;
     readonly RecoveredArtifacts _recovered;
+    readonly SemanticModels _models;
 
     CompilationAnalysis(
         Compilation compilation,
         ArtifactCatalog catalog,
         ArtifactReaders readers,
         RecoveredArtifacts recovered,
+        SemanticModels models,
         IReadOnlyList<SliceModel> slices)
     {
         Compilation = compilation;
@@ -37,6 +39,7 @@ public class CompilationAnalysis
         _catalog = catalog;
         _readers = readers;
         _recovered = recovered;
+        _models = models;
     }
 
     /// <summary>
@@ -64,7 +67,7 @@ public class CompilationAnalysis
         WholeApplication whole)
     {
         var diagnostics = whole.Diagnostics;
-        var readers = ArtifactReaders.For(compilation, catalog, paths, whole);
+        var readers = ArtifactReaders.For(catalog, paths, whole);
         var screens = new ScreenReader(
             whole.Files,
             paths,
@@ -80,7 +83,7 @@ public class CompilationAnalysis
             .OfType<SliceModel>()
             .ToList();
 
-        return new(compilation, catalog, readers, recovered, slices);
+        return new(compilation, catalog, readers, recovered, whole.Models, slices);
     }
 
     /// <summary>
@@ -94,7 +97,7 @@ public class CompilationAnalysis
     /// that declares a slice - and the project declaring that slice need not be the one the scenario is written in.
     /// </remarks>
     public SpecificationCatalog Specifications(IEnumerable<string> slices, ScreenplayDiagnostics diagnostics) =>
-        SpecificationCatalog.Read(Compilation, _catalog, slices, diagnostics);
+        SpecificationCatalog.Read(_models, _catalog, slices, diagnostics);
 
     /// <summary>
     /// Attaches the rules the validators of this project declare to the concepts they validate.

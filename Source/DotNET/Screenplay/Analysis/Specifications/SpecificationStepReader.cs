@@ -12,9 +12,13 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Reads what a specification starts from and the command it issues, from the bodies stating them.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="values">The <see cref="SpecificationValues"/> reading the values each step states.</param>
-public class SpecificationStepReader(Compilation compilation, SpecificationValues values)
+/// <remarks>
+/// The steps are walked from the base of the chain down, and a base context is routinely written in a project below
+/// the scenario inheriting it - so which model reads a body is asked rather than assumed.
+/// </remarks>
+public class SpecificationStepReader(SemanticModels models, SpecificationValues values)
 {
     /// <summary>
     /// Reads what a specification had already seen when it issued its command.
@@ -127,7 +131,9 @@ public class SpecificationStepReader(Compilation compilation, SpecificationValue
     IEnumerable<Step> CallsIn(INamedTypeSymbol type, string method) =>
         SpecificationMembers.MethodsIn(type, method)
             .SelectMany(HandlerBodies.Of)
-            .SelectMany(body => Calls(body, compilation.GetSemanticModel(body.SyntaxTree)));
+            .Select(body => (body, model: models.For(body.SyntaxTree)))
+            .Where(read => read.model is not null)
+            .SelectMany(read => Calls(read.body, read.model!));
 
     /// <summary>
     /// Adds one state a specification starts from, or records that it cannot be read.

@@ -92,34 +92,33 @@ public class ArtifactReaders
     /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
     /// <returns>The <see cref="ArtifactReaders"/>.</returns>
     public static ArtifactReaders For(Compilation compilation, ArtifactCatalog catalog, ScreenplayDiagnostics diagnostics) =>
-        For(compilation, catalog, SourcePaths.For(compilation, catalog), WholeApplication.Of(compilation, diagnostics));
+        For(catalog, SourcePaths.For(compilation, catalog), WholeApplication.Of(compilation, diagnostics));
 
     /// <summary>
     /// Composes every reader for one project of an application, sharing what belongs to the application as a whole.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
     /// <param name="catalog">The catalogue of everything the compilation declares.</param>
     /// <param name="paths">The <see cref="SourcePaths"/> the paths of this project are written relative to.</param>
     /// <param name="whole">What the application as a whole holds.</param>
     /// <returns>The <see cref="ArtifactReaders"/>.</returns>
     /// <remarks>
-    /// A concept is declared once at the top of a document however many projects refer to it, an aggregate root one
-    /// project declares is handed its work by a command another project may hold, and the body of that aggregate
-    /// root's behavior is read through the project it was written in rather than the one calling it. Everything else
-    /// here reads a declaration the project itself catalogued, which is why there is a set of readers per project at
-    /// all.
+    /// A concept is declared once at the top of a document however many projects refer to it, and an aggregate root
+    /// one project declares is handed its work by a command another project may hold. Which declarations are read is
+    /// decided by the catalogue of this project, because a type is declared where it is written - but every body
+    /// reached from one of them is read through the models of the whole application, because a declaration reached
+    /// from another declaration is under no obligation to have been written beside it.
     /// </remarks>
     public static ArtifactReaders For(
-        Compilation compilation,
         ArtifactCatalog catalog,
         SourcePaths paths,
         WholeApplication whole)
     {
         var types = whole.Types;
+        var models = whole.Models;
         var diagnostics = whole.Diagnostics;
         var properties = new PropertyReader(types);
-        var produces = new ProducesReader(whole.Models, whole.AggregateRoots, diagnostics);
-        var validators = ValidatorCatalog.From(catalog, new(compilation, diagnostics));
+        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics);
+        var validators = ValidatorCatalog.From(catalog, new(models, diagnostics));
 
         return new(
             types,
@@ -130,9 +129,9 @@ public class ArtifactReaders
             new ControllerCommandReader(types, properties, produces, validators, paths),
             new QueryReader(types, diagnostics),
             new ModelBoundProjectionReader(diagnostics),
-            new FluentProjectionReader(compilation, diagnostics),
+            new FluentProjectionReader(models, diagnostics),
             new ReducerReader(diagnostics),
-            new ReactorReader(compilation, paths),
-            new ConstraintReader(compilation, paths, diagnostics));
+            new ReactorReader(models, paths),
+            new ConstraintReader(models, paths, diagnostics));
     }
 }
