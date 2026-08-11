@@ -37,6 +37,33 @@ public static class SliceUnion
     ];
 
     /// <summary>
+    /// Keeps one builder per read model across the whole document, reporting every one beyond the first.
+    /// </summary>
+    /// <param name="slices">The slices of the application, joined across every project.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <returns>The slices, each carrying only the projections that build a read model nothing else builds.</returns>
+    /// <remarks>
+    /// A read model is what a projection builds, and Screenplay holds one builder for each - a document declaring two
+    /// of them does not compile at all, whichever slices they are written in. That is a document wide rule rather than
+    /// a slice wide one, so it is applied once the slices are joined: an application declaring a projection and a
+    /// reducer for one read model, or projecting the same read model from two slices, is the shape that reaches it.
+    /// <para>
+    /// The projection that survives is the first in namespace order, which is the same one whichever order the
+    /// projects were handed over in. The rest are reported rather than dropped quietly, because a read model the
+    /// application really builds is missing from the document either way and a reader counting them otherwise has no
+    /// way of seeing which one went.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<SliceModel> OneBuilderPerReadModel(
+        IReadOnlyList<SliceModel> slices,
+        ScreenplayDiagnostics diagnostics)
+    {
+        var built = new HashSet<string>(StringComparer.Ordinal);
+
+        return [.. slices.Select(slice => slice with { Projections = Building(slice, built, diagnostics) })];
+    }
+
+    /// <summary>
     /// Joins the scenarios every project specifies one slice by.
     /// </summary>
     /// <param name="specifications">The scenarios each project placed under the slice, in the order they were read.</param>
@@ -88,6 +115,38 @@ public static class SliceUnion
         {
             Screens = Once(parts.SelectMany(_ => _.Screens), _ => _.Name, "screen", @namespace, diagnostics)
         };
+    }
+
+    /// <summary>
+    /// Keeps the projections of one slice that build a read model nothing has built yet.
+    /// </summary>
+    /// <param name="slice">The slice to read.</param>
+    /// <param name="built">The read models already built, added to as they are taken.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <returns>The projections kept.</returns>
+    static List<ProjectionModel> Building(
+        SliceModel slice,
+        HashSet<string> built,
+        ScreenplayDiagnostics diagnostics)
+    {
+        var kept = new List<ProjectionModel>();
+
+        foreach (var projection in slice.Projections)
+        {
+            if (built.Add(projection.ReadModel))
+            {
+                kept.Add(projection);
+
+                continue;
+            }
+
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
+                $"'{projection.Identifier}' builds '{projection.ReadModel}', which something else already builds, and a read model is built once, so it was left out",
+                slice.Namespace);
+        }
+
+        return kept;
     }
 
     /// <summary>
