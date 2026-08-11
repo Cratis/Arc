@@ -19,6 +19,16 @@ public class TenancyOptions
     public string HttpHeader { get; set; } = Constants.DefaultTenantIdHeader;
 
     /// <summary>
+    /// Gets or sets the base domain the application is served from when using <see cref="TenantResolverType.Subdomain"/>.
+    /// </summary>
+    /// <remarks>
+    /// A request host carries a tenant only when it is exactly one label in front of this value - <c>acme.myapp.com</c>
+    /// for the base domain <c>myapp.com</c>. Every other host, including the base domain itself, falls back to
+    /// <see cref="HttpHeader"/>. When left empty the subdomain resolver always falls back to the header.
+    /// </remarks>
+    public string BaseDomain { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the query string parameter to use for the tenant ID when using <see cref="TenantResolverType.Query"/>.
     /// </summary>
     public string QueryParameter { get; set; } = "tenantId";
