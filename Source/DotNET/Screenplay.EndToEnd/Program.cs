@@ -19,7 +19,8 @@ var output = Path.GetFullPath(args[1]);
 Console.WriteLine($"Generating the Screenplay document of '{project}'");
 
 var failures = new List<string>();
-var compilations = await ProjectCompilation.Of(project, failures);
+var loaded = await ProjectCompilation.Of(project, failures);
+var compilations = loaded.Compilations;
 
 foreach (var failure in failures)
 {
@@ -33,12 +34,12 @@ if (compilations.Count == 0)
     return 1;
 }
 
-foreach (var loaded in compilations)
+foreach (var compilation in compilations)
 {
-    Console.WriteLine($"  project: {loaded.AssemblyName}");
+    Console.WriteLine($"  project: {compilation.AssemblyName}");
 }
 
-var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions());
+var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions { Domain = loaded.Name });
 
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, generated.Source);
