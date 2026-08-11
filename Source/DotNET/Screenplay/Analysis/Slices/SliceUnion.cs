@@ -82,7 +82,7 @@ public static class SliceUnion
             Once(parts.SelectMany(_ => _.Commands), _ => _.Name, "command", @namespace, diagnostics),
             Once(parts.SelectMany(_ => _.Events), _ => _.Name, "event", @namespace, diagnostics),
             Once(parts.SelectMany(_ => _.Queries), _ => _.Name, "query", @namespace, diagnostics),
-            OneProjection(parts, @namespace, diagnostics),
+            Once(parts.SelectMany(_ => _.Projections), _ => _.Identifier, "projection", @namespace, diagnostics),
             Once(parts.SelectMany(_ => _.Reactors), _ => _.Name, "reactor", @namespace, diagnostics),
             Once(parts.SelectMany(_ => _.Constraints), _ => _.Name, "constraint", @namespace, diagnostics))
         {
@@ -126,37 +126,5 @@ public static class SliceUnion
         }
 
         return [.. kept.OrderBy(name, StringComparer.Ordinal)];
-    }
-
-    /// <summary>
-    /// Keeps the single projection a slice may declare, reporting any beyond the first.
-    /// </summary>
-    /// <param name="parts">The parts, in the order the projects declaring them were read.</param>
-    /// <param name="namespace">The namespace of the slice.</param>
-    /// <param name="diagnostics">The diagnostics to report to.</param>
-    /// <returns>The projection, or <see langword="null"/> when no part declares one.</returns>
-    static ProjectionModel? OneProjection(
-        IReadOnlyList<SliceModel> parts,
-        string @namespace,
-        ScreenplayDiagnostics diagnostics)
-    {
-        ProjectionModel? kept = null;
-
-        foreach (var projection in parts.Select(_ => _.Projection).OfType<ProjectionModel>())
-        {
-            if (kept is null)
-            {
-                kept = projection;
-
-                continue;
-            }
-
-            diagnostics.Warning(
-                ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
-                $"'{projection.Identifier}' is a second projection in one slice, and a slice may declare at most one, so it was left out",
-                @namespace);
-        }
-
-        return kept;
     }
 }

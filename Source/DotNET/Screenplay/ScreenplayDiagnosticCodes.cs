@@ -90,11 +90,10 @@ public static class ScreenplayDiagnosticCodes
     /// A projection declares something the projection definition language has no counterpart for.
     /// </summary>
     /// <remarks>
-    /// Most of what this reports is a construct the language has no word for. One case is not: a slice holding a
-    /// second projection has that projection turned away because a slice declares at most one, which drops a read
-    /// model the application really builds (Cratis/Screenplay#30). Reporting it stays the right thing to do until a
-    /// slice can hold more than one - the projection is left out either way, and a reader counting read models
-    /// against the application otherwise has no way of seeing which one went missing.
+    /// Everything this reports is a construct within a projection that the language has no word for. A slice holding
+    /// a second projection was once reported here too, because a slice used to declare at most one and the rest were
+    /// turned away (Cratis/Screenplay#30); a slice now holds as many as its behavior needs, so they are all carried
+    /// and there is nothing left to say about them.
     /// </remarks>
     public const string UnmappableProjectionConstruct = "SP0015";
 
@@ -127,13 +126,13 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableQuery = "SP0019";
 
     /// <summary>
-    /// A reducer folds events into a read model, which Screenplay has no counterpart for.
+    /// A reducer folds events into a read model with code that cannot be stated.
     /// </summary>
     /// <remarks>
     /// A projection says what each event does to the read model it builds. A reducer says the same thing as code,
     /// and the language has no construct to fold one value into another (Cratis/Screenplay#39). The events it
-    /// observes are read from its signatures and are real, so the document states which events reach the read model
-    /// while leaving unsaid what they do to it.
+    /// observes are read from its signatures and are real, so the read model is carried as a projection over those
+    /// events while what the fold works out is left unsaid.
     /// </remarks>
     public const string ReducerWithoutCounterpart = "SP0020";
 

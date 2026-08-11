@@ -46,6 +46,24 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
     }
 
     /// <summary>
+    /// Adds a projection the slice declares.
+    /// </summary>
+    /// <param name="content">The content collected so far.</param>
+    /// <param name="projection">The projection to add, or <see langword="null"/> when nothing could be read.</param>
+    /// <remarks>
+    /// A slice declares as many projections as its behavior needs, so they accumulate rather than compete. The read
+    /// model a screen binds to and the one a command reads to decide are two projections of one behavior, and a slice
+    /// keeping only whichever was catalogued first stated one of them and silently dropped the rest.
+    /// </remarks>
+    static void Assign(SliceContents content, ProjectionModel? projection)
+    {
+        if (projection is not null)
+        {
+            content.Projections.Add(projection);
+        }
+    }
+
+    /// <summary>
     /// Asks every recognizer what the type is.
     /// </summary>
     /// <param name="type">The type to read.</param>
@@ -68,17 +86,17 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
         {
             ReportWhatTheReadModelCannotSay(type, @namespace);
             AddQueries(content, type, QueryReader.MethodsOf(type), @namespace);
-            Assign(content, readers.ModelBoundProjections.Read(type, @namespace), @namespace);
+            Assign(content, readers.ModelBoundProjections.Read(type, @namespace));
         }
 
         if (FluentProjectionReader.ReadModelOf(type) is { } projected)
         {
-            Assign(content, readers.FluentProjections.Read(type, projected, @namespace), @namespace);
+            Assign(content, readers.FluentProjections.Read(type, projected, @namespace));
         }
 
         if (ReducerReader.ReadModelOf(type) is { } reduced)
         {
-            Assign(content, readers.Reducers.Read(type, reduced, @namespace), @namespace);
+            Assign(content, readers.Reducers.Read(type, reduced, @namespace));
         }
 
         if (ReactorReader.IsReactor(type))
@@ -194,31 +212,5 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
                 content.Queries.Add(new(declaring.Name, query));
             }
         }
-    }
-
-    /// <summary>
-    /// Assigns the single projection a slice may declare, reporting any beyond the first.
-    /// </summary>
-    /// <param name="content">The content collected so far.</param>
-    /// <param name="projection">The projection to assign.</param>
-    /// <param name="namespace">The namespace the slice lives in.</param>
-    void Assign(SliceContents content, ProjectionModel? projection, string @namespace)
-    {
-        if (projection is null)
-        {
-            return;
-        }
-
-        if (content.Projection is not null)
-        {
-            diagnostics.Warning(
-                ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
-                $"'{projection.Identifier}' is a second projection in one slice, and a slice may declare at most one, so it was left out",
-                @namespace);
-
-            return;
-        }
-
-        content.Projection = projection;
     }
 }

@@ -119,5 +119,5 @@ public class a_child_scope_declared_in_both_shapes : Specification
     ProjectionChildScopeModel ChildrenOf(string @namespace) =>
         _analysis.Model.Slices
             .Single(_ => string.Equals(_.Namespace, @namespace, StringComparison.Ordinal))
-            .Projection!.Scope.Children.Single();
+            .Projections.Single().Scope.Children.Single();
 }

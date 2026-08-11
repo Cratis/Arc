@@ -13,9 +13,14 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Commands">The commands the slice declares.</param>
 /// <param name="Events">The events the slice declares.</param>
 /// <param name="Queries">The queries the slice declares.</param>
-/// <param name="Projection">The single projection the slice declares, if it has one.</param>
+/// <param name="Projections">The projections the slice declares.</param>
 /// <param name="Reactors">The reactors the slice declares.</param>
 /// <param name="Constraints">The constraints the slice declares.</param>
+/// <remarks>
+/// A slice declares as many projections as its behavior needs. The read model a screen binds to and the one a
+/// command reads to decide belong to the same behavior, so they belong to the same slice - and an application
+/// routinely writes both, alongside whatever a fold over events builds.
+/// </remarks>
 public record SliceModel(
     string Namespace,
     string Name,
@@ -24,7 +29,7 @@ public record SliceModel(
     IEnumerable<CommandModel> Commands,
     IEnumerable<EventModel> Events,
     IEnumerable<QueryModel> Queries,
-    ProjectionModel? Projection,
+    IEnumerable<ProjectionModel> Projections,
     IEnumerable<ReactorModel> Reactors,
     IEnumerable<ConstraintModel> Constraints)
 {
@@ -55,5 +60,5 @@ public record SliceModel(
     /// <param name="kind">The Event Modeling kind of the slice.</param>
     /// <returns>The empty <see cref="SliceModel"/>.</returns>
     public static SliceModel Empty(string @namespace, string name, SliceKind kind) =>
-        new(@namespace, name, kind, null, [], [], [], null, [], []);
+        new(@namespace, name, kind, null, [], [], [], [], [], []);
 }
