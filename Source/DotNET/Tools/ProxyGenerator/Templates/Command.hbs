@@ -70,17 +70,9 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 
     {{#Properties}}
     {{#if IsEnumerable}}
-    {{#if IsNullable}}
-    private _{{camelcase Name}}?: {{{Type}}}[];
-    {{else}}
     private _{{camelcase Name}}!: {{{Type}}}[];
-    {{/if}}
-    {{else}}
-    {{#if IsNullable}}
-    private _{{camelcase Name}}?: {{{Type}}};
     {{else}}
     private _{{camelcase Name}}!: {{{Type}}};
-    {{/if}}
     {{/if}}
     {{/Properties}}
 
@@ -109,20 +101,20 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
      */
     {{/if}}
     {{#if IsEnumerable}}
-    get {{camelcase Name}}(): {{{Type}}}[]{{#if IsNullable}} | undefined{{/if}} {
+    get {{camelcase Name}}(): {{{Type}}}[] {
         return this._{{camelcase Name}};
     }
 
-    set {{camelcase Name}}(value: {{{Type}}}[]{{#if IsNullable}} | undefined{{/if}}) {
+    set {{camelcase Name}}(value: {{{Type}}}[]) {
         this._{{camelcase Name}} = value;
         this.propertyChanged('{{camelcase Name}}');
     }
     {{else}}
-    get {{camelcase Name}}(): {{{Type}}}{{#if IsNullable}} | undefined{{/if}} {
+    get {{camelcase Name}}(): {{{Type}}} {
         return this._{{camelcase Name}};
     }
 
-    set {{camelcase Name}}(value: {{{Type}}}{{#if IsNullable}} | undefined{{/if}}) {
+    set {{camelcase Name}}(value: {{{Type}}}) {
         this._{{camelcase Name}} = value;
         this.propertyChanged('{{camelcase Name}}');
     }
