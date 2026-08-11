@@ -36,4 +36,8 @@ describe('with fetch error', given(a_query_for, context => {
     it('should carry the transport error message', () => result.exceptionMessages.should.deep.equal(['Network error']));
 
     it('should return the default value as data', () => result.data.should.equal(''));
+
+    // `hasData` is part of the public `IQueryResult` contract, and a consumer awaiting `perform()`
+    // directly reads it off this object rather than off the `QueryResultWithState` the hooks build.
+    it('should expose hasData as a boolean', () => (typeof result.hasData).should.equal('boolean'));
 }));

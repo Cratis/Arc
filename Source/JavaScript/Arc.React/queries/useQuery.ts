@@ -38,7 +38,9 @@ function isAbortError(error: unknown): boolean {
  * @returns A {@link QueryResultWithState} describing the failure.
  */
 function failedResult<TDataType>(defaultValue: TDataType, error: unknown): QueryResultWithState<TDataType> {
-    const { message, stack } = error as { message?: string; stack?: string };
+    // Destructuring a nullish rejection value throws, which would make the `String(error)` fallback
+    // written for exactly that case unreachable - so the rejection is coerced to an object first.
+    const { message } = (error ?? {}) as { message?: string };
     return QueryResultWithState.fromQueryResult({
         ...QueryResult.noSuccess,
         data: defaultValue,
@@ -47,7 +49,9 @@ function failedResult<TDataType>(defaultValue: TDataType, error: unknown): Query
         isValid: true,
         hasExceptions: true,
         exceptionMessages: [message ?? String(error)],
-        exceptionStackTrace: stack ?? ''
+        // Left empty on purpose - see the matching comment in QueryFor. A stack trace here would be
+        // the one that escapes the redaction every server-returned result goes through.
+        exceptionStackTrace: ''
     } as QueryResult<TDataType>, false);
 }
 
@@ -117,9 +121,16 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 }
                 setResult(withState);
             } catch (error) {
-                // An aborted request was superseded by a newer one that now owns the result, so it is
-                // discarded rather than allowed to settle over that newer result.
+                // An abort means this hook's request was superseded. The superseding request is not
+                // necessarily this hook's own: the query instance is shared through the cache, so a
+                // co-subscriber mounting with the same query and arguments aborts whatever that shared
+                // instance had in flight. The superseded request must therefore not overwrite the
+                // result - but it must stop reporting that it is performing, or a co-subscriber that
+                // never issued the newer request stays on its initial, permanently performing state.
+                // Settling functionally keeps whatever result is current: this hook's own newer result
+                // when it superseded itself, and its existing one otherwise.
                 if (isAbortError(error)) {
+                    setResult(current => QueryResultWithState.fromQueryResult(current, false));
                     return;
                 }
                 setResult(failedResult(queryInstance.defaultValue, error));

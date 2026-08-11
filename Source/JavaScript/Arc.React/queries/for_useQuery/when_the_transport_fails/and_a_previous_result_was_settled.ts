@@ -7,7 +7,7 @@ import sinon from 'sinon';
 import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 import { useQuery } from '../../useQuery';
-import { FakeQuery } from '../FakeQuery';
+import { FakeQuery, FakeQueryResult } from '../FakeQuery';
 import { ArcContext, ArcConfiguration } from '../../../ArcContext';
 import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
 
@@ -71,4 +71,11 @@ describe('and a previous result was settled', () => {
     it('should report that it has exceptions', () => queryResult.hasExceptions.should.be.true);
 
     it('should carry the transport error message', () => queryResult.exceptionMessages.should.deep.equal(['Network error']));
+
+    // The axis the failure result actually changes: data is replaced by the query's default value, so a
+    // transport blip empties a populated view rather than leaving the last good payload on screen. That
+    // matches how every other unsuccessful result from Arc reports its data, and it is pinned here so
+    // the choice is specified rather than incidental - changing it is a deliberate decision, not a
+    // silent side effect of touching this path.
+    it('should replace the data with the query default value', () => (queryResult.data as FakeQueryResult[]).should.deep.equal([]));
 });

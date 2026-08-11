@@ -143,8 +143,10 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
             // A dead network, a CORS rejection or a DNS failure never reaches the server, so it is
             // neither an authorization nor a validation outcome - it is reported as an exception, with
             // the default value as data, exactly as every other unsuccessful result from here does.
-            const { message, stack } = error as { message?: string; stack?: string };
-            return {
+            // Destructuring a nullish rejection value throws, which would make the `String(error)`
+            // fallback written for exactly that case unreachable - so it is coerced to an object first.
+            const { message } = (error ?? {}) as { message?: string };
+            const failure = {
                 ...QueryResult.noSuccess,
                 data: this.defaultValue,
                 isSuccess: false,
@@ -152,8 +154,19 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
                 isValid: true,
                 hasExceptions: true,
                 exceptionMessages: [message ?? String(error)],
-                exceptionStackTrace: stack ?? ''
-            } as QueryResult<TDataType>;
+                // Left empty on purpose. Every result the server returns has its stack trace blanked
+                // unless exception detail is explicitly exposed, and consumers are told to forward
+                // this field to a logger - so filling it in here would make a failure that never
+                // reached the server the one case that escapes that policy. The message is what
+                // diagnoses a transport failure; the browser's own frames add nothing.
+                exceptionStackTrace: ''
+            };
+
+            // `hasData` is a prototype getter, and a spread copies own properties only - so the literal
+            // above would hand every consumer of this public `IQueryResult` member `undefined` instead
+            // of a boolean. Restoring the prototype makes it a real {@link QueryResult} again while
+            // leaving every field value exactly as it is.
+            return Object.setPrototypeOf(failure, QueryResult.prototype) as QueryResult<TDataType>;
         }
 
         try {
