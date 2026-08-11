@@ -45,6 +45,64 @@ app.UseAuthentication();
 app.UseAuthorization();
 ```
 
+## Knowing which identity provider signed the caller in
+
+The `x-ms-client-principal` payload carries an `identityProvider` field describing the provider the ingress
+authenticated the caller with. Without it, everything downstream sees is a set of claims that look the same whether
+they came from Entra ID or GitHub — so the application has no way to tell one federation apart from another.
+
+Arc keeps that value on the reconstructed principal as a claim, so both normal request authorization and the
+`/.cratis/me` identity resolution can read it:
+
+```csharp
+using Cratis.Arc.Identity;
+using Microsoft.AspNetCore.Http;
+
+public class IdentityProviderReader(IHttpContextAccessor httpContextAccessor)
+{
+    public string? Current =>
+        httpContextAccessor.HttpContext?.User.FindFirst(MicrosoftIdentityPlatformClaims.IdentityProvider)?.Value;
+}
+```
+
+| Aspect | Detail |
+| ------ | ------ |
+| Claim type | `urn:cratis:arc:identity:provider` — use the `MicrosoftIdentityPlatformClaims.IdentityProvider` constant |
+| Value | The exact `identityProvider` value the ingress forwarded, for example `aad` or `github` |
+| When absent | The forwarded principal carried no `identityProvider` field, or the field held only blank characters |
+
+The claim type is **reserved for Arc**. The `x-ms-client-principal` header is base64, not a signature, so any caller
+that can reach the application can put whatever it likes in the serialized payload — including a claim of this very
+type. Arc therefore removes every claim of the reserved type from the deserialized payload, ignoring casing, *before*
+writing its own value.
+
+> [!WARNING]
+> **What the strip guarantees is single provenance, not authenticity.** The claim always carries exactly one value,
+> and that value always comes from one place — the `identityProvider` field of the forwarded principal — so a claim of
+> the reserved type passed through by the ingress or by the identity provider can never displace it. It does **not**
+> make the value trustworthy. The same unsigned header carries that field too, and Arc does not check who sent the
+> header, so a caller that can reach the application authors the whole document; the strip only decides which of its
+> fields wins. **Trust this claim exactly as far as you trust the `x-ms-client-principal` header itself — that is,
+> only insofar as your ingress is the only thing that can set it.** Terminate the header at the ingress and reject or
+> overwrite an inbound one; nothing inside Arc can do that for you.
+
+Read the claim with `FindFirst` or `FindAll`, as in the example above, and **never normalize the claim type yourself**.
+Those lookups compare the claim type the same way the strip does, so what they return is exactly what Arc wrote.
+Enumerating `User.Claims` and folding the type with `ToUpperInvariant()` or `Trim()` widens the match beyond what was
+removed — a forged type differing only by Unicode case folding (`urn:cratiſ:arc:identity:provider`, U+017F) or by
+trailing whitespace then matches, and because forwarded claims are added before Arc's own, a `FirstOrDefault()` over
+that widened set returns the forgery.
+
+> [!IMPORTANT]
+> The value is the exact `identityProvider` field the ingress forwarded, verbatim and untrimmed — Arc neither
+> interprets nor normalizes it. What it *means* is therefore the ingress's choice, not Arc's. Cratis AuthProxy
+> forwards the canonical provider key, the same value it publishes as its own `urn:cratis:identity:provider-key`
+> claim, so in a canonical AuthProxy deployment the two carry identical values. Another ingress may forward an
+> authentication scheme name or a provider display name that changes when the provider is renamed. **Arc guarantees
+> neither**, so use this claim for telling federations apart, for diagnostics, and for provider-aware behavior. If you
+> need a durable provider key, read the claim the ingress publishes for that purpose — `urn:cratis:identity:provider-key`
+> in an AuthProxy deployment — rather than this one. Arc copies such ingress-authored claims through untouched.
+
 ## Identity Details
 
 For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity/index.md).
