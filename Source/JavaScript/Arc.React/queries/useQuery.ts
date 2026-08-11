@@ -19,6 +19,38 @@ export type PerformQuery<TArguments = object> = (args?: TArguments) => Promise<v
 
 type QueryPerformer<TQuery extends IQueryFor<TDataType>, TDataType, TArguments = object> = (performer: TQuery, args?: TArguments) => Promise<QueryResult<TDataType>>;
 
+/**
+ * Determines whether an error is the rejection produced by aborting a request.
+ * Duplicated from the query transport rather than imported, since it is internal to `@cratis/arc`.
+ * @param error The error to inspect.
+ * @returns True if the error represents an aborted request, false otherwise.
+ */
+function isAbortError(error: unknown): boolean {
+    return (error as { name?: string })?.name === 'AbortError';
+}
+
+/**
+ * Creates the terminal state for a query that failed before it produced a result, so the hook settles
+ * as unsuccessful instead of staying on its initial - and permanently performing - state.
+ * @template TDataType Type of model the query is for.
+ * @param defaultValue The default value of the query, used as the data of the failed result.
+ * @param error The error the query failed with.
+ * @returns A {@link QueryResultWithState} describing the failure.
+ */
+function failedResult<TDataType>(defaultValue: TDataType, error: unknown): QueryResultWithState<TDataType> {
+    const { message, stack } = error as { message?: string; stack?: string };
+    return QueryResultWithState.fromQueryResult({
+        ...QueryResult.noSuccess,
+        data: defaultValue,
+        isSuccess: false,
+        isAuthorized: true,
+        isValid: true,
+        hasExceptions: true,
+        exceptionMessages: [message ?? String(error)],
+        exceptionStackTrace: stack ?? ''
+    } as QueryResult<TDataType>, false);
+}
+
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
@@ -76,10 +108,21 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
             try {
                 const queryResult = await performer(queryInstance, args);
                 const withState = QueryResultWithState.fromQueryResult(queryResult, false);
-                queryCache.setLastResult(cacheKeyRef.current, withState);
+                // Only a successful result is cached. The cache exists to hand the last known good
+                // payload to future subscribers, so caching a failure would poison every mount for the
+                // whole retention window; leaving it out means a remount shows stale-but-good data and
+                // re-fetches - stale while revalidate.
+                if (withState.isSuccess) {
+                    queryCache.setLastResult(cacheKeyRef.current, withState);
+                }
                 setResult(withState);
-            } catch {
-                // Ignore
+            } catch (error) {
+                // An aborted request was superseded by a newer one that now owns the result, so it is
+                // discarded rather than allowed to settle over that newer result.
+                if (isAbortError(error)) {
+                    return;
+                }
+                setResult(failedResult(queryInstance.defaultValue, error));
             } finally {
                 queryScope.notifyPerformingCompleted();
             }
