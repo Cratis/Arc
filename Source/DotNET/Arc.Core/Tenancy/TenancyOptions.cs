@@ -24,7 +24,10 @@ public class TenancyOptions
     /// <remarks>
     /// A request host carries a tenant only when it is exactly one label in front of this value - <c>acme.myapp.com</c>
     /// for the base domain <c>myapp.com</c>. Every other host, including the base domain itself, falls back to
-    /// <see cref="HttpHeader"/>. When left empty the subdomain resolver always falls back to the header.
+    /// <see cref="HttpHeader"/>. It is required for <see cref="TenantResolverType.Subdomain"/> and must be the
+    /// registrable domain the application is served from; anything the resolver could not match a tenant host against
+    /// - an empty value, a single label, an address literal - throws <see cref="BaseDomainIsNotADomainName"/> rather
+    /// than leaving every request to resolve its tenant from the client-supplied header.
     /// </remarks>
     public string BaseDomain { get; set; } = string.Empty;
 

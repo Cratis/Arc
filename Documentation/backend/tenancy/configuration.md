@@ -68,7 +68,9 @@ builder.AddCratisArcCore(options =>
 
 ### Subdomain Resolver
 
-`BaseDomain` is the domain the application itself is served from. A host resolves a tenant only when it is exactly one label in front of it; every other host falls back to `HttpHeader`. Leaving `BaseDomain` out makes every request fall back to the header.
+`BaseDomain` is the domain the application itself is served from. A host resolves a tenant only when it is exactly one label in front of it; every other host falls back to `HttpHeader`.
+
+`BaseDomain` is **required** and must be the registrable domain you own — at least two letter-digit-hyphen labels, never an address literal. Leaving it out, or setting it to something no host could be matched against, throws `BaseDomainIsNotADomainName` on startup rather than letting every request take its tenant from the client-supplied `HttpHeader`. See [the subdomain resolver](./resolvers.md) for the full rules.
 
 ```json
 {

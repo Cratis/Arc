@@ -61,7 +61,7 @@ public class when_generating_command_with_optional_properties : Specification, I
     [Fact] void should_declare_the_required_enumerable_setter_as_required() => _generatedCode.ShouldContain("set tags(value: string[]) {");
     [Fact] void should_declare_the_optional_property_descriptor_as_nullable() => _generatedCode.ShouldContain("new PropertyDescriptor('description', String, true)");
     [Fact] void should_declare_the_required_property_descriptor_as_not_nullable() => _generatedCode.ShouldContain("new PropertyDescriptor('name', String, false)");
-    [Fact] void should_produce_typescript_the_compiler_accepts() => _diagnostics.ShouldBeEmpty();
+    [Fact] void should_produce_parseable_typescript() => _diagnostics.ShouldBeEmpty();
 
     public void Dispose() => _runtime?.Dispose();
 }

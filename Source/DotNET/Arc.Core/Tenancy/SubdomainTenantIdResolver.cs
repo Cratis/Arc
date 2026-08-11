@@ -1,9 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Globalization;
-using System.Net;
-using System.Text;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -16,17 +13,20 @@ namespace Cratis.Arc.Tenancy;
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/>.</param>
 /// <param name="options">The <see cref="IOptions{TOptions}"/>.</param>
+/// <exception cref="BaseDomainIsNotADomainName">
+/// Thrown when <see cref="TenancyOptions.BaseDomain"/> is not a domain name tenants can be resolved in front of.
+/// </exception>
 /// <remarks>
 /// A host carries a tenant only when it is exactly one label in front of the configured
 /// <see cref="TenancyOptions.BaseDomain"/> - <c>acme.myapp.com</c> resolves <c>acme</c> for the base domain
-/// <c>myapp.com</c>. The base domain itself, a deeper host, an IP literal, an unrelated host and every host at all
-/// when no base domain is configured fall back to <see cref="TenancyOptions.HttpHeader"/>. The number of labels in a
-/// host says nothing about whether it carries a tenant, so it is never used to decide.
+/// <c>myapp.com</c>. The base domain itself, a deeper host, an IP literal, an unrelated host and anything that is not
+/// a valid DNS label fall back to <see cref="TenancyOptions.HttpHeader"/>. The number of labels in a host says nothing
+/// about whether it carries a tenant, so it is never used to decide.
 /// </remarks>
 [IgnoreConvention]
 public class SubdomainTenantIdResolver(IHttpRequestContextAccessor httpRequestContextAccessor, IOptions<ArcOptions> options) : ITenantIdResolver
 {
-    static readonly IdnMapping _idnMapping = new();
+    BaseDomainSuffix _suffix = BaseDomainSuffix.ForConfigured(options.Value.Tenancy.BaseDomain);
 
     /// <inheritdoc/>
     public string Resolve()
@@ -52,77 +52,76 @@ public class SubdomainTenantIdResolver(IHttpRequestContextAccessor httpRequestCo
         return context.Headers.TryGetValue(tenancy.HttpHeader, out var fallbackTenantId) ? fallbackTenantId : string.Empty;
     }
 
-    static string ResolveFromHost(string host, string baseDomain)
+    string ResolveFromHost(string host, string baseDomain)
     {
-        if (string.IsNullOrWhiteSpace(baseDomain))
+        var suffix = SuffixFor(baseDomain);
+        if (suffix.Length == 0)
         {
             return string.Empty;
         }
 
-        var suffix = $".{Normalize(baseDomain)}";
-        var normalizedHost = Normalize(host);
+        var normalizedHost = TenantHost.Normalize(host);
         if (!normalizedHost.EndsWith(suffix, StringComparison.Ordinal))
         {
             return string.Empty;
         }
 
         var subdomain = normalizedHost[..^suffix.Length];
-        return subdomain.Contains('.') ? string.Empty : subdomain;
+        return TenantHost.IsLabel(subdomain) ? subdomain : string.Empty;
+    }
+
+    string SuffixFor(string baseDomain)
+    {
+        var cached = _suffix;
+        if (cached.WasBuiltFor(baseDomain))
+        {
+            return cached.Suffix;
+        }
+
+        var rebuilt = BaseDomainSuffix.For(baseDomain);
+        _suffix = rebuilt;
+        return rebuilt.Suffix;
     }
 
     /// <summary>
-    /// Reduces a host to the canonical form the base domain is matched against, or to an empty string for a host that
-    /// can never carry a tenant.
+    /// Represents the suffix a tenant host is matched against, remembered for the base domain it was built from.
     /// </summary>
-    /// <param name="value">The host to normalize.</param>
-    /// <returns>The normalized host, or an empty string when the host cannot carry a tenant.</returns>
+    /// <param name="BaseDomain">The base domain the suffix was built from.</param>
+    /// <param name="Suffix">The suffix a tenant host ends with, or an empty string when the base domain matches nothing.</param>
     /// <remarks>
-    /// The bracketed-literal and <see cref="IPAddress"/> rejections state the contract explicitly rather than leaving
-    /// it to the base domain match, so an address can never be read as a tenant even if the matching rule changes.
+    /// Normalizing the base domain and allocating the suffix on every request is pure repetition, and the resolver is
+    /// a singleton, so the pair is kept as one immutable value that can be swapped in a single reference assignment.
     /// </remarks>
-    static string Normalize(string value)
+    sealed record BaseDomainSuffix(string BaseDomain, string Suffix)
     {
-        var host = HostName.WithoutPort(value.Trim());
-        if (host.Length == 0)
+        /// <summary>
+        /// Builds the suffix for the base domain subdomain tenancy was configured with.
+        /// </summary>
+        /// <param name="baseDomain">The configured base domain.</param>
+        /// <returns>The <see cref="BaseDomainSuffix"/> for the base domain.</returns>
+        /// <exception cref="BaseDomainIsNotADomainName">Thrown when the base domain is not a domain name.</exception>
+        internal static BaseDomainSuffix ForConfigured(string baseDomain)
         {
-            return string.Empty;
+            BaseDomainIsNotADomainName.ThrowIfNotADomainName(baseDomain);
+            return For(baseDomain);
         }
 
-        if (host[0] == '[')
+        /// <summary>
+        /// Builds the suffix for a base domain.
+        /// </summary>
+        /// <param name="baseDomain">The base domain to build the suffix for.</param>
+        /// <returns>The <see cref="BaseDomainSuffix"/> for the base domain.</returns>
+        internal static BaseDomainSuffix For(string baseDomain)
         {
-            return string.Empty;
+            var normalized = TenantHost.Normalize(baseDomain);
+            return new(baseDomain, normalized.Length == 0 ? string.Empty : $".{normalized}");
         }
 
-        if (IPAddress.TryParse(host, out _))
-        {
-            return string.Empty;
-        }
-
-        var withoutTrailingDots = host.Trim('.');
-        var lowercased = withoutTrailingDots.ToLowerInvariant();
-        return ToAscii(lowercased);
-    }
-
-    /// <summary>
-    /// Converts an internationalized host to its punycode form so the same domain always yields the same tenant ID.
-    /// </summary>
-    /// <param name="host">The host to convert.</param>
-    /// <returns>The punycode form, or an empty string when the host is not a valid internationalized domain name.</returns>
-    static string ToAscii(string host)
-    {
-        if (Ascii.IsValid(host))
-        {
-            return host;
-        }
-
-        try
-        {
-            return _idnMapping.GetAscii(host);
-        }
-        catch (ArgumentException)
-        {
-            // Not a domain name at all, so it identifies no tenant and the header fallback takes over.
-            return string.Empty;
-        }
+        /// <summary>
+        /// Checks whether the suffix was built from a base domain.
+        /// </summary>
+        /// <param name="baseDomain">The base domain to check against.</param>
+        /// <returns>True when the suffix was built from the base domain, false otherwise.</returns>
+        internal bool WasBuiltFor(string baseDomain) => string.Equals(BaseDomain, baseDomain, StringComparison.Ordinal);
     }
 }
