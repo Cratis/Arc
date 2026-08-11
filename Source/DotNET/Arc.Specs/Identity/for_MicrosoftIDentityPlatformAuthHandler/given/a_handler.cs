@@ -86,4 +86,24 @@ public class a_handler : Specification
 
     protected static string[] ClaimValuesFrom(AuthenticateResult result, string claimType) =>
         [.. result.Principal!.FindAll(claimType).Select(claim => claim.Value)];
+
+    /// <summary>
+    /// Enumerates the reconstructed principal the way a consumer that normalizes the claim type itself would - upper
+    /// casing before comparing, instead of going through FindFirst/FindAll.
+    /// </summary>
+    /// <param name="result">The <see cref="AuthenticateResult"/> to read the claims from.</param>
+    /// <returns>The values of the matching claims, in the order they sit on the principal.</returns>
+    /// <remarks>
+    /// The handler strips with OrdinalIgnoreCase and FindFirst/FindAll match with OrdinalIgnoreCase, so every other
+    /// helper here shares the blind spot of the guard it observes and can never see a claim type the strip missed.
+    /// This one deliberately compares differently, so a survivor is observable and the documented "never normalize
+    /// the claim type yourself" warning is pinned by something that fails when it stops being true.
+    /// </remarks>
+    protected static string[] ClaimValuesNormalizedWithUpperInvariant(AuthenticateResult result) =>
+        [.. result.Principal!.Claims
+            .Where(claim => string.Equals(
+                claim.Type.ToUpperInvariant(),
+                MicrosoftIdentityPlatformClaims.IdentityProvider.ToUpperInvariant(),
+                StringComparison.Ordinal))
+            .Select(claim => claim.Value)];
 }

@@ -63,7 +63,7 @@ public class MicrosoftIDentityPlatformAuthHandler(
         claims.Add(new Claim(ClaimTypes.NameIdentifier, Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString()));
         claims.Add(new Claim("sub", Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString()));
 
-        if (!string.IsNullOrEmpty(clientPrincipal.IdentityProvider))
+        if (!string.IsNullOrWhiteSpace(clientPrincipal.IdentityProvider))
         {
             claims.Add(new Claim(MicrosoftIdentityPlatformClaims.IdentityProvider, clientPrincipal.IdentityProvider));
         }
