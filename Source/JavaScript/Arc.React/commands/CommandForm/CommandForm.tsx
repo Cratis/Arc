@@ -15,13 +15,37 @@ import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { useIdentity } from '../../identity';
 import { isCommandFormColumn, isCommandFormField, markAsCommandFormColumn } from './commandFormMarkers';
+import { withoutUndefinedValues } from './withoutUndefinedValues';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
 
 export interface CommandFormProps<TCommand extends object, TResponse = object> {
     command: Constructor<TCommand>;
+
+    /**
+     * The synchronous baseline the form starts from, and what change tracking measures against.
+     *
+     * This is a *seed*: it supplies values, it does not clear them. A key holding `undefined`
+     * supplies nothing, so whatever {@link CommandFormProps.currentValues} resolved - or the command
+     * class's own default - stays in place. That matters because these values are usually written
+     * out by the caller as a fixed object literal, where a property that has no value yet reads as
+     * `undefined` on every render, including the ones after an asynchronous lookup has answered.
+     * A field's `currentValue` prop is the same layer and follows the same rule.
+     *
+     * Reach for {@link CommandFormProps.currentValues} to clear a property, or to supply one whose
+     * value arrives late.
+     */
     initialValues?: Partial<TCommand>;
+
+    /**
+     * The reactive overlay for values owned elsewhere - typically a query that answers after the
+     * form has already rendered. Every change to it is written to the command.
+     *
+     * Unlike {@link CommandFormProps.initialValues} this layer carries presence semantics: a key it
+     * holds is written whatever it holds, so both `null` and an explicitly present `undefined`
+     * clear the property. Only a key that is absent altogether is left alone.
+     */
     currentValues?: Partial<TCommand> | undefined;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
@@ -151,11 +175,14 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         return extracted;
     }, [props.currentValues, props.command]);
 
-    // Merge initialValues prop with values extracted from field currentValue props and currentValues
+    // Merge initialValues prop with values extracted from field currentValue props and currentValues.
+    // The two seed layers skip undefined, the reactive one does not - see CommandFormProps. A field's
+    // currentValue is skipped where it is extracted (nothing to seed), and props.initialValues here,
+    // so neither of them spreads an undefined over a value currentValues has already resolved.
     const mergedInitialValues = useMemo(() => ({
         ...valuesFromCurrentValues,
         ...initialValuesFromFields,
-        ...props.initialValues
+        ...withoutUndefinedValues(props.initialValues)
     }), [valuesFromCurrentValues, initialValuesFromFields, props.initialValues]);
 
     // useCommand returns [instance, setter, clearer] for the typed command. Provide generics so commandInstance is TCommand.
