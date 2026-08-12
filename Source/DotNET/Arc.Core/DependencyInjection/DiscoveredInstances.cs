@@ -23,7 +23,7 @@ namespace Cratis.Arc.DependencyInjection;
 /// provider Arc already threads through <c>CommandContext</c> and <c>QueryContext</c> for exactly this purpose.
 /// </para>
 /// </remarks>
-public static class DiscoveredInstances
+static class DiscoveredInstances
 {
     /// <summary>
     /// Gets the discovered implementations of <typeparamref name="T"/>, resolved from the given <see cref="IServiceProvider"/>.
