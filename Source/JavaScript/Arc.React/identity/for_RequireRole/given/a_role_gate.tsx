@@ -108,6 +108,20 @@ export class a_role_gate {
     }
 
     /**
+     * Answers the held identity fetch with a signed-in identity whose details are explicitly null.
+     *
+     * Distinct from {@link signInWithoutDetails}: an absent key deserializes to undefined, an explicit
+     * null stays null, and a guard written against only one of them lets the other through.
+     */
+    async signInWithNullDetails(roles: string[]) {
+        this.settle({
+            ok: true,
+            json: async () => ({ id: 'user-1', name: 'A User', roles, details: null })
+        } as Response);
+        await this.waitUntilTheIdentityIsResolved();
+    }
+
+    /**
      * Answers the held identity fetch the way the server answers an unauthenticated caller.
      */
     async stayAnonymous() {
