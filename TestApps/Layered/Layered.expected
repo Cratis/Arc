@@ -1,0 +1,72 @@
+# What the document generated from this application has to say, and what generating it has to report.
+#
+#   says <line>            the document carries the line, at least once, indentation ignored
+#   once <line>            exactly once
+#   never <line>           not at all
+#   reports <code> <n>     the generator reports the code exactly n times, 0 for never
+#
+# Everything here is about one of the two shapes this fixture exists for. Anything the framework projects it
+# references happen to contribute is deliberately not held to, because that is Arc's own source rather than the
+# application's, and holding this file to it would make it churn with every unrelated change.
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# A scenario naming a value the project below it declares.
+#
+# The scenario states its customer as KnownCustomers.House, a static readonly identity declared in
+# Layered.Contracts. The workspace hands that project over as the compilation it built rather than as an assembly on
+# disk, so the declaration belongs to a compilation other than the one reading the scenario. Reading it through the
+# wrong one threw and took the whole document with it.
+# ---------------------------------------------------------------------------------------------------------------
+
+# The scenario survived at all - it was the crash site.
+once specification WhenPlacingAnOrderAndTheCustomerOrderedBefore
+
+# What it starts from, what it does and what follows, with the values it could read.
+says given OrderPlaced
+says sku = "COFFEE-250G"
+says when PlaceOrder
+says sku = "COFFEE-1KG"
+says then OrderPlaced
+
+# This is the assertion that is not about crashing. The identity is made on the spot, so a document leaving it out
+# says exactly what the source says and there is nothing to report. A reader that stopped at the project boundary
+# rather than following the member into the project that declares it would leave it out too - and would report it as
+# a value nothing was recovered from. Both write the same document; only this tells them apart.
+reports SP0040 0
+
+# No scenario was dropped on the way, for that reason or any other.
+reports SP0039 0
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Two slices building one read model.
+#
+# The placing slice builds Order with a model-bound projection and the reporting slice builds it again with a fluent
+# one. Screenplay holds one builder per read model however many slices declare one, and a document naming two does
+# not compile at all - so the second is turned away and said out loud rather than emitted.
+# ---------------------------------------------------------------------------------------------------------------
+
+# Exactly one builder reaches the document, and it is the one the first slice in namespace order declares.
+once projection Order => Order
+
+# The one that did not is reported rather than dropped in silence.
+reports SP0015 1
+
+# The reporting slice declared nothing else, so it is left out and that is said too.
+reports SP0002 1
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# What the application declares across the two projects.
+# ---------------------------------------------------------------------------------------------------------------
+
+# The concept and the event are declared by the contracts project and reached through the project above it, so a
+# document holding them is a document generated from more than the project that was named.
+says concept CustomerId : Uuid
+once event OrderPlaced
+once command PlaceOrder
+says customerId CustomerId
+
+# The application is named after the project that was asked for, not the neutral default.
+once domain Layered
