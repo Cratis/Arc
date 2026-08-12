@@ -95,7 +95,9 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
                 severity: _.severity,
                 message: _.message,
                 members: _.members,
-                state: _.state
+                state: _.state,
+                reason: _.reason,
+                reasonDetail: _.reasonDetail
             })),
             exceptionMessages: [],
             exceptionStackTrace: '',

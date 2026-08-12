@@ -43,6 +43,6 @@ describe('when constructing from a server result with a constraint violation', (
 
     it('should let a client tell one constraint from another without reading the message', () =>
         result.validationResults
-            .filter(_ => _.reason === ValidationResultReason.ConstraintViolation && _.reasonDetail === 'UniqueEmailAddress')
-            .length.should.equal(0));
+            .filter(_ => _.reason === ValidationResultReason.ConstraintViolation && _.reasonDetail === 'UniqueOrganizationNumber')
+            .length.should.equal(1));
 });
