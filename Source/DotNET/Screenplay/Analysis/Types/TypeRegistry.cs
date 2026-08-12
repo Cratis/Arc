@@ -107,6 +107,15 @@ public class TypeRegistry
         _concepts.AddValidations(conceptName, rules);
 
     /// <summary>
+    /// Determines whether a type says what implements it rather than what it holds.
+    /// </summary>
+    /// <param name="type">The type being named.</param>
+    /// <returns>True when no type declaration can be written for it.</returns>
+    static bool IsAContract(ITypeSymbol type) =>
+        type.TypeKind == TypeKind.Interface ||
+        type is INamedTypeSymbol { IsAbstract: true, TypeKind: TypeKind.Class, IsRecord: false };
+
+    /// <summary>
     /// Resolves the name a type is referenced by, registering it as a concept when it is one.
     /// </summary>
     /// <param name="type">The type to name.</param>
@@ -148,7 +157,7 @@ public class TypeRegistry
     }
 
     /// <summary>
-    /// Records a type whose simple name says less than the type does.
+    /// Records a type the document refers to by a name it never declares.
     /// </summary>
     /// <param name="type">The type being named.</param>
     /// <remarks>
@@ -156,10 +165,18 @@ public class TypeRegistry
     /// writing <c>IDictionary&lt;string, string&gt;</c> as the single identifier the grammar allows leaves the word
     /// <c>KeyValuePair</c> behind, which says nothing and which the document never declares. Same for a type
     /// parameter, whose name is a placeholder rather than a type.
+    /// <para>
+    /// A contract is the same failure arrived at from the other side. An interface or an abstract class survives being
+    /// written as a single identifier intact - the name is not what is lost - but a <c>type</c> declaration says what a
+    /// value holds, and what an implementation holds is exactly what a contract leaves open. Only a record is declared
+    /// (see <see cref="CarriedTypes.IsRecord"/>), so the property names something the document never introduces, which
+    /// is the same dangling reference a constructed generic leaves and is reported the same way. An abstract record is
+    /// not among these: it is declared like any other record, so it names something the document does introduce.
+    /// </para>
     /// </remarks>
     void ReportWhatTheNameLoses(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol { TypeArguments.Length: > 0 } or { TypeKind: TypeKind.TypeParameter })
+        if (type is INamedTypeSymbol { TypeArguments.Length: > 0 } or { TypeKind: TypeKind.TypeParameter } || IsAContract(type))
         {
             _unmappable.Add(type.ToDisplayString());
         }
