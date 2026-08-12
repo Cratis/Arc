@@ -234,12 +234,18 @@ public static class ScreenplayDiagnosticCodes
     // be declared with it.
 
     /// <summary>
-    /// A type is referred to by a name that does not say what it is, because Screenplay cannot express it.
+    /// A type is referred to by a name the document never declares, because Screenplay cannot express it.
     /// </summary>
     /// <remarks>
     /// A Screenplay type reference is a single identifier. A constructed generic loses its arguments the moment it is
     /// written as one - a map of names to values becomes the word <c>KeyValuePair</c> - and the document then refers
     /// to a type it never declares. Nothing better can be written, so what was lost is said instead.
+    /// <para>
+    /// An interface or an abstract class ends in the same place by the opposite route. Its name survives being written
+    /// as a single identifier, so nothing is lost in the writing; what cannot be written is the declaration, because a
+    /// <c>type</c> says what a value holds and a contract leaves that to whatever implements it. Either way the
+    /// property names something the document never introduces, which is the one thing worth saying about both.
+    /// </para>
     /// </remarks>
     public const string UnmappableTypeReference = "SP0030";
 
