@@ -26,11 +26,13 @@ const defaultIdentityContext: IIdentity = {
 type IdentityContextValue = {
     identity: IIdentity;
     detailsConstructor?: Constructor;
+    isLoading: boolean;
     clearIdentity: () => void;
 };
 
 const defaultContextValue: IdentityContextValue = {
     identity: defaultIdentityContext,
+    isLoading: false,
     clearIdentity: () => { /* no-op until provider initializes */ },
 };
 
@@ -56,7 +58,8 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
             const wrappedIdentity = wrapRefresh(identity);
             setIdentityState({
                 identity: wrappedIdentity,
-                detailsConstructor: props.detailsType
+                detailsConstructor: props.detailsType,
+                isLoading: false
             });
             return wrappedIdentity;
         });
@@ -66,7 +69,8 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         RootIdentityProvider.clearIdentityCookie();
         setIdentityState({
             identity: wrapRefresh(initialIdentity),
-            detailsConstructor: props.detailsType
+            detailsConstructor: props.detailsType,
+            isLoading: false
         });
     };
 
@@ -80,7 +84,8 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
                         const wrappedIdentity = wrapRefresh(newIdentity);
                         setIdentityState({
                             identity: wrappedIdentity,
-                            detailsConstructor: props.detailsType
+                            detailsConstructor: props.detailsType,
+                            isLoading: false
                         });
                         resolve(wrappedIdentity);
                     }).catch(reject);
@@ -99,14 +104,19 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         refresh: () => fetchIdentity()
     };
 
-    const [identityState, setIdentityState] = useState<{ identity: IIdentity; detailsConstructor?: Constructor }>({
+    // Seeded as loading: the first fetch has not answered yet, and until it does an unset identity
+    // must not be reported as anonymous - see IIdentityContext.isLoading.
+    const [identityState, setIdentityState] = useState<{ identity: IIdentity; detailsConstructor?: Constructor; isLoading: boolean }>({
         identity: wrapRefresh(initialIdentity),
         detailsConstructor: props.detailsType,
+        isLoading: true,
     });
 
     useEffect(() => {
         fetchIdentity().catch(error => {
             console.error('Failed to fetch initial identity:', error);
+            // A failed fetch still settles the question - the identity is not going to arrive.
+            setIdentityState(current => ({ ...current, isLoading: false }));
         });
     }, []);
 
