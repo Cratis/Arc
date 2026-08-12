@@ -13,7 +13,7 @@ namespace Cratis.Arc.Validation;
 /// <remarks>
 /// <see cref="State"/> belongs to whoever authored the rule - it carries FluentValidation's <c>WithState</c> value
 /// straight through - so it is not where the framework says what kind of rejection this is. That is
-/// <see cref="Reason"/>.
+/// <see cref="Reason"/>, and which specific thing within that category is <see cref="ReasonDetail"/>.
 /// </remarks>
 public record ValidationResult(ValidationResultSeverity Severity, string Message, IEnumerable<string> Members, object State)
 {
@@ -24,15 +24,29 @@ public record ValidationResult(ValidationResultSeverity Severity, string Message
     public ValidationResultReason Reason { get; init; } = ValidationResultReason.Rule;
 
     /// <summary>
+    /// Gets the identity of the specific thing that produced this result within its <see cref="Reason"/> category,
+    /// or <see langword="null"/> when the reason carries no finer identity. <see cref="Reason"/> says a constraint rejected
+    /// the command; this says <em>which</em> constraint - so a client can branch on identity instead of parsing
+    /// <see cref="Message"/>, which is prose written for a human and free to change.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a <see cref="string"/> and deliberately not named after any one reason: this type is Arc's
+    /// general validation result, it does not depend on Chronicle, and every category is free to fill this in with
+    /// whatever names its own rejections - a constraint name today, something else tomorrow.
+    /// </remarks>
+    public string? ReasonDetail { get; init; }
+
+    /// <summary>
     /// Creates a new <see cref="ValidationResult"/> representing information.
     /// </summary>
     /// <param name="message">Message of the information.</param>
     /// <param name="members">Collection of member names that are related to the information.</param>
     /// <param name="state">State associated with the validation result.</param>
     /// <param name="reason">What composed the result. Defaults to <see cref="ValidationResultReason.Rule"/>.</param>
+    /// <param name="reasonDetail">The identity of the specific thing within <paramref name="reason"/> that produced the result.</param>
     /// <returns>A <see cref="ValidationResult"/>.</returns>
-    public static ValidationResult Information(string message, IEnumerable<string>? members = default, object? state = default, ValidationResultReason? reason = default)
-        => new(ValidationResultSeverity.Information, message, members ?? [], state!) { Reason = reason ?? ValidationResultReason.Rule };
+    public static ValidationResult Information(string message, IEnumerable<string>? members = default, object? state = default, ValidationResultReason? reason = default, string? reasonDetail = default)
+        => new(ValidationResultSeverity.Information, message, members ?? [], state!) { Reason = reason ?? ValidationResultReason.Rule, ReasonDetail = reasonDetail };
 
     /// <summary>
     /// Creates a new <see cref="ValidationResult"/> representing a warning.
@@ -41,9 +55,10 @@ public record ValidationResult(ValidationResultSeverity Severity, string Message
     /// <param name="members">Collection of member names that caused the warning.</param>
     /// <param name="state">State associated with the validation result.</param>
     /// <param name="reason">What composed the result. Defaults to <see cref="ValidationResultReason.Rule"/>.</param>
+    /// <param name="reasonDetail">The identity of the specific thing within <paramref name="reason"/> that produced the result.</param>
     /// <returns>A <see cref="ValidationResult"/>.</returns>
-    public static ValidationResult Warning(string message, IEnumerable<string>? members = default, object? state = default, ValidationResultReason? reason = default)
-        => new(ValidationResultSeverity.Warning, message, members ?? [], state!) { Reason = reason ?? ValidationResultReason.Rule };
+    public static ValidationResult Warning(string message, IEnumerable<string>? members = default, object? state = default, ValidationResultReason? reason = default, string? reasonDetail = default)
+        => new(ValidationResultSeverity.Warning, message, members ?? [], state!) { Reason = reason ?? ValidationResultReason.Rule, ReasonDetail = reasonDetail };
 
     /// <summary>
     /// Creates a new <see cref="ValidationResult"/> representing an error.
@@ -52,7 +67,8 @@ public record ValidationResult(ValidationResultSeverity Severity, string Message
     /// <param name="members">Collection of member names that caused the error.</param>
     /// <param name="state">State associated with the validation result.</param>
     /// <param name="reason">What composed the result. Defaults to <see cref="ValidationResultReason.Rule"/>.</param>
+    /// <param name="reasonDetail">The identity of the specific thing within <paramref name="reason"/> that produced the result.</param>
     /// <returns>A <see cref="ValidationResult"/>.</returns>
-    public static ValidationResult Error(string message, IEnumerable<string>? members = default, object? state = default, ValidationResultReason? reason = default)
-        => new(ValidationResultSeverity.Error, message, members ?? [], state!) { Reason = reason ?? ValidationResultReason.Rule };
+    public static ValidationResult Error(string message, IEnumerable<string>? members = default, object? state = default, ValidationResultReason? reason = default, string? reasonDetail = default)
+        => new(ValidationResultSeverity.Error, message, members ?? [], state!) { Reason = reason ?? ValidationResultReason.Rule, ReasonDetail = reasonDetail };
 }

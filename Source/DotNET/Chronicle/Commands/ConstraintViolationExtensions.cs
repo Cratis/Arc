@@ -23,7 +23,9 @@ public static class ConstraintViolationExtensions
     /// <remarks>
     /// The result carries <see cref="ValidationResultReason.ConstraintViolation"/>: the message is the constraint's,
     /// not an authored rule's, and a client that treats the two the same cannot tell a store-level rejection from
-    /// one its own domain rules produced.
+    /// one its own domain rules produced. It also carries the violated <see cref="ConstraintName"/> as
+    /// <see cref="ValidationResult.ReasonDetail"/>, so telling <em>which</em> constraint rejected the command does
+    /// not come down to matching against the message - prose written for a human, and free to change.
     /// </remarks>
     public static ValidationResult ToValidationResult(this ConstraintViolation violation)
     {
@@ -31,6 +33,10 @@ public static class ConstraintViolationExtensions
             ? [propertyName.ToCamelCase()]
             : [];
 
-        return ValidationResult.Error(violation.Message.Value, members, reason: ValidationResultReason.ConstraintViolation);
+        return ValidationResult.Error(
+            violation.Message.Value,
+            members,
+            reason: ValidationResultReason.ConstraintViolation,
+            reasonDetail: violation.ConstraintName.Value);
     }
 }

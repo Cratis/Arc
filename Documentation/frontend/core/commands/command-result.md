@@ -183,6 +183,7 @@ Each `ValidationResult` contains:
 - `members`: Array of property names that failed validation
 - `state`: Additional context, set by whoever authored the rule (FluentValidation's `WithState`)
 - `reason`: What composed the result — see below
+- `reasonDetail`: Which specific thing within `reason` produced the result — the name of the violated constraint for `constraintViolation`. `undefined` when the reason carries no finer identity
 
 ### Telling one kind of rejection from another
 
@@ -206,6 +207,24 @@ if (result.validationResults.some(_ => _.reason === ValidationResultReason.Concu
     return retry();
 }
 ```
+
+### Telling one constraint from another
+
+`reason` says a constraint on the event store rejected the append; `reasonDetail` says **which** one. Two uniqueness constraints on the same command produce the same `reason`, so branching on it alone cannot pick the copy that belongs to each — and the message is developer text you should not be matching on either. Branch on the constraint name:
+
+```typescript
+const result = await command.execute();
+
+const rejectedBy = (constraint: string) =>
+    result.validationResults.some(_ =>
+        _.reason === ValidationResultReason.ConstraintViolation && _.reasonDetail === constraint);
+
+if (rejectedBy('UniqueOrganizationNumber')) {
+    return setFieldError('organizationNumber', 'That organization number is already registered.');
+}
+```
+
+The value is the constraint's own name as Chronicle reports it on the violation — the same name a backend spec asserts with `ShouldHaveConstraintViolationFor`.
 
 :::note
 `reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Treat an unrecognized value the way you treat `rule`, and never `switch` over it exhaustively.

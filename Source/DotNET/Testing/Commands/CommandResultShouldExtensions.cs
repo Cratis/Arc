@@ -135,6 +135,36 @@ public static class CommandResultShouldExtensions
     }
 
     /// <summary>
+    /// Asserts that the <see cref="CommandResult"/> was rejected by a specific named constraint.
+    /// </summary>
+    /// <param name="result">The <see cref="CommandResult"/> to assert.</param>
+    /// <param name="constraintName">The name of the constraint expected to have rejected the command.</param>
+    /// <exception cref="CommandResultAssertionException">
+    /// Thrown when no validation error is a constraint violation carrying that constraint name.
+    /// </exception>
+    /// <remarks>
+    /// The command-side counterpart to Chronicle's assertion of the same name on an append result, so the constraint
+    /// a spec names does not change depending on whether the events reach the store through a command or a raw
+    /// append. It asserts the constraint's identity rather than its message: the message is prose written for a
+    /// human and free to be reworded, while a spec that matches on it silently stops asserting anything the day it
+    /// is. Naming the constraint also separates this rejection from every other one — a domain rule, a race, or an
+    /// unrelated constraint all satisfy <see cref="ShouldHaveValidationErrors"/>, and every constraint whatsoever
+    /// satisfies <see cref="ShouldHaveValidationErrorBecauseOf"/> with
+    /// <see cref="ValidationResultReason.ConstraintViolation"/>.
+    /// </remarks>
+    public static void ShouldHaveConstraintViolationFor(this CommandResult result, string constraintName)
+    {
+        if (!result.ValidationResults.Any(_ => _.Reason == ValidationResultReason.ConstraintViolation && _.ReasonDetail == constraintName))
+        {
+            var actual = string.Join(", ", result.ValidationResults.Select(_ => $"{_.Reason}/{_.ReasonDetail ?? "<no detail>"} ('{_.Message}')"));
+            throw new CommandResultAssertionException(
+                $"Expected command to have a constraint violation for '{constraintName}', but none did. Actual: {(actual.Length > 0 ? actual : "no validation errors at all")}");
+        }
+
+        CommandResultAssertionPolicies.Apply(result);
+    }
+
+    /// <summary>
     /// Asserts that the <see cref="CommandResult"/> is authorized.
     /// </summary>
     /// <param name="result">The <see cref="CommandResult"/> to assert.</param>

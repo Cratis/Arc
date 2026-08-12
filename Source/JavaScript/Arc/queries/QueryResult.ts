@@ -38,6 +38,7 @@ type ServerValidationResult = {
     members: string[];
     state: object;
     reason?: string;
+    reasonDetail?: string;
 }
 
 type ServerPagingInfo = {
@@ -154,7 +155,7 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         this.isAuthorized = result.isAuthorized;
         this.isValid = result.isValid;
         this.hasExceptions = result.hasExceptions;
-        this.validationResults = result.validationResults.map(_ => new ValidationResult(_.severity, _.message, _.members, _.state, _.reason));
+        this.validationResults = result.validationResults.map(_ => new ValidationResult(_.severity, _.message, _.members, _.state, _.reason, _.reasonDetail));
         this.exceptionMessages = result.exceptionMessages;
         this.exceptionStackTrace = result.exceptionStackTrace;
         this.paging = new PagingInfo();
