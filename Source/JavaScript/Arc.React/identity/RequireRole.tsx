@@ -159,7 +159,10 @@ export function RequireRole<TDetails = object>(props: RequireRoleProps<TDetails>
  * @returns True when the predicate allowed the identity, false otherwise.
  */
 function isAllowedBy<TDetails>(allow: IdentityPredicate<TDetails>, identity: IIdentityContext<TDetails>): boolean {
-    if (identity.details === undefined) {
+    if (identity.details === undefined || identity.details === null) {
+        // Null as well as undefined: a server answering with an explicit `"details": null` produces one,
+        // and a predicate phrased as an absence reads it as innocence and admits.
+        //
         // The two natural ways to phrase a predicate disagree about absent details - one throws, the
         // other reads the absence as innocence and admits - so the gate answers instead of letting
         // the phrasing decide.
