@@ -41,6 +41,7 @@ export function useIdentity<TDetails = object>(
     
     return {
         ...identity,
+        isLoading: contextValue.isLoading,
         clearIdentity: contextValue.clearIdentity,
     };
 }

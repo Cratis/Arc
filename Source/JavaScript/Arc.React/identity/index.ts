@@ -3,4 +3,5 @@
 
 export * from './IIdentityContext';
 export * from './IdentityProvider';
+export * from './RequireRole';
 export * from './useIdentity';
