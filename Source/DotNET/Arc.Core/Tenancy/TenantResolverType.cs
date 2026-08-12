@@ -31,5 +31,10 @@ public enum TenantResolverType
     /// <summary>
     /// Resolve tenant ID from the request subdomain, with HTTP header as fallback.
     /// </summary>
-    Subdomain = 4
+    Subdomain = 4,
+
+    /// <summary>
+    /// Use one configured tenant ID for every request, regardless of the hosting environment.
+    /// </summary>
+    Fixed = 5
 }
