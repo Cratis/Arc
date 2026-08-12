@@ -17,5 +17,4 @@ describe('when the caller holds a required role', given(a_role_gate, context => 
     afterEach(() => context.cleanup());
 
     it('should render the guarded content', () => context.text.should.equal(allowedText));
-    it('should not render the forbidden content', () => context.text.should.not.contain(forbiddenText));
 }));

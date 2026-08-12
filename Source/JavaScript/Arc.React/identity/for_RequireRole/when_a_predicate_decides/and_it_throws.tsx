@@ -6,17 +6,17 @@ import { given } from '../../../given';
 import { a_role_gate, forbiddenText } from '../given/a_role_gate';
 
 /**
- * An anonymous identity still carries details - an empty object - so a predicate phrased as an
- * absence ("not blocked") answers true for a caller who never signed in. The gate must reject on
- * identity before it ever consults the predicate.
+ * A predicate reaching into a shape the identity does not have throws, and a throw out of render is a
+ * white screen rather than an answer. The gate turns it into the only answer a gate is allowed to give
+ * when it cannot decide.
  */
-describe('when a predicate decides and the caller is anonymous', given(a_role_gate, context => {
+describe('when a predicate decides and it throws', given(a_role_gate, context => {
     beforeEach(async () => {
         context.renderGate({
-            allow: details => details?.isBlocked !== true,
+            allow: details => (details!.organization as { isActive: boolean }).isActive,
             forbidden: <span>{forbiddenText}</span>
         });
-        await context.stayAnonymous();
+        await context.signIn(['Administrator'], { isConsultant: true });
     });
 
     afterEach(() => context.cleanup());

@@ -5,8 +5,8 @@ import { given } from '../../../given';
 import { an_identity_provider } from '../given/an_identity_provider';
 
 describe('when refresh is called and succeeds', given(an_identity_provider, context => {
-    let newId: string;
-    let newName: string;
+    let identityId: string;
+    let isLoading: boolean;
 
     beforeEach(async () => {
         context.setupSuccessfulIdentityFetch('initial-id', 'Initial User', { role: 'user' });
@@ -14,17 +14,15 @@ describe('when refresh is called and succeeds', given(an_identity_provider, cont
         context.renderProvider();
         await context.waitForAsyncUpdates();
 
-        // For now, refresh() will fail without a real backend, so skip this test scenario
-        // await context.capturedIdentity!.refresh();
-        // await context.waitForAsyncUpdates();
+        context.answerFetchWith('refreshed-id', 'Refreshed User', { role: 'admin' });
+        await context.refreshIdentity();
 
-        newId = context.capturedIdentity!.id;
-        newName = context.capturedIdentity!.name;
+        identityId = context.capturedIdentity!.id;
+        isLoading = context.capturedIdentity!.isLoading;
     });
 
     afterEach(() => context.cleanup());
 
-    // These tests verify initial load works - actual refresh testing requires backend mocking
-    it('should load initial identity', () => newId.should.equal('initial-id'));
-    it('should have identity name', () => newName.should.equal('Initial User'));
+    it('should replace the identity with the refreshed one', () => identityId.should.equal('refreshed-id'));
+    it('should stop reporting that the identity is loading', () => isLoading.should.be.false);
 }));
