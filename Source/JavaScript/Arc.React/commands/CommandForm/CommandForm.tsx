@@ -8,7 +8,7 @@ import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
 import { ValidationResult } from '@cratis/arc/validation';
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
 import { memberMatchesField } from './memberMatchesField';
@@ -74,7 +74,49 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
     tooltipComponent?: React.ComponentType<TooltipWrapperProps>;
     errorClassName?: string;
     iconAddonClassName?: string;
-    children?: React.ReactNode;
+
+    /**
+     * Handle for driving the form from outside it.
+     *
+     * A named prop rather than a forwarded ref on purpose: `React.forwardRef` erases the generic
+     * parameters, and consumers write `<CommandForm<TCommand, TResponse> …>` with explicit type
+     * arguments, so forwarding would cost them their typing.
+     */
+    formRef?: React.Ref<CommandFormHandle>;
+
+    /**
+     * The form's content - fields, columns, and anything else to render between them.
+     *
+     * Pass a function to read the form's own execution state while rendering, which is what a submit
+     * button outside the field list needs in order to disable itself while the command is in flight.
+     */
+    children?: React.ReactNode | ((state: CommandFormState) => React.ReactNode);
+}
+
+/**
+ * The form state handed to a {@link CommandFormProps.children} render function.
+ */
+export interface CommandFormState {
+    /**
+     * Whether the command is currently executing.
+     */
+    isExecuting: boolean;
+}
+
+/**
+ * Handle exposed through {@link CommandFormProps.formRef} for driving a form from outside it.
+ */
+export interface CommandFormHandle {
+    /**
+     * Executes the command the form is bound to, exactly as submitting the form does.
+     * @returns The {@link ICommandResult} the command produced.
+     */
+    execute(): Promise<ICommandResult<unknown>>;
+
+    /**
+     * Whether the command is currently executing.
+     */
+    readonly isExecuting: boolean;
 }
 
 // Hook to get just the command instance for easier access
@@ -87,6 +129,19 @@ export const useCommandInstance = <TCommand = unknown>() => {
 export const useSetCommandResult = () => {
     const { setCommandResult } = useCommandFormContext();
     return setCommandResult;
+};
+
+/**
+ * Hook for reading whether the surrounding form's command is currently executing.
+ *
+ * A context built before the form reported this - a spec or a wrapper composing one by hand - reads as
+ * not executing, which is what a caller disabling a button on it should assume when nobody is claiming
+ * a command is in flight.
+ * @returns True while the command is executing.
+ */
+export const useIsCommandExecuting = (): boolean => {
+    const { isExecuting } = useCommandFormContext();
+    return isExecuting ?? false;
 };
 
 const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }): { fieldsOrColumns: React.ReactElement[] | ColumnInfo[], otherChildren: React.ReactNode[], initialValuesFromFields: Partial<TCommand>, orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> } => {
@@ -156,7 +211,19 @@ const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }):
 };
 
 const CommandFormComponent = <TCommand extends object = object, TResponse = object>(props: CommandFormProps<TCommand, TResponse>) => {
-    const { fieldsOrColumns, initialValuesFromFields, orderedChildren } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
+    const [isExecuting, setIsExecuting] = useState(false);
+
+    // A render function has to become nodes before anything looks at the children: the field scan below
+    // walks them with React.Children.toArray, and a function reaching that walk is rendered as a child,
+    // which React refuses. Resolving here also makes the state the function reads a dependency of the
+    // scan - keying it on props.children alone would leave the rendered output frozen at whatever
+    // isExecuting was when the children last changed.
+    const resolvedChildren = useMemo(
+        () => typeof props.children === 'function' ? props.children({ isExecuting }) : props.children,
+        [props.children, isExecuting]);
+
+    const { fieldsOrColumns, initialValuesFromFields, orderedChildren } = useMemo(
+        () => getCommandFormFields<TCommand>({ children: resolvedChildren }), [resolvedChildren]);
 
     // Extract matching properties from currentValues
     const valuesFromCurrentValues = useMemo(() => {
@@ -383,9 +450,17 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
 
         // Execute the command
         if (typeof (finalValues as unknown as Command).execute === 'function') {
-            const result = await (finalValues as unknown as Command).execute() as ICommandResult<TResponse>;
+            // Cleared in a finally rather than after the callbacks: execute() rejects on a transport
+            // failure, and a form that stayed executing forever would never let the caller try again.
+            setIsExecuting(true);
+            let result: ICommandResult<TResponse>;
+            try {
+                result = await (finalValues as unknown as Command).execute() as ICommandResult<TResponse>;
+            } finally {
+                setIsExecuting(false);
+            }
             setCommandResult(result);
-            
+
             // Invoke callbacks based on result state
             if (result.isSuccess && props.onSuccess) {
                 props.onSuccess(result.response as TResponse);
@@ -402,7 +477,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             if (!result.isValid && props.onValidationFailure) {
                 props.onValidationFailure(result.validationResults);
             }
-            
+
             return result;
         }
 
@@ -414,6 +489,13 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         e.stopPropagation();
         void handleExecute();
     }, [handleExecute]);
+
+    // Rebuilt whenever either member changes: the handle carries isExecuting as a value, so a handle
+    // held across a render would otherwise keep reporting the state the form was in when it was made.
+    useImperativeHandle(props.formRef, () => ({
+        execute: handleExecute,
+        isExecuting
+    }), [handleExecute, isExecuting]);
 
     const exceptionMessages = commandResult?.exceptionMessages || [];
     const hasColumns = fieldsOrColumns.length > 0 && 'fields' in fieldsOrColumns[0];
@@ -428,6 +510,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         getFieldError,
         isValid,
         isAuthorized,
+        isExecuting,
         beginSilentValidation,
         setSilentValidationResult: applySilentValidationResult,
         onFieldValidate: props.onFieldValidate,

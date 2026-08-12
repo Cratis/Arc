@@ -45,6 +45,16 @@ export interface CommandFormContextValue<TCommand> {
     getFieldError: (propertyName: string) => string | undefined;
     isValid: boolean;
     isAuthorized: boolean;
+
+    /**
+     * Whether the command is currently executing.
+     *
+     * Optional because this shape is exported and built by hand - specs and wrappers construct a context
+     * value to render a field in isolation - and a required member would stop every one of them from
+     * compiling. Read it through {@link useIsCommandExecuting}, which answers false for a context that
+     * predates the field rather than making each caller decide what its absence meant.
+     */
+    isExecuting?: boolean;
     /**
      * Claims a token for a silent validation that is about to be issued. Several validations are
      * legitimately in flight at once, so hand the token back to {@link setSilentValidationResult} and a
