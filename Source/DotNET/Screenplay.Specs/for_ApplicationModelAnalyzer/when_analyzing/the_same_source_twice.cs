@@ -84,7 +84,7 @@ public class the_same_source_twice : Specification
             yield return string.Join(',', slice.Commands.SelectMany(_ => _.Produces).Select(_ => _.EventName));
             yield return string.Join(',', slice.Events.Select(_ => $"{_.Name}[{string.Join('|', _.Tags)}]"));
             yield return string.Join(',', slice.Queries.Select(_ => _.Name));
-            yield return string.Join(',', slice.Projection?.Scope.From.SelectMany(_ => _.EventTypes) ?? []);
+            yield return string.Join(',', slice.Projections.SelectMany(_ => _.Scope.From.SelectMany(from => from.EventTypes)));
         }
 
         yield return string.Join(',', analysis.Diagnostics.Select(_ => _.Code));

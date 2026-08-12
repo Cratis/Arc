@@ -59,7 +59,7 @@ public class SliceReader(
             commands,
             [.. content.Events.OrderBy(_ => _.Name, StringComparer.Ordinal)],
             queries,
-            content.Projection,
+            [.. content.Projections.OrderBy(_ => _.Identifier, StringComparer.Ordinal)],
             reactors,
             [.. content.Constraints.OrderBy(_ => _.Name, StringComparer.Ordinal)])
         {

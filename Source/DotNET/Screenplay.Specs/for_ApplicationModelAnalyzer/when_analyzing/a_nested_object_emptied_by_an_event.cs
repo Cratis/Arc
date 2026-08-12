@@ -45,8 +45,8 @@ public class a_nested_object_emptied_by_an_event : Specification
     void Establish() => _analysis = Analyzed.Source(Source);
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_still_recover_the_nested_object() => _analysis.Slice().Projection!.Scope.Nested.Single().Property.ShouldEqual("Shipping");
-    [Fact] void should_still_recover_what_fills_it_in() => _analysis.Slice().Projection!.Scope.Nested.Single().Scope.From.Single().Properties["Carrier"].ShouldEqual("carrier");
+    [Fact] void should_still_recover_the_nested_object() => _analysis.Slice().Projections.Single().Scope.Nested.Single().Property.ShouldEqual("Shipping");
+    [Fact] void should_still_recover_what_fills_it_in() => _analysis.Slice().Projections.Single().Scope.Nested.Single().Scope.From.Single().Properties["Carrier"].ShouldEqual("carrier");
     [Fact] void should_report_what_it_left_out() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContain(ScreenplayDiagnosticCodes.UnmappableProjectionConstruct);
     [Fact] void should_name_the_event_emptying_it() => _analysis.Diagnostics.Any(_ => _.Message.Contains("LoanShipmentCancelled", StringComparison.Ordinal)).ShouldBeTrue();
 }

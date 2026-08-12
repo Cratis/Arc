@@ -41,7 +41,7 @@ public class a_child_collection_of_the_type_holding_it : Specification
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _children = _analysis.Slice().Projection!.Scope.Children.Single();
+        _children = _analysis.Slice().Projections.Single().Scope.Children.Single();
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();

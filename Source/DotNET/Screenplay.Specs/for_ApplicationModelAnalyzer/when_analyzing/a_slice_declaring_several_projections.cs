@@ -6,11 +6,11 @@ using Cratis.Arc.Screenplay.Analysis;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// A slice may declare at most one projection, and a document declaring two does not compile at all. Keeping the
-/// first and reporting the second is what keeps the rest of the document valid, where emitting both would lose
-/// everything.
+/// A slice declares as many projections as its behavior needs. The read model a screen binds to and the one a command
+/// reads to decide are two projections of one behavior, and an application routinely writes both - so keeping
+/// whichever happened to be catalogued first stated one of them and silently dropped the rest of the read side.
 /// </summary>
-public class a_slice_declaring_a_second_projection : Specification
+public class a_slice_declaring_several_projections : Specification
 {
     const string Source = """
         using Cratis.Arc.Queries.ModelBound;
@@ -44,8 +44,7 @@ public class a_slice_declaring_a_second_projection : Specification
     void Establish() => _analysis = Analyzed.Source(Source);
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_keep_exactly_one_projection() => _analysis.Slice().Projection.ShouldNotBeNull();
-    [Fact] void should_keep_the_first_one_it_read() => _analysis.Slice().Projection!.ReadModel.ShouldEqual("Author");
-    [Fact] void should_report_the_one_it_left_out() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContain(ScreenplayDiagnosticCodes.UnmappableProjectionConstruct);
-    [Fact] void should_say_a_slice_may_declare_only_one() => _analysis.Diagnostics.Any(_ => _.Message.Contains("a slice may declare at most one", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_keep_both_of_them() => _analysis.Slice().Projections.Select(_ => _.ReadModel).ShouldContainOnly(["Author", "AuthorSummary"]);
+    [Fact] void should_leave_neither_out() => _analysis.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.UnmappableProjectionConstruct).ShouldBeFalse();
+    [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
 }

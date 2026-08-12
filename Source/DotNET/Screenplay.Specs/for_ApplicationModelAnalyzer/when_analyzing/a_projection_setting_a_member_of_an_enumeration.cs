@@ -51,7 +51,7 @@ public class a_projection_setting_a_member_of_an_enumeration : Specification
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _from = _analysis.Slice().Projection!.Scope.From.Single();
+        _from = _analysis.Slice().Projections.Single().Scope.From.Single();
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();

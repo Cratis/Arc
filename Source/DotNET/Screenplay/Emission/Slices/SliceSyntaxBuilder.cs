@@ -86,16 +86,16 @@ public class SliceSyntaxBuilder(
     /// <param name="slice">The slice to build for.</param>
     /// <returns>The projections, empty when the slice declares none.</returns>
     /// <remarks>
-    /// A slice can now hold several projections, while the model recovered from source still holds at most one -
-    /// a second one is turned away during analysis and reported. This yields what the model has, so widening the
-    /// analysis is the only thing left to do to carry them all.
-    /// <para>
     /// A projection nothing could be expressed of yields nothing rather than an absent entry, so a slice left with
     /// no other content is still recognized as empty and dropped.
-    /// </para>
     /// </remarks>
     IEnumerable<ProjectionSyntax> BuildProjections(SliceModel slice) =>
-        slice.Projection is { } projection && projections.Build(projection, slice.Namespace) is { } built ? [built] : [];
+    [
+        .. slice.Projections
+            .Select(_ => projections.Build(_, slice.Namespace))
+            .OfType<ProjectionSyntax>()
+            .OrderBy(_ => _.Name, StringComparer.Ordinal)
+    ];
 
     /// <summary>
     /// Gets the name of the slice, falling back to the last segment of its namespace.
