@@ -27,6 +27,30 @@ internal static class CommandTransactionAppender
     internal static readonly CausationType CausationType = "Command";
 
     /// <summary>
+    /// Creates the causation recorded for an event returned from a command handler.
+    /// </summary>
+    /// <param name="eventLog">The <see cref="IEventLog"/> the event targets.</param>
+    /// <returns>The command causation for the event.</returns>
+    internal static Causation CreateCommandCausation(this IEventLog eventLog) =>
+        new(DateTimeOffset.Now, CausationType, new Dictionary<string, string> { { CausationEventSequenceIdProperty, eventLog.Id } });
+
+    /// <summary>
+    /// Applies the command context metadata used by returned-event handlers to an event for an explicit event source.
+    /// </summary>
+    /// <param name="eventLog">The <see cref="IEventLog"/> the event targets.</param>
+    /// <param name="event">The event and target event source returned by the command.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> carrying the event metadata.</param>
+    /// <returns>A new event value carrying the command metadata.</returns>
+    internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext) =>
+        new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation())
+        {
+            EventStreamType = commandContext.GetEventStreamType() ?? EventStreamType.All,
+            EventStreamId = commandContext.GetEventStreamId() ?? EventStreamId.Default,
+            EventSourceType = commandContext.GetEventSourceType() ?? EventSourceType.Default,
+            Subject = commandContext.GetSubject()
+        };
+
+    /// <summary>
     /// Tries to enroll the event in the command's transaction, using the same metadata the immediate append would
     /// use from the <see cref="CommandContext"/>.
     /// </summary>
@@ -47,7 +71,7 @@ internal static class CommandTransactionAppender
             eventLog.Id,
             eventSourceId,
             @event,
-            new Causation(DateTimeOffset.Now, CausationType, new Dictionary<string, string> { { CausationEventSequenceIdProperty, eventLog.Id } }),
+            eventLog.CreateCommandCausation(),
             commandContext.GetEventStreamType(),
             commandContext.GetEventStreamId(),
             commandContext.GetEventSourceType(),
