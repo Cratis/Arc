@@ -11,9 +11,11 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="By">The parameter identifying a single instance, if the query takes one.</param>
 /// <param name="Filters">The parameters narrowing the result.</param>
 /// <param name="Authorization">What the query requires of the caller, if anything.</param>
+/// <param name="IsObservable">Whether the query keeps answering as the read model changes rather than answering once.</param>
 public record QueryModel(
     string Name,
     TypeReferenceModel ReturnType,
     PropertyModel? By,
     IEnumerable<PropertyModel> Filters,
-    AuthorizationModel? Authorization);
+    AuthorizationModel? Authorization,
+    bool IsObservable = false);

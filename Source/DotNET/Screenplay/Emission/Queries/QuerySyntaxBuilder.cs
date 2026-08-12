@@ -33,7 +33,8 @@ public class QuerySyntaxBuilder(
             query.By is null ? null : ToParameter(query.By),
             [.. query.Filters.Select(ToParameter)],
             authorize.Build(query.Authorization),
-            SourceLocation.Start);
+            SourceLocation.Start,
+            IsObservable: query.IsObservable);
 
     /// <summary>
     /// Converts a parameter of the query.

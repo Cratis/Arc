@@ -80,7 +80,8 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             returnType,
             required is null ? null : ToParameter(required),
             [.. parameters.Where(_ => !SymbolEqualityComparer.Default.Equals(_, required)).Select(ToParameter)],
-            AuthorizationReader.Read(method, declaring));
+            AuthorizationReader.Read(method, declaring),
+            QueryReturnTypes.IsObservable(method.ReturnType));
     }
 
     /// <summary>
