@@ -45,6 +45,8 @@
         <Project Path="TestApps\ArcCore\ArcCore.csproj" />
         <Project Path="TestApps\Core\Core.csproj" />
         <Project Path="TestApps\Chronicle\Chronicle.csproj" />
+        <Project Path="TestApps\Layered\Layered.csproj" />
+        <Project Path="TestApps\Layered.Contracts\Layered.Contracts.csproj" />
         <Project Path="TestApps\Shared\Shared.csproj" />
     </Folder>
 </Solution>
