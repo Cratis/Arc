@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { given } from '../../given';
-import { a_role_gate, allowedText, forbiddenText } from './given/a_role_gate';
+import { a_role_gate, forbiddenText } from './given/a_role_gate';
 
 describe('when the caller lacks every required role', given(a_role_gate, context => {
     beforeEach(async () => {
@@ -17,5 +17,4 @@ describe('when the caller lacks every required role', given(a_role_gate, context
     afterEach(() => context.cleanup());
 
     it('should render the forbidden content', () => context.text.should.equal(forbiddenText));
-    it('should not render the guarded content', () => context.text.should.not.contain(allowedText));
 }));

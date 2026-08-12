@@ -3,13 +3,13 @@
 
 import React from 'react';
 import { given } from '../../../given';
-import { a_role_gate, allowedText, forbiddenText } from '../given/a_role_gate';
+import { a_role_gate, forbiddenText } from '../given/a_role_gate';
 
 describe('when roles and a predicate are both supplied and only the role matches', given(a_role_gate, context => {
     beforeEach(async () => {
         context.renderGate({
             roles: ['Administrator'],
-            allow: details => details.isConsultant === true,
+            allow: details => details?.isConsultant === true,
             forbidden: <span>{forbiddenText}</span>
         });
         await context.signIn(['Administrator'], { isConsultant: false });
@@ -18,5 +18,4 @@ describe('when roles and a predicate are both supplied and only the role matches
     afterEach(() => context.cleanup());
 
     it('should render the forbidden content', () => context.text.should.equal(forbiddenText));
-    it('should not render the guarded content', () => context.text.should.not.contain(allowedText));
 }));

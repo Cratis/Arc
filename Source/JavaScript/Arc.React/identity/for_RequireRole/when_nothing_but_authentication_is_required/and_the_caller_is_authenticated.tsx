@@ -5,13 +5,17 @@ import React from 'react';
 import { given } from '../../../given';
 import { a_role_gate, allowedText, forbiddenText } from '../given/a_role_gate';
 
-describe('when a predicate decides and it allows the caller', given(a_role_gate, context => {
+/**
+ * The counterpart to a gate with no access rule at all: an application that really does want every
+ * signed-in caller through says so, and then gets it.
+ */
+describe('when nothing but authentication is required and the caller is authenticated', given(a_role_gate, context => {
     beforeEach(async () => {
         context.renderGate({
-            allow: details => details?.isConsultant === true,
+            allow: () => true,
             forbidden: <span>{forbiddenText}</span>
         });
-        await context.signIn([], { isConsultant: true });
+        await context.signIn([]);
     });
 
     afterEach(() => context.cleanup());
