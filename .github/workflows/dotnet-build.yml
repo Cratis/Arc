@@ -237,6 +237,7 @@ jobs:
         run: |
           dotnet restore TestApps/AspNetCore/AspNetCore.csproj
           dotnet restore TestApps/Chronicle/Chronicle.csproj
+          dotnet restore TestApps/Layered/Layered.csproj
 
       - name: Generate and read back the document of a real application
         run: |
@@ -252,6 +253,19 @@ jobs:
           dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
             TestApps/Chronicle/Chronicle.csproj \
             "${RUNNER_TEMP}/Chronicle.play"
+
+      # The two applications above are each one project, and a whole class of defect only exists between projects: a
+      # referenced project arrives as the compilation the workspace built rather than as an assembly on disk, so its
+      # declarations have real source belonging to a compilation that is not the one reading them. Two defects
+      # shipped through that gap and neither was reachable from here until this application existed. It is held to
+      # what its document says as well as to reading back clean, because a generator that quietly declines to read
+      # something writes a smaller document that compiles just as well.
+      - name: Generate and read back the document of a real application written as several projects
+        run: |
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+            TestApps/Layered/Layered.csproj \
+            "${RUNNER_TEMP}/Layered.play" \
+            TestApps/Layered/Layered.expected
 
   proxy-specs:
     needs: [dotnet-build]
