@@ -13,6 +13,10 @@
     <!-- Microsoft.OpenApi 2.0.0 (pulled in transitively by Microsoft.AspNetCore.OpenApi) has a high-severity
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <!-- SSH.NET 2025.1.0 (pulled in transitively by Testcontainers) has a high-severity advisory
+         (GHSA-q939-rpr3-3284). Testcontainers 4.13.0 is the latest and still resolves the vulnerable
+         version, so pin to the patched release. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <!-- Cratis -->
     <PackageVersion Include="Cratis.Chronicle" Version="16.26.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.26.0" />
