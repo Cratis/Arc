@@ -38,11 +38,12 @@ builder.AddCratisArc(options =>
 | Option | Type | Default | What it controls |
 | --- | --- | --- | --- |
 | `CorrelationId.HttpHeader` | `string` | `X-Correlation-ID` | The header carrying the correlation ID. |
-| `Tenancy.ResolverType` | `TenantResolverType` | `Header` | How the tenant is resolved: `Header`, `Query`, `Claim`, or `Development`. |
-| `Tenancy.HttpHeader` | `string` | `x-cratis-tenant-id` | The header used when `ResolverType` is `Header`. |
+| `Tenancy.ResolverType` | `TenantResolverType` | `Header` | How the tenant is resolved: `Header`, `Query`, `Claim`, `Subdomain`, `Development`, or `Fixed`. |
+| `Tenancy.HttpHeader` | `string` | `x-cratis-tenant-id` | The header used when `ResolverType` is `Header`, and the fallback header when it is `Subdomain`. |
 | `Tenancy.QueryParameter` | `string` | `tenantId` | The query parameter used when `ResolverType` is `Query`. |
 | `Tenancy.ClaimType` | `string` | `tenant_id` | The claim used when `ResolverType` is `Claim`. |
-| `Tenancy.DevelopmentTenantId` | `string` | `development` | The fixed tenant used when `ResolverType` is `Development`. |
+| `Tenancy.FixedTenantId` | `string` | `development` | The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. |
+| `Tenancy.DevelopmentTenantId` | `string` | `development` | The same value under its original name — reading or writing either key sets both. Supply only one; if both are present the binder's property order decides. |
 | `GeneratedApis.RoutePrefix` | `string` | `api` | Base prefix for generated command and query routes. |
 | `GeneratedApis.SegmentsToSkipForRoute` | `int` | `0` | Namespace segments to drop when building a route. |
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
