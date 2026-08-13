@@ -16,6 +16,7 @@ import { given } from '../../../../given';
 describe('when executing the command and the command rejects', given(a_command_form_being_executed, context => {
     const failure = new Error('the command could not be reached');
     let isExecuting = false;
+    let isExecutingInFlight = false;
     let contextValue: ReturnType<typeof useCommandFormContext> | null = null;
     let caught: unknown;
 
@@ -29,6 +30,7 @@ describe('when executing the command and the command rejects', given(a_command_f
         context.reset();
         contextValue = null;
         caught = undefined;
+        isExecutingInFlight = false;
 
         render(
             React.createElement(
@@ -46,12 +48,17 @@ describe('when executing the command and the command rejects', given(a_command_f
             pending = contextValue!.onExecute!().catch(reason => { caught = reason; });
         });
 
+        isExecutingInFlight = isExecuting;
+
         await act(async () => {
             context.executions[0].fail(failure);
             await pending;
         });
     });
 
+    // Read while the execution is still in flight. Without this, "stopped executing" is satisfied by an
+    // implementation that never started executing, and the finally could be deleted without a spec noticing.
+    it('should report executing while the command is in flight', () => isExecutingInFlight.should.be.true);
     it('should stop reporting executing', () => isExecuting.should.be.false);
     it('should let the rejection propagate unchanged', () => expect(caught).to.equal(failure));
 }));
