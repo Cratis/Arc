@@ -24,13 +24,6 @@ public static class TypeExtensions
 
 #pragma warning disable SA1600 // Elements should be documented
     internal static Type _conceptType = typeof(NoConcept);
-    internal static Type _nullableType = typeof(Nullable<>);
-    internal static Type _expandoObjectType = typeof(ExpandoObject);
-    internal static Type _stringType = typeof(string);
-    internal static Type _enumerableType = typeof(IEnumerable);
-    internal static Type _genericEnumerableType = typeof(IEnumerable<>);
-    internal static Type _dictionaryType = typeof(IDictionary<,>);
-    internal static Type _asyncEnumerableType = typeof(IAsyncEnumerable<>);
     internal static Type _controllerBaseType = typeof(object);
     internal static Type _taskType = typeof(Task);
     internal static Type _voidType = typeof(void);
@@ -1544,13 +1537,6 @@ public static class TypeExtensions
     static void ResetWellKnownTypes()
     {
         _conceptType = typeof(NoConcept);
-        _nullableType = typeof(Nullable<>);
-        _expandoObjectType = typeof(ExpandoObject);
-        _stringType = typeof(string);
-        _enumerableType = typeof(IEnumerable);
-        _genericEnumerableType = typeof(IEnumerable<>);
-        _dictionaryType = typeof(IDictionary<,>);
-        _asyncEnumerableType = typeof(IAsyncEnumerable<>);
         _controllerBaseType = typeof(object);
         _taskType = typeof(Task);
         _voidType = typeof(void);
@@ -1569,13 +1555,6 @@ public static class TypeExtensions
 
     static void InitializeWellKnownTypes()
     {
-        _nullableType = GetMetadataType(typeof(Nullable<>));
-        _expandoObjectType = GetMetadataType(typeof(ExpandoObject));
-        _stringType = GetMetadataType(typeof(string));
-        _enumerableType = GetMetadataType(typeof(IEnumerable));
-        _genericEnumerableType = GetMetadataType(typeof(IEnumerable<>));
-        _asyncEnumerableType = GetMetadataType(typeof(IAsyncEnumerable<>));
-        _dictionaryType = GetMetadataType(typeof(IDictionary<,>));
         _taskType = GetMetadataType(typeof(Task));
         _voidType = GetMetadataType(typeof(void));
 
