@@ -81,6 +81,9 @@ public static class WellKnownTypeNames
     /// <summary>The interface a fluent projection implements.</summary>
     public const string ProjectionFor = "Cratis.Chronicle.Projections.IProjectionFor`1";
 
+    /// <summary>The base class a specification derives from.</summary>
+    public const string Specification = "Cratis.Specifications.Specification";
+
     /// <summary>The attribute configuring a projection.</summary>
     public const string ProjectionAttribute = "Cratis.Chronicle.Projections.ProjectionAttribute";
 
