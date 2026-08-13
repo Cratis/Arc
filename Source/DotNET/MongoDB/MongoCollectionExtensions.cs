@@ -59,10 +59,9 @@ public static class MongoCollectionExtensions
         FindOptions? options = null)
     {
         filter ??= _ => true;
-        return collection.Observe(
+        return collection.Observe<TDocument, IEnumerable<TDocument>>(
             () => collection.Find(filter, options),
             filter,
-            documents => new BehaviorSubject<IEnumerable<TDocument>>(documents),
             (cursor, observable) => observable.OnNext([.. cursor]));
     }
 
@@ -97,10 +96,9 @@ public static class MongoCollectionExtensions
         FindOptions? options = null)
     {
         filter ??= FilterDefinition<TDocument>.Empty;
-        return collection.Observe(
+        return collection.Observe<TDocument, IEnumerable<TDocument>>(
             () => collection.Find(filter, options),
             filter,
-            documents => new BehaviorSubject<IEnumerable<TDocument>>(documents),
             (documents, observable) => observable.OnNext(documents));
     }
 
@@ -143,16 +141,6 @@ public static class MongoCollectionExtensions
         return collection.Observe<TDocument, TDocument>(
             findCall,
             filter,
-            documents =>
-            {
-                var result = documents.FirstOrDefault();
-                if (result is not null)
-                {
-                    return new BehaviorSubject<TDocument>(result);
-                }
-
-                return new Subject<TDocument>();
-            },
             (documents, observable) =>
             {
                 var result = documents.FirstOrDefault();
@@ -167,7 +155,6 @@ public static class MongoCollectionExtensions
         this IMongoCollection<TDocument> collection,
         Func<IFindFluent<TDocument, TDocument>> findCall,
         FilterDefinition<TDocument> filter,
-        Func<IEnumerable<TDocument>, ISubject<TResult>> createSubject,
         Action<IEnumerable<TDocument>, ISubject<TResult>> onNext)
     {
         var completedCleanup = false;
@@ -198,14 +185,19 @@ public static class MongoCollectionExtensions
 
     #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
-    #pragma warning restore CA2000 // Dispose objects before losing scope
+
+        // The initial query runs asynchronously in Watch() below, so the subject must not carry a value before it
+        // completes. A subject seeded up front hands every subscriber — including a one-shot waitForFirstResult read —
+        // an empty emission that predates the query and is indistinguishable from a genuinely empty result. Replaying
+        // the single latest emission keeps a late subscriber from missing the initial query result instead.
         var subject = new LifetimeAwareSubject<TResult>(
-            createSubject([]),
+            new ReplaySubject<TResult>(1),
             () =>
             {
                 logger.ClientUnsubscribed();
                 cancellationTokenSource?.Cancel();
             });
+    #pragma warning restore CA2000 // Dispose objects before losing scope
         ISubject<TResult> observable = subject;
 
         var cancellationToken = cancellationTokenSource.Token;
