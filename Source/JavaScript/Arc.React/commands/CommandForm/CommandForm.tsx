@@ -80,10 +80,15 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
      * read its state. Named rather than taken through `forwardRef`, because forwarding erases the
      * generic arguments and callers write `<CommandForm<TCommand, TResponse> ... />`.
      *
-     * The handle is created once for the lifetime of the form, so a callback ref passed here is
-     * invoked exactly once on mount and once on unmount, however often the parent re-renders. Its
-     * state members are getters over live values and are therefore never stale - but reading them
-     * does not re-render the parent. Use {@link CommandFormProps.onStateChange} for that.
+     * The handle object is created once for the lifetime of the form, so it never changes identity.
+     * React still re-attaches whenever the ref itself changes identity, though - so a *stable* ref
+     * (an object ref, or a callback wrapped in `useCallback` with no dependencies) attaches once on
+     * mount and detaches once on unmount however often the parent re-renders, while an inline
+     * `ref={h => ...}` is a new function every render and re-attaches every render. Prefer a stable
+     * ref; an inline one still works but does redundant attach/detach.
+     *
+     * Its state members are getters over live values and are therefore never stale - but reading
+     * them does not re-render the parent. Use {@link CommandFormProps.onStateChange} for that.
      */
     formRef?: React.Ref<CommandFormHandle>;
 

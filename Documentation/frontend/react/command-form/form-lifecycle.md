@@ -309,9 +309,15 @@ function ProfilePanel() {
 }
 ```
 
-The handle is created once for the lifetime of the form, so a **callback ref** passed here is invoked
-exactly once on mount and once on unmount, however often the parent re-renders. Its state members are
-getters over live values, so a handle captured once never reports stale state.
+The handle object is created once for the lifetime of the form, so it never changes identity. React
+still re-attaches a ref whenever the **ref itself** changes identity, though — so pass a *stable* one.
+An object ref from `useRef`, or a callback wrapped in `useCallback` with no dependencies, attaches once
+on mount and detaches once on unmount however often the parent re-renders. An inline
+`formRef={handle => setHandle(handle)}` is a new function on every render and therefore re-attaches on
+every render; it still works, but it does redundant attach/detach work, and pairing it with a state
+setter is a re-render loop.
+
+Its state members are getters over live values, so a handle captured once never reports stale state.
 
 ### onStateChange — re-rendering the parent
 
