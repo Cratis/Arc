@@ -8,7 +8,7 @@ namespace Cratis.Arc.Commands.ResponseValueHandlers;
 /// <summary>
 /// Represents an implementation of <see cref="ICommandResponseValueHandler"/> that handles <see cref="ValidationResult"/>.
 /// </summary>
-public class ValidationResultResponseValueHandler : ICommandResponseValueHandler
+public class ValidationResultResponseValueHandler : ICommandResponseValueHandler, ICommandResponseValueHandler<ValidationResult>
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) => value is ValidationResult;

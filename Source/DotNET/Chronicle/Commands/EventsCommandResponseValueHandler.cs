@@ -14,6 +14,11 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="eventLog">The event log to append events to.</param>
 /// <param name="eventTypes">The event types.</param>
 /// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
+/// <remarks>
+/// This handler intentionally has no typed response declaration. Its event-type registry decides at runtime whether
+/// an arbitrary collection contains domain events; declaring <c>IEnumerable&lt;object&gt;</c> would incorrectly hide
+/// ordinary client response collections from generated proxies.
+/// </remarks>
 public class EventsCommandResponseValueHandler(
     IEventLog eventLog,
     IEventTypes eventTypes,

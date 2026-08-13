@@ -7,6 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Transitive security pins -->
+    <!-- SSH.NET through Testcontainers <= 2025.1.0 has a high-severity advisory
+         (GHSA-q939-rpr3-3284). Pin the transitive dependency to the patched release. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <!-- SQLitePCLRaw 2.1.10/2.1.11 (pulled in transitively by EF Core Sqlite) has a high-severity advisory
          (GHSA-2m69-gcr7-jv3q). Pin the native library to the patched release. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />

@@ -9,7 +9,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <summary>
 /// Represents a command response value handler that captures an explicit <see cref="Subject"/> from a command response.
 /// </summary>
-public class SubjectCommandResponseValueHandler : ICommandResponseValueContextUpdater
+public class SubjectCommandResponseValueHandler : ICommandResponseValueContextUpdater, ICommandResponseValueHandler<Subject>
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>

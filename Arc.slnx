@@ -39,6 +39,8 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator\ProxyGenerator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Build\ProxyGenerator.Build.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\ProxyGenerator.Specs.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\CommandResponseHandlerDependency\CommandResponseHandlerDependency.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\FakeCommandResponseHandlerDependency\FakeCommandResponseHandlerDependency.csproj" />
     </Folder>
     <Folder Name="/TestApps/">
         <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />

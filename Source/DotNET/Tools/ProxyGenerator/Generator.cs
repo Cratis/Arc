@@ -71,7 +71,11 @@ public static class Generator
         TypeExtensions.SetExcludedTypes(excludedTypeNames ?? [], excludedNamespacePatterns ?? []);
         TypeExtensions.SetNamespaceRoots(namespaceRoots ?? []);
         TypeExtensions.SetTypeMappings(typeMappings ?? []);
-        TypeExtensions.InitializeProjectAssemblies(assemblyFile, message, errorMessage);
+        if (!TypeExtensions.TryInitializeProjectAssemblies(assemblyFile, message, errorMessage))
+        {
+            return false;
+        }
+        using var projectAssemblies = TypeExtensions.OwnProjectAssemblies();
 
         var commands = new List<CommandDescriptor>();
         var queries = new List<QueryDescriptor>();
