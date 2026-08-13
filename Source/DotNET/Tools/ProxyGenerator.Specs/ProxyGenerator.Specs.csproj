@@ -14,11 +14,8 @@
     <ItemGroup>
         <ProjectReference Include="../ProxyGenerator/ProxyGenerator.csproj" />
         <ProjectReference Include="../../Arc/Arc.csproj" />
-        <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj"
-                          AdditionalProperties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)" />
-        <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj"
-                          AdditionalProperties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)"
-                          Aliases="FakeContracts" />
+        <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
+        <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj" Aliases="FakeContracts" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
