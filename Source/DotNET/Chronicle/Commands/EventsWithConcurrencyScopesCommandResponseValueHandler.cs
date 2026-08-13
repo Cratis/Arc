@@ -10,7 +10,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// Handles an ordered collection of cross-source events with exact concurrency scopes returned from a command.
 /// </summary>
 /// <param name="eventLog">The event log to append events to.</param>
-public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog eventLog) : ICommandResponseValueHandler
+public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog eventLog) : ICommandResponseValueHandler, ICommandResponseValueHandler<EventsWithConcurrencyScopes>
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.CommandResponseHandlerDependency</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.CommandResponseHandlerDependency</RootNamespace>
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+
+    <Target Name="RemoveTypeDiscoveryGenerator" BeforeTargets="CoreCompile">
+        <ItemGroup>
+            <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::new('%(Analyzer.Identity)').Contains('Cratis.Fundamentals.TypeDiscovery.Generator.dll'))" />
+        </ItemGroup>
+    </Target>
+</Project>
