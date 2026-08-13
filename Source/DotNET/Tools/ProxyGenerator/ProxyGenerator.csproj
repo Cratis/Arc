@@ -11,6 +11,7 @@
 
     <ItemGroup>
         <EmbeddedResource Include="$(MSBuildThisFileDirectory)/Templates/**/*.hbs" />
+        <InternalsVisibleTo Include="Cratis.Arc.ProxyGenerator.Specs" />
     </ItemGroup>
 
     <ItemGroup>

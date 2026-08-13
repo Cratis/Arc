@@ -84,10 +84,14 @@ public record CreateUser(string Name, string Email)
 
 ## Creating Custom Value Handlers
 
-You can create custom response value handlers by implementing the `ICommandResponseValueHandler` interface:
+You can create custom response value handlers by implementing the runtime `ICommandResponseValueHandler` interface.
+When the handler consumes a statically known type, also implement `ICommandResponseValueHandler<TValue>` so build-time
+tools know that the value is handled on the server and must not be generated as a client response model:
 
 ```csharp
-public class AuditInfoResponseValueHandler : ICommandResponseValueHandler
+public class AuditInfoResponseValueHandler :
+    ICommandResponseValueHandler,
+    ICommandResponseValueHandler<AuditInfo>
 {
     public bool CanHandle(CommandContext commandContext, object value)
     {
@@ -108,6 +112,11 @@ public class AuditInfoResponseValueHandler : ICommandResponseValueHandler
 ```
 
 The Arc will automatically discover and register custom value handlers in the command pipeline.
+
+The typed interface is a declaration for tooling; it does not replace the runtime interface. Implementing only
+`ICommandResponseValueHandler<TValue>` neither registers a runtime handler nor suppresses the client response. A
+handler whose accepted types are determined dynamically at runtime should implement only the runtime interface,
+because declaring an overly broad type such as `object` would hide legitimate client response models.
 
 ## Response Object Availability
 
@@ -184,7 +193,9 @@ In this example:
 ### Example Implementation
 
 ```csharp
-public class MyResponseValueHandler : ICommandResponseValueHandler
+public class MyResponseValueHandler :
+    ICommandResponseValueHandler,
+    ICommandResponseValueHandler<MyValueType>
 {
     public bool CanHandle(CommandContext commandContext, object value)
     {

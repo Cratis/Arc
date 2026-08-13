@@ -27,7 +27,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 public class EventsForEventSourceIdCommandResponseValueHandler(
     IEventLog eventLog,
     IEventTypes eventTypes,
-    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler
+    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler, ICommandResponseValueHandler<IEnumerable<EventForEventSourceId>>
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value)
