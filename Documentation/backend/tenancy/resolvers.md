@@ -114,9 +114,27 @@ This is IDNA working as specified — browsers resolve these the same way — so
 
 Every host that does not carry a tenant falls back to `HttpHeader`, and that header arrives on the request unauthenticated — any caller can set it. **Strip the fallback header at your ingress** so only your own infrastructure can set it, exactly as you would for any other trusted request header.
 
+### Fixed Resolver
+
+Resolves every request to one configured tenant ID.
+
+```csharp
+builder.AddCratisArcCore(options =>
+{
+    options.UseFixedTenancy("acme");
+});
+```
+
+Default tenant ID: `development`
+
+The tenant ID is returned regardless of the request and regardless of the hosting environment, which makes this the
+resolver for a single-tenant deployment: one deployment, one tenant, decided at configuration time rather than per
+request. Because the resolved tenant drives the Chronicle namespace and the Arc MongoDB database, a fixed tenant is a
+deployment-wide data-isolation decision - review it before promoting a configuration.
+
 ### Development Resolver
 
-Uses a fixed tenant ID for local development.
+The same behavior as the Fixed resolver, under its original name.
 
 ```csharp
 builder.AddCratisArcCore(options =>
@@ -126,4 +144,8 @@ builder.AddCratisArcCore(options =>
 ```
 
 Default tenant ID: `development`
+
+Despite the name, this resolver has never consulted `IHostEnvironment` - it returns the configured tenant ID in every
+environment, production included. Prefer `UseFixedTenancy` when the fixed tenant is a deployment constant rather than a
+local-development convenience; `UseDevelopmentTenancy` remains supported and configures the same tenant ID.
 

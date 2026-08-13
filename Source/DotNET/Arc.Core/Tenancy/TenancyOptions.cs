@@ -42,7 +42,22 @@ public class TenancyOptions
     public string ClaimType { get; set; } = "tenant_id";
 
     /// <summary>
+    /// Gets or sets the tenant ID every request resolves to when using <see cref="TenantResolverType.Fixed"/> or
+    /// <see cref="TenantResolverType.Development"/>.
+    /// </summary>
+    public string FixedTenantId { get; set; } = Constants.DefaultFixedTenantId;
+
+    /// <summary>
     /// Gets or sets the fixed tenant ID to use when using <see cref="TenantResolverType.Development"/>.
     /// </summary>
-    public string DevelopmentTenantId { get; set; } = "development";
+    /// <remarks>
+    /// This is <see cref="FixedTenantId"/> under its original name - both names read and write the same value, so
+    /// configuration and code may use either. When a configuration source supplies both keys, the last one the
+    /// binder visits wins; supply only one.
+    /// </remarks>
+    public string DevelopmentTenantId
+    {
+        get => FixedTenantId;
+        set => FixedTenantId = value;
+    }
 }

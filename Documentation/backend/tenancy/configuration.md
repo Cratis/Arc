@@ -12,6 +12,7 @@ builder.AddCratisArcCore(options =>
     // options.UseQueryTenancy("tenant");
     // options.UseClaimTenancy("tenant_id");
     // options.UseSubdomainTenancy("myapp.com", "X-Custom-Tenant");
+    // options.UseFixedTenancy("acme");
     // options.UseDevelopmentTenancy("test-tenant");
 });
 ```
@@ -82,6 +83,17 @@ builder.AddCratisArcCore(options =>
 }
 ```
 
+### Fixed Resolver
+
+```json
+{
+  "Tenancy": {
+    "ResolverType": "Fixed",
+    "FixedTenantId": "acme"
+  }
+}
+```
+
 ### Development Resolver
 
 ```json
@@ -92,4 +104,7 @@ builder.AddCratisArcCore(options =>
   }
 }
 ```
+
+`FixedTenantId` and `DevelopmentTenantId` are two names for the same value, so either key configures either resolver
+type. Set only one of them - when a configuration source supplies both, whichever key the binder visits last wins.
 

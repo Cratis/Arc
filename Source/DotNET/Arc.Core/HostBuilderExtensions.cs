@@ -101,7 +101,8 @@ public static class HostBuilderExtensions
                 TenantResolverType.Query => ActivatorUtilities.GetServiceOrCreateInstance<QueryTenantIdResolver>(sp),
                 TenantResolverType.Claim => ActivatorUtilities.GetServiceOrCreateInstance<ClaimTenantIdResolver>(sp),
                 TenantResolverType.Development => ActivatorUtilities.GetServiceOrCreateInstance<DevelopmentTenantIdResolver>(sp),
-                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development")
+                TenantResolverType.Fixed => ActivatorUtilities.GetServiceOrCreateInstance<FixedTenantIdResolver>(sp),
+                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development, Subdomain, Fixed")
             };
         });
 

@@ -73,6 +73,27 @@ public static class TenancyOptionsExtensions
     }
 
     /// <summary>
+    /// Configure tenancy to resolve every request to one fixed tenant ID.
+    /// </summary>
+    /// <param name="options">The <see cref="ArcOptions"/> to configure.</param>
+    /// <param name="tenantId">Optional tenant ID to use. Defaults to 'development'.</param>
+    /// <returns>The <see cref="ArcOptions"/> for continuation.</returns>
+    /// <remarks>
+    /// The tenant ID is returned regardless of the request or the hosting environment, which makes this the resolver
+    /// for single tenant deployments. It is the same behavior as <see cref="UseDevelopmentTenancy"/> under a name that
+    /// does not imply an environment - the tenant ID both configure is the same value.
+    /// </remarks>
+    public static ArcOptions UseFixedTenancy(this ArcOptions options, string? tenantId = null)
+    {
+        options.Tenancy.ResolverType = TenantResolverType.Fixed;
+        if (tenantId is not null)
+        {
+            options.Tenancy.FixedTenantId = tenantId;
+        }
+        return options;
+    }
+
+    /// <summary>
     /// Configure tenancy to resolve the tenant ID from the request subdomain of a base domain, with the HTTP header
     /// as fallback.
     /// </summary>
