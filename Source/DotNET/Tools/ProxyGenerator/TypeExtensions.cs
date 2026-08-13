@@ -1134,10 +1134,7 @@ public static class TypeExtensions
         var isFromCurrentMetadataContext = _metadataLoadContext?.GetAssemblies().Contains(type.Assembly) == true;
         var handledTypeIdentities = isFromCurrentMetadataContext
             ? _serverHandledCommandResponseValueTypeNames ?? []
-            : FindServerHandledCommandResponseValueTypeNames(
-                AppDomain.CurrentDomain.GetAssemblies().Where(_ => !_.IsDynamic),
-                AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(_ => !_.IsDynamic && _.GetName().Name == CommandResponseValueHandlerContractsAssemblyName),
-                _ => { });
+            : FindRuntimeServerHandledCommandResponseValueTypeNames();
 
         return EnumerateTypeAndContracts(type).Any(_ =>
             _.AssemblyQualifiedName is not null && handledTypeIdentities.Contains(_.AssemblyQualifiedName));
@@ -1321,6 +1318,13 @@ public static class TypeExtensions
                 .SingleOrDefault();
             _serverHandledCommandResponseValueTypeNames = FindServerHandledCommandResponseValueTypeNames(
                 managedAppAssemblyPaths.Select(LoadMetadataAssembly), commandResponseValueHandlerContractsAssembly, errorMessage);
+
+            foreach (var loadedAssembly in _metadataLoadContext.GetAssemblies())
+            {
+                _assembliesByName[loadedAssembly.GetName().Name!] = loadedAssembly;
+            }
+
+            InitializeWellKnownTypes();
         }
         catch (Exception ex) when (ex is BadImageFormatException or FileLoadException or FileNotFoundException)
         {
@@ -1329,13 +1333,12 @@ public static class TypeExtensions
             _serverHandledCommandResponseValueTypeNames = [];
             return false;
         }
-
-        foreach (var loadedAssembly in _metadataLoadContext.GetAssemblies())
+        catch
         {
-            _assembliesByName[loadedAssembly.GetName().Name!] = loadedAssembly;
+            DisposeUnpublishedMetadataLoadContext();
+            _serverHandledCommandResponseValueTypeNames = [];
+            throw;
         }
-
-        InitializeWellKnownTypes();
 
         return true;
     }
@@ -1435,6 +1438,24 @@ public static class TypeExtensions
         }
 
         return type;
+    }
+
+    /// <summary>
+    /// Find the declared server-handled response value identities from the assemblies loaded into the runtime.
+    /// </summary>
+    /// <returns>The assembly qualified names of the declared types.</returns>
+    /// <remarks>
+    /// Used for types outside the current metadata graph. More than one copy of the contracts assembly can be loaded
+    /// when the generator is hosted rather than run as a tool; picking the first only narrows what is recognized as
+    /// server-handled, which leaves the response generated rather than wrongly suppressed.
+    /// </remarks>
+    static HashSet<string> FindRuntimeServerHandledCommandResponseValueTypeNames()
+    {
+        var runtimeAssemblies = AppDomain.CurrentDomain.GetAssemblies().Where(_ => !_.IsDynamic).ToArray();
+        return FindServerHandledCommandResponseValueTypeNames(
+            runtimeAssemblies,
+            Array.Find(runtimeAssemblies, _ => _.GetName().Name == CommandResponseValueHandlerContractsAssemblyName),
+            _ => { });
     }
 
     static Assembly LoadMetadataAssembly(string assemblyPath)
