@@ -264,6 +264,98 @@ function AutoSaveForm() {
 }
 ```
 
+## Reaching the Form From a Parent
+
+Hooks such as `useIsCommandExecuting` only work *inside* the form. When the submit button lives outside it
+— in a dialog footer, a page toolbar, a wizard's navigation bar — the form exposes two props for that.
+They are complementary, and a parent that renders a button generally wants both.
+
+### formRef — executing the form and reading its state
+
+`formRef` hands the parent a `CommandFormHandle`:
+
+```ts
+interface CommandFormState {
+    isExecuting: boolean;
+    isValid: boolean;
+    isAuthorized: boolean;
+}
+
+interface CommandFormHandle extends CommandFormState {
+    execute(): Promise<ICommandResult<unknown>>;
+}
+```
+
+It is a named prop rather than a forwarded ref, because forwarding erases the generic arguments and
+callers write `<CommandForm<TCommand, TResponse> … />`.
+
+```tsx
+import { useRef } from 'react';
+import { CommandForm, type CommandFormHandle } from '@cratis/arc.react/commands';
+
+function ProfilePanel() {
+    const formRef = useRef<CommandFormHandle>(null);
+
+    return (
+        <>
+            <CommandForm<UpdateProfile> command={UpdateProfile} formRef={formRef}>
+                <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+            </CommandForm>
+            <footer>
+                <button onClick={() => formRef.current?.execute()}>Save</button>
+            </footer>
+        </>
+    );
+}
+```
+
+The handle is created once for the lifetime of the form, so a **callback ref** passed here is invoked
+exactly once on mount and once on unmount, however often the parent re-renders. Its state members are
+getters over live values, so a handle captured once never reports stale state.
+
+### onStateChange — re-rendering the parent
+
+A ref is not reactive: reading `formRef.current.isExecuting` in an event handler is fine, but it cannot
+make the parent re-render, so a button cannot *disable itself* from the handle alone. `onStateChange` is
+the reactive half — it is called whenever execution, validity or authorization changes:
+
+```tsx
+function ProfilePanel() {
+    const formRef = useRef<CommandFormHandle>(null);
+    const [state, setState] = useState<CommandFormState>({
+        isExecuting: false,
+        isValid: false,
+        isAuthorized: true
+    });
+
+    return (
+        <>
+            <CommandForm<UpdateProfile>
+                command={UpdateProfile}
+                formRef={formRef}
+                onStateChange={setState}>
+                <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+            </CommandForm>
+            <footer>
+                <button
+                    onClick={() => formRef.current?.execute()}
+                    disabled={state.isExecuting || !state.isValid || !state.isAuthorized}>
+                    {state.isExecuting ? 'Saving…' : 'Save'}
+                </button>
+            </footer>
+        </>
+    );
+}
+```
+
+An inline arrow function is safe here — the callback is read through a ref, so re-creating it on every
+render does not re-fire it. The callback is invoked on mount with the form's initial state and then on
+every change, never for a parent re-render on its own.
+
+`isExecuting` counts executions rather than flagging them, so it stays true until the last overlapping
+submission settles, and a rejected command gives its count back — see
+[Working with Hooks](./hooks.md#useiscommandexecuting).
+
 ## See Also
 
 - [CommandForm Overview](./index.md)
