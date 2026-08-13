@@ -118,6 +118,10 @@ The typed interface is a declaration for tooling; it does not replace the runtim
 handler whose accepted types are determined dynamically at runtime should implement only the runtime interface,
 because declaring an overly broad type such as `object` would hide legitimate client response models.
 
+Declarations are discovered from the application and every package it references. Only assemblies referencing
+`Cratis.Arc.Core` are inspected, and both contracts are matched on assembly identity rather than on name, so a
+look-alike interface declared elsewhere cannot claim a value and suppress its client response.
+
 ## Response Object Availability
 
 When implementing a command response value handler, the `CommandContext.Response` property contains the response object returned by the command handler, **if any**. This property can be `null` in the following scenarios:

@@ -1347,6 +1347,71 @@ public static class TypeExtensions
     internal static IDisposable OwnProjectAssemblies() => new ProjectAssembliesLifetime(_metadataLoadContext);
 
     /// <summary>
+    /// Find the identities of every response value type declared as consumed on the server.
+    /// </summary>
+    /// <param name="assemblies">Assemblies to inspect.</param>
+    /// <param name="commandResponseValueHandlerContractsAssembly">The assembly defining the genuine handler contracts.</param>
+    /// <param name="errorMessage">Callback for outputting error messages.</param>
+    /// <returns>The assembly qualified names of the declared types.</returns>
+    /// <remarks>
+    /// Only assemblies that reference the contracts assembly are inspected. Declaring a handler requires implementing
+    /// its contracts, so an assembly without that reference cannot contribute a declaration, and skipping it avoids
+    /// materializing the type metadata of every unrelated dependency.
+    /// </remarks>
+    internal static HashSet<string> FindServerHandledCommandResponseValueTypeNames(
+        IEnumerable<Assembly> assemblies,
+        Assembly? commandResponseValueHandlerContractsAssembly,
+        Action<string> errorMessage) =>
+        commandResponseValueHandlerContractsAssembly is null
+            ? []
+            : assemblies
+                .Where(CanDeclareCommandResponseValueHandlers)
+                .SelectMany(_ => GetLoadableTypes(_, errorMessage))
+                .Where(_ => !_.IsAbstract && !_.IsInterface)
+                .Select(_ => GetLoadableInterfaces(_, errorMessage))
+                .SelectMany(_ => GetServerHandledCommandResponseValueTypeNames(_, commandResponseValueHandlerContractsAssembly))
+                .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Check whether an assembly could possibly declare a command response value handler.
+    /// </summary>
+    /// <param name="assembly">Assembly to check.</param>
+    /// <returns>True if the assembly defines or references the handler contracts, false if not.</returns>
+    internal static bool CanDeclareCommandResponseValueHandlers(Assembly assembly) =>
+        assembly.GetName().Name == CommandResponseValueHandlerContractsAssemblyName ||
+        assembly.GetReferencedAssemblies().Any(_ => _.Name == CommandResponseValueHandlerContractsAssemblyName);
+
+    /// <summary>
+    /// Get the response value types a handler declares as consumed on the server.
+    /// </summary>
+    /// <param name="interfaces">The interfaces implemented by the candidate handler.</param>
+    /// <param name="commandResponseValueHandlerContractsAssembly">The assembly defining the genuine handler contracts.</param>
+    /// <returns>The assembly qualified names of the declared types.</returns>
+    /// <remarks>
+    /// Both contracts are matched on assembly identity rather than name, so a dependency shipping look-alike
+    /// interfaces in the same namespace cannot claim a value and have its client response suppressed.
+    /// </remarks>
+    internal static IEnumerable<string> GetServerHandledCommandResponseValueTypeNames(
+        Type[] interfaces,
+        Assembly? commandResponseValueHandlerContractsAssembly)
+    {
+        if (commandResponseValueHandlerContractsAssembly is null ||
+            !interfaces.Any(_ => _.FullName == RuntimeCommandResponseValueHandlerTypeName &&
+                                 ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly)))
+        {
+            return [];
+        }
+
+        return interfaces
+            .Where(_ => _.IsGenericType &&
+                        _.GetGenericTypeDefinition().FullName == CommandResponseValueHandlerTypeName &&
+                        ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly))
+            .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
+            .Where(_ => _ is not null)
+            .Cast<string>();
+    }
+
+    /// <summary>
     /// Unwrap a type to get the best response type candidate.
     /// Handles tuples and OneOf types recursively.
     /// </summary>
@@ -1370,37 +1435,6 @@ public static class TypeExtensions
         }
 
         return type;
-    }
-
-    static HashSet<string> FindServerHandledCommandResponseValueTypeNames(
-        IEnumerable<Assembly> assemblies,
-        Assembly? commandResponseValueHandlerContractsAssembly,
-        Action<string> errorMessage) =>
-        assemblies
-            .SelectMany(_ => GetLoadableTypes(_, errorMessage))
-            .Where(_ => !_.IsAbstract && !_.IsInterface)
-            .Select(_ => GetLoadableInterfaces(_, errorMessage))
-            .SelectMany(_ => GetServerHandledCommandResponseValueTypeNames(_, commandResponseValueHandlerContractsAssembly))
-            .ToHashSet(StringComparer.Ordinal);
-
-    static IEnumerable<string> GetServerHandledCommandResponseValueTypeNames(
-        Type[] interfaces,
-        Assembly? commandResponseValueHandlerContractsAssembly)
-    {
-        if (commandResponseValueHandlerContractsAssembly is null ||
-            !interfaces.Any(_ => _.FullName == RuntimeCommandResponseValueHandlerTypeName &&
-                                 ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly)))
-        {
-            return [];
-        }
-
-        return interfaces
-            .Where(_ => _.IsGenericType &&
-                        _.GetGenericTypeDefinition().FullName == CommandResponseValueHandlerTypeName &&
-                        ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly))
-            .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
-            .Where(_ => _ is not null)
-            .Cast<string>();
     }
 
     static Assembly LoadMetadataAssembly(string assemblyPath)
