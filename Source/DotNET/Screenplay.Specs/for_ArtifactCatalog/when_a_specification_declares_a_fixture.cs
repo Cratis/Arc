@@ -2,13 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
-using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ArtifactCatalog;
 
 /// <summary>
 /// A specification that declares a projection to assert something about a contract, alongside the real one for
-/// the same read model — the shape a capture of a real application actually meets.
+/// the same read model - the shape a capture of a real application actually meets.
 /// </summary>
 /// <remarks>
 /// Both halves matter. The fixture must not be captured, because it ships only in Debug and the application
@@ -22,11 +21,8 @@ namespace Cratis.Arc.Screenplay.for_ArtifactCatalog;
 /// </remarks>
 public class when_a_specification_declares_a_fixture : Specification
 {
-    ApplicationModelAnalysis _analysis = null!;
-
-    void Because() => _analysis = Analyzed.Source(
-        Analyzed.Root,
-        ("Library/Feature/Slice/Slice.cs", """
+    const string Slice = """
+        using Cratis.Chronicle.Events;
         using Cratis.Chronicle.Projections;
         using Cratis.Chronicle.ReadModels;
 
@@ -42,8 +38,9 @@ public class when_a_specification_declares_a_fixture : Specification
 
         [EventType]
         public record Deposited(int Amount);
-        """),
-        ("Library/Feature/Inspection/when_the_contract_is_inspected.cs", """
+        """;
+
+    const string Inspection = """
         using Cratis.Chronicle.Projections;
         using Cratis.Specifications;
         using Library.Feature.Slice;
@@ -57,7 +54,14 @@ public class when_a_specification_declares_a_fixture : Specification
                 public void Define(IProjectionBuilderFor<Balance> builder) => builder.From<Deposited>(_ => _);
             }
         }
-        """));
+        """;
+
+    ApplicationModelAnalysis _analysis = null!;
+
+    void Because() => _analysis = Analyzed.Source(
+        Analyzed.Root,
+        ("Library/Feature/Slice/Slice.cs", Slice),
+        ("Library/Feature/Inspection/when_the_contract_is_inspected.cs", Inspection));
 
     [Fact] void should_capture_the_projection_the_application_ships() =>
         Projections().ShouldContain("Library.Feature.Slice.BalanceProjection");
@@ -65,8 +69,10 @@ public class when_a_specification_declares_a_fixture : Specification
     [Fact] void should_not_capture_the_fixture_the_specification_declares() =>
         Projections().Any(projection => projection.EndsWith("SpecificationProjection", StringComparison.Ordinal)).ShouldBeFalse();
 
-    // The read model would otherwise be built twice, which is not legal Screenplay - the document stops
-    // compiling and nothing downstream can read it.
+    /// <summary>
+    /// The read model would otherwise be built twice, which is not legal Screenplay - the document stops
+    /// compiling and nothing downstream can read it.
+    /// </summary>
     [Fact] void should_build_the_read_model_exactly_once() =>
         Projections().Count(projection => projection.Contains("Balance", StringComparison.Ordinal)).ShouldEqual(1);
 
