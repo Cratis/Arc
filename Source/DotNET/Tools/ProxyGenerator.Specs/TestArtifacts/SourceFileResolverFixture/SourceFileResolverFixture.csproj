@@ -1,4 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'!='Release'">
+        <TargetFramework>net10.0</TargetFramework>
+    </PropertyGroup>
+
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</AssemblyName>
         <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</RootNamespace>
