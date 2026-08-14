@@ -11,7 +11,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Finds the construction a step of a specification states, following a value the specification holds one hop.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every tree is read through.</param>
 /// <remarks>
 /// A step states what it is about by constructing it, and most write that construction where the step is. Holding it
 /// in a member instead is just as common - the same event is stated once and asserted on later, or the command is
@@ -25,8 +25,13 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// source text does not say which one the step saw. Those stay unreadable and the scenario is left out and said so,
 /// because a scenario stating a world nobody specified is worse than one honestly missing.
 /// </para>
+/// <para>
+/// The hop routinely lands in another tree, and often in another project's compilation - a base context is written
+/// below the scenario inheriting it. So which model reads a tree is asked of <see cref="SemanticModels"/> rather
+/// than taken from one compilation, which throws for a tree it does not own.
+/// </para>
 /// </remarks>
-public class HeldValues(Compilation compilation)
+public class HeldValues(SemanticModels models)
 {
     /// <summary>
     /// Gets the construction an expression stands for.
@@ -108,7 +113,9 @@ public class HeldValues(Compilation compilation)
             return null;
         }
 
-        return new(creation, compilation.GetSemanticModel(creation.SyntaxTree));
+        // No model for the tree means the construction lives somewhere this analysis cannot read, so the step is
+        // left unread rather than read through the wrong model.
+        return models.For(creation.SyntaxTree) is { } model ? new(creation, model) : null;
     }
 
     /// <summary>
@@ -142,7 +149,6 @@ public class HeldValues(Compilation compilation)
     /// <param name="symbol">The member or local it would write to.</param>
     /// <returns>True when it writes to it.</returns>
     bool Assigns(AssignmentExpressionSyntax assignment, ISymbol symbol) =>
-        SymbolEqualityComparer.Default.Equals(
-            compilation.GetSemanticModel(assignment.SyntaxTree).GetSymbolInfo(assignment.Left).Symbol,
-            symbol);
+        models.For(assignment.SyntaxTree) is { } model &&
+        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(assignment.Left).Symbol, symbol);
 }

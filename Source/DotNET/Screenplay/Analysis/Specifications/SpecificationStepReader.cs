@@ -20,7 +20,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </remarks>
 public class SpecificationStepReader(SemanticModels models, SpecificationValues values)
 {
-    readonly HeldValues _held = new(compilation);
+    readonly HeldValues _held = new(models);
 
     /// <summary>
     /// Reads what a specification had already seen when it issued its command.
