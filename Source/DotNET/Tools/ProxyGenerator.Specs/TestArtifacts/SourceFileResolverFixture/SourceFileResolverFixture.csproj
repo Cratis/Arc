@@ -1,13 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup Condition="'$(Configuration)'=='Release'">
-        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)'!='Release'">
-        <TargetFramework>net10.0</TargetFramework>
-    </PropertyGroup>
-
     <PropertyGroup>
+        <!--
+            Unconditional, unlike the repo-wide Debug/Release-conditioned default in the root
+            Directory.Build.props: MSBuild's cross-targeting negotiation (used when this project is
+            reached through a ProjectReference from a multi-targeted parent, as it is from
+            ProxyGenerator.Specs.csproj) evaluates a referenced project's TargetFramework(s) without
+            necessarily setting Configuration first. A Configuration-conditioned declaration can
+            therefore resolve to the Debug branch (a single net10.0) even during a Release build of
+            the parent, which a net8.0/net9.0 leg of that parent cannot reference. Declaring the full
+            net8.0;net9.0;net10.0 set unconditionally removes that ambiguity entirely.
+        -->
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
         <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</AssemblyName>
         <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</RootNamespace>
     </PropertyGroup>
