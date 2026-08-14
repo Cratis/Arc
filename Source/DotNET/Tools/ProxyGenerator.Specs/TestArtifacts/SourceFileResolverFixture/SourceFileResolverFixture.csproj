@@ -1,17 +1,27 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
     <PropertyGroup>
         <!--
-            Unconditional, unlike the repo-wide Debug/Release-conditioned default in the root
-            Directory.Build.props: MSBuild's cross-targeting negotiation (used when this project is
-            reached through a ProjectReference from a multi-targeted parent, as it is from
-            ProxyGenerator.Specs.csproj) evaluates a referenced project's TargetFramework(s) without
-            necessarily setting Configuration first. A Configuration-conditioned declaration can
-            therefore resolve to the Debug branch (a single net10.0) even during a Release build of
-            the parent, which a net8.0/net9.0 leg of that parent cannot reference. Declaring the full
-            net8.0;net9.0;net10.0 set unconditionally removes that ambiguity entirely.
+            Set before the Microsoft.NET.Sdk import (long-form syntax, deliberately not
+            Sdk="Microsoft.NET.Sdk") so it is already non-empty by the time Directory.Build.props's
+            own Configuration-conditioned TargetFramework(s) default runs - that default is imported
+            as part of Sdk.props and only applies "when TargetFrameworks/TargetFramework is still
+            empty." Its Debug branch would otherwise win: MSBuild's cross-targeting negotiation, run
+            when this project is reached through a ProjectReference from a multi-targeted parent (as
+            it is from ProxyGenerator.Specs.csproj), evaluates a referenced project's target
+            framework(s) without guaranteeing Configuration=Release for that evaluation, so the
+            Debug branch (a single net10.0) can apply even during a Release build of the parent -
+            which a net8.0/net9.0 leg of that parent cannot reference. Setting the value here, before
+            Sdk.props runs at all, removes that dependency entirely.
         -->
         <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+    <PropertyGroup>
         <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</AssemblyName>
         <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</RootNamespace>
     </PropertyGroup>
+
+    <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>
