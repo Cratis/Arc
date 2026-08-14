@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture</RootNamespace>
+    </PropertyGroup>
+</Project>

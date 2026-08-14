@@ -16,6 +16,7 @@
         <ProjectReference Include="../../Arc/Arc.csproj" />
         <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
         <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj" Aliases="FakeContracts" />
+        <ProjectReference Include="TestArtifacts/SourceFileResolverFixture/SourceFileResolverFixture.csproj" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
