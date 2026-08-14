@@ -36,6 +36,11 @@ public static class QueryReturnTypes
         "System.Linq.IQueryable`1"
     ];
 
+    static readonly string[] _observables =
+    [
+        "System.Reactive.Subjects.ISubject`1"
+    ];
+
     /// <summary>
     /// Determines whether the host pages and sorts a query's result on the caller's behalf.
     /// </summary>
@@ -53,6 +58,34 @@ public static class QueryReturnTypes
         while (current is INamedTypeSymbol named && named.TypeArguments.Length == 1)
         {
             if (Matches(named, _queryables))
+            {
+                return true;
+            }
+
+            current = named.TypeArguments[0];
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Determines whether a query keeps answering as the read model changes rather than answering once.
+    /// </summary>
+    /// <param name="type">The return type to check.</param>
+    /// <returns>True when the query hands back a subject.</returns>
+    /// <remarks>
+    /// Handing back a subject rather than a value is the whole of how a query says it is a live read - there is no
+    /// attribute and no parameter saying so, and the caller subscribes rather than asks. Every other wrapper really is
+    /// only how the result arrives, but this one is a fact about the query that the language holds a word for, so it
+    /// is read before the wrappers are peeled and stated rather than lost with them.
+    /// </remarks>
+    public static bool IsObservable(ITypeSymbol type)
+    {
+        var current = type;
+
+        while (current is INamedTypeSymbol named && named.TypeArguments.Length == 1)
+        {
+            if (Matches(named, _observables))
             {
                 return true;
             }

@@ -14,6 +14,9 @@
     <ItemGroup>
         <ProjectReference Include="../ProxyGenerator/ProxyGenerator.csproj" />
         <ProjectReference Include="../../Arc/Arc.csproj" />
+        <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
+        <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj" Aliases="FakeContracts" />
+        <ProjectReference Include="TestArtifacts/SourceFileResolverFixture/SourceFileResolverFixture.csproj" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
@@ -27,6 +30,7 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Remove="$(MSBuildThisFileDirectory)../../GlobalUsings.Specs.cs" />
+        <Compile Remove="TestArtifacts/**/*.cs" />
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Scenarios\Infrastructure\arc-bootstrap.js" Condition="Exists('Scenarios\Infrastructure\arc-bootstrap.js')" />

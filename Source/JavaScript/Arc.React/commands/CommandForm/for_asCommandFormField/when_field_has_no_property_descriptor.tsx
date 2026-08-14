@@ -48,6 +48,7 @@ describe('when field has no property descriptor', () => {
             customFieldErrors: {},
             isValid: true,
             isAuthorized: true,
+            isExecuting: false,
             // eslint-disable-next-line @typescript-eslint/no-empty-function
             setFieldValidity: () => {},
             showTitles: true,

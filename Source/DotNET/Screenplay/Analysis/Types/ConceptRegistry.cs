@@ -50,6 +50,15 @@ public class ConceptRegistry
     ];
 
     /// <summary>
+    /// Gets the name every concept is declared under.
+    /// </summary>
+    /// <remarks>
+    /// A concept and a shape are declared side by side at the top of the document and referred to the same way, so
+    /// the two cannot share a name - which is a question only something holding both can answer.
+    /// </remarks>
+    public IReadOnlySet<string> Names => _concepts.Keys.ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
     /// Registers a type as a concept when it is one.
     /// </summary>
     /// <param name="type">The type to register.</param>

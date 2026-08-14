@@ -2,26 +2,50 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { CommandFormFields, ColumnInfo, CommandFormFieldWrapper } from './CommandFormFields';
-import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue, type FieldValidationInfo, type FieldContainerProps, type FieldDecoratorProps, type ErrorDisplayProps, type TooltipWrapperProps } from './CommandFormContext';
+import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue, type CommandFormHandle, type CommandFormState, type FieldValidationInfo, type FieldContainerProps, type FieldDecoratorProps, type ErrorDisplayProps, type TooltipWrapperProps } from './CommandFormContext';
 import { Constructor } from '@cratis/fundamentals';
 import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
 import { ValidationResult } from '@cratis/arc/validation';
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
 import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { useIdentity } from '../../identity';
 import { isCommandFormColumn, isCommandFormField, markAsCommandFormColumn } from './commandFormMarkers';
+import { withoutUndefinedValues } from './withoutUndefinedValues';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
 
 export interface CommandFormProps<TCommand extends object, TResponse = object> {
     command: Constructor<TCommand>;
+
+    /**
+     * The synchronous baseline the form starts from, and what change tracking measures against.
+     *
+     * This is a *seed*: it supplies values, it does not clear them. A key holding `undefined`
+     * supplies nothing, so whatever {@link CommandFormProps.currentValues} resolved - or the command
+     * class's own default - stays in place. That matters because these values are usually written
+     * out by the caller as a fixed object literal, where a property that has no value yet reads as
+     * `undefined` on every render, including the ones after an asynchronous lookup has answered.
+     * A field's `currentValue` prop is the same layer and follows the same rule.
+     *
+     * Reach for {@link CommandFormProps.currentValues} to clear a property, or to supply one whose
+     * value arrives late.
+     */
     initialValues?: Partial<TCommand>;
+
+    /**
+     * The reactive overlay for values owned elsewhere - typically a query that answers after the
+     * form has already rendered. Every change to it is written to the command.
+     *
+     * Unlike {@link CommandFormProps.initialValues} this layer carries presence semantics: a key it
+     * holds is written whatever it holds, so both `null` and an explicitly present `undefined`
+     * clear the property. Only a key that is absent altogether is left alone.
+     */
     currentValues?: Partial<TCommand> | undefined;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
@@ -50,6 +74,30 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
     tooltipComponent?: React.ComponentType<TooltipWrapperProps>;
     errorClassName?: string;
     iconAddonClassName?: string;
+
+    /**
+     * Receives the imperative handle for the form, letting a parent outside the form execute it and
+     * read its state. Named rather than taken through `forwardRef`, because forwarding erases the
+     * generic arguments and callers write `<CommandForm<TCommand, TResponse> ... />`.
+     *
+     * The handle object is created once for the lifetime of the form, so it never changes identity.
+     * React still re-attaches whenever the ref itself changes identity, though - so a *stable* ref
+     * (an object ref, or a callback wrapped in `useCallback` with no dependencies) attaches once on
+     * mount and detaches once on unmount however often the parent re-renders, while an inline
+     * `ref={h => ...}` is a new function every render and re-attaches every render. Prefer a stable
+     * ref; an inline one still works but does redundant attach/detach.
+     *
+     * Its state members are getters over live values and are therefore never stale - but reading
+     * them does not re-render the parent. Use {@link CommandFormProps.onStateChange} for that.
+     */
+    formRef?: React.Ref<CommandFormHandle>;
+
+    /**
+     * Called whenever the form's execution, validity or authorization state changes - the reactive
+     * counterpart to {@link CommandFormProps.formRef}. An inline arrow function is safe here: the
+     * callback is read through a ref, so re-creating it on every render does not re-fire it.
+     */
+    onStateChange?: (state: CommandFormState) => void;
     children?: React.ReactNode;
 }
 
@@ -151,11 +199,14 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         return extracted;
     }, [props.currentValues, props.command]);
 
-    // Merge initialValues prop with values extracted from field currentValue props and currentValues
+    // Merge initialValues prop with values extracted from field currentValue props and currentValues.
+    // The two seed layers skip undefined, the reactive one does not - see CommandFormProps. A field's
+    // currentValue is skipped where it is extracted (nothing to seed), and props.initialValues here,
+    // so neither of them spreads an undefined over a value currentValues has already resolved.
     const mergedInitialValues = useMemo(() => ({
         ...valuesFromCurrentValues,
         ...initialValuesFromFields,
-        ...props.initialValues
+        ...withoutUndefinedValues(props.initialValues)
     }), [valuesFromCurrentValues, initialValuesFromFields, props.initialValues]);
 
     // useCommand returns [instance, setter, clearer] for the typed command. Provide generics so commandInstance is TCommand.
@@ -171,6 +222,16 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const [commandResult, setCommandResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [silentValidationResult, setSilentValidationResult] = useState<ICommandResult<unknown> | undefined>(undefined);
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
+
+    // Executions are counted, not flagged. Nothing stops a form from being submitted again while the
+    // previous submission is still in flight - a second click, a submit button and a keyboard submit
+    // racing - and a flag would be cleared by whichever execution settles first, reporting the form as
+    // idle while the other is still running. The count goes 0 -> 1 -> 2 -> 1 -> 0 instead, so the form
+    // keeps reporting executing until the last one settles. The ref is the source of truth, mirrored
+    // into state so that the render path reacts to it.
+    const executionCountRef = React.useRef(0);
+    const [executionCount, setExecutionCount] = useState(0);
+    const isExecuting = executionCount > 0;
     const initializedRef = React.useRef(false);
     const lastServerValidateVersion = React.useRef<number>(-1);
     const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
@@ -356,31 +417,69 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
 
         // Execute the command
         if (typeof (finalValues as unknown as Command).execute === 'function') {
-            const result = await (finalValues as unknown as Command).execute() as ICommandResult<TResponse>;
-            setCommandResult(result);
-            
-            // Invoke callbacks based on result state
-            if (result.isSuccess && props.onSuccess) {
-                props.onSuccess(result.response as TResponse);
+            // Counted strictly inside this guard, so the throw below can never leak a count that is
+            // never given back. The decrement is in a finally rather than a catch, so a rejection
+            // restores the count and still propagates unchanged.
+            executionCountRef.current += 1;
+            setExecutionCount(executionCountRef.current);
+            try {
+                const result = await (finalValues as unknown as Command).execute() as ICommandResult<TResponse>;
+                setCommandResult(result);
+
+                // Invoke callbacks based on result state
+                if (result.isSuccess && props.onSuccess) {
+                    props.onSuccess(result.response as TResponse);
+                }
+                if (!result.isSuccess && props.onFailed) {
+                    props.onFailed(result);
+                }
+                if (result.hasExceptions && props.onException) {
+                    props.onException(result.exceptionMessages, result.exceptionStackTrace);
+                }
+                if (!result.isAuthorized && props.onUnauthorized) {
+                    props.onUnauthorized();
+                }
+                if (!result.isValid && props.onValidationFailure) {
+                    props.onValidationFailure(result.validationResults);
+                }
+
+                return result;
+            } finally {
+                executionCountRef.current -= 1;
+                setExecutionCount(executionCountRef.current);
             }
-            if (!result.isSuccess && props.onFailed) {
-                props.onFailed(result);
-            }
-            if (result.hasExceptions && props.onException) {
-                props.onException(result.exceptionMessages, result.exceptionStackTrace);
-            }
-            if (!result.isAuthorized && props.onUnauthorized) {
-                props.onUnauthorized();
-            }
-            if (!result.isValid && props.onValidationFailure) {
-                props.onValidationFailure(result.validationResults);
-            }
-            
-            return result;
         }
 
         throw new Error('Command instance does not have an execute method');
     }, [commandInstance, props, setCommandValues, setCommandResult]);
+
+    // handleExecute is re-created on every render - its dependencies include props, and CommandForm
+    // renders <CommandFormComponent {...props} />, so props is a fresh object each time. That cannot be
+    // stabilized, because parents legitimately pass inline arrow callbacks. So the handle below does not
+    // depend on it: everything it needs is parked in a ref, refreshed after every commit, and the handle
+    // itself is built once. A handle rebuilt per render would re-attach a callback ref on every parent
+    // render, which is a re-attach loop when the parent re-renders in response to being handed the ref.
+    const latestRef = React.useRef({ handleExecute, isValid, isAuthorized });
+    const onStateChangeRef = React.useRef(props.onStateChange);
+    React.useLayoutEffect(() => {
+        latestRef.current = { handleExecute, isValid, isAuthorized };
+        onStateChangeRef.current = props.onStateChange;
+    });
+
+    useImperativeHandle(props.formRef, () => ({
+        execute: () => latestRef.current.handleExecute(),
+        get isExecuting() { return executionCountRef.current > 0; },
+        get isValid() { return latestRef.current.isValid; },
+        get isAuthorized() { return latestRef.current.isAuthorized; }
+    }), []);
+
+    // An imperative handle is not reactive - reading it cannot re-render the parent. This is the other
+    // half: the parent is told when the state changes so its own submit button can follow along. The
+    // dependencies are the three booleans and nothing else; the callback is read through a ref so an
+    // inline arrow cannot re-fire it.
+    React.useEffect(() => {
+        onStateChangeRef.current?.({ isExecuting, isValid, isAuthorized });
+    }, [isExecuting, isValid, isAuthorized]);
 
     const handleFormSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
@@ -401,6 +500,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         getFieldError,
         isValid,
         isAuthorized,
+        isExecuting,
         beginSilentValidation,
         setSilentValidationResult: applySilentValidationResult,
         onFieldValidate: props.onFieldValidate,

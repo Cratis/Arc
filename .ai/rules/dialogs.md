@@ -88,7 +88,7 @@ Use built-in `CommandForm` fields (from `@cratis/components/CommandForm`) for ev
 
 ### Multi-step wizards — `StepperCommandDialog`
 
-For a command split across named steps use `StepperCommandDialog` (`@cratis/components/CommandDialog`) — see the **stepper-command-dialog** skill. ⚠️ It **cannot handle conditional steps**, because `React.Children.count` counts falsy children. When steps are conditional, a step needs non-CommandForm inputs, or cross-step state is complex, fall back to a manual `Dialog` + PrimeReact `Stepper`.
+For a command split across named steps use `StepperCommandDialog` (`@cratis/components/CommandDialog`) — see the **stepper-command-dialog** skill. Conditional steps written as `{condition && <StepperPanel/>}` are supported **from 2.7.1**: only the steps that actually render are counted, so Next and Submit appear where the user expects them. ⚠️ On earlier versions a hidden step is still counted — Submit never appears on the real last step and a dead Next takes its place, so check what you are pinned to before relying on this. ⚠️ A `<>…</>` fragment wrapping several panels still counts as **one** step — give each step its own `StepperPanel` child. When a step needs non-CommandForm inputs, or cross-step state is complex, fall back to a manual `Dialog` + PrimeReact `Stepper`.
 
 ## When Using `Dialog`
 

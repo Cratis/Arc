@@ -36,9 +36,9 @@ public class SliceContents
     public IList<ConstraintModel> Constraints { get; } = [];
 
     /// <summary>
-    /// Gets or sets the single projection the slice declares.
+    /// Gets the projections the slice declares.
     /// </summary>
-    public ProjectionModel? Projection { get; set; }
+    public IList<ProjectionModel> Projections { get; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether the slice declares an aggregate root.
@@ -62,7 +62,7 @@ public class SliceContents
         Queries.Count +
         Reactors.Count +
         Constraints.Count +
-        (Projection is null ? 0 : 1);
+        Projections.Count;
 
     /// <summary>
     /// Gets a value indicating whether the slice declares nothing at all.

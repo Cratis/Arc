@@ -166,6 +166,8 @@ Authorization is enforced for every subscription through the standard query pipe
 - If the query allows anonymous access (`[AllowAnonymous]`), the subscription is accepted regardless of authentication state.
 - Authorization is re-evaluated on every new subscription, not cached for the lifetime of the connection.
 
+That verdict gates *obtaining* the stream. A subscription can then stay open indefinitely, and nothing ends it when a token expires or a role is revoked. To re-check the verdict while a stream is running, implement an [emission guard](./observable-query-emission-guards.md).
+
 ## Keep-alive
 
 Both WebSocket and SSE transports send automatic keep-alive messages to prevent idle connections from being closed by proxies or firewalls.

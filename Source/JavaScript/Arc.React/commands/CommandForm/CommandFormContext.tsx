@@ -35,6 +35,39 @@ export interface FieldValidationInfo {
     errors: string[];
 }
 
+/**
+ * The observable state of a command form, as a parent outside the form sees it.
+ */
+export interface CommandFormState {
+    /**
+     * Whether at least one execution of the command is in flight. Overlapping executions are counted,
+     * so this stays true until the last one has settled.
+     */
+    isExecuting: boolean;
+
+    /**
+     * Whether the form currently passes silent validation.
+     */
+    isValid: boolean;
+
+    /**
+     * Whether the current identity holds at least one of the roles the command requires.
+     */
+    isAuthorized: boolean;
+}
+
+/**
+ * The imperative surface a parent reaches through the `formRef` prop. The state members are getters
+ * reading live values, so a handle captured once never goes stale - but they are not reactive. Use the
+ * `onStateChange` prop to re-render on a change.
+ */
+export interface CommandFormHandle extends CommandFormState {
+    /**
+     * Executes the command the same way submitting the form does.
+     */
+    execute(): Promise<ICommandResult<unknown>>;
+}
+
 export interface CommandFormContextValue<TCommand> {
     command: Constructor<TCommand>;
     commandInstance: TCommand;
@@ -45,6 +78,12 @@ export interface CommandFormContextValue<TCommand> {
     getFieldError: (propertyName: string) => string | undefined;
     isValid: boolean;
     isAuthorized: boolean;
+
+    /**
+     * Whether at least one execution of the command is in flight. Executions are counted rather than
+     * flagged, so overlapping submissions keep this true until the last one has settled.
+     */
+    isExecuting: boolean;
     /**
      * Claims a token for a silent validation that is about to be issued. Several validations are
      * legitimately in flight at once, so hand the token back to {@link setSilentValidationResult} and a
@@ -90,3 +129,11 @@ export const useCommandFormContext = <TCommand,>() => {
     }
     return context as CommandFormContextValue<TCommand>;
 };
+
+/**
+ * Whether the command form this is used within currently has an execution in flight. Intended for
+ * anything inside the form that has to reflect execution - a submit button that disables itself, a
+ * spinner - without threading state down by hand.
+ * @returns True while at least one execution is in flight.
+ */
+export const useIsCommandExecuting = (): boolean => useCommandFormContext().isExecuting;

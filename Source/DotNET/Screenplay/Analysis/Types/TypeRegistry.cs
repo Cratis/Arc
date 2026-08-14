@@ -16,16 +16,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 /// because every concept reached on the way has to be declared before it can be referenced, and every name that says
 /// less than the type does has to be reported rather than passed off as a description.
 /// <para>
-/// The first question is answered here. The second is split: what a name loses and which shapes no declaration can
-/// hold are kept here because they are consequences of writing the name, while the concepts themselves are kept by a
-/// <see cref="ConceptRegistry"/>, which decides what a concept is and what happens when two of them share a name.
+/// The first question is answered here. The second is split: what a name loses is kept here because it is a
+/// consequence of writing the name, while the declarations it commits the document to are kept by a
+/// <see cref="ConceptRegistry"/> and a <see cref="ShapeRegistry"/>, each of which decides what it holds and what
+/// happens when two of them share a name. The two are asked together on the way out, because a concept and a shape
+/// are declared side by side and cannot share one.
 /// </para>
 /// </remarks>
 public class TypeRegistry
 {
     readonly ConceptRegistry _concepts = new();
+    readonly ShapeRegistry _shapes = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
-    readonly HashSet<string> _shapes = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type that had to be referred to by a name that does not say what it is.
@@ -33,9 +35,14 @@ public class TypeRegistry
     public IEnumerable<string> Unmappable => _unmappable.Order(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets the full name of every record a property carries whose shape no declaration can hold.
+    /// Gets every record a property carries whose shape no declaration could be written for.
     /// </summary>
-    public IEnumerable<string> Shapes => _shapes.Order(StringComparer.Ordinal);
+    public IEnumerable<UndeclarableShape> Shapes => _shapes.Undeclarable(_concepts.Names);
+
+    /// <summary>
+    /// Gets every shape referenced by the application, ordered by name.
+    /// </summary>
+    public IEnumerable<TypeModel> Types => _shapes.Declared(_concepts.Names);
 
     /// <summary>
     /// Gets the full name of every type whose simple name a concept was already declared under.
@@ -66,10 +73,10 @@ public class TypeRegistry
     /// <param name="type">The type to resolve.</param>
     /// <returns>The <see cref="TypeReferenceModel"/>.</returns>
     /// <remarks>
-    /// A property is where a record the document has no way to declare is really referred to - the line carrying it
-    /// names a shape nothing in the document introduces. That is asked here rather than everywhere a type is resolved,
-    /// because a query returning a read model refers to something the slice around it already describes, while a
-    /// property carrying a record refers to a shape stated nowhere at all.
+    /// A property is where a record is really referred to - the line carrying it names a shape, and the document has
+    /// to introduce that shape or the name resolves to nothing. That is asked here rather than everywhere a type is
+    /// resolved, because a query returning a read model refers to something the slice around it already describes,
+    /// while a property carrying a record refers to a shape declared nowhere else.
     /// </remarks>
     public TypeReferenceModel ResolveCarried(ITypeSymbol type)
     {
@@ -79,7 +86,7 @@ public class TypeRegistry
 
         if (CarriedTypes.IsRecord(carried))
         {
-            _shapes.Add(carried.ToDisplayString());
+            _shapes.Register(carried, ResolveCarried);
         }
 
         return new(NameOf(carried), collection, optional);
@@ -98,6 +105,15 @@ public class TypeRegistry
     /// <param name="rules">The rules to record.</param>
     public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules) =>
         _concepts.AddValidations(conceptName, rules);
+
+    /// <summary>
+    /// Determines whether a type says what implements it rather than what it holds.
+    /// </summary>
+    /// <param name="type">The type being named.</param>
+    /// <returns>True when no type declaration can be written for it.</returns>
+    static bool IsAContract(ITypeSymbol type) =>
+        type.TypeKind == TypeKind.Interface ||
+        type is INamedTypeSymbol { IsAbstract: true, TypeKind: TypeKind.Class, IsRecord: false };
 
     /// <summary>
     /// Resolves the name a type is referenced by, registering it as a concept when it is one.
@@ -127,10 +143,10 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The type being named.</param>
     /// <remarks>
-    /// A record is referred to by name and never declared, so nothing inside it is ever named on its own - which left
-    /// every concept reached only through a line of a timesheet or a property of a read model out of the document
-    /// entirely. A concept can be declared wherever it was reached from, so it is, and the shape carrying it waits on
-    /// the language.
+    /// A concept can be declared wherever it was reached from, so one reached only through a line of a timesheet or a
+    /// property of a read model is declared just as one written straight onto an event is. A record carried by an
+    /// artifact reaches its own concepts through <see cref="ResolveCarried"/> as it is declared; this is what covers
+    /// the rest - a type named somewhere no declaration follows from, such as the read model a query answers with.
     /// </remarks>
     void RegisterWhatItCarries(ITypeSymbol type)
     {
@@ -141,7 +157,7 @@ public class TypeRegistry
     }
 
     /// <summary>
-    /// Records a type whose simple name says less than the type does.
+    /// Records a type the document refers to by a name it never declares.
     /// </summary>
     /// <param name="type">The type being named.</param>
     /// <remarks>
@@ -149,10 +165,18 @@ public class TypeRegistry
     /// writing <c>IDictionary&lt;string, string&gt;</c> as the single identifier the grammar allows leaves the word
     /// <c>KeyValuePair</c> behind, which says nothing and which the document never declares. Same for a type
     /// parameter, whose name is a placeholder rather than a type.
+    /// <para>
+    /// A contract is the same failure arrived at from the other side. An interface or an abstract class survives being
+    /// written as a single identifier intact - the name is not what is lost - but a <c>type</c> declaration says what a
+    /// value holds, and what an implementation holds is exactly what a contract leaves open. Only a record is declared
+    /// (see <see cref="CarriedTypes.IsRecord"/>), so the property names something the document never introduces, which
+    /// is the same dangling reference a constructed generic leaves and is reported the same way. An abstract record is
+    /// not among these: it is declared like any other record, so it names something the document does introduce.
+    /// </para>
     /// </remarks>
     void ReportWhatTheNameLoses(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol { TypeArguments.Length: > 0 } or { TypeKind: TypeKind.TypeParameter })
+        if (type is INamedTypeSymbol { TypeArguments.Length: > 0 } or { TypeKind: TypeKind.TypeParameter } || IsAContract(type))
         {
             _unmappable.Add(type.ToDisplayString());
         }

@@ -50,7 +50,7 @@ public class a_projection_setting_a_value_no_member_is_declared_with : Specifica
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _from = _analysis.Slice().Projection!.Scope.From.Single();
+        _from = _analysis.Slice().Projections.Single().Scope.From.Single();
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();

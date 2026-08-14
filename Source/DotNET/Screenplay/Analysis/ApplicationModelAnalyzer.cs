@@ -63,7 +63,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         whole.Elsewhere.Report(diagnostics);
         TypesTheDocumentCannotName.Report(whole.Types, diagnostics, domain);
 
-        var joined = SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics);
+        var joined = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
         var slices = Specified(projects, joined, diagnostics);
         var imports = ExternalEvents.Resolve(ordered, slices, diagnostics);
         NamespacesWithoutStructure.Report(slices, diagnostics, options.SegmentsToSkip ?? 0);
@@ -94,7 +94,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
                 whole.Types.Concepts,
                 new PolicyCatalog(ordered, domain, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
-                slices)
+                slices,
+                whole.Types.Types)
             {
                 Imports = imports
             },

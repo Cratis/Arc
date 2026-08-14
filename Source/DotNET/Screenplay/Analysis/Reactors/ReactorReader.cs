@@ -11,14 +11,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 /// <summary>
 /// Reads the reactors a slice declares.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every handler is read through.</param>
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of the file each reactor lives in.</param>
 /// <remarks>
 /// A reactor translates rather than automates when it turns what happened into something else that happens - by
 /// returning further events, by executing a command, or by observing a sequence other than the event log. That is
 /// read from the body, so a reactor that merely holds a command pipeline without using it is still an automation.
+/// <para>
+/// A handler inherited from a base a project below it declares is written wherever that base is, so which model
+/// reads a body is asked rather than assumed.
+/// </para>
 /// </remarks>
-public class ReactorReader(Compilation compilation, SourcePaths paths)
+public class ReactorReader(SemanticModels models, SourcePaths paths)
 {
     /// <summary>
     /// The name of the argument naming the sequence a reactor observes.
@@ -142,7 +146,10 @@ public class ReactorReader(Compilation compilation, SourcePaths paths)
         foreach (var reference in handler.DeclaringSyntaxReferences)
         {
             var node = reference.GetSyntax();
-            var semanticModel = compilation.GetSemanticModel(node.SyntaxTree);
+            if (models.For(node.SyntaxTree) is not { } semanticModel)
+            {
+                continue;
+            }
 
             if (node.DescendantNodes().OfType<InvocationExpressionSyntax>().Any(_ => IsPipelineExecution(_, semanticModel)))
             {

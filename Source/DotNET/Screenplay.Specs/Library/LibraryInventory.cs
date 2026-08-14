@@ -56,7 +56,7 @@ public static class LibraryInventory
                     [])
             ],
             [],
-            null,
+            [],
             [],
             []);
 
@@ -73,23 +73,25 @@ public static class LibraryInventory
             [],
             [],
             [new QueryModel("AllBooks", Declare.Many("Book"), null, [], null)],
-            new ProjectionModel(
-                "Library.Inventory.Listing.BookProjection",
-                "Book",
-                "event-log",
-                ProjectionAutoMapMode.Enabled,
-                false,
-                ProjectionScopeModel.Empty with
-                {
-                    From =
-                    [
-                        new(
-                            ["BookAddedToInventory"],
-                            "$eventSourceId",
-                            null,
-                            Declare.Map(("title", "title"), ("available", "count")))
-                    ]
-                }),
+            [
+                new ProjectionModel(
+                    "Library.Inventory.Listing.BookProjection",
+                    "Book",
+                    "event-log",
+                    ProjectionAutoMapMode.Enabled,
+                    false,
+                    ProjectionScopeModel.Empty with
+                    {
+                        From =
+                        [
+                            new(
+                                ["BookAddedToInventory"],
+                                "$eventSourceId",
+                                null,
+                                Declare.Map(("title", "title"), ("available", "count")))
+                        ]
+                    })
+            ],
             [],
             []);
 }

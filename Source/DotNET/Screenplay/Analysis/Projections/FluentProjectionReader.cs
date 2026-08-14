@@ -10,13 +10,17 @@ namespace Cratis.Arc.Screenplay.Analysis.Projections;
 /// <summary>
 /// Reads the projection a type declares by defining it against a builder.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every defining method is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// Reading the chain from the source is what makes a fluent projection expressible at all - at runtime it is an
 /// expression tree that has already been compiled down to something a document cannot be recovered from.
+/// <para>
+/// A projection defined in a base a project below it declares is written wherever that base is, so which model reads
+/// a body is asked rather than assumed.
+/// </para>
 /// </remarks>
-public class FluentProjectionReader(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class FluentProjectionReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
     /// The method a projection is defined in.
@@ -53,7 +57,10 @@ public class FluentProjectionReader(Compilation compilation, ScreenplayDiagnosti
 
         foreach (var body in Bodies(type))
         {
-            _scopes.Read(body, compilation.GetSemanticModel(body.SyntaxTree), scope, location);
+            if (models.For(body.SyntaxTree) is { } semanticModel)
+            {
+                _scopes.Read(body, semanticModel, scope, location);
+            }
         }
 
         if (scope.IsEmpty)

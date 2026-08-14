@@ -48,7 +48,7 @@ public class a_model_bound_projection : Specification
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _projection = _analysis.Slice().Projection!;
+        _projection = _analysis.Slice().Projections.Single();
     }
 
     ProjectionFromModel From => _projection.Scope.From.Single();

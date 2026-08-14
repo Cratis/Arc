@@ -29,7 +29,7 @@ public class and_handler_returns_a_one_of_with_tuple_containing_response_and_han
 
     [Fact] void should_call_value_handlers_for_handled_value() => _commandResponseValueHandlers.Received(1).Handle(Arg.Any<CommandContext>(), 3.14);
     [Fact] void should_set_response_on_command_context() => _commandResponseValueHandlers.Received(1).Handle(Arg.Is<CommandContext>(ctx => ctx.Response.Equals(_responseValue)), 3.14);
-    [Fact] void should_return_response_in_command_result() => _result.Response.ShouldEqual(_responseValue);
+    [Fact] void should_not_carry_the_response_for_the_failed_command() => _result.Response.ShouldBeNull();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
     [Fact] void should_return_error_from_value_handlers() => _result.ExceptionMessages.First().ShouldEqual(_errorMessage);
 }

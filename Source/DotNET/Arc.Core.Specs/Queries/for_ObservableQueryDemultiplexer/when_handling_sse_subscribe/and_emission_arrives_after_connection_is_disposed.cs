@@ -59,6 +59,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
             _serviceProvider,
             _arcOptions,
             _observableHealthTracker,
+            _emissionGuards,
             _logger);
 
         // Hold interception open so the first emission stays in flight (holding the emission gate) while the

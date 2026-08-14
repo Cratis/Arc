@@ -26,11 +26,25 @@ const defaultIdentityContext: IIdentity = {
 type IdentityContextValue = {
     identity: IIdentity;
     detailsConstructor?: Constructor;
+
+    /**
+     * Whether the identity is still being resolved.
+     *
+     * Optional here, and required on {@link IIdentityContext}, on purpose. This shape reaches consumers
+     * through the exported context, so anything a test harness or a Storybook decorator builds by hand
+     * would stop compiling if the field were required - while a consumer reading the identity should
+     * never have to answer "and what if it is absent?". {@link useIdentity} bridges the two.
+     *
+     * Absent reads as resolved, which is the safe direction: a gate seeing a hand-built context denies
+     * rather than admits.
+     */
+    isLoading?: boolean;
     clearIdentity: () => void;
 };
 
 const defaultContextValue: IdentityContextValue = {
     identity: defaultIdentityContext,
+    isLoading: false,
     clearIdentity: () => { /* no-op until provider initializes */ },
 };
 
@@ -51,12 +65,29 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     RootIdentityProvider.setApiBasePath(arc.apiBasePath ?? '');
     RootIdentityProvider.setOrigin(arc.origin ?? '');
 
+    // Every identity request re-enters loading, not just the first one. Until the answer arrives the
+    // identity in state is the previous one - or an unset one - and reporting that as settled is what
+    // makes a signed-in user flash the signed-out UI for the length of the round-trip. Returning the
+    // current state unchanged when it is already loading lets React bail out of the re-render, so
+    // this can be called on every request without a render loop.
+    const beginLoading = (): void => {
+        setIdentityState(current => current.isLoading ? current : { ...current, isLoading: true });
+    };
+
+    // A request that is over - however it ended - must never leave consumers stranded in their
+    // loading state for the rest of the session.
+    const stopLoading = (): void => {
+        setIdentityState(current => current.isLoading ? { ...current, isLoading: false } : current);
+    };
+
     const fetchIdentity = (): Promise<IIdentity> => {
+        beginLoading();
         return RootIdentityProvider.getCurrent(props.detailsType).then(identity => {
             const wrappedIdentity = wrapRefresh(identity);
             setIdentityState({
                 identity: wrappedIdentity,
-                detailsConstructor: props.detailsType
+                detailsConstructor: props.detailsType,
+                isLoading: false
             });
             return wrappedIdentity;
         });
@@ -66,7 +97,8 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         RootIdentityProvider.clearIdentityCookie();
         setIdentityState({
             identity: wrapRefresh(initialIdentity),
-            detailsConstructor: props.detailsType
+            detailsConstructor: props.detailsType,
+            isLoading: false
         });
     };
 
@@ -76,14 +108,23 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
             ...identity,
             refresh: () => {
                 return new Promise<IIdentity>((resolve, reject) => {
+                    beginLoading();
                     originalRefresh().then(newIdentity => {
                         const wrappedIdentity = wrapRefresh(newIdentity);
                         setIdentityState({
                             identity: wrappedIdentity,
-                            detailsConstructor: props.detailsType
+                            detailsConstructor: props.detailsType,
+                            isLoading: false
                         });
                         resolve(wrappedIdentity);
-                    }).catch(reject);
+                    }).catch(error => {
+                        // The identity that is still in state is the one from before the refresh, and it
+                        // is now suspect - the cookie it came from was cleared before the request went
+                        // out. Settling the question is all this can do; the caller decides what a failed
+                        // refresh means for the session.
+                        stopLoading();
+                        reject(error);
+                    });
                 });
             }
         };
@@ -99,14 +140,19 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
         refresh: () => fetchIdentity()
     };
 
-    const [identityState, setIdentityState] = useState<{ identity: IIdentity; detailsConstructor?: Constructor }>({
+    // Seeded as loading: the first fetch has not answered yet, and until it does an unset identity
+    // must not be reported as anonymous - see IIdentityContext.isLoading.
+    const [identityState, setIdentityState] = useState<{ identity: IIdentity; detailsConstructor?: Constructor; isLoading: boolean }>({
         identity: wrapRefresh(initialIdentity),
         detailsConstructor: props.detailsType,
+        isLoading: true,
     });
 
     useEffect(() => {
         fetchIdentity().catch(error => {
             console.error('Failed to fetch initial identity:', error);
+            // A failed fetch still settles the question - the identity is not going to arrive.
+            stopLoading();
         });
     }, []);
 

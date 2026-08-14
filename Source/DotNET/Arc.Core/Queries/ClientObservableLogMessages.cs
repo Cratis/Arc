@@ -42,4 +42,10 @@ internal static partial class ClientObservableLogMessages
 
     [LoggerMessage(LogLevel.Debug, "The observed stream from the server completed")]
     internal static partial void ObservableCompleted(this ILogger<IClientObservable> logger);
+
+    [LoggerMessage(LogLevel.Debug, "An emission guard withheld a single emission — the subscription stays live")]
+    internal static partial void ObservableEmissionSuppressed(this ILogger<IClientObservable> logger);
+
+    [LoggerMessage(LogLevel.Information, "An emission guard denied the observable query mid-stream — terminating the subscription")]
+    internal static partial void ObservableEmissionDenied(this ILogger<IClientObservable> logger);
 }

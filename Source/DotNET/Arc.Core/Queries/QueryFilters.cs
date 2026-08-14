@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.DependencyInjection;
 using Cratis.DependencyInjection;
 using Cratis.Traces;
 using Cratis.Types;
@@ -21,11 +22,15 @@ public class QueryFilters(IInstancesOf<IQueryFilter> filters, IActivitySource<Qu
         var result = QueryResult.Success(context.CorrelationId);
         using var span = activitySource.OnPerform(context.Name.Value);
 
+        // Filters are resolved from the query's own scope rather than the provider that constructed this singleton,
+        // so a filter depending on a scoped service is created in the scope the query runs in instead of the root.
+        var discoveredFilters = DiscoveredInstances.ResolvedFrom(context.ServiceProvider, filters);
+
         // Evaluate authorization filters before ordinary filters, independent of the order IInstancesOf yields them.
         // Without this the short-circuit below could return on a validation failure before the authorization filter
         // runs — turning what should be a 403 for a forbidden caller into a 400 depending on undefined discovery order.
         // OrderBy is a stable sort, so filters within the same group keep their discovery order.
-        foreach (var filter in filters.OrderBy(filter => filter is IAuthorizationQueryFilter ? 0 : 1))
+        foreach (var filter in discoveredFilters.OrderBy(filter => filter is IAuthorizationQueryFilter ? 0 : 1))
         {
             try
             {

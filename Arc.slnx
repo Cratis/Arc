@@ -39,12 +39,16 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator\ProxyGenerator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Build\ProxyGenerator.Build.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\ProxyGenerator.Specs.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\CommandResponseHandlerDependency\CommandResponseHandlerDependency.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\FakeCommandResponseHandlerDependency\FakeCommandResponseHandlerDependency.csproj" />
     </Folder>
     <Folder Name="/TestApps/">
         <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />
         <Project Path="TestApps\ArcCore\ArcCore.csproj" />
         <Project Path="TestApps\Core\Core.csproj" />
         <Project Path="TestApps\Chronicle\Chronicle.csproj" />
+        <Project Path="TestApps\Layered\Layered.csproj" />
+        <Project Path="TestApps\Layered.Contracts\Layered.Contracts.csproj" />
         <Project Path="TestApps\Shared\Shared.csproj" />
     </Folder>
 </Solution>

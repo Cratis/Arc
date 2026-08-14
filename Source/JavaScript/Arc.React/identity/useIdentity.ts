@@ -41,6 +41,9 @@ export function useIdentity<TDetails = object>(
     
     return {
         ...identity,
+        // Absent means nobody is fetching - a hand-built context rather than the provider - so the
+        // identity on it is as resolved as it is ever going to get.
+        isLoading: contextValue.isLoading ?? false,
         clearIdentity: contextValue.clearIdentity,
     };
 }

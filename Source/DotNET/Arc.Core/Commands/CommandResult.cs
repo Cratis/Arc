@@ -143,6 +143,11 @@ public class CommandResult
     public void MergeWith(params CommandResult[] commandResults)
     {
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
+        if (string.IsNullOrEmpty(AuthorizationFailureReason))
+        {
+            AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
+        }
+
         ValidationResults = [.. ValidationResults, .. commandResults.SelectMany(r => r.ValidationResults)];
         ExceptionMessages = [.. ExceptionMessages, .. commandResults.SelectMany(r => r.ExceptionMessages)];
         ExceptionStackTrace = string.Join(Environment.NewLine, new[] { ExceptionStackTrace }.Concat(commandResults.Select(r => r.ExceptionStackTrace)));
@@ -150,6 +155,20 @@ public class CommandResult
         {
             ExceptionStackTrace = ExceptionStackTrace[Environment.NewLine.Length..];
         }
+    }
+
+    /// <summary>
+    /// Removes the response value carried by this result, if any. This lets a caller holding an untyped
+    /// <see cref="CommandResult"/> remove the response without knowing its concrete generic type.
+    /// </summary>
+    /// <remarks>
+    /// A response is bound onto the result the moment the handler produces it - before the command's execution scopes
+    /// complete, and therefore before a transaction has committed. Anything failing after that point leaves a result
+    /// that is not successful yet still carries a value the caller must not act on. This is the seam that lets the
+    /// pipeline take that value back. The base result carries no response, so this does nothing.
+    /// </remarks>
+    protected internal virtual void ClearResponse()
+    {
     }
 }
 
@@ -200,4 +219,7 @@ public class CommandResult<TResponse> : CommandResult
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
     /// <returns>A <see cref="CommandResult{T}"/>.</returns>
     public static new CommandResult<TResponse> Success(CorrelationId correlationId) => new() { CorrelationId = correlationId };
+
+    /// <inheritdoc/>
+    protected internal override void ClearResponse() => Response = default;
 }

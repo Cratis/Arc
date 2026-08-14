@@ -7,6 +7,8 @@ Chronicle's [concurrency control](/chronicle/events/concurrency/) prevents confl
 
 On model-bound commands, you declare concurrency intent directly on the command record using attributes and interfaces. Chronicle then builds the `ConcurrencyScope` automatically when appending the events returned by `Handle()`. No manual scope construction is required.
 
+That automatic path is the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
+
 ## Concurrency Metadata Attributes
 
 Three attributes control concurrency scope declaration on a command. Each attribute serves a dual purpose: it tags the appended events with metadata *and*, when `concurrency: true` is set, contributes that metadata to the concurrency scope.
@@ -151,3 +153,11 @@ Two properties of that scope decide whether the check actually happens, and both
 
 - **It carries an expected sequence number**, resolved by the same concurrency strategy an unscoped append would use. A scope without one is skipped by the kernel — there is nothing to compare against — so the append would proceed unchecked.
 - **It is bound to the event source being appended to.** A command that appends across streams gets a scope per target, because an expected tail belongs to exactly one stream; applying one stream's tail to another would be wrong for both.
+
+## Carrying the revision used by the decision
+
+Automatic optimistic concurrency resolves the expected tail while Arc handles the returned value. A concurrent append that lands after `Handle()` read its state but before Arc handles the response is therefore part of the new tail, and the automatic strategy accepts it.
+
+When that newer tail would invalidate the decision, capture the revision during the read and return it in `EventsWithConcurrencyScopes`. Arc passes it unchanged into the same command transaction as the ordered events. Interference after the read then produces a concurrency validation failure at commit, with no partial append.
+
+This is opt-in. Returning ordinary events or `EventForEventSourceId` values keeps the automatic strategy and its existing behavior.

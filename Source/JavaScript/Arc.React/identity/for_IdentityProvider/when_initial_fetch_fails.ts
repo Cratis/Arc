@@ -8,6 +8,7 @@ describe('when initial fetch fails', given(an_identity_provider, context => {
     let identityId: string;
     let identityName: string;
     let isSet: boolean;
+    let isLoading: boolean;
     let hasRefreshMethod: boolean;
 
     beforeEach(async () => {
@@ -20,6 +21,7 @@ describe('when initial fetch fails', given(an_identity_provider, context => {
         identityId = context.capturedIdentity!.id;
         identityName = context.capturedIdentity!.name;
         isSet = context.capturedIdentity!.isSet;
+        isLoading = context.capturedIdentity!.isLoading;
         hasRefreshMethod = typeof context.capturedIdentity!.refresh === 'function';
     });
 
@@ -31,5 +33,8 @@ describe('when initial fetch fails', given(an_identity_provider, context => {
     it('should have empty identity id', () => identityId.should.equal(''));
     it('should have empty identity name', () => identityName.should.equal(''));
     it('should mark identity as not set', () => isSet.should.be.false);
+    // A rejected fetch is the one path where nothing arrives to settle the question on its way
+    // through - unhandled, it leaves every consumer waiting on an answer that is not coming.
+    it('should stop reporting that the identity is loading', () => isLoading.should.be.false);
     it('should still have refresh method available', () => hasRefreshMethod.should.be.true);
 }));

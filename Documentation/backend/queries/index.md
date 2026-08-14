@@ -63,6 +63,7 @@ Every query runs through a pipeline where Arc applies the cross-cutting concerns
 | Authorize by role or policy | [Authorization](../core/authorization.md) |
 | Transform read models before they're served (mask, decrypt, enrich) | [Read Model Interception](./read-model-interception.md) |
 | Stream many live queries over one connection | [Observable Query Hub](./observable-query-demultiplexer.md) |
+| Re-check authorization while a live stream is running | [Observable Query Emission Guards](./observable-query-emission-guards.md) |
 | Debug a live query from the terminal | [Use Observable Queries with cURL](./using-observable-queries-with-curl.md) |
 
 ## The payoff: typed reads in React

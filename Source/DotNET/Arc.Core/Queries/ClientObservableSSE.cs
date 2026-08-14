@@ -20,17 +20,19 @@ namespace Cratis.Arc.Queries;
 /// <param name="queryContext">The <see cref="QueryContext"/> the observable is for.</param>
 /// <param name="subject">The <see cref="ISubject{T}"/> the observable wraps.</param>
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
-/// <param name="serviceProvider">The <see cref="IServiceProvider"/> used to resolve interceptors.</param>
+/// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/> restored around each emission so tenant resolution sees the subscribing connection, not whatever ambient context the emitting thread happens to carry.</param>
 /// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="hostApplicationLifetime">The <see cref="IHostApplicationLifetime"/>.</param>
+/// <param name="emissionGuards">The <see cref="IObservableQueryEmissionGuards"/> consulted per emission when an application opts in with an <see cref="IGuardObservableQueryEmission"/>.</param>
 /// <param name="logger">The <see cref="ILogger"/>.</param>
 public class ClientObservableSSE<T>(
     QueryContext queryContext,
     ISubject<T> subject,
     IReadModelInterceptors readModelInterceptors,
-    IServiceProvider serviceProvider,
+    IHttpRequestContextAccessor httpRequestContextAccessor,
     IOptions<ArcOptions> arcOptions,
     IHostApplicationLifetime hostApplicationLifetime,
+    IObservableQueryEmissionGuards emissionGuards,
     ILogger<ClientObservableSSE<T>> logger) : ClientObservableBase<T>(subject)
 {
     /// <inheritdoc/>
@@ -40,6 +42,8 @@ public class ClientObservableSSE<T>(
 
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
+        var hasDeliveredEmission = false;
+        var isTerminated = false;
         using var cts = new CancellationTokenSource();
 
         using var subscription = Subject.Subscribe(Next, Error, Complete);
@@ -65,7 +69,7 @@ public class ClientObservableSSE<T>(
 
         async void Next(T data)
         {
-            if (cts.IsCancellationRequested)
+            if (cts.IsCancellationRequested || isTerminated)
             {
                 return;
             }
@@ -79,7 +83,27 @@ public class ClientObservableSSE<T>(
                 }
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
-                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, serviceProvider);
+
+                // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
+                // context set up for this connection does not flow. Restoring it here — and resolving through
+                // the connection's own request-scoped provider rather than the root — ensures the interceptor
+                // releases compliance/PII data under this subscription's tenant, not whichever tenant happened
+                // to resolve first.
+                httpRequestContextAccessor.Current = context;
+                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
+
+                if (emissionGuards.HasGuards && !await IsEmissionAllowed())
+                {
+                    return;
+                }
+
+                // A guard evaluating a concurrent emission may have terminated the stream while this one was being
+                // intercepted and evaluated. The terminal unauthorized frame has already gone out, so nothing may be
+                // written behind it.
+                if (isTerminated)
+                {
+                    return;
+                }
 
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
                 var sseMessage = $"data: {json}\n\n";
@@ -87,6 +111,7 @@ public class ClientObservableSSE<T>(
                 try
                 {
                     await context.Write(sseMessage, cts.Token);
+                    hasDeliveredEmission = true;
                 }
                 catch (Exception ex)
                 {
@@ -103,6 +128,43 @@ public class ClientObservableSSE<T>(
                     Subject.OnError(ex);
                 }
             }
+        }
+
+        // Returns true when the emission may be written. A denial also tells the client it is no longer authorized
+        // and ends the stream; a suppression only withholds this one emission and leaves the stream running.
+        async Task<bool> IsEmissionAllowed()
+        {
+            var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
+                queryContext.Name,
+                queryContext.Arguments ?? QueryArguments.Empty,
+                context.User,
+                queryContext.CorrelationId,
+                context.RequestServices,
+                !hasDeliveredEmission,
+                cts.Token));
+
+            if (verdict == ObservableQueryEmissionVerdict.Allow)
+            {
+                return true;
+            }
+
+            if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
+            {
+                logger.ObservableEmissionDenied();
+                isTerminated = true;
+
+                // Send the terminal unauthorized result before the stream goes away — a client that only sees the
+                // stream end reads it as a transport hiccup and reconnects straight into the same denial.
+                var unauthorizedJson = JsonSerializer.Serialize(QueryResult.Unauthorized(queryContext.CorrelationId), arcOptions.Value.JsonSerializerOptions);
+                await context.Write($"data: {unauthorizedJson}\n\n", cts.Token);
+                Complete();
+            }
+            else
+            {
+                logger.ObservableEmissionSuppressed();
+            }
+
+            return false;
         }
 
         void Error(Exception error)

@@ -17,4 +17,9 @@ public static class Constants
     /// Gets the item key for the tenant id.
     /// </summary>
     public const string TenantIdItemKey = "TenantId";
+
+    /// <summary>
+    /// Gets the default tenant id used by the fixed tenant id resolver.
+    /// </summary>
+    public const string DefaultFixedTenantId = "development";
 }

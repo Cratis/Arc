@@ -103,10 +103,21 @@ The `CommandResultShouldExtensions` class provides fluent BDD-style assertions f
 | `ShouldBeValid()` | `IsValid` is `true`; lists all validation errors on failure |
 | `ShouldHaveValidationErrors()` | `IsValid` is `false` |
 | `ShouldHaveValidationErrorFor(message)` | At least one validation error contains the given text |
+| `ShouldHaveValidationErrorBecauseOf(reason)` | At least one validation error carries the given `ValidationResultReason` |
+| `ShouldHaveConstraintViolationFor(constraintName)` | At least one validation error is a constraint violation for the named constraint |
 | `ShouldBeAuthorized()` | `IsAuthorized` is `true` |
 | `ShouldNotBeAuthorized()` | `IsAuthorized` is `false` |
 | `ShouldNotHaveExceptions()` | `HasExceptions` is `false` |
 | `ShouldHaveExceptions()` | `HasExceptions` is `true` |
+
+### Assert the constraint name, not the message
+
+`ShouldHaveValidationErrorFor(message)` matches against text a human wrote, so the spec stops asserting anything the day someone rewords it — and it cannot tell one constraint from another when two produce similar copy. When a command was rejected by a Chronicle constraint, name the constraint instead. It is the same assertion Chronicle offers on an append result, so a spec says the same thing whether the events reach the store through a command or a raw append.
+
+```csharp
+[Fact] void should_be_rejected_by_the_uniqueness_constraint() =>
+    _result.ShouldHaveConstraintViolationFor(AuthorConstraintNames.UniqueName);
+```
 
 ### Example: Validation spec
 

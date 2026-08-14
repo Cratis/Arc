@@ -14,6 +14,7 @@ import { ParameterDescriptor } from '../reflection/ParameterDescriptor';
 import { ParametersHelper } from '../reflection/ParametersHelper';
 import { QueryHttpMethod } from './QueryHttpMethod';
 import { executeQueryHttpRequest } from './QueryHttpRequest';
+import { isAbortError } from './isAbortError';
 
 /**
  * Represents an implementation of {@link IQueryFor}.
@@ -117,17 +118,56 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
             headers[Globals.microserviceHttpHeader] = this._microservice;
         }
 
-        const response = await executeQueryHttpRequest(this._httpMethod, {
-            route: this.route,
-            apiBasePath: this._apiBasePath,
-            origin: this._origin,
-            args: (args as object) ?? {},
-            parameterValues,
-            paging: this.paging,
-            sorting: this.sorting,
-            headers,
-            signal: this.abortController.signal
-        });
+        let response: Response;
+
+        try {
+            response = await executeQueryHttpRequest(this._httpMethod, {
+                route: this.route,
+                apiBasePath: this._apiBasePath,
+                origin: this._origin,
+                args: (args as object) ?? {},
+                parameterValues,
+                paging: this.paging,
+                sorting: this.sorting,
+                headers,
+                signal: this.abortController.signal
+            });
+        } catch (error) {
+            // An abort is not a failure - it is this query superseding its own in-flight request above.
+            // Rethrowing lets the caller discard the superseded request so it cannot settle over the
+            // newer one that now owns the result.
+            if (isAbortError(error)) {
+                throw error;
+            }
+
+            // A dead network, a CORS rejection or a DNS failure never reaches the server, so it is
+            // neither an authorization nor a validation outcome - it is reported as an exception, with
+            // the default value as data, exactly as every other unsuccessful result from here does.
+            // Destructuring a nullish rejection value throws, which would make the `String(error)`
+            // fallback written for exactly that case unreachable - so it is coerced to an object first.
+            const { message } = (error ?? {}) as { message?: string };
+            const failure = {
+                ...QueryResult.noSuccess,
+                data: this.defaultValue,
+                isSuccess: false,
+                isAuthorized: true,
+                isValid: true,
+                hasExceptions: true,
+                exceptionMessages: [message ?? String(error)],
+                // Left empty on purpose. Every result the server returns has its stack trace blanked
+                // unless exception detail is explicitly exposed, and consumers are told to forward
+                // this field to a logger - so filling it in here would make a failure that never
+                // reached the server the one case that escapes that policy. The message is what
+                // diagnoses a transport failure; the browser's own frames add nothing.
+                exceptionStackTrace: ''
+            };
+
+            // `hasData` is a prototype getter, and a spread copies own properties only - so the literal
+            // above would hand every consumer of this public `IQueryResult` member `undefined` instead
+            // of a boolean. Restoring the prototype makes it a real {@link QueryResult} again while
+            // leaving every field value exactly as it is.
+            return Object.setPrototypeOf(failure, QueryResult.prototype) as QueryResult<TDataType>;
+        }
 
         try {
             const result = await response.json();

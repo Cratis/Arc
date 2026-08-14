@@ -7,6 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Transitive security pins -->
+    <!-- SSH.NET through Testcontainers <= 2025.1.0 has a high-severity advisory
+         (GHSA-q939-rpr3-3284). Pin the transitive dependency to the patched release. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <!-- SQLitePCLRaw 2.1.10/2.1.11 (pulled in transitively by EF Core Sqlite) has a high-severity advisory
          (GHSA-2m69-gcr7-jv3q). Pin the native library to the patched release. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
@@ -14,12 +17,12 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="16.16.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.16.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.16.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="16.26.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.26.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.26.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.17.1" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.17.1" />
-    <PackageVersion Include="Cratis.Screenplay" Version="1.5.2" />
+    <PackageVersion Include="Cratis.Screenplay" Version="2.1.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.10" />
@@ -45,7 +48,11 @@
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="MongoDB.Driver" Version="3.10.0" />
-    <PackageVersion Include="SharpCompress" Version="1.0.0" />
+    <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
+         unlisted, so it is invisible to search and to anyone auditing the dependency - and because
+         NuGet still orders it above 0.50.4, depending on it forces every consumer that also pulls a
+         package targeting the listed line into an NU1605 downgrade error. -->
+    <PackageVersion Include="SharpCompress" Version="0.50.4" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="handlebars.net" Version="2.1.6" />
     <PackageVersion Include="castle.core" Version="5.2.1" />

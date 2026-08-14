@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
 using Cratis.Chronicle.EventSequences;
@@ -36,4 +37,11 @@ public class with_constraint_violations : given.all_dependencies
     [Fact] void should_include_constraint_violation_message() => _result.ValidationResults.First().Message.ShouldEqual("Test violation message");
     [Fact] void should_attribute_the_violation_to_the_camel_cased_member() => _result.ValidationResults.First().Members.ShouldContain("organizationNumber");
     [Fact] void should_say_the_rejection_is_a_constraint_violation() => _result.ValidationResults.First().Reason.ShouldEqual(Validation.ValidationResultReason.ConstraintViolation);
+    [Fact] void should_name_the_constraint_that_rejected_the_command() => _result.ValidationResults.First().ReasonDetail.ShouldEqual("TestConstraint");
+
+    /// <summary>
+    /// The parity the name exists for: the assertion a spec writes against a raw append holds unchanged once the
+    /// same events go through a command, and the <see cref="ConstraintName"/> concept is what it is written with.
+    /// </summary>
+    [Fact] void should_satisfy_the_same_assertion_a_raw_append_would() => _result.ShouldHaveConstraintViolationFor(new ConstraintName("TestConstraint"));
 }

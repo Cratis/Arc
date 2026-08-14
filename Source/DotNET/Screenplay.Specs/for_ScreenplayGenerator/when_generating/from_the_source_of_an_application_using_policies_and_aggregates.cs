@@ -34,10 +34,10 @@ public class from_the_source_of_an_application_using_policies_and_aggregates : S
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_refer_to_the_policy_the_command_names() => Says("authorize CanReserve").ShouldBeTrue();
     [Fact] void should_declare_the_policy_it_refers_to() => Says("policy CanReserve").ShouldBeTrue();
-    [Fact] void should_declare_what_the_policy_requires() => HasLine("require role \"Librarian\" and claim \"branch\" matches central").ShouldBeTrue();
+    [Fact] void should_declare_what_the_policy_requires() => HasLine("require role \"Librarian\" and claim \"branch\" matches \"central\"").ShouldBeTrue();
     [Fact] void should_declare_the_several_values_of_one_requirement_as_alternatives() => HasLine("require role \"Librarian\" or role \"Archivist\"").ShouldBeTrue();
-    [Fact] void should_ask_for_a_role_before_the_policy_it_is_asked_with() => HasLine("authorize Librarian").ShouldBeTrue();
-    [Fact] void should_ask_for_the_policy_alongside_the_role() => HasLine("SeniorStaff").ShouldBeTrue();
+    [Fact] void should_ask_for_a_role_before_the_policy_it_is_asked_with() => HasLine("authorize Librarian and SeniorStaff").ShouldBeTrue();
+    [Fact] void should_demand_the_policy_on_top_of_the_role_rather_than_as_an_alternative() => HasLine("authorize Librarian or SeniorStaff").ShouldBeFalse();
     [Fact] void should_state_what_a_command_governed_by_an_aggregate_root_produces() => Says("produces BookReserved").ShouldBeTrue();
     [Fact] void should_map_the_produced_event_from_the_command_input() => Says("member = memberId").ShouldBeTrue();
     [Fact] void should_carry_the_message_of_a_length_range_on_its_lower_bound() => Says("isbn min 10 message \"An ISBN is between 10 and 13 characters\"").ShouldBeTrue();

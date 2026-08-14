@@ -188,7 +188,7 @@ public record FundsDebited(decimal Amount);
 public record FundsCredited(decimal Amount);
 ```
 
-Chronicle appends each event individually, in order. If any append fails (constraint violation, concurrency conflict, or error), Chronicle stops immediately and returns the failure — earlier events in the sequence have already been appended.
+Chronicle enrolls the events in order in the command transaction. They commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
 
 You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
 
@@ -215,3 +215,64 @@ public record CustomerOrderAccepted(EventSourceId OrderId);
 ```
 
 > `EventForEventSourceId` does not share one concurrency scope across targets — a scope carries a single stream's expected tail, so it cannot be reused for another stream. The command's concurrency declaration still applies: one scope is built per target event source, with that target's own expected tail. Each append also uses the stream metadata from the command (stream id, stream type, event source type) while targeting the event source id you supply explicitly.
+
+## Events with exact concurrency scopes
+
+The automatic strategy resolves a target's expected tail after `Handle()` returns. That is right for ordinary optimistic concurrency. When a command makes its decision from an exact revision it already read, return `EventsWithConcurrencyScopes` to carry that revision with the events instead of resolving a newer tail later.
+
+The response contains two values:
+
+- the `EventForEventSourceId` values, in append order; and
+- the exact concurrency scopes the decision depended on, keyed by labels you choose.
+
+A label can name an event target, but it does not have to. An independent label lets a command protect a broader fact — for example, the tail of all active-administrator events — while writing to member and invitation streams.
+
+Exact revisions that govern authorization or another invariant must never come from request input. Resolve the authoritative revision on the server while handling the command, and construct any independent scope label from a deterministic server-owned value. Otherwise, a caller could choose which version of the protected fact the command validates.
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
+
+[Command]
+public record InviteFirstAdministrator(
+    EventSourceId MemberId,
+    EventSourceId InvitationId)
+{
+    static readonly EventSourceId AdministratorScope = "active-administrators";
+
+    public async Task<EventsWithConcurrencyScopes> Handle(IEventLog eventLog)
+    {
+        var activeAdministratorEvent = typeof(AdministratorActivated).GetEventType();
+        var expectedAdministratorRevision = await eventLog.GetTailSequenceNumber(
+            filterEventTypes: [activeAdministratorEvent]);
+
+        return new EventsWithConcurrencyScopes(
+            [
+                new(MemberId, new MemberInvited()),
+                new(InvitationId, new InvitationIssued(MemberId))
+            ],
+            [
+                new(
+                    AdministratorScope,
+                    new ConcurrencyScope(
+                        expectedAdministratorRevision,
+                        EventTypes: [activeAdministratorEvent]))
+            ]);
+    }
+}
+
+[EventType]
+public record AdministratorActivated;
+
+[EventType]
+public record MemberInvited;
+
+[EventType]
+public record InvitationIssued(EventSourceId MemberId);
+```
+
+Arc enrolls the response in the command's existing unit of work. The event order, exact scope labels, and exact scope values are passed to Chronicle together; the command does not append immediately. If the protected fact changes between the decision and commit, the command returns a concurrency validation failure and none of its returned events land.
+
+Use an exact scope only for a revision the command actually read. `ConcurrencyScope.NotSet` retains the event sequence's configured strategy for an event-target label, while `ConcurrencyScope.None` deliberately disables checking for that label. An independent label must carry a concrete exact scope or `ConcurrencyScope.None` because there is no target from which Chronicle can infer a scope.
