@@ -34,12 +34,19 @@ Common UI patterns like containers, grids, sections, badges, and dividers are av
 
 Thoughtfully designed defaults for colors, shadows, borders, and spacing mean your stories look professional out of the box.
 
-The stylesheet behind those defaults ships inside the package and is imported by the components themselves,
-so "out of the box" means exactly that - there is no CSS to import and no Storybook configuration to add.
+The stylesheet behind those defaults ships inside the package. Add one import to your Storybook preview and
+every component below is styled - see [Styling](styling.md).
 
 ## Getting Started
 
-Import the components you need in your story files:
+Load the stylesheet once, in your Storybook preview:
+
+```ts
+// .storybook/preview.ts
+import '@cratis/arc.react/stories/styles.css';
+```
+
+Then import the components you need in your story files:
 
 ```tsx
 import { StoryContainer, StorySection, StoryGrid, StoryBadge, StoryDivider } from '@cratis/arc.react/stories';

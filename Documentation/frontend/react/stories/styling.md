@@ -4,20 +4,21 @@ The story components use a comprehensive set of CSS variables and utility classe
 
 ## Where the styling comes from
 
-Everything on this page is defined in a stylesheet that ships inside `@cratis/arc.react`. The components
-side-effect import it, so importing anything from `@cratis/arc.react/stories` brings the variables and the
-utility classes with it. You do not have to import or configure anything.
-
-Import it explicitly only when you need control over the order in which stylesheets load - to have the
-variables in place before your own theme overrides them, for example:
+Everything on this page is defined in a single stylesheet that ships inside `@cratis/arc.react`. Import it
+once, in your Storybook preview:
 
 ```ts
 // .storybook/preview.ts
 import '@cratis/arc.react/stories/styles.css';
 ```
 
-Every variable and class below is defined by that one stylesheet, which means you can override any of them
-from your own CSS without fighting a build step.
+That is the whole setup. Import it before your own theme so your rules win, and every variable and class
+below becomes yours to override from ordinary CSS.
+
+The components do not import the stylesheet themselves, and that is deliberate. Doing so would put the
+stylesheet's path into the package's compiled JavaScript, which only resolves when the package is built by
+the bundler that copies the file alongside it - and not when a TypeScript project reference builds it, where
+no such copy happens. One import you can see beats an import that works in some builds and not others.
 
 ## CSS Variables
 

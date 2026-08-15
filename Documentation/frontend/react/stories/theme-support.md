@@ -58,8 +58,8 @@ When switching themes, the following automatically update:
 
 ### No Additional Code Required
 
-Beyond deciding when `data-theme` flips, you don't write any theme-switching logic - and you never import a
-stylesheet, because the components bring their own. Simply use the provided components and CSS variables:
+Beyond importing the stylesheet once and deciding when `data-theme` flips, you don't write any
+theme-switching logic. Simply use the provided components and CSS variables:
 
 ```tsx
 // This automatically works in both themes
@@ -160,8 +160,8 @@ To ensure your stories look great in all contexts:
 
 The theme system is implemented using:
 
-- A stylesheet published inside `@cratis/arc.react` and side-effect imported by the components, so it arrives
-  with them rather than needing to be wired up
+- A stylesheet published inside `@cratis/arc.react`, reached through the `@cratis/arc.react/stories/styles.css`
+  export and imported once from your Storybook preview
 - CSS custom properties declared on `:root` for the dark palette and on `[data-theme='light']` for the light
   one, which is why the attribute can sit on any ancestor and why your own CSS can override any of them
 - Nothing else - no runtime, no theme provider, no build step

@@ -31,11 +31,7 @@ export const MyStory: Story = {
 ## Styling
 
 The components render class names; `stories.css` in this folder is what those class names mean. It ships
-inside the package and is side-effect imported by the components, so importing anything from
-`@cratis/arc.react/stories` brings the styling with it - there is nothing to wire up.
-
-Import it explicitly only when the order matters - to load the kit's tokens before your own theme overrides
-them, for instance:
+inside the package, and a consumer loads it once:
 
 ```ts
 // .storybook/preview.ts
@@ -45,10 +41,23 @@ import '@cratis/arc.react/stories/styles.css';
 Dark is the default palette. Setting `data-theme="light"` on `<html>` or `<body>` switches every variable to
 the light palette, and `data-theme="dark"` switches it back.
 
-Do not add `.story-*` rules to `.storybook/stories.css`. That file is this repository's own Storybook chrome
-and never reaches a consumer; it imports `stories.css` so the local preview renders through the same rules
-the package publishes. `for_packageManifest/when_shipping_the_story_kit_stylesheet.tsx` fails if the two
-drift apart, or if a rendered class name loses its rule.
+### Why the components do not import it themselves
+
+They did, briefly, and it broke the build. A stylesheet import in the source becomes a stylesheet import in
+the emitted JavaScript, and this package has two builders that disagree about whether that resolves:
+`yarn build` runs `tsc -b` and then Rollup, and only Rollup copies the asset next to the emitted JS. When
+another TypeScript project holds a **project reference** to this one - `Arc.React.MVVM` does, and so can any
+consuming application - `tsc -b` builds this project directly and no package script runs at all, leaving
+`import './stories.css'` pointing at a file nothing copied.
+
+So nothing in the emitted JavaScript points at a stylesheet, and the export subpath is the only way in.
+`for_packageManifest/when_shipping_the_story_kit_stylesheet.tsx` fails if an import creeps back in, and so
+does the build.
+
+Do not add `.story-*` rules to `.storybook/stories.css` either. That file is this repository's own Storybook
+chrome and never reaches a consumer; it imports `stories.css` so the local preview renders through the same
+rules the package publishes, which is the in-repo spelling of the one import above. The same specs fail if
+the two drift apart, or if a rendered class name loses its rule.
 
 ## Examples
 
