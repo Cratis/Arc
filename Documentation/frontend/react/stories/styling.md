@@ -2,6 +2,24 @@
 
 The story components use a comprehensive set of CSS variables and utility classes for consistent theming.
 
+## Where the styling comes from
+
+Everything on this page is defined in a single stylesheet that ships inside `@cratis/arc.react`. Import it
+once, in your Storybook preview:
+
+```ts
+// .storybook/preview.ts
+import '@cratis/arc.react/stories/styles.css';
+```
+
+That is the whole setup. Import it before your own theme so your rules win, and every variable and class
+below becomes yours to override from ordinary CSS.
+
+The components do not import the stylesheet themselves, and that is deliberate. Doing so would put the
+stylesheet's path into the package's compiled JavaScript, which only resolves when the package is built by
+the bundler that copies the file alongside it - and not when a TypeScript project reference builds it, where
+no such copy happens. One import you can see beats an import that works in some builds and not others.
+
 ## CSS Variables
 
 All variables automatically update based on the current Storybook theme (dark/light mode).
