@@ -162,7 +162,7 @@ export const ProfileEditor = () => {
 
 ## Loading Data from Queries
 
-A common pattern is loading data from a query and using it to initialize a command:
+A common pattern is loading data from a query and using it to initialize a command. If you are building the form with [CommandForm](../command-form/index.md), it can do this fetch-and-seed itself - see [Populating a Form from a Query](../command-form/data-loading.md#populating-a-form-from-a-query). The manual pattern below is what to reach for outside `CommandForm`, or when you need full control over the fetch:
 
 ```typescript
 import { GetUserProfile } from './generated/queries';
