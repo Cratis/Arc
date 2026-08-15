@@ -7,6 +7,7 @@ export * from './QueryBoundary';
 export * from './QueryErrorBoundary';
 export * from './QueryFailed';
 export * from './QueryInstanceCacheContext';
+export * from './QueryReturnsMultipleInstances';
 export * from './QueryScope';
 export * from './QueryScopeImplementation';
 export * from './QueryUnauthorized';
