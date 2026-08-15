@@ -34,6 +34,9 @@ Common UI patterns like containers, grids, sections, badges, and dividers are av
 
 Thoughtfully designed defaults for colors, shadows, borders, and spacing mean your stories look professional out of the box.
 
+The stylesheet behind those defaults ships inside the package and is imported by the components themselves,
+so "out of the box" means exactly that - there is no CSS to import and no Storybook configuration to add.
+
 ## Getting Started
 
 Import the components you need in your story files:

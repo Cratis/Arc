@@ -1,10 +1,12 @@
 # Automatic Theme Support
 
-All story components and CSS variables automatically adapt to the current Storybook theme, providing seamless dark and light mode support.
+All story components and CSS variables adapt to the theme in effect, providing seamless dark and light mode support.
 
 ## How It Works
 
-The story components use CSS custom properties (variables) that are defined differently for each theme. When you switch themes in Storybook using the backgrounds toolbar, the CSS variables automatically update, causing all styles to adjust accordingly.
+Every color in the story components is read from a CSS custom property rather than written into a rule.
+The stylesheet that ships with the package declares those properties twice - once for dark, once for light -
+so changing the theme changes one attribute and every component follows.
 
 ### Default Theme
 
@@ -12,11 +14,24 @@ The default theme is **dark mode**. This ensures a consistent baseline experienc
 
 ### Switching Themes
 
-Use the **backgrounds toolbar** in Storybook to switch between dark and light modes:
+Set `data-theme` on `<html>` or `<body>`. `data-theme="light"` selects the light palette, `data-theme="dark"`
+selects the dark one, and no attribute at all leaves you with dark. Because the properties are inherited, the
+attribute can also sit on a container to theme one part of a page:
 
-1. Click the backgrounds icon in the Storybook toolbar
-2. Select either the dark or light background option
-3. All story components will instantly adapt to the new theme
+```html
+<script>
+  document.documentElement.setAttribute('data-theme', 'light');
+</script>
+```
+
+The package deliberately does **not** read the operating system color scheme on its own. The palette has to
+agree with whatever paints the canvas behind it - the Storybook background, your own preview decorator - and
+only your Storybook configuration knows what that is. Deciding for you would produce dark text on a dark
+canvas for anyone whose machine disagreed with their toolbar.
+
+The Arc repository's own Storybook wires the two together: a snippet in its `.storybook/preview-head.html`
+watches the canvas background, measures its luminance, and sets `data-theme` to match - so the backgrounds
+toolbar drives the theme. Copy that approach if you want the same behavior in yours.
 
 ## Theme-Aware Design
 
@@ -43,7 +58,8 @@ When switching themes, the following automatically update:
 
 ### No Additional Code Required
 
-You don't need to write any theme-switching logic. Simply use the provided components and CSS variables:
+Beyond deciding when `data-theme` flips, you don't write any theme-switching logic - and you never import a
+stylesheet, because the components bring their own. Simply use the provided components and CSS variables:
 
 ```tsx
 // This automatically works in both themes
@@ -82,7 +98,7 @@ When adding custom styles, use CSS variables to ensure theme compatibility:
 To ensure your stories look great in all contexts:
 
 1. **Start in Dark Mode**: Verify your story looks correct in the default theme
-2. **Switch to Light Mode**: Check that all elements remain readable and visually appealing
+2. **Switch to Light Mode**: Set `data-theme="light"` and check that all elements remain readable and visually appealing
 3. **Check Color Contrast**: Ensure text is legible against backgrounds in both themes
 4. **Verify Interactive States**: Hover, focus, and active states should work in both themes
 
@@ -144,8 +160,10 @@ To ensure your stories look great in all contexts:
 
 The theme system is implemented using:
 
-- CSS custom properties scoped to the document or Storybook root
-- Theme detection based on Storybook's background addon
-- Automatic variable updates when the theme changes
+- A stylesheet published inside `@cratis/arc.react` and side-effect imported by the components, so it arrives
+  with them rather than needing to be wired up
+- CSS custom properties declared on `:root` for the dark palette and on `[data-theme='light']` for the light
+  one, which is why the attribute can sit on any ancestor and why your own CSS can override any of them
+- Nothing else - no runtime, no theme provider, no build step
 
 Developers using the story components don't need to understand these implementation details—the system works transparently.
