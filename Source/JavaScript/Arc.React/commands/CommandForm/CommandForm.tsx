@@ -8,13 +8,17 @@ import { useCommand, SetCommandValues } from '../useCommand';
 import { ICommandResult } from '@cratis/arc/commands';
 import { Command } from '@cratis/arc/commands';
 import { ValidationResult } from '@cratis/arc/validation';
+import { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
+import { deepEqual } from '@cratis/arc';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
+import { extractPopulatedValues } from './extractPopulatedValues';
 import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { useIdentity } from '../../identity';
 import { isCommandFormColumn, isCommandFormField, markAsCommandFormColumn } from './commandFormMarkers';
+import { usePopulateFromObservableQuery, usePopulateFromQuery } from './usePopulateFromQuery';
 import { withoutUndefinedValues } from './withoutUndefinedValues';
 
 // Re-export for backwards compatibility
@@ -47,6 +51,30 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
      * clear the property. Only a key that is absent altogether is left alone.
      */
     currentValues?: Partial<TCommand> | undefined;
+
+    /**
+     * A single-instance query whose result seeds the form's initial values once it resolves, matched
+     * onto the command's properties by name - override per field with a {@link BaseCommandFormFieldProps.initialValue}
+     * accessor, or opt a field out entirely with {@link BaseCommandFormFieldProps.noInitialValue}.
+     *
+     * This feeds the same baseline {@link CommandFormProps.initialValues} does - via the command's
+     * change tracking - so a field an editor has not touched yet reports no change, and validation
+     * only reruns once the resolved data actually differs from what was seeded before. Optional: omit
+     * it when initial values come from {@link CommandFormProps.initialValues}/{@link CommandFormProps.currentValues}
+     * instead. Must be a single-instance (non-enumerable) query - a query returning multiple instances
+     * throws. For an observable query, use {@link CommandFormProps.populateFromObservableQuery} instead.
+     */
+    populateFromQuery?: Constructor<IQueryFor<Partial<TCommand>>>;
+
+    /** The observable-query counterpart to {@link CommandFormProps.populateFromQuery}. */
+    populateFromObservableQuery?: Constructor<IObservableQueryFor<Partial<TCommand>>>;
+
+    /**
+     * Arguments for {@link CommandFormProps.populateFromQuery}/{@link CommandFormProps.populateFromObservableQuery},
+     * when either needs them.
+     */
+    populateFromQueryArgs?: object;
+
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
@@ -199,15 +227,28 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         return extracted;
     }, [props.currentValues, props.command]);
 
-    // Merge initialValues prop with values extracted from field currentValue props and currentValues.
-    // The two seed layers skip undefined, the reactive one does not - see CommandFormProps. A field's
-    // currentValue is skipped where it is extracted (nothing to seed), and props.initialValues here,
-    // so neither of them spreads an undefined over a value currentValues has already resolved.
+    // A single-instance query (or observable query) result, matched onto the command's properties by
+    // name per field - the query-driven counterpart to props.currentValues. Only one of the two hooks
+    // is ever actually enabled (see usePopulateFromQuery), so at most one resolves.
+    const queryPopulatedSource = usePopulateFromQuery(props.populateFromQuery, props.populateFromQueryArgs);
+    const observableQueryPopulatedSource = usePopulateFromObservableQuery(props.populateFromObservableQuery, props.populateFromQueryArgs);
+    const populatedSource = queryPopulatedSource ?? observableQueryPopulatedSource;
+    const populatedValues = useMemo(
+        () => extractPopulatedValues<TCommand>(fieldsOrColumns, populatedSource),
+        [fieldsOrColumns, populatedSource]
+    );
+
+    // Merge initialValues prop with values extracted from field currentValue props, currentValues and
+    // a populate query's result. The seed layers skip undefined, the reactive ones do not - see
+    // CommandFormProps. A field's currentValue is skipped where it is extracted (nothing to seed), and
+    // props.initialValues here, so neither of them spreads an undefined over a value currentValues or
+    // a populate query has already resolved.
     const mergedInitialValues = useMemo(() => ({
         ...valuesFromCurrentValues,
+        ...populatedValues,
         ...initialValuesFromFields,
         ...withoutUndefinedValues(props.initialValues)
-    }), [valuesFromCurrentValues, initialValuesFromFields, props.initialValues]);
+    }), [valuesFromCurrentValues, populatedValues, initialValuesFromFields, props.initialValues]);
 
     // useCommand returns [instance, setter, clearer] for the typed command. Provide generics so commandInstance is TCommand.
     // Using type assertion through unknown to work around generic constraint mismatch
@@ -275,13 +316,26 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     }, [commandInstance, props.autoServerValidate, beginSilentValidation, applySilentValidationResult]);
 
     // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
-    // When using currentValues, always update when they change (reactive mode for editing)
-    // When using initialValues only, set values once on mount
+    // When using currentValues or a populate query, always update when they change (reactive mode for
+    // editing). When using initialValues only, set values once on mount.
+    const previousPopulatedSourceRef = React.useRef<object | undefined>(undefined);
     React.useEffect(() => {
         const hasCurrentValues = props.currentValues !== undefined && props.currentValues !== null;
-        
-        if (hasCurrentValues) {
-            // Reactive mode: update whenever currentValues changes
+        const hasPopulatedSource = populatedSource !== undefined;
+        const populatedSourceChanged = hasPopulatedSource && !deepEqual(previousPopulatedSourceRef.current, populatedSource);
+        if (hasPopulatedSource) {
+            previousPopulatedSourceRef.current = populatedSource;
+        }
+
+        if (populatedSourceChanged) {
+            // A populate query's result becomes the new baseline, not just an overlay - change
+            // tracking then measures an editor's own edits against it, rather than against the
+            // empty state the form mounted with.
+            (commandInstance as unknown as Command).setInitialValues(populatedValues as object);
+        }
+
+        if (hasCurrentValues || hasPopulatedSource) {
+            // Reactive mode: update whenever currentValues or the populated source changes
             if (mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
                 setCommandValues(mergedInitialValues as TCommand);
             }
@@ -290,17 +344,19 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             setCommandValues(mergedInitialValues as TCommand);
         }
 
-        // Always run silent client validation on init and after currentValues changes to determine if the form is valid.
-        // This ensures isValid reflects the real validity state from the first render,
-        // even when no error messages are shown yet.
-        // Error messages are only rendered (via commandResult) when validateOnInit is true.
+        // Always run silent client validation on init and after currentValues/populated source
+        // changes to determine if the form is valid. This ensures isValid reflects the real validity
+        // state from the first render, even when no error messages are shown yet. A populate query
+        // only re-triggers validation when its resolved data actually changed, not on every
+        // unrelated re-render. Error messages are only rendered (via commandResult) when
+        // validateOnInit is true.
         if (!initializedRef.current) {
             initializedRef.current = true;
             void validateSilently(props.validateOnInit ?? false);
-        } else if (hasCurrentValues) {
+        } else if (hasCurrentValues || populatedSourceChanged) {
             void validateSilently(props.validateOnInit ?? false);
         }
-    }, [mergedInitialValues, props.validateOnInit, props.currentValues, setCommandValues, validateSilently]);
+    }, [mergedInitialValues, populatedSource, populatedValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues, validateSilently]);
 
     // isValid is driven exclusively by silentValidationResult which is updated on mount and
     // after every field value change. commandResult only controls error message display.

@@ -27,12 +27,28 @@ export interface InjectedCommandFormFieldProps {
  *
  *   <MyField<MyCommand> value={c => c.name} />
  */
-export interface BaseCommandFormFieldProps<TCommand = unknown> {
+export interface BaseCommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     icon?: React.ReactElement;
     value(instance: TCommand): unknown;
     required?: boolean;
     title?: string;
     description?: string;
+
+    /**
+     * Skips this field when a command's initial values are populated from a query or a plain source
+     * object - e.g. via {@link CommandFormProps.populateFromQuery}. Has no effect on
+     * {@link CommandFormProps.initialValues}/{@link CommandFormProps.currentValues}, which are
+     * explicit values a caller already chose to seed.
+     */
+    noInitialValue?: boolean;
+
+    /**
+     * Overrides how this field's initial value is derived from the population source. Accepts either
+     * a property accessor matched onto the source by name (mirroring {@link value}), or an arbitrary
+     * function that composes a value from the whole source object. Defaults to matching {@link value}'s
+     * own property name on the source when omitted.
+     */
+    initialValue?(source: TSource): unknown;
 }
 
 /**
