@@ -22,7 +22,7 @@
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.26.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.17.1" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.17.1" />
-    <PackageVersion Include="Cratis.Screenplay" Version="2.1.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="3.0.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.10" />

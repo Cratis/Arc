@@ -48,7 +48,7 @@ public class from_the_projects_of_a_layered_application : Specification
     [Fact] void should_declare_the_event_the_contracts_project_holds() => Says("event OrderPlaced").ShouldBeTrue();
     [Fact] void should_state_what_the_command_produces() => Says("produces OrderPlaced").ShouldBeTrue();
     [Fact] void should_declare_the_slice_only_the_application_project_holds() => Says("query AllOrders").ShouldBeTrue();
-    [Fact] void should_observe_the_event_of_one_project_from_a_reactor_in_the_other() => Says("reactor Dispatcher").ShouldBeTrue();
+    [Fact] void should_observe_the_event_of_one_project_from_a_reaction_in_the_other() => Says("reaction Dispatcher").ShouldBeTrue();
     [Fact] void should_declare_a_concept_both_projects_refer_to_once() => Counted("concept CustomerName : String @pii").ShouldEqual(1);
     [Fact] void should_write_the_path_of_a_file_relative_to_the_directory_the_projects_share() => Says("Library/Shipping/Dispatching/Dispatching.cs").ShouldBeTrue();
     [Fact] void should_import_nothing() => _result.Model.Imports.ShouldBeEmpty();

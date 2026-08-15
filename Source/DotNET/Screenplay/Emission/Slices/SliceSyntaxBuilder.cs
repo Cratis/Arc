@@ -7,7 +7,7 @@ using Cratis.Arc.Screenplay.Emission.Events;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Projections;
 using Cratis.Arc.Screenplay.Emission.Queries;
-using Cratis.Arc.Screenplay.Emission.Reactors;
+using Cratis.Arc.Screenplay.Emission.Reactions;
 using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
@@ -25,7 +25,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// <param name="events">The <see cref="EventSyntaxBuilder"/> for the events of the slice.</param>
 /// <param name="queries">The <see cref="QuerySyntaxBuilder"/> for the queries of the slice.</param>
 /// <param name="constraints">The <see cref="ConstraintSyntaxBuilder"/> for the constraints of the slice.</param>
-/// <param name="reactors">The <see cref="ReactorSyntaxBuilder"/> for the reactors of the slice.</param>
+/// <param name="reactors">The <see cref="ReactionSyntaxBuilder"/> for the reactors of the slice.</param>
 /// <param name="projections">The <see cref="ProjectionSyntaxBuilder"/> for the projection of the slice.</param>
 /// <param name="screens">The <see cref="ScreenSyntaxBuilder"/> for the screens of the slice.</param>
 /// <param name="specifications">The <see cref="SpecificationSyntaxBuilder"/> for the scenarios the slice is specified by.</param>
@@ -35,7 +35,7 @@ public class SliceSyntaxBuilder(
     EventSyntaxBuilder events,
     QuerySyntaxBuilder queries,
     ConstraintSyntaxBuilder constraints,
-    ReactorSyntaxBuilder reactors,
+    ReactionSyntaxBuilder reactors,
     ProjectionSyntaxBuilder projections,
     ScreenSyntaxBuilder screens,
     SpecificationSyntaxBuilder specifications)
@@ -62,7 +62,7 @@ public class SliceSyntaxBuilder(
             [
                 .. slice.Reactors
                     .Select(_ => reactors.Build(_, slice.Namespace))
-                    .OfType<ReactorSyntax>()
+                    .OfType<ReactionSyntax>()
                     .OrderBy(_ => _.Name, StringComparer.Ordinal)
             ],
             [
