@@ -13,7 +13,7 @@ import { markAsCommandFormField } from './commandFormMarkers';
  *
  *   <CommandFormField<MyCommand> value={c => c.name} />
  */
-export interface CommandFormFieldProps<TCommand = unknown> {
+export interface CommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     icon?: React.ReactElement;
     /** Accessor function that selects a property on the command, e.g. c => c.name */
     value?(instance: TCommand): unknown;
@@ -27,6 +27,10 @@ export interface CommandFormFieldProps<TCommand = unknown> {
     description?: string;
     propertyDescriptor?: unknown;
     fieldName?: string;
+    /** Skips this field when a command's initial values are populated from a query or a plain source object. */
+    noInitialValue?: boolean;
+    /** Overrides how this field's initial value is derived from the population source. */
+    initialValue?(source: TSource): unknown;
 }
 
 export const CommandFormField = <TCommand = unknown,>(_props: CommandFormFieldProps<TCommand>) => {
