@@ -55,7 +55,8 @@
             "types": "./dist/esm/stories/index.d.ts",
             "require": "./dist/cjs/stories/index.js",
             "import": "./dist/esm/stories/index.js"
-        }
+        },
+        "./stories/styles.css": "./dist/esm/stories/stories.css"
     },
     "scripts": {
         "prepare": "yarn g:build",

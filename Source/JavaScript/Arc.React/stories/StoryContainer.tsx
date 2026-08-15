@@ -3,6 +3,8 @@
 
 import React from 'react';
 
+import './stories.css';
+
 export interface StoryContainerProps {
     /**
      * The content to render within the container
@@ -31,8 +33,12 @@ export interface StoryContainerProps {
 
 /**
  * A container component for wrapping Storybook stories with consistent spacing and styling.
- * Automatically adapts to dark/light mode using CSS variables.
- * 
+ *
+ * The styling ships with the package: `stories.css` is side-effect imported here, so nothing has to be
+ * imported or configured to get it. It is dark by default and adapts to light mode through CSS variables
+ * wherever `data-theme="light"` is set on an ancestor. Import `@cratis/arc.react/stories/styles.css`
+ * directly only when the order stylesheets load in matters.
+ *
  * @example
  * ```tsx
  * export const MyStory: Story = {
