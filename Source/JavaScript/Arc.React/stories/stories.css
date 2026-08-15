@@ -4,10 +4,10 @@
 /*
  * The visual contract of the story kit.
  *
- * This file ships inside the package and is side-effect imported by the components in
- * StoryContainer.tsx, so any bundler that resolves `@cratis/arc.react/stories` pulls it in
- * automatically. It can also be imported explicitly - from `.storybook/preview` for instance -
- * through the `@cratis/arc.react/stories/styles.css` export when the import order matters.
+ * This file ships inside the package and a consumer loads it once, from `.storybook/preview`,
+ * through the `@cratis/arc.react/stories/styles.css` export. No component imports it: that would
+ * put its path into the emitted JavaScript, where it resolves under the bundler that copies the
+ * file alongside and dangles under a plain `tsc -b` project-reference build.
  *
  * Dark is the default palette. Setting `data-theme="light"` on `<html>` or `<body>` switches
  * every variable below to the light palette; `data-theme="dark"` switches it back, so the two

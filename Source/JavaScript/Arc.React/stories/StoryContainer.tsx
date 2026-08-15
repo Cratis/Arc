@@ -3,8 +3,6 @@
 
 import React from 'react';
 
-import './stories.css';
-
 export interface StoryContainerProps {
     /**
      * The content to render within the container
@@ -34,10 +32,19 @@ export interface StoryContainerProps {
 /**
  * A container component for wrapping Storybook stories with consistent spacing and styling.
  *
- * The styling ships with the package: `stories.css` is side-effect imported here, so nothing has to be
- * imported or configured to get it. It is dark by default and adapts to light mode through CSS variables
- * wherever `data-theme="light"` is set on an ancestor. Import `@cratis/arc.react/stories/styles.css`
- * directly only when the order stylesheets load in matters.
+ * The styling ships with the package and is imported once, from your `.storybook/preview`:
+ *
+ * ```ts
+ * import '@cratis/arc.react/stories/styles.css';
+ * ```
+ *
+ * Deliberately not side-effect imported from this file. That would put the stylesheet's path into the
+ * emitted JavaScript, and a bare `tsc -b` - which is what builds this package when another TypeScript
+ * project references it - copies no assets, so the import would resolve to nothing. One import in the
+ * consumer is the price of the two builders emitting the same thing.
+ *
+ * Once loaded, the stylesheet is dark by default and adapts to light mode through CSS variables wherever
+ * `data-theme="light"` is set on an ancestor.
  *
  * @example
  * ```tsx
