@@ -21,9 +21,7 @@ import { {{{Type}}} } from '{{Module}}';
  */
 {{/if}}
 {{#if DerivedTypeId}}
-{{#unless UseExplicitMetadataRegistration}}
 @derivedType('{{DerivedTypeId}}')
-{{/unless}}
 {{/if}}
 export class {{Name}}{{#if BaseTypeName}} extends {{BaseTypeName}}{{/if}} {
     {{#Properties}}
@@ -33,12 +31,16 @@ export class {{Name}}{{#if BaseTypeName}} extends {{BaseTypeName}}{{/if}} {
      * {{Documentation}}
      */
     {{/if}}
-    {{#unless ../UseExplicitMetadataRegistration}}
     {{#if IsEnumerable}}
     {{#if Derivatives}}
     @field({{Constructor}}, true, [{{Derivatives}}])
     {{else}}
     @field({{Constructor}}, true)
+    {{/if}}
+    {{#if IsNullable}}
+    {{camelcase Name}}?: {{{Type}}}[];
+    {{else}}
+    {{camelcase Name}}!: {{{Type}}}[];
     {{/if}}
     {{else}}
     {{#if Derivatives}}
@@ -46,15 +48,6 @@ export class {{Name}}{{#if BaseTypeName}} extends {{BaseTypeName}}{{/if}} {
     {{else}}
     @field({{Constructor}})
     {{/if}}
-    {{/if}}
-    {{/unless}}
-    {{#if IsEnumerable}}
-    {{#if IsNullable}}
-    {{camelcase Name}}?: {{{Type}}}[];
-    {{else}}
-    {{camelcase Name}}!: {{{Type}}}[];
-    {{/if}}
-    {{else}}
     {{#if IsNullable}}
     {{camelcase Name}}?: {{{Type}}};
     {{else}}
@@ -63,23 +56,3 @@ export class {{Name}}{{#if BaseTypeName}} extends {{BaseTypeName}}{{/if}} {
     {{/if}}
     {{/Properties}}
 }
-{{#if UseExplicitMetadataRegistration}}
-{{#Properties}}
-{{#if IsEnumerable}}
-{{#if Derivatives}}
-field({{Constructor}}, true, [{{Derivatives}}])({{../Name}}.prototype, '{{camelcase Name}}');
-{{else}}
-field({{Constructor}}, true)({{../Name}}.prototype, '{{camelcase Name}}');
-{{/if}}
-{{else}}
-{{#if Derivatives}}
-field({{Constructor}}, false, [{{Derivatives}}])({{../Name}}.prototype, '{{camelcase Name}}');
-{{else}}
-field({{Constructor}})({{../Name}}.prototype, '{{camelcase Name}}');
-{{/if}}
-{{/if}}
-{{/Properties}}
-{{#if DerivedTypeId}}
-derivedType('{{DerivedTypeId}}')({{Name}});
-{{/if}}
-{{/if}}

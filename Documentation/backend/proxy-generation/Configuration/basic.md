@@ -76,34 +76,12 @@ Generate proxies during development with a Debug build (`dotnet build -c Debug`)
 proxygenerator assembly.dll output-path --use-source-file-as-output-file
 ```
 
-## Metadata Registration
+## Decorator Metadata
 
-For web projects, keep the default output: generated types use `@field(...)` property decorators and `@derivedType(...)` class decorators. This keeps the serialization metadata beside the type and property it describes.
+Generated types use `@field(...)` property decorators and `@derivedType(...)` class decorators. The decorators keep the runtime serialization metadata beside the type and property they describe, with no proxy-generator configuration required.
 
-If your frontend toolchain does not support the legacy decorator transforms, opt into explicit metadata registration:
+TypeScript 5.2 and newer support these decorators through the standard decorator transform. Leave `experimentalDecorators` unset or set it to `false`; `@cratis/fundamentals` consumes the standard decorator metadata when the generated class is defined.
 
-```xml
-<PropertyGroup>
-    <CratisProxiesUseExplicitMetadataRegistration>true</CratisProxiesUseExplicitMetadataRegistration>
-</PropertyGroup>
-```
+Existing applications can continue using TypeScript's legacy decorator transform with `experimentalDecorators` set to `true`. The generated proxy source is the same in both modes, so you can change compiler modes without regenerating a different proxy shape.
 
-The generated class properties no longer carry decorators. Instead, the generator emits ordinary registration calls after the class declaration:
-
-```typescript
-import { field } from '@cratis/fundamentals';
-
-export class Location {
-    longitude!: number;
-}
-
-field(Number)(Location.prototype, 'longitude');
-```
-
-Derived types use the equivalent `derivedType(...)(Type)` call. The metadata remains the same, but the generated file no longer requires legacy decorator transforms. This mode is useful for React Native and Expo applications running on Hermes, where those transforms may be unavailable or order-sensitive.
-
-When invoking the proxy generator CLI directly, add the corresponding flag:
-
-```bash
-proxygenerator assembly.dll output-path --use-explicit-metadata-registration
-```
+If Babel transforms the generated proxies, configure its decorators plugin for the `2023-11` protocol. Hermes executes the JavaScript that Babel produces; Hermes does not transform decorator syntax itself, so the Babel step must run before the bundle reaches Hermes.

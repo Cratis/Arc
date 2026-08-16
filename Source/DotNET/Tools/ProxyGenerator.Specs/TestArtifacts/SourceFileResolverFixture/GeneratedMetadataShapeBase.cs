@@ -4,12 +4,12 @@
 namespace Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture;
 
 /// <summary>
-/// A shape contract used to verify generated derivative metadata.
+/// A generated-proxy fixture base type carrying inherited temporal metadata.
 /// </summary>
-public interface IGeneratedMetadataShape
+public class GeneratedMetadataShapeBase
 {
     /// <summary>
-    /// Gets or sets the shape name.
+    /// Gets or sets when the shape was created.
     /// </summary>
-    string Name { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

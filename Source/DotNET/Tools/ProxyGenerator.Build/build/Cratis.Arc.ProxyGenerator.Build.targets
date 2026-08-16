@@ -33,7 +33,6 @@
             <SkipFileIndexTracking Condition=" '$(CratisProxiesSkipFileIndexTracking)' == 'true' ">--skip-file-index-tracking</SkipFileIndexTracking>
             <SkipIndexGeneration Condition=" '$(CratisProxiesSkipIndexGeneration)' == 'true' ">--skip-index-generation</SkipIndexGeneration>
             <UseSourceFileAsOutputFile Condition=" '$(CratisProxiesUseSourceFileAsOutputFile)' == 'true' ">--use-source-file-as-output-file</UseSourceFileAsOutputFile>
-            <UseExplicitMetadataRegistration Condition=" '$(CratisProxiesUseExplicitMetadataRegistration)' == 'true' ">--use-explicit-metadata-registration</UseExplicitMetadataRegistration>
             <AssemblyPackageMappings>@(AssemblyToPackageMapping -> '--assembly-to-package=%(Assembly)=%(Package)', ' ')</AssemblyPackageMappings>
             <ExcludeTypes>@(ExcludeType -> '--exclude-type=%(TypeName)', ' ')</ExcludeTypes>
             <ExcludeNamespaces>@(ExcludeNamespace -> '--exclude-namespace=%(Namespace)', ' ')</ExcludeNamespaces>
@@ -47,7 +46,7 @@
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true"
-            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(UseExplicitMetadataRegistration) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings)"
+            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings)"
             WorkingDirectory="$(CratisProxyGeneratorAssemblyDirectory)" />
     </Target>
 </Project>
