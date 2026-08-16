@@ -4,7 +4,7 @@ The proxy generator translates the .NET types on your commands, queries and read
 
 ## Primitive and common types
 
-| .NET type | TypeScript type | `@field` constructor | Imported from |
+| .NET type | TypeScript type | Metadata constructor | Imported from |
 |---|---|---|---|
 | `bool` | `boolean` | `Boolean` | — |
 | `string`, `char`, `Uri` | `string` | `String` | — |
@@ -16,6 +16,8 @@ The proxy generator translates the .NET types on your commands, queries and read
 | `TimeSpan` | `TimeSpan` | `TimeSpan` | `@cratis/fundamentals` |
 | `Cratis.Geospatial.Point`, `LineString`, `Polygon` | same name | same name | `@cratis/fundamentals` |
 | `object`, `JsonNode`, `JsonObject`, `JsonArray`, `JsonDocument` | `Record<string, unknown>` | `Object` | — |
+
+The metadata constructor is passed to the default `@field(...)` decorator or, when explicit metadata registration is enabled, to the equivalent `field(...)(...)` call. Both output modes use the same type mapping.
 
 An enum becomes a TypeScript `enum` and travels as its underlying number. A `ConceptAs<T>` is unwrapped to `T` and mapped by this same table. A `Nullable<T>` is unwrapped to `T` and the generated property is declared optional.
 

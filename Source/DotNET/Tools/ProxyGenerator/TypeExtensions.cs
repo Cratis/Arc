@@ -497,8 +497,9 @@ public static class TypeExtensions
     /// <param name="type">Type to convert.</param>
     /// <param name="targetPath">The target path the proxies are generated to.</param>
     /// <param name="segmentsToSkip">Number of segments to skip from the namespace when generating the output path.</param>
+    /// <param name="useExplicitMetadataRegistration">Whether to emit imperative metadata registration calls instead of decorators.</param>
     /// <returns>Converted <see cref="TypeDescriptor"/>.</returns>
-    public static TypeDescriptor ToTypeDescriptor(this Type type, string targetPath, int segmentsToSkip)
+    public static TypeDescriptor ToTypeDescriptor(this Type type, string targetPath, int segmentsToSkip, bool useExplicitMetadataRegistration = false)
     {
         var typesInvolved = new List<Type>();
 
@@ -607,7 +608,8 @@ public static class TypeExtensions
             typesInvolved,
             documentation,
             derivedTypeId,
-            baseTypeName);
+            baseTypeName,
+            useExplicitMetadataRegistration);
     }
 
     /// <summary>

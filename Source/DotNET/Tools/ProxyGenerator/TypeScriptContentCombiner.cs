@@ -251,8 +251,11 @@ public static partial class TypeScriptContentCombiner
     [GeneratedRegex(@"import\s+\{\s*(?<names>[^}]+)\s*\}\s+from\s+", RegexOptions.NonBacktracking)]
     private static partial Regex ImportedTypeRegex();
 
-    [GeneratedRegex(@"@field\(\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
-    private static partial Regex FieldDecoratorReferenceRegex();
+    [GeneratedRegex(@"^[ \t]*(?:@field\((?<arguments>[^)\r\n]*)\)|field\((?<arguments>[^)\r\n]*)\)\([\w$]+\.prototype,\s*'[^'\r\n]+'\);)[ \t]*$", RegexOptions.Multiline | RegexOptions.NonBacktracking)]
+    private static partial Regex FieldRegistrationRegex();
+
+    [GeneratedRegex(@"\b(?<type>[A-Z]\w*)\b", RegexOptions.NonBacktracking)]
+    private static partial Regex RegistrationTypeReferenceRegex();
 
     [GeneratedRegex(@"[!?]\s*:\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
     private static partial Regex PropertyTypeAnnotationRegex();
@@ -261,7 +264,7 @@ public static partial class TypeScriptContentCombiner
     private static partial Regex ExtendsClauseRegex();
 
     /// <summary>
-    /// Topologically sorts body sections so that types referenced by <c>@field</c> decorators
+    /// Topologically sorts body sections so that types referenced by field metadata registrations
     /// in other bodies appear before the bodies that reference them. This prevents forward
     /// reference errors at runtime since TypeScript classes are not hoisted.
     /// </summary>
@@ -275,14 +278,15 @@ public static partial class TypeScriptContentCombiner
         }
 
         var exportPattern = ExportDeclarationRegex();
-        var fieldPattern = FieldDecoratorReferenceRegex();
+        var fieldPattern = FieldRegistrationRegex();
+        var registrationTypePattern = RegistrationTypeReferenceRegex();
         var extendsPattern = ExtendsClauseRegex();
         var builtInTypes = new HashSet<string>(StringComparer.Ordinal)
         {
             "String", "Number", "Boolean", "Date", "Object"
         };
 
-        // Map each body to its exported type names and the custom types it references via @field.
+        // Map each body to its exported type names and the custom types it references through field metadata.
         var bodyExports = new List<HashSet<string>>();
         var bodyDependencies = new List<HashSet<string>>();
         var annotationPattern = PropertyTypeAnnotationRegex();
@@ -296,7 +300,13 @@ public static partial class TypeScriptContentCombiner
             }
 
             var dependencies = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var typeName in fieldPattern.Matches(body).Select(match => match.Groups["type"].Value).Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName)))
+            var registeredTypeNames = fieldPattern
+                .Matches(body)
+                .SelectMany(match => registrationTypePattern.Matches(match.Groups["arguments"].Value))
+                .Select(match => match.Groups["type"].Value)
+                .Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName));
+
+            foreach (var typeName in registeredTypeNames)
             {
                 dependencies.Add(typeName);
             }
