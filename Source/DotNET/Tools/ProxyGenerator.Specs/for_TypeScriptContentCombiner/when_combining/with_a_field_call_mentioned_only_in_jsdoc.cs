@@ -16,9 +16,9 @@ public class with_a_field_call_mentioned_only_in_jsdoc : Specification
         import { ChildType } from './ChildType';
 
         export class ParentType {
+            @field(ChildType)
             child!: ChildType;
         }
-        field(ChildType)(ParentType.prototype, 'child');
         """;
 
     const string ChildContent = """
@@ -30,12 +30,12 @@ public class with_a_field_call_mentioned_only_in_jsdoc : Specification
         import { field } from '@cratis/fundamentals';
 
         /**
-         * Mentioning field(ParentType) here documents an example; it does not register metadata.
+         * Mentioning @field(ParentType) here documents an example; it is not a decorator invocation.
          */
         export class ChildType {
+            @field(String)
             name!: string;
         }
-        field(String)(ChildType.prototype, 'name');
         """;
 #pragma warning restore MA0136 // Raw String contains an implicit end of line character
 
@@ -46,5 +46,5 @@ public class with_a_field_call_mentioned_only_in_jsdoc : Specification
     [Fact] void should_declare_the_child_before_the_parent() =>
         _result.IndexOf("export class ChildType", StringComparison.Ordinal)
             .ShouldBeLessThan(_result.IndexOf("export class ParentType", StringComparison.Ordinal));
-    [Fact] void should_keep_the_documentation() => _result.ShouldContain("Mentioning field(ParentType) here documents an example");
+    [Fact] void should_keep_the_documentation() => _result.ShouldContain("Mentioning @field(ParentType) here documents an example");
 }

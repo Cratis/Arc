@@ -5,7 +5,7 @@ using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.for_TypeScriptContentCombiner.when_combining;
 
-public class with_forward_references_through_explicit_registrations : Specification, IDisposable
+public class with_forward_references_through_field_decorator_arguments : Specification, IDisposable
 {
     const string ParentTypeName = "Drawing";
     const string BaseTypeName = "Shape";
@@ -26,11 +26,12 @@ public class with_forward_references_through_explicit_registrations : Specificat
         import { Rectangle } from './Rectangle';
 
         export class Drawing {
+            @field(Shape, false, [Circle, Rectangle])
             selectedShape!: Shape;
+
+            @field(Shape, true, [Circle, Rectangle])
             shapes!: Shape[];
         }
-        field(Shape, false, [Circle, Rectangle])(Drawing.prototype, 'selectedShape');
-        field(Shape, true, [Circle, Rectangle])(Drawing.prototype, 'shapes');
         """;
 
     const string CircleContent = """
@@ -43,11 +44,11 @@ public class with_forward_references_through_explicit_registrations : Specificat
         import { field, derivedType } from '@cratis/fundamentals';
         import { Shape } from './Shape';
 
+        @derivedType('circle')
         export class Circle extends Shape {
+            @field(Number)
             radius!: number;
         }
-        field(Number)(Circle.prototype, 'radius');
-        derivedType('circle')(Circle);
         """;
 
     const string RectangleContent = """
@@ -60,11 +61,11 @@ public class with_forward_references_through_explicit_registrations : Specificat
         import { field, derivedType } from '@cratis/fundamentals';
         import { Shape } from './Shape';
 
+        @derivedType('rectangle')
         export class Rectangle extends Shape {
+            @field(Number)
             width!: number;
         }
-        field(Number)(Rectangle.prototype, 'width');
-        derivedType('rectangle')(Rectangle);
         """;
 
     const string ShapeContent = """
@@ -77,9 +78,9 @@ public class with_forward_references_through_explicit_registrations : Specificat
         import { field } from '@cratis/fundamentals';
 
         export class Shape {
+            @field(String)
             name!: string;
         }
-        field(String)(Shape.prototype, 'name');
         """;
 #pragma warning restore MA0136 // Raw String contains an implicit end of line character
 
@@ -98,14 +99,14 @@ public class with_forward_references_through_explicit_registrations : Specificat
     [Fact] void should_declare_the_base_before_the_parent() => IndexOfType(BaseTypeName).ShouldBeLessThan(IndexOfType(ParentTypeName));
     [Fact] void should_declare_the_first_derivative_before_the_parent() => IndexOfType(FirstDerivativeTypeName).ShouldBeLessThan(IndexOfType(ParentTypeName));
     [Fact] void should_declare_the_second_derivative_before_the_parent() => IndexOfType(SecondDerivativeTypeName).ShouldBeLessThan(IndexOfType(ParentTypeName));
-    [Fact] void should_keep_the_derivative_constructor_array() => _result.ShouldContain("field(Shape, true, [Circle, Rectangle])(Drawing.prototype, 'shapes');");
+    [Fact] void should_keep_the_derivative_constructor_array() => _result.ShouldContain("@field(Shape, true, [Circle, Rectangle])");
     [Fact] void should_merge_the_fundamentals_imports() => _result.ShouldContain("import { field, derivedType } from '@cratis/fundamentals';");
     [Fact] void should_only_emit_one_fundamentals_import() => _result.Split("from '@cratis/fundamentals';").Length.ShouldEqual(2);
     [Fact] void should_remove_the_internal_base_import() => _result.ShouldNotContain("import { Shape } from './Shape';");
     [Fact] void should_remove_the_internal_derivative_imports() => _result.ShouldNotContain("import { Circle } from './Circle';");
-    [Fact] void should_keep_registration_after_its_class_declaration() => _result.IndexOf("derivedType('circle')(Circle);", StringComparison.Ordinal).ShouldBeGreaterThan(IndexOfType(FirstDerivativeTypeName));
-    [Fact] void should_not_contain_decorator_syntax() => _result.ShouldNotContain("@field(");
-    [Fact] void should_compile_with_experimental_decorators_disabled() => _diagnostics.ShouldBeEmpty();
+    [Fact] void should_keep_the_derived_type_decorator_before_its_class() => _result.IndexOf("@derivedType('circle')", StringComparison.Ordinal).ShouldBeLessThan(IndexOfType(FirstDerivativeTypeName));
+    [Fact] void should_not_contain_imperative_metadata_registration() => _result.ShouldNotContain(".prototype");
+    [Fact] void should_compile_with_standard_decorators() => _diagnostics.ShouldBeEmpty();
 
     public void Dispose()
     {

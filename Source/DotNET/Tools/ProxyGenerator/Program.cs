@@ -9,7 +9,7 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--use-explicit-metadata-registration] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -23,7 +23,6 @@ var apiPrefixArg = args.FirstOrDefault(_ => _.StartsWith("--api-prefix="));
 var apiPrefix = apiPrefixArg is null ? "api" : apiPrefixArg.Split('=')[^1];
 var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
-var useExplicitMetadataRegistration = args.Any(_ => _ == "--use-explicit-metadata-registration");
 
 var assemblyPackageMappings = new Dictionary<string, string>();
 foreach (var mapping in args.Where(_ => _.StartsWith("--assembly-to-package=")).Select(_ => _["--assembly-to-package=".Length..]))
@@ -93,7 +92,6 @@ Console.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
 Console.WriteLine($"API prefix: {apiPrefix}");
 Console.WriteLine($"Skip index generation: {skipIndexGeneration}");
 Console.WriteLine($"Use source file as output file: {useSourceFileAsOutputFile}");
-Console.WriteLine($"Use explicit metadata registration: {useExplicitMetadataRegistration}");
 if (assemblyPackageMappings.Count > 0)
 {
     Console.WriteLine("Assembly-to-package mappings:");
@@ -145,6 +143,5 @@ var result = await Generator.Generate(
     excludedTypeNames,
     excludedNamespacePatterns,
     namespaceRoots,
-    typeMappings,
-    useExplicitMetadataRegistration);
+    typeMappings);
 return result ? 0 : 1;

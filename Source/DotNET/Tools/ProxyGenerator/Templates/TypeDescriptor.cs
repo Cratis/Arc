@@ -14,7 +14,6 @@ namespace Cratis.Arc.ProxyGenerator.Templates;
 /// <param name="Documentation">JSDoc documentation for the type.</param>
 /// <param name="DerivedTypeId">The derived type identifier GUID string if this type carries a <c>DerivedTypeAttribute</c>, otherwise null.</param>
 /// <param name="BaseTypeName">The TypeScript name of the base type to extend, or null if there is no applicable base type.</param>
-/// <param name="UseExplicitMetadataRegistration">Whether to emit imperative metadata registration calls instead of decorators.</param>
 public record TypeDescriptor(
     Type Type,
     string Name,
@@ -23,5 +22,4 @@ public record TypeDescriptor(
     IEnumerable<Type> TypesInvolved,
     string? Documentation = null,
     string? DerivedTypeId = null,
-    string? BaseTypeName = null,
-    bool UseExplicitMetadataRegistration = false) : IDescriptor;
+    string? BaseTypeName = null) : IDescriptor;

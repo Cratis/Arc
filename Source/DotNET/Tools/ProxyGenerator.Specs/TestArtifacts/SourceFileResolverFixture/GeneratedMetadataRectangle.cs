@@ -9,7 +9,7 @@ namespace Cratis.Arc.ProxyGenerator.Specs.SourceFileResolverFixture;
 /// A generated-proxy fixture rectangle.
 /// </summary>
 [DerivedType("60c89a76-2848-4513-8cf1-d89ee32f1953")]
-public class GeneratedMetadataRectangle : IGeneratedMetadataShape
+public class GeneratedMetadataRectangle : GeneratedMetadataShapeBase, IGeneratedMetadataShape
 {
     /// <inheritdoc/>
     public string Name { get; set; } = string.Empty;
