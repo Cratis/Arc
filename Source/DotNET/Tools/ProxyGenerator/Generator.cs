@@ -33,6 +33,7 @@ public static class Generator
     /// <param name="excludedNamespacePatterns">Namespace glob patterns (supports <c>*</c> as wildcard) whose matching types are excluded from generation.</param>
     /// <param name="namespaceRoots">Pairs of (namespace, base folder) used as roots. When a type's namespace begins with a root the root is stripped and the remainder is placed under the base folder.</param>
     /// <param name="typeMappings">Triples of (fully qualified type name, TypeScript type, package) declaring how a type crosses the wire. Consulted ahead of the built-in map, so it can correct an existing mapping as well as add an unknown one.</param>
+    /// <param name="useExplicitMetadataRegistration">Whether to register generated field and derived-type metadata with imperative factory calls instead of decorators.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -51,7 +52,8 @@ public static class Generator
         IReadOnlyCollection<string>? excludedTypeNames = null,
         IReadOnlyCollection<string>? excludedNamespacePatterns = null,
         IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null,
-        IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null)
+        IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null,
+        bool useExplicitMetadataRegistration = false)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -153,7 +155,10 @@ public static class Generator
         typesInvolved = [.. typesInvolved.Distinct()];
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
-        var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
+        var typeDescriptors = typesInvolved
+            .Where(_ => !enums.Contains(_) && !_.IsFromMappedAssembly())
+            .ToList()
+            .ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip, useExplicitMetadataRegistration));
         await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var regularEnumDescriptors = enums

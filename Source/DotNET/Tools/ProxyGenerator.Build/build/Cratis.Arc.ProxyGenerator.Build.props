@@ -9,5 +9,6 @@
         <CratisProxiesSkipQueryNameInRoute>false</CratisProxiesSkipQueryNameInRoute>
         <CratisProxiesApiPrefix>api</CratisProxiesApiPrefix>
         <CratisProxiesSkipFileIndexTracking>false</CratisProxiesSkipFileIndexTracking>
+        <CratisProxiesUseExplicitMetadataRegistration Condition="'$(CratisProxiesUseExplicitMetadataRegistration)' == ''">false</CratisProxiesUseExplicitMetadataRegistration>
     </PropertyGroup>
 </Project>
