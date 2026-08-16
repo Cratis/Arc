@@ -2,7 +2,7 @@
 
 The proxy generator is configured through MSBuild properties and item groups in your `.csproj` file. Configuration is split into the following topics:
 
-- [Basic Options](basic.md) — output path, segments to skip, source file output
+- [Basic Options](basic.md) — output path, segments to skip, source file output, metadata registration
 - [Library Mode](library-mode.md) — generate TypeScript for every public type in the assembly
 - [Type Exclusions](type-exclusions.md) — exclude specific types or namespaces from generation
 - [Namespace Roots](namespace-roots.md) — pin a namespace as the folder root
@@ -17,6 +17,7 @@ The proxy generator is configured through MSBuild properties and item groups in 
 | `CratisProxiesOutputPath` | *(required)* | [Basic](basic.md) |
 | `CratisProxiesSegmentsToSkip` | `0` | [Basic](basic.md) |
 | `CratisProxiesUseSourceFileAsOutputFile` | `false` | [Basic](basic.md) |
+| `CratisProxiesUseExplicitMetadataRegistration` | `false` | [Basic](basic.md) |
 | `CratisProxiesLibraryMode` | `false` | [Library Mode](library-mode.md) |
 | `<ExcludeType TypeName="..."/>` | — | [Type Exclusions](type-exclusions.md) |
 | `<ExcludeNamespace Namespace="..."/>` | — | [Type Exclusions](type-exclusions.md) |

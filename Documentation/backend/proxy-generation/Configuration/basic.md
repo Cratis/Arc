@@ -68,8 +68,42 @@ AccountCommands/
 
 > **Note:** This feature requires PDB debug symbols alongside the compiled assembly. Without PDB information the generator falls back to one file per type.
 
+Generate proxies during development with a Debug build (`dotnet build -c Debug`), then commit the generated TypeScript. Release and publish builds can consume those committed proxies without regenerating them. This is a recommended workflow rather than a Release restriction: the generator still runs in Release whenever `CratisProxiesOutputPath` is configured.
+
 ### CLI
 
 ```bash
 proxygenerator assembly.dll output-path --use-source-file-as-output-file
+```
+
+## Metadata Registration
+
+For web projects, keep the default output: generated types use `@field(...)` property decorators and `@derivedType(...)` class decorators. This keeps the serialization metadata beside the type and property it describes.
+
+If your frontend toolchain does not support the legacy decorator transforms, opt into explicit metadata registration:
+
+```xml
+<PropertyGroup>
+    <CratisProxiesUseExplicitMetadataRegistration>true</CratisProxiesUseExplicitMetadataRegistration>
+</PropertyGroup>
+```
+
+The generated class properties no longer carry decorators. Instead, the generator emits ordinary registration calls after the class declaration:
+
+```typescript
+import { field } from '@cratis/fundamentals';
+
+export class Location {
+    longitude!: number;
+}
+
+field(Number)(Location.prototype, 'longitude');
+```
+
+Derived types use the equivalent `derivedType(...)(Type)` call. The metadata remains the same, but the generated file no longer requires legacy decorator transforms. This mode is useful for React Native and Expo applications running on Hermes, where those transforms may be unavailable or order-sensitive.
+
+When invoking the proxy generator CLI directly, add the corresponding flag:
+
+```bash
+proxygenerator assembly.dll output-path --use-explicit-metadata-registration
 ```
