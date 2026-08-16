@@ -16,7 +16,6 @@ public class when_generating_standard_decorator_metadata_from_the_command_line :
     JavaScriptRuntime _runtime = null!;
     string _temporaryPath = null!;
     string _outputPath = null!;
-    string _workspaceRoot = null!;
     string _generatedCircle = string.Empty;
     string _generatedDrawing = string.Empty;
     string _transpiledJavaScript = string.Empty;
@@ -38,10 +37,12 @@ public class when_generating_standard_decorator_metadata_from_the_command_line :
     void Establish()
     {
         _runtime = new JavaScriptRuntime();
-        _workspaceRoot = FindWorkspaceRoot();
-        _temporaryPath = Path.Combine(_workspaceRoot, "artifacts", $"standard-decorator-metadata-{Guid.NewGuid():N}");
+        _temporaryPath = Path.Combine(Path.GetTempPath(), $"arc-standard-decorator-metadata-{Guid.NewGuid():N}");
         _outputPath = Path.Combine(_temporaryPath, "generated");
         Directory.CreateDirectory(_outputPath);
+        CopyDirectory(
+            Path.Combine(JavaScriptResources.NodeModulesRoot, "node_modules", "@cratis", "fundamentals"),
+            Path.Combine(_temporaryPath, "node_modules", "@cratis", "fundamentals"));
     }
 
     async Task Because()
@@ -204,8 +205,17 @@ public class when_generating_standard_decorator_metadata_from_the_command_line :
             UseShellExecute = false,
             WorkingDirectory = _temporaryPath
         };
-        startInfo.ArgumentList.Add(Path.Combine(_workspaceRoot, "node_modules", "typescript", "bin", "tsc"));
-        startInfo.ArgumentList.Add("--project");
+        startInfo.ArgumentList.Add("-e");
+        startInfo.ArgumentList.Add(
+            "const ts = require(process.argv[1]);" +
+            "const configPath = process.argv[2];" +
+            "const configFile = ts.readConfigFile(configPath, ts.sys.readFile);" +
+            "if (configFile.error) { console.error(ts.flattenDiagnosticMessageText(configFile.error.messageText, ' ')); process.exit(1); }" +
+            "const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, require('path').dirname(configPath));" +
+            "const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(ts.createProgram(parsed.fileNames, parsed.options))];" +
+            "for (const diagnostic of diagnostics) { console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')); }" +
+            "process.exit(diagnostics.length === 0 ? 0 : 1);");
+        startInfo.ArgumentList.Add(JavaScriptResources.TypeScriptCompilerPath);
         startInfo.ArgumentList.Add(configurationPath);
         return await RunProcess(startInfo);
     }
@@ -228,20 +238,18 @@ public class when_generating_standard_decorator_metadata_from_the_command_line :
         return metadataLineEnd < 0 ? content : content[(metadataLineEnd + 1)..];
     }
 
-    static string FindWorkspaceRoot()
+    static void CopyDirectory(string sourcePath, string destinationPath)
     {
-        var current = new DirectoryInfo(typeof(when_generating_standard_decorator_metadata_from_the_command_line).Assembly.Location);
-        while (current is not null)
+        Directory.CreateDirectory(destinationPath);
+        foreach (var file in Directory.GetFiles(sourcePath))
         {
-            if (File.Exists(Path.Combine(current.FullName, "package.json")) && Directory.Exists(Path.Combine(current.FullName, "node_modules")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
+            File.Copy(file, Path.Combine(destinationPath, Path.GetFileName(file)), true);
         }
 
-        throw new DirectoryNotFoundException("Could not find the Arc workspace root");
+        foreach (var directory in Directory.GetDirectories(sourcePath))
+        {
+            CopyDirectory(directory, Path.Combine(destinationPath, Path.GetFileName(directory)));
+        }
     }
 
     sealed record ProcessResult(int ExitCode, string Output);
