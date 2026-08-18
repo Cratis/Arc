@@ -47,11 +47,15 @@ public sealed class JavaScriptRuntime : IDisposable
     /// Transpiles TypeScript code to JavaScript.
     /// </summary>
     /// <param name="typeScriptCode">The TypeScript code to transpile.</param>
+    /// <param name="experimentalDecorators">Whether the legacy TypeScript decorator transform is enabled.</param>
     /// <returns>The transpiled JavaScript code.</returns>
-    public string TranspileTypeScript(string typeScriptCode)
+    public string TranspileTypeScript(string typeScriptCode, bool experimentalDecorators = true)
     {
         var escapedCode = EscapeForTemplateLiteral(typeScriptCode);
-        var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
+        var decoratorOptions = experimentalDecorators
+            ? "experimentalDecorators: true, emitDecoratorMetadata: true"
+            : "experimentalDecorators: false";
+        var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, {decoratorOptions} }})");
         return result?.ToString() ?? string.Empty;
     }
 
@@ -59,16 +63,20 @@ public sealed class JavaScriptRuntime : IDisposable
     /// Gets the syntactic diagnostics the TypeScript compiler reports for a piece of code.
     /// </summary>
     /// <param name="typeScriptCode">The TypeScript code to check.</param>
+    /// <param name="experimentalDecorators">Whether the legacy TypeScript decorator transform is enabled.</param>
     /// <returns>The diagnostic messages; empty when the code parses cleanly.</returns>
     /// <remarks>
     /// <see cref="TranspileTypeScript"/> emits best-effort output even for code that does not parse, so a non-empty
     /// transpilation proves nothing. This surfaces what the compiler actually objects to, so a spec can assert on an
     /// empty collection and show the offending messages when it fails.
     /// </remarks>
-    public IReadOnlyList<string> GetSyntacticDiagnostics(string typeScriptCode)
+    public IReadOnlyList<string> GetSyntacticDiagnostics(string typeScriptCode, bool experimentalDecorators = true)
     {
         var escapedCode = EscapeForTemplateLiteral(typeScriptCode);
-        var result = Evaluate($"JSON.stringify((ts.transpileModule(`{escapedCode}`, {{ compilerOptions: {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }}, reportDiagnostics: true }}).diagnostics || []).map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')))");
+        var decoratorOptions = experimentalDecorators
+            ? "experimentalDecorators: true, emitDecoratorMetadata: true"
+            : "experimentalDecorators: false";
+        var result = Evaluate($"JSON.stringify((ts.transpileModule(`{escapedCode}`, {{ compilerOptions: {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, {decoratorOptions} }}, reportDiagnostics: true }}).diagnostics || []).map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')))");
         return JsonSerializer.Deserialize<string[]>(result?.ToString() ?? "[]") ?? [];
     }
 

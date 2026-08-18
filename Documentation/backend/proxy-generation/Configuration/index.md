@@ -2,7 +2,7 @@
 
 The proxy generator is configured through MSBuild properties and item groups in your `.csproj` file. Configuration is split into the following topics:
 
-- [Basic Options](basic.md) — output path, segments to skip, source file output
+- [Basic Options](basic.md) — output path, segments to skip, source file output, decorator metadata
 - [Library Mode](library-mode.md) — generate TypeScript for every public type in the assembly
 - [Type Exclusions](type-exclusions.md) — exclude specific types or namespaces from generation
 - [Namespace Roots](namespace-roots.md) — pin a namespace as the folder root

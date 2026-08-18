@@ -121,6 +121,34 @@ function deserializeResponseData<TDataType>(data: unknown, modelType: Constructo
     return deserializeItems(modelType, data) as TDataType;
 }
 
+/**
+ * Derives a stable, constant-shape dependency value from query arguments for use in a React
+ * dependency array.
+ *
+ * Spreading `Object.values(args)` positionally makes the dependency array's length track the
+ * argument object's key count. React's `areHookInputsEqual` only compares the overlapping prefix
+ * when a dependency array's length changes between renders, so a render where `args` goes from
+ * `undefined` to `{ key: value }` (or vice versa) can have its memo/effect report "no change" even
+ * though the arguments did change. Collapsing `args` into one sorted, serialized string keeps the
+ * dependency array a constant length regardless of `args`' shape.
+ * @param {object} [args] The query arguments to serialize.
+ * @returns {string} A stable string dependency, empty when there are no arguments.
+ */
+function serializeArgsForDependency(args?: object): string {
+    if (!args || Object.keys(args).length === 0) {
+        return '';
+    }
+
+    const sorted = Object.keys(args)
+        .sort()
+        .reduce<Record<string, unknown>>((accumulator, key) => {
+            accumulator[key] = (args as Record<string, unknown>)[key];
+            return accumulator;
+        }, {});
+
+    return JSON.stringify(sorted);
+}
+
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
     if (requiredRequestParameters.length === 0) {
         return true;
@@ -145,6 +173,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     const cacheKeyRef = useRef<string>('');
     const ownerRef = useRef<string | undefined>(owner);
     ownerRef.current = owner;
+    const argsDependency = serializeArgsForDependency(args as object | undefined);
 
     const queryInstance = useMemo(() => {
         // Create the instance first to read queryName, which is a hardcoded fully-qualified
@@ -170,7 +199,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         }
 
         return instance as TQuery;
-    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, ...(args ? Object.values(args) : [])]);
+    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, argsDependency]);
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKeyRef.current);
 
@@ -191,7 +220,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
     // when the microservice, API base path, or origin changes.
     // Include queryVersion so that reconnectQueries() forces all hooks to re-subscribe
     // through fresh transport connections.
-    const effectDeps = [...(args ? Object.values(args) : []), currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet, arc.microservice, arc.apiBasePath, arc.origin, arc.queryVersion];
+    const effectDeps = [argsDependency, currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet, arc.microservice, arc.apiBasePath, arc.origin, arc.queryVersion];
 
     useEffect(() => {
         const key = cacheKeyRef.current;

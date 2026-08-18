@@ -251,8 +251,11 @@ public static partial class TypeScriptContentCombiner
     [GeneratedRegex(@"import\s+\{\s*(?<names>[^}]+)\s*\}\s+from\s+", RegexOptions.NonBacktracking)]
     private static partial Regex ImportedTypeRegex();
 
-    [GeneratedRegex(@"@field\(\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
-    private static partial Regex FieldDecoratorReferenceRegex();
+    [GeneratedRegex(@"^[ \t]*@field\((?<arguments>[^)\r\n]*)\)[ \t]*$", RegexOptions.Multiline | RegexOptions.NonBacktracking)]
+    private static partial Regex FieldDecoratorRegex();
+
+    [GeneratedRegex(@"\b(?<type>[A-Z]\w*)\b", RegexOptions.NonBacktracking)]
+    private static partial Regex DecoratorTypeReferenceRegex();
 
     [GeneratedRegex(@"[!?]\s*:\s*(?<type>[A-Z]\w*)", RegexOptions.NonBacktracking)]
     private static partial Regex PropertyTypeAnnotationRegex();
@@ -275,14 +278,15 @@ public static partial class TypeScriptContentCombiner
         }
 
         var exportPattern = ExportDeclarationRegex();
-        var fieldPattern = FieldDecoratorReferenceRegex();
+        var fieldPattern = FieldDecoratorRegex();
+        var decoratorTypePattern = DecoratorTypeReferenceRegex();
         var extendsPattern = ExtendsClauseRegex();
         var builtInTypes = new HashSet<string>(StringComparer.Ordinal)
         {
             "String", "Number", "Boolean", "Date", "Object"
         };
 
-        // Map each body to its exported type names and the custom types it references via @field.
+        // Map each body to its exported type names and the custom types it references through @field decorators.
         var bodyExports = new List<HashSet<string>>();
         var bodyDependencies = new List<HashSet<string>>();
         var annotationPattern = PropertyTypeAnnotationRegex();
@@ -296,7 +300,13 @@ public static partial class TypeScriptContentCombiner
             }
 
             var dependencies = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var typeName in fieldPattern.Matches(body).Select(match => match.Groups["type"].Value).Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName)))
+            var decoratedTypeNames = fieldPattern
+                .Matches(body)
+                .SelectMany(match => decoratorTypePattern.Matches(match.Groups["arguments"].Value))
+                .Select(match => match.Groups["type"].Value)
+                .Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName));
+
+            foreach (var typeName in decoratedTypeNames)
             {
                 dependencies.Add(typeName);
             }

@@ -46,13 +46,29 @@
                                    Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
             <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
         </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/lib*.d.ts"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib')">
+            <TargetPath>node_modules/typescript/lib/%(Filename)%(Extension)</TargetPath>
+        </ProxyJavaScriptDependency>
         <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js"
                                    Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js') AND !Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
             <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
         </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/lib*.d.ts"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib') AND !Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
+            <TargetPath>node_modules/typescript/lib/%(Filename)%(Extension)</TargetPath>
+        </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/package.json"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/package.json')">
+            <TargetPath>node_modules/@cratis/fundamentals/package.json</TargetPath>
+        </ProxyJavaScriptDependency>
         <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs/**/*"
                                    Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs')">
             <TargetPath>node_modules/@cratis/fundamentals/dist/cjs/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        </ProxyJavaScriptDependency>
+        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/esm/**/*.d.ts"
+                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/esm')">
+            <TargetPath>node_modules/@cratis/fundamentals/dist/esm/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
         </ProxyJavaScriptDependency>
         <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/rxjs/dist/cjs/**/*"
                                    Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/rxjs/dist/cjs')">
