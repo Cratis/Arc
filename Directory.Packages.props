@@ -17,24 +17,24 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="16.26.0" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.26.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.26.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="16.35.3" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.35.3" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.35.3" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.18.0" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.17.1" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.18.0" />
     <PackageVersion Include="Cratis.Screenplay" Version="2.1.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.11" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.8.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.11" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.8.2" />
