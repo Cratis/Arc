@@ -52,7 +52,7 @@ public static class MongoCollectionExtensions
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
-    /// <returns>Async Task holding <see cref="Subject{T}"/> with a collection of the type for the collection.</returns>
+    /// <returns><see cref="ISubject{T}"/> with a collection of the type for the collection.</returns>
     public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
@@ -72,7 +72,7 @@ public static class MongoCollectionExtensions
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
-    /// <returns>Async Task holding <see cref="Subject{T}"/> with a collection of the type for the collection.</returns>
+    /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
     public static ISubject<TDocument> ObserveSingle<TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
@@ -89,7 +89,7 @@ public static class MongoCollectionExtensions
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
-    /// <returns>Async Task holding <see cref="Subject{T}"/> with a collection of the type for the collection.</returns>
+    /// <returns><see cref="ISubject{T}"/> with a collection of the type for the collection.</returns>
     public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
@@ -109,7 +109,7 @@ public static class MongoCollectionExtensions
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
-    /// <returns>Async Task holding <see cref="Subject{T}"/> with a collection of the type for the collection.</returns>
+    /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
     public static ISubject<TDocument> ObserveSingle<TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
@@ -126,7 +126,7 @@ public static class MongoCollectionExtensions
     /// <param name="id">The identifier of the document to observe.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
-    /// <returns>Async Task holding <see cref="Subject{T}"/> with an instance of the type.</returns>
+    /// <returns><see cref="ISubject{T}"/> with an instance of the type.</returns>
     public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id)
     {
         var filter = Builders<TDocument>.Filter.Eq(new StringFieldDefinition<TDocument, TId>("_id"), id);
