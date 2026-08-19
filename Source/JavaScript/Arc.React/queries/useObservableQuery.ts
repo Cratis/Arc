@@ -9,6 +9,7 @@ import { SetPage } from './SetPage';
 import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+import { serializeArgsForDependency } from './serializeArgsForDependency';
 import { useQueryScope } from './useQueryScope';
 
 /**
@@ -119,34 +120,6 @@ function deserializeResponseData<TDataType>(data: unknown, modelType: Constructo
     }
 
     return deserializeItems(modelType, data) as TDataType;
-}
-
-/**
- * Derives a stable, constant-shape dependency value from query arguments for use in a React
- * dependency array.
- *
- * Spreading `Object.values(args)` positionally makes the dependency array's length track the
- * argument object's key count. React's `areHookInputsEqual` only compares the overlapping prefix
- * when a dependency array's length changes between renders, so a render where `args` goes from
- * `undefined` to `{ key: value }` (or vice versa) can have its memo/effect report "no change" even
- * though the arguments did change. Collapsing `args` into one sorted, serialized string keeps the
- * dependency array a constant length regardless of `args`' shape.
- * @param {object} [args] The query arguments to serialize.
- * @returns {string} A stable string dependency, empty when there are no arguments.
- */
-function serializeArgsForDependency(args?: object): string {
-    if (!args || Object.keys(args).length === 0) {
-        return '';
-    }
-
-    const sorted = Object.keys(args)
-        .sort()
-        .reduce<Record<string, unknown>>((accumulator, key) => {
-            accumulator[key] = (args as Record<string, unknown>)[key];
-            return accumulator;
-        }, {});
-
-    return JSON.stringify(sorted);
 }
 
 function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
