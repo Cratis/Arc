@@ -10,6 +10,7 @@ import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { useCommandScope } from '../commands/useCommandScope';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+import { serializeArgsForDependency } from './serializeArgsForDependency';
 import { useQueryScope } from './useQueryScope';
 
 /**
@@ -104,7 +105,14 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
         cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
     );
 
-    const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
+    // Serialized rather than spread as raw values. React compares dependencies with `Object.is`, so a
+    // required parameter whose runtime type is an object - a `Guid`, a `DateOnly`, any generated
+    // concept - would be compared by identity. A value re-derived in render position is a new object
+    // every render, which re-runs the effect, which aborts the in-flight request and settles a fresh
+    // result object, which re-renders: a loop that never converges. Serializing compares them by
+    // value, the same way the observable and suspense hooks already do.
+    const argumentsDependency = serializeArgsForDependency(
+        Object.fromEntries(queryInstance.requiredRequestParameters.map(_ => [_, args?.[_ as keyof TArguments]])));
 
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
@@ -157,7 +165,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
             arc.observableQueryDiagnostics?.endTracking(key);
             queryCache.release(key);
         };
-    }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled]]);
+    }, [argumentsDependency, currentPaging, currentSorting, isEnabled]);
 
     return [
         isEnabled === false ? QueryResultWithState.empty(queryInstance.defaultValue) : result!,
