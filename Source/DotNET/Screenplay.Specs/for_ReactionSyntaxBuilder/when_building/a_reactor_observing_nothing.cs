@@ -2,11 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Emission.Naming;
-using Cratis.Arc.Screenplay.Emission.Reactors;
+using Cratis.Arc.Screenplay.Emission.Reactions;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Syntax;
 
-namespace Cratis.Arc.Screenplay.for_ReactorSyntaxBuilder.when_building;
+namespace Cratis.Arc.Screenplay.for_ReactionSyntaxBuilder.when_building;
 
 /// <summary>
 /// A reactor declaration with no triggers has an empty body and does not compile.
@@ -14,8 +14,8 @@ namespace Cratis.Arc.Screenplay.for_ReactorSyntaxBuilder.when_building;
 public class a_reactor_observing_nothing : Specification
 {
     ScreenplayDiagnostics _diagnostics;
-    ReactorSyntaxBuilder _builder;
-    ReactorSyntax? _result;
+    ReactionSyntaxBuilder _builder;
+    ReactionSyntax? _result;
 
     void Establish()
     {

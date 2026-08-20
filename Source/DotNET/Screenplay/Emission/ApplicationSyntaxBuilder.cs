@@ -9,7 +9,7 @@ using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Emission.Projections;
 using Cratis.Arc.Screenplay.Emission.Queries;
-using Cratis.Arc.Screenplay.Emission.Reactors;
+using Cratis.Arc.Screenplay.Emission.Reactions;
 using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Slices;
 using Cratis.Arc.Screenplay.Emission.Specifications;
@@ -149,7 +149,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new EventSyntaxBuilder(naming, _types, _names),
             new QuerySyntaxBuilder(naming, _types, _authorize),
             new ConstraintSyntaxBuilder(naming),
-            new ReactorSyntaxBuilder(naming, diagnostics),
+            new ReactionSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
             new SpecificationSyntaxBuilder(naming));
