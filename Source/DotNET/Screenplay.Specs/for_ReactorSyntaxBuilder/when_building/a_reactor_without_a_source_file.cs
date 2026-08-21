@@ -17,7 +17,7 @@ public class a_reactor_without_a_source_file : Specification
 {
     ScreenplayDiagnostics _diagnostics;
     ReactorSyntaxBuilder _builder;
-    ReactorSyntax? _result;
+    ReactionSyntax? _result;
 
     void Establish()
     {
@@ -30,6 +30,6 @@ public class a_reactor_without_a_source_file : Specification
         "Library.Lending.Restocking");
 
     [Fact] void should_point_at_the_conventional_path() => _result!.Triggers.Single().File!.Path.ShouldEqual("Lending/Restocking/RestockRequester.cs");
-    [Fact] void should_observe_the_event() => _result!.Triggers.Single().Event.ShouldEqual("BookReserved");
+    [Fact] void should_observe_the_event() => ((NamedTriggerSourceSyntax)_result!.Triggers.Single().Source).Name.ShouldEqual("BookReserved");
     [Fact] void should_report_nothing() => _diagnostics.All.ShouldBeEmpty();
 }
