@@ -62,7 +62,7 @@ public class SliceSyntaxBuilder(
             [
                 .. slice.Reactors
                     .Select(_ => reactors.Build(_, slice.Namespace))
-                    .OfType<ReactorSyntax>()
+                    .OfType<ReactionSyntax>()
                     .OrderBy(_ => _.Name, StringComparer.Ordinal)
             ],
             [
