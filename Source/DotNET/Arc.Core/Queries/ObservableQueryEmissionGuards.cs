@@ -36,9 +36,30 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
         {
             ObservableQueryEmissionVerdict verdict;
 
+            IGuardObservableQueryEmission guard;
+
             try
             {
-                var guard = (IGuardObservableQueryEmission)ActivatorUtilities.GetServiceOrCreateInstance(context.ServiceProvider, guardType);
+                guard = (IGuardObservableQueryEmission)ActivatorUtilities.GetServiceOrCreateInstance(context.ServiceProvider, guardType);
+            }
+            catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+            {
+                return ObservableQueryEmissionVerdict.DenyAndTerminate;
+            }
+            catch (ObjectDisposedException) when (context.CancellationToken.IsCancellationRequested)
+            {
+                // The per-subscription provider was disposed during subscription teardown.
+                // This is ordinary teardown, not an application guard failure.
+                return ObservableQueryEmissionVerdict.DenyAndTerminate;
+            }
+            catch (Exception error)
+            {
+                logger.EmissionGuardFailed(context.QueryName, guardType, error);
+                return ObservableQueryEmissionVerdict.DenyAndTerminate;
+            }
+
+            try
+            {
                 verdict = await guard.Guard(context);
             }
             catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)

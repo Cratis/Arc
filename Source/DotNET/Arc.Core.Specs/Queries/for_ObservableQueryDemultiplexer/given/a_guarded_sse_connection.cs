@@ -54,6 +54,16 @@ public class a_guarded_sse_connection : a_guarded_connection
         await connectionTask;
     }
 
+    protected async Task Unsubscribe(string queryId)
+    {
+        var unsubscribeContext = Substitute.For<IHttpRequestContext>();
+        unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
+        unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<object?>(new ObservableQuerySSEUnsubscribeRequest(_connectionId, queryId)));
+
+        await _hub.HandleSSEUnsubscribe(unsubscribeContext);
+    }
+
     protected int CountQueryResultsFor(string queryId) =>
         HubMessages.Count(_ => _.Type == ObservableQueryHubMessageType.QueryResult && _.QueryId == queryId);
 

@@ -4,13 +4,13 @@
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Represents a trackable subscription over an <see cref="IAsyncEnumerable{T}"/>-backed observable query.
+/// Represents the cancellation lifetime of a trackable streaming observable query subscription.
 /// </summary>
-/// <param name="cancellationTokenSource">The linked <see cref="CancellationTokenSource"/> that drives the background streaming loop.</param>
+/// <param name="cancellationTokenSource">The linked <see cref="CancellationTokenSource"/> that drives the subscription's callbacks or background streaming loop.</param>
 /// <remarks>
-/// The background loop that pushes an async-enumerable's items to the client is bound to this source's token.
-/// Disposing the subscription cancels it, so an unsubscribe — or a connection teardown that disposes the tracked
-/// subscriptions — actually stops the stream instead of leaving it running for the life of the connection.
+/// Subject callbacks and async-enumerable background loops are bound to this source's token. Disposing the tracked
+/// subscription cancels it before its remaining resources are torn down, so an unsubscribe or connection teardown
+/// stops in-flight work before disposing the resources that work uses.
 /// </remarks>
 internal sealed class StreamingQuerySubscription(CancellationTokenSource cancellationTokenSource) : IDisposable
 {

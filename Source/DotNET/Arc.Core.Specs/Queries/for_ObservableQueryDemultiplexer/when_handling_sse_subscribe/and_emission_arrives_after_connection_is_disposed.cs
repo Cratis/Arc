@@ -6,6 +6,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Execution;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_subscribe;
 
@@ -32,6 +33,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
     TaskCompletionSource _dataServed;
     string _connectionId;
     bool _connectionCompleted;
+    bool _lateEmissionStopped;
     Exception _thrownWhenReleasingInFlightEmission;
 
     void Establish()
@@ -41,10 +43,10 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         _connectionId = string.Empty;
         _interceptionGate = new TaskCompletionSource<IEnumerable<object>>();
         _dataServed = new TaskCompletionSource();
+        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
 
-        // Rebuild the hub with a health tracker we can observe: RecordDataServed is invoked by the emission
-        // path only after the transport send returns, so its call is the signal that the in-flight emission
-        // ran to completion gracefully instead of crashing.
+        // Rebuild the hub with a health tracker we can observe. A late emission stopped by teardown must not be
+        // recorded as data served, because no result reaches the disconnected client.
         _observableHealthTracker = Substitute.For<IQueryHealthTracker>();
         _observableHealthTracker
             .When(_ => _.RecordDataServed(Arg.Any<string>(), Arg.Any<string>()))
@@ -118,11 +120,13 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         _connectionCompleted = true;
 
         // Let the in-flight emission resume against the now-disposed resources. Before the fix this crashed
-        // the process; it must now be a graceful no-op.
+        // the process; it must now observe its subscription cancellation and become a graceful no-op.
         try
         {
+            var logCallsBeforeRelease = LogCallCount;
             _interceptionGate.SetResult(["item-a"]);
-            await WaitFor(() => _dataServed.Task.IsCompleted);
+            await WaitForLogAfter(logCallsBeforeRelease);
+            _lateEmissionStopped = true;
         }
         catch (Exception ex)
         {
@@ -132,8 +136,20 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
 
     [Fact] void should_complete_the_connection_cleanly() => _connectionCompleted.ShouldBeTrue();
     [Fact] void should_not_throw_when_the_in_flight_emission_resumes() => _thrownWhenReleasingInFlightEmission.ShouldBeNull();
-    [Fact] void should_handle_the_late_emission_gracefully() => _dataServed.Task.IsCompleted.ShouldBeTrue();
+    [Fact] void should_stop_the_late_emission_gracefully() => _lateEmissionStopped.ShouldBeTrue();
+    [Fact] void should_not_track_the_late_emission_as_data_served() => _dataServed.Task.IsCompleted.ShouldBeFalse();
     [Fact] void should_not_write_a_query_result_to_the_disposed_connection() => HasQueryResultMessage().ShouldBeFalse();
+
+    int LogCallCount => _logger.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(ILogger.Log));
+
+    async Task WaitForLogAfter(int count)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (LogCallCount <= count)
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
 
     bool HasQueryResultMessage() =>
         _messages
