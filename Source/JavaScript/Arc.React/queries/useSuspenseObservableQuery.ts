@@ -9,7 +9,7 @@ import {
 } from '@cratis/arc/queries';
 import type { ObservableQuerySubscription } from '@cratis/arc/queries';
 import type { Constructor } from '@cratis/fundamentals';
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useId } from 'react';
 import type { SetSorting } from './SetSorting';
 import type { SetPage } from './SetPage';
 import type { SetPageSize } from './SetPageSize';
@@ -20,6 +20,7 @@ import { QueryUnauthorized } from './QueryUnauthorized';
 type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
 
 interface ObservableSuspenseResource<T> {
+    readonly cacheKey: string;
     status: SuspenseStatus;
     promise: Promise<void>;
     subscription: ObservableQuerySubscription<T> | null;
@@ -28,19 +29,194 @@ interface ObservableSuspenseResource<T> {
     resolve?: () => void;
     reject?: (error: Error) => void;
     listeners: Set<(value: QueryResultWithState<T>) => void>;
+    pendingConsumerIds: Set<string>;
+    ownerCount: number;
+    releaseScheduled: boolean;
+    disposed: boolean;
+    lastRenderedAt: number;
+    abandonmentTimer?: ReturnType<typeof setTimeout>;
 }
+
+const abandonmentGracePeriodInMilliseconds = 5000;
 
 // Module-level cache so resources survive Suspense retries on uncommitted components
 const _observableCache = new Map<string, ObservableSuspenseResource<unknown>>();
+const _pendingResourceByConsumerId = new Map<
+    string,
+    ObservableSuspenseResource<unknown>
+>();
+
+function clearPendingConsumers<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+): void {
+    const unknownResource = resource as ObservableSuspenseResource<unknown>;
+    resource.pendingConsumerIds.forEach((consumerId) => {
+        if (_pendingResourceByConsumerId.get(consumerId) === unknownResource) {
+            _pendingResourceByConsumerId.delete(consumerId);
+        }
+    });
+    resource.pendingConsumerIds.clear();
+}
+
+function disposeResource<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+    wakeSuspense: boolean,
+): void {
+    if (resource.disposed) {
+        return;
+    }
+
+    resource.disposed = true;
+    resource.releaseScheduled = false;
+    if (resource.abandonmentTimer !== undefined) {
+        clearTimeout(resource.abandonmentTimer);
+        resource.abandonmentTimer = undefined;
+    }
+
+    resource.subscription?.unsubscribe();
+    resource.subscription = null;
+    resource.listeners.clear();
+    clearPendingConsumers(resource);
+
+    if (
+        _observableCache.get(resource.cacheKey) ===
+        (resource as ObservableSuspenseResource<unknown>)
+    ) {
+        _observableCache.delete(resource.cacheKey);
+    }
+
+    if (wakeSuspense && resource.status === 'pending') {
+        resource.resolve?.();
+    }
+    resource.resolve = undefined;
+    resource.reject = undefined;
+}
+
+function expireResourceIfAbandoned<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+): void {
+    resource.abandonmentTimer = undefined;
+    if (resource.disposed || resource.ownerCount > 0) {
+        return;
+    }
+
+    const idleTime = Date.now() - resource.lastRenderedAt;
+    if (idleTime < abandonmentGracePeriodInMilliseconds) {
+        resource.abandonmentTimer = setTimeout(
+            () => expireResourceIfAbandoned(resource),
+            abandonmentGracePeriodInMilliseconds - idleTime,
+        );
+        return;
+    }
+
+    disposeResource(resource, true);
+}
+
+function touchUnownedResource<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+): void {
+    if (resource.disposed || resource.ownerCount > 0) {
+        return;
+    }
+
+    resource.lastRenderedAt = Date.now();
+    if (resource.abandonmentTimer === undefined) {
+        resource.abandonmentTimer = setTimeout(
+            () => expireResourceIfAbandoned(resource),
+            abandonmentGracePeriodInMilliseconds,
+        );
+    }
+}
+
+function registerPendingConsumer<TDataType>(
+    consumerId: string,
+    resource: ObservableSuspenseResource<TDataType>,
+): void {
+    if (resource.ownerCount > 0) {
+        return;
+    }
+
+    const unknownResource = resource as ObservableSuspenseResource<unknown>;
+    const previousResource = _pendingResourceByConsumerId.get(consumerId);
+
+    if (previousResource !== undefined && previousResource !== unknownResource) {
+        previousResource.pendingConsumerIds.delete(consumerId);
+        if (
+            previousResource.ownerCount === 0 &&
+            previousResource.pendingConsumerIds.size === 0
+        ) {
+            disposeResource(previousResource, true);
+        }
+    }
+
+    _pendingResourceByConsumerId.set(consumerId, unknownResource);
+    resource.pendingConsumerIds.add(consumerId);
+    touchUnownedResource(resource);
+}
+
+function unregisterPendingConsumer(consumerId: string): void {
+    const resource = _pendingResourceByConsumerId.get(consumerId);
+    if (resource === undefined) {
+        return;
+    }
+
+    _pendingResourceByConsumerId.delete(consumerId);
+    resource.pendingConsumerIds.delete(consumerId);
+    if (resource.ownerCount === 0 && resource.pendingConsumerIds.size === 0) {
+        disposeResource(resource, true);
+    }
+}
+
+function claimResource<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+): boolean {
+    if (
+        resource.disposed ||
+        _observableCache.get(resource.cacheKey) !==
+            (resource as ObservableSuspenseResource<unknown>)
+    ) {
+        return false;
+    }
+
+    clearPendingConsumers(resource);
+    resource.ownerCount++;
+    resource.releaseScheduled = false;
+    if (resource.abandonmentTimer !== undefined) {
+        clearTimeout(resource.abandonmentTimer);
+        resource.abandonmentTimer = undefined;
+    }
+    return true;
+}
+
+function releaseResource<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+): void {
+    if (resource.disposed) {
+        return;
+    }
+
+    resource.ownerCount = Math.max(0, resource.ownerCount - 1);
+    if (resource.ownerCount === 0 && !resource.releaseScheduled) {
+        resource.releaseScheduled = true;
+        queueMicrotask(() => {
+            if (
+                !resource.disposed &&
+                resource.releaseScheduled &&
+                resource.ownerCount === 0
+            ) {
+                disposeResource(resource, false);
+            }
+        });
+    }
+}
 
 /**
  * Clears the Suspense observable query cache. Call this in test teardown to ensure test isolation.
  */
 export function clearSuspenseObservableQueryCache(): void {
-    _observableCache.forEach((resource) => {
-        resource.subscription?.unsubscribe();
+    Array.from(_observableCache.values()).forEach((resource) => {
+        disposeResource(resource, false);
     });
-    _observableCache.clear();
 }
 
 function makeCacheKey(
@@ -72,6 +248,7 @@ function useSuspenseObservableQueryInternal<
     );
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [result, setResult] = useState<QueryResultWithState<TDataType> | null>(null);
+    const consumerId = useId();
     // SAFETY: JavaScript class constructors always expose their runtime name, which is used only as part of the cache key.
     const queryName = (query as unknown as { name: string }).name;
 
@@ -87,6 +264,10 @@ function useSuspenseObservableQueryInternal<
           )
         : `__noop__${queryName}`;
 
+    if (!isEnabled) {
+        unregisterPendingConsumer(consumerId);
+    }
+
     if (isEnabled && !_observableCache.has(cacheKey)) {
         const queryInstance = new query() as TQuery;
         queryInstance.sorting = currentSorting;
@@ -99,6 +280,7 @@ function useSuspenseObservableQueryInternal<
         let rejectPromise!: (error: Error) => void;
 
         const resource: ObservableSuspenseResource<TDataType> = {
+            cacheKey,
             status: 'pending',
             promise: new Promise<void>((resolve, reject) => {
                 resolvePromise = resolve;
@@ -106,13 +288,22 @@ function useSuspenseObservableQueryInternal<
             }),
             subscription: null,
             listeners: new Set(),
+            pendingConsumerIds: new Set(),
+            ownerCount: 0,
+            releaseScheduled: false,
+            disposed: false,
+            lastRenderedAt: Date.now(),
         };
 
         resource.resolve = resolvePromise;
         resource.reject = rejectPromise;
+        _observableCache.set(
+            cacheKey,
+            resource as ObservableSuspenseResource<unknown>,
+        );
 
         resource.subscription = queryInstance.subscribe((response) => {
-            if (response.isReady === false) {
+            if (resource.disposed || response.isReady === false) {
                 return;
             }
 
@@ -147,16 +338,18 @@ function useSuspenseObservableQueryInternal<
                 resource.reject = undefined;
             }
         }, args as object);
-
-        _observableCache.set(cacheKey, resource as ObservableSuspenseResource<unknown>);
     }
 
-    const resource = _observableCache.get(
-        cacheKey,
-    ) as ObservableSuspenseResource<TDataType>;
+    const resource = isEnabled
+        ? (_observableCache.get(cacheKey) as ObservableSuspenseResource<TDataType>)
+        : undefined;
+
+    if (resource !== undefined) {
+        registerPendingConsumer(consumerId, resource);
+    }
 
     useEffect(() => {
-        if (!isEnabled) {
+        if (!isEnabled || resource === undefined || !claimResource(resource)) {
             return;
         }
         const handleUpdate = (value: QueryResultWithState<TDataType>) => {
@@ -166,10 +359,7 @@ function useSuspenseObservableQueryInternal<
 
         return () => {
             resource.listeners.delete(handleUpdate);
-            if (resource.listeners.size === 0) {
-                resource.subscription?.unsubscribe();
-                _observableCache.delete(cacheKey);
-            }
+            releaseResource(resource);
         };
     }, [cacheKey, resource, isEnabled]);
 
@@ -189,6 +379,10 @@ function useSuspenseObservableQueryInternal<
         ];
     }
 
+    if (resource === undefined) {
+        throw new Error('Expected an enabled suspense observable query resource');
+    }
+
     if (resource.status === 'rejected') {
         throw resource.error;
     }
@@ -197,12 +391,16 @@ function useSuspenseObservableQueryInternal<
         throw resource.promise;
     }
 
+    if (resource.value === undefined) {
+        throw new Error('Expected a fulfilled suspense observable query resource value');
+    }
+
     const resetForNewSubscription = () => {
         setResult(null);
     };
 
     return [
-        result ?? resource.value!,
+        result ?? resource.value,
         async (newSorting: Sorting) => {
             resetForNewSubscription();
             setCurrentSorting(newSorting);

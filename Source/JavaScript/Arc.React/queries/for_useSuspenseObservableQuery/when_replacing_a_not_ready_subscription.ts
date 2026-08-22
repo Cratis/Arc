@@ -115,4 +115,79 @@ describe('when replacing a subscription that is not ready', () => {
         FakeSuspenseObservableQuery.subscribeCallbacks.should.have.lengthOf(2);
         FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(1);
     });
+
+    it('should dispose a pending replacement when its key is replaced again', async () => {
+        let setSorting: SetSorting | undefined;
+
+        const TestComponent = () => {
+            const [result, changeSorting] = useSuspenseObservableQuery<
+                FakeSuspenseObservableQueryResult[],
+                FakeSuspenseObservableQuery
+            >(FakeSuspenseObservableQuery);
+            setSorting = changeSorting;
+            return React.createElement(
+                'div',
+                { 'data-testid': 'content' },
+                result.data[0]?.name,
+            );
+        };
+
+        render(
+            React.createElement(
+                ArcContext.Provider,
+                { value: config },
+                React.createElement(
+                    React.Suspense,
+                    {
+                        fallback: React.createElement(
+                            'div',
+                            { 'data-testid': 'loading' },
+                            'Loading...',
+                        ),
+                    },
+                    React.createElement(TestComponent),
+                ),
+            ),
+        );
+
+        await act(async () => {
+            FakeSuspenseObservableQuery.subscribeCallbacks[0](
+                createResult(true, 'Initial'),
+            );
+        });
+
+        const changeSorting = setSorting;
+        if (changeSorting === undefined) {
+            throw new Error('Expected the suspense query to provide sorting controls');
+        }
+
+        await act(async () => {
+            await changeSorting(new Sorting('name', SortDirection.ascending));
+        });
+        const replacedCallback = FakeSuspenseObservableQuery.subscribeCallbacks[1];
+
+        await act(async () => {
+            replacedCallback(createResult(false, 'Pending replacement'));
+            await changeSorting(new Sorting('id', SortDirection.descending));
+        });
+
+        FakeSuspenseObservableQuery.subscribeCallbacks.should.have.lengthOf(3);
+        FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(1);
+
+        await act(async () => {
+            replacedCallback(createResult(true, 'Disposed replacement'));
+        });
+        screen.getByTestId('loading');
+
+        await act(async () => {
+            FakeSuspenseObservableQuery.subscribeCallbacks[2](
+                createResult(true, 'Final replacement'),
+            );
+        });
+
+        (screen.getByTestId('content').textContent ?? '').should.equal(
+            'Final replacement',
+        );
+        FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(2);
+    });
 });
