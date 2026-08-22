@@ -1,13 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResultWithState, IObservableQueryFor, Sorting, Paging } from '@cratis/arc/queries';
-import { ObservableQuerySubscription } from '@cratis/arc/queries';
-import { Constructor } from '@cratis/fundamentals';
+import {
+    QueryResultWithState,
+    type IObservableQueryFor,
+    Sorting,
+    Paging,
+} from '@cratis/arc/queries';
+import type { ObservableQuerySubscription } from '@cratis/arc/queries';
+import type { Constructor } from '@cratis/fundamentals';
 import { useState, useEffect, useContext } from 'react';
-import { SetSorting } from './SetSorting';
-import { SetPage } from './SetPage';
-import { SetPageSize } from './SetPageSize';
+import type { SetSorting } from './SetSorting';
+import type { SetPage } from './SetPage';
+import type { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { QueryFailed } from './QueryFailed';
 import { QueryUnauthorized } from './QueryUnauthorized';
@@ -32,7 +37,7 @@ const _observableCache = new Map<string, ObservableSuspenseResource<unknown>>();
  * Clears the Suspense observable query cache. Call this in test teardown to ensure test isolation.
  */
 export function clearSuspenseObservableQueryCache(): void {
-    _observableCache.forEach(resource => {
+    _observableCache.forEach((resource) => {
         resource.subscription?.unsubscribe();
     });
     _observableCache.clear();
@@ -45,33 +50,42 @@ function makeCacheKey(
     origin: string,
     sorting: Sorting,
     paging: Paging,
-    args: unknown
+    args: unknown,
 ): string {
     return `${queryName}:${microservice}:${apiBasePath}:${origin}:${sorting.field ?? ''}:${sorting.direction ?? 0}:${paging.page}:${paging.pageSize}:${JSON.stringify(args)}`;
 }
 
-function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(
+function useSuspenseObservableQueryInternal<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
     query: Constructor<TQuery>,
     sorting?: Sorting,
     paging?: Paging,
     args?: TArguments,
-    isEnabled: boolean = true
+    isEnabled: boolean = true,
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
-    const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
+    const [currentSorting, setCurrentSorting] = useState<Sorting>(
+        sorting ?? Sorting.none,
+    );
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [result, setResult] = useState<QueryResultWithState<TDataType> | null>(null);
+    // SAFETY: JavaScript class constructors always expose their runtime name, which is used only as part of the cache key.
+    const queryName = (query as unknown as { name: string }).name;
 
     const cacheKey = isEnabled
         ? makeCacheKey(
-            (query as unknown as { name: string }).name,
-            arc.microservice,
-            arc.apiBasePath ?? '',
-            arc.origin ?? '',
-            currentSorting,
-            currentPaging,
-            args)
-        : `__noop__${(query as unknown as { name: string }).name}`;
+              queryName,
+              arc.microservice,
+              arc.apiBasePath ?? '',
+              arc.origin ?? '',
+              currentSorting,
+              currentPaging,
+              args,
+          )
+        : `__noop__${queryName}`;
 
     if (isEnabled && !_observableCache.has(cacheKey)) {
         const queryInstance = new query() as TQuery;
@@ -91,30 +105,29 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
                 rejectPromise = reject;
             }),
             subscription: null,
-            listeners: new Set()
+            listeners: new Set(),
         };
 
         resource.resolve = resolvePromise;
         resource.reject = rejectPromise;
 
         resource.subscription = queryInstance.subscribe((response) => {
+            if (response.isReady === false) {
+                return;
+            }
+
             if (response.hasExceptions) {
                 if (resource.status === 'pending') {
                     resource.status = 'rejected';
-                    resource.error = new QueryFailed(response.exceptionMessages, response.exceptionStackTrace);
+                    resource.error = new QueryFailed(
+                        response.exceptionMessages,
+                        response.exceptionStackTrace,
+                    );
                     resource.reject?.(resource.error);
                     resource.resolve = undefined;
                     resource.reject = undefined;
                 }
-            } else if (!response.isAuthorized) {
-                if (resource.status === 'pending') {
-                    resource.status = 'rejected';
-                    resource.error = new QueryUnauthorized();
-                    resource.reject?.(resource.error);
-                    resource.resolve = undefined;
-                    resource.reject = undefined;
-                }
-            } else {
+            } else if (response.isAuthorized) {
                 const queryResult = QueryResultWithState.fromQueryResult(response, false);
                 resource.value = queryResult;
 
@@ -124,15 +137,23 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
                     resource.resolve = undefined;
                     resource.reject = undefined;
                 } else {
-                    resource.listeners.forEach(listener => listener(queryResult));
+                    resource.listeners.forEach((listener) => listener(queryResult));
                 }
+            } else if (resource.status === 'pending') {
+                resource.status = 'rejected';
+                resource.error = new QueryUnauthorized();
+                resource.reject?.(resource.error);
+                resource.resolve = undefined;
+                resource.reject = undefined;
             }
         }, args as object);
 
         _observableCache.set(cacheKey, resource as ObservableSuspenseResource<unknown>);
     }
 
-    const resource = _observableCache.get(cacheKey) as ObservableSuspenseResource<TDataType>;
+    const resource = _observableCache.get(
+        cacheKey,
+    ) as ObservableSuspenseResource<TDataType>;
 
     useEffect(() => {
         if (!isEnabled) {
@@ -156,9 +177,15 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
         const disabledInstance = new query();
         return [
             QueryResultWithState.empty(disabledInstance.defaultValue),
-            async (newSorting: Sorting) => { setCurrentSorting(newSorting); },
-            async (page: number) => { setCurrentPaging(new Paging(page, currentPaging.pageSize)); },
-            async (pageSize: number) => { setCurrentPaging(new Paging(currentPaging.page, pageSize)); }
+            async (newSorting: Sorting) => {
+                setCurrentSorting(newSorting);
+            },
+            async (page: number) => {
+                setCurrentPaging(new Paging(page, currentPaging.pageSize));
+            },
+            async (pageSize: number) => {
+                setCurrentPaging(new Paging(currentPaging.page, pageSize));
+            },
         ];
     }
 
@@ -170,65 +197,30 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
         throw resource.promise;
     }
 
-    const resetForNewSubscription = (newCacheKey: string) => {
-        const currentResource = _observableCache.get(cacheKey);
-        if (currentResource) {
-            currentResource.subscription?.unsubscribe();
-            _observableCache.delete(cacheKey);
-        }
-        _observableCache.delete(newCacheKey);
+    const resetForNewSubscription = () => {
         setResult(null);
     };
 
     return [
         result ?? resource.value!,
         async (newSorting: Sorting) => {
-            const newKey = makeCacheKey(
-                (query as unknown as { name: string }).name,
-                arc.microservice,
-                arc.apiBasePath ?? '',
-                arc.origin ?? '',
-                newSorting,
-                currentPaging,
-                args
-            );
-            resetForNewSubscription(newKey);
+            resetForNewSubscription();
             setCurrentSorting(newSorting);
         },
         async (page: number) => {
-            const newPaging = new Paging(page, currentPaging.pageSize);
-            const newKey = makeCacheKey(
-                (query as unknown as { name: string }).name,
-                arc.microservice,
-                arc.apiBasePath ?? '',
-                arc.origin ?? '',
-                currentSorting,
-                newPaging,
-                args
-            );
-            resetForNewSubscription(newKey);
-            setCurrentPaging(newPaging);
+            resetForNewSubscription();
+            setCurrentPaging(new Paging(page, currentPaging.pageSize));
         },
         async (pageSize: number) => {
-            const newPaging = new Paging(currentPaging.page, pageSize);
-            const newKey = makeCacheKey(
-                (query as unknown as { name: string }).name,
-                arc.microservice,
-                arc.apiBasePath ?? '',
-                arc.origin ?? '',
-                currentSorting,
-                newPaging,
-                args
-            );
-            resetForNewSubscription(newKey);
-            setCurrentPaging(newPaging);
-        }
+            resetForNewSubscription();
+            setCurrentPaging(new Paging(currentPaging.page, pageSize));
+        },
     ];
 }
 
 /**
  * React hook for working with {@link IObservableQueryFor} within React Suspense boundaries.
- * Suspends the component until the first result is received and throws errors for ErrorBoundaries.
+ * Suspends the component until the first ready result is received and throws errors for ErrorBoundaries.
  * @template TDataType Type of model the query is for.
  * @template TQuery Type of observable query to use.
  * @template TArguments Optional: Arguments for the query, if any
@@ -240,19 +232,27 @@ function useSuspenseObservableQueryInternal<TDataType, TQuery extends IObservabl
  * @throws {QueryFailed} The exception that is thrown when the query has server-side exceptions.
  * @throws {QueryUnauthorized} The exception that is thrown when the query is not authorized.
  */
-export function useSuspenseObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(
+export function useSuspenseObservableQuery<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
     query: Constructor<TQuery>,
     args?: TArguments,
     sorting?: Sorting,
-    isEnabled: boolean = true
+    isEnabled: boolean = true,
 ): [QueryResultWithState<TDataType>, SetSorting] {
-    const [result, setSorting] = useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled);
+    const [result, setSorting] = useSuspenseObservableQueryInternal<
+        TDataType,
+        TQuery,
+        TArguments
+    >(query, sorting, Paging.noPaging, args, isEnabled);
     return [result, setSorting];
 }
 
 /**
  * React hook for working with {@link IObservableQueryFor} within React Suspense boundaries for queries with paging.
- * Suspends the component until the first result is received and throws errors for ErrorBoundaries.
+ * Suspends the component until the first ready result is received and throws errors for ErrorBoundaries.
  * @template TDataType Type of model the query is for.
  * @template TQuery Type of observable query to use.
  * @template TArguments Optional: Arguments for the query, if any
@@ -265,12 +265,22 @@ export function useSuspenseObservableQuery<TDataType, TQuery extends IObservable
  * @throws {QueryFailed} The exception that is thrown when the query has server-side exceptions.
  * @throws {QueryUnauthorized} The exception that is thrown when the query is not authorized.
  */
-export function useSuspenseObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(
+export function useSuspenseObservableQueryWithPaging<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
     query: Constructor<TQuery>,
     paging: Paging,
     args?: TArguments,
     sorting?: Sorting,
-    isEnabled: boolean = true
+    isEnabled: boolean = true,
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    return useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled);
+    return useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(
+        query,
+        sorting,
+        paging,
+        args,
+        isEnabled,
+    );
 }

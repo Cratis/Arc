@@ -60,6 +60,8 @@ describe(
 
             subscription = context.query.subscribe(callback, { id: 'test-id' });
             eventSourceInstance.onopen?.();
+            // An older Arc server omits subscription capabilities from Connected, so this fixture
+            // intentionally exercises legacy missing-revision result frames.
             eventSourceInstance.onmessage?.({
                 data: JSON.stringify({
                     type: HubMessageType.Connected,
@@ -67,7 +69,7 @@ describe(
                 }),
             });
 
-            let subscribeRequest: { queryId: string };
+            let subscribeRequest: { queryId: string; revision?: number };
             try {
                 subscribeRequest = JSON.parse(fetchStub.firstCall.args[1].body as string);
             } catch (error) {
@@ -114,8 +116,24 @@ describe(
         });
 
         it('should return a subscription', () => {
-            subscription.should.not.be.undefined;
+            (subscription === undefined).should.equal(false);
         });
+
+        it('should omit revisions when the server does not advertise support', () => {
+            (getSubscribeBody().revision === undefined).should.equal(true);
+        });
+
+        function getSubscribeBody(): { revision?: number } {
+            try {
+                return JSON.parse(fetchStub.firstCall.args[1].body as string) as {
+                    revision?: number;
+                };
+            } catch (error) {
+                throw new Error('Expected a valid subscribe request body', {
+                    cause: error,
+                });
+            }
+        }
 
         it('should normalize omitted readiness to true', () => {
             callback.firstCall.args[0].isReady.should.equal(true);
