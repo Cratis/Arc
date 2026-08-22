@@ -969,7 +969,7 @@ public class ObservableQueryDemultiplexer(
             {
                 logger.EmissionAfterDisconnect(queryId);
             }
-            catch (Exception error)
+            catch (Exception error) when (!IsFatal(error))
             {
                 logger.SubscriptionError(queryId, error);
                 try
@@ -982,7 +982,7 @@ public class ObservableQueryDemultiplexer(
                 {
                     logger.EmissionAfterDisconnect(queryId);
                 }
-                catch (Exception callbackError)
+                catch (Exception callbackError) when (!IsFatal(callbackError))
                 {
                     logger.SubscriptionError(queryId, callbackError);
                 }
@@ -1023,7 +1023,7 @@ public class ObservableQueryDemultiplexer(
             {
                 logger.EmissionAfterDisconnect(queryId);
             }
-            catch (Exception callbackError)
+            catch (Exception callbackError) when (!IsFatal(callbackError))
             {
                 logger.SubscriptionError(queryId, callbackError);
             }
@@ -1149,7 +1149,7 @@ public class ObservableQueryDemultiplexer(
             {
                 // The subscription ended while reporting the live failure.
             }
-            catch (Exception callbackError)
+            catch (Exception callbackError) when (!IsFatal(callbackError))
             {
                 logger.SubscriptionError(queryId, callbackError);
             }
@@ -1371,6 +1371,15 @@ public class ObservableQueryDemultiplexer(
             // Already disposed as the connection ended — nothing to cancel.
         }
     }
+
+    static bool IsFatal(Exception exception) =>
+        exception is OutOfMemoryException or
+            StackOverflowException or
+            AccessViolationException or
+            AppDomainUnloadedException or
+            BadImageFormatException or
+            CannotUnloadAppDomainException or
+            InvalidProgramException;
 
     static bool IsStreamingResult(object data) =>
         data.GetType().ImplementsOpenGeneric(typeof(ISubject<>)) ||

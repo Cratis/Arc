@@ -55,7 +55,7 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
                 // This is ordinary teardown, not an application guard failure.
                 return ObservableQueryEmissionVerdict.DenyAndTerminate;
             }
-            catch (Exception error)
+            catch (Exception error) when (!IsFatal(error))
             {
                 logger.EmissionGuardFailed(context.QueryName, guardType, error);
                 return ObservableQueryEmissionVerdict.DenyAndTerminate;
@@ -78,11 +78,11 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
                 // The verdict is still the closed one: there is nothing left to write to.
                 return ObservableQueryEmissionVerdict.DenyAndTerminate;
             }
-            catch (Exception error)
+            catch (Exception error) when (!IsFatal(error))
             {
                 // Fail closed. A guard that cannot answer must not become an implicit allow — the application would
-                // believe the stream is protected while it keeps flowing. The exception is swallowed here on purpose:
-                // the callers are async void emission callbacks, where anything escaping is unobserved and fatal.
+                // believe the stream is protected while it keeps flowing. Non-fatal failures are swallowed here on
+                // purpose: the callers are async void emission callbacks, where anything escaping is unobserved.
                 logger.EmissionGuardFailed(context.QueryName, guardType, error);
                 return ObservableQueryEmissionVerdict.DenyAndTerminate;
             }
@@ -117,4 +117,13 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
 
         return clone;
     }
+
+    static bool IsFatal(Exception exception) =>
+        exception is OutOfMemoryException or
+            StackOverflowException or
+            AccessViolationException or
+            AppDomainUnloadedException or
+            BadImageFormatException or
+            CannotUnloadAppDomainException or
+            InvalidProgramException;
 }
