@@ -91,7 +91,7 @@ public class ObservableQueryDemultiplexer(
 
         var connectionId = $"ws-{Interlocked.Increment(ref _nextConnectionId)}";
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
-        var subscriptions = new ConcurrentDictionary<string, ObservableQuerySubscriptionOperation>();
+        var subscriptions = new ConcurrentDictionary<string, ObservableQuerySubscriptionState>();
         var writeLock = new SemaphoreSlim(1, 1);
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -103,6 +103,15 @@ public class ObservableQueryDemultiplexer(
 
         try
         {
+            // Advertise capabilities before reading the client's initial legacy subscriptions. A capable client can
+            // then replace them with revision-aware subscriptions without losing compatibility with older servers.
+            await SendWebSocketMessage(
+                webSocket,
+                ObservableQueryHubMessage.CreateConnected(connectionId, arcOptions.Value.Query.KeepAliveInterval),
+                keepAliveTracker,
+                writeLock,
+                linkedCts.Token);
+
 #pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
             keepAliveTask = RunWebSocketKeepAlive(webSocket, keepAliveTracker, writeLock, linkedCts.Token);
 #pragma warning restore CA2025
@@ -121,9 +130,9 @@ public class ObservableQueryDemultiplexer(
             await linkedCts.CancelAsync();
             await keepAliveTask;
 
-            foreach (var subscription in subscriptions.Values)
+            foreach (var subscriptionState in subscriptions.Values)
             {
-                subscription.Dispose();
+                subscriptionState.Dispose();
             }
 
             healthTracker.RemoveConnection(connectionId);
@@ -184,9 +193,9 @@ public class ObservableQueryDemultiplexer(
             await linkedCts.CancelAsync();
             await keepAliveTask;
 
-            foreach (var subscription in state.Subscriptions.Values)
+            foreach (var subscriptionState in state.Subscriptions.Values)
             {
-                subscription.Dispose();
+                subscriptionState.Dispose();
             }
 
             state.Subscriptions.Clear();
@@ -214,7 +223,8 @@ public class ObservableQueryDemultiplexer(
         if (body is null
             || string.IsNullOrEmpty(body.ConnectionId)
             || string.IsNullOrEmpty(body.QueryId)
-            || body.Request is null)
+            || body.Request is null
+            || !ObservableQuerySubscriptionRevision.IsValid(body.Revision))
         {
             context.SetStatusCode(400);
             return;
@@ -227,15 +237,20 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        logger.ClientSubscribed(body.Request.QueryName, body.QueryId);
-
-        // Reserve this query id before awaiting the query pipeline. A later subscribe replaces and cancels this exact
-        // operation, so stale creation and callbacks can neither install themselves nor affect the replacement.
+        // Reserve this query id before awaiting the query pipeline. Revision ordering makes duplicates idempotent,
+        // ignores stale work, and lets an unsubscribe tombstone arrive before its delayed subscribe.
         var operation = ReserveSubscription(
             state.Subscriptions,
             body.QueryId,
-            body.SubscriptionGeneration,
+            body.Revision,
             state.CancellationToken);
+        if (operation is null)
+        {
+            context.SetStatusCode(200);
+            return;
+        }
+
+        logger.ClientSubscribed(body.Request.QueryName, body.QueryId);
         var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(
             context,
             state.Context,
@@ -251,7 +266,7 @@ public class ObservableQueryDemultiplexer(
             var subscription = await CreateSubscription(
                 subscriptionContext,
                 context.RequestServices,
-                subscriptionContext.User,
+                subscriptionContext.GetPrincipal(),
                 body.QueryId,
                 body.Request,
                 async (result, operationToken) =>
@@ -261,7 +276,7 @@ public class ObservableQueryDemultiplexer(
                         return;
                     }
 
-                    var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result, operation.Generation);
+                    var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result, operation.Revision);
                     if (await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken) &&
                         IsCurrent(state.Subscriptions, body.QueryId, operation))
                     {
@@ -275,7 +290,7 @@ public class ObservableQueryDemultiplexer(
                         return;
                     }
 
-                    var msg = ObservableQueryHubMessage.CreateError(id, errorMsg, operation.Generation);
+                    var msg = ObservableQueryHubMessage.CreateError(id, errorMsg, operation.Revision);
                     await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken);
                 },
                 async (id, operationToken) =>
@@ -287,7 +302,7 @@ public class ObservableQueryDemultiplexer(
 
                     operationToken.ThrowIfCancellationRequested();
                     wasUnauthorized = true;
-                    var msg = ObservableQueryHubMessage.CreateUnauthorized(id, operation.Generation);
+                    var msg = ObservableQueryHubMessage.CreateUnauthorized(id, operation.Revision);
                     await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken);
 
                     TerminateSubscription(state.Subscriptions, id, operation);
@@ -331,7 +346,8 @@ public class ObservableQueryDemultiplexer(
         if (await context.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), context.RequestAborted)
             is not ObservableQuerySSEUnsubscribeRequest body
             || string.IsNullOrEmpty(body.ConnectionId)
-            || string.IsNullOrEmpty(body.QueryId))
+            || string.IsNullOrEmpty(body.QueryId)
+            || !ObservableQuerySubscriptionRevision.IsValid(body.Revision))
         {
             context.SetStatusCode(400);
             return;
@@ -344,9 +360,11 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        if (state.Subscriptions.TryGetValue(body.QueryId, out var subscription))
+        var accepted = body.Revision is not null
+            ? state.Subscriptions.GetOrAdd(body.QueryId, static _ => new ObservableQuerySubscriptionState()).TryUnsubscribe(body.Revision)
+            : state.Subscriptions.TryGetValue(body.QueryId, out var subscriptionState) && subscriptionState.TryUnsubscribe(null);
+        if (accepted)
         {
-            TerminateSubscription(state.Subscriptions, body.QueryId, subscription);
             logger.ClientUnsubscribed(body.QueryId);
         }
 
@@ -446,7 +464,7 @@ public class ObservableQueryDemultiplexer(
 
     async Task ReadWebSocketMessages(
         IWebSocket webSocket,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -502,9 +520,9 @@ public class ObservableQueryDemultiplexer(
         }
 
         // Clean up subscriptions on disconnect
-        foreach (var subscription in subscriptions.Values)
+        foreach (var subscriptionState in subscriptions.Values)
         {
-            subscription.Dispose();
+            subscriptionState.Dispose();
         }
 
         subscriptions.Clear();
@@ -513,7 +531,7 @@ public class ObservableQueryDemultiplexer(
     async Task ProcessWebSocketMessage(
         ObservableQueryHubMessage message,
         IWebSocket webSocket,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -542,7 +560,7 @@ public class ObservableQueryDemultiplexer(
     async Task HandleWebSocketSubscribe(
         ObservableQueryHubMessage message,
         IWebSocket webSocket,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -556,10 +574,19 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        logger.ClientSubscribed(request.QueryName, message.QueryId ?? string.Empty);
+        if (!ObservableQuerySubscriptionRevision.IsValid(message.Revision))
+        {
+            return;
+        }
 
         var queryId = message.QueryId ?? Guid.NewGuid().ToString();
-        var operation = ReserveSubscription(subscriptions, queryId, message.SubscriptionGeneration, token);
+        var operation = ReserveSubscription(subscriptions, queryId, message.Revision, token);
+        if (operation is null)
+        {
+            return;
+        }
+
+        logger.ClientSubscribed(request.QueryName, queryId);
         var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(context, context, serviceProvider, operation.Token);
         var previousContext = httpRequestContextAccessor.Current;
 
@@ -569,7 +596,7 @@ public class ObservableQueryDemultiplexer(
             var subscription = await CreateSubscription(
                 subscriptionContext,
                 context.RequestServices,
-                subscriptionContext.User,
+                subscriptionContext.GetPrincipal(),
                 queryId,
                 request,
                 async (result, operationToken) =>
@@ -579,7 +606,7 @@ public class ObservableQueryDemultiplexer(
                         return;
                     }
 
-                    var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result, operation.Generation);
+                    var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result, operation.Revision);
                     if (await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken) &&
                         IsCurrent(subscriptions, queryId, operation))
                     {
@@ -593,7 +620,7 @@ public class ObservableQueryDemultiplexer(
                         return;
                     }
 
-                    var msg = ObservableQueryHubMessage.CreateError(id, errorMsg, operation.Generation);
+                    var msg = ObservableQueryHubMessage.CreateError(id, errorMsg, operation.Revision);
                     await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
                 },
                 async (id, operationToken) =>
@@ -604,7 +631,7 @@ public class ObservableQueryDemultiplexer(
                     }
 
                     operationToken.ThrowIfCancellationRequested();
-                    var msg = ObservableQueryHubMessage.CreateUnauthorized(id, operation.Generation);
+                    var msg = ObservableQueryHubMessage.CreateUnauthorized(id, operation.Revision);
                     await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
                     TerminateSubscription(subscriptions, id, operation);
                 },
@@ -639,52 +666,34 @@ public class ObservableQueryDemultiplexer(
         }
     }
 
-    ObservableQuerySubscriptionOperation ReserveSubscription(
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+    ObservableQuerySubscriptionOperation? ReserveSubscription(
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
         string queryId,
-        string? generation,
-        CancellationToken connectionToken)
-    {
-        var operation = new ObservableQuerySubscriptionOperation(generation, connectionToken);
-
-        while (!subscriptions.TryAdd(queryId, operation))
-        {
-            if (!subscriptions.TryGetValue(queryId, out var current))
-            {
-                continue;
-            }
-
-            if (subscriptions.TryUpdate(queryId, operation, current))
-            {
-                current.Dispose();
-                break;
-            }
-        }
-
-        return operation;
-    }
+        long? revision,
+        CancellationToken connectionToken) =>
+        subscriptions.GetOrAdd(queryId, static _ => new ObservableQuerySubscriptionState())
+            .TrySubscribe(revision, connectionToken);
 
     bool IsCurrent(
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
         string queryId,
         ObservableQuerySubscriptionOperation operation) =>
-        subscriptions.TryGetValue(queryId, out var current) && ReferenceEquals(current, operation);
+        subscriptions.TryGetValue(queryId, out var state) && state.IsCurrent(operation);
 
     void TerminateSubscription(
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
         string queryId,
         ObservableQuerySubscriptionOperation operation)
     {
-        if (((ICollection<KeyValuePair<string, ObservableQuerySubscriptionOperation>>)subscriptions)
-            .Remove(new KeyValuePair<string, ObservableQuerySubscriptionOperation>(queryId, operation)))
+        if (subscriptions.TryGetValue(queryId, out var state))
         {
-            operation.Dispose();
+            state.TryTerminate(operation);
         }
     }
 
     void HandleWebSocketUnsubscribe(
         ObservableQueryHubMessage message,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions)
+        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions)
     {
         var queryId = message.QueryId;
         if (queryId is null)
@@ -692,10 +701,16 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        if (subscriptions.TryGetValue(queryId, out var subscription) &&
-            (message.SubscriptionGeneration is null || subscription.Generation == message.SubscriptionGeneration))
+        if (!ObservableQuerySubscriptionRevision.IsValid(message.Revision))
         {
-            TerminateSubscription(subscriptions, queryId, subscription);
+            return;
+        }
+
+        var accepted = message.Revision is not null
+            ? subscriptions.GetOrAdd(queryId, static _ => new ObservableQuerySubscriptionState()).TryUnsubscribe(message.Revision)
+            : subscriptions.TryGetValue(queryId, out var state) && state.TryUnsubscribe(null);
+        if (accepted)
+        {
             logger.ClientUnsubscribed(queryId);
         }
     }
@@ -722,7 +737,8 @@ public class ObservableQueryDemultiplexer(
             arguments,
             paging,
             sorting,
-            queryServiceProvider);
+            queryServiceProvider,
+            token);
 
         if (!queryResult.IsAuthorized)
         {
@@ -1489,7 +1505,7 @@ public class ObservableQueryDemultiplexer(
         IHttpRequestContext Context,
         CancellationTokenSource CancellationTokenSource)
     {
-        public ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> Subscriptions { get; } = new();
+        public ConcurrentDictionary<string, ObservableQuerySubscriptionState> Subscriptions { get; } = new();
         public CancellationToken CancellationToken { get; } = CancellationTokenSource.Token;
         public KeepAliveTracker KeepAliveTracker { get; } = new();
         public SemaphoreSlim WriteLock { get; } = new(1, 1);

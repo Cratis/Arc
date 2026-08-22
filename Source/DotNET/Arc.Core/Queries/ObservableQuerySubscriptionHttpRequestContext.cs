@@ -25,6 +25,7 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     CancellationToken requestAborted) : IHttpRequestContext
 {
     readonly IHttpRequestContext _transportContext = transportContext;
+    readonly ClaimsPrincipal _user = ClonePrincipal(requestContext.User);
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query { get; } = Snapshot(requestContext.Query);
@@ -54,7 +55,21 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     public IWebSocketContext WebSockets => _transportContext.WebSockets;
 
     /// <inheritdoc/>
-    public ClaimsPrincipal User { get; set; } = ClonePrincipal(requestContext.User);
+    /// <remarks>
+    /// Reads return an isolated clone of the one frozen snapshot. This preserves the mutable
+    /// <see cref="IHttpRequestContext"/> contract for filters without allowing a filter to mutate or replace the
+    /// identity later used by ambient emissions and <see cref="ObservableQueryEmissionContext"/>. Assignments are
+    /// deliberately ignored for the same reason.
+    /// </remarks>
+    public ClaimsPrincipal User
+    {
+        get => ClonePrincipal(_user);
+        set
+        {
+            // IHttpRequestContext requires a setter. A long-lived subscription cannot safely replace its captured
+            // identity after authorization because emission guards must observe the exact same snapshot.
+        }
+    }
 
     /// <inheritdoc/>
     public IDictionary<object, object?> Items { get; } = new Dictionary<object, object?>(requestContext.Items ?? new Dictionary<object, object?>());
@@ -104,6 +119,12 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     /// <inheritdoc/>
     public Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default) =>
         _transportContext.WriteResponseAsJson(value, type, cancellationToken);
+
+    /// <summary>
+    /// Gets the frozen principal snapshot used by the explicit emission context.
+    /// </summary>
+    /// <returns>The principal snapshot.</returns>
+    internal ClaimsPrincipal GetPrincipal() => _user;
 
     static ReadOnlyDictionary<string, string> Snapshot(IReadOnlyDictionary<string, string>? values) =>
         new(new Dictionary<string, string>(values ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase));

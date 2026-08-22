@@ -32,15 +32,12 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
     {
         _connectionId = string.Empty;
 
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 _authorizationContext = _httpRequestContextAccessor.Current;
+                _authorizationContext.User.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Name, "mutation-attempt")], "test"));
+                _authorizationContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "replacement-attempt")], "test"));
                 _performStarted.TrySetResult();
                 return _performCompletion.Task;
             });
@@ -100,6 +97,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
         {
             var subscribeTask = _hub.HandleSSESubscribe(_subscribeContext);
             await _performStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            _postPrincipal.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Name, "late-mutation")]));
 
             _getContextDisposed = true;
             var queryResult = QueryResult.Success(CorrelationId.New());
@@ -119,7 +117,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
 
     [Fact] void should_complete_the_subscribe() => _subscribeStatusCode.ShouldEqual(200);
     [Fact] void should_authorize_with_a_durable_snapshot_instead_of_the_post_context() => ReferenceEquals(_authorizationContext, _subscribeContext).ShouldBeFalse();
-    [Fact] void should_authorize_with_the_post_principal_snapshot() => _authorizationContext.User.Identity?.Name.ShouldEqual("fresh-caller");
+    [Fact] void should_ignore_user_replacement_attempts_during_the_pipeline() => _authorizationContext.User.Identity?.Name.ShouldEqual("fresh-caller");
     [Fact] void should_authorize_with_the_post_tenant_snapshot() => _authorizationContext.Headers["Tenant-ID"].ShouldEqual("tenant-b");
     [Fact] void should_not_read_user_from_the_get_context() => _getUserReads.ShouldEqual(0);
     [Fact] void should_not_write_user_to_the_get_context() => _getUserWrites.ShouldEqual(0);

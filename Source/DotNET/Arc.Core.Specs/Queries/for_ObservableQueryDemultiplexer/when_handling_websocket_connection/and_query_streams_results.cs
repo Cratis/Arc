@@ -29,12 +29,7 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
         _sentMessages = [];
 
         _subject = new BehaviorSubject<IEnumerable<string>>([]);
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 var queryResult = QueryResult.Success(CorrelationId.New());
@@ -84,7 +79,8 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
             Arg.Any<QueryArguments>(),
             Arg.Any<Paging>(),
             Arg.Any<Sorting>(),
-            Arg.Any<IServiceProvider>());
+            Arg.Any<IServiceProvider>(),
+            Arg.Any<CancellationToken>());
 
     [Fact] void should_send_query_result_message_over_websocket() => HasQueryResultMessage().ShouldBeTrue();
 

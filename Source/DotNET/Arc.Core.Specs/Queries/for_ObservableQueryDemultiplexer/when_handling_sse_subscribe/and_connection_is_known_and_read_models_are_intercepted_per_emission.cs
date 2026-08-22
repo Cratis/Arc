@@ -39,12 +39,7 @@ public class and_connection_is_known_and_read_models_are_intercepted_per_emissio
                 [.. callInfo.ArgAt<IEnumerable<object>>(1).Select(item => (object)$"{item}-released")]));
 
         _subject = new BehaviorSubject<IEnumerable<string>>([]);
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 var queryResult = QueryResult.Success(CorrelationId.New());

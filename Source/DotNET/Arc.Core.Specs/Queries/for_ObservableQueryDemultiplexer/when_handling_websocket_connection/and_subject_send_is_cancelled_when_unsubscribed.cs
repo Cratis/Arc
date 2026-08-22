@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
+using System.Text.Json;
+
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_websocket_connection;
 
 /// <summary>
@@ -23,7 +26,9 @@ public class and_subject_send_is_cancelled_when_unsubscribed : given.a_guarded_w
                 Arg.Any<System.Net.WebSockets.WebSocketMessageType>(),
                 Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
-            .Returns(callInfo => BlockSend(callInfo.Arg<CancellationToken>()));
+            .Returns(callInfo => HandleSend(
+                callInfo.Arg<ArraySegment<byte>>(),
+                callInfo.Arg<CancellationToken>()));
     }
 
     async Task Because() => await RunConnection(
@@ -44,6 +49,15 @@ public class and_subject_send_is_cancelled_when_unsubscribed : given.a_guarded_w
     [Fact] void should_not_send_a_late_error() => HasErrorFor(FirstQueryId).ShouldBeFalse();
     [Fact] void should_not_track_data_as_served() => _healthTracker.DidNotReceive().RecordDataServed(Arg.Any<string>(), FirstQueryId);
     [Fact] void should_only_unregister_the_explicitly_unsubscribed_subscription() => _healthTracker.Received(1).UnregisterSubscription(Arg.Any<string>(), FirstQueryId);
+
+    Task HandleSend(ArraySegment<byte> data, CancellationToken token)
+    {
+        var json = Encoding.UTF8.GetString(data.Array!, data.Offset, data.Count);
+        var message = JsonSerializer.Deserialize<ObservableQueryHubMessage>(json, _arcOptions.Value.JsonSerializerOptions);
+        return message?.Type == ObservableQueryHubMessageType.Connected
+            ? Task.CompletedTask
+            : BlockSend(token);
+    }
 
     async Task BlockSend(CancellationToken token)
     {

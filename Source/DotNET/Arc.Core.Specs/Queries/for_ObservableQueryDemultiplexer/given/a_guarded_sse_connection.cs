@@ -83,7 +83,7 @@ public class a_guarded_sse_connection : a_guarded_connection
     protected IEnumerable<ObservableQueryHubMessage> HubMessages =>
         _messages.Select(TryParseHubMessage).Where(_ => _ is not null).Select(_ => _!);
 
-    protected IHttpRequestContext CreateSubscribeContext(string queryId, string? generation = null)
+    protected IHttpRequestContext CreateSubscribeContext(string queryId, long? revision = null)
     {
         var subscribeContext = Substitute.For<IHttpRequestContext>();
         subscribeContext.RequestAborted.Returns(CancellationToken.None);
@@ -102,7 +102,25 @@ public class a_guarded_sse_connection : a_guarded_connection
                 _connectionId,
                 queryId,
                 new ObservableQuerySubscriptionRequest(QueryName, RawArguments));
-            typeof(ObservableQuerySSESubscribeRequest).GetProperty("SubscriptionGeneration")!.SetValue(request, generation);
+            typeof(ObservableQuerySSESubscribeRequest).GetProperty("Revision")!.SetValue(request, revision);
+            return request;
+        }
+    }
+
+    protected IHttpRequestContext CreateUnsubscribeContext(string queryId, long? revision = null)
+    {
+        var unsubscribeContext = Substitute.For<IHttpRequestContext>();
+        unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
+        unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<object?>(CreateRequest()));
+        unsubscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
+            .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
+        return unsubscribeContext;
+
+        ObservableQuerySSEUnsubscribeRequest CreateRequest()
+        {
+            var request = new ObservableQuerySSEUnsubscribeRequest(_connectionId, queryId);
+            typeof(ObservableQuerySSEUnsubscribeRequest).GetProperty("Revision")!.SetValue(request, revision);
             return request;
         }
     }

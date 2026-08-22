@@ -6,41 +6,76 @@ import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event
 import { given } from '../../../given';
 import { HubMessageType } from '../../WebSocketHubConnection';
 
-describe('when subscribing sends the subscribe POST after Connected', given(a_server_sent_event_hub_connection, context => {
-    const queryId = 'q1';
-    const connectionId = 'conn-abc';
-
-    beforeEach(() => {
-        context.setup();
-        context.connection.subscribe(queryId, { queryName: 'MyQuery' }, sinon.stub());
-        context.simulateOpen();
-        context.simulateMessage({ type: HubMessageType.Connected, payload: connectionId });
-    });
-
-    afterEach(() => sinon.restore());
-
-    it('should POST to the subscribe URL', () => context.fetchStub.calledOnce.should.be.true);
-    it('should pass the connection id in the request body', () => getBody().connectionId.should.equal(connectionId));
-    it('should pass the query id in the request body', () => getBody().queryId.should.equal(queryId));
-    it('should pass a subscription generation in the request body', () => getBody().subscriptionGeneration.length.should.be.greaterThan(0));
-
-    function getBody(): { connectionId: string; queryId: string; subscriptionGeneration: string } {
-        const rawBody = context.fetchStub.getCall(0).args[1].body as string;
-        try {
-            return JSON.parse(rawBody) as { connectionId: string; queryId: string; subscriptionGeneration: string };
-        } catch (error) {
-            throw new Error('Expected a valid subscribe request body', { cause: error });
-        }
-    }
-
-    describe('when a query result message arrives', () => {
-        const result = { isSuccess: true, data: ['x'] };
+describe(
+    'when subscribing sends the subscribe POST after Connected',
+    given(a_server_sent_event_hub_connection, (context) => {
+        const queryId = 'q1';
+        const connectionId = 'conn-abc';
+        let callback: sinon.SinonStub;
 
         beforeEach(() => {
-            context.simulateMessage({ type: HubMessageType.QueryResult, queryId, payload: result });
+            context.setup();
+            callback = sinon.stub();
+            context.connection.subscribe(queryId, { queryName: 'MyQuery' }, callback);
+            context.simulateOpen();
+            context.simulateMessage({
+                type: HubMessageType.Connected,
+                payload: connectionId,
+                supportsSubscriptionRevisions: true,
+            });
         });
 
-        // The callback passed to subscribe during beforeEach is a stub — re-verify via query count
-        it('should have one active subscription', () => context.connection.queryCount.should.equal(1));
-    });
-}));
+        afterEach(() => sinon.restore());
+
+        it('should POST to the subscribe URL', () =>
+            context.fetchStub.calledOnce.should.be.true);
+        it('should pass the connection id in the request body', () =>
+            getBody().connectionId.should.equal(connectionId));
+        it('should pass the query id in the request body', () =>
+            getBody().queryId.should.equal(queryId));
+        it('should pass a positive numeric revision in the request body', () =>
+            getBody().revision.should.equal(1));
+
+        function getBody(): {
+            connectionId: string;
+            queryId: string;
+            revision: number;
+        } {
+            const rawBody = context.fetchStub.getCall(0).args[1].body as string;
+            try {
+                return JSON.parse(rawBody) as {
+                    connectionId: string;
+                    queryId: string;
+                    revision: number;
+                };
+            } catch (error) {
+                throw new Error('Expected a valid subscribe request body', {
+                    cause: error,
+                });
+            }
+        }
+
+        describe('when a query result message arrives', () => {
+            const result = { isSuccess: true, data: ['x'] };
+
+            beforeEach(() => {
+                context.simulateMessage({
+                    type: HubMessageType.QueryResult,
+                    queryId,
+                    payload: { isSuccess: true, data: ['legacy'] },
+                });
+                context.simulateMessage({
+                    type: HubMessageType.QueryResult,
+                    queryId,
+                    revision: getBody().revision,
+                    payload: result,
+                });
+            });
+
+            it('should ignore the missing-revision frame and deliver the exact revision once', () => {
+                callback.calledOnce.should.equal(true);
+                callback.firstCall.args[0].should.deep.equal(result);
+            });
+        });
+    }),
+);

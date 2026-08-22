@@ -16,12 +16,7 @@ public class and_original_is_unauthorized_after_replacement_is_installed : given
     void Establish()
     {
         _performCount = 0;
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ => Interlocked.Increment(ref _performCount) == 1
                 ? _originalResult.Task
                 : _replacementResult.Task);
@@ -34,9 +29,9 @@ public class and_original_is_unauthorized_after_replacement_is_installed : given
 
         try
         {
-            var originalSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, "generation-a"));
+            var originalSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, 1));
             await WaitFor(() => Volatile.Read(ref _performCount) == 1);
-            var replacementSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, "generation-b"));
+            var replacementSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, 2));
             await WaitFor(() => Volatile.Read(ref _performCount) == 2);
 
             var replacement = QueryResult.Success(CorrelationId.New());

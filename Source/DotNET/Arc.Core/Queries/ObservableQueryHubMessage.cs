@@ -8,7 +8,8 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents a protocol message exchanged over the <see cref="ObservableQueryDemultiplexer"/> WebSocket or SSE connection.
 /// </summary>
-public class ObservableQueryHubMessage
+[method: JsonConstructor]
+public class ObservableQueryHubMessage()
 {
     /// <summary>
     /// Gets or sets the type of message.
@@ -22,9 +23,19 @@ public class ObservableQueryHubMessage
     public string? QueryId { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional subscription generation used to reject messages from replaced subscriptions.
+    /// Gets or sets the optional positive subscription revision used to order operations and reject stale messages.
     /// </summary>
-    public string? SubscriptionGeneration { get; set; }
+    public long? Revision { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the server supports revision-aware subscription operations and result frames.
+    /// </summary>
+    /// <remarks>
+    /// Set to <see langword="true"/> on <see cref="ObservableQueryHubMessageType.Connected"/> messages from
+    /// capable servers. The field is absent when communicating with older servers.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SupportsSubscriptionRevisions { get; set; }
 
     /// <summary>
     /// Gets or sets the message payload. Interpretation depends on <see cref="Type"/>:
@@ -32,6 +43,7 @@ public class ObservableQueryHubMessage
     ///   <item><description><see cref="ObservableQueryHubMessageType.Subscribe"/> — an <see cref="ObservableQuerySubscriptionRequest"/>.</description></item>
     ///   <item><description><see cref="ObservableQueryHubMessageType.QueryResult"/> — a <see cref="QueryResult"/>.</description></item>
     ///   <item><description><see cref="ObservableQueryHubMessageType.Error"/> — a plain error string.</description></item>
+    ///   <item><description><see cref="ObservableQueryHubMessageType.Connected"/> — the server-assigned connection identifier.</description></item>
     /// </list>
     /// </summary>
     public object? Payload { get; set; }
@@ -61,14 +73,14 @@ public class ObservableQueryHubMessage
         CreateQueryResult(queryId, result, null);
 
     /// <summary>
-    /// Creates a generation-aware <see cref="ObservableQueryHubMessageType.QueryResult"/> message.
+    /// Creates a revision-aware <see cref="ObservableQueryHubMessageType.QueryResult"/> message.
     /// </summary>
     /// <param name="queryId">The query identifier.</param>
     /// <param name="result">The query result payload.</param>
-    /// <param name="subscriptionGeneration">The optional subscription generation.</param>
+    /// <param name="revision">The optional subscription revision.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
-    public static ObservableQueryHubMessage CreateQueryResult(string queryId, QueryResult result, string? subscriptionGeneration) =>
-        new() { Type = ObservableQueryHubMessageType.QueryResult, QueryId = queryId, Payload = result, SubscriptionGeneration = subscriptionGeneration };
+    public static ObservableQueryHubMessage CreateQueryResult(string queryId, QueryResult result, long? revision) =>
+        new() { Type = ObservableQueryHubMessageType.QueryResult, QueryId = queryId, Payload = result, Revision = revision };
 
     /// <summary>
     /// Creates an <see cref="ObservableQueryHubMessageType.Unauthorized"/> message.
@@ -79,13 +91,13 @@ public class ObservableQueryHubMessage
         CreateUnauthorized(queryId, null);
 
     /// <summary>
-    /// Creates a generation-aware <see cref="ObservableQueryHubMessageType.Unauthorized"/> message.
+    /// Creates a revision-aware <see cref="ObservableQueryHubMessageType.Unauthorized"/> message.
     /// </summary>
     /// <param name="queryId">The query identifier.</param>
-    /// <param name="subscriptionGeneration">The optional subscription generation.</param>
+    /// <param name="revision">The optional subscription revision.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
-    public static ObservableQueryHubMessage CreateUnauthorized(string queryId, string? subscriptionGeneration) =>
-        new() { Type = ObservableQueryHubMessageType.Unauthorized, QueryId = queryId, SubscriptionGeneration = subscriptionGeneration };
+    public static ObservableQueryHubMessage CreateUnauthorized(string queryId, long? revision) =>
+        new() { Type = ObservableQueryHubMessageType.Unauthorized, QueryId = queryId, Revision = revision };
 
     /// <summary>
     /// Creates an <see cref="ObservableQueryHubMessageType.Error"/> message.
@@ -97,14 +109,14 @@ public class ObservableQueryHubMessage
         CreateError(queryId, errorMessage, null);
 
     /// <summary>
-    /// Creates a generation-aware <see cref="ObservableQueryHubMessageType.Error"/> message.
+    /// Creates a revision-aware <see cref="ObservableQueryHubMessageType.Error"/> message.
     /// </summary>
     /// <param name="queryId">The query identifier.</param>
     /// <param name="errorMessage">The error message.</param>
-    /// <param name="subscriptionGeneration">The optional subscription generation.</param>
+    /// <param name="revision">The optional subscription revision.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
-    public static ObservableQueryHubMessage CreateError(string queryId, string errorMessage, string? subscriptionGeneration) =>
-        new() { Type = ObservableQueryHubMessageType.Error, QueryId = queryId, Payload = errorMessage, SubscriptionGeneration = subscriptionGeneration };
+    public static ObservableQueryHubMessage CreateError(string queryId, string errorMessage, long? revision) =>
+        new() { Type = ObservableQueryHubMessageType.Error, QueryId = queryId, Payload = errorMessage, Revision = revision };
 
     /// <summary>
     /// Creates a <see cref="ObservableQueryHubMessageType.Pong"/> message.
@@ -123,9 +135,9 @@ public class ObservableQueryHubMessage
 
     /// <summary>
     /// Creates a <see cref="ObservableQueryHubMessageType.Connected"/> message carrying the server-assigned
-    /// connection identifier and the server's keep-alive interval.
+    /// connection identifier, the server's keep-alive interval, and its subscription revision capability.
     /// </summary>
-    /// <param name="connectionId">The unique identifier for the SSE connection.</param>
+    /// <param name="connectionId">The unique identifier for the observable query hub connection.</param>
     /// <param name="keepAliveInterval">The server's keep-alive interval. Zero or negative means keep-alive is disabled.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
     public static ObservableQueryHubMessage CreateConnected(string connectionId, TimeSpan keepAliveInterval) =>
@@ -133,6 +145,7 @@ public class ObservableQueryHubMessage
         {
             Type = ObservableQueryHubMessageType.Connected,
             Payload = connectionId,
-            KeepAliveIntervalMs = keepAliveInterval > TimeSpan.Zero ? (long)keepAliveInterval.TotalMilliseconds : 0
+            KeepAliveIntervalMs = keepAliveInterval > TimeSpan.Zero ? (long)keepAliveInterval.TotalMilliseconds : 0,
+            SupportsSubscriptionRevisions = true
         };
 }

@@ -75,7 +75,7 @@ export class a_server_sent_event_hub_connection {
             '',
             undefined,
             undefined,
-            this.policy
+            this.policy,
         );
     }
 
@@ -85,7 +85,9 @@ export class a_server_sent_event_hub_connection {
     }
 
     simulateMessage(payload: Record<string, unknown>): void {
-        this.fakeEventSource.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+        this.fakeEventSource.onmessage?.({
+            data: JSON.stringify(payload),
+        } as MessageEvent);
     }
 
     simulateError(): void {

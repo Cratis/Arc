@@ -22,19 +22,19 @@ internal sealed class ObservableQuerySubscriptionOperation : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="ObservableQuerySubscriptionOperation"/> class.
     /// </summary>
-    /// <param name="generation">The optional client generation.</param>
+    /// <param name="revision">The optional client revision.</param>
     /// <param name="connectionToken">The connection cancellation token.</param>
-    public ObservableQuerySubscriptionOperation(string? generation, CancellationToken connectionToken)
+    public ObservableQuerySubscriptionOperation(long? revision, CancellationToken connectionToken)
     {
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(connectionToken);
         Token = _cancellationTokenSource.Token;
-        Generation = generation;
+        Revision = revision;
     }
 
     /// <summary>
-    /// Gets the optional client generation carried on the wire.
+    /// Gets the optional client revision carried on the wire.
     /// </summary>
-    public string? Generation { get; }
+    public long? Revision { get; }
 
     /// <summary>
     /// Gets the operation cancellation token.

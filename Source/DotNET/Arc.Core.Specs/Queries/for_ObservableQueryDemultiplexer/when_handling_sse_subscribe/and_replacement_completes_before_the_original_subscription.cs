@@ -12,8 +12,8 @@ namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_
 /// </summary>
 public class and_replacement_completes_before_the_original_subscription : given.a_guarded_sse_connection
 {
-    const string OriginalGeneration = "generation-a";
-    const string ReplacementGeneration = "generation-b";
+    const long OriginalRevision = 1;
+    const long ReplacementRevision = 2;
 
     readonly TaskCompletionSource<QueryResult> _originalResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource<QueryResult> _replacementResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -25,12 +25,7 @@ public class and_replacement_completes_before_the_original_subscription : given.
     void Establish()
     {
         _performCount = 0;
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ => Interlocked.Increment(ref _performCount) == 1
                 ? _originalResult.Task
                 : _replacementResult.Task);
@@ -43,10 +38,10 @@ public class and_replacement_completes_before_the_original_subscription : given.
 
         try
         {
-            var originalSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, OriginalGeneration));
+            var originalSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, OriginalRevision));
             await WaitFor(() => Volatile.Read(ref _performCount) == 1);
 
-            var replacementSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, ReplacementGeneration));
+            var replacementSubscribe = _hub.HandleSSESubscribe(CreateSubscribeContext(FirstQueryId, ReplacementRevision));
             await WaitFor(() => Volatile.Read(ref _performCount) == 2);
 
             _replacementResult.TrySetResult(StreamingResult(_replacementSubject));
@@ -69,10 +64,10 @@ public class and_replacement_completes_before_the_original_subscription : given.
 
     [Fact] void should_dispose_the_stale_created_subscription() => _originalObserverWasDisposed.ShouldBeTrue();
     [Fact] void should_send_only_one_result() => HubMessages.Count(_ => _.Type == ObservableQueryHubMessageType.QueryResult).ShouldEqual(1);
-    [Fact] void should_send_only_the_replacement_generation() =>
-        typeof(ObservableQueryHubMessage).GetProperty("SubscriptionGeneration")!
+    [Fact] void should_send_only_the_replacement_revision() =>
+        typeof(ObservableQueryHubMessage).GetProperty("Revision")!
             .GetValue(HubMessages.Single(_ => _.Type == ObservableQueryHubMessageType.QueryResult))
-            .ShouldEqual(ReplacementGeneration);
+            .ShouldEqual(ReplacementRevision);
     [Fact] void should_not_send_unauthorized() => HasUnauthorizedFor(FirstQueryId).ShouldBeFalse();
     [Fact] void should_not_send_an_error() => HasErrorFor(FirstQueryId).ShouldBeFalse();
 

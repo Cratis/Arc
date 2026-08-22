@@ -19,6 +19,9 @@ public class a_guarded_websocket_connection : a_guarded_connection
     protected IWebSocket _webSocket;
     protected ConcurrentQueue<ObservableQueryHubMessage> _sentMessages;
     protected string? _queryIdToUnsubscribe;
+    protected long?[] _subscriptionRevisions = [null];
+    protected long? _unsubscribeRevision;
+    protected long? _unsubscribeBeforeSubscribeRevision;
 
     Func<Task> _afterUnsubscribe = () => Task.CompletedTask;
     Func<Task> _script = () => Task.CompletedTask;
@@ -29,6 +32,9 @@ public class a_guarded_websocket_connection : a_guarded_connection
     {
         _sentMessages = [];
         _queryIdToUnsubscribe = null;
+        _subscriptionRevisions = [null];
+        _unsubscribeRevision = null;
+        _unsubscribeBeforeSubscribeRevision = null;
         _receiveCount = 0;
         _unsubscribeSent = false;
 
@@ -88,14 +94,32 @@ public class a_guarded_websocket_connection : a_guarded_connection
 
     async Task<WebSocketReceiveResult> ReceiveNextMessage(ArraySegment<byte> buffer)
     {
+        if (_unsubscribeBeforeSubscribeRevision is not null)
+        {
+            var unsubscribe = new ObservableQueryHubMessage
+            {
+                Type = ObservableQueryHubMessageType.Unsubscribe,
+                QueryId = FirstQueryId
+            };
+            typeof(ObservableQueryHubMessage).GetProperty("Revision")!.SetValue(unsubscribe, _unsubscribeBeforeSubscribeRevision);
+            _unsubscribeBeforeSubscribeRevision = null;
+
+            var unsubscribeBytes = JsonSerializer.SerializeToUtf8Bytes(unsubscribe, _arcOptions.Value.JsonSerializerOptions);
+            Array.Copy(unsubscribeBytes, 0, buffer.Array!, buffer.Offset, unsubscribeBytes.Length);
+            return new WebSocketReceiveResult(unsubscribeBytes.Length, System.Net.WebSockets.WebSocketMessageType.Text, true);
+        }
+
         if (_receiveCount < _queryIds.Length)
         {
+            var messageIndex = _receiveCount++;
             var subscribe = new ObservableQueryHubMessage
             {
                 Type = ObservableQueryHubMessageType.Subscribe,
-                QueryId = _queryIds[_receiveCount++],
+                QueryId = _queryIds[messageIndex],
                 Payload = new ObservableQuerySubscriptionRequest(QueryName, RawArguments)
             };
+            typeof(ObservableQueryHubMessage).GetProperty("Revision")!
+                .SetValue(subscribe, _subscriptionRevisions.ElementAtOrDefault(messageIndex));
 
             var bytes = JsonSerializer.SerializeToUtf8Bytes(subscribe, _arcOptions.Value.JsonSerializerOptions);
             Array.Copy(bytes, 0, buffer.Array!, buffer.Offset, bytes.Length);
@@ -115,6 +139,7 @@ public class a_guarded_websocket_connection : a_guarded_connection
                     Type = ObservableQueryHubMessageType.Unsubscribe,
                     QueryId = _queryIdToUnsubscribe
                 };
+                typeof(ObservableQueryHubMessage).GetProperty("Revision")!.SetValue(unsubscribe, _unsubscribeRevision);
 
                 var bytes = JsonSerializer.SerializeToUtf8Bytes(unsubscribe, _arcOptions.Value.JsonSerializerOptions);
                 Array.Copy(bytes, 0, buffer.Array!, buffer.Offset, bytes.Length);
