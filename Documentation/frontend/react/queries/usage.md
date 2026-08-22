@@ -63,7 +63,9 @@ React execution state:
 
 An observable query HTTP request can return `202 Accepted` with `isReady: false` before the observable has produced its first result. This is a transient server state: `isSuccess` is false, but `hasExceptions` remains false. Inspect `isReady` before treating an unsuccessful result as a failure.
 
-`isReady` and `isPerforming` describe different things. Readiness says whether a result has been produced; performing says whether the client is currently fetching or subscribing. Initial React query state is not ready, while disabled or synthetic failure states are ready because no server result remains pending. Results from older Arc servers that omit readiness are treated as ready for compatibility.
+`isReady` and `isPerforming` describe different things. Readiness says whether a result has been produced; performing says whether the client is currently fetching or subscribing. Initial React query state is not ready, while disabled or synthetic failure states are ready because no server result remains pending.
+
+`IQueryResult.isReady` is optional for source compatibility: older Arc servers and third-party structural query-result objects may omit it. Arc normalizes query results received through its HTTP, WebSocket, and Server-Sent Events transports to `isReady: true` when the member is absent, while preserving an explicit `false`. SDK-produced `QueryResult` and `QueryResultWithState` instances always expose a concrete boolean.
 
 ## Query Parameters
 

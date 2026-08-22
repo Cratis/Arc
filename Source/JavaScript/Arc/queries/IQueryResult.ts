@@ -27,8 +27,12 @@ export interface IQueryResult<TDataType> {
     /**
      * Gets whether the query has produced a result.
      * A false value is a transient observable-query state, not a failure.
+     *
+     * Optional for source compatibility with older servers and third-party structural results that
+     * predate readiness. Arc normalizes transport results that omit it to true, while SDK-produced
+     * result classes always expose a concrete boolean.
      */
-    readonly isReady: boolean;
+    readonly isReady?: boolean;
 
     /**
      * Gets whether or not the query was authorized to execute.

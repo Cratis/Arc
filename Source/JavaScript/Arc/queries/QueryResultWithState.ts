@@ -4,7 +4,6 @@
 import { ValidationResult } from '../validation/ValidationResult';
 import { IQueryResult } from './IQueryResult';
 import { PagingInfo } from './PagingInfo';
-import { QueryResult } from './QueryResult';
 import { ChangeSet } from './ChangeSet';
 
 /**
@@ -96,13 +95,13 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
     }
 
     /**
-     * Create a new {@link QueryResultWithState<TDataType>} from {@link QueryResult<TDataType>}.
+     * Create a new {@link QueryResultWithState<TDataType>} from an {@link IQueryResult<TDataType>}.
      * @param queryResult The original query result.
      * @param isPerforming Whether or not the query is performing.
      * @returns A new {@link QueryResultWithState<TDataType>}
      */
     static fromQueryResult<TDataType>(
-        queryResult: QueryResult<TDataType>,
+        queryResult: IQueryResult<TDataType>,
         isPerforming: boolean,
     ) {
         return new QueryResultWithState<TDataType>(
@@ -117,7 +116,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
             queryResult.exceptionStackTrace,
             isPerforming,
             queryResult.changeSet,
-            queryResult.isReady,
+            queryResult.isReady ?? true,
         );
     }
 }
