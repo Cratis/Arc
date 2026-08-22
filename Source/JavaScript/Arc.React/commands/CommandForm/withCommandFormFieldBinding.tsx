@@ -4,6 +4,7 @@
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import { CommandFormFieldWrapper } from './CommandFormFields';
+import { useIsCommandFormFieldBound } from './commandFormFieldBindingContext';
 import {
     markAsRuntimeBindingCommandFormField,
     type CommandFormMarked,
@@ -20,7 +21,8 @@ export function withCommandFormFieldBinding<TComponent>(
     const Component = component as React.ComponentType<CommandFormFieldProps>;
 
     const RuntimeBindingField = (props: CommandFormFieldProps): React.ReactElement => {
-        if (typeof props.onValueChange !== 'function') {
+        const isFrameworkBound = useIsCommandFormFieldBound();
+        if (!isFrameworkBound) {
             const field = React.createElement(
                 RuntimeBindingField,
                 props,
@@ -34,5 +36,6 @@ export function withCommandFormFieldBinding<TComponent>(
     const markedField = markAsRuntimeBindingCommandFormField(RuntimeBindingField);
     markedField.commandFormFieldName =
         Component.displayName || Component.name || 'CommandFormField';
+    // SAFETY: The wrapper preserves the component's public call signature and only adds static markers.
     return markedField as unknown as TComponent & CommandFormMarked;
 }

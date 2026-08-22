@@ -78,6 +78,8 @@ The second parameter to `asCommandFormField` is a configuration object:
 
 The wrapped field can also bind itself when an opaque layout component creates or transforms it at render time. This allows custom layouts to keep the original field element type, clone it, and change presentation or binding props before the field registers with the form.
 
+Binding is tracked by a private framework marker rather than by the presence of an `onValueChange` prop. A layout may therefore supply or wrap `onValueChange` without disabling command binding. CommandForm updates the command first and then invokes that consumer callback. Do not use `onValueChange` as a signal that a field has already been bound.
+
 :::caution
 Do not strip static properties from a command form field. Storybook and other transforms may rewrite `displayName`, but the `isCommandFormField` marker preserves recognition. If both markers are removed, the component no longer participates in CommandForm binding.
 

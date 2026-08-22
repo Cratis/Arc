@@ -11,6 +11,7 @@ import { isCommandFormColumn } from './commandFormMarkers';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants';
 import { runCommandValidation } from './runCommandValidation';
 import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime';
+import { CommandFormFieldBinding } from './commandFormFieldBindingContext';
 
 export interface ColumnInfo {
     fields: React.ReactElement<CommandFormFieldProps>[];
@@ -33,13 +34,13 @@ const CommandFormFieldWrapper = ({
 }: {
     field: React.ReactElement<CommandFormFieldProps>;
 }) => {
-    useCommandFormFieldRegistration(field);
     const context = useCommandFormContext<unknown>();
     const fieldProps = field.props as CommandFormFieldProps;
     const propertyAccessor = fieldProps.value;
 
     // Get the property name from the accessor function
     const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : '';
+    useCommandFormFieldRegistration(fieldProps, propertyName);
     const hasWarnedAboutInvalidBinding = React.useRef(false);
 
     React.useEffect(() => {
@@ -195,7 +196,8 @@ const CommandFormFieldWrapper = ({
                         }
                     }
                 }
-                fieldProps.onChange?.(value as unknown);
+                fieldProps.onValueChange?.(value);
+                fieldProps.onChange?.(value);
             },
             onBlur: async () => {
                 if (propertyName) {
@@ -304,8 +306,9 @@ const CommandFormFieldWrapper = ({
             </small>
         ));
 
-    // Wrap field with decorator if icon or description exists
-    let decoratedField = clonedField;
+    // Wrap only the cloned field in the private binding marker. Runtime-capable fields use this
+    // framework-owned scope rather than public callback props to decide whether to self-wrap.
+    let decoratedField = <CommandFormFieldBinding>{clonedField}</CommandFormFieldBinding>;
     if (fieldProps.icon || fieldProps.description) {
         if (FieldDecorator) {
             // When using a custom decorator with an icon, set hasLeftAddon on the field
@@ -323,7 +326,7 @@ const CommandFormFieldWrapper = ({
                     icon={fieldProps.icon}
                     description={fieldProps.description}
                 >
-                    {fieldForDecorator}
+                    <CommandFormFieldBinding>{fieldForDecorator}</CommandFormFieldBinding>
                 </FieldDecorator>
             );
         } else {
@@ -359,7 +362,9 @@ const CommandFormFieldWrapper = ({
             const wrappedField = (
                 <div style={{ display: 'flex', width: '100%', alignItems: 'stretch' }}>
                     {iconAddon}
-                    {fieldWithAdjustedStyle}
+                    <CommandFormFieldBinding>
+                        {fieldWithAdjustedStyle}
+                    </CommandFormFieldBinding>
                 </div>
             );
 

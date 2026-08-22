@@ -23,9 +23,7 @@ import type { ValidationResult } from '@cratis/arc/validation';
 import type { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
 import { deepEqual } from '@cratis/arc';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
-import type { CommandFormFieldProps } from './CommandFormField';
-import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
-import { extractPopulatedValues } from './extractPopulatedValues';
+import type { CommandFormFieldRegistrationDescriptor } from './CommandFormFieldRegistrationDescriptor';
 import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants';
@@ -193,40 +191,6 @@ const getOrderedCommandFormChildren = (
         return [{ type: 'other' as const, content: child, index, key }];
     });
 
-const getCallbackSignature = (callback: unknown): string =>
-    typeof callback === 'function'
-        ? Function.prototype.toString.call(callback).replace(/\s+/g, ' ').trim()
-        : '';
-
-const getTransformedPopulationValue = (
-    field: React.ReactElement<CommandFormFieldProps>,
-    source: object | undefined,
-): unknown => {
-    if (source === undefined || field.props.noInitialValue || !field.props.initialValue) {
-        return undefined;
-    }
-    return field.props.initialValue(source);
-};
-
-const fieldPopulationMetadataMatches = (
-    first: React.ReactElement<CommandFormFieldProps>,
-    second: React.ReactElement<CommandFormFieldProps>,
-    populatedSource: object | undefined,
-): boolean =>
-    first.type === second.type &&
-    getPropertyNameFromAccessor(first.props.value) ===
-        getPropertyNameFromAccessor(second.props.value) &&
-    getCallbackSignature(first.props.value) ===
-        getCallbackSignature(second.props.value) &&
-    deepEqual(first.props.currentValue, second.props.currentValue) &&
-    first.props.noInitialValue === second.props.noInitialValue &&
-    getCallbackSignature(first.props.initialValue) ===
-        getCallbackSignature(second.props.initialValue) &&
-    deepEqual(
-        getTransformedPopulationValue(first, populatedSource),
-        getTransformedPopulationValue(second, populatedSource),
-    );
-
 const getChangedValues = (
     current: Record<string, unknown>,
     previous: Record<string, unknown>,
@@ -240,15 +204,12 @@ const getChangedValues = (
     );
 
 const getInitialValuesFromFields = <TCommand,>(
-    fields: React.ReactElement<CommandFormFieldProps>[],
+    registrations: CommandFormFieldRegistrationDescriptor[],
 ): Partial<TCommand> => {
     const values: Record<string, unknown> = {};
-    fields.forEach((field) => {
-        if (field.props.currentValue !== undefined && field.props.value) {
-            const propertyName = getPropertyNameFromAccessor(field.props.value);
-            if (propertyName) {
-                values[propertyName] = field.props.currentValue;
-            }
+    registrations.forEach((registration) => {
+        if (registration.currentValue !== undefined && registration.propertyName) {
+            values[registration.propertyName] = registration.currentValue;
         }
     });
     return values as Partial<TCommand>;
@@ -263,8 +224,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     );
 
     // Resolve a population source independently of field registration. A query result may already be
-    // warm when a conditional field first mounts, so registration compares and extracts against the
-    // latest source rather than treating source arrival as the only population trigger.
+    // warm when a conditional field first mounts, so newly registered metadata is evaluated against
+    // the latest source rather than treating source arrival as the only population trigger.
     const queryPopulatedSource = usePopulateFromQuery(
         props.populateFromQuery,
         props.populateFromQueryArgs,
@@ -274,31 +235,33 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         props.populateFromQueryArgs,
     );
     const populatedSource = queryPopulatedSource ?? observableQueryPopulatedSource;
-    const populatedSourceRef = React.useRef(populatedSource);
-    populatedSourceRef.current = populatedSource;
 
     const registeredFieldsById = React.useRef(
-        new Map<symbol, React.ReactElement<CommandFormFieldProps>>(),
+        new Map<symbol, CommandFormFieldRegistrationDescriptor>(),
+    );
+    const transformedPopulationById = React.useRef(
+        new Map<
+            symbol,
+            {
+                source: object;
+                initialValueSourceSignature: string;
+                value: unknown;
+            }
+        >(),
     );
     const [registeredFieldsVersion, setRegisteredFieldsVersion] = useState(0);
     const registerField = useCallback(
-        (id: symbol, field: React.ReactElement<CommandFormFieldProps>) => {
-            const existing = registeredFieldsById.current.get(id);
-            registeredFieldsById.current.set(id, field);
-            if (
-                !existing ||
-                !fieldPopulationMetadataMatches(
-                    existing,
-                    field,
-                    populatedSourceRef.current,
-                )
-            ) {
-                setRegisteredFieldsVersion((version) => version + 1);
+        (id: symbol, descriptor: CommandFormFieldRegistrationDescriptor) => {
+            if (registeredFieldsById.current.get(id) === descriptor) {
+                return;
             }
+            registeredFieldsById.current.set(id, descriptor);
+            setRegisteredFieldsVersion((version) => version + 1);
         },
         [],
     );
     const unregisterField = useCallback((id: symbol) => {
+        transformedPopulationById.current.delete(id);
         if (registeredFieldsById.current.delete(id)) {
             setRegisteredFieldsVersion((version) => version + 1);
         }
@@ -307,13 +270,13 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         () => ({ register: registerField, unregister: unregisterField }),
         [registerField, unregisterField],
     );
-    const fields = useMemo(
+    const registeredFields = useMemo(
         () => Array.from(registeredFieldsById.current.values()),
-        [registeredFieldsVersion, populatedSource],
+        [registeredFieldsVersion],
     );
     const initialValuesFromFields = useMemo(
-        () => getInitialValuesFromFields<TCommand>(fields),
-        [fields],
+        () => getInitialValuesFromFields<TCommand>(registeredFields),
+        [registeredFields],
     );
 
     // Extract matching properties from currentValues
@@ -338,11 +301,50 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         return extracted;
     }, [props.currentValues, props.command]);
 
-    // Match the currently registered field metadata onto the resolved population source.
-    const populatedValues = useMemo(
-        () => extractPopulatedValues<TCommand>(fields, populatedSource),
-        [fields, populatedSource],
-    );
+    // Match registered metadata onto the resolved source. Transformed values are cached per field,
+    // so registering another field does not re-evaluate existing initialValue callbacks.
+    const populatedValues = useMemo(() => {
+        if (populatedSource === undefined) {
+            return {} as Partial<TCommand>;
+        }
+
+        const values: Record<string, unknown> = {};
+        registeredFieldsById.current.forEach((registration, id) => {
+            if (registration.noInitialValue || !registration.propertyName) {
+                return;
+            }
+
+            if (registration.initialValue) {
+                const cached = transformedPopulationById.current.get(id);
+                if (
+                    cached !== undefined &&
+                    deepEqual(cached.source, populatedSource) &&
+                    cached.initialValueSourceSignature ===
+                        registration.initialValueSourceSignature
+                ) {
+                    values[registration.propertyName] = cached.value;
+                    return;
+                }
+
+                const value = registration.initialValue(populatedSource);
+                transformedPopulationById.current.set(id, {
+                    source: populatedSource,
+                    initialValueSourceSignature:
+                        registration.initialValueSourceSignature,
+                    value,
+                });
+                values[registration.propertyName] = value;
+                return;
+            }
+
+            if (Object.hasOwn(populatedSource, registration.propertyName)) {
+                values[registration.propertyName] = (
+                    populatedSource as Record<string, unknown>
+                )[registration.propertyName];
+            }
+        });
+        return values as Partial<TCommand>;
+    }, [registeredFieldsVersion, populatedSource]);
 
     // Merge initialValues prop with values extracted from field currentValue props, currentValues and
     // a populate query's result. The seed layers skip undefined, the reactive ones do not - see
@@ -365,11 +367,12 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     );
 
     // useCommand returns [instance, setter, clearer] for the typed command. Provide generics so commandInstance is TCommand.
-    // Using type assertion through unknown to work around generic constraint mismatch
+    // SAFETY: TCommand is the same constructor type supplied to useCommand; its generic constraint cannot express that relationship.
     const useCommandResult = useCommand(
         props.command as unknown as Constructor<Command<Partial<TCommand>, object>>,
         mergedInitialValues,
     );
+    // SAFETY: useCommand constructs the command from props.command, whose instance type is TCommand.
     const commandInstance = useCommandResult[0] as unknown as TCommand;
     const setCommandValuesInternal = useCommandResult[1] as SetCommandValues<TCommand>;
     const [commandVersion, setCommandVersion] = useState(0);
@@ -382,6 +385,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     );
     const setCommandInitialValues = useCallback(
         (values: Partial<TCommand>) => {
+            // SAFETY: Arc-generated command types extend Command even though CommandForm's public generic accepts object.
             (commandInstance as unknown as Command).setInitialValues(values as object);
             setCommandVersion((version) => version + 1);
         },
@@ -552,6 +556,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     // isAuthorized checks if the current user has at least one of the roles required by the command.
     // If the command has no roles defined, all users are considered authorized.
     const identity = useIdentity();
+    // SAFETY: Arc-generated command instances expose Command authorization metadata.
     const commandRoles = (commandInstance as unknown as Command).roles ?? [];
     const isAuthorized =
         commandRoles.length === 0 || commandRoles.some((role) => identity.isInRole(role));
@@ -681,6 +686,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         }
 
         // Execute the command
+        // SAFETY: Arc-generated command instances extend Command; the runtime guard preserves compatibility with plain objects.
         if (typeof (finalValues as unknown as Command).execute === 'function') {
             // Counted strictly inside this guard, so the throw below can never leak a count that is
             // never given back. The decrement is in a finally rather than a catch, so a rejection
@@ -688,6 +694,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             executionCountRef.current += 1;
             setExecutionCount(executionCountRef.current);
             try {
+                // SAFETY: The guarded execute method is the Command operation that returns ICommandResult<TResponse>.
                 const result = (await (
                     finalValues as unknown as Command
                 ).execute()) as ICommandResult<TResponse>;
@@ -812,10 +819,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 value={contextValue as CommandFormContextValue<unknown>}
             >
                 <form onSubmit={handleFormSubmit} noValidate>
-                    <CommandFormFields
-                        fields={fields}
-                        orderedChildren={orderedChildren}
-                    />
+                    <CommandFormFields orderedChildren={orderedChildren} />
                     {exceptionMessages.length > 0 && (
                         <div
                             style={{
