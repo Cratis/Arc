@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Reactive.Disposables;
 using System.Reactive.Subjects;
+using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
@@ -197,8 +198,22 @@ public class ObservableQueryDemultiplexer(
     /// <inheritdoc/>
     public async Task HandleSSESubscribe(IHttpRequestContext context)
     {
-        if (await context.ReadBodyAsJson(typeof(ObservableQuerySSESubscribeRequest), context.RequestAborted)
-            is not ObservableQuerySSESubscribeRequest body
+        ObservableQuerySSESubscribeRequest? body;
+        try
+        {
+            body = await context.ReadBodyAsJson(typeof(ObservableQuerySSESubscribeRequest), context.RequestAborted)
+                as ObservableQuerySSESubscribeRequest;
+        }
+        catch (Exception ex) when (
+            context.RequestAborted.IsCancellationRequested &&
+            ex is OperationCanceledException or IOException)
+        {
+            // The subscribe POST ended while its body was being read. There is no response left to write and no
+            // subscription work to perform. Malformed JSON and unrelated failures deliberately continue to escape.
+            return;
+        }
+
+        if (body is null
             || string.IsNullOrEmpty(body.ConnectionId)
             || string.IsNullOrEmpty(body.QueryId)
             || body.Request is null)
@@ -214,12 +229,12 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        // The subscribe POST carries the latest cookies and headers, which the middleware
-        // already authenticated. Transfer the principal to the SSE connection context so the
-        // authorization pipeline sees the current identity — not the one from when the SSE
-        // GET was originally established (which may have been anonymous).
-        state.Context.User = context.User;
-        httpRequestContextAccessor.Current = state.Context;
+        // The subscribe POST carries the latest cookies and headers, which the middleware already authenticated.
+        // Keep its principal independently from the retained SSE GET context: the GET may be disposed while the query
+        // pipeline is awaiting, and writing the principal through it makes that lifetime race observable. The active
+        // POST remains the ambient context for subscription-time authorization; emissions restore the GET context.
+        var principal = context.User;
+        httpRequestContextAccessor.Current = context;
 
         logger.ClientSubscribed(body.Request.QueryName, body.QueryId);
 
@@ -234,6 +249,7 @@ public class ObservableQueryDemultiplexer(
 
         var subscription = await CreateSubscription(
             state.Context,
+            principal,
             body.QueryId,
             body.Request,
             async result =>
@@ -505,6 +521,7 @@ public class ObservableQueryDemultiplexer(
 
         var subscription = await CreateSubscription(
             context,
+            context.User,
             queryId,
             request,
             async result =>
@@ -586,6 +603,7 @@ public class ObservableQueryDemultiplexer(
 
     async Task<IDisposable?> CreateSubscription(
         IHttpRequestContext context,
+        ClaimsPrincipal principal,
         string queryId,
         ObservableQuerySubscriptionRequest request,
         Func<QueryResult, Task> onNext,
@@ -646,7 +664,7 @@ public class ObservableQueryDemultiplexer(
         var identity = new ObservableQuerySubscriptionIdentity(
             fullyQualifiedName,
             performedQueryContext?.Arguments ?? arguments,
-            context.User);
+            principal);
 
         return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, token);
     }
