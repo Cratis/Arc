@@ -168,11 +168,14 @@ function DisplayNameField({ locale }: { locale: string }) {
 }
 ```
 
-CommandForm keeps each mounted field registration stable and always retains the latest accessor and
-`initialValue` callback. Recreating an equivalent inline function does not repopulate the field. The
-callback runs again only when the population source changes, automatic field metadata changes, or its
-`populationKey` changes. Use a stable semantic value such as a locale, selected mode, or revision - not
-a newly created object on every render.
+CommandForm keeps each mounted field registration stable and retains the latest **committed** accessor
+and `initialValue` callback. Recreating an equivalent inline function does not repopulate the field,
+and an interrupted concurrent render cannot publish a callback that never committed. When a callback
+and its population source or `populationKey` change in the same commit, CommandForm evaluates the new
+callback once; it never applies the previous callback for one render. The callback runs again only when
+the population source changes, automatic field metadata changes, or its `populationKey` changes. Use
+a stable semantic value such as a locale, selected mode, or revision - not a newly created object on
+every render.
 
 ## See Also
 

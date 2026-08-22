@@ -106,7 +106,7 @@ describe(
                 (source: unknown) => (source as { name: string }).name,
             );
 
-            const result = render(
+            const renderForm = () => (
                 <CommandForm command={TestCommand} populateFromQuery={FakePopulateQuery}>
                     <CommandProbe capture={(instance) => (command = instance)} />
                     <RegistrationProbe
@@ -115,7 +115,7 @@ describe(
                     >
                         <TestField<TestCommand>
                             value={(instance) => instance.name}
-                            initialValue={deriveInitialName}
+                            initialValue={(source) => deriveInitialName(source)}
                             testId='name-field'
                         />
                         <TestField<TestCommand>
@@ -123,15 +123,18 @@ describe(
                             testId='email-field'
                         />
                     </RegistrationProbe>
-                </CommandForm>,
-                { wrapper: context.createWrapper() },
+                </CommandForm>
             );
+            const result = render(renderForm(), {
+                wrapper: context.createWrapper(),
+            });
 
             await waitFor(() => command.name!.should.equal('Populated name'));
             registrationsAfterPopulation = registrationCount.callCount;
             metadataChangesAfterPopulation = metadataChangeCount.callCount;
             initialValueCallsAfterPopulation = deriveInitialName.callCount;
 
+            result.rerender(renderForm());
             fireEvent.change(result.getByTestId('email-field'), {
                 target: { value: 'User edit' },
             });

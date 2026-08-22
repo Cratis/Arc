@@ -37,28 +37,23 @@ export function useCommandFormFieldRegistration(
             noInitialValue: fieldProps.noInitialValue === true,
             populationKey: fieldProps.populationKey,
             populationRevision: 0,
-            valueAccessorRef: {
-                current: fieldProps.value as ((instance: unknown) => unknown) | undefined,
-            },
-            initialValueRef: {
-                current: fieldProps.initialValue as
-                    | ((source: unknown) => unknown)
-                    | undefined,
-            },
+            valueAccessorRef: { current: undefined },
+            initialValueRef: { current: undefined },
         };
     }
     const descriptor = descriptorRef.current;
 
-    // Callback identity is render detail, not population metadata. Keep the mounted descriptor and
-    // its callback references current without making an inline function register the field again.
-    descriptor.valueAccessorRef.current = fieldProps.value as
-        | ((instance: unknown) => unknown)
-        | undefined;
-    descriptor.initialValueRef.current = fieldProps.initialValue as
-        | ((source: unknown) => unknown)
-        | undefined;
-
     React.useLayoutEffect(() => {
+        // The descriptor is shared with CommandForm after registration. Publish callbacks only from
+        // committed renders: mutating these refs during render would let an abandoned concurrent
+        // render replace the callbacks used by the still-mounted field.
+        descriptor.valueAccessorRef.current = fieldProps.value as
+            | ((instance: unknown) => unknown)
+            | undefined;
+        descriptor.initialValueRef.current = fieldProps.initialValue as
+            | ((source: unknown) => unknown)
+            | undefined;
+
         const propertyNameChanged = descriptor.propertyName !== propertyName;
         const currentValueChanged = !deepEqual(
             descriptor.currentValue,

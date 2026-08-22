@@ -32,43 +32,73 @@ const CommandProbe = ({ capture }: { capture: (command: TestCommand) => void }) 
     return null;
 };
 
-const SourceChangingForm = ({
+const suspendedRender = new Promise<never>(() => undefined);
+
+const SuspendAbandonedRender = ({
+    shouldSuspend,
+    observed,
+}: {
+    shouldSuspend: boolean;
+    observed: () => void;
+}) => {
+    if (shouldSuspend) {
+        observed();
+        throw suspendedRender;
+    }
+    return null;
+};
+
+const ConcurrentForm = ({
     capture,
     deriveInitialName,
-    changeSource,
+    abandonedRenderObserved,
 }: {
     capture: (command: TestCommand) => void;
     deriveInitialName: (prefix: string, source: FakePopulateQueryResult) => string;
-    changeSource: () => void;
+    abandonedRenderObserved: () => void;
 }) => {
-    const [prefix, setPrefix] = React.useState('Original');
+    const [prefix, setPrefix] = React.useState('Committed');
+    const [shouldSuspend, setShouldSuspend] = React.useState(false);
+
     return (
         <>
-            <button type='button' onClick={() => setPrefix('Latest')}>
-                Change prefix
-            </button>
             <button
                 type='button'
                 onClick={() => {
-                    setPrefix('Same commit');
-                    changeSource();
+                    React.startTransition(() => {
+                        setPrefix('Abandoned');
+                        setShouldSuspend(true);
+                    });
                 }}
             >
-                Change prefix and source
+                Start abandoned render
             </button>
-            <CommandForm
-                command={TestCommand}
-                populateFromObservableQuery={FakeObservablePopulateQuery}
-            >
-                <CommandProbe capture={capture} />
-                <TestField<TestCommand>
-                    value={(command) => command.name}
-                    initialValue={(source) =>
-                        deriveInitialName(prefix, source as FakePopulateQueryResult)
-                    }
-                    testId='name-field'
-                />
-            </CommandForm>
+            <React.Suspense fallback={<span data-testid='fallback'>Loading</span>}>
+                <CommandForm
+                    command={TestCommand}
+                    populateFromObservableQuery={FakeObservablePopulateQuery}
+                >
+                    <CommandProbe capture={capture} />
+                    <TestField<TestCommand>
+                        value={
+                            shouldSuspend
+                                ? (command) => command.email
+                                : (command) => command.name
+                        }
+                        initialValue={(source) =>
+                            deriveInitialName(
+                                prefix,
+                                source as FakePopulateQueryResult,
+                            )
+                        }
+                        testId='name-field'
+                    />
+                    <SuspendAbandonedRender
+                        shouldSuspend={shouldSuspend}
+                        observed={abandonedRenderObserved}
+                    />
+                </CommandForm>
+            </React.Suspense>
         </>
     );
 };
@@ -91,11 +121,12 @@ const populationResult = (name: string) =>
     );
 
 describe(
-    'when the population source changes',
+    'when a concurrent field render is abandoned',
     given(a_command_form_context, (context) => {
         let command: TestCommand;
         let deriveInitialName: sinon.SinonSpy;
-        let callsAfterClosureChange: number;
+        let abandonedRenderObserved: sinon.SinonSpy;
+        let result: ReturnType<typeof render>;
 
         beforeEach(async () => {
             const queryCache = new QueryInstanceCache();
@@ -112,16 +143,13 @@ describe(
                 (prefix: string, source: FakePopulateQueryResult) =>
                     `${prefix}: ${source.name}`,
             );
+            abandonedRenderObserved = sinon.spy();
 
-            const result = render(
-                <SourceChangingForm
+            result = render(
+                <ConcurrentForm
                     capture={(instance) => (command = instance)}
                     deriveInitialName={deriveInitialName}
-                    changeSource={() =>
-                        FakeObservablePopulateQuery.subscribeCallbacks[0](
-                            populationResult('Joan'),
-                        )
-                    }
+                    abandonedRenderObserved={abandonedRenderObserved}
                 />,
                 { wrapper },
             );
@@ -134,28 +162,35 @@ describe(
                     populationResult('Jane'),
                 );
             });
-            await waitFor(() => command.name!.should.equal('Original: Jane'));
-
-            fireEvent.click(result.getByRole('button', { name: 'Change prefix' }));
-            callsAfterClosureChange = deriveInitialName.callCount;
+            await waitFor(() => command.name!.should.equal('Committed: Jane'));
 
             fireEvent.click(
-                result.getByRole('button', { name: 'Change prefix and source' }),
+                result.getByRole('button', { name: 'Start abandoned render' }),
             );
-            await waitFor(() => command.name!.should.equal('Same commit: Joan'));
+            await waitFor(() => abandonedRenderObserved.called.should.equal(true));
+
+            await act(async () => {
+                FakeObservablePopulateQuery.subscribeCallbacks[0](
+                    populationResult('Joan'),
+                );
+            });
+            await waitFor(() => command.name!.should.equal('Committed: Joan'));
         });
 
-        it('should not evaluate the callback for the closure change alone', () => {
-            callsAfterClosureChange.should.equal(1);
+        it('should keep the callback from the last committed render', () => {
+            command.name!.should.equal('Committed: Joan');
         });
 
-        it('should evaluate the same-commit closure once for the changed source', () => {
+        it('should evaluate only committed callbacks once per source', () => {
             deriveInitialName.callCount.should.equal(2);
-            command.name!.should.equal('Same commit: Joan');
         });
 
-        it('should preserve the changed source value as the baseline', () => {
-            command.hasChanges.should.equal(false);
+        it('should not publish the abandoned accessor', () => {
+            (command.email === undefined).should.equal(true);
+        });
+
+        it('should not commit the suspended fallback', () => {
+            (result.queryByTestId('fallback') === null).should.equal(true);
         });
     }),
 );

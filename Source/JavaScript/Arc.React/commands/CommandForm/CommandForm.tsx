@@ -310,11 +310,18 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         return extracted;
     }, [props.currentValues, props.command]);
 
-    // Match registered metadata onto the resolved source. Transformed values are cached per field,
-    // so registering another field does not re-evaluate existing initialValue callbacks.
-    const populatedValues = useMemo(() => {
+    // Match registered metadata onto the resolved source after commit. Field layout effects publish
+    // their latest callbacks first, so a source and callback that change in the same commit are
+    // evaluated together. This also keeps abandoned concurrent renders from affecting population.
+    // Transformed values are cached per field, so registering another field does not re-evaluate
+    // existing initialValue callbacks.
+    const [populatedValues, setPopulatedValues] = useState<Partial<TCommand>>({});
+    React.useLayoutEffect(() => {
         if (populatedSource === undefined) {
-            return {} as Partial<TCommand>;
+            setPopulatedValues((previous) =>
+                Object.keys(previous).length === 0 ? previous : {},
+            );
+            return;
         }
 
         const values: Record<string, unknown> = {};
@@ -351,7 +358,11 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 )[registration.propertyName];
             }
         });
-        return values as Partial<TCommand>;
+        // SAFETY: Registration property names come from accessors over TCommand fields.
+        const nextValues = values as Partial<TCommand>;
+        setPopulatedValues((previous) =>
+            deepEqual(previous, nextValues) ? previous : nextValues,
+        );
     }, [registeredFieldsVersion, populatedSource]);
 
     // Merge initialValues prop with values extracted from field currentValue props, currentValues and
@@ -695,7 +706,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
 
         // Execute the command
         // SAFETY: Arc-generated command instances extend Command; the runtime guard preserves compatibility with plain objects.
-        if (typeof (finalValues as unknown as Command).execute === 'function') {
+        const executableCommand = finalValues as unknown as Command;
+        if (typeof executableCommand.execute === 'function') {
             // Counted strictly inside this guard, so the throw below can never leak a count that is
             // never given back. The decrement is in a finally rather than a catch, so a rejection
             // restores the count and still propagates unchanged.
@@ -703,9 +715,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             setExecutionCount(executionCountRef.current);
             try {
                 // SAFETY: The guarded execute method is the Command operation that returns ICommandResult<TResponse>.
-                const result = (await (
-                    finalValues as unknown as Command
-                ).execute()) as ICommandResult<TResponse>;
+                const result = (await executableCommand.execute()) as ICommandResult<TResponse>;
                 setCommandResult(result);
 
                 // Invoke callbacks based on result state
