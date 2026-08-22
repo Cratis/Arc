@@ -6,6 +6,7 @@ using Cratis.DependencyInjection;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -13,6 +14,7 @@ namespace Cratis.Arc.Queries;
 /// Represents an implementation of <see cref="IObservableQueryEmissionGuards"/>.
 /// </summary>
 /// <param name="types">The <see cref="ITypes"/> used to discover <see cref="IGuardObservableQueryEmission"/> implementations.</param>
+/// <param name="arcOptions">The Arc options that provide the configured JSON serializer.</param>
 /// <param name="logger">The logger.</param>
 /// <remarks>
 /// The guard types are discovered once; the instances are created per emission from the <em>per-subscription</em>
@@ -21,9 +23,22 @@ namespace Cratis.Arc.Queries;
 /// tenant-resolving or session-reading guard is the wrong answer rather than a missing one.
 /// </remarks>
 [Singleton]
-public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQueryEmissionGuards> logger) : IObservableQueryEmissionGuards
+public class ObservableQueryEmissionGuards(
+    ITypes types,
+    IOptions<ArcOptions> arcOptions,
+    ILogger<ObservableQueryEmissionGuards> logger) : IObservableQueryEmissionGuards
 {
     readonly Type[] _guardTypes = [.. types.FindMultiple<IGuardObservableQueryEmission>()];
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ObservableQueryEmissionGuards"/> class with Arc's default serializer options.
+    /// </summary>
+    /// <param name="types">The types used to discover guards.</param>
+    /// <param name="logger">The logger.</param>
+    public ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQueryEmissionGuards> logger)
+        : this(types, Options.Create(new ArcOptions()), logger)
+    {
+    }
 
     /// <inheritdoc/>
     public bool HasGuards => _guardTypes.Length > 0;
@@ -33,7 +48,9 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
     {
         var aggregate = ObservableQueryEmissionVerdict.Allow;
         var principalSnapshot = ClonePrincipal(context.Principal);
-        var argumentsSnapshot = CloneArguments(context.Arguments);
+        var argumentsSnapshot = new ObservableQueryArgumentsSnapshot(
+            context.Arguments,
+            arcOptions.Value.JsonSerializerOptions);
 
         foreach (var guardType in _guardTypes)
         {
@@ -65,7 +82,7 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
             {
                 var guardContext = context with
                 {
-                    Arguments = CloneArguments(argumentsSnapshot),
+                    Arguments = argumentsSnapshot.CreateArguments(),
                     Principal = ClonePrincipal(principalSnapshot)
                 };
                 verdict = await guard.Guard(guardContext);
@@ -106,17 +123,6 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
         principal is null
             ? null
             : new ClaimsPrincipal(principal.Identities.Select(identity => identity.Clone()));
-
-    static QueryArguments CloneArguments(QueryArguments arguments)
-    {
-        var clone = new QueryArguments();
-        foreach (var (key, value) in arguments)
-        {
-            clone[key] = value;
-        }
-
-        return clone;
-    }
 
     static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or

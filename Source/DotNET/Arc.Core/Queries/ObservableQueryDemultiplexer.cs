@@ -300,6 +300,7 @@ public class ObservableQueryDemultiplexer(
 
                     TerminateSubscription(state.Subscriptions, id, operation);
                 },
+                () => TerminateSubscription(state.Subscriptions, body.QueryId, operation),
                 operation.Token);
 
             if (subscription is not null && operation.TryAttach(subscription) && IsCurrent(state.Subscriptions, body.QueryId, operation))
@@ -363,6 +364,47 @@ public class ObservableQueryDemultiplexer(
     }
 
     /// <summary>
+    /// Subscribes to streaming data without an owning multiplexed operation completion callback.
+    /// </summary>
+    /// <param name="context">The subscribing connection's <see cref="IHttpRequestContext"/>.</param>
+    /// <param name="streamingData">The streaming result to subscribe to.</param>
+    /// <param name="queryId">The id of the query the subscription is for.</param>
+    /// <param name="paging">The <see cref="PagingInfo"/> to report with each result.</param>
+    /// <param name="transferMode">The transfer mode, or null for the default.</param>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> to stamp each result with.</param>
+    /// <param name="identity">The subscription query and caller identity.</param>
+    /// <param name="onNext">Callback invoked for each result.</param>
+    /// <param name="onError">Callback invoked when the subscription errors.</param>
+    /// <param name="onUnauthorized">Callback invoked when an emission guard denies the stream.</param>
+    /// <param name="token">The connection cancellation token.</param>
+    /// <returns>A disposable that stops the subscription, or null when the data is not streamable.</returns>
+    internal IDisposable? SubscribeToStreamingData(
+        IHttpRequestContext context,
+        object streamingData,
+        string queryId,
+        PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
+        Func<QueryResult, CancellationToken, Task> onNext,
+        Func<string, string, CancellationToken, Task> onError,
+        Func<string, CancellationToken, Task> onUnauthorized,
+        CancellationToken token) =>
+        SubscribeToStreamingData(
+            context,
+            streamingData,
+            queryId,
+            paging,
+            transferMode,
+            correlationId,
+            identity,
+            onNext,
+            onError,
+            onUnauthorized,
+            () => { },
+            token);
+
+    /// <summary>
     /// Subscribes to a streaming query result — an <see cref="ISubject{T}"/> or an <see cref="IAsyncEnumerable{T}"/>
     /// — and returns a disposable that tears the subscription down.
     /// </summary>
@@ -376,6 +418,7 @@ public class ObservableQueryDemultiplexer(
     /// <param name="onNext">Callback invoked with each streamed <see cref="QueryResult"/> and the active subscription token.</param>
     /// <param name="onError">Callback invoked with the query id, message and active subscription token when the subscription errors.</param>
     /// <param name="onUnauthorized">Callback invoked with the query id and active subscription token when an emission guard denies the stream, ending the subscription.</param>
+    /// <param name="onCompleted">Callback that terminates the exact owning operation when the stream completes.</param>
     /// <param name="token">The connection's <see cref="CancellationToken"/>.</param>
     /// <returns>An <see cref="IDisposable"/> that stops the subscription, or null when the data is not streamable.</returns>
     internal IDisposable? SubscribeToStreamingData(
@@ -389,13 +432,14 @@ public class ObservableQueryDemultiplexer(
         Func<QueryResult, CancellationToken, Task> onNext,
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
         CancellationToken token)
     {
         var type = streamingData.GetType();
 
         if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
         {
-            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, token);
+            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
         }
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
@@ -445,7 +489,14 @@ public class ObservableQueryDemultiplexer(
                 }
                 finally
                 {
-                    lifetime.Exit();
+                    try
+                    {
+                        onCompleted();
+                    }
+                    finally
+                    {
+                        lifetime.Exit();
+                    }
                 }
             }
         }
@@ -504,7 +555,7 @@ public class ObservableQueryDemultiplexer(
 
                 await ProcessWebSocketMessage(message, webSocket, subscriptions, context, connectionId, keepAliveTracker, writeLock, token);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!IsFatal(ex))
             {
                 logger.ErrorProcessingMessage(ex);
             }
@@ -618,6 +669,7 @@ public class ObservableQueryDemultiplexer(
                     await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
                     TerminateSubscription(subscriptions, id, operation);
                 },
+                () => TerminateSubscription(subscriptions, queryId, operation),
                 operation.Token);
 
             if (subscription is not null && operation.TryAttach(subscription) && IsCurrent(subscriptions, queryId, operation))
@@ -699,6 +751,7 @@ public class ObservableQueryDemultiplexer(
         Func<QueryResult, CancellationToken, Task> onNext,
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
         CancellationToken token)
     {
         var paging = BuildPaging(request);
@@ -755,9 +808,10 @@ public class ObservableQueryDemultiplexer(
         var identity = new ObservableQuerySubscriptionIdentity(
             fullyQualifiedName,
             performedQueryContext?.Arguments ?? arguments,
-            principal);
+            principal,
+            arcOptions.Value.JsonSerializerOptions);
 
-        return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, token);
+        return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
     }
 
     IDisposable SubscribeToSubject(
@@ -772,6 +826,7 @@ public class ObservableQueryDemultiplexer(
         Func<QueryResult, CancellationToken, Task> onNext,
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
         CancellationToken token)
     {
         var elementType = subjectType.GetInterfaces()
@@ -782,7 +837,7 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, token])!;
+        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, token])!;
     }
 
     StreamingQuerySubscription SubscribeToSubjectOfType<T>(
@@ -796,6 +851,7 @@ public class ObservableQueryDemultiplexer(
         Func<QueryResult, CancellationToken, Task> onNext,
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
         CancellationToken token)
     {
         IEnumerable<object>? previousItems = null;
@@ -838,7 +894,7 @@ public class ObservableQueryDemultiplexer(
         {
             // BehaviorSubject can replay synchronously from inside Subscribe. The lifetime therefore exists before
             // observer attachment, and SetProducer disposes an observer whose replay terminated the operation.
-            lifetime.SetProducer(subject.Subscribe(OnEmission, OnSubscriptionError));
+            lifetime.SetProducer(subject.Subscribe(OnEmission, OnSubscriptionError, OnSubscriptionCompleted));
         }
         catch
         {
@@ -891,7 +947,7 @@ public class ObservableQueryDemultiplexer(
                 {
                     var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
                         identity.QueryName,
-                        identity.Arguments,
+                        identity.CreateArguments(),
                         identity.Principal,
                         correlationId,
                         interceptionScope.ServiceProvider,
@@ -1030,6 +1086,30 @@ public class ObservableQueryDemultiplexer(
             finally
             {
                 httpRequestContextAccessor.Current = previousContext;
+                try
+                {
+                    onCompleted();
+                }
+                finally
+                {
+                    lifetime.Exit();
+                }
+            }
+        }
+
+        void OnSubscriptionCompleted()
+        {
+            if (!lifetime.TryEnter())
+            {
+                return;
+            }
+
+            try
+            {
+                onCompleted();
+            }
+            finally
+            {
                 lifetime.Exit();
             }
         }
@@ -1090,7 +1170,7 @@ public class ObservableQueryDemultiplexer(
                 {
                     var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
                         identity.QueryName,
-                        identity.Arguments,
+                        identity.CreateArguments(),
                         identity.Principal,
                         correlationId,
                         guardServiceProvider,
@@ -1136,7 +1216,7 @@ public class ObservableQueryDemultiplexer(
         {
             // The subscription ended while the stream or one of its callbacks was active.
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!IsFatal(ex))
         {
             logger.SubscriptionError(queryId, ex);
             try
@@ -1193,7 +1273,7 @@ public class ObservableQueryDemultiplexer(
         {
             // Normal shutdown or subscription cancellation.
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!IsFatal(ex))
         {
             logger.ErrorSendingMessage(ex);
         }
@@ -1262,7 +1342,7 @@ public class ObservableQueryDemultiplexer(
         {
             // Normal shutdown or subscription cancellation — nothing to report.
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!IsFatal(ex))
         {
             logger.ErrorSendingMessage(ex);
         }
