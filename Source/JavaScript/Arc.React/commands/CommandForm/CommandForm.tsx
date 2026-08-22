@@ -1,14 +1,26 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandFormFields, ColumnInfo, CommandFormFieldWrapper } from './CommandFormFields';
-import { CommandFormContext, useCommandFormContext, type BeforeExecuteCallback, type CommandFormContextValue, type CommandFormHandle, type CommandFormState, type FieldValidationInfo, type FieldContainerProps, type FieldDecoratorProps, type ErrorDisplayProps, type TooltipWrapperProps } from './CommandFormContext';
-import { Constructor } from '@cratis/fundamentals';
-import { useCommand, SetCommandValues } from '../useCommand';
-import { ICommandResult } from '@cratis/arc/commands';
-import { Command } from '@cratis/arc/commands';
-import { ValidationResult } from '@cratis/arc/validation';
-import { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
+import { CommandFormFields, CommandFormFieldWrapper } from './CommandFormFields';
+import {
+    CommandFormContext,
+    useCommandFormContext,
+    type BeforeExecuteCallback,
+    type CommandFormContextValue,
+    type CommandFormHandle,
+    type CommandFormState,
+    type FieldValidationInfo,
+    type FieldContainerProps,
+    type FieldDecoratorProps,
+    type ErrorDisplayProps,
+    type TooltipWrapperProps,
+} from './CommandFormContext';
+import type { Constructor } from '@cratis/fundamentals';
+import { useCommand, type SetCommandValues } from '../useCommand';
+import type { ICommandResult } from '@cratis/arc/commands';
+import type { Command } from '@cratis/arc/commands';
+import type { ValidationResult } from '@cratis/arc/validation';
+import type { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
 import { deepEqual } from '@cratis/arc';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
@@ -16,9 +28,14 @@ import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
 import { extractPopulatedValues } from './extractPopulatedValues';
 import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
+import { renderCommandFormDescendants } from './renderCommandFormDescendants';
+import { CommandFormFieldRegistrationContext } from './CommandFormFieldRegistrationContext';
 import { useIdentity } from '../../identity';
-import { isCommandFormColumn, isCommandFormField, markAsCommandFormColumn } from './commandFormMarkers';
-import { usePopulateFromObservableQuery, usePopulateFromQuery } from './usePopulateFromQuery';
+import { markAsCommandFormColumn } from './commandFormMarkers';
+import {
+    usePopulateFromObservableQuery,
+    usePopulateFromQuery,
+} from './usePopulateFromQuery';
 import { withoutUndefinedValues } from './withoutUndefinedValues';
 
 // Re-export for backwards compatibility
@@ -75,8 +92,19 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
      */
     populateFromQueryArgs?: object;
 
-    onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
-    onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
+    onFieldValidate?: (
+        command: TCommand,
+        fieldName: string,
+        oldValue: unknown,
+        newValue: unknown,
+    ) => string | undefined;
+    onFieldChange?: (
+        command: TCommand,
+        fieldName: string,
+        oldValue: unknown,
+        newValue: unknown,
+        validationInfo?: FieldValidationInfo,
+    ) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     onSuccess?: (response: TResponse) => void;
     onFailed?: (commandResult: ICommandResult<TResponse>) => void;
@@ -130,7 +158,7 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
 }
 
 // Hook to get just the command instance for easier access
-export const useCommandInstance = <TCommand = unknown>() => {
+export const useCommandInstance = <TCommand = unknown,>() => {
     const { commandInstance } = useCommandFormContext<TCommand>();
     return commandInstance as TCommand;
 };
@@ -141,101 +169,179 @@ export const useSetCommandResult = () => {
     return setCommandResult;
 };
 
-const getCommandFormFields = <TCommand,>(props: { children?: React.ReactNode }): { fieldsOrColumns: React.ReactElement[] | ColumnInfo[], otherChildren: React.ReactNode[], initialValuesFromFields: Partial<TCommand>, orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> } => {
-    if (!props.children) {
-        return { fieldsOrColumns: [], otherChildren: [], initialValuesFromFields: {}, orderedChildren: [] };
-    }
-    const fields: React.ReactElement<CommandFormFieldProps>[] = [];
-    const columns: ColumnInfo[] = [];
-    let hasColumns = false;
-    const otherChildren: React.ReactNode[] = [];
-    const orderedChildren: Array<{ type: 'field' | 'other', content: React.ReactNode, index: number }> = [];
-    let fieldIndex = 0;
-    let otherIndex = 0;
-    let initialValuesFromFields: Partial<TCommand> = {};
-
-    const extractInitialValue = (field: React.ReactElement) => {
-        const fieldProps = field.props as Record<string, unknown>;
-        if (fieldProps.currentValue !== undefined && fieldProps.value) {
-            const propertyAccessor = fieldProps.value;
-            const propertyName = getPropertyNameFromAccessor(propertyAccessor);
-            if (propertyName) {
-                initialValuesFromFields = { ...initialValuesFromFields, [propertyName]: fieldProps.currentValue } as Partial<TCommand>;
-            }
+const getOrderedCommandFormChildren = (
+    children?: React.ReactNode,
+    keyPrefix = '',
+): Array<{
+    type: 'other';
+    content: React.ReactNode;
+    index: number;
+    key: string;
+}> =>
+    React.Children.toArray(children).flatMap((child, index) => {
+        const childKey =
+            React.isValidElement(child) && child.key !== null
+                ? String(child.key)
+                : String(index);
+        const key = `${keyPrefix}${childKey}`;
+        if (React.isValidElement(child) && child.type === React.Fragment) {
+            return getOrderedCommandFormChildren(
+                (child.props as { children?: React.ReactNode }).children,
+                `${key}/`,
+            );
         }
-    };
-
-    React.Children.toArray(props.children).forEach(child => {
-        if (!React.isValidElement(child)) {
-            otherChildren.push(child);
-            orderedChildren.push({ type: 'other', content: child, index: otherIndex++ });
-            return;
-        }
-
-        const component = child.type as React.ComponentType<unknown>;
-
-        // Check if child is a CommandFormColumn
-        if (isCommandFormColumn(component)) {
-            hasColumns = true;
-            const childProps = child.props as { children?: React.ReactNode };
-            const columnFields = React.Children.toArray(childProps.children).filter(child => {
-                if (React.isValidElement(child)) {
-                    const comp = child.type as React.ComponentType<unknown>;
-                    if (isCommandFormField(comp)) {
-                        extractInitialValue(child as React.ReactElement);
-                        return true;
-                    }
-                }
-                return false;
-            }) as React.ReactElement[];
-            columns.push({ fields: columnFields as React.ReactElement<CommandFormFieldProps>[] });
-        }
-        // Check if child is a CommandFormField (direct child)
-        else if (isCommandFormField(component)) {
-            extractInitialValue(child as React.ReactElement);
-            fields.push(child as React.ReactElement<CommandFormFieldProps>);
-            orderedChildren.push({ type: 'field', content: child, index: fieldIndex++ });
-        }
-
-        // Everything else is not a field, keep it as other children
-        else {
-            otherChildren.push(child);
-            orderedChildren.push({ type: 'other', content: child, index: otherIndex++ });
-        }
+        return [{ type: 'other' as const, content: child, index, key }];
     });
 
-    return { fieldsOrColumns: hasColumns ? columns : fields, otherChildren, initialValuesFromFields, orderedChildren };
+const getCallbackSignature = (callback: unknown): string =>
+    typeof callback === 'function'
+        ? Function.prototype.toString.call(callback).replace(/\s+/g, ' ').trim()
+        : '';
+
+const getTransformedPopulationValue = (
+    field: React.ReactElement<CommandFormFieldProps>,
+    source: object | undefined,
+): unknown => {
+    if (source === undefined || field.props.noInitialValue || !field.props.initialValue) {
+        return undefined;
+    }
+    return field.props.initialValue(source);
 };
 
-const CommandFormComponent = <TCommand extends object = object, TResponse = object>(props: CommandFormProps<TCommand, TResponse>) => {
-    const { fieldsOrColumns, initialValuesFromFields, orderedChildren } = useMemo(() => getCommandFormFields<TCommand>(props), [props.children]);
+const fieldPopulationMetadataMatches = (
+    first: React.ReactElement<CommandFormFieldProps>,
+    second: React.ReactElement<CommandFormFieldProps>,
+    populatedSource: object | undefined,
+): boolean =>
+    first.type === second.type &&
+    getPropertyNameFromAccessor(first.props.value) ===
+        getPropertyNameFromAccessor(second.props.value) &&
+    getCallbackSignature(first.props.value) ===
+        getCallbackSignature(second.props.value) &&
+    deepEqual(first.props.currentValue, second.props.currentValue) &&
+    first.props.noInitialValue === second.props.noInitialValue &&
+    getCallbackSignature(first.props.initialValue) ===
+        getCallbackSignature(second.props.initialValue) &&
+    deepEqual(
+        getTransformedPopulationValue(first, populatedSource),
+        getTransformedPopulationValue(second, populatedSource),
+    );
+
+const getChangedValues = (
+    current: Record<string, unknown>,
+    previous: Record<string, unknown>,
+): Record<string, unknown> =>
+    Object.fromEntries(
+        Object.entries(current).filter(
+            ([propertyName, value]) =>
+                !Object.hasOwn(previous, propertyName) ||
+                !deepEqual(previous[propertyName], value),
+        ),
+    );
+
+const getInitialValuesFromFields = <TCommand,>(
+    fields: React.ReactElement<CommandFormFieldProps>[],
+): Partial<TCommand> => {
+    const values: Record<string, unknown> = {};
+    fields.forEach((field) => {
+        if (field.props.currentValue !== undefined && field.props.value) {
+            const propertyName = getPropertyNameFromAccessor(field.props.value);
+            if (propertyName) {
+                values[propertyName] = field.props.currentValue;
+            }
+        }
+    });
+    return values as Partial<TCommand>;
+};
+
+const CommandFormComponent = <TCommand extends object = object, TResponse = object>(
+    props: CommandFormProps<TCommand, TResponse>,
+) => {
+    const orderedChildren = useMemo(
+        () => getOrderedCommandFormChildren(props.children),
+        [props.children],
+    );
+
+    // Resolve a population source independently of field registration. A query result may already be
+    // warm when a conditional field first mounts, so registration compares and extracts against the
+    // latest source rather than treating source arrival as the only population trigger.
+    const queryPopulatedSource = usePopulateFromQuery(
+        props.populateFromQuery,
+        props.populateFromQueryArgs,
+    );
+    const observableQueryPopulatedSource = usePopulateFromObservableQuery(
+        props.populateFromObservableQuery,
+        props.populateFromQueryArgs,
+    );
+    const populatedSource = queryPopulatedSource ?? observableQueryPopulatedSource;
+    const populatedSourceRef = React.useRef(populatedSource);
+    populatedSourceRef.current = populatedSource;
+
+    const registeredFieldsById = React.useRef(
+        new Map<symbol, React.ReactElement<CommandFormFieldProps>>(),
+    );
+    const [registeredFieldsVersion, setRegisteredFieldsVersion] = useState(0);
+    const registerField = useCallback(
+        (id: symbol, field: React.ReactElement<CommandFormFieldProps>) => {
+            const existing = registeredFieldsById.current.get(id);
+            registeredFieldsById.current.set(id, field);
+            if (
+                !existing ||
+                !fieldPopulationMetadataMatches(
+                    existing,
+                    field,
+                    populatedSourceRef.current,
+                )
+            ) {
+                setRegisteredFieldsVersion((version) => version + 1);
+            }
+        },
+        [],
+    );
+    const unregisterField = useCallback((id: symbol) => {
+        if (registeredFieldsById.current.delete(id)) {
+            setRegisteredFieldsVersion((version) => version + 1);
+        }
+    }, []);
+    const fieldRegistration = useMemo(
+        () => ({ register: registerField, unregister: unregisterField }),
+        [registerField, unregisterField],
+    );
+    const fields = useMemo(
+        () => Array.from(registeredFieldsById.current.values()),
+        [registeredFieldsVersion, populatedSource],
+    );
+    const initialValuesFromFields = useMemo(
+        () => getInitialValuesFromFields<TCommand>(fields),
+        [fields],
+    );
 
     // Extract matching properties from currentValues
     const valuesFromCurrentValues = useMemo(() => {
-        if (!props.currentValues) return {};
+        const currentValues = props.currentValues;
+        if (!currentValues) return {};
 
         const tempCommand = new props.command() as Command;
-        const commandProperties = tempCommand.propertyDescriptors.map(propertyDescriptor => propertyDescriptor.name);
+        const commandProperties = tempCommand.propertyDescriptors.map(
+            (propertyDescriptor) => propertyDescriptor.name,
+        );
         const extracted: Partial<TCommand> = {};
 
         commandProperties.forEach((propertyName: string) => {
-            if (Object.prototype.hasOwnProperty.call(props.currentValues, propertyName)) {
-                (extracted as Record<string, unknown>)[propertyName] = (props.currentValues as Record<string, unknown>)[propertyName];
+            if (Object.hasOwn(currentValues, propertyName)) {
+                (extracted as Record<string, unknown>)[propertyName] = (
+                    currentValues as Record<string, unknown>
+                )[propertyName];
             }
         });
 
         return extracted;
     }, [props.currentValues, props.command]);
 
-    // A single-instance query (or observable query) result, matched onto the command's properties by
-    // name per field - the query-driven counterpart to props.currentValues. Only one of the two hooks
-    // is ever actually enabled (see usePopulateFromQuery), so at most one resolves.
-    const queryPopulatedSource = usePopulateFromQuery(props.populateFromQuery, props.populateFromQueryArgs);
-    const observableQueryPopulatedSource = usePopulateFromObservableQuery(props.populateFromObservableQuery, props.populateFromQueryArgs);
-    const populatedSource = queryPopulatedSource ?? observableQueryPopulatedSource;
+    // Match the currently registered field metadata onto the resolved population source.
     const populatedValues = useMemo(
-        () => extractPopulatedValues<TCommand>(fieldsOrColumns, populatedSource),
-        [fieldsOrColumns, populatedSource]
+        () => extractPopulatedValues<TCommand>(fields, populatedSource),
+        [fields, populatedSource],
     );
 
     // Merge initialValues prop with values extracted from field currentValue props, currentValues and
@@ -243,26 +349,53 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     // CommandFormProps. A field's currentValue is skipped where it is extracted (nothing to seed), and
     // props.initialValues here, so neither of them spreads an undefined over a value currentValues or
     // a populate query has already resolved.
-    const mergedInitialValues = useMemo(() => ({
-        ...valuesFromCurrentValues,
-        ...populatedValues,
-        ...initialValuesFromFields,
-        ...withoutUndefinedValues(props.initialValues)
-    }), [valuesFromCurrentValues, populatedValues, initialValuesFromFields, props.initialValues]);
+    const mergedInitialValues = useMemo(
+        () => ({
+            ...valuesFromCurrentValues,
+            ...populatedValues,
+            ...initialValuesFromFields,
+            ...withoutUndefinedValues(props.initialValues),
+        }),
+        [
+            valuesFromCurrentValues,
+            populatedValues,
+            initialValuesFromFields,
+            props.initialValues,
+        ],
+    );
 
     // useCommand returns [instance, setter, clearer] for the typed command. Provide generics so commandInstance is TCommand.
     // Using type assertion through unknown to work around generic constraint mismatch
-    const useCommandResult = useCommand(props.command as unknown as Constructor<Command<Partial<TCommand>, object>>, mergedInitialValues);
+    const useCommandResult = useCommand(
+        props.command as unknown as Constructor<Command<Partial<TCommand>, object>>,
+        mergedInitialValues,
+    );
     const commandInstance = useCommandResult[0] as unknown as TCommand;
     const setCommandValuesInternal = useCommandResult[1] as SetCommandValues<TCommand>;
     const [commandVersion, setCommandVersion] = useState(0);
-    const setCommandValues = useCallback((values: TCommand) => {
-        setCommandValuesInternal(values);
-        setCommandVersion(version => version + 1);
-    }, [setCommandValuesInternal]);
-    const [commandResult, setCommandResult] = useState<ICommandResult<unknown> | undefined>(undefined);
-    const [silentValidationResult, setSilentValidationResult] = useState<ICommandResult<unknown> | undefined>(undefined);
-    const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
+    const setCommandValues = useCallback(
+        (values: TCommand) => {
+            setCommandValuesInternal(values);
+            setCommandVersion((version) => version + 1);
+        },
+        [setCommandValuesInternal],
+    );
+    const setCommandInitialValues = useCallback(
+        (values: Partial<TCommand>) => {
+            (commandInstance as unknown as Command).setInitialValues(values as object);
+            setCommandVersion((version) => version + 1);
+        },
+        [commandInstance],
+    );
+    const [commandResult, setCommandResult] = useState<
+        ICommandResult<unknown> | undefined
+    >(undefined);
+    const [silentValidationResult, setSilentValidationResult] = useState<
+        ICommandResult<unknown> | undefined
+    >(undefined);
+    const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>(
+        {},
+    );
 
     // Executions are counted, not flagged. Nothing stops a form from being submitted again while the
     // previous submission is still in flight - a second click, a submit button and a keyboard submit
@@ -292,57 +425,98 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     // anything, so a run that is still the newest always lands even when it is the slow one.
     const beginSilentValidation = useCallback(() => silentValidationIssue.current++, []);
 
-    const applySilentValidationResult = useCallback((validationResult: ICommandResult<unknown>, issue?: number) => {
-        if (issue === undefined) {
-            // An unguarded write - a custom field going through the context - is taken as current, so
-            // anything issued before it is stale from here on.
-            lastAppliedSilentValidationIssue.current = silentValidationIssue.current;
-        } else {
-            if (issue < lastAppliedSilentValidationIssue.current) return false;
-            lastAppliedSilentValidationIssue.current = issue;
-        }
-        setSilentValidationResult(validationResult);
-        return true;
-    }, []);
-
-    const validateSilently = useCallback(async (showErrors: boolean) => {
-        const issue = beginSilentValidation();
-        const validationResult = await runCommandValidation(commandInstance, props.autoServerValidate ?? false);
-        if (!validationResult) return;
-        if (!applySilentValidationResult(validationResult, issue)) return;
-        if (showErrors) {
-            setCommandResult(validationResult);
-        }
-    }, [commandInstance, props.autoServerValidate, beginSilentValidation, applySilentValidationResult]);
-
-    // Update command values when mergedInitialValues changes (e.g., when data loads asynchronously)
-    // When using currentValues or a populate query, always update when they change (reactive mode for
-    // editing). When using initialValues only, set values once on mount.
-    const previousPopulatedSourceRef = React.useRef<object | undefined>(undefined);
-    React.useEffect(() => {
-        const hasCurrentValues = props.currentValues !== undefined && props.currentValues !== null;
-        const hasPopulatedSource = populatedSource !== undefined;
-        const populatedSourceChanged = hasPopulatedSource && !deepEqual(previousPopulatedSourceRef.current, populatedSource);
-        if (hasPopulatedSource) {
-            previousPopulatedSourceRef.current = populatedSource;
-        }
-
-        if (populatedSourceChanged) {
-            // A populate query's result becomes the new baseline, not just an overlay - change
-            // tracking then measures an editor's own edits against it, rather than against the
-            // empty state the form mounted with.
-            (commandInstance as unknown as Command).setInitialValues(populatedValues as object);
-        }
-
-        if (hasCurrentValues || hasPopulatedSource) {
-            // Reactive mode: update whenever currentValues or the populated source changes
-            if (mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
-                setCommandValues(mergedInitialValues as TCommand);
+    const applySilentValidationResult = useCallback(
+        (validationResult: ICommandResult<unknown>, issue?: number) => {
+            if (issue === undefined) {
+                // An unguarded write - a custom field going through the context - is taken as current, so
+                // anything issued before it is stale from here on.
+                lastAppliedSilentValidationIssue.current = silentValidationIssue.current;
+            } else {
+                if (issue < lastAppliedSilentValidationIssue.current) return false;
+                lastAppliedSilentValidationIssue.current = issue;
             }
-        } else if (!initializedRef.current && mergedInitialValues && Object.keys(mergedInitialValues).length > 0) {
-            // Static mode: set values only once on initialization
-            setCommandValues(mergedInitialValues as TCommand);
+            setSilentValidationResult(validationResult);
+            return true;
+        },
+        [],
+    );
+
+    const validateSilently = useCallback(
+        async (showErrors: boolean) => {
+            const issue = beginSilentValidation();
+            const validationResult = await runCommandValidation(
+                commandInstance,
+                props.autoServerValidate ?? false,
+            );
+            if (!validationResult) return;
+            if (!applySilentValidationResult(validationResult, issue)) return;
+            if (showErrors) {
+                setCommandResult(validationResult);
+            }
+        },
+        [
+            commandInstance,
+            props.autoServerValidate,
+            beginSilentValidation,
+            applySilentValidationResult,
+        ],
+    );
+
+    // Track values becoming available, not merely source arrival. Runtime fields register after the
+    // first render and may mount after a query result is already cached. Applying only changed keys
+    // preserves edits in unrelated fields while each seed/populated value becomes a true baseline.
+    const previousFieldInitialValuesRef = React.useRef<Partial<TCommand>>({});
+    const previousPopulatedValuesRef = React.useRef<Partial<TCommand>>({});
+    const previousCurrentValuesRef = React.useRef<Partial<TCommand>>(
+        valuesFromCurrentValues,
+    );
+    React.useEffect(() => {
+        const changedFieldInitialValues = getChangedValues(
+            initialValuesFromFields as Record<string, unknown>,
+            previousFieldInitialValuesRef.current as Record<string, unknown>,
+        );
+        const changedPopulatedValues = getChangedValues(
+            populatedValues as Record<string, unknown>,
+            previousPopulatedValuesRef.current as Record<string, unknown>,
+        );
+        const changedCurrentValues = getChangedValues(
+            valuesFromCurrentValues as Record<string, unknown>,
+            previousCurrentValuesRef.current as Record<string, unknown>,
+        );
+        previousFieldInitialValuesRef.current = initialValuesFromFields;
+        previousPopulatedValuesRef.current = populatedValues;
+        previousCurrentValuesRef.current = valuesFromCurrentValues;
+
+        const baselineProperties = new Set([
+            ...Object.keys(changedFieldInitialValues),
+            ...Object.keys(changedPopulatedValues),
+        ]);
+        const reactiveProperties = Object.keys(changedCurrentValues).filter(
+            (propertyName) => !baselineProperties.has(propertyName),
+        );
+        const mergedValues = mergedInitialValues as Record<string, unknown>;
+        const reactiveValues: Record<string, unknown> = {};
+        reactiveProperties.forEach((propertyName) => {
+            if (Object.hasOwn(mergedValues, propertyName)) {
+                reactiveValues[propertyName] = mergedValues[propertyName];
+            }
+        });
+        const baselineValues: Record<string, unknown> = {};
+        baselineProperties.forEach((propertyName) => {
+            if (Object.hasOwn(mergedValues, propertyName)) {
+                baselineValues[propertyName] = mergedValues[propertyName];
+            }
+        });
+
+        if (Object.keys(reactiveValues).length > 0) {
+            setCommandValues(reactiveValues as TCommand);
         }
+        if (Object.keys(baselineValues).length > 0) {
+            setCommandInitialValues(baselineValues as Partial<TCommand>);
+        }
+
+        const fieldInitialValuesChanged = baselineProperties.size > 0;
+        const currentValuesChanged = Object.keys(changedCurrentValues).length > 0;
 
         // Always run silent client validation on init and after currentValues/populated source
         // changes to determine if the form is valid. This ensures isValid reflects the real validity
@@ -353,10 +527,19 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         if (!initializedRef.current) {
             initializedRef.current = true;
             void validateSilently(props.validateOnInit ?? false);
-        } else if (hasCurrentValues || populatedSourceChanged) {
+        } else if (currentValuesChanged || fieldInitialValuesChanged) {
             void validateSilently(props.validateOnInit ?? false);
         }
-    }, [mergedInitialValues, populatedSource, populatedValues, props.validateOnInit, props.currentValues, commandInstance, setCommandValues, validateSilently]);
+    }, [
+        mergedInitialValues,
+        populatedValues,
+        initialValuesFromFields,
+        valuesFromCurrentValues,
+        props.validateOnInit,
+        setCommandValues,
+        setCommandInitialValues,
+        validateSilently,
+    ]);
 
     // isValid is driven exclusively by silentValidationResult which is updated on mount and
     // after every field value change. commandResult only controls error message display.
@@ -370,7 +553,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     // If the command has no roles defined, all users are considered authorized.
     const identity = useIdentity();
     const commandRoles = (commandInstance as unknown as Command).roles ?? [];
-    const isAuthorized = commandRoles.length === 0 || commandRoles.some(role => identity.isInRole(role));
+    const isAuthorized =
+        commandRoles.length === 0 || commandRoles.some((role) => identity.isInRole(role));
 
     // Auto server validate when all client validations pass
     React.useEffect(() => {
@@ -386,18 +570,27 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
 
         // Only call server validate if silent validation has run and all fields are valid
         const allFieldsValid = silentValidationResult !== undefined && isValid;
-        
+
         // Check if we've already validated this command version
-        const alreadyValidatedThisVersion = lastServerValidateVersion.current === commandVersion;
-        
+        const alreadyValidatedThisVersion =
+            lastServerValidateVersion.current === commandVersion;
+
         // Must have all fields valid and not already validated this version
-        if (allFieldsValid && !alreadyValidatedThisVersion && commandInstance && typeof (commandInstance as Record<string, unknown>).validate === 'function') {
+        if (
+            allFieldsValid &&
+            !alreadyValidatedThisVersion &&
+            commandInstance &&
+            typeof (commandInstance as Record<string, unknown>).validate === 'function'
+        ) {
             const performValidation = () => {
                 lastServerValidateVersion.current = commandVersion;
                 const issue = beginSilentValidation();
                 void (async () => {
                     try {
-                        const validationResult = await ((commandInstance as Record<string, unknown>).validate as () => Promise<ICommandResult<unknown>>)();
+                        const validationResult = await (
+                            (commandInstance as Record<string, unknown>)
+                                .validate as () => Promise<ICommandResult<unknown>>
+                        )();
                         if (validationResult) {
                             // This is the only server round trip a typing burst makes, so its verdict has to
                             // reach isValid too. The per-keystroke validation in CommandFormFields is
@@ -405,7 +598,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                             // check, anything reading a read model - would leave the form reading as valid
                             // right up until submit failed. It is also the slowest run there is, so it is the
                             // one most likely to be overtaken - hence the token.
-                            if (!applySilentValidationResult(validationResult, issue)) return;
+                            if (!applySilentValidationResult(validationResult, issue))
+                                return;
                             setCommandResult(validationResult);
                         }
                     } catch (error) {
@@ -418,7 +612,10 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             // Apply throttle if specified
             const throttleMs = props.autoServerValidateThrottle ?? 500;
             if (throttleMs > 0) {
-                serverValidateThrottleTimer.current = setTimeout(performValidation, throttleMs);
+                serverValidateThrottleTimer.current = setTimeout(
+                    performValidation,
+                    throttleMs,
+                );
             } else {
                 performValidation();
             }
@@ -430,18 +627,30 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 serverValidateThrottleTimer.current = null;
             }
         };
-    }, [props.autoServerValidate, props.autoServerValidateThrottle, commandInstance, commandVersion, isValid, silentValidationResult, beginSilentValidation, applySilentValidationResult]);
+    }, [
+        props.autoServerValidate,
+        props.autoServerValidateThrottle,
+        commandInstance,
+        commandVersion,
+        isValid,
+        silentValidationResult,
+        beginSilentValidation,
+        applySilentValidationResult,
+    ]);
 
-    const setCustomFieldError = useCallback((fieldName: string, error: string | undefined) => {
-        setCustomFieldErrors(prev => {
-            if (error === undefined) {
-                const newErrors = { ...prev };
-                delete newErrors[fieldName];
-                return newErrors;
-            }
-            return { ...prev, [fieldName]: error };
-        });
-    }, []);
+    const setCustomFieldError = useCallback(
+        (fieldName: string, error: string | undefined) => {
+            setCustomFieldErrors((prev) => {
+                if (error === undefined) {
+                    const newErrors = { ...prev };
+                    delete newErrors[fieldName];
+                    return newErrors;
+                }
+                return { ...prev, [fieldName]: error };
+            });
+        },
+        [],
+    );
 
     const getFieldError = (propertyName: string): string | undefined => {
         // Check custom field errors first
@@ -479,7 +688,9 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             executionCountRef.current += 1;
             setExecutionCount(executionCountRef.current);
             try {
-                const result = await (finalValues as unknown as Command).execute() as ICommandResult<TResponse>;
+                const result = (await (
+                    finalValues as unknown as Command
+                ).execute()) as ICommandResult<TResponse>;
                 setCommandResult(result);
 
                 // Invoke callbacks based on result state
@@ -490,7 +701,10 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                     props.onFailed(result);
                 }
                 if (result.hasExceptions && props.onException) {
-                    props.onException(result.exceptionMessages, result.exceptionStackTrace);
+                    props.onException(
+                        result.exceptionMessages,
+                        result.exceptionStackTrace,
+                    );
                 }
                 if (!result.isAuthorized && props.onUnauthorized) {
                     props.onUnauthorized();
@@ -522,12 +736,22 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         onStateChangeRef.current = props.onStateChange;
     });
 
-    useImperativeHandle(props.formRef, () => ({
-        execute: () => latestRef.current.handleExecute(),
-        get isExecuting() { return executionCountRef.current > 0; },
-        get isValid() { return latestRef.current.isValid; },
-        get isAuthorized() { return latestRef.current.isAuthorized; }
-    }), []);
+    useImperativeHandle(
+        props.formRef,
+        () => ({
+            execute: () => latestRef.current.handleExecute(),
+            get isExecuting() {
+                return executionCountRef.current > 0;
+            },
+            get isValid() {
+                return latestRef.current.isValid;
+            },
+            get isAuthorized() {
+                return latestRef.current.isAuthorized;
+            },
+        }),
+        [],
+    );
 
     // An imperative handle is not reactive - reading it cannot re-render the parent. This is the other
     // half: the parent is told when the state changes so its own submit button can follow along. The
@@ -537,14 +761,16 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         onStateChangeRef.current?.({ isExecuting, isValid, isAuthorized });
     }, [isExecuting, isValid, isAuthorized]);
 
-    const handleFormSubmit = useCallback((e: React.FormEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void handleExecute();
-    }, [handleExecute]);
+    const handleFormSubmit = useCallback(
+        (e: React.FormEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void handleExecute();
+        },
+        [handleExecute],
+    );
 
     const exceptionMessages = commandResult?.exceptionMessages || [];
-    const hasColumns = fieldsOrColumns.length > 0 && 'fields' in fieldsOrColumns[0];
 
     const contextValue: CommandFormContextValue<TCommand> = {
         command: props.command,
@@ -577,29 +803,49 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         errorDisplayComponent: props.errorDisplayComponent,
         tooltipComponent: props.tooltipComponent,
         errorClassName: props.errorClassName,
-        iconAddonClassName: props.iconAddonClassName
+        iconAddonClassName: props.iconAddonClassName,
     };
 
     return (
-        <CommandFormContext.Provider value={contextValue as CommandFormContextValue<unknown>}>
-            <form onSubmit={handleFormSubmit} noValidate>
-                <CommandFormFields 
-                    fields={hasColumns ? undefined : (fieldsOrColumns as React.ReactElement<CommandFormFieldProps>[])} 
-                    columns={hasColumns ? fieldsOrColumns as ColumnInfo[] : undefined}
-                    orderedChildren={orderedChildren}
-                />
-                {exceptionMessages.length > 0 && (
-                    <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-error-bg, #fee)' }}>
-                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: 600, color: 'var(--color-error, #c00)' }}>The server responded with</h4>
-                        <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
-                            {exceptionMessages.map((msg, idx) => (
-                                <li key={idx}>{msg}</li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-            </form>
-        </CommandFormContext.Provider>
+        <CommandFormFieldRegistrationContext.Provider value={fieldRegistration}>
+            <CommandFormContext.Provider
+                value={contextValue as CommandFormContextValue<unknown>}
+            >
+                <form onSubmit={handleFormSubmit} noValidate>
+                    <CommandFormFields
+                        fields={fields}
+                        orderedChildren={orderedChildren}
+                    />
+                    {exceptionMessages.length > 0 && (
+                        <div
+                            style={{
+                                marginTop: '1rem',
+                                padding: '1rem',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-md)',
+                                backgroundColor: 'var(--color-error-bg, #fee)',
+                            }}
+                        >
+                            <h4
+                                style={{
+                                    margin: '0 0 0.5rem 0',
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    color: 'var(--color-error, #c00)',
+                                }}
+                            >
+                                The server responded with
+                            </h4>
+                            <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                                {exceptionMessages.map((msg, idx) => (
+                                    <li key={idx}>{msg}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </form>
+            </CommandFormContext.Provider>
+        </CommandFormFieldRegistrationContext.Provider>
     );
 };
 
@@ -607,35 +853,19 @@ interface CommandFormColumnProps {
     children: React.ReactNode;
 }
 
-const CommandFormColumnComponent = (props: CommandFormColumnProps) => {
-    const children = React.Children.toArray(props.children);
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-            {children.map((child, index) => {
-                if (React.isValidElement(child)) {
-                    const component = child.type as React.ComponentType<unknown>;
-                    if (isCommandFormField(component)) {
-                        return (
-                            <CommandFormFieldWrapper
-                                key={`column-field-${index}`}
-                                field={child as React.ReactElement}
-                            />
-                        );
-                    }
-                }
-                // Render non-field children as-is
-                return <React.Fragment key={`column-other-${index}`}>{child}</React.Fragment>;
-            })}
-        </div>
-    );
-};
+const CommandFormColumnComponent = (props: CommandFormColumnProps) => (
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+        {renderCommandFormDescendants(props.children, (field) => (
+            <CommandFormFieldWrapper field={field} />
+        ))}
+    </div>
+);
 
 markAsCommandFormColumn(CommandFormColumnComponent);
 
 // Export as function to enable proper type inference from command prop
 export function CommandForm<TCommand extends object = object, TResponse = object>(
-    props: CommandFormProps<TCommand, TResponse>
+    props: CommandFormProps<TCommand, TResponse>,
 ): React.ReactElement {
     return <CommandFormComponent<TCommand, TResponse> {...props} />;
 }

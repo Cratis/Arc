@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { PropertyDescriptor } from '@cratis/arc/reflection';
-import React, { ComponentType } from 'react';
-import { useCommandFormContext } from './CommandForm';
-import { markAsCommandFormField } from './commandFormMarkers';
+import type { PropertyDescriptor } from '@cratis/arc/reflection';
+import React, { type ComponentType } from 'react';
+import { useCommandFormContext } from './CommandFormContext';
+import { withCommandFormFieldBinding } from './withCommandFormFieldBinding';
 
 /**
  * Props that will be injected by CommandFormFields into your wrapped component
@@ -78,8 +78,12 @@ export interface WrappedFieldProps<TValue = unknown> {
  * TCommand defaults to unknown; callers should specify the command type
  * explicitly for full type safety on the value accessor.
  */
-export type CommandFormFieldComponentProps<TComponentProps extends WrappedFieldProps, TCommand = unknown> =
-    Omit<TComponentProps, keyof WrappedFieldProps> & BaseCommandFormFieldProps<TCommand> & InjectedCommandFormFieldProps;
+export type CommandFormFieldComponentProps<
+    TComponentProps extends WrappedFieldProps,
+    TCommand = unknown,
+> = Omit<TComponentProps, keyof WrappedFieldProps> &
+    BaseCommandFormFieldProps<TCommand> &
+    InjectedCommandFormFieldProps;
 
 /**
  * Wraps a field component to work with CommandForm, handling all integration automatically.
@@ -121,16 +125,18 @@ export type CommandFormFieldComponentProps<TComponentProps extends WrappedFieldP
  * ```
  */
 export function asCommandFormField<TComponentProps extends WrappedFieldProps<unknown>>(
-    component: ComponentType<TComponentProps> | ((props: TComponentProps) => React.ReactElement),
-    config: CommandFormFieldConfig<TComponentProps['value']>
+    component:
+        | ComponentType<TComponentProps>
+        | ((props: TComponentProps) => React.ReactElement),
+    config: CommandFormFieldConfig<TComponentProps['value']>,
 ) {
     const { defaultValue, extractValue } = config;
-    const Component = typeof component === 'function' && !component.prototype?.render
-        ? component
-        : component as ComponentType<TComponentProps>;
-
-    const WrappedField = <TCommand = unknown,>(
-        props: CommandFormFieldComponentProps<TComponentProps, TCommand>
+    const Component =
+        typeof component === 'function' && !component.prototype?.render
+            ? component
+            : (component as ComponentType<TComponentProps>);
+    const BoundField = <TCommand = unknown,>(
+        props: CommandFormFieldComponentProps<TComponentProps, TCommand>,
     ): React.ReactElement => {
         const {
             currentValue,
@@ -145,7 +151,8 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
         const { getFieldError, customFieldErrors } = useCommandFormContext();
 
         // Determine if field is required based on PropertyDescriptor or explicit prop
-        const isRequired = required ?? (propertyDescriptor ? !propertyDescriptor.isOptional : true);
+        const isRequired =
+            required ?? (propertyDescriptor ? !propertyDescriptor.isOptional : true);
 
         const serverError = fieldName ? getFieldError(fieldName) : undefined;
         const customError = fieldName ? customFieldErrors[fieldName] : undefined;
@@ -161,7 +168,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             onValueChange?.(newValue);
         };
 
-        const displayValue = currentValue !== undefined ? currentValue : defaultValue;
+        const displayValue = currentValue === undefined ? defaultValue : currentValue;
 
         const wrappedProps = {
             ...componentProps,
@@ -170,13 +177,16 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             onBlur,
             invalid: isInvalid,
             required: isRequired,
-            errors
+            errors,
         } as TComponentProps;
 
         return <Component {...wrappedProps} />;
     };
 
-    markAsCommandFormField(WrappedField);
-
-    return WrappedField;
+    const wrappedField = withCommandFormFieldBinding(BoundField);
+    wrappedField.commandFormFieldName =
+        (component as ComponentType<TComponentProps>).displayName ||
+        component.name ||
+        'CommandFormField';
+    return wrappedField;
 }

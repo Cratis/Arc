@@ -9,4 +9,5 @@ export * from './CommandFormField';
 export * from './CommandFormFields';
 export * from './usePopulateFromQuery';
 export * from './ValidationMessage';
+export * from './withCommandFormFieldBinding';
 export * from './fields';

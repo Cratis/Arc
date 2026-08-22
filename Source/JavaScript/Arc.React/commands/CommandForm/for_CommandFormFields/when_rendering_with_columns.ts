@@ -4,64 +4,74 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { CommandForm } from '../CommandForm';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { CommandFormField } from '../CommandFormField';
-import { asCommandFormField } from '../asCommandFormField';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
 import { TestCommand } from '../for_CommandForm/TestCommand';
 import { a_command_form_fields_context } from './given/a_command_form_fields_context';
 import { given } from '../../../given';
 
-const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: unknown) => void; invalid: boolean; required: boolean; errors: string[] }>(
-    (props) => {
+type SimpleTextFieldProps = WrappedFieldProps<string>;
+
+const SimpleTextField = asCommandFormField<SimpleTextFieldProps>(
+    (props: SimpleTextFieldProps) => {
         return React.createElement('input', {
             type: 'text',
             value: props.value,
-            onChange: props.onChange
+            onChange: props.onChange,
         });
     },
     {
         defaultValue: '',
-        extractValue: (e: unknown) => (e as React.ChangeEvent<HTMLInputElement>).target.value
-    }
+        extractValue: (e: unknown) =>
+            (e as React.ChangeEvent<HTMLInputElement>).target.value,
+    },
 );
 
-describe("when rendering with columns", given(a_command_form_fields_context, context => {
-    let container: HTMLElement;
+describe(
+    'when rendering with columns',
+    given(a_command_form_fields_context, (context) => {
+        let container: HTMLElement;
 
-    beforeEach(() => {
-        const result = render(
-            React.createElement(
-                CommandForm,
-                { command: TestCommand },
+        beforeEach(() => {
+            const result = render(
                 React.createElement(
-                    CommandForm.Column,
-                    null,
-                    React.createElement(SimpleTextField, {
-                        value: (c: TestCommand) => c.name,
-                        title: 'Name'
-                    })
+                    CommandForm,
+                    { command: TestCommand },
+                    React.createElement(
+                        CommandForm.Column,
+                        null,
+                        React.createElement(SimpleTextField, {
+                            value: (c: TestCommand) => c.name,
+                            title: 'Name',
+                        }),
+                    ),
+                    React.createElement(
+                        CommandForm.Column,
+                        null,
+                        React.createElement(SimpleTextField, {
+                            value: (c: TestCommand) => c.email,
+                            title: 'Email',
+                        }),
+                    ),
                 ),
-                React.createElement(
-                    CommandForm.Column,
-                    null,
-                    React.createElement(SimpleTextField, {
-                        value: (c: TestCommand) => c.email,
-                        title: 'Email'
-                    })
-                )
-            ),
-            { wrapper: context.createWrapper() }
-        );
-        container = result.container;
-    });
+                { wrapper: context.createWrapper() },
+            );
+            container = result.container;
+        });
 
-    it("should render all fields", () => {
-        const inputs = container.querySelectorAll('input');
-        inputs.should.have.lengthOf(2);
-    });
+        it('should render all fields', () => {
+            const inputs = container.querySelectorAll('input');
+            inputs.should.have.lengthOf(2);
+        });
 
-    it("should render fields in columns", () => {
-        const columns = container.querySelectorAll('.flex-1');
-        columns.should.have.lengthOf(2);
-    });
-}));
+        it('should render fields in columns', () => {
+            const columns = container.querySelectorAll('.flex-1');
+            columns.should.have.lengthOf(2);
+        });
+
+        it('should preserve the columns-only shell shape', () => {
+            const card = container.querySelector('.card')!;
+            card.classList.contains('flex-wrap').should.equal(false);
+            card.children.should.have.lengthOf(2);
+        });
+    }),
+);

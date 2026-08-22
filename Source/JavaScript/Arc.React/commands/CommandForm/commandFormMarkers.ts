@@ -24,6 +24,12 @@ export type CommandFormMarked = {
     /** Set on a column component. */
     isCommandFormColumn?: boolean;
 
+    /** Set when the component can bind itself after crossing an opaque custom component. */
+    canBindCommandFormFieldAtRuntime?: boolean;
+
+    /** Human-readable implementation name used in development diagnostics. */
+    commandFormFieldName?: string;
+
     /** The React display name, kept as the compatibility fallback. */
     displayName?: string;
 };
@@ -43,6 +49,30 @@ export function markAsCommandFormField<T>(component: T): T & CommandFormMarked {
     marked.isCommandFormField = true;
     marked.displayName = CommandFormFieldDisplayName;
     return marked;
+}
+
+/**
+ * Marks a field component as capable of binding itself at render time.
+ * @param component The component to mark.
+ * @returns The same component with both the compatibility marker and runtime-binding capability.
+ */
+export function markAsRuntimeBindingCommandFormField<T>(
+    component: T,
+): T & CommandFormMarked {
+    const marked = markAsCommandFormField(component);
+    marked.canBindCommandFormFieldAtRuntime = true;
+    return marked;
+}
+
+/**
+ * Whether a marked field can bind itself after crossing an opaque custom component.
+ * @param component The component to check.
+ * @returns True when the component carries the runtime-binding capability.
+ */
+export function canBindCommandFormFieldAtRuntime(
+    component: CommandFormMarked | undefined,
+): boolean {
+    return component?.canBindCommandFormFieldAtRuntime === true;
 }
 
 /**
@@ -68,7 +98,10 @@ export function markAsCommandFormColumn<T>(component: T): T & CommandFormMarked 
  * and a component from a package that predates the marker, working exactly as before.
  */
 export function isCommandFormField(component: CommandFormMarked | undefined): boolean {
-    return component?.isCommandFormField === true || component?.displayName === CommandFormFieldDisplayName;
+    return (
+        component?.isCommandFormField === true ||
+        component?.displayName === CommandFormFieldDisplayName
+    );
 }
 
 /**
@@ -77,5 +110,8 @@ export function isCommandFormField(component: CommandFormMarked | undefined): bo
  * @returns True when it is.
  */
 export function isCommandFormColumn(component: CommandFormMarked | undefined): boolean {
-    return component?.isCommandFormColumn === true || component?.displayName === CommandFormColumnDisplayName;
+    return (
+        component?.isCommandFormColumn === true ||
+        component?.displayName === CommandFormColumnDisplayName
+    );
 }
