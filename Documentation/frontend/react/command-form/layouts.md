@@ -4,7 +4,7 @@ CommandForm renders children in the order they are defined. You can create custo
 
 Fields remain bound at any descendant depth. You can place them inside fragments, intrinsic elements, grids, cards, or pass-through layout components without hoisting them to be direct children. The form preserves the layout tree while each field registers the accessor and population metadata it actually renders.
 
-Registration follows semantic metadata rather than React element identity. Recreating an equivalent field during a layout render does not register or populate it again. If a layout genuinely changes the resolved accessor, `currentValue`, `noInitialValue`, or `initialValue`, CommandForm applies the new metadata; transformed population values are evaluated again only when that metadata or the population source changes.
+Each mounted field keeps one registration descriptor. Recreating its element or inline accessor during a layout render only updates the descriptor's latest callback references; it does not register or populate the field again. CommandForm automatically reacts when a layout changes the resolved property, `currentValue`, or `noInitialValue`. When an `initialValue` callback captures other semantics, pass that value through `populationKey` so a change recomputes the transformed value with the latest callback. A changed population source also uses the latest callback. This keeps layout and context renders stable without hiding intentional population changes.
 
 ## Multi-Column Layout with CommandForm.Column
 

@@ -78,9 +78,9 @@ describe(
             );
 
             await waitFor(() =>
-                (result.getByTestId('opaque-field') as HTMLInputElement).value.should.equal(
-                    'Before',
-                ),
+                (
+                    result.getByTestId('opaque-field') as HTMLInputElement
+                ).value.should.equal('Before'),
             );
             fireEvent.change(result.getByTestId('opaque-field'), {
                 target: { value: 'After' },

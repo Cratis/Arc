@@ -12,25 +12,11 @@ export const CommandFormFieldRegistrationContext = React.createContext<
               id: symbol,
               descriptor: CommandFormFieldRegistrationDescriptor,
           ) => void;
+          notifyChanged: (id: symbol) => void;
           unregister: (id: symbol) => void;
       }
     | undefined
 >(undefined);
-
-const getCallbackSourceSignature = (callback: unknown): string =>
-    typeof callback === 'function'
-        ? Function.prototype.toString.call(callback).replace(/\s+/g, ' ').trim()
-        : '';
-
-const registrationDescriptorsMatch = (
-    first: CommandFormFieldRegistrationDescriptor,
-    second: CommandFormFieldRegistrationDescriptor,
-): boolean =>
-    first.propertyName === second.propertyName &&
-    deepEqual(first.currentValue, second.currentValue) &&
-    first.noInitialValue === second.noInitialValue &&
-    first.valueAccessorSourceSignature === second.valueAccessorSourceSignature &&
-    first.initialValueSourceSignature === second.initialValueSourceSignature;
 
 /**
  * Registers stable metadata for the field a CommandFormFieldWrapper actually binds.
@@ -44,31 +30,68 @@ export function useCommandFormFieldRegistration(
     const registration = React.useContext(CommandFormFieldRegistrationContext);
     const id = React.useRef(Symbol('CommandFormField'));
     const descriptorRef = React.useRef<CommandFormFieldRegistrationDescriptor>();
-    const descriptor: CommandFormFieldRegistrationDescriptor = {
-        propertyName,
-        currentValue: fieldProps.currentValue,
-        noInitialValue: fieldProps.noInitialValue === true,
-        valueAccessorSourceSignature: getCallbackSourceSignature(fieldProps.value),
-        initialValueSourceSignature: getCallbackSourceSignature(fieldProps.initialValue),
-        initialValue: fieldProps.initialValue as
-            | ((source: unknown) => unknown)
-            | undefined,
-    };
-
-    if (
-        descriptorRef.current === undefined ||
-        !registrationDescriptorsMatch(descriptorRef.current, descriptor)
-    ) {
-        descriptorRef.current = descriptor;
+    if (descriptorRef.current === undefined) {
+        descriptorRef.current = {
+            propertyName,
+            currentValue: fieldProps.currentValue,
+            noInitialValue: fieldProps.noInitialValue === true,
+            populationKey: fieldProps.populationKey,
+            populationRevision: 0,
+            valueAccessorRef: {
+                current: fieldProps.value as ((instance: unknown) => unknown) | undefined,
+            },
+            initialValueRef: {
+                current: fieldProps.initialValue as
+                    | ((source: unknown) => unknown)
+                    | undefined,
+            },
+        };
     }
-    const stableDescriptor = descriptorRef.current;
+    const descriptor = descriptorRef.current;
+
+    // Callback identity is render detail, not population metadata. Keep the mounted descriptor and
+    // its callback references current without making an inline function register the field again.
+    descriptor.valueAccessorRef.current = fieldProps.value as
+        | ((instance: unknown) => unknown)
+        | undefined;
+    descriptor.initialValueRef.current = fieldProps.initialValue as
+        | ((source: unknown) => unknown)
+        | undefined;
 
     React.useLayoutEffect(() => {
-        registration?.register(id.current, stableDescriptor);
-    }, [registration, stableDescriptor]);
+        const propertyNameChanged = descriptor.propertyName !== propertyName;
+        const currentValueChanged = !deepEqual(
+            descriptor.currentValue,
+            fieldProps.currentValue,
+        );
+        const noInitialValue = fieldProps.noInitialValue === true;
+        const noInitialValueChanged = descriptor.noInitialValue !== noInitialValue;
+        const populationKeyChanged = !deepEqual(
+            descriptor.populationKey,
+            fieldProps.populationKey,
+        );
 
-    React.useLayoutEffect(
-        () => () => registration?.unregister(id.current),
-        [registration],
-    );
+        if (
+            !propertyNameChanged &&
+            !currentValueChanged &&
+            !noInitialValueChanged &&
+            !populationKeyChanged
+        ) {
+            return;
+        }
+
+        descriptor.propertyName = propertyName;
+        descriptor.currentValue = fieldProps.currentValue;
+        descriptor.noInitialValue = noInitialValue;
+        descriptor.populationKey = fieldProps.populationKey;
+        if (propertyNameChanged || noInitialValueChanged || populationKeyChanged) {
+            descriptor.populationRevision++;
+        }
+        registration?.notifyChanged(id.current);
+    });
+
+    React.useLayoutEffect(() => {
+        registration?.register(id.current, descriptor);
+        return () => registration?.unregister(id.current);
+    }, [descriptor, registration]);
 }

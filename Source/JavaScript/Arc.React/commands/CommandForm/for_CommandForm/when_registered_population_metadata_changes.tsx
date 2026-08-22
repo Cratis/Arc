@@ -119,9 +119,7 @@ describe(
                 target: { value: 'User name edit' },
             });
             fireEvent.click(result.getByRole('button', { name: 'Use email' }));
-            await waitFor(() =>
-                command.email!.should.equal('Email: jane@example.com'),
-            );
+            await waitFor(() => command.email!.should.equal('Email: jane@example.com'));
         });
 
         afterEach(() => fetchHelper.restore());

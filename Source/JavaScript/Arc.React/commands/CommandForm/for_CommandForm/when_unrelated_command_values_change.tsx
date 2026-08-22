@@ -32,9 +32,11 @@ const TestField = asCommandFormField<TestFieldProps>(
 const RegistrationProbe = ({
     children,
     registered,
+    changed,
 }: {
     children: React.ReactNode;
     registered: () => void;
+    changed: () => void;
 }) => {
     useCommandInstance<TestCommand>();
     const parentRegistration = React.useContext(CommandFormFieldRegistrationContext);
@@ -49,10 +51,14 @@ const RegistrationProbe = ({
                           registered();
                           parentRegistration.register(id, descriptor);
                       },
+                      notifyChanged: (id: symbol) => {
+                          changed();
+                          parentRegistration.notifyChanged(id);
+                      },
                       unregister: (id: symbol) => parentRegistration.unregister(id),
                   }
                 : undefined,
-        [parentRegistration, registered],
+        [parentRegistration, registered, changed],
     );
 
     return (
@@ -72,8 +78,10 @@ describe(
     given(a_command_form_context, (context) => {
         let command: TestCommand;
         let registrationCount: sinon.SinonSpy;
+        let metadataChangeCount: sinon.SinonSpy;
         let deriveInitialName: sinon.SinonSpy;
         let registrationsAfterPopulation: number;
+        let metadataChangesAfterPopulation: number;
         let initialValueCallsAfterPopulation: number;
         let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
 
@@ -93,6 +101,7 @@ describe(
                 }),
             } as Response);
             registrationCount = sinon.spy();
+            metadataChangeCount = sinon.spy();
             deriveInitialName = sinon.spy(
                 (source: unknown) => (source as { name: string }).name,
             );
@@ -100,7 +109,10 @@ describe(
             const result = render(
                 <CommandForm command={TestCommand} populateFromQuery={FakePopulateQuery}>
                     <CommandProbe capture={(instance) => (command = instance)} />
-                    <RegistrationProbe registered={registrationCount}>
+                    <RegistrationProbe
+                        registered={registrationCount}
+                        changed={metadataChangeCount}
+                    >
                         <TestField<TestCommand>
                             value={(instance) => instance.name}
                             initialValue={deriveInitialName}
@@ -117,6 +129,7 @@ describe(
 
             await waitFor(() => command.name!.should.equal('Populated name'));
             registrationsAfterPopulation = registrationCount.callCount;
+            metadataChangesAfterPopulation = metadataChangeCount.callCount;
             initialValueCallsAfterPopulation = deriveInitialName.callCount;
 
             fireEvent.change(result.getByTestId('email-field'), {
@@ -129,6 +142,10 @@ describe(
 
         it('should not register stable field metadata again', () => {
             registrationCount.callCount.should.equal(registrationsAfterPopulation);
+        });
+
+        it('should not notify about unchanged metadata', () => {
+            metadataChangeCount.callCount.should.equal(metadataChangesAfterPopulation);
         });
 
         it('should not evaluate initialValue again', () => {

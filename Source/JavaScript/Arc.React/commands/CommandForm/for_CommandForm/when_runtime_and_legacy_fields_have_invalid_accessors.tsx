@@ -67,14 +67,21 @@ describe(
         });
 
         it('should identify each field without a duplicate BoundField warning', () => {
-            const warnings = consoleWarning.getCalls().map((call) => String(call.args[0]));
-            warnings.some((warning) => warning.includes('RadioButtonFieldComponent')).should
-                .equal(true);
-            warnings.some((warning) => warning.includes('RadioGroupFieldComponent')).should
-                .equal(true);
-            warnings.some((warning) => warning.includes("'CommandFormField'")).should
-                .equal(true);
-            warnings.some((warning) => warning.includes('BoundField')).should.equal(false);
+            const warnings = consoleWarning
+                .getCalls()
+                .map((call) => String(call.args[0]));
+            warnings
+                .some((warning) => warning.includes('RadioButtonFieldComponent'))
+                .should.equal(true);
+            warnings
+                .some((warning) => warning.includes('RadioGroupFieldComponent'))
+                .should.equal(true);
+            warnings
+                .some((warning) => warning.includes("'CommandFormField'"))
+                .should.equal(true);
+            warnings
+                .some((warning) => warning.includes('BoundField'))
+                .should.equal(false);
         });
     }),
 );

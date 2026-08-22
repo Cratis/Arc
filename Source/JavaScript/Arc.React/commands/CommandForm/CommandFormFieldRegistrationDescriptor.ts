@@ -8,7 +8,8 @@ export interface CommandFormFieldRegistrationDescriptor {
     propertyName: string;
     currentValue: unknown;
     noInitialValue: boolean;
-    valueAccessorSourceSignature: string;
-    initialValueSourceSignature: string;
-    initialValue?: (source: unknown) => unknown;
+    populationKey: unknown;
+    populationRevision: number;
+    valueAccessorRef: { current: ((instance: unknown) => unknown) | undefined };
+    initialValueRef: { current: ((source: unknown) => unknown) | undefined };
 }

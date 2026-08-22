@@ -244,7 +244,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             symbol,
             {
                 source: object;
-                initialValueSourceSignature: string;
+                populationRevision: number;
                 value: unknown;
             }
         >(),
@@ -260,6 +260,11 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         },
         [],
     );
+    const notifyFieldChanged = useCallback((id: symbol) => {
+        if (registeredFieldsById.current.has(id)) {
+            setRegisteredFieldsVersion((version) => version + 1);
+        }
+    }, []);
     const unregisterField = useCallback((id: symbol) => {
         transformedPopulationById.current.delete(id);
         if (registeredFieldsById.current.delete(id)) {
@@ -267,8 +272,12 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         }
     }, []);
     const fieldRegistration = useMemo(
-        () => ({ register: registerField, unregister: unregisterField }),
-        [registerField, unregisterField],
+        () => ({
+            register: registerField,
+            notifyChanged: notifyFieldChanged,
+            unregister: unregisterField,
+        }),
+        [registerField, notifyFieldChanged, unregisterField],
     );
     const registeredFields = useMemo(
         () => Array.from(registeredFieldsById.current.values()),
@@ -314,23 +323,22 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 return;
             }
 
-            if (registration.initialValue) {
+            const initialValue = registration.initialValueRef.current;
+            if (initialValue) {
                 const cached = transformedPopulationById.current.get(id);
                 if (
                     cached !== undefined &&
                     deepEqual(cached.source, populatedSource) &&
-                    cached.initialValueSourceSignature ===
-                        registration.initialValueSourceSignature
+                    cached.populationRevision === registration.populationRevision
                 ) {
                     values[registration.propertyName] = cached.value;
                     return;
                 }
 
-                const value = registration.initialValue(populatedSource);
+                const value = initialValue(populatedSource);
                 transformedPopulationById.current.set(id, {
                     source: populatedSource,
-                    initialValueSourceSignature:
-                        registration.initialValueSourceSignature,
+                    populationRevision: registration.populationRevision,
                     value,
                 });
                 values[registration.propertyName] = value;

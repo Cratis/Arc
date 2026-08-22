@@ -49,6 +49,13 @@ export interface BaseCommandFormFieldProps<TCommand = unknown, TSource = unknown
      * own property name on the source when omitted.
      */
     initialValue?(source: TSource): unknown;
+
+    /**
+     * Identifies the semantics captured by {@link initialValue} that CommandForm cannot infer from
+     * the callback itself. Change the key to repopulate this field from the current source with the
+     * latest callback. Inline callback identity changes alone intentionally do not repopulate.
+     */
+    populationKey?: unknown;
 }
 
 /**

@@ -31,9 +31,16 @@ export interface CommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     noInitialValue?: boolean;
     /** Overrides how this field's initial value is derived from the population source. */
     initialValue?(source: TSource): unknown;
+    /**
+     * Semantic key for values captured by initialValue. Change it to repopulate from the current
+     * source with the latest callback without coupling registration to callback identity.
+     */
+    populationKey?: unknown;
 }
 
-export const CommandFormField = <TCommand = unknown,>(_props: CommandFormFieldProps<TCommand>) => {
+export const CommandFormField = <TCommand = unknown,>(
+    _props: CommandFormFieldProps<TCommand>,
+) => {
     void _props;
     return <></>;
 };
