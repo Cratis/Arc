@@ -49,7 +49,7 @@ describe('when items are removed as delta and item is identified by a guid', () 
         const callback = FakeGuidObservableQuery.subscribeCallbacks[0];
 
         await act(async () => {
-            callback({
+            callback(new QueryResult({
                 data: [
                     { id: firstId.toString(), name: 'First' },
                     { id: secondId.toString(), name: 'Second' },
@@ -62,14 +62,15 @@ describe('when items are removed as delta and item is identified by a guid', () 
                 exceptionMessages: [],
                 exceptionStackTrace: '',
                 paging: { page: 0, size: 0, totalItems: 2, totalPages: 1 }
-            } as unknown as QueryResult<FakeGuidItem[]>);
+            }, FakeGuidItem, true));
         });
 
         capturedResult!.data.length.should.equal(2);
-        capturedResult!.data[0].id.equals(firstId).should.be.true;
-        capturedResult!.data[1].id.equals(secondId).should.be.true;
+        capturedResult!.data[0].id.equals(firstId).should.equal(true);
+        capturedResult!.data[1].id.equals(secondId).should.equal(true);
 
         await act(async () => {
+            // SAFETY: Delta entries remain in their wire shape because ObservableQueryFor only deserializes response data.
             callback({
                 data: [],
                 isSuccess: true,
@@ -89,6 +90,6 @@ describe('when items are removed as delta and item is identified by a guid', () 
         });
 
         capturedResult!.data.length.should.equal(1);
-        capturedResult!.data[0].id.equals(secondId).should.be.true;
+        capturedResult!.data[0].id.equals(secondId).should.equal(true);
     });
 });

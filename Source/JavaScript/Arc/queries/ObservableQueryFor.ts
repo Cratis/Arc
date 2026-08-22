@@ -1,14 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
+import type { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
 import { ObservableQuerySubscription } from './ObservableQuerySubscription';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
-import { QueryValidator } from './QueryValidator';
-import { IObservableQueryConnection } from './IObservableQueryConnection';
+import type { QueryValidator } from './QueryValidator';
+import type { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
 import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
-import { Constructor } from '@cratis/fundamentals';
+import type { Constructor } from '@cratis/fundamentals';
 import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel';
 import { QueryResult } from './QueryResult';
 import { Sorting } from './Sorting';
@@ -16,10 +16,10 @@ import { Paging } from './Paging';
 import { SortDirection } from './SortDirection';
 import { Globals } from '../Globals';
 import { UrlHelpers } from '../UrlHelpers';
-import { GetHttpHeaders } from '../GetHttpHeaders';
-import { ParameterDescriptor } from '../reflection/ParameterDescriptor';
+import type { GetHttpHeaders } from '../GetHttpHeaders';
+import type { ParameterDescriptor } from '../reflection/ParameterDescriptor';
 import { ParametersHelper } from '../reflection/ParametersHelper';
-import { QueryHttpMethod } from './QueryHttpMethod';
+import type { QueryHttpMethod } from './QueryHttpMethod';
 import { executeQueryHttpRequest } from './QueryHttpRequest';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -106,9 +106,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             this._connection = new NullObservableQueryConnection(
                 this.defaultValue,
                 QueryResult.validationFailed(clientValidationErrors, this));
-        } else if (!this.validateArguments(args)) {
-            this._connection = new NullObservableQueryConnection(this.defaultValue);
-        } else {
+        } else if (this.validateArguments(args)) {
             this._connection = createObservableQueryConnection({
                 route: this.route,
                 queryName: this.queryName ?? this.constructor.name,
@@ -117,6 +115,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
                 microservice: this._microservice,
                 args: args as object,
             });
+        } else {
+            this._connection = new NullObservableQueryConnection(this.defaultValue);
         }
 
         // Descriptor-backed instance properties provide defaults; fresh args passed to subscribe()
