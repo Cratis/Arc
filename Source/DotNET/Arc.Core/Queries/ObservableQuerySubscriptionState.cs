@@ -13,6 +13,35 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
     long? _revision;
     bool _isRevisionAware;
     bool _isTombstone;
+    DateTimeOffset? _tombstonedAt;
+
+    /// <summary>
+    /// Gets whether the state owns an active operation.
+    /// </summary>
+    public bool IsActive
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _operation is not null && !_isTombstone;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether this is an inactive legacy state that carries no revision ordering information.
+    /// </summary>
+    public bool IsInactiveLegacy
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _operation is null && !_isRevisionAware;
+            }
+        }
+    }
 
     /// <summary>
     /// Attempts to reserve a subscribe operation.
@@ -46,6 +75,7 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
             replaced = _operation;
             _operation = operation;
             _isTombstone = false;
+            _tombstonedAt = null;
         }
 
         replaced?.Dispose();
@@ -69,8 +99,9 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
     /// Terminates an operation only when it still owns this query.
     /// </summary>
     /// <param name="operation">The operation.</param>
+    /// <param name="now">The time at which a revision-aware operation becomes a tombstone.</param>
     /// <returns><see langword="true"/> when the operation was terminated.</returns>
-    public bool TryTerminate(ObservableQuerySubscriptionOperation operation)
+    public bool TryTerminate(ObservableQuerySubscriptionOperation operation, DateTimeOffset now)
     {
         lock (_sync)
         {
@@ -81,6 +112,7 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
 
             _operation = null;
             _isTombstone = _isRevisionAware;
+            _tombstonedAt = _isTombstone ? now : null;
         }
 
         operation.Dispose();
@@ -91,8 +123,9 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
     /// Applies an unsubscribe using exact-revision ordering semantics.
     /// </summary>
     /// <param name="revision">The optional protocol revision.</param>
+    /// <param name="now">The time at which the state becomes a tombstone.</param>
     /// <returns><see langword="true"/> when the state accepted the unsubscribe.</returns>
-    public bool TryUnsubscribe(long? revision)
+    public bool TryUnsubscribe(long? revision, DateTimeOffset now)
     {
         ObservableQuerySubscriptionOperation? operation;
 
@@ -113,6 +146,7 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
                 _isRevisionAware = true;
                 _revision = revision;
                 _isTombstone = true;
+                _tombstonedAt = now;
                 operation = _operation;
                 _operation = null;
             }
@@ -125,11 +159,32 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
 
                 operation = _operation;
                 _operation = null;
+                _tombstonedAt = null;
             }
         }
 
         operation?.Dispose();
         return true;
+    }
+
+    /// <summary>
+    /// Gets the time at which this state became a revision tombstone.
+    /// </summary>
+    /// <param name="tombstonedAt">The tombstone timestamp when present.</param>
+    /// <returns><see langword="true"/> when this state is a revision tombstone.</returns>
+    public bool TryGetTombstonedAt(out DateTimeOffset tombstonedAt)
+    {
+        lock (_sync)
+        {
+            if (_isTombstone && _tombstonedAt is not null)
+            {
+                tombstonedAt = _tombstonedAt.Value;
+                return true;
+            }
+
+            tombstonedAt = default;
+            return false;
+        }
     }
 
     /// <inheritdoc/>
@@ -141,6 +196,7 @@ internal sealed class ObservableQuerySubscriptionState : IDisposable
             operation = _operation;
             _operation = null;
             _isTombstone = true;
+            _tombstonedAt = null;
         }
 
         operation?.Dispose();

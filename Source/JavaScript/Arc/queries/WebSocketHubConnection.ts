@@ -89,6 +89,7 @@ export class WebSocketHubConnection {
     private _latencySamples: number[] = [];
     private _nextRevision = 0;
     private _supportsSubscriptionRevisions = false;
+    private _reconnectPending = false;
 
     /**
      * Initializes a new instance of {@link WebSocketHubConnection}.
@@ -196,12 +197,8 @@ export class WebSocketHubConnection {
      * Permanently close this hub connection and clean up all subscriptions.
      */
     dispose(): void {
-        this._disconnected = true;
         this._subscriptions.clear();
-        this._keepAlive.stop();
-        this._policy.cancel();
-        this._socket?.close();
-        this._socket = undefined;
+        this.close();
     }
 
     private ensureConnected(): void {
@@ -215,9 +212,13 @@ export class WebSocketHubConnection {
             (this._socket.readyState === WebSocket.OPEN ||
                 this._socket.readyState === WebSocket.CONNECTING)
         ) {
+            this.cancelPendingReconnect();
             return;
         }
 
+        // A subscription can arrive while an earlier close is waiting in reconnect backoff. The immediate open owns
+        // the connection now, so the delayed callback must not be allowed to create a competing socket later.
+        this.cancelPendingReconnect();
         this.openSocket();
     }
 
@@ -225,22 +226,30 @@ export class WebSocketHubConnection {
         this._disconnected = true;
         this._keepAlive.stop();
         this._policy.cancel();
-        if (this._socket) {
-            // Detach all handlers BEFORE closing so that the async onclose event cannot
-            // fire after a new subscription has reset _disconnected to false and opened a
-            // fresh socket. Without this, the stale onclose triggers an unintended
-            // reconnect via the back-off policy, causing a 1-10 second delay before the
-            // new page's queries receive their first data.
-            this._socket.onopen = null;
-            this._socket.onclose = null;
-            this._socket.onerror = null;
-            this._socket.onmessage = null;
-            this._socket.close();
-        }
+        this._reconnectPending = false;
+        const socket = this._socket;
         this._socket = undefined;
+        this._supportsSubscriptionRevisions = false;
+        if (socket) {
+            this.detachAndCloseSocket(socket);
+        }
     }
 
     private openSocket(): void {
+        const currentSocket = this._socket;
+        if (
+            currentSocket &&
+            (currentSocket.readyState === WebSocket.OPEN ||
+                currentSocket.readyState === WebSocket.CONNECTING)
+        ) {
+            return;
+        }
+
+        if (currentSocket) {
+            this._socket = undefined;
+            this.detachAndCloseSocket(currentSocket);
+        }
+
         this._supportsSubscriptionRevisions = false;
 
         let url = this._url;
@@ -249,39 +258,63 @@ export class WebSocketHubConnection {
             url += (url.includes('?') ? '&' : '?') + param;
         }
 
-        this._socket = new WebSocket(url);
+        const socket = new WebSocket(url);
+        this._socket = socket;
 
-        this._socket.onopen = () => {
-            if (this._disconnected) return;
-            console.log(`Hub connection established: '${url}'`);
+        socket.onopen = () => {
+            if (this._socket !== socket || this._disconnected) return;
+            console.log('Hub connection established', url);
+            this.cancelPendingReconnect();
             this._policy.reset();
             this._keepAlive.start();
             this.sendAllSubscriptions();
         };
 
-        this._socket.onclose = () => {
-            if (this._disconnected) return;
-            console.log(`Hub connection closed: '${url}'`);
+        socket.onclose = () => {
+            if (this._socket !== socket || this._disconnected) return;
+            console.log('Hub connection closed', url);
+            this._socket = undefined;
+            this._supportsSubscriptionRevisions = false;
             this._keepAlive.stop();
             if (this._subscriptions.size === 0) return;
-            this._policy.schedule(() => {
+            this._reconnectPending = true;
+            const scheduled = this._policy.schedule(() => {
+                this._reconnectPending = false;
                 if (!this._disconnected && this._subscriptions.size > 0) {
-                    this.openSocket();
+                    this.ensureConnected();
                 }
             }, this._url);
+            if (!scheduled) {
+                this._reconnectPending = false;
+            }
         };
 
-        this._socket.onerror = (error) => {
-            if (this._disconnected) return;
-            console.error(`Hub connection error: '${url}'`, error);
+        socket.onerror = (error) => {
+            if (this._socket !== socket || this._disconnected) return;
+            console.error('Hub connection error', url, error);
             this._keepAlive.stop();
             // onclose will fire after onerror, triggering reconnect
         };
 
-        this._socket.onmessage = (ev) => {
-            if (this._disconnected) return;
+        socket.onmessage = (ev) => {
+            if (this._socket !== socket || this._disconnected) return;
             this.handleMessage(ev.data as string);
         };
+    }
+
+    private cancelPendingReconnect(): void {
+        if (!this._reconnectPending) return;
+
+        this._policy.cancel();
+        this._reconnectPending = false;
+    }
+
+    private detachAndCloseSocket(socket: WebSocket): void {
+        socket.onopen = null;
+        socket.onclose = null;
+        socket.onerror = null;
+        socket.onmessage = null;
+        socket.close();
     }
 
     private sendAllSubscriptions(): void {
@@ -329,13 +362,14 @@ export class WebSocketHubConnection {
                     this.handlePong(message);
                     break;
                 case HubMessageType.Unauthorized:
-                    console.warn(`Hub: query '${message.queryId}' unauthorized`);
+                    console.warn('Hub: query unauthorized', message.queryId);
                     this.handleUnauthorized(message);
                     break;
                 case HubMessageType.Error:
                     if (this.isMessageForCurrentSubscription(message)) {
                         console.error(
-                            `Hub: query '${message.queryId}' error:`,
+                            'Hub: query error',
+                            message.queryId,
                             message.payload,
                         );
                     }

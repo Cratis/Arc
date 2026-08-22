@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using Cratis.DependencyInjection;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +32,8 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
     public async Task<ObservableQueryEmissionVerdict> Guard(ObservableQueryEmissionContext context)
     {
         var aggregate = ObservableQueryEmissionVerdict.Allow;
+        var principalSnapshot = ClonePrincipal(context.Principal);
+        var argumentsSnapshot = CloneArguments(context.Arguments);
 
         foreach (var guardType in _guardTypes)
         {
@@ -60,7 +63,12 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
 
             try
             {
-                verdict = await guard.Guard(context);
+                var guardContext = context with
+                {
+                    Arguments = CloneArguments(argumentsSnapshot),
+                    Principal = ClonePrincipal(principalSnapshot)
+                };
+                verdict = await guard.Guard(guardContext);
             }
             catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
             {
@@ -92,5 +100,21 @@ public class ObservableQueryEmissionGuards(ITypes types, ILogger<ObservableQuery
         }
 
         return aggregate;
+    }
+
+    static ClaimsPrincipal? ClonePrincipal(ClaimsPrincipal? principal) =>
+        principal is null
+            ? null
+            : new ClaimsPrincipal(principal.Identities.Select(identity => identity.Clone()));
+
+    static QueryArguments CloneArguments(QueryArguments arguments)
+    {
+        var clone = new QueryArguments();
+        foreach (var (key, value) in arguments)
+        {
+            clone[key] = value;
+        }
+
+        return clone;
     }
 }

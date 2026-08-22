@@ -91,7 +91,7 @@ public class ObservableQueryDemultiplexer(
 
         var connectionId = $"ws-{Interlocked.Increment(ref _nextConnectionId)}";
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
-        var subscriptions = new ConcurrentDictionary<string, ObservableQuerySubscriptionState>();
+        var subscriptions = new ObservableQuerySubscriptionStates();
         var writeLock = new SemaphoreSlim(1, 1);
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -129,11 +129,7 @@ public class ObservableQueryDemultiplexer(
         {
             await linkedCts.CancelAsync();
             await keepAliveTask;
-
-            foreach (var subscriptionState in subscriptions.Values)
-            {
-                subscriptionState.Dispose();
-            }
+            subscriptions.Dispose();
 
             healthTracker.RemoveConnection(connectionId);
             writeLock.Dispose();
@@ -160,7 +156,9 @@ public class ObservableQueryDemultiplexer(
         var state = new SSEConnectionState(context, linkedCts);
         _sseConnections[connectionId] = state;
 
+#pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
         var keepAliveTask = RunSseKeepAlive(context, state.KeepAliveTracker, linkedCts, state.WriteLock);
+#pragma warning restore CA2025
 
         try
         {
@@ -193,12 +191,7 @@ public class ObservableQueryDemultiplexer(
             await linkedCts.CancelAsync();
             await keepAliveTask;
 
-            foreach (var subscriptionState in state.Subscriptions.Values)
-            {
-                subscriptionState.Dispose();
-            }
-
-            state.Subscriptions.Clear();
+            state.Subscriptions.Dispose();
         }
 
         logger.SseClientDisconnected(connectionId);
@@ -360,9 +353,7 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        var accepted = body.Revision is not null
-            ? state.Subscriptions.GetOrAdd(body.QueryId, static _ => new ObservableQuerySubscriptionState()).TryUnsubscribe(body.Revision)
-            : state.Subscriptions.TryGetValue(body.QueryId, out var subscriptionState) && subscriptionState.TryUnsubscribe(null);
+        var accepted = state.Subscriptions.TryUnsubscribe(body.QueryId, body.Revision);
         if (accepted)
         {
             logger.ClientUnsubscribed(body.QueryId);
@@ -464,7 +455,7 @@ public class ObservableQueryDemultiplexer(
 
     async Task ReadWebSocketMessages(
         IWebSocket webSocket,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
+        ObservableQuerySubscriptionStates subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -518,20 +509,12 @@ public class ObservableQueryDemultiplexer(
                 logger.ErrorProcessingMessage(ex);
             }
         }
-
-        // Clean up subscriptions on disconnect
-        foreach (var subscriptionState in subscriptions.Values)
-        {
-            subscriptionState.Dispose();
-        }
-
-        subscriptions.Clear();
     }
 
     async Task ProcessWebSocketMessage(
         ObservableQueryHubMessage message,
         IWebSocket webSocket,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
+        ObservableQuerySubscriptionStates subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -560,7 +543,7 @@ public class ObservableQueryDemultiplexer(
     async Task HandleWebSocketSubscribe(
         ObservableQueryHubMessage message,
         IWebSocket webSocket,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
+        ObservableQuerySubscriptionStates subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -667,33 +650,27 @@ public class ObservableQueryDemultiplexer(
     }
 
     ObservableQuerySubscriptionOperation? ReserveSubscription(
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
+        ObservableQuerySubscriptionStates subscriptions,
         string queryId,
         long? revision,
         CancellationToken connectionToken) =>
-        subscriptions.GetOrAdd(queryId, static _ => new ObservableQuerySubscriptionState())
-            .TrySubscribe(revision, connectionToken);
+        subscriptions.TrySubscribe(queryId, revision, connectionToken);
 
     bool IsCurrent(
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
+        ObservableQuerySubscriptionStates subscriptions,
         string queryId,
         ObservableQuerySubscriptionOperation operation) =>
-        subscriptions.TryGetValue(queryId, out var state) && state.IsCurrent(operation);
+        subscriptions.IsCurrent(queryId, operation);
 
     void TerminateSubscription(
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions,
+        ObservableQuerySubscriptionStates subscriptions,
         string queryId,
-        ObservableQuerySubscriptionOperation operation)
-    {
-        if (subscriptions.TryGetValue(queryId, out var state))
-        {
-            state.TryTerminate(operation);
-        }
-    }
+        ObservableQuerySubscriptionOperation operation) =>
+        subscriptions.Terminate(queryId, operation);
 
     void HandleWebSocketUnsubscribe(
         ObservableQueryHubMessage message,
-        ConcurrentDictionary<string, ObservableQuerySubscriptionState> subscriptions)
+        ObservableQuerySubscriptionStates subscriptions)
     {
         var queryId = message.QueryId;
         if (queryId is null)
@@ -706,9 +683,7 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        var accepted = message.Revision is not null
-            ? subscriptions.GetOrAdd(queryId, static _ => new ObservableQuerySubscriptionState()).TryUnsubscribe(message.Revision)
-            : subscriptions.TryGetValue(queryId, out var state) && state.TryUnsubscribe(null);
+        var accepted = subscriptions.TryUnsubscribe(queryId, message.Revision);
         if (accepted)
         {
             logger.ClientUnsubscribed(queryId);
@@ -1505,7 +1480,7 @@ public class ObservableQueryDemultiplexer(
         IHttpRequestContext Context,
         CancellationTokenSource CancellationTokenSource)
     {
-        public ConcurrentDictionary<string, ObservableQuerySubscriptionState> Subscriptions { get; } = new();
+        public ObservableQuerySubscriptionStates Subscriptions { get; } = new();
         public CancellationToken CancellationToken { get; } = CancellationTokenSource.Token;
         public KeepAliveTracker KeepAliveTracker { get; } = new();
         public SemaphoreSlim WriteLock { get; } = new(1, 1);

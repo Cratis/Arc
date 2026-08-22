@@ -21,7 +21,7 @@ public class and_guard_throws_object_disposed_exception : given.all_dependencies
 
     [Fact] void should_fail_closed() => _result.ShouldEqual(ObservableQueryEmissionVerdict.DenyAndTerminate);
     [Fact] void should_not_let_the_failure_escape() => _error.ShouldBeNull();
-    [Fact] void should_have_invoked_the_guard() => _first.Calls.ShouldContainOnly(_context);
+    [Fact] void should_have_invoked_the_guard() => _first.Calls.Count.ShouldEqual(1);
     [Fact] void should_not_ask_any_later_guard() => _second.Calls.ShouldBeEmpty();
     [Fact] void should_report_it_as_a_guard_failure() => LoggedLevels.ShouldContain(LogLevel.Error);
 

@@ -123,8 +123,8 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     /// <summary>
     /// Gets the frozen principal snapshot used by the explicit emission context.
     /// </summary>
-    /// <returns>The principal snapshot.</returns>
-    internal ClaimsPrincipal GetPrincipal() => _user;
+    /// <returns>An isolated clone of the principal snapshot.</returns>
+    internal ClaimsPrincipal GetPrincipal() => ClonePrincipal(_user);
 
     static ReadOnlyDictionary<string, string> Snapshot(IReadOnlyDictionary<string, string>? values) =>
         new(new Dictionary<string, string>(values ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase));
