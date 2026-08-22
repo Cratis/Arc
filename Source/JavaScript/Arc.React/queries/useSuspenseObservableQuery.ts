@@ -33,11 +33,11 @@ interface ObservableSuspenseResource<T> {
     ownerCount: number;
     releaseScheduled: boolean;
     disposed: boolean;
-    lastRenderedAt: number;
-    abandonmentTimer?: ReturnType<typeof setTimeout>;
+    lastAccessOrder: number;
 }
 
-const abandonmentGracePeriodInMilliseconds = 5000;
+const maximumUnclaimedResourceCount = 100;
+let _nextAccessOrder = 0;
 
 // Module-level cache so resources survive Suspense retries on uncommitted components
 const _observableCache = new Map<string, ObservableSuspenseResource<unknown>>();
@@ -68,10 +68,6 @@ function disposeResource<TDataType>(
 
     resource.disposed = true;
     resource.releaseScheduled = false;
-    if (resource.abandonmentTimer !== undefined) {
-        clearTimeout(resource.abandonmentTimer);
-        resource.abandonmentTimer = undefined;
-    }
 
     resource.subscription?.unsubscribe();
     resource.subscription = null;
@@ -92,40 +88,30 @@ function disposeResource<TDataType>(
     resource.reject = undefined;
 }
 
-function expireResourceIfAbandoned<TDataType>(
+function touchUnclaimedResource<TDataType>(
     resource: ObservableSuspenseResource<TDataType>,
 ): void {
-    resource.abandonmentTimer = undefined;
     if (resource.disposed || resource.ownerCount > 0) {
         return;
     }
 
-    const idleTime = Date.now() - resource.lastRenderedAt;
-    if (idleTime < abandonmentGracePeriodInMilliseconds) {
-        resource.abandonmentTimer = setTimeout(
-            () => expireResourceIfAbandoned(resource),
-            abandonmentGracePeriodInMilliseconds - idleTime,
-        );
-        return;
-    }
-
-    disposeResource(resource, true);
+    resource.lastAccessOrder = ++_nextAccessOrder;
 }
 
-function touchUnownedResource<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-): void {
-    if (resource.disposed || resource.ownerCount > 0) {
+function enforceUnclaimedResourceCapacity(): void {
+    const unclaimedResources = Array.from(_observableCache.values())
+        .filter((resource) => !resource.disposed && resource.ownerCount === 0)
+        .sort((left, right) => left.lastAccessOrder - right.lastAccessOrder);
+
+    const excessResourceCount =
+        unclaimedResources.length - maximumUnclaimedResourceCount;
+    if (excessResourceCount <= 0) {
         return;
     }
 
-    resource.lastRenderedAt = Date.now();
-    if (resource.abandonmentTimer === undefined) {
-        resource.abandonmentTimer = setTimeout(
-            () => expireResourceIfAbandoned(resource),
-            abandonmentGracePeriodInMilliseconds,
-        );
-    }
+    unclaimedResources
+        .slice(0, excessResourceCount)
+        .forEach((resource) => disposeResource(resource, true));
 }
 
 function registerPendingConsumer<TDataType>(
@@ -151,7 +137,7 @@ function registerPendingConsumer<TDataType>(
 
     _pendingResourceByConsumerId.set(consumerId, unknownResource);
     resource.pendingConsumerIds.add(consumerId);
-    touchUnownedResource(resource);
+    touchUnclaimedResource(resource);
 }
 
 function unregisterPendingConsumer(consumerId: string): void {
@@ -181,10 +167,6 @@ function claimResource<TDataType>(
     clearPendingConsumers(resource);
     resource.ownerCount++;
     resource.releaseScheduled = false;
-    if (resource.abandonmentTimer !== undefined) {
-        clearTimeout(resource.abandonmentTimer);
-        resource.abandonmentTimer = undefined;
-    }
     return true;
 }
 
@@ -217,6 +199,7 @@ export function clearSuspenseObservableQueryCache(): void {
     Array.from(_observableCache.values()).forEach((resource) => {
         disposeResource(resource, false);
     });
+    _nextAccessOrder = 0;
 }
 
 function makeCacheKey(
@@ -292,15 +275,13 @@ function useSuspenseObservableQueryInternal<
             ownerCount: 0,
             releaseScheduled: false,
             disposed: false,
-            lastRenderedAt: Date.now(),
+            lastAccessOrder: ++_nextAccessOrder,
         };
 
         resource.resolve = resolvePromise;
         resource.reject = rejectPromise;
-        _observableCache.set(
-            cacheKey,
-            resource as ObservableSuspenseResource<unknown>,
-        );
+        _observableCache.set(cacheKey, resource as ObservableSuspenseResource<unknown>);
+        enforceUnclaimedResourceCapacity();
 
         resource.subscription = queryInstance.subscribe((response) => {
             if (resource.disposed || response.isReady === false) {

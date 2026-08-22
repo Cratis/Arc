@@ -94,7 +94,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             () => {
                 if (!this._disconnected && this._subscriptions.size > 0) {
                     console.warn(
-                        `SSE hub: no messages received for ${this._keepAlive.idleThresholdMs}ms, reconnecting '${this._sseUrl}'`,
+                        'SSE hub: no messages received; reconnecting',
+                        this._keepAlive.idleThresholdMs,
+                        this._sseUrl,
                     );
                     this.reconnect();
                 }
@@ -238,7 +240,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
         eventSource.onopen = () => {
             if (this._disconnected || this._eventSource !== eventSource) return;
-            console.log(`SSE hub connection established: '${url}'`);
+            console.log('SSE hub connection established', url);
             this._policy.reset();
             this._keepAlive.start();
 
@@ -252,7 +254,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     !this._connectionId
                 ) {
                     console.warn(
-                        `SSE hub: no Connected message within ${this._connectTimeoutMs}ms, retrying '${url}'`,
+                        'SSE hub: no Connected message within timeout; retrying',
+                        this._connectTimeoutMs,
+                        url,
                     );
                     this.reconnect();
                 }
@@ -267,7 +271,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
         eventSource.onerror = () => {
             if (this._disconnected || this._eventSource !== eventSource) return;
-            console.warn(`SSE hub connection error: '${url}'`);
+            console.warn('SSE hub connection error', url);
             this.reconnect();
         };
     }
@@ -318,14 +322,15 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     break;
                 case HubMessageType.Unauthorized:
                     if (this.isMessageForCurrentSubscription(message)) {
-                        console.warn(`SSE hub: query '${message.queryId}' unauthorized`);
+                        console.warn('SSE hub: query unauthorized', message.queryId);
                         this.handleUnauthorized(message);
                     }
                     break;
                 case HubMessageType.Error:
                     if (this.isMessageForCurrentSubscription(message)) {
                         console.error(
-                            `SSE hub: query '${message.queryId}' error:`,
+                            'SSE hub: query error',
+                            message.queryId,
                             message.payload,
                         );
                     }
@@ -342,7 +347,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._connectionId = connectionId;
         this._supportsSubscriptionRevisions =
             message.supportsSubscriptionRevisions === true;
-        console.log(`SSE hub: connected with id '${this._connectionId}'`);
+        console.log('SSE hub: connected', this._connectionId);
 
         // Connected message arrived — cancel the connect timeout.
         this.clearConnectTimeout();
@@ -452,7 +457,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                         !this.isCurrentSubscription(queryId, subscription, connectionId)
                     ) {
                         console.warn(
-                            `SSE hub: subscribe POST for '${queryId}' returned ${response.status} for an obsolete connection or subscription, ignoring`,
+                            'SSE hub: subscribe POST returned a failure for an obsolete connection or subscription; ignoring',
+                            queryId,
+                            response.status,
                         );
                     } else if (attempt < maxRetries) {
                         setTimeout(
@@ -475,7 +482,10 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                         );
                     } else {
                         console.warn(
-                            `SSE hub: subscribe POST for '${queryId}' returned ${response.status} after ${attempt + 1} attempt(s), reconnecting`,
+                            'SSE hub: subscribe POST failed after retries; reconnecting',
+                            queryId,
+                            response.status,
+                            attempt + 1,
                         );
                         this.reconnect();
                     }
@@ -484,7 +494,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             .catch((error) => {
                 if (!this.isCurrentSubscription(queryId, subscription, connectionId)) {
                     console.warn(
-                        `SSE hub: subscribe POST failed for '${queryId}' on an obsolete connection or subscription, ignoring`,
+                        'SSE hub: subscribe POST failed for an obsolete connection or subscription; ignoring',
+                        queryId,
                         error,
                     );
                 } else if (attempt < maxRetries) {
@@ -504,7 +515,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     );
                 } else {
                     console.error(
-                        `SSE hub: subscribe POST failed for '${queryId}' after ${attempt + 1} attempt(s), reconnecting`,
+                        'SSE hub: subscribe POST failed after retries; reconnecting',
+                        queryId,
+                        attempt + 1,
                         error,
                     );
                     this.reconnect();
@@ -576,7 +589,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             headers: { 'Content-Type': 'application/json', ...customHeaders },
             body: JSON.stringify(body),
         }).catch((error) => {
-            console.error(`SSE hub: unsubscribe POST failed for '${queryId}'`, error);
+            console.error('SSE hub: unsubscribe POST failed', queryId, error);
         });
     }
 }

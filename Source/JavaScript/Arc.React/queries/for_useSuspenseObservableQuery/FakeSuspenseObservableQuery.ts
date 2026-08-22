@@ -39,10 +39,12 @@ export class FakeSuspenseObservableQuery extends ObservableQueryFor<
         FakeSuspenseObservableQueryResult[]
     >;
     static unsubscribeCallCount = 0;
+    static unsubscribedSubscriptionIndexes: number[] = [];
 
     subscribe(
         callback: SubscribeCallback,
     ): ObservableQuerySubscription<FakeSuspenseObservableQueryResult[]> {
+        const subscriptionIndex = FakeSuspenseObservableQuery.subscribeCallbacks.length;
         FakeSuspenseObservableQuery.subscribeCallbacks.push(callback);
         let isUnsubscribed = false;
         // SAFETY: The fake implements only the public subscription behavior exercised by these specs.
@@ -51,6 +53,9 @@ export class FakeSuspenseObservableQuery extends ObservableQueryFor<
                 if (!isUnsubscribed) {
                     isUnsubscribed = true;
                     FakeSuspenseObservableQuery.unsubscribeCallCount++;
+                    FakeSuspenseObservableQuery.unsubscribedSubscriptionIndexes.push(
+                        subscriptionIndex,
+                    );
                 }
             },
         } as unknown as ObservableQuerySubscription<FakeSuspenseObservableQueryResult[]>;
@@ -60,5 +65,6 @@ export class FakeSuspenseObservableQuery extends ObservableQueryFor<
     static reset() {
         FakeSuspenseObservableQuery.subscribeCallbacks = [];
         FakeSuspenseObservableQuery.unsubscribeCallCount = 0;
+        FakeSuspenseObservableQuery.unsubscribedSubscriptionIndexes = [];
     }
 }

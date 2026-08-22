@@ -39,7 +39,7 @@ function createReadyResult(): QueryResult<FakeSuspenseObservableQueryResult[]> {
     );
 }
 
-describe('when becoming ready before the abandonment grace period', () => {
+describe('when a suspense observable query remains not ready for a long time', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         clearSuspenseObservableQueryCache();
@@ -51,7 +51,7 @@ describe('when becoming ready before the abandonment grace period', () => {
         vi.useRealTimers();
     });
 
-    it('should claim and retain the resource until the consumer unmounts', async () => {
+    it('should keep the resource until it becomes ready', async () => {
         const TestComponent = () => {
             const [result] = useSuspenseObservableQuery<
                 FakeSuspenseObservableQueryResult[],
@@ -70,23 +70,32 @@ describe('when becoming ready before the abandonment grace period', () => {
                 { value: config },
                 React.createElement(
                     React.Suspense,
-                    { fallback: React.createElement('div', null, 'Loading...') },
+                    {
+                        fallback: React.createElement(
+                            'div',
+                            { 'data-testid': 'loading' },
+                            'Loading...',
+                        ),
+                    },
                     React.createElement(TestComponent),
                 ),
             ),
         );
 
         await act(async () => {
-            vi.advanceTimersByTime(4999);
+            vi.advanceTimersByTime(60000);
+        });
+
+        screen.getByTestId('loading');
+        FakeSuspenseObservableQuery.subscribeCallbacks.should.have.lengthOf(1);
+        FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(0);
+
+        await act(async () => {
             FakeSuspenseObservableQuery.subscribeCallbacks[0](createReadyResult());
         });
 
         (screen.getByTestId('content').textContent ?? '').should.equal('Ready');
-
-        await act(async () => {
-            vi.advanceTimersByTime(5000);
-        });
-
+        FakeSuspenseObservableQuery.subscribeCallbacks.should.have.lengthOf(1);
         FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(0);
 
         await act(async () => {
