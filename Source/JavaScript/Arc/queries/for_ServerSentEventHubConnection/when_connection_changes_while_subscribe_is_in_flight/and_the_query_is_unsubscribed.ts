@@ -42,25 +42,36 @@ describe('when a query is unsubscribed while its subscribe request is in flight 
             .filter(call => call.args[0] === subscribeUrl)
             .filter(call => (call.args[1].body as string).includes('"queryId":"removed-query"'));
         removedQueryCalls.length.should.equal(1);
-        removedQueryCalls[0].args[1].body.should.equal(JSON.stringify({
-            connectionId: 'connection-a',
-            queryId: 'removed-query',
-            request: { queryName: 'RemovedQuery' },
-        }));
+        const body = parseBody(removedQueryCalls[0].args[1].body as string);
+        body.connectionId.should.equal('connection-a');
+        body.queryId.should.equal('removed-query');
+        body.request.should.deep.equal({ queryName: 'RemovedQuery' });
+        body.subscriptionGeneration.length.should.be.greaterThan(0);
     });
 
     it('should subscribe the remaining query on connection B', () => {
         const activeQueryBodies = context.fetchStub.getCalls()
             .filter(call => call.args[0] === subscribeUrl)
-            .map(call => call.args[1].body as string)
-            .filter(body => body.includes('"queryId":"active-query"'));
-        activeQueryBodies.should.deep.equal([
-            JSON.stringify({ connectionId: 'connection-a', queryId: 'active-query', request: { queryName: 'ActiveQuery' } }),
-            JSON.stringify({ connectionId: 'connection-b', queryId: 'active-query', request: { queryName: 'ActiveQuery' } }),
-        ]);
+            .map(call => parseBody(call.args[1].body as string))
+            .filter(body => body.queryId === 'active-query');
+        activeQueryBodies.map(body => body.connectionId).should.deep.equal(['connection-a', 'connection-b']);
+        activeQueryBodies[0].subscriptionGeneration.should.equal(activeQueryBodies[1].subscriptionGeneration);
     });
 
     it('should not reconnect', () => (context.policy.schedule as sinon.SinonStub).called.should.be.false);
 
     it('should retain only the remaining subscription', () => context.connection.queryCount.should.equal(1));
+
+    function parseBody(rawBody: string): {
+        connectionId: string;
+        queryId: string;
+        request: { queryName: string };
+        subscriptionGeneration: string;
+    } {
+        try {
+            return JSON.parse(rawBody) as ReturnType<typeof parseBody>;
+        } catch (error) {
+            throw new Error('Expected a valid subscribe request body', { cause: error });
+        }
+    }
 }));

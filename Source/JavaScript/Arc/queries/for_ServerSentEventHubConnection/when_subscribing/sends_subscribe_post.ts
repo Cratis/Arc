@@ -20,14 +20,18 @@ describe('when subscribing sends the subscribe POST after Connected', given(a_se
     afterEach(() => sinon.restore());
 
     it('should POST to the subscribe URL', () => context.fetchStub.calledOnce.should.be.true);
-    it('should pass the connection id in the request body', () => {
-        const body = JSON.parse(context.fetchStub.getCall(0).args[1].body);
-        body.connectionId.should.equal(connectionId);
-    });
-    it('should pass the query id in the request body', () => {
-        const body = JSON.parse(context.fetchStub.getCall(0).args[1].body);
-        body.queryId.should.equal(queryId);
-    });
+    it('should pass the connection id in the request body', () => getBody().connectionId.should.equal(connectionId));
+    it('should pass the query id in the request body', () => getBody().queryId.should.equal(queryId));
+    it('should pass a subscription generation in the request body', () => getBody().subscriptionGeneration.length.should.be.greaterThan(0));
+
+    function getBody(): { connectionId: string; queryId: string; subscriptionGeneration: string } {
+        const rawBody = context.fetchStub.getCall(0).args[1].body as string;
+        try {
+            return JSON.parse(rawBody) as { connectionId: string; queryId: string; subscriptionGeneration: string };
+        } catch (error) {
+            throw new Error('Expected a valid subscribe request body', { cause: error });
+        }
+    }
 
     describe('when a query result message arrives', () => {
         const result = { isSuccess: true, data: ['x'] };

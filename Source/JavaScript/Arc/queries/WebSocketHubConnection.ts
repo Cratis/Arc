@@ -31,6 +31,9 @@ export enum HubMessageType {
 export interface HubMessage {
     type: HubMessageType;
     queryId?: string;
+
+    /** Optional generation used by SSE subscriptions to reject stale replacement messages. */
+    subscriptionGeneration?: string;
     payload?: any;
     timestamp?: number;
 
@@ -78,10 +81,10 @@ export class WebSocketHubConnection {
 
     /**
      * Initializes a new instance of {@link WebSocketHubConnection}.
-     * @param {string} url The WebSocket URL of the hub endpoint (e.g. {@code ws://localhost:5000/.cratis/queries/ws}).
-     * @param {string} microservice The microservice name to pass as a query argument.
+     * @param {string} _url The WebSocket URL of the hub endpoint (e.g. {@code ws://localhost:5000/.cratis/queries/ws}).
+     * @param {string} _microservice The microservice name to pass as a query argument.
      * @param {number} pingIntervalMs How often to send keep-alive pings when the connection is idle (default: 10 000 ms).
-     * @param {IReconnectPolicy} reconnectPolicy The reconnect policy to use (default: {@link ReconnectPolicy}).
+     * @param {IReconnectPolicy} _policy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
     constructor(
         private readonly _url: string,

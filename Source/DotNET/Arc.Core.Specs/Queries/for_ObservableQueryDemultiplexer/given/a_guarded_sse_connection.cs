@@ -17,8 +17,8 @@ public class a_guarded_sse_connection : a_guarded_connection
     protected ConcurrentQueue<string> _messages;
     protected ConcurrentDictionary<string, int> _subscribeStatusCodes;
 
-    CancellationTokenSource _connectionCancellation;
-    string _connectionId;
+    protected CancellationTokenSource _connectionCancellation;
+    protected string _connectionId;
 
     void Establish()
     {
@@ -80,10 +80,10 @@ public class a_guarded_sse_connection : a_guarded_connection
             .Where(_ => _ is not null)
             .Select(_ => _!)];
 
-    IEnumerable<ObservableQueryHubMessage> HubMessages =>
+    protected IEnumerable<ObservableQueryHubMessage> HubMessages =>
         _messages.Select(TryParseHubMessage).Where(_ => _ is not null).Select(_ => _!);
 
-    IHttpRequestContext CreateSubscribeContext(string queryId)
+    protected IHttpRequestContext CreateSubscribeContext(string queryId, string? generation = null)
     {
         var subscribeContext = Substitute.For<IHttpRequestContext>();
         subscribeContext.RequestAborted.Returns(CancellationToken.None);
@@ -91,16 +91,23 @@ public class a_guarded_sse_connection : a_guarded_connection
         // The subscribe POST carries the freshest identity; the demultiplexer transfers it onto the SSE connection.
         subscribeContext.User.Returns(_principal);
         subscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSESubscribeRequest), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult<object?>(new ObservableQuerySSESubscribeRequest(
-                _connectionId,
-                queryId,
-                new ObservableQuerySubscriptionRequest(QueryName, RawArguments))));
+            .Returns(_ => Task.FromResult<object?>(CreateRequest()));
         subscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
             .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
         return subscribeContext;
+
+        ObservableQuerySSESubscribeRequest CreateRequest()
+        {
+            var request = new ObservableQuerySSESubscribeRequest(
+                _connectionId,
+                queryId,
+                new ObservableQuerySubscriptionRequest(QueryName, RawArguments));
+            typeof(ObservableQuerySSESubscribeRequest).GetProperty("SubscriptionGeneration")!.SetValue(request, generation);
+            return request;
+        }
     }
 
-    bool TryExtractConnectionId(out string connectionId)
+    protected bool TryExtractConnectionId(out string connectionId)
     {
         connectionId = string.Empty;
 

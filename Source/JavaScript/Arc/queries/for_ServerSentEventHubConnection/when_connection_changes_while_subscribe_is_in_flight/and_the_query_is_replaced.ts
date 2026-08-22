@@ -42,11 +42,17 @@ describe('when a query is replaced while its subscribe request is in flight and 
     });
 
     it('should send only the replacement on connection B', () => {
-        context.fetchStub.getCall(2).args[1].body.should.equal(JSON.stringify({
-            connectionId: 'connection-b',
-            queryId,
-            request: replacementRequest,
-        }));
+        const rawBody = context.fetchStub.getCall(2).args[1].body as string;
+        let body: { connectionId: string; queryId: string; request: object; subscriptionGeneration: string };
+        try {
+            body = JSON.parse(rawBody) as typeof body;
+        } catch (error) {
+            throw new Error('Expected a valid subscribe request body', { cause: error });
+        }
+        body.connectionId.should.equal('connection-b');
+        body.queryId.should.equal(queryId);
+        body.request.should.deep.equal(replacementRequest);
+        body.subscriptionGeneration.length.should.be.greaterThan(0);
     });
 
     it('should not retry the obsolete subscription', () => context.fetchStub.callCount.should.equal(3));

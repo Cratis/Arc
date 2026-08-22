@@ -36,11 +36,11 @@ describe('when the connection changes while a subscribe request is in flight and
     });
 
     it('should send the active subscription on connection B', () => {
-        context.fetchStub.getCall(1).args[1].body.should.equal(JSON.stringify({
-            connectionId: 'connection-b',
-            queryId,
-            request,
-        }));
+        const body = parseBody(context.fetchStub.getCall(1).args[1].body as string);
+        body.connectionId.should.equal('connection-b');
+        body.queryId.should.equal(queryId);
+        body.request.should.deep.equal(request);
+        body.subscriptionGeneration.length.should.be.greaterThan(0);
     });
 
     it('should not retry the obsolete connection A request', () => context.fetchStub.callCount.should.equal(2));
@@ -48,4 +48,12 @@ describe('when the connection changes while a subscribe request is in flight and
     it('should not reconnect', () => (context.policy.schedule as sinon.SinonStub).called.should.be.false);
 
     it('should retain the active subscription', () => context.connection.queryCount.should.equal(1));
+
+    function parseBody(rawBody: string): { connectionId: string; queryId: string; request: object; subscriptionGeneration: string } {
+        try {
+            return JSON.parse(rawBody) as ReturnType<typeof parseBody>;
+        } catch (error) {
+            throw new Error('Expected a valid subscribe request body', { cause: error });
+        }
+    }
 }));

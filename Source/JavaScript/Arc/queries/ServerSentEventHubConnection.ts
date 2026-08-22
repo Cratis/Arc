@@ -15,6 +15,7 @@ import { HubMessage, HubMessageType, SubscriptionRequest } from './WebSocketHubC
 interface ActiveSubscription {
     request: SubscriptionRequest;
     callback: DataReceived<any>;
+    generation: string;
 }
 
 /**
@@ -46,6 +47,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
     private _connectTimeoutTimer?: ReturnType<typeof setTimeout>;
+    private _nextSubscriptionGeneration = 0;
     private readonly _keepAlive: HubConnectionKeepAlive;
 
     /**
@@ -113,7 +115,11 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
     /** @inheritdoc */
     subscribe(queryId: string, request: SubscriptionRequest, callback: DataReceived<any>): void {
-        const sub: ActiveSubscription = { request, callback };
+        const sub: ActiveSubscription = {
+            request,
+            callback,
+            generation: `${Date.now().toString(36)}-${++this._nextSubscriptionGeneration}`,
+        };
         this._subscriptions.set(queryId, sub);
 
         this.ensureConnected();
@@ -148,9 +154,22 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._policy.cancel();
         this._keepAlive.stop();
         this.clearConnectTimeout();
-        this._eventSource?.close();
-        this._eventSource = undefined;
+        this.detachAndCloseEventSource();
         this._connectionId = undefined;
+    }
+
+    private detachAndCloseEventSource(): void {
+        const eventSource = this._eventSource;
+        if (!eventSource) return;
+
+        eventSource.onopen = null;
+        eventSource.onmessage = null;
+        eventSource.onerror = null;
+        eventSource.close();
+
+        if (this._eventSource === eventSource) {
+            this._eventSource = undefined;
+        }
     }
 
     private ensureConnected(): void {
@@ -170,17 +189,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._policy.cancel();
         this._keepAlive.stop();
         this.clearConnectTimeout();
-        if (this._eventSource) {
-            // Detach all handlers BEFORE closing so that the async onerror / onmessage
-            // events that fire after close() cannot observe the new _disconnected=false
-            // state set by an immediately following ensureConnected() call. Without this,
-            // a stale onerror triggers an unintended reconnect with exponential back-off.
-            this._eventSource.onopen = null;
-            this._eventSource.onmessage = null;
-            this._eventSource.onerror = null;
-            this._eventSource.close();
-        }
-        this._eventSource = undefined;
+        this.detachAndCloseEventSource();
         this._connectionId = undefined;
     }
 
@@ -192,10 +201,11 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         }
 
         this._connectionId = undefined;
-        this._eventSource = Globals.eventSourceFactory ? Globals.eventSourceFactory(url) : new EventSource(url);
+        const eventSource = Globals.eventSourceFactory ? Globals.eventSourceFactory(url) : new EventSource(url);
+        this._eventSource = eventSource;
 
-        this._eventSource.onopen = () => {
-            if (this._disconnected) return;
+        eventSource.onopen = () => {
+            if (this._disconnected || this._eventSource !== eventSource) return;
             console.log(`SSE hub connection established: '${url}'`);
             this._policy.reset();
             this._keepAlive.start();
@@ -204,21 +214,21 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             // connection is broken. Close and retry via the reconnect policy.
             this.clearConnectTimeout();
             this._connectTimeoutTimer = setTimeout(() => {
-                if (!this._disconnected && !this._connectionId) {
+                if (!this._disconnected && this._eventSource === eventSource && !this._connectionId) {
                     console.warn(`SSE hub: no Connected message within ${this._connectTimeoutMs}ms, retrying '${url}'`);
                     this.reconnect();
                 }
             }, this._connectTimeoutMs);
         };
 
-        this._eventSource.onmessage = (event: MessageEvent) => {
-            if (this._disconnected) return;
+        eventSource.onmessage = (event: MessageEvent) => {
+            if (this._disconnected || this._eventSource !== eventSource) return;
             this._keepAlive.recordActivity();
             this.handleMessage(event.data as string);
         };
 
-        this._eventSource.onerror = () => {
-            if (this._disconnected) return;
+        eventSource.onerror = () => {
+            if (this._disconnected || this._eventSource !== eventSource) return;
             console.warn(`SSE hub connection error: '${url}'`);
             this.reconnect();
         };
@@ -228,9 +238,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._keepAlive.stop();
         this.clearConnectTimeout();
 
-        // Close the EventSource so the reconnect policy manages the schedule.
-        this._eventSource?.close();
-        this._eventSource = undefined;
+        // Detach before closing so callbacks already queued by the retired source are inert.
+        this.detachAndCloseEventSource();
         this._connectionId = undefined;
 
         // Move all active subscriptions to pending so they re-subscribe when
@@ -270,11 +279,15 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     // Server-sent keep-alive ping — activity already recorded in onmessage.
                     break;
                 case HubMessageType.Unauthorized:
-                    console.warn(`SSE hub: query '${message.queryId}' unauthorized`);
-                    this.handleUnauthorized(message);
+                    if (this.isMessageForCurrentSubscription(message)) {
+                        console.warn(`SSE hub: query '${message.queryId}' unauthorized`);
+                        this.handleUnauthorized(message);
+                    }
                     break;
                 case HubMessageType.Error:
-                    console.error(`SSE hub: query '${message.queryId}' error:`, message.payload);
+                    if (this.isMessageForCurrentSubscription(message)) {
+                        console.error(`SSE hub: query '${message.queryId}' error:`, message.payload);
+                    }
                     break;
             }
         } catch (error) {
@@ -329,7 +342,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
-        if (!sub) return;
+        if (!sub || (message.subscriptionGeneration !== undefined && message.subscriptionGeneration !== sub.generation)) return;
 
         const result = message.payload as QueryResult<any>;
         sub.callback(result);
@@ -339,7 +352,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
-        if (!sub) return;
+        if (!sub || (message.subscriptionGeneration !== undefined && message.subscriptionGeneration !== sub.generation)) return;
 
         this._subscriptions.delete(message.queryId);
         this._pendingSubscriptions.delete(message.queryId);
@@ -357,6 +370,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             connectionId,
             queryId,
             request: subscription.request,
+            subscriptionGeneration: subscription.generation,
         };
 
         const customHeaders = Globals.httpHeadersCallback?.() ?? {};
@@ -403,6 +417,14 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                 this.reconnect();
             }
         });
+    }
+
+    private isMessageForCurrentSubscription(message: HubMessage): boolean {
+        if (!message.queryId) return false;
+
+        const subscription = this._subscriptions.get(message.queryId);
+        return subscription !== undefined &&
+            (message.subscriptionGeneration === undefined || message.subscriptionGeneration === subscription.generation);
     }
 
     private isCurrentSubscription(queryId: string, subscription: ActiveSubscription, connectionId: string): boolean {

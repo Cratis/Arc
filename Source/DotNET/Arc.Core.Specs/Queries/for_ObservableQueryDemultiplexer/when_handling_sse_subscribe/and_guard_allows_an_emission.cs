@@ -21,6 +21,7 @@ public class and_guard_allows_an_emission : given.a_guarded_sse_connection
     [Fact] void should_not_signal_unauthorized() => HasUnauthorizedFor(FirstQueryId).ShouldBeFalse();
     [Fact] void should_return_200_from_subscribe() => _subscribeStatusCodes[FirstQueryId].ShouldEqual(200);
     [Fact] void should_tell_the_guard_the_query_name() => _guardCalls.First().QueryName.Value.ShouldEqual(QueryName);
-    [Fact] void should_tell_the_guard_the_caller_identity() => _guardCalls.First().Principal.ShouldEqual(_principal);
+    [Fact] void should_tell_the_guard_the_caller_identity() => _guardCalls.First().Principal?.Identity?.Name.ShouldEqual(_principal.Identity?.Name);
+    [Fact] void should_give_the_guard_an_independent_principal_snapshot() => ReferenceEquals(_guardCalls.First().Principal, _principal).ShouldBeFalse();
     [Fact] void should_tell_the_guard_the_coerced_arguments() => _guardCalls.First().Arguments["id"].ShouldEqual(42);
 }

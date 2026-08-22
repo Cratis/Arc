@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_subscribe;
 
@@ -16,6 +17,8 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
     readonly TaskCompletionSource<QueryResult> _performCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource _performStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly CancellationTokenSource _connectionCancellation = new();
+    readonly ConcurrentQueue<(string? User, string? Tenant)> _ambientGuardContexts = [];
+    readonly ConcurrentQueue<(string? User, string? Tenant)> _ambientInterceptorContexts = [];
     IHttpRequestContext _authorizationContext;
     IHttpRequestContext _connectionContext;
     IHttpRequestContext _subscribeContext;
@@ -45,12 +48,13 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
         _connectionContext = Substitute.For<IHttpRequestContext>();
         _connectionContext.RequestAborted.Returns(_connectionCancellation.Token);
         _connectionContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
+        _connectionContext.Headers.Returns(new Dictionary<string, string> { ["Tenant-ID"] = "tenant-a" });
         _connectionContext.User.Returns(_ =>
         {
             _getUserReads++;
             ObjectDisposedException.ThrowIf(_getContextDisposed, _connectionContext);
 
-            return new ClaimsPrincipal();
+            return new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "stale-caller")], "test"));
         });
         _connectionContext.When(_ => _.User = Arg.Any<ClaimsPrincipal>())
             .Do(_ =>
@@ -66,7 +70,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
             });
 
         _subscribeContext = Substitute.For<IHttpRequestContext>();
-        _subscribeContext.Headers.Returns(new Dictionary<string, string>());
+        _subscribeContext.Headers.Returns(new Dictionary<string, string> { ["Tenant-ID"] = "tenant-b" });
         _subscribeContext.RequestAborted.Returns(CancellationToken.None);
         _subscribeContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
         _subscribeContext.User.Returns(_postPrincipal);
@@ -77,6 +81,14 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
                 new ObservableQuerySubscriptionRequest(QueryName))));
         _subscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
             .Do(callInfo => _subscribeStatusCode = callInfo.Arg<int>());
+
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+            .Returns(callInfo =>
+            {
+                var ambient = _httpRequestContextAccessor.Current;
+                _ambientInterceptorContexts.Enqueue((ambient?.User.Identity?.Name, ambient?.Headers.GetValueOrDefault("Tenant-ID")));
+                return Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1));
+            });
     }
 
     async Task Because()
@@ -106,11 +118,34 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
     }
 
     [Fact] void should_complete_the_subscribe() => _subscribeStatusCode.ShouldEqual(200);
-    [Fact] void should_authorize_with_the_post_context() => _authorizationContext.ShouldEqual(_subscribeContext);
+    [Fact] void should_authorize_with_a_durable_snapshot_instead_of_the_post_context() => ReferenceEquals(_authorizationContext, _subscribeContext).ShouldBeFalse();
+    [Fact] void should_authorize_with_the_post_principal_snapshot() => _authorizationContext.User.Identity?.Name.ShouldEqual("fresh-caller");
+    [Fact] void should_authorize_with_the_post_tenant_snapshot() => _authorizationContext.Headers["Tenant-ID"].ShouldEqual("tenant-b");
     [Fact] void should_not_read_user_from_the_get_context() => _getUserReads.ShouldEqual(0);
     [Fact] void should_not_write_user_to_the_get_context() => _getUserWrites.ShouldEqual(0);
     [Fact] void should_consult_the_emission_guard() => _guardCalls.Count.ShouldEqual(1);
-    [Fact] void should_give_the_emission_guard_the_post_principal() => _guardCalls.Single().Principal.ShouldEqual(_postPrincipal);
+    [Fact] void should_give_the_emission_guard_the_post_principal() => _guardCalls.Single().Principal?.Identity?.Name.ShouldEqual("fresh-caller");
+    [Fact] void should_restore_the_post_context_for_injected_guard_dependencies() => _ambientGuardContexts.Single().ShouldEqual(("fresh-caller", "tenant-b"));
+    [Fact] void should_restore_the_post_context_for_emission_interceptors() => _ambientInterceptorContexts.Single().ShouldEqual(("fresh-caller", "tenant-b"));
+
+    protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
+    {
+        services.AddSingleton(_httpRequestContextAccessor);
+        services.AddSingleton(_ambientGuardContexts);
+        guardTypes.Add(typeof(AmbientContextGuard));
+    }
+
+    public class AmbientContextGuard(
+        IHttpRequestContextAccessor accessor,
+        ConcurrentQueue<(string? User, string? Tenant)> contexts) : IGuardObservableQueryEmission
+    {
+        public Task<ObservableQueryEmissionVerdict> Guard(ObservableQueryEmissionContext context)
+        {
+            var ambient = accessor.Current;
+            contexts.Enqueue((ambient?.User.Identity?.Name, ambient?.Headers.GetValueOrDefault("Tenant-ID")));
+            return Task.FromResult(ObservableQueryEmissionVerdict.Allow);
+        }
+    }
 
     bool TryExtractConnectionId(out string connectionId)
     {

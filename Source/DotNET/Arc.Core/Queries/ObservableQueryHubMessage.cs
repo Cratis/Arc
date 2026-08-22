@@ -22,6 +22,11 @@ public class ObservableQueryHubMessage
     public string? QueryId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional subscription generation used to reject messages from replaced subscriptions.
+    /// </summary>
+    public string? SubscriptionGeneration { get; set; }
+
+    /// <summary>
     /// Gets or sets the message payload. Interpretation depends on <see cref="Type"/>:
     /// <list type="bullet">
     ///   <item><description><see cref="ObservableQueryHubMessageType.Subscribe"/> — an <see cref="ObservableQuerySubscriptionRequest"/>.</description></item>
@@ -53,7 +58,17 @@ public class ObservableQueryHubMessage
     /// <param name="result">The query result payload.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
     public static ObservableQueryHubMessage CreateQueryResult(string queryId, QueryResult result) =>
-        new() { Type = ObservableQueryHubMessageType.QueryResult, QueryId = queryId, Payload = result };
+        CreateQueryResult(queryId, result, null);
+
+    /// <summary>
+    /// Creates a generation-aware <see cref="ObservableQueryHubMessageType.QueryResult"/> message.
+    /// </summary>
+    /// <param name="queryId">The query identifier.</param>
+    /// <param name="result">The query result payload.</param>
+    /// <param name="subscriptionGeneration">The optional subscription generation.</param>
+    /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
+    public static ObservableQueryHubMessage CreateQueryResult(string queryId, QueryResult result, string? subscriptionGeneration) =>
+        new() { Type = ObservableQueryHubMessageType.QueryResult, QueryId = queryId, Payload = result, SubscriptionGeneration = subscriptionGeneration };
 
     /// <summary>
     /// Creates an <see cref="ObservableQueryHubMessageType.Unauthorized"/> message.
@@ -61,7 +76,16 @@ public class ObservableQueryHubMessage
     /// <param name="queryId">The query identifier.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
     public static ObservableQueryHubMessage CreateUnauthorized(string queryId) =>
-        new() { Type = ObservableQueryHubMessageType.Unauthorized, QueryId = queryId };
+        CreateUnauthorized(queryId, null);
+
+    /// <summary>
+    /// Creates a generation-aware <see cref="ObservableQueryHubMessageType.Unauthorized"/> message.
+    /// </summary>
+    /// <param name="queryId">The query identifier.</param>
+    /// <param name="subscriptionGeneration">The optional subscription generation.</param>
+    /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
+    public static ObservableQueryHubMessage CreateUnauthorized(string queryId, string? subscriptionGeneration) =>
+        new() { Type = ObservableQueryHubMessageType.Unauthorized, QueryId = queryId, SubscriptionGeneration = subscriptionGeneration };
 
     /// <summary>
     /// Creates an <see cref="ObservableQueryHubMessageType.Error"/> message.
@@ -70,7 +94,17 @@ public class ObservableQueryHubMessage
     /// <param name="errorMessage">The error message.</param>
     /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
     public static ObservableQueryHubMessage CreateError(string queryId, string errorMessage) =>
-        new() { Type = ObservableQueryHubMessageType.Error, QueryId = queryId, Payload = errorMessage };
+        CreateError(queryId, errorMessage, null);
+
+    /// <summary>
+    /// Creates a generation-aware <see cref="ObservableQueryHubMessageType.Error"/> message.
+    /// </summary>
+    /// <param name="queryId">The query identifier.</param>
+    /// <param name="errorMessage">The error message.</param>
+    /// <param name="subscriptionGeneration">The optional subscription generation.</param>
+    /// <returns>A populated <see cref="ObservableQueryHubMessage"/>.</returns>
+    public static ObservableQueryHubMessage CreateError(string queryId, string errorMessage, string? subscriptionGeneration) =>
+        new() { Type = ObservableQueryHubMessageType.Error, QueryId = queryId, Payload = errorMessage, SubscriptionGeneration = subscriptionGeneration };
 
     /// <summary>
     /// Creates a <see cref="ObservableQueryHubMessageType.Pong"/> message.

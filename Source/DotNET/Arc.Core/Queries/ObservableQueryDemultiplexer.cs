@@ -5,7 +5,6 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
-using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Security.Claims;
 using System.Text.Json;
@@ -92,7 +91,7 @@ public class ObservableQueryDemultiplexer(
 
         var connectionId = $"ws-{Interlocked.Increment(ref _nextConnectionId)}";
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
-        var subscriptions = new ConcurrentDictionary<string, IDisposable>();
+        var subscriptions = new ConcurrentDictionary<string, ObservableQuerySubscriptionOperation>();
         var writeLock = new SemaphoreSlim(1, 1);
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -209,8 +208,6 @@ public class ObservableQueryDemultiplexer(
             context.RequestAborted.IsCancellationRequested &&
             ex is OperationCanceledException or IOException)
         {
-            // The subscribe POST ended while its body was being read. There is no response left to write and no
-            // subscription work to perform. Malformed JSON and unrelated failures deliberately continue to escape.
             return;
         }
 
@@ -230,80 +227,102 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        // The subscribe POST carries the latest cookies and headers, which the middleware already authenticated.
-        // Keep its principal independently from the retained SSE GET context: the GET may be disposed while the query
-        // pipeline is awaiting, and writing the principal through it makes that lifetime race observable. The active
-        // POST remains the ambient context for subscription-time authorization; emissions restore the GET context.
-        var principal = context.User;
-        httpRequestContextAccessor.Current = context;
-
         logger.ClientSubscribed(body.Request.QueryName, body.QueryId);
 
-        // If there's an existing subscription for this queryId, dispose it first
-        if (state.Subscriptions.TryRemove(body.QueryId, out var existing))
-        {
-            existing.Dispose();
-            healthTracker.UnregisterSubscription(body.ConnectionId, body.QueryId);
-        }
-
+        // Reserve this query id before awaiting the query pipeline. A later subscribe replaces and cancels this exact
+        // operation, so stale creation and callbacks can neither install themselves nor affect the replacement.
+        var operation = ReserveSubscription(
+            state.Subscriptions,
+            body.QueryId,
+            body.SubscriptionGeneration,
+            state.CancellationToken);
+        var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(
+            context,
+            state.Context,
+            serviceProvider,
+            operation.Token);
+        var previousContext = httpRequestContextAccessor.Current;
         var wasUnauthorized = false;
 
-        var subscription = await CreateSubscription(
-            state.Context,
-            principal,
-            body.QueryId,
-            body.Request,
-            async (result, operationToken) =>
-            {
-                var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result);
-                if (await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken))
+        try
+        {
+            httpRequestContextAccessor.Current = subscriptionContext;
+
+            var subscription = await CreateSubscription(
+                subscriptionContext,
+                context.RequestServices,
+                subscriptionContext.User,
+                body.QueryId,
+                body.Request,
+                async (result, operationToken) =>
                 {
-                    healthTracker.RecordDataServed(body.ConnectionId, body.QueryId);
-                }
-            },
-            async (id, errorMsg, operationToken) =>
-            {
-                var msg = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken);
-            },
-            async (id, operationToken) =>
-            {
-                operationToken.ThrowIfCancellationRequested();
-                wasUnauthorized = true;
-                var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
-                await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken);
-                operationToken.ThrowIfCancellationRequested();
+                    if (!IsCurrent(state.Subscriptions, body.QueryId, operation))
+                    {
+                        return;
+                    }
 
-                // Reached at subscribe time (nothing is tracked yet, so this is a no-op) and again when an emission
-                // guard denies the running stream. Only this query's entry is torn down — every sibling subscription
-                // on the same connection keeps streaming.
-                TerminateSubscription(state.Subscriptions, body.ConnectionId, id);
-            },
-            state.CancellationTokenSource.Token);
+                    var msg = ObservableQueryHubMessage.CreateQueryResult(body.QueryId, result, operation.Generation);
+                    if (await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken) &&
+                        IsCurrent(state.Subscriptions, body.QueryId, operation))
+                    {
+                        healthTracker.RecordDataServed(body.ConnectionId, body.QueryId);
+                    }
+                },
+                async (id, errorMsg, operationToken) =>
+                {
+                    if (!IsCurrent(state.Subscriptions, id, operation))
+                    {
+                        return;
+                    }
 
-        if (subscription is not null)
+                    var msg = ObservableQueryHubMessage.CreateError(id, errorMsg, operation.Generation);
+                    await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken);
+                },
+                async (id, operationToken) =>
+                {
+                    if (!IsCurrent(state.Subscriptions, id, operation))
+                    {
+                        return;
+                    }
+
+                    operationToken.ThrowIfCancellationRequested();
+                    wasUnauthorized = true;
+                    var msg = ObservableQueryHubMessage.CreateUnauthorized(id, operation.Generation);
+                    await SendSseMessage(state.Context, msg, state.KeepAliveTracker, state.CancellationTokenSource, state.WriteLock, operationToken);
+
+                    TerminateSubscription(state.Subscriptions, id, operation);
+                },
+                operation.Token);
+
+            if (subscription is not null && operation.TryAttach(subscription) && IsCurrent(state.Subscriptions, body.QueryId, operation))
+            {
+                var metadata = CreateSubscriptionMetadata(body.QueryId, body.Request, subscriptionContext, "SSE");
+                operation.TryRegister(
+                    () => healthTracker.RegisterSubscription(body.ConnectionId, "SSE", metadata),
+                    () => healthTracker.UnregisterSubscription(body.ConnectionId, body.QueryId));
+            }
+            else if (subscription is null)
+            {
+                TerminateSubscription(state.Subscriptions, body.QueryId, operation);
+            }
+        }
+        catch (Exception ex) when (
+            operation.Token.IsCancellationRequested &&
+            ex is OperationCanceledException or IOException or ObjectDisposedException)
         {
-            state.Subscriptions[body.QueryId] = subscription;
-
-            // Register subscription with health tracker
-            var metadata = CreateSubscriptionMetadata(body.QueryId, body.Request, context, "SSE");
-            healthTracker.RegisterSubscription(body.ConnectionId, "SSE", metadata);
+            // The operation was replaced or the connection ended while creation was in flight.
+        }
+        finally
+        {
+            httpRequestContextAccessor.Current = previousContext;
+            if (operation.Token.IsCancellationRequested)
+            {
+                TerminateSubscription(state.Subscriptions, body.QueryId, operation);
+            }
+            operation.CompleteCreation();
         }
 
-        if (wasUnauthorized)
-        {
-            // A replaying subject hands its buffered value to the observer from inside Subscribe, so a guard can deny
-            // — and run the teardown above — before this method ever had a subscription to track. Tracking it first
-            // and then tearing it down here routes every teardown through TerminateSubscription, rather than
-            // returning with the composite (its service scope, emission gate and subject subscription) dropped on the
-            // floor. When the denial came from subscribe-time authorization there is no subscription and this is the
-            // no-op it always was.
-            TerminateSubscription(state.Subscriptions, body.ConnectionId, body.QueryId);
-            context.SetStatusCode(401);
-            return;
-        }
-
-        context.SetStatusCode(200);
+        context.SetStatusCode(wasUnauthorized ? 401 : 200);
     }
 
     /// <inheritdoc/>
@@ -325,11 +344,10 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        if (state.Subscriptions.TryRemove(body.QueryId, out var subscription))
+        if (state.Subscriptions.TryGetValue(body.QueryId, out var subscription))
         {
-            subscription.Dispose();
+            TerminateSubscription(state.Subscriptions, body.QueryId, subscription);
             logger.ClientUnsubscribed(body.QueryId);
-            healthTracker.UnregisterSubscription(body.ConnectionId, body.QueryId);
         }
 
         context.SetStatusCode(200);
@@ -373,28 +391,54 @@ public class ObservableQueryDemultiplexer(
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
         {
-            // Drive the background stream from a per-subscription token linked to the connection's, and hand back a
-            // disposable that cancels it. Returning null here left the stream untracked: unsubscribe could not stop
-            // it, and re-subscribing the same query started a second one while the first kept pushing results.
-            var streamCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var lifetime = new StreamingQuerySubscription(token);
 
-            IDisposable subscription = new StreamingQuerySubscription(streamCancellationTokenSource);
             IServiceScope? guardScope = null;
-
-            // A scope of this subscription's own for the emission guards to resolve from — created only when a guard
-            // exists, so a stream without one keeps exactly the shape (and cost) it had before guards were a thing.
-            // Ownership moves to the composite, which the connection disposes together with the subscription.
             if (emissionGuards.HasGuards)
             {
-#pragma warning disable CA2000 // guardScope's ownership is transferred to the returned CompositeDisposable
-                guardScope = serviceProvider.CreateScope();
-#pragma warning restore CA2000
-                subscription = new CompositeDisposable(subscription, guardScope);
+                var ownedScope = (IServiceScope?)serviceProvider.CreateScope();
+                try
+                {
+                    lifetime.AddResource(ownedScope);
+                    guardScope = ownedScope;
+                    ownedScope = null;
+                }
+                finally
+                {
+                    ownedScope?.Dispose();
+                }
             }
 
-            _ = StreamAsyncEnumerable(streamingData, type, queryId, paging, correlationId, identity, guardScope?.ServiceProvider, onNext, onError, onUnauthorized, streamCancellationTokenSource.Token);
+            if (lifetime.TryEnter())
+            {
+                _ = RunStream();
+            }
 
-            return subscription;
+            return lifetime;
+
+            async Task RunStream()
+            {
+                try
+                {
+                    await StreamAsyncEnumerable(
+                        context,
+                        streamingData,
+                        type,
+                        queryId,
+                        paging,
+                        correlationId,
+                        identity,
+                        guardScope?.ServiceProvider,
+                        onNext,
+                        onError,
+                        onUnauthorized,
+                        lifetime.Token);
+                }
+                finally
+                {
+                    lifetime.Exit();
+                }
+            }
         }
 
         return null;
@@ -402,7 +446,7 @@ public class ObservableQueryDemultiplexer(
 
     async Task ReadWebSocketMessages(
         IWebSocket webSocket,
-        ConcurrentDictionary<string, IDisposable> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -469,7 +513,7 @@ public class ObservableQueryDemultiplexer(
     async Task ProcessWebSocketMessage(
         ObservableQueryHubMessage message,
         IWebSocket webSocket,
-        ConcurrentDictionary<string, IDisposable> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -486,7 +530,7 @@ public class ObservableQueryDemultiplexer(
                 break;
 
             case ObservableQueryHubMessageType.Unsubscribe:
-                HandleWebSocketUnsubscribe(message, subscriptions, connectionId);
+                HandleWebSocketUnsubscribe(message, subscriptions);
                 break;
 
             case ObservableQueryHubMessageType.Ping:
@@ -498,7 +542,7 @@ public class ObservableQueryDemultiplexer(
     async Task HandleWebSocketSubscribe(
         ObservableQueryHubMessage message,
         IWebSocket webSocket,
-        ConcurrentDictionary<string, IDisposable> subscriptions,
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
         IHttpRequestContext context,
         string connectionId,
         KeepAliveTracker keepAliveTracker,
@@ -514,87 +558,133 @@ public class ObservableQueryDemultiplexer(
 
         logger.ClientSubscribed(request.QueryName, message.QueryId ?? string.Empty);
 
-        // If there's an existing subscription for this queryId, dispose it first
-        if (message.QueryId is not null && subscriptions.TryRemove(message.QueryId, out var existing))
-        {
-            existing.Dispose();
-            healthTracker.UnregisterSubscription(connectionId, message.QueryId);
-        }
-
         var queryId = message.QueryId ?? Guid.NewGuid().ToString();
-        var wasUnauthorized = false;
+        var operation = ReserveSubscription(subscriptions, queryId, message.SubscriptionGeneration, token);
+        var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(context, context, serviceProvider, operation.Token);
+        var previousContext = httpRequestContextAccessor.Current;
 
-        var subscription = await CreateSubscription(
-            context,
-            context.User,
-            queryId,
-            request,
-            async (result, operationToken) =>
-            {
-                var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result);
-                if (await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken))
+        try
+        {
+            httpRequestContextAccessor.Current = subscriptionContext;
+            var subscription = await CreateSubscription(
+                subscriptionContext,
+                context.RequestServices,
+                subscriptionContext.User,
+                queryId,
+                request,
+                async (result, operationToken) =>
                 {
-                    healthTracker.RecordDataServed(connectionId, queryId);
-                }
-            },
-            async (id, errorMsg, operationToken) =>
+                    if (!IsCurrent(subscriptions, queryId, operation))
+                    {
+                        return;
+                    }
+
+                    var msg = ObservableQueryHubMessage.CreateQueryResult(queryId, result, operation.Generation);
+                    if (await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken) &&
+                        IsCurrent(subscriptions, queryId, operation))
+                    {
+                        healthTracker.RecordDataServed(connectionId, queryId);
+                    }
+                },
+                async (id, errorMsg, operationToken) =>
+                {
+                    if (!IsCurrent(subscriptions, id, operation))
+                    {
+                        return;
+                    }
+
+                    var msg = ObservableQueryHubMessage.CreateError(id, errorMsg, operation.Generation);
+                    await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
+                },
+                async (id, operationToken) =>
+                {
+                    if (!IsCurrent(subscriptions, id, operation))
+                    {
+                        return;
+                    }
+
+                    operationToken.ThrowIfCancellationRequested();
+                    var msg = ObservableQueryHubMessage.CreateUnauthorized(id, operation.Generation);
+                    await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
+                    TerminateSubscription(subscriptions, id, operation);
+                },
+                operation.Token);
+
+            if (subscription is not null && operation.TryAttach(subscription) && IsCurrent(subscriptions, queryId, operation))
             {
-                var msg = ObservableQueryHubMessage.CreateError(id, errorMsg);
-                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
-            },
-            async (id, operationToken) =>
+                var metadata = CreateSubscriptionMetadata(queryId, request, subscriptionContext, "WebSocket");
+                operation.TryRegister(
+                    () => healthTracker.RegisterSubscription(connectionId, "WebSocket", metadata),
+                    () => healthTracker.UnregisterSubscription(connectionId, queryId));
+            }
+            else if (subscription is null)
             {
-                operationToken.ThrowIfCancellationRequested();
-                wasUnauthorized = true;
-                var msg = ObservableQueryHubMessage.CreateUnauthorized(id);
-                await SendWebSocketMessage(webSocket, msg, keepAliveTracker, writeLock, operationToken);
-                operationToken.ThrowIfCancellationRequested();
-
-                // Reached at subscribe time (nothing is tracked yet, so this is a no-op) and again when an emission
-                // guard denies the running stream. Only this query's entry is torn down — every sibling subscription
-                // on the same connection keeps streaming.
-                TerminateSubscription(subscriptions, connectionId, id);
-            },
-            token);
-
-        if (subscription is not null)
-        {
-            subscriptions[queryId] = subscription;
-
-            // Register subscription with health tracker
-            var metadata = CreateSubscriptionMetadata(queryId, request, context, "WebSocket");
-            healthTracker.RegisterSubscription(connectionId, "WebSocket", metadata);
+                TerminateSubscription(subscriptions, queryId, operation);
+            }
         }
-
-        if (wasUnauthorized)
+        catch (Exception ex) when (
+            operation.Token.IsCancellationRequested &&
+            ex is OperationCanceledException or IOException or ObjectDisposedException)
         {
-            // A replaying subject hands its buffered value to the observer from inside Subscribe, so a guard can deny
-            // — and run the teardown above — before this method ever had a subscription to track. Without this the
-            // connection would keep reporting a live subscription that will never serve a byte, and hold its service
-            // scope until the whole connection ends.
-            TerminateSubscription(subscriptions, connectionId, queryId);
+            // The operation was replaced or the connection ended while creation was in flight.
+        }
+        finally
+        {
+            httpRequestContextAccessor.Current = previousContext;
+            if (operation.Token.IsCancellationRequested)
+            {
+                TerminateSubscription(subscriptions, queryId, operation);
+            }
+            operation.CompleteCreation();
         }
     }
 
-    /// <summary>
-    /// Tears down a single tracked subscription, leaving every other subscription on the connection untouched.
-    /// </summary>
-    /// <param name="subscriptions">The connection's tracked subscriptions.</param>
-    /// <param name="connectionId">The id of the connection the subscription belongs to.</param>
-    /// <param name="queryId">The id of the query whose subscription is torn down.</param>
-    void TerminateSubscription(ConcurrentDictionary<string, IDisposable> subscriptions, string connectionId, string queryId)
+    ObservableQuerySubscriptionOperation ReserveSubscription(
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        string queryId,
+        string? generation,
+        CancellationToken connectionToken)
     {
-        if (subscriptions.TryRemove(queryId, out var subscription))
+        var operation = new ObservableQuerySubscriptionOperation(generation, connectionToken);
+
+        while (!subscriptions.TryAdd(queryId, operation))
         {
-            subscription.Dispose();
-            healthTracker.UnregisterSubscription(connectionId, queryId);
+            if (!subscriptions.TryGetValue(queryId, out var current))
+            {
+                continue;
+            }
+
+            if (subscriptions.TryUpdate(queryId, operation, current))
+            {
+                current.Dispose();
+                break;
+            }
+        }
+
+        return operation;
+    }
+
+    bool IsCurrent(
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        string queryId,
+        ObservableQuerySubscriptionOperation operation) =>
+        subscriptions.TryGetValue(queryId, out var current) && ReferenceEquals(current, operation);
+
+    void TerminateSubscription(
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions,
+        string queryId,
+        ObservableQuerySubscriptionOperation operation)
+    {
+        if (((ICollection<KeyValuePair<string, ObservableQuerySubscriptionOperation>>)subscriptions)
+            .Remove(new KeyValuePair<string, ObservableQuerySubscriptionOperation>(queryId, operation)))
+        {
+            operation.Dispose();
         }
     }
 
     void HandleWebSocketUnsubscribe(
         ObservableQueryHubMessage message,
-        ConcurrentDictionary<string, IDisposable> subscriptions,
-        string connectionId)
+        ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> subscriptions)
     {
         var queryId = message.QueryId;
         if (queryId is null)
@@ -602,16 +692,17 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        if (subscriptions.TryRemove(queryId, out var subscription))
+        if (subscriptions.TryGetValue(queryId, out var subscription) &&
+            (message.SubscriptionGeneration is null || subscription.Generation == message.SubscriptionGeneration))
         {
-            subscription.Dispose();
+            TerminateSubscription(subscriptions, queryId, subscription);
             logger.ClientUnsubscribed(queryId);
-            healthTracker.UnregisterSubscription(connectionId, queryId);
         }
     }
 
     async Task<IDisposable?> CreateSubscription(
         IHttpRequestContext context,
+        IServiceProvider queryServiceProvider,
         ClaimsPrincipal principal,
         string queryId,
         ObservableQuerySubscriptionRequest request,
@@ -631,7 +722,7 @@ public class ObservableQueryDemultiplexer(
             arguments,
             paging,
             sorting,
-            context.RequestServices);
+            queryServiceProvider);
 
         if (!queryResult.IsAuthorized)
         {
@@ -703,7 +794,7 @@ public class ObservableQueryDemultiplexer(
         return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, token])!;
     }
 
-    CompositeDisposable SubscribeToSubjectOfType<T>(
+    StreamingQuerySubscription SubscribeToSubjectOfType<T>(
         IHttpRequestContext context,
         ISubject<T> subject,
         string queryId,
@@ -733,41 +824,38 @@ public class ObservableQueryDemultiplexer(
         // inside the callback would return QueryContext.NotSet and overwrite the real paging info.
         var subscriptionQueryContext = queryContextManager.Current;
 
-        // A scope of its own per subscription — see the class remarks — so this subscription's Chronicle
-        // namespace resolution is never shared with (or overwritten by) another subscription's tenant.
         var interceptionScope = serviceProvider.CreateScope();
+        var lifetime = new StreamingQuerySubscription(token);
 
-        // Give this subject subscription its own teardown signal. Unsubscribing one query must stop its in-flight
-        // callbacks even though the connection itself remains active.
-        CancellationTokenSource subscriptionCancellationTokenSource;
+        var ownedGate = (SemaphoreSlim?)emissionGate;
+        var ownedScope = (IServiceScope?)interceptionScope;
         try
         {
-            subscriptionCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+            lifetime.AddResource(ownedGate);
+            ownedGate = null;
+            lifetime.AddResource(ownedScope);
+            ownedScope = null;
+        }
+        finally
+        {
+            ownedGate?.Dispose();
+            ownedScope?.Dispose();
+        }
+
+        var subscriptionToken = lifetime.Token;
+        try
+        {
+            // BehaviorSubject can replay synchronously from inside Subscribe. The lifetime therefore exists before
+            // observer attachment, and SetProducer disposes an observer whose replay terminated the operation.
+            lifetime.SetProducer(subject.Subscribe(OnEmission, OnSubscriptionError));
         }
         catch
         {
-            emissionGate.Dispose();
-            interceptionScope.Dispose();
+            lifetime.Dispose();
             throw;
         }
 
-        var subscriptionToken = subscriptionCancellationTokenSource.Token;
-        IDisposable subscription;
-        try
-        {
-            subscription = subject.Subscribe(OnEmission, OnSubscriptionError);
-        }
-        catch
-        {
-            subscriptionCancellationTokenSource.Dispose();
-            emissionGate.Dispose();
-            interceptionScope.Dispose();
-            throw;
-        }
-
-        // Cancellation must be signaled before the observer, gate and scope are disposed, so an in-flight callback
-        // can distinguish ordinary teardown from a live-provider activation failure.
-        return new CompositeDisposable(new StreamingQuerySubscription(subscriptionCancellationTokenSource), subscription, emissionGate, interceptionScope);
+        return lifetime;
 
         // This is an async void callback invoked by the subject on a background (ThreadPool) thread. Any
         // exception that escapes it is unobserved and terminates the whole process. The connection's
@@ -779,12 +867,13 @@ public class ObservableQueryDemultiplexer(
         // genuine failure is surfaced to the subscriber.
         async void OnEmission(T data)
         {
-            if (subscriptionToken.IsCancellationRequested)
+            if (!lifetime.TryEnter())
             {
                 return;
             }
 
             var gateAcquired = false;
+            var previousContext = httpRequestContextAccessor.Current;
             try
             {
                 await emissionGate.WaitAsync(subscriptionToken);
@@ -883,69 +972,80 @@ public class ObservableQueryDemultiplexer(
                 await onNext(result, subscriptionToken);
                 hasDeliveredEmission = true;
             }
-            catch (OperationCanceledException)
+            catch (Exception error) when (
+                subscriptionToken.IsCancellationRequested &&
+                error is OperationCanceledException or IOException or ObjectDisposedException)
             {
-                // The connection was cancelled — expected when the client disconnects. No-op.
-                logger.EmissionAfterDisconnect(queryId);
-            }
-            catch (ObjectDisposedException)
-            {
-                // A per-subscription resource (emission gate / write lock / cancellation source) was disposed
-                // while this emission was in flight — expected when the client disconnects mid-emission. This
-                // must never escape an async void callback, so it is swallowed and treated as a no-op.
-                logger.EmissionAfterDisconnect(queryId);
-            }
-            catch (IOException)
-            {
-                // Transport error (broken pipe, reset connection) — the client disconnected. Ignored.
                 logger.EmissionAfterDisconnect(queryId);
             }
             catch (Exception error)
             {
-                // Anything else is a genuine failure that must be surfaced to the subscriber.
-                if (!subscriptionToken.IsCancellationRequested)
+                logger.SubscriptionError(queryId, error);
+                try
                 {
-                    logger.SubscriptionError(queryId, error);
-                    _ = onError(queryId, error.Message, subscriptionToken);
+                    await onError(queryId, error.Message, subscriptionToken);
+                }
+                catch (Exception callbackError) when (
+                    subscriptionToken.IsCancellationRequested &&
+                    callbackError is OperationCanceledException or IOException or ObjectDisposedException)
+                {
+                    logger.EmissionAfterDisconnect(queryId);
+                }
+                catch (Exception callbackError)
+                {
+                    logger.SubscriptionError(queryId, callbackError);
                 }
             }
             finally
             {
+                httpRequestContextAccessor.Current = previousContext;
                 if (gateAcquired)
                 {
-                    try
-                    {
-                        emissionGate.Release();
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // The emission gate was disposed while this emission was in flight — expected on
-                        // client disconnect. There is nothing to release.
-                    }
+                    emissionGate.Release();
                 }
+                lifetime.Exit();
             }
         }
 
-        void OnSubscriptionError(Exception error)
+        async void OnSubscriptionError(Exception error)
         {
-            if (subscriptionToken.IsCancellationRequested)
+            if (!lifetime.TryEnter())
             {
                 return;
             }
 
-            // Transport errors (broken pipe, reset connection) indicate the client
-            // disconnected — cancel the connection and do not forward to the client.
-            if (error is IOException)
+            var previousContext = httpRequestContextAccessor.Current;
+            try
             {
-                return;
-            }
+                httpRequestContextAccessor.Current = context;
+                if (subscriptionToken.IsCancellationRequested)
+                {
+                    return;
+                }
 
-            logger.SubscriptionError(queryId, error);
-            _ = onError(queryId, error.Message, subscriptionToken);
+                logger.SubscriptionError(queryId, error);
+                await onError(queryId, error.Message, subscriptionToken);
+            }
+            catch (Exception callbackError) when (
+                subscriptionToken.IsCancellationRequested &&
+                callbackError is OperationCanceledException or IOException or ObjectDisposedException)
+            {
+                logger.EmissionAfterDisconnect(queryId);
+            }
+            catch (Exception callbackError)
+            {
+                logger.SubscriptionError(queryId, callbackError);
+            }
+            finally
+            {
+                httpRequestContextAccessor.Current = previousContext;
+                lifetime.Exit();
+            }
         }
     }
 
     async Task StreamAsyncEnumerable(
+        IHttpRequestContext context,
         object enumerable,
         Type enumerableType,
         string queryId,
@@ -966,10 +1066,11 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(StreamAsyncEnumerableOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        await (Task)method.Invoke(this, [enumerable, queryId, paging, correlationId, identity, guardServiceProvider, onNext, onError, onUnauthorized, token])!;
+        await (Task)method.Invoke(this, [context, enumerable, queryId, paging, correlationId, identity, guardServiceProvider, onNext, onError, onUnauthorized, token])!;
     }
 
     async Task StreamAsyncEnumerableOfType<T>(
+        IHttpRequestContext context,
         IAsyncEnumerable<T> enumerable,
         string queryId,
         PagingInfo paging,
@@ -982,9 +1083,11 @@ public class ObservableQueryDemultiplexer(
         CancellationToken token)
     {
         var hasDeliveredEmission = false;
+        var previousContext = httpRequestContextAccessor.Current;
 
         try
         {
+            httpRequestContextAccessor.Current = context;
             await foreach (var item in enumerable.WithCancellation(token))
             {
                 if (token.IsCancellationRequested)
@@ -1036,25 +1139,33 @@ public class ObservableQueryDemultiplexer(
                 hasDeliveredEmission = true;
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (
+            token.IsCancellationRequested &&
+            ex is OperationCanceledException or IOException or ObjectDisposedException)
         {
-            // Client disconnected.
-        }
-        catch (IOException)
-        {
-            // Transport error — client disconnected. Do not forward to the client.
-        }
-        catch (ObjectDisposedException)
-        {
-            // The connection's resources were disposed while streaming — expected on client disconnect.
+            // The subscription ended while the stream or one of its callbacks was active.
         }
         catch (Exception ex)
         {
-            if (!token.IsCancellationRequested)
+            logger.SubscriptionError(queryId, ex);
+            try
             {
-                logger.SubscriptionError(queryId, ex);
                 await onError(queryId, ex.Message, token);
             }
+            catch (Exception callbackError) when (
+                token.IsCancellationRequested &&
+                callbackError is OperationCanceledException or IOException or ObjectDisposedException)
+            {
+                // The subscription ended while reporting the live failure.
+            }
+            catch (Exception callbackError)
+            {
+                logger.SubscriptionError(queryId, callbackError);
+            }
+        }
+        finally
+        {
+            httpRequestContextAccessor.Current = previousContext;
         }
     }
 
@@ -1085,14 +1196,11 @@ public class ObservableQueryDemultiplexer(
             keepAliveTracker.RecordMessageSent();
             return true;
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (
+            token.IsCancellationRequested &&
+            ex is OperationCanceledException or ObjectDisposedException)
         {
             // Normal shutdown or subscription cancellation.
-        }
-        catch (ObjectDisposedException)
-        {
-            // The write lock or the linked cancellation source was disposed as the connection ended —
-            // expected when the client disconnects. Nothing to send.
         }
         catch (Exception ex)
         {
@@ -1106,9 +1214,13 @@ public class ObservableQueryDemultiplexer(
                 {
                     writeLock.Release();
                 }
-                catch (ObjectDisposedException)
+                catch (ObjectDisposedException) when (token.IsCancellationRequested)
                 {
-                    // The write lock was disposed while sending — expected on client disconnect.
+                    // The write lock was disposed after connection cancellation.
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    logger.ErrorSendingMessage(ex);
                 }
             }
         }
@@ -1153,14 +1265,11 @@ public class ObservableQueryDemultiplexer(
             // StreamPipeWriter can throw this during response teardown when writes race with transport shutdown.
             await CancelQuietly(cts);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (
+            operationToken.IsCancellationRequested &&
+            ex is OperationCanceledException or ObjectDisposedException)
         {
             // Normal shutdown or subscription cancellation — nothing to report.
-        }
-        catch (ObjectDisposedException)
-        {
-            // The linked cancellation source (or write lock) was disposed as the connection ended — expected
-            // when the client disconnects mid-write. Nothing to send.
         }
         catch (Exception ex)
         {
@@ -1174,9 +1283,13 @@ public class ObservableQueryDemultiplexer(
                 {
                     writeLock.Release();
                 }
-                catch (ObjectDisposedException)
+                catch (ObjectDisposedException) when (operationToken.IsCancellationRequested)
                 {
-                    // The write lock was disposed while sending — expected on client disconnect.
+                    // The write lock was disposed after connection cancellation.
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    logger.ErrorSendingMessage(ex);
                 }
             }
         }
@@ -1347,7 +1460,7 @@ public class ObservableQueryDemultiplexer(
     QuerySubscriptionMetadata CreateSubscriptionMetadata(
         string subscriptionId,
         ObservableQuerySubscriptionRequest request,
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionHttpRequestContext context,
         string protocol)
     {
         var lastDotIndex = request.QueryName.LastIndexOf('.');
@@ -1376,7 +1489,8 @@ public class ObservableQueryDemultiplexer(
         IHttpRequestContext Context,
         CancellationTokenSource CancellationTokenSource)
     {
-        public ConcurrentDictionary<string, IDisposable> Subscriptions { get; } = new();
+        public ConcurrentDictionary<string, ObservableQuerySubscriptionOperation> Subscriptions { get; } = new();
+        public CancellationToken CancellationToken { get; } = CancellationTokenSource.Token;
         public KeepAliveTracker KeepAliveTracker { get; } = new();
         public SemaphoreSlim WriteLock { get; } = new(1, 1);
     }
