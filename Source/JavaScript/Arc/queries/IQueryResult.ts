@@ -25,6 +25,12 @@ export interface IQueryResult<TDataType> {
     readonly isSuccess: boolean;
 
     /**
+     * Gets whether the query has produced a result.
+     * A false value is a transient observable-query state, not a failure.
+     */
+    readonly isReady: boolean;
+
+    /**
      * Gets whether or not the query was authorized to execute.
      */
     readonly isAuthorized: boolean;

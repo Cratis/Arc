@@ -36,28 +36,34 @@ Observable queries differ and are covered in [Observable Queries](./observable-q
 
 ## QueryResultWithState
 
-The query result type in React is `QueryResultWithState`, which extends `QueryResult` with React-focused state.
+The query result type in React is `QueryResultWithState`. It implements the same `IQueryResult` contract as `QueryResult` and adds React-focused execution state.
 
-From `QueryResult`:
+Properties from the shared `IQueryResult` contract:
 
-| Property | Description |
-| -------- | ----------- |
-| `data` | The actual data returned in the expected type. |
-| `isSuccess` | Whether the query completed successfully. |
-| `isAuthorized` | Whether the query was authorized. |
-| `isValid` | Whether the query input was valid. |
-| `validationResults` | Validation errors returned by the backend. |
-| `hasExceptions` | Whether exceptions were returned. |
-| `exceptionMessages` | Exception messages from the backend. |
-| `exceptionStackTrace` | Exception stack trace when available. |
-| `paging` | Paging metadata (page, size, totals) when paging is enabled. |
+| Property              | Description                                                                   |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `data`                | The actual data returned in the expected type.                                |
+| `isSuccess`           | Whether the query completed successfully.                                     |
+| `isReady`             | Whether the query has produced a result. `false` is transient, not a failure. |
+| `isAuthorized`        | Whether the query was authorized.                                             |
+| `isValid`             | Whether the query input was valid.                                            |
+| `validationResults`   | Validation errors returned by the backend.                                    |
+| `hasExceptions`       | Whether exceptions were returned.                                             |
+| `exceptionMessages`   | Exception messages from the backend.                                          |
+| `exceptionStackTrace` | Exception stack trace when available.                                         |
+| `paging`              | Paging metadata (page, size, totals) when paging is enabled.                  |
 
-Additional properties from `QueryResultWithState`:
+React execution state:
 
-| Property | Description |
-| -------- | ----------- |
-| `hasData` | Whether the result currently holds data. |
+| Property       | Description                                   |
+| -------------- | --------------------------------------------- |
 | `isPerforming` | Whether the query is currently fetching data. |
+
+### Readiness and performing state
+
+An observable query HTTP request can return `202 Accepted` with `isReady: false` before the observable has produced its first result. This is a transient server state: `isSuccess` is false, but `hasExceptions` remains false. Inspect `isReady` before treating an unsuccessful result as a failure.
+
+`isReady` and `isPerforming` describe different things. Readiness says whether a result has been produced; performing says whether the client is currently fetching or subscribing. Initial React query state is not ready, while disabled or synthetic failure states are ready because no server result remains pending. Results from older Arc servers that omit readiness are treated as ready for compatibility.
 
 ## Query Parameters
 
