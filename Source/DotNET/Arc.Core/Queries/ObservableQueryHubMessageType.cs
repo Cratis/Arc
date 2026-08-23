@@ -44,8 +44,8 @@ public enum ObservableQueryHubMessageType
     Pong = 6,
 
     /// <summary>
-    /// Server sends the connection identifier to the client after an SSE connection is established.
-    /// The client uses this identifier to correlate subscribe/unsubscribe POST requests with the SSE stream.
+    /// Server advertises connection metadata and protocol capabilities after an observable query hub connection is established.
+    /// SSE clients also use its connection identifier to correlate subscribe/unsubscribe POST requests with the stream.
     /// </summary>
     Connected = 7,
 }

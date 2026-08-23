@@ -34,7 +34,8 @@ public class and_guard_denies_the_first_replayed_emission : given.a_guarded_sse_
     [Fact] void should_return_401_from_subscribe() => _subscribeStatusCodes[FirstQueryId].ShouldEqual(401);
     [Fact] void should_dispose_the_subscription_scope() => _probes.Single().IsDisposed.ShouldBeTrue();
     [Fact] void should_stop_observing_the_subject() => _replaySubject.HasObservers.ShouldBeFalse();
-    [Fact] void should_unregister_the_subscription() => _healthTracker.Received(1).UnregisterSubscription(Arg.Any<string>(), FirstQueryId);
+    [Fact] void should_not_register_the_already_terminated_subscription() => _healthTracker.DidNotReceive().RegisterSubscription(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<QuerySubscriptionMetadata>());
+    [Fact] void should_not_unregister_a_subscription_that_was_never_registered() => _healthTracker.DidNotReceive().UnregisterSubscription(Arg.Any<string>(), FirstQueryId);
 
     protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
     {

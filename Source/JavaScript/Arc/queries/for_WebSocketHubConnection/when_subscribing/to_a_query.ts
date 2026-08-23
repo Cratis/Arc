@@ -6,37 +6,64 @@ import { a_web_socket_hub_connection } from '../given/a_web_socket_hub_connectio
 import { given } from '../../../given';
 import { HubMessageType } from '../../WebSocketHubConnection';
 
-describe('when subscribing to a query', given(a_web_socket_hub_connection, context => {
-    const queryId = 'q1';
-    const request = { queryName: 'MyQuery', arguments: {} };
-    let callback: sinon.SinonStub;
-
-    beforeEach(() => {
-        callback = sinon.stub();
-        context.setup();
-        context.connection.subscribe(queryId, request, callback);
-        context.simulateOpen();
-    });
-
-    afterEach(() => sinon.restore());
-
-    it('should open a WebSocket', () => context.WebSocketStub.calledOnce.should.be.true);
-
-    it('should send a subscribe message once the socket opens', () => {
-        context.fakeSocket.send.calledOnce.should.be.true;
-        const msg = JSON.parse(context.fakeSocket.send.getCall(0).args[0]);
-        msg.type.should.equal(HubMessageType.Subscribe);
-        msg.queryId.should.equal(queryId);
-    });
-
-    describe('when a query result message arrives', () => {
-        const result = { isSuccess: true, data: [1, 2, 3] };
+describe(
+    'when subscribing to a query',
+    given(a_web_socket_hub_connection, (context) => {
+        const queryId = 'q1';
+        const request = { queryName: 'MyQuery', arguments: {} };
+        let callback: sinon.SinonStub;
 
         beforeEach(() => {
-            context.simulateMessage({ type: HubMessageType.QueryResult, queryId, payload: result });
+            callback = sinon.stub();
+            context.setup();
+            context.connection.subscribe(queryId, request, callback);
+            context.simulateOpen();
         });
 
-        it('should invoke the callback with the result', () => callback.calledOnce.should.be.true);
-        it('should pass the result payload', () => callback.getCall(0).args[0].should.deep.equal(result));
-    });
-}));
+        afterEach(() => sinon.restore());
+
+        it('should open a WebSocket', () =>
+            context.WebSocketStub.calledOnce.should.be.true);
+
+        it('should send a legacy subscribe message once the socket opens', () => {
+            context.fakeSocket.send.calledOnce.should.equal(true);
+            const msg = getSentMessage();
+            msg.type.should.equal(HubMessageType.Subscribe);
+            msg.queryId.should.equal(queryId);
+            (msg.revision === undefined).should.equal(true);
+        });
+
+        function getSentMessage(): {
+            type: HubMessageType;
+            queryId: string;
+            revision?: number;
+        } {
+            try {
+                return JSON.parse(context.fakeSocket.send.firstCall.args[0]) as {
+                    type: HubMessageType;
+                    queryId: string;
+                    revision?: number;
+                };
+            } catch (error) {
+                throw new Error('Expected a valid hub message', { cause: error });
+            }
+        }
+
+        describe('when a query result message arrives', () => {
+            const result = { isSuccess: true, data: [1, 2, 3] };
+
+            beforeEach(() => {
+                context.simulateMessage({
+                    type: HubMessageType.QueryResult,
+                    queryId,
+                    payload: result,
+                });
+            });
+
+            it('should invoke the callback with the result', () =>
+                callback.calledOnce.should.be.true);
+            it('should pass the result payload', () =>
+                callback.getCall(0).args[0].should.deep.equal(result));
+        });
+    }),
+);

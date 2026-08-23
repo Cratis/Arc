@@ -17,5 +17,5 @@ public class and_all_allow : given.all_dependencies
     [Fact] void should_ask_the_second_guard() => _second.Calls.Count.ShouldEqual(1);
     [Fact] void should_pass_the_query_name_to_the_guard() => _first.Calls[0].QueryName.Value.ShouldEqual("MyApp.Queries.GuardedQuery");
     [Fact] void should_pass_the_coerced_arguments_to_the_guard() => _first.Calls[0].Arguments["id"].ShouldEqual(42);
-    [Fact] void should_pass_the_caller_identity_to_the_guard() => _first.Calls[0].Principal.ShouldEqual(_principal);
+    [Fact] void should_pass_the_caller_identity_to_the_guard() => _first.Calls[0].Principal!.Identity!.Name.ShouldEqual("the-caller");
 }

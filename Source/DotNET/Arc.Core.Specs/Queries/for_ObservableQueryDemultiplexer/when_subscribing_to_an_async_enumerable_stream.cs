@@ -50,15 +50,21 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
     [Fact] void should_return_a_trackable_subscription() => _subscription.ShouldNotBeNull();
     [Fact] void should_stop_the_stream_when_the_subscription_is_disposed() => _streamStoppedAfterDispose.ShouldBeTrue();
 
-    Task OnNext(QueryResult result)
+    Task OnNext(QueryResult result) => OnNext(result, CancellationToken.None);
+
+    Task OnNext(QueryResult result, CancellationToken token)
     {
         _firstItemEmitted.TrySetResult();
         return Task.CompletedTask;
     }
 
-    Task OnError(string queryId, string message) => Task.CompletedTask;
+    Task OnError(string queryId, string message) => OnError(queryId, message, CancellationToken.None);
 
-    Task OnUnauthorized(string queryId) => Task.CompletedTask;
+    Task OnError(string queryId, string message, CancellationToken token) => Task.CompletedTask;
+
+    Task OnUnauthorized(string queryId) => OnUnauthorized(queryId, CancellationToken.None);
+
+    Task OnUnauthorized(string queryId, CancellationToken token) => Task.CompletedTask;
 
     async IAsyncEnumerable<int> Stream([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

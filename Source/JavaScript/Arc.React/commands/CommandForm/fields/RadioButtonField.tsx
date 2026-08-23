@@ -2,22 +2,29 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import type { BaseCommandFormFieldProps, InjectedCommandFormFieldProps } from '../asCommandFormField';
-import { markAsCommandFormField } from '../commandFormMarkers';
+import type {
+    BaseCommandFormFieldProps,
+    InjectedCommandFormFieldProps,
+} from '../asCommandFormField';
+import { withCommandFormFieldBinding } from '../withCommandFormFieldBinding';
 
 type RadioValueAccessor = (instance: never) => unknown;
 type CommandType<TAccessor extends RadioValueAccessor> = Parameters<TAccessor>[0];
 type CommandValue<TAccessor extends RadioValueAccessor> = ReturnType<TAccessor>;
 
-type TypedInjectedRadioFieldProps<TValue> = Omit<InjectedCommandFormFieldProps, 'currentValue' | 'onValueChange'> & {
+type TypedInjectedRadioFieldProps<TValue> = Omit<
+    InjectedCommandFormFieldProps,
+    'currentValue' | 'onValueChange'
+> & {
     currentValue?: TValue;
     onValueChange?: (value: TValue) => void;
     invalid?: boolean;
 };
 
 export interface RadioButtonFieldProps<TAccessor extends RadioValueAccessor>
-    extends Omit<BaseCommandFormFieldProps<CommandType<TAccessor>>, 'value'>,
-    TypedInjectedRadioFieldProps<CommandValue<TAccessor>> {
+    extends
+        Omit<BaseCommandFormFieldProps<CommandType<TAccessor>>, 'value'>,
+        TypedInjectedRadioFieldProps<CommandValue<TAccessor>> {
     value: TAccessor;
     setValue: CommandValue<TAccessor>;
     label?: React.ReactNode;
@@ -27,7 +34,9 @@ export interface RadioButtonFieldProps<TAccessor extends RadioValueAccessor>
     hasLeftAddon?: boolean;
 }
 
-export function RadioButtonField<TAccessor extends RadioValueAccessor>(props: RadioButtonFieldProps<TAccessor>): React.ReactElement {
+function RadioButtonFieldComponent<TAccessor extends RadioValueAccessor>(
+    props: RadioButtonFieldProps<TAccessor>,
+): React.ReactElement {
     const handleChange = () => {
         props.onValueChange?.(props.setValue);
     };
@@ -40,18 +49,26 @@ export function RadioButtonField<TAccessor extends RadioValueAccessor>(props: Ra
                 alignItems: 'center',
                 gap: '0.5rem',
                 padding: '0.75rem',
-                border: props.invalid ? '1px solid #ef4444' : '1px solid var(--color-border, #d1d5db)',
+                border: props.invalid
+                    ? '1px solid #ef4444'
+                    : '1px solid var(--color-border, #d1d5db)',
                 borderRadius: '0.375rem',
                 width: '100%',
                 boxSizing: 'border-box',
                 cursor: props.disabled ? 'not-allowed' : 'pointer',
                 opacity: props.disabled ? 0.6 : 1,
-                ...(props.hasLeftAddon ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, alignSelf: 'stretch' } : {}),
-                ...props.style
+                ...(props.hasLeftAddon
+                    ? {
+                          borderTopLeftRadius: 0,
+                          borderBottomLeftRadius: 0,
+                          alignSelf: 'stretch',
+                      }
+                    : {}),
+                ...props.style,
             }}
         >
             <input
-                type="radio"
+                type='radio'
                 name={props.fieldName}
                 checked={Object.is(props.currentValue, props.setValue)}
                 onChange={handleChange}
@@ -65,4 +82,4 @@ export function RadioButtonField<TAccessor extends RadioValueAccessor>(props: Ra
     );
 }
 
-markAsCommandFormField(RadioButtonField);
+export const RadioButtonField = withCommandFormFieldBinding(RadioButtonFieldComponent);

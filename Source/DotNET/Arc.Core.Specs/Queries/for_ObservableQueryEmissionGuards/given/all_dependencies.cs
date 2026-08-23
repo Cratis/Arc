@@ -64,9 +64,12 @@ public class all_dependencies : Specification
 
         public Exception Failure { get; set; }
 
+        public Action<ObservableQueryEmissionContext>? OnGuard { get; set; }
+
         public Task<ObservableQueryEmissionVerdict> Guard(ObservableQueryEmissionContext context)
         {
             Calls.Add(context);
+            OnGuard?.Invoke(context);
 
             if (Failure is not null)
             {

@@ -37,8 +37,8 @@ public class and_guard_denies_the_first_replayed_emission : given.a_guarded_webs
 
     [Fact] void should_signal_unauthorized() => HasUnauthorizedFor(FirstQueryId).ShouldBeTrue();
     [Fact] void should_not_write_the_emission() => CountQueryResultsFor(FirstQueryId).ShouldEqual(0);
-    [Fact] void should_register_the_subscription() => _healthTracker.Received(1).RegisterSubscription(Arg.Any<string>(), "WebSocket", Arg.Any<QuerySubscriptionMetadata>());
-    [Fact] void should_unregister_the_subscription() => _healthTracker.Received(1).UnregisterSubscription(Arg.Any<string>(), FirstQueryId);
+    [Fact] void should_not_register_the_already_terminated_subscription() => _healthTracker.DidNotReceive().RegisterSubscription(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<QuerySubscriptionMetadata>());
+    [Fact] void should_not_unregister_a_subscription_that_was_never_registered() => _healthTracker.DidNotReceive().UnregisterSubscription(Arg.Any<string>(), FirstQueryId);
     [Fact] void should_release_the_subscription_scope_without_waiting_for_the_connection() => _scopeReleasedWhileConnected.ShouldBeTrue();
 
     protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)

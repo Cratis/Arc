@@ -20,7 +20,8 @@ public class and_guard_allows_an_emission : given.a_guarded_websocket_connection
     [Fact] void should_write_the_emission() => CountQueryResultsFor(FirstQueryId).ShouldEqual(1);
     [Fact] void should_not_signal_unauthorized() => HasUnauthorizedFor(FirstQueryId).ShouldBeFalse();
     [Fact] void should_tell_the_guard_the_query_name() => _guardCalls.First().QueryName.Value.ShouldEqual(QueryName);
-    [Fact] void should_tell_the_guard_the_caller_identity() => _guardCalls.First().Principal.ShouldEqual(_principal);
+    [Fact] void should_tell_the_guard_the_caller_identity() => _guardCalls.First().Principal?.Identity?.Name.ShouldEqual(_principal.Identity?.Name);
+    [Fact] void should_give_the_guard_an_independent_principal_snapshot() => ReferenceEquals(_guardCalls.First().Principal, _principal).ShouldBeFalse();
     [Fact] void should_tell_the_guard_it_is_the_first_emission() => _guardCalls.First().IsFirstEmission.ShouldBeTrue();
     [Fact] void should_tell_the_guard_the_coerced_arguments() => _guardCalls.First().Arguments["id"].ShouldEqual(42);
 }
