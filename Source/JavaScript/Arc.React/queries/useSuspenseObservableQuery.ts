@@ -37,6 +37,7 @@ interface ObservableSuspenseResource<T> {
 }
 
 const maximumUnclaimedResourceCount = 100;
+const maximumPendingConsumerCountPerResource = 100;
 let _nextAccessOrder = 0;
 
 // Module-level cache so resources survive Suspense retries on uncommitted components
@@ -103,8 +104,7 @@ function enforceUnclaimedResourceCapacity(): void {
         .filter((resource) => !resource.disposed && resource.ownerCount === 0)
         .sort((left, right) => left.lastAccessOrder - right.lastAccessOrder);
 
-    const excessResourceCount =
-        unclaimedResources.length - maximumUnclaimedResourceCount;
+    const excessResourceCount = unclaimedResources.length - maximumUnclaimedResourceCount;
     if (excessResourceCount <= 0) {
         return;
     }
@@ -137,6 +137,23 @@ function registerPendingConsumer<TDataType>(
 
     _pendingResourceByConsumerId.set(consumerId, unknownResource);
     resource.pendingConsumerIds.add(consumerId);
+
+    // Suspended renders never commit an effect that can unregister their consumer id. Keep only a
+    // bounded set of the most recent retry/consumer ids for one pending resource; an evicted id can
+    // still claim the resource later because claiming is keyed by the resource itself, not this map.
+    while (resource.pendingConsumerIds.size > maximumPendingConsumerCountPerResource) {
+        const oldestConsumerId = resource.pendingConsumerIds.values().next().value as
+            | string
+            | undefined;
+        if (oldestConsumerId === undefined) {
+            break;
+        }
+        resource.pendingConsumerIds.delete(oldestConsumerId);
+        if (_pendingResourceByConsumerId.get(oldestConsumerId) === unknownResource) {
+            _pendingResourceByConsumerId.delete(oldestConsumerId);
+        }
+    }
+
     touchUnclaimedResource(resource);
 }
 
