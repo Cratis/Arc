@@ -13,6 +13,7 @@
     <ItemGroup>
         <!-- The shared spec global usings pull in Cratis.Types, which the package under specification does not need. -->
         <PackageReference Include="Cratis.Fundamentals" />
+        <PackageReference Include="Cratis.Screenplay.Generation" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     </ItemGroup>
 
