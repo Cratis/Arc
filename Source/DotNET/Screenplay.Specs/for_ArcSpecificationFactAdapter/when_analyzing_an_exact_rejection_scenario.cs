@@ -47,6 +47,7 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
 
     AdapterContribution _contribution = null!;
     ResolvedApplicationGraph _graph = null!;
+    ScreenplayLoweringResult _lowering = null!;
     bool _canAnalyze;
 
     void Because()
@@ -70,6 +71,7 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
             context,
             new DotNetAdapterOptions { Module = "Projects", NamespaceSegmentsToSkip = 1 });
         _graph = new GenerationResolver().Resolve([_contribution]);
+        _lowering = new ScreenplayLowerer().Lower(_graph, "Projects");
     }
 
     [Fact] void should_recognize_the_scenario() => _canAnalyze.ShouldBeTrue();
@@ -83,4 +85,10 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
     [Fact] void should_preserve_the_empty_name_value() => _graph.Specifications.Single().Steps.SelectMany(step => step.Values).Single().Definition.Scalar.ShouldEqual(string.Empty);
     [Fact] void should_preserve_the_rejected_outcome() => _graph.Specifications.Single().Steps.Single(step => step.Definition.Kind == SpecificationStepKind.Error).Definition.ErrorMessage.ShouldBeNull();
     [Fact] void should_preserve_step_level_source_evidence() => _graph.Specifications.Single().Steps.All(step => step.Evidence.Single().Source is not null).ShouldBeTrue();
+    [Fact] void should_lower_without_diagnostics() => _lowering.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_lower_the_exact_command_value() => ((Cratis.Screenplay.Syntax.LiteralExpressionSyntax)Lowered().When!.Values.Single().Source).Value.ShouldEqual(string.Empty);
+    [Fact] void should_lower_the_bare_rejection_without_inventing_a_message() => Lowered().ThenErrors.Single().Name.ShouldBeNull();
+
+    Cratis.Screenplay.Syntax.Specifications.SpecificationSyntax Lowered() =>
+        _lowering.Application.Modules.Single().Features.Single().Slices.Single().Specifications.Single();
 }
