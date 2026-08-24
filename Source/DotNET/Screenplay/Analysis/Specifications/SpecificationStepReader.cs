@@ -60,7 +60,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
             {
-                Add(draft.Given, stated, kind, semanticModel, draft, name, location);
+                Add(stated, kind, semanticModel, draft, name, location);
             }
         }
     }
@@ -108,10 +108,11 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                 return;
             }
 
-            draft.When = new(
+            var state = new SpecificationStateModel(
                 command.Name,
                 SpecificationStateKind.Command,
-                values.Read(construction.Creation, construction.SemanticModel, command, name, location));
+                values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft));
+            draft.SetWhen(state, command, invocation.GetLocation());
         }
     }
 
@@ -144,7 +145,6 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     /// <summary>
     /// Adds one state a specification starts from, or records that it cannot be read.
     /// </summary>
-    /// <param name="states">The states collected so far.</param>
     /// <param name="stated">The expression stating it.</param>
     /// <param name="kind">What the state is.</param>
     /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
@@ -152,7 +152,6 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     /// <param name="name">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
     void Add(
-        IList<SpecificationStateModel> states,
         ExpressionSyntax stated,
         SpecificationStateKind kind,
         SemanticModel semanticModel,
@@ -173,6 +172,10 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             return;
         }
 
-        states.Add(new(type.Name, kind, values.Read(construction.Creation, construction.SemanticModel, type, name, location)));
+        var state = new SpecificationStateModel(
+            type.Name,
+            kind,
+            values.Read(construction.Creation, construction.SemanticModel, type, name, location, draft));
+        draft.AddGiven(state, type, stated.GetLocation());
     }
 }
