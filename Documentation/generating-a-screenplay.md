@@ -182,7 +182,7 @@ slice StateChange Registration
 
 Both shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
-A rejection the source asserts without naming a reason is written as `then error ""`. The grammar requires a string there, the source gives none, and inventing one would put a sentence in the document the application never states. [Cratis/Screenplay#46](https://github.com/Cratis/Screenplay/issues/46) proposes a bare `then error` for exactly this.
+A rejection the source asserts without naming a reason is written as bare `then error`. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
 Expect the document to grow. On a real application this roughly doubled it, at about seven lines per scenario.
 
@@ -196,7 +196,15 @@ A step need not construct what it states where it is written. A specification ro
 
 One hop, and only from one place. A member given a value twice, or given it under a condition, held different values in different runs and the source does not say which one the step saw — so it stays unread and the scenario is left out with `SP0039`, the same as any other conditional step. Following a chain would mean reasoning about what a value was at the moment the step ran, which is a different discipline from reading what was written.
 
-Values are the exception, because a value stands on its own the way a mapping does. They follow [the discipline every other value follows](#a-value-is-only-ever-what-the-source-states): the identity two steps agree on is routinely a fresh identifier held in a field rather than something written down, and such a value is reported on its own while the rest of the scenario stands.
+Values are the exception for the compatibility document generator, because a value stands on its own the way a mapping does. They follow [the discipline every other value follows](#a-value-is-only-ever-what-the-source-states): the identity two steps agree on is routinely a fresh identifier held in a field rather than something written down, and such a value is reported on its own while the rest of the legacy scenario stands.
+
+### Neutral specification facts are stricter
+
+`ArcSpecificationFactAdapter` is the independently consumable source-evidence surface. It contributes Generation scenario, ordered-step, and typed-value facts only when every explicitly authored step and value is exact. One computed or unreadable required value, conditional/repeated step, unretained read-model assertion, or event predicate value blocks the whole neutral scenario with `ARCSP0001`; it never contributes a smaller example than the source wrote.
+
+The adapter retains scenario-, step-, value-, and rejection-level source ranges separately from the existing Arc model. This does not change legacy model equality or the current `.play` generator's compatibility output. Generation resolves the neutral facts by stable source identity, attaches the scenario through the exact target artifact placement, and lowers it only after complete atomic admission.
+
+This distinction is deliberate: the compatibility generator keeps existing consumers stable, while the neutral adapter provides the fail-closed evidence required for render→recover semantic fidelity.
 
 ## Screens
 
