@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Emission;
 using Cratis.Arc.Screenplay.Verification;
+using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay;
@@ -41,6 +42,10 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         Generate([compilation], options);
 
     /// <inheritdoc/>
+    public ScreenplayGenerationResult Generate(DotNetProjectCompilation project, ScreenplayOptions options) =>
+        Generate(project.Compilation, options);
+
+    /// <inheritdoc/>
     /// <remarks>
     /// A generation is the entry point that knows what a name falls back to - the assembly being read, or nothing at
     /// all when several projects are the application together - so the options resolve here and both halves run with
@@ -61,6 +66,10 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
 
         return new(emission.Source, analysis.Model, diagnostics.All);
     }
+
+    /// <inheritdoc/>
+    public ScreenplayGenerationResult Generate(IReadOnlyList<DotNetProjectCompilation> projects, ScreenplayOptions options) =>
+        Generate([.. projects.Select(_ => _.Compilation)], options);
 
     /// <summary>
     /// Reads the printed document back and reports one the Screenplay compiler rejects.

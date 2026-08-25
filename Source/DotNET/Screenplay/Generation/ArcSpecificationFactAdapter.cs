@@ -23,13 +23,17 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
     /// <inheritdoc/>
     public bool CanAnalyze(DotNetAnalysisContext context) =>
         context.Projects.SelectMany(project => ArtifactCatalog.From(project.Compilation).Types)
-            .Any(type => SpecificationMembers.CommandOf(type) is not null || SpecificationMembers.ReadModelOf(type) is not null);
+            .Any(type => SpecificationMembers.CommandOf(SpecificationMembers.StepsOf(type)) is not null ||
+                         SpecificationMembers.ReadModelOf(SpecificationMembers.StepsOf(type)) is not null);
 
     /// <inheritdoc/>
     public AdapterContribution Analyze(DotNetAnalysisContext context, DotNetAdapterOptions options)
     {
         var facts = new List<GenerationFact>();
         var diagnostics = new List<GenerationDiagnostic>();
+        var candidates = new List<ArcSpecificationFactCandidate>();
+        var sourceStructures = DotNetSourceStructures.Create(context);
+        diagnostics.AddRange(sourceStructures.Diagnostics);
         var models = new SemanticModels([.. context.Projects.Select(project => project.Compilation)]);
         var readerDiagnostics = new ScreenplayDiagnostics();
         var reader = new SpecificationReader(models, readerDiagnostics);
@@ -38,7 +42,8 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
         {
             foreach (var type in ArtifactCatalog.From(project.Compilation).Types.Where(reader.IsSpecification))
             {
-                var target = SpecificationMembers.CommandOf(type) ?? SpecificationMembers.ReadModelOf(type);
+                var steps = SpecificationMembers.StepsOf(type);
+                var target = SpecificationMembers.CommandOf(steps) ?? SpecificationMembers.ReadModelOf(steps);
                 if (target is not INamedTypeSymbol namedTarget)
                 {
                     continue;
@@ -60,8 +65,37 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
                     continue;
                 }
 
-                new ArcSpecificationFactBuilder(context, project, Identity, options, facts, diagnostics)
-                    .Add(specification, evidence, namedTarget);
+                var candidate = new ArcSpecificationFactBuilder(context, project, Identity, options, sourceStructures, diagnostics)
+                    .Build(specification, evidence, namedTarget);
+                if (candidate is not null)
+                {
+                    candidates.Add(candidate);
+                }
+            }
+        }
+
+        var placements = DotNetSourcePlacementDerivation.Derive(candidates.Select(_ => _.PlacementRequest));
+        diagnostics.AddRange(placements.Diagnostics);
+        foreach (var candidate in candidates)
+        {
+            var placement = placements.Placements.SingleOrDefault(_ => _.Artifact == candidate.PlacementRequest.Artifact);
+            if (placement is null)
+            {
+                continue;
+            }
+
+            foreach (var fact in candidate.Facts)
+            {
+                if (!facts.Exists(_ => _.Id == fact.Id))
+                {
+                    facts.Add(fact);
+                }
+            }
+
+            var placementFact = ArcSpecificationArtifactFacts.Placement(Identity, placement);
+            if (!facts.Exists(_ => _.Id == placementFact.Id))
+            {
+                facts.Add(placementFact);
             }
         }
 
