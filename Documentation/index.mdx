@@ -3,65 +3,102 @@ title: Arc
 description: Commands, queries, validation, authorization, and TypeScript proxy generation for ASP.NET Core.
 ---
 
-Arc is an opinionated CQRS application framework for ASP.NET Core with commands,
-queries, validation, authorization, and TypeScript proxy generation.
+import { CardGrid, Steps } from '@astrojs/starlight/components';
+import SimpleCard from '@components/SimpleCard.astro';
+import TopicHero from '@components/TopicHero.astro';
 
-## What Arc owns
+<TopicHero
+  icon="puzzle"
+  eyebrow="Arc"
+  title="CQRS application framework for ASP.NET Core"
+>
+  Arc is an opinionated CQRS application framework for ASP.NET Core with
+  commands, queries, validation, authorization, and TypeScript proxy generation.
+  Event sourcing is not required.
+</TopicHero>
 
-- command and query application boundaries;
-- validation and authorization around those boundaries;
-- ASP.NET Core hosting and generated HTTP surfaces; and
-- TypeScript proxy generation for recognized application artifacts.
+## Start here
 
-Event sourcing is not required to use Arc. The Chronicle integration is optional
-and supplies event-sourced behavior when configured.
+<CardGrid>
+  <SimpleCard title="Start an Arc host" icon="rocket" link="#start-an-arc-host">
+    Add the Arc package and configure an ASP.NET Core host.
+  </SimpleCard>
+  <SimpleCard title="What Arc owns" icon="seti:c-sharp" link="#what-arc-owns">
+    See the current command, query, validation, authorization, and proxy boundary.
+  </SimpleCard>
+  <SimpleCard title="Components relationship" icon="laptop" link="#relationship-to-components">
+    Keep Arc contracts separate from the React compositions that consume them.
+  </SimpleCard>
+</CardGrid>
 
 ## Start an Arc host
 
 The current Arc analyzers and source generators require .NET SDK 10.0.301 or
 newer.
 
-```bash
-dotnet add package Cratis.Arc
-```
+<Steps>
+1. Install the umbrella host package.
 
-```csharp
-using Cratis.Arc;
+   ```bash
+   dotnet add package Cratis.Arc
+   ```
 
-var builder = ArcApplication.CreateBuilder(args);
-builder.AddCratisArc();
+2. Configure and run the host.
 
-var app = builder.Build();
-app.UseCratisArc();
-await app.RunAsync();
-```
+   ```csharp
+   using Cratis.Arc;
 
-Starting this host proves the Arc application setup can build and run on the
-selected SDK and package profile. Commands, queries, generated proxies,
-persistence integrations, and frontend packages each have additional exact
+   var builder = ArcApplication.CreateBuilder(args);
+   builder.AddCratisArc();
+
+   var app = builder.Build();
+   app.UseCratisArc();
+   await app.RunAsync();
+   ```
+
+3. Confirm the application starts on the selected SDK/package profile.
+</Steps>
+
+Starting the host verifies the setup path only. Commands, queries, generated
+proxies, persistence integrations, and frontend packages each have additional
 configuration and version requirements.
+
+## What Arc owns
+
+| Boundary | Current Arc role |
+| --- | --- |
+| Commands | Explicit application intentions, validation, authorization, execution, and generated HTTP endpoints |
+| Queries | Purpose-shaped reads exposed through Arc query surfaces |
+| Generated contracts | TypeScript proxy generation for recognized application artifacts |
+| ASP.NET Core integration | Hosting, dependency injection, identity, tenancy, OpenAPI, and application conventions |
+| Frontend packages | TypeScript runtime support for generated proxies plus React and React/MVVM integration packages |
+| Persistence integration | Separate current-state integrations and an optional Chronicle integration |
+
+Arc.Core does not depend on Chronicle. The Chronicle integration is optional and
+supplies event-sourced behavior when configured.
 
 ## Relationship to Components
 
 Components is a React component library aligned with Arc application patterns.
-Its package and application-level accessibility, browser, styling, and version
-behavior must be verified for the exact profile an application ships.
+Applications may use Arc without Components. Components' exact package and
+application behavior is documented on the [Components page](/components/).
 
-## Current boundaries
-
-- Arc does not require Chronicle or event sourcing.
-- Arc does not imply support for every frontend, runtime, persistence provider,
-  or product-version combination.
-- Package availability, examples, and a successful build do not establish
-  maturity, support, security, performance, or production suitability.
-- Use package manifests and owning-repository release evidence for the exact
-  profile you evaluate.
+:::caution[Keep the profile exact]
+Arc and package availability do not imply support for every frontend, runtime,
+persistence provider, browser, or product-version combination. Use the exact
+package manifests and owning release evidence for the profile you evaluate.
+:::
 
 ## Continue
 
-- [Arc source and README](https://github.com/Cratis/Arc) — repository structure,
-  package roles, contribution guidance, and current product paths.
-- [Arc packages](https://www.nuget.org/packages/Cratis.Arc) — published .NET
-  package metadata and versions.
-- [Components](/components/) — React components aligned with Arc application
-  patterns.
+<CardGrid>
+  <SimpleCard title="Arc source and README" icon="seti:folder" link="https://github.com/Cratis/Arc">
+    Repository structure, package roles, contribution guidance, and current limits.
+  </SimpleCard>
+  <SimpleCard title="Arc packages" icon="open-book" link="https://www.nuget.org/packages/Cratis.Arc">
+    Published .NET package metadata and versions.
+  </SimpleCard>
+  <SimpleCard title="Components" icon="laptop" link="/components/">
+    React components aligned with Arc application patterns.
+  </SimpleCard>
+</CardGrid>
