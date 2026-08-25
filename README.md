@@ -91,7 +91,7 @@ Package existence does not imply compatibility with every frontend, runtime, per
 
 ## Contributing
 
-Arc is a framework-library repository. Public APIs, analyzers, generated output, package shapes, and backward compatibility are product contracts.
+Arc is a framework-library repository. Changes to public APIs, analyzers, generated output, and package shapes can affect consumers and require the owning repository's compatibility and release review.
 
 Repository development currently requires the SDK and toolchain versions declared by [`global.json`](https://github.com/Cratis/Arc/blob/main/global.json) and [`package.json`](https://github.com/Cratis/Arc/blob/main/package.json). Follow the [Cratis contribution guide](https://github.com/Cratis/.github/blob/main/contributing.md) and the [framework instructions](https://github.com/Cratis/Arc/blob/main/.ai/rules/framework.md) before changing public surfaces.
 
