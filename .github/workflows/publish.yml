@@ -251,8 +251,14 @@ jobs:
             exit 1
           fi
 
-          no_release=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-            --jq '[.[].labels[].name] | any(. == "no-release")')
+          pulls=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls")
+          merged_count=$(printf '%s' "$pulls" | jq --arg sha "$GITHUB_SHA" '[.[] | select(.merge_commit_sha == $sha)] | length')
+          if [ "$merged_count" -ne 1 ]; then
+            echo "::error::Expected exactly one pull request whose merge commit is $GITHUB_SHA; found $merged_count."
+            exit 1
+          fi
+          no_release=$(printf '%s' "$pulls" | jq -r --arg sha "$GITHUB_SHA" \
+            '[.[] | select(.merge_commit_sha == $sha) | .labels[].name] | any(. == "no-release")')
 
           if [ "$no_release" = "true" ]; then
             echo "The merged pull request explicitly selected no-release; publishing nothing is the intended result."
