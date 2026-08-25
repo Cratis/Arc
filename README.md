@@ -1,78 +1,112 @@
 # Cratis Arc
 
-## Packages / Deployables
+Arc is an opinionated CQRS application framework for ASP.NET Core with commands, queries, validation, authorization, and TypeScript proxy generation.
 
-[![Nuget](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](http://nuget.org/packages/Cratis.Arc)
+Arc exposes recognized command and query contracts through ASP.NET Core and can generate TypeScript client code for those artifacts.
+
+[![NuGet](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](https://www.nuget.org/packages/Cratis.Arc)
 [![NPM](https://img.shields.io/npm/v/@cratis/arc?label=@cratis/arc&logo=npm)](https://www.npmjs.com/package/@cratis/arc)
+[![.NET Build](https://github.com/Cratis/Arc/actions/workflows/dotnet-build.yml/badge.svg)](https://github.com/Cratis/Arc/actions/workflows/dotnet-build.yml)
+[![JavaScript Build](https://github.com/Cratis/Arc/actions/workflows/javascript-build.yml/badge.svg)](https://github.com/Cratis/Arc/actions/workflows/javascript-build.yml)
 
-## Builds
+## Start here
 
-[![.NET Build](https://github.com/cratis/arc/actions/workflows/dotnet-build.yml/badge.svg)](https://github.com/cratis/arc/actions/workflows/dotnet-build.yml)
-[![JavaScript Build](https://github.com/cratis/arc/actions/workflows/javascript-build.yml/badge.svg)](https://github.com/cratis/arc/actions/workflows/javascript-build.yml)
-[![Documentation site](https://github.com/Cratis/Documentation/actions/workflows/pages.yml/badge.svg)](https://github.com/Cratis/Documentation/actions/workflows/pages.yml)
+- [Understand why Arc exists](https://cratis.io/arc/why-arc/)
+- [Build a feature in the Arc tutorial](https://cratis.io/arc/tutorial/)
+- [Use CQRS without event sourcing](https://cratis.io/arc/arc-without-event-sourcing/)
+- [Browse the Arc documentation](https://cratis.io/arc/)
 
-## Description
+## What Arc owns
 
-Cratis Arc represents an opinionated approach to building consistent applications based on the concepts behind CQRS.
-It offers extensions for different frameworks and is built on top of ASP.NET Core. One of the traits of Arc has is the
-bridging between the backend and the frontend. Arc provides a tool, called **ProxyGenerator** that generates TypeScript
-code for recognized artifacts matching the criteria of what is considered a **commmand** or a **query**.
+| Boundary | Arc provides |
+| --- | --- |
+| Commands | Explicit application intentions, validation, authorization, execution, and generated HTTP endpoints |
+| Queries | Purpose-shaped reads exposed through model-bound or controller-based query surfaces |
+| Generated contracts | TypeScript proxies for recognized command and query artifacts |
+| ASP.NET Core integration | Hosting, dependency injection, identity, tenancy, OpenAPI, and application conventions |
+| Frontend packages | TypeScript runtime support for generated proxies plus React and React/MVVM integration packages |
+| Persistence integration | Separate integrations for current-state persistence and optional Chronicle-backed behavior |
 
-## Support
+Detailed API, configuration, provider, and frontend documentation lives in the canonical documentation. This README is the shortest path into that documentation rather than a second manual.
 
-Cratis is an open community, and we are glad to help users, teams evaluating the stack, and contributors.
+## Arc does not require event sourcing
 
-| Channel | Details |
-|---|---|
-| Discord | Join the community on [Discord](https://discord.gg/kt4AMpV8WV) for questions and discussions |
-| GitHub Issues | [Report bugs or request features](https://github.com/Cratis/Arc/issues) |
-| Documentation | Read the docs at [cratis.io](https://cratis.io) |
+Arc.Core does not depend on Chronicle. Commands and queries can use current-state persistence or application services without an event log. The [CQRS without event sourcing](https://cratis.io/arc/arc-without-event-sourcing/) guide shows that boundary explicitly.
+
+The Chronicle integration is optional and supplies event-sourced behavior when configured. Arc retains its command, query, validation, authorization, and generated-contract boundary.
+
+## Relationship to Components
+
+Components is a React component library aligned with Arc application patterns. Its exact component and integration surface is documented by the [Components product documentation](https://cratis.io/components/).
+
+Applications may use Arc without Components and remain responsible for their own frontend, accessibility, browser, and design-system verification.
+
+## Start an Arc host
+
+Arc's .NET packages embed this product-family README. The example below uses the umbrella `Cratis.Arc` package to start an Arc host; when viewing this README from a specialized package page, use that package's manifest and reference documentation for its own installation scope.
+
+The current Arc analyzers and source generators require .NET SDK 10.0.301 or newer. Install the host package:
+
+```bash
+dotnet add package Cratis.Arc
+```
+
+Create and run an Arc host:
+
+```csharp
+using Cratis.Arc;
+
+var builder = ArcApplication.CreateBuilder(args);
+builder.AddCratisArc();
+
+var app = builder.Build();
+app.UseCratisArc();
+await app.RunAsync();
+```
+
+Starting this host proves the Arc application setup can build and run on the selected SDK/profile. Continue with [Getting started](https://cratis.io/arc/backend/core/getting-started/) to define a command and query, then use the [tutorial](https://cratis.io/arc/tutorial/) for the documented backend-to-frontend path. Use [Troubleshooting](https://cratis.io/arc/troubleshooting/) if the host, generated endpoints, or proxies do not match the guide.
+
+## Packages and repository layout
+
+| Surface | Role |
+| --- | --- |
+| `Cratis.Arc` / `Cratis.Arc.Core` | .NET command, query, hosting, validation, authorization, and generation surfaces |
+| `Cratis.Arc.ProxyGenerator.Build` | Build-time TypeScript proxy generation for recognized application artifacts |
+| `@cratis/arc` | TypeScript runtime support consumed by application-specific generated command and query proxies |
+| `@cratis/arc.react` | React hooks and compositions for Arc contracts |
+| `@cratis/arc.react.mvvm` | React/MVVM integration for Arc contracts |
+| [`Source/DotNET`](https://github.com/Cratis/Arc/tree/main/Source/DotNET) | .NET framework source |
+| [`Source/JavaScript`](https://github.com/Cratis/Arc/tree/main/Source/JavaScript) | TypeScript and React package source |
+| [`Documentation`](https://github.com/Cratis/Arc/tree/main/Documentation) | Product-owned documentation rendered on cratis.io |
+| [`TestApps`](https://github.com/Cratis/Arc/tree/main/TestApps) | Sample and integration applications used by repository checks |
+
+Package existence does not imply compatibility with every frontend, runtime, persistence provider, or product version. Use the exact package manifests, current documentation, and exercised profile for the combination you adopt.
+
+## Documentation map
+
+- [Commands](https://cratis.io/arc/backend/commands/)
+- [Queries](https://cratis.io/arc/backend/queries/)
+- [Command validation](https://cratis.io/arc/backend/commands/validation/)
+- [Authorization](https://cratis.io/arc/backend/core/authorization/)
+- [Proxy generation](https://cratis.io/arc/backend/proxy-generation/)
+- [Frontend](https://cratis.io/arc/frontend/)
+- [Troubleshooting](https://cratis.io/arc/troubleshooting/)
 
 ## Contributing
 
-If you want to jump into building this repository and possibly contributing, please refer to [contributing](./Documentation/contributing/index.md).
+Arc is a framework-library repository. Public APIs, analyzers, generated output, package shapes, and backward compatibility are product contracts.
 
-### Prerequisites
+Repository development currently requires the SDK and toolchain versions declared by [`global.json`](https://github.com/Cratis/Arc/blob/main/global.json) and [`package.json`](https://github.com/Cratis/Arc/blob/main/package.json). Follow the [Cratis contribution guide](https://github.com/Cratis/.github/blob/main/contributing.md) and the [framework instructions](https://github.com/Cratis/Arc/blob/main/.ai/rules/framework.md) before changing public surfaces.
 
-The following are prerequisites to work with this repository.
+Before submitting documentation-only work, verify its links, anchors, and examples explicitly; current automated documentation checks are path-scoped. Source changes must pass the owning repository's applicable build, specification, TypeScript, and documentation gates.
 
-* [.NET SDK 10.0.301+](https://dotnet.microsoft.com/en-us/). Arc's analyzers and source generators are built
-  against Roslyn 5.6.0, which ships with .NET SDK 10.0.301 and newer. On an older SDK band the compiler
-  refuses to load them (CS9057), silently disabling proxy generation and the ARC*/ARCCHR* analyzers.
-  Consuming the `Cratis.Arc` packages carries the same floor. Raising this floor is a minor version bump.
-* [Node 16+](https://nodejs.org/en)
-* [Yarn](https://yarnpkg.com)
+## Community and repository
 
-### Central Package Management
-
-This repository leverages [Central Package Management](https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management), which
-means that all package versions are managed from a file at the root level called [Directory.Packages.props](./Directory.Packages.props).
-
-In addition there are also [Directory.Build.props](https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory?view=vs-2022#directorybuildprops-and-directorybuildtargets) files for
-setting up common settings that are applied cross cuttingly.
-
-### Root package.json
-
-The `package.json` found at the root level defines all the workspaces. It is assumed
-
-All developer dependencies are defined in the top level `package.json`. The reason for this is to be able to provide global scripts
-for every package to use for easier maintenance.
-
-The `package.json` found at the top level contains scripts that can then be used in a child project for this to work properly.
-
-In a package, all you need to do is to define the scripts to use the global scripts in the `package.json´ of that project:
-
-```json
-{
-    "scripts": {
-        "prepublish": "yarn g:build",
-        "clean": "yarn g:clean",
-        "build": "yarn g:build",
-        "lint": "yarn g:lint",
-        "lint:ci": "yarn g:lint:ci",
-        "test": "yarn g:test",
-        "ci": "yarn g:ci",
-        "up": "yarn g:up"
-    }
-}
-```
+| Path | Destination |
+| --- | --- |
+| Questions and discussion | [Cratis Discord](https://discord.gg/kt4AMpV8WV) |
+| Bugs and feature requests | [GitHub Issues](https://github.com/Cratis/Arc/issues) |
+| Releases | [GitHub Releases](https://github.com/Cratis/Arc/releases) |
+| Documentation | [cratis.io/arc](https://cratis.io/arc/) |
+| Security reports | [Private security reporting](mailto:oss@cratis.io?subject=Security%3A) |
+| License | [`LICENSE`](https://github.com/Cratis/Arc/blob/main/LICENSE) |
