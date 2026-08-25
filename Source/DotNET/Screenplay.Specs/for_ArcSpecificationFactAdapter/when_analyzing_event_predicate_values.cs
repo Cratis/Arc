@@ -74,12 +74,7 @@ public class when_analyzing_event_predicate_values : Specification
             ("Integration/Assertions.cs", Assertions),
             (IntegrationTesting.Path, IntegrationTesting.Source)
         ]);
-        var project = new DotNetProjectCompilation
-        {
-            Name = "Projects",
-            Compilation = compilation,
-            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
-        };
+        var project = SourceProjects.Create("Projects", DotNetProjectRole.Application, compilation);
         _contribution = new ArcSpecificationFactAdapter().Analyze(
             new DotNetAnalysisContext([project]),
             new DotNetAdapterOptions { Module = "Projects", NamespaceSegmentsToSkip = 1 });

@@ -15,15 +15,36 @@ namespace Cratis.Arc.Screenplay.Generation;
 /// <param name="context">The analyzed application projects.</param>
 /// <param name="scenarioProject">The project declaring the scenario.</param>
 /// <param name="adapter">The adapter identity.</param>
-/// <param name="options">The host placement options.</param>
+/// <param name="sourceStructures">The fixed source-structure snapshot.</param>
 /// <param name="facts">The facts to append.</param>
 internal sealed class ArcSpecificationArtifactFacts(
     DotNetAnalysisContext context,
     DotNetProjectCompilation scenarioProject,
     AdapterIdentity adapter,
-    DotNetAdapterOptions options,
+    DotNetSourceStructureSnapshot sourceStructures,
     List<GenerationFact> facts)
 {
+    /// <summary>
+    /// Creates the neutral placement fact from one exact shared placement.
+    /// </summary>
+    /// <param name="adapter">The contributing adapter.</param>
+    /// <param name="placement">The shared placement.</param>
+    /// <returns>The placement fact.</returns>
+    public static ArtifactPlacementFact Placement(AdapterIdentity adapter, DotNetSourcePlacement placement) => new()
+    {
+        Id = FactId("placement", placement.Artifact.Subject, placement.Artifact.Kind.ToString()),
+        Subject = placement.Artifact.Subject,
+        Evidence = new()
+        {
+            Adapter = adapter,
+            Strength = EvidenceStrength.Exact,
+            Source = placement.Structure.Source,
+            Explanation = "The shared source-placement derivation places the exact scenario target"
+        },
+        Artifact = placement.Artifact,
+        Placement = placement.Placement
+    };
+
     /// <summary>
     /// Adds or resolves one exact source artifact.
     /// </summary>
@@ -33,7 +54,12 @@ internal sealed class ArcSpecificationArtifactFacts(
     /// <returns>The artifact key, or <see langword="null"/> when source identity is ambiguous.</returns>
     public ArtifactKey? Artifact(INamedTypeSymbol type, ArtifactKind kind, Location source)
     {
-        var subject = context.SubjectForType(type);
+        var sourceProjects = context.Projects
+            .Where(project => type.DeclaringSyntaxReferences.Any(_ => project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
+            .ToArray();
+        var subject = sourceProjects.Length == 1
+            ? sourceProjects[0].SubjectForType(type)
+            : context.SubjectForType(type);
         if (subject is null)
         {
             return null;
@@ -69,39 +95,27 @@ internal sealed class ArcSpecificationArtifactFacts(
     }
 
     /// <summary>
-    /// Adds the current compatibility placement for the exact scenario target.
+    /// Creates a shared placement request for the exact scenario target.
     /// </summary>
     /// <param name="target">The exact target artifact.</param>
-    /// <param name="type">The exact source type.</param>
-    /// <param name="source">The source evidence.</param>
-    public void AddPlacement(ArtifactKey target, INamedTypeSymbol type, Location source)
+    /// <param name="sliceKind">The independently established semantic slice kind.</param>
+    /// <param name="policy">The host-owned source-structure policy.</param>
+    /// <returns>The placement request, or <see langword="null"/> when no exact source structure exists.</returns>
+    public DotNetSourcePlacementRequest? PlacementRequest(
+        ArtifactKey target,
+        GenerationSliceKind sliceKind,
+        DotNetSourceStructurePolicy policy)
     {
-        var segments = type.ContainingNamespace.ToDisplayString().Split('.', StringSplitOptions.RemoveEmptyEntries)
-            .Skip(options.NamespaceSegmentsToSkip)
-            .ToArray();
-        if (segments.Length == 0)
-        {
-            return;
-        }
-
-        var module = options.Module ?? segments[0];
-        var remaining = segments.Skip(string.Equals(segments[0], module, StringComparison.Ordinal) ? 1 : 0).ToArray();
-        var slice = remaining.Length == 0 ? type.Name : remaining[^1];
-        var features = remaining.Length <= 1 ? [] : remaining[..^1];
-        facts.Add(new ArtifactPlacementFact
-        {
-            Id = FactId("placement", target.Subject, target.Kind.ToString()),
-            Subject = target.Subject,
-            Evidence = Evidence(source, "The target namespace places the specification under its exact owning slice"),
-            Artifact = target,
-            Placement = new ArtifactPlacement
+        var structure = sourceStructures.Structures.SingleOrDefault(_ => _.Subject == target.Subject);
+        return structure is null
+            ? null
+            : new()
             {
-                Module = module,
-                Features = features,
-                Slice = slice,
-                SliceKind = GenerationSliceKind.StateChange
-            }
-        });
+                Artifact = target,
+                Structure = structure,
+                SliceKind = sliceKind,
+                Policy = policy
+            };
     }
 
     Evidence Evidence(Location location, string? explanation = null)

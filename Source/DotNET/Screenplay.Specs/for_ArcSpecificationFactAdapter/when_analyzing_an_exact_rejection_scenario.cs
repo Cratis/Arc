@@ -58,12 +58,7 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
             ("Projects/Registration/RegisterProject/when_rejecting_an_empty_project_name.cs", Scenario),
             (IntegrationTesting.Path, IntegrationTesting.Source)
         ]);
-        var project = new DotNetProjectCompilation
-        {
-            Name = "Projects",
-            Compilation = compilation,
-            AuthoredSyntaxTrees = compilation.SyntaxTrees.ToHashSet()
-        };
+        var project = SourceProjects.Create("Projects", DotNetProjectRole.Application, compilation);
         var context = new DotNetAnalysisContext([project]);
         var adapter = new ArcSpecificationFactAdapter();
         _canAnalyze = adapter.CanAnalyze(context);

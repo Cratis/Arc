@@ -52,7 +52,7 @@ Diagnostics come in three severities. **Information** means something is worth k
 
 ## What the generator expects of its host
 
-The generator takes a Roslyn `Compilation` and nothing else. It never opens a project file or loads a workspace, which is what lets it be driven from a CLI, from a specification, or from an editor. The other side of that bargain is that **assembling the compilation the way a real build would is the caller's job** — the generator reads what it is handed and cannot tell a missing type from a type that was never written.
+The compatibility generator accepts either a Roslyn `Compilation` or a Generation `DotNetProjectCompilation`. It never opens a project file or loads a workspace, which is what lets it be driven from a CLI, from a specification, or from an editor. `DotNetProjectCompilation` adds the host-owned project role, authored syntax trees, and stable source-path context needed by neutral source adapters; the established compilation-only overloads remain available and produce the same `.play` bytes. The other side of that bargain is that **assembling the compilation the way a real build would is the caller's job** — the generator reads what it is handed and cannot tell a missing type from a type that was never written.
 
 The part hosts get wrong is source generators. `MSBuildWorkspace.GetCompilationAsync()` does not run them, and neither does any loading mode that stops at the compile items the project file lists. An Arc application leans on generation heavily — `[LoggerMessage]` partial classes, strongly-typed resource designer classes, the proxy and metrics generators — so a compilation loaded that way is missing every type those emit, and every reference to one becomes an unresolved-symbol error. This is the common case rather than an edge case.
 
@@ -101,6 +101,15 @@ So `Generate` takes a list of compilations as well as a single one, and a host g
 ```csharp
 var result = generator.Generate([contracts, application, host], options);
 ```
+
+A host that also runs neutral adapters should retain the project metadata instead of reducing each project to its compilation:
+
+```csharp
+IReadOnlyList<DotNetProjectCompilation> projects = LoadProjects();
+var result = generator.Generate(projects, options);
+```
+
+This project-aware compatibility overload intentionally delegates to the same established generator. The source context is carried for the neutral adapter path, not used to reinterpret legacy placement.
 
 What comes back is one document rather than one per project, because the boundaries between projects are a build concern rather than something the model has:
 
@@ -202,7 +211,7 @@ Values are the exception for the compatibility document generator, because a val
 
 `ArcSpecificationFactAdapter` is the independently consumable source-evidence surface. It contributes Generation scenario, ordered-step, and typed-value facts only when every explicitly authored step and value is exact. One computed or unreadable required value, conditional/repeated step, unretained read-model assertion, or event predicate value blocks the whole neutral scenario with `ARCSP0001`; it never contributes a smaller example than the source wrote.
 
-The adapter retains scenario-, step-, value-, and rejection-level source ranges separately from the existing Arc model. This does not change legacy model equality or the current `.play` generator's compatibility output. Generation resolves the neutral facts by stable source identity, attaches the scenario through the exact target artifact placement, and lowers it only after complete atomic admission.
+The adapter retains scenario-, step-, value-, and rejection-level source ranges separately from the existing Arc model. This does not change legacy model equality or the current `.play` generator's compatibility output. It creates one fixed `DotNetSourceStructures` snapshot and asks `DotNetSourcePlacementDerivation` to place all exact targets together. Application and specification projects therefore use the application target's source placement, read-model and query targets retain `StateView` placement, and folder/namespace disagreement or invalid source policy produces a typed `DOTNETSP####` diagnostic instead of a guessed placement. Generation attaches a scenario only through that exact target placement and lowers it only after complete atomic admission.
 
 This distinction is deliberate: the compatibility generator keeps existing consumers stable, while the neutral adapter provides the fail-closed evidence required for render→recover semantic fidelity.
 

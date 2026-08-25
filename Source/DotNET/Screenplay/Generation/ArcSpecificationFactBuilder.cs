@@ -19,18 +19,20 @@ namespace Cratis.Arc.Screenplay.Generation;
 /// <param name="scenarioProject">The project declaring the scenario.</param>
 /// <param name="adapter">The adapter identity.</param>
 /// <param name="options">The host placement options.</param>
-/// <param name="facts">The facts to contribute atomically.</param>
+/// <param name="sourceStructures">The fixed source-structure snapshot.</param>
 /// <param name="diagnostics">The diagnostics to append.</param>
 internal sealed class ArcSpecificationFactBuilder(
     DotNetAnalysisContext context,
     DotNetProjectCompilation scenarioProject,
     AdapterIdentity adapter,
     DotNetAdapterOptions options,
-    List<GenerationFact> facts,
+    DotNetSourceStructureSnapshot sourceStructures,
     List<GenerationDiagnostic> diagnostics)
 {
-    readonly ArcSpecificationArtifactFacts _artifactFacts = new(context, scenarioProject, adapter, options, facts);
+    readonly List<GenerationFact> _facts = [];
     readonly ArcSpecificationEvidence _sourceEvidence = new(context, scenarioProject, adapter, diagnostics);
+
+    ArcSpecificationArtifactFacts ArtifactFacts => new(context, scenarioProject, adapter, sourceStructures, _facts);
 
     /// <summary>
     /// Adds one scenario only when every required step, value, artifact, and source location is exact.
@@ -38,24 +40,27 @@ internal sealed class ArcSpecificationFactBuilder(
     /// <param name="specification">The recovered legacy specification.</param>
     /// <param name="evidence">The exact source evidence.</param>
     /// <param name="target">The exact command or read-model target.</param>
-    public void Add(
+    /// <returns>The complete candidate, or <see langword="null"/> when the scenario cannot be proven exactly.</returns>
+    public ArcSpecificationFactCandidate? Build(
         SpecificationModel specification,
         SpecificationScenarioEvidence evidence,
         INamedTypeSymbol target)
     {
-        if (evidence.Blockers.Count > 0 || SpecificationMembers.ReadModelOf(evidence.SourceType) is not null ||
-            HasUnrepresentedEventPredicate(specification, evidence))
+        if (evidence.Blockers.Count > 0 || HasUnrepresentedEventPredicate(specification, evidence))
         {
             _sourceEvidence.Block(specification, evidence, "the existing Arc analyzer cannot prove every authored step and value exactly");
-            return;
+            return null;
         }
 
+        var targetsStateView = SpecificationMembers.ReadModelOf(SpecificationMembers.StepsOf(evidence.SourceType)) is not null;
+        var targetKind = targetsStateView ? ArtifactKind.ReadModel : ArtifactKind.Command;
+        var sliceKind = targetsStateView ? GenerationSliceKind.StateView : GenerationSliceKind.StateChange;
         var scenarioSubject = scenarioProject.SubjectForType(evidence.SourceType);
-        var targetKey = _artifactFacts.Artifact(target, ArtifactKind.Command, evidence.Source);
+        var targetKey = ArtifactFacts.Artifact(target, targetKind, evidence.Source);
         if (targetKey is null)
         {
             _sourceEvidence.Block(specification, evidence, "the target artifact has no unique analyzed source identity");
-            return;
+            return null;
         }
 
         var stepFacts = new List<SpecificationStepFact>();
@@ -65,21 +70,22 @@ internal sealed class ArcSpecificationFactBuilder(
         {
             if (!TryAddState(specification, evidence, scenarioSubject, state, SpecificationStepPhase.Given, stepIndex++, stepFacts, valueFacts))
             {
-                return;
+                return null;
             }
         }
 
-        if (specification.When is null ||
-            !TryAddState(specification, evidence, scenarioSubject, specification.When, SpecificationStepPhase.When, stepIndex++, stepFacts, valueFacts))
+        if (!targetsStateView &&
+            (specification.When is null ||
+             !TryAddState(specification, evidence, scenarioSubject, specification.When, SpecificationStepPhase.When, stepIndex++, stepFacts, valueFacts)))
         {
-            return;
+            return null;
         }
 
         foreach (var state in specification.Then)
         {
             if (!TryAddState(specification, evidence, scenarioSubject, state, SpecificationStepPhase.Then, stepIndex++, stepFacts, valueFacts))
             {
-                return;
+                return null;
             }
         }
 
@@ -114,10 +120,22 @@ internal sealed class ArcSpecificationFactBuilder(
                 Steps = [.. stepFacts.Select(step => step.Definition.Key)]
             }
         };
-        facts.Add(scenario);
-        facts.AddRange(stepFacts);
-        facts.AddRange(valueFacts);
-        _artifactFacts.AddPlacement(targetKey, target, evidence.Source);
+        _facts.Add(scenario);
+        _facts.AddRange(stepFacts);
+        _facts.AddRange(valueFacts);
+
+        var placement = ArtifactFacts.PlacementRequest(targetKey, sliceKind, options.SourceStructurePolicy);
+        if (placement is null)
+        {
+            if (sourceStructures.Diagnostics.Count == 0)
+            {
+                _sourceEvidence.Block(specification, evidence, "the target artifact has no exact shared source structure");
+            }
+
+            return null;
+        }
+
+        return new(placement, _facts);
     }
 
     bool TryAddState(
@@ -137,14 +155,14 @@ internal sealed class ArcSpecificationFactBuilder(
         }
 
         var kind = Kind(state.Kind);
-        var artifactKey = _artifactFacts.Artifact(artifact, ArtifactKindFor(kind), stateEvidence.Source);
+        var artifactKey = ArtifactFacts.Artifact(artifact, ArtifactKindFor(kind), stateEvidence.Source);
         if (kind == SpecificationStepKind.Unknown || artifactKey is null)
         {
             _sourceEvidence.Block(specification, evidence, $"step {index} has an unsupported or ambiguous artifact");
             return false;
         }
 
-        if (!HasEveryRequiredConstructionValue(artifact, state.Values.Count()))
+        if (kind != SpecificationStepKind.ReadModel && !HasEveryRequiredConstructionValue(artifact, state.Values.Count()))
         {
             _sourceEvidence.Block(specification, evidence, $"step {index} omits a required computed or unreadable construction value");
             return false;
