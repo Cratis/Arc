@@ -11,10 +11,10 @@ Arc exposes recognized command and query contracts through ASP.NET Core and can 
 
 ## Start here
 
-- [Understand why Arc exists](https://cratis.io/arc/why-arc/)
-- [Build a feature in the Arc tutorial](https://cratis.io/arc/tutorial/)
-- [Use CQRS without event sourcing](https://cratis.io/arc/arc-without-event-sourcing/)
-- [Browse the Arc documentation](https://cratis.io/arc/)
+- [Browse the canonical Arc documentation](https://cratis.io/arc/)
+- [Understand Arc's independent boundary](#arc-does-not-require-event-sourcing)
+- [Start an Arc host](#start-an-arc-host)
+- [Inspect packages and repository layout](#packages-and-repository-layout)
 
 ## What Arc owns
 
@@ -31,7 +31,7 @@ Detailed API, configuration, provider, and frontend documentation lives in the c
 
 ## Arc does not require event sourcing
 
-Arc.Core does not depend on Chronicle. Commands and queries can use current-state persistence or application services without an event log. The [CQRS without event sourcing](https://cratis.io/arc/arc-without-event-sourcing/) guide shows that boundary explicitly.
+Arc.Core does not depend on Chronicle. Commands and queries can use current-state persistence or application services without an event log. The owning repository and canonical Arc page preserve that boundary explicitly.
 
 The Chronicle integration is optional and supplies event-sourced behavior when configured. Arc retains its command, query, validation, authorization, and generated-contract boundary.
 
@@ -64,7 +64,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-Starting this host proves the Arc application setup can build and run on the selected SDK/profile. Continue with [Getting started](https://cratis.io/arc/backend/core/getting-started/) to define a command and query, then use the [tutorial](https://cratis.io/arc/tutorial/) for the documented backend-to-frontend path. Use [Troubleshooting](https://cratis.io/arc/troubleshooting/) if the host, generated endpoints, or proxies do not match the guide.
+Starting this host proves the Arc application setup can build and run on the selected SDK/profile. Continue from the [canonical Arc page](https://cratis.io/arc/) for the currently admitted documentation profile, and use [GitHub Issues](https://github.com/Cratis/Arc/issues) when observed behavior does not match it.
 
 ## Packages and repository layout
 
@@ -84,13 +84,10 @@ Package existence does not imply compatibility with every frontend, runtime, per
 
 ## Documentation map
 
-- [Commands](https://cratis.io/arc/backend/commands/)
-- [Queries](https://cratis.io/arc/backend/queries/)
-- [Command validation](https://cratis.io/arc/backend/commands/validation/)
-- [Authorization](https://cratis.io/arc/backend/core/authorization/)
-- [Proxy generation](https://cratis.io/arc/backend/proxy-generation/)
-- [Frontend](https://cratis.io/arc/frontend/)
-- [Troubleshooting](https://cratis.io/arc/troubleshooting/)
+- [Canonical Arc documentation](https://cratis.io/arc/)
+- [Product-owned documentation source](https://github.com/Cratis/Arc/tree/main/Documentation)
+- [Arc releases](https://github.com/Cratis/Arc/releases)
+- [Arc issues](https://github.com/Cratis/Arc/issues)
 
 ## Contributing
 
