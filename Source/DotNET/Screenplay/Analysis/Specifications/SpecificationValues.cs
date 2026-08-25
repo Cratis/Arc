@@ -30,20 +30,22 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="type">The type being constructed.</param>
     /// <param name="specification">The name of the specification, for use in diagnostics.</param>
     /// <param name="location">Where the specification lives, for use in diagnostics.</param>
+    /// <param name="draft">The scenario collecting exact value evidence.</param>
     /// <returns>The values, in the order the source declares them.</returns>
     public IEnumerable<PropertyMappingModel> Read(
         BaseObjectCreationExpressionSyntax creation,
         SemanticModel semanticModel,
         ITypeSymbol type,
         string specification,
-        string location)
+        string location,
+        SpecificationDraft draft)
     {
         var values = new List<PropertyMappingModel>();
         var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
 
         foreach (var (name, expression) in Stated(creation, constructor))
         {
-            Add(values, PropertyOf(type, name), expression, semanticModel, type, specification, location);
+            Add(values, PropertyOf(type, name), expression, semanticModel, type, specification, location, draft);
         }
 
         return values;
@@ -113,6 +115,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="type">The type being constructed.</param>
     /// <param name="specification">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
+    /// <param name="draft">The scenario collecting exact value evidence.</param>
     /// <remarks>
     /// An identity made on the spot is left out without a word, because there is no value for the document to have
     /// missed - see <see cref="GeneratedIdentities"/>. Every other value that cannot be read is one the source states
@@ -125,11 +128,14 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         SemanticModel semanticModel,
         ITypeSymbol type,
         string specification,
-        string location)
+        string location,
+        SpecificationDraft draft)
     {
         if (_sources.Read(expression, semanticModel, type, location) is LiteralSource literal)
         {
-            values.Add(new(property, literal));
+            var value = new PropertyMappingModel(property, literal);
+            values.Add(value);
+            draft.AddValue(value, expression.GetLocation());
             return;
         }
 

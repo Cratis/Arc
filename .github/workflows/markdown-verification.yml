@@ -18,6 +18,7 @@ permissions:
 jobs:
   markdown-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,6 +30,7 @@ jobs:
 
   link-verification:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

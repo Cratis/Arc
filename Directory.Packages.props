@@ -22,7 +22,10 @@
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.35.3" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.18.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.18.0" />
-    <PackageVersion Include="Cratis.Screenplay" Version="4.2.1" />
+    <PackageVersion Include="Cratis.Screenplay" Version="4.6.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.12.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.12.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.12.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.11" />
@@ -67,21 +70,21 @@
          Cratis.Arc.Core.Generators) are shipped as Roslyn components, so a consumer whose .NET SDK ships
          an older compiler than this cannot load them and gets CS9057 — silently losing proxy generation
          and all ARC*/ARCCHR* analyzer coverage.
-         5.6.0 requires .NET SDK 10.0.301+ (SDK 10.0.2xx ships Roslyn 5.3.0, 10.0.1xx ships 5.0.0).
+         5.9.0 requires .NET SDK 10.0.400+ (older SDK feature bands ship older Roslyn hosts).
          Raising this floor is a MINOR change and must be stated in the release notes — never slip it in
          on a patch. See the SDK requirement in README.md. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
     <!-- Reading a real project into a compilation, for the end to end check on Screenplay generation.
          Microsoft.Build.Framework is declared above and is referenced with ExcludeAssets="runtime", so that MSBuild
          itself always comes from the SDK that MSBuildLocator registers rather than from an output folder. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
     <PackageVersion Include="Microsoft.NET.StringTools" Version="18.8.2" />
     <!-- Override vulnerable/incompatible transitive dependencies from analyzer testing packages -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.6.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.9.0" />
     <PackageVersion Include="System.Formats.Asn1" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Composition" Version="1.0.31" />
     <!-- Analysis -->
