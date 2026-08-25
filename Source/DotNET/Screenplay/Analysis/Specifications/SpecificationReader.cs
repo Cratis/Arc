@@ -114,7 +114,17 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        return new(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+        SpecificationEvidence.Register(
+            specification,
+            new(
+                type,
+                type.Locations.First(location => location.IsInSource),
+                draft.GetStateEvidence(),
+                draft.GetValueEvidence(),
+                draft.GetErrorEvidence(),
+                [.. stated.All]));
+        return specification;
     }
 
     /// <summary>
@@ -150,7 +160,11 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
             return;
         }
 
-        draft.Then.Add(new(readModel.Name, SpecificationStateKind.ReadModel, []));
+        var state = new SpecificationStateModel(readModel.Name, SpecificationStateKind.ReadModel, []);
+        draft.AddThen(
+            state,
+            readModel,
+            readModel.Locations.First(location => location.IsInSource));
     }
 
     /// <summary>

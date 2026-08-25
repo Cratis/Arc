@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
@@ -89,6 +90,8 @@ public class a_specification_of_a_read_model : Specification
     [Fact] void should_issue_no_command() => _specification.When.ShouldBeNull();
     [Fact] void should_say_the_read_model_followed() => _specification.Then.Single().Name.ShouldEqual("Author");
     [Fact] void should_state_it_as_a_read_model() => _specification.Then.Single().Kind.ShouldEqual(SpecificationStateKind.ReadModel);
+    [Fact] void should_retain_the_exact_read_model_symbol() => SpecificationEvidence.For(_specification).States[_specification.Then.Single()].Artifact.Name.ShouldEqual("Author");
+    [Fact] void should_retain_read_model_step_evidence() => SpecificationEvidence.For(_specification).States[_specification.Then.Single()].Source.IsInSource.ShouldBeTrue();
     [Fact] void should_report_no_scenario_left_out() => _analysis.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeFalse();
     [Fact] void should_report_no_scenario_without_a_counterpart() => _analysis.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart).ShouldBeFalse();
 }

@@ -50,8 +50,9 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// Adds an event a specification says followed, or records that it cannot be read.
     /// </summary>
     /// <param name="appended">The type the assertion names.</param>
+    /// <param name="source">The exact authored assertion location.</param>
     /// <param name="draft">The scenario collected so far.</param>
-    static void AddEvent(ITypeSymbol appended, SpecificationDraft draft)
+    static void AddEvent(ITypeSymbol appended, Location source, SpecificationDraft draft)
     {
         if (!EventReader.IsEvent(appended))
         {
@@ -61,7 +62,8 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
         if (!draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal)))
         {
-            draft.Then.Add(new(appended.Name, SpecificationStateKind.Event, []));
+            var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, []);
+            draft.AddThen(state, appended, source);
         }
     }
 
@@ -97,7 +99,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
             if (appended is not null)
             {
-                AddEvent(appended, draft);
+                AddEvent(appended, invocation.GetLocation(), draft);
                 continue;
             }
 
@@ -128,7 +130,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
         if (!draft.Errors.Contains(reason, StringComparer.Ordinal))
         {
-            draft.Errors.Add(reason);
+            draft.AddError(reason, invocation.GetLocation());
         }
     }
 

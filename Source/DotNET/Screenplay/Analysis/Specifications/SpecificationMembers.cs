@@ -90,6 +90,16 @@ public static class SpecificationMembers
     public static bool HoldsAScenario(INamedTypeSymbol type) => Holds(type, WellKnownTypeNames.CommandScenario) is not null;
 
     /// <summary>
+    /// Gets the command a type is written as a scenario of.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>The command, or <see langword="null"/> when the type holds no command scenario.</returns>
+    public static ITypeSymbol? CommandOf(INamedTypeSymbol type) =>
+        Holds(type, WellKnownTypeNames.CommandScenario) is INamedTypeSymbol { TypeArguments.Length: 1 } scenario
+            ? scenario.TypeArguments[0]
+            : null;
+
+    /// <summary>
     /// Gets the read model a type is written as a scenario of.
     /// </summary>
     /// <param name="type">The type to check.</param>
