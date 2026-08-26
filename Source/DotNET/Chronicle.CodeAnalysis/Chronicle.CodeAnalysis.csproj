@@ -18,9 +18,9 @@
              separate Chronicle.CodeAnalysis.CodeFixes project instead, an IDE/Workspace extension point the
              compiler never loads). This keeps RS1038 (compiler extensions in an assembly with non-compiler-provided
              references) a real, un-suppressed check on this project rather than one silenced to make it pass.
-             This project no longer packs itself: it is not packable on its own, and its build output is bundled
-             into the standalone 'Cratis.Arc.Chronicle.CodeAnalysis' identity by Chronicle.CodeAnalysis.Package.csproj,
-             and into the 'Cratis.CodeAnalysis' umbrella by Cratis.CodeAnalysis.csproj. -->
+             This project no longer packs itself: it is not packable on its own, and its build output is owned by
+             the standalone 'Cratis.Arc.Chronicle.CodeAnalysis' package through Chronicle.CodeAnalysis.Package.csproj.
+             Aggregate packages reference that standalone package instead of copying this assembly. -->
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 

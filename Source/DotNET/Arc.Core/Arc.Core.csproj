@@ -22,18 +22,19 @@
         <PackageReference Include="Cratis.Metrics.Roslyn" />
         <PackageReference Include="FluentValidation" />
         <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" />
-    <PackageReference Include="Microsoft.Extensions.DependencyModel" />
+        <PackageReference Include="Microsoft.Extensions.DependencyModel" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="Microsoft.Extensions.Logging" />
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
-                          OutputItemType="Analyzer" 
-                          ReferenceOutputAssembly="false"
-                          PrivateAssets="all" />
-        <ProjectReference Include="../Arc.Core.CodeAnalysis.CodeFixes/Arc.Core.CodeAnalysis.CodeFixes.csproj"
+        <!-- Public package dependency for consumers; the direct analyzer reference is only for analyzing Arc.Core
+             while building from source. -->
+        <ProjectReference Include="../Arc.Core.CodeAnalysis.Package/Arc.Core.CodeAnalysis.Package.csproj"
+                          PrivateAssets="compile;runtime" />
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"
                           PrivateAssets="all" />
         <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
@@ -43,14 +44,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="../Arc.Core.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.dll"
-              Pack="true"
-              PackagePath="analyzers/dotnet/cs"
-              Visible="false" />
-        <None Include="../Arc.Core.CodeAnalysis.CodeFixes/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll"
-              Pack="true"
-              PackagePath="analyzers/dotnet/cs"
-              Visible="false" />
         <None Include="../Arc.Core.Generators/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.Generators.dll"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
