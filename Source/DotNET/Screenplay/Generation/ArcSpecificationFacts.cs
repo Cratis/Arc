@@ -2,12 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Generation;
 
@@ -136,23 +134,6 @@ internal static class ArcSpecificationFacts
             .Max();
         return valueCount >= required;
     }
-
-    /// <summary>
-    /// Determines whether an expected event assertion contains predicate values the legacy analyzer did not retain.
-    /// </summary>
-    /// <param name="specification">The recovered specification.</param>
-    /// <param name="evidence">The exact scenario evidence.</param>
-    /// <returns><see langword="true"/> when predicate values would be lost.</returns>
-    public static bool HasUnrepresentedEventPredicate(
-        SpecificationModel specification,
-        SpecificationScenarioEvidence evidence) =>
-        specification.Then
-            .Where(state => state.Kind == SpecificationStateKind.Event)
-            .Select(state => evidence.States[state].Source)
-            .Any(location => location.SourceTree!.GetRoot().FindNode(location.SourceSpan)
-                .DescendantNodesAndSelf()
-                .OfType<LambdaExpressionSyntax>()
-                .Any());
 
     static string AdapterId(string kind) => $"cratis.arc.specifications:{kind}";
 }

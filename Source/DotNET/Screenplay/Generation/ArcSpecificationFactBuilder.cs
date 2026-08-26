@@ -46,7 +46,7 @@ internal sealed class ArcSpecificationFactBuilder(
         SpecificationScenarioEvidence evidence,
         INamedTypeSymbol target)
     {
-        if (evidence.Blockers.Count > 0 || HasUnrepresentedEventPredicate(specification, evidence))
+        if (evidence.Blockers.Count > 0)
         {
             _sourceEvidence.Block(specification, evidence, "the existing Arc analyzer cannot prove every authored step and value exactly");
             return null;
@@ -124,18 +124,41 @@ internal sealed class ArcSpecificationFactBuilder(
         _facts.AddRange(stepFacts);
         _facts.AddRange(valueFacts);
 
-        var placement = ArtifactFacts.PlacementRequest(targetKey, sliceKind, options.SourceStructurePolicy);
-        if (placement is null)
+        var artifactPlacements = new Dictionary<ArtifactKey, GenerationSliceKind>
         {
-            if (sourceStructures.Diagnostics.Count == 0)
+            [targetKey] = sliceKind
+        };
+        if (!targetsStateView)
+        {
+            foreach (var artifact in stepFacts
+                         .Where(_ => _.Definition.Phase == SpecificationStepPhase.Then && _.Definition.Kind == SpecificationStepKind.Event)
+                         .Select(_ => _.Definition.Artifact)
+                         .OfType<ArtifactKey>())
             {
-                _sourceEvidence.Block(specification, evidence, "the target artifact has no exact shared source structure");
+                artifactPlacements[artifact] = GenerationSliceKind.StateChange;
             }
-
-            return null;
         }
 
-        return new(placement, _facts);
+        var placementRequests = new List<DotNetSourcePlacementRequest>();
+        foreach (var (artifact, artifactSliceKind) in artifactPlacements
+                     .OrderBy(_ => _.Key.Subject.Value, StringComparer.Ordinal)
+                     .ThenBy(_ => _.Key.Kind))
+        {
+            var placement = ArtifactFacts.PlacementRequest(artifact, artifactSliceKind, options.SourceStructurePolicy);
+            if (placement is null)
+            {
+                if (sourceStructures.Diagnostics.Count == 0)
+                {
+                    _sourceEvidence.Block(specification, evidence, $"artifact '{artifact.Subject.Value}' has no exact shared source structure");
+                }
+
+                return null;
+            }
+
+            placementRequests.Add(placement);
+        }
+
+        return new(placementRequests, _facts);
     }
 
     bool TryAddState(

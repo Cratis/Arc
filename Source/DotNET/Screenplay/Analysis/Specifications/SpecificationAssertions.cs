@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -59,10 +60,26 @@ public static class SpecificationAssertions
     /// The event is the last type argument rather than the only one, because the helper taking the scenario also
     /// takes the command it is a scenario for, which has to be named ahead of it.
     /// </remarks>
-    public static ITypeSymbol? AppendedEventOf(IMethodSymbol method) =>
-        string.Equals(method.Name, AppendedEventAssertion, StringComparison.Ordinal)
+    public static ITypeSymbol? AppendedEventOf(IMethodSymbol method)
+    {
+        if (!HasAppendedEventAssertionName(method))
+        {
+            return null;
+        }
+
+        var definition = DotNetInvocations.DefinitionOf(method);
+        return IsCommandScenarioAssertion(definition) || IsEventSequenceAssertion(definition)
             ? method.TypeArguments.LastOrDefault()
             : null;
+    }
+
+    /// <summary>
+    /// Determines whether a method uses the reserved appended-event assertion name.
+    /// </summary>
+    /// <param name="method">The method being called.</param>
+    /// <returns><see langword="true"/> when the reserved name is used.</returns>
+    public static bool HasAppendedEventAssertionName(IMethodSymbol method) =>
+        string.Equals(method.Name, AppendedEventAssertion, StringComparison.Ordinal);
 
     /// <summary>
     /// Determines whether an assertion says the command was rejected.
@@ -82,6 +99,37 @@ public static class SpecificationAssertions
     /// <returns>True when the assertion names a reason.</returns>
     public static bool IsNamedRejection(IMethodSymbol method) =>
         Array.Exists(NamedRejections, _ => string.Equals(_, method.Name, StringComparison.Ordinal));
+
+    static bool IsCommandScenarioAssertion(IMethodSymbol method) =>
+        method.ContainingType.ToDisplayString() == "Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioChronicleAssertionExtensions" &&
+        method.IsExtensionMethod &&
+        method.TypeParameters.Length == 2 &&
+        method.Parameters.Length is 2 or 3 &&
+        IsGeneric(method.Parameters[0].Type, "Cratis.Arc.Testing.Commands.CommandScenario<TCommand>", method.TypeParameters[0]) &&
+        method.Parameters[1].Type.ToDisplayString() == "Cratis.Chronicle.Events.EventSourceId" &&
+        (method.Parameters.Length == 2 || IsPredicate(method.Parameters[2], method.TypeParameters[1]));
+
+    static bool IsEventSequenceAssertion(IMethodSymbol method) =>
+        method.ContainingType.ToDisplayString() == "Cratis.Chronicle.Testing.EventSequences.EventSequenceShouldExtensions" &&
+        method.IsExtensionMethod &&
+        method.TypeParameters.Length == 1 &&
+        method.Parameters.Length is 2 or 3 &&
+        method.Parameters[0].Type.ToDisplayString() == "Cratis.Chronicle.EventSequences.IEventSequence" &&
+        method.Parameters[1].Type.ToDisplayString() == "Cratis.Chronicle.Events.EventSourceId" &&
+        (method.Parameters.Length == 2 || IsPredicate(method.Parameters[2], method.TypeParameters[0]));
+
+    static bool IsGeneric(ITypeSymbol type, string definition, ITypeParameterSymbol argument) =>
+        type is INamedTypeSymbol named &&
+        named.OriginalDefinition.ToDisplayString() == definition &&
+        named.TypeArguments.Length == 1 &&
+        SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], argument);
+
+    static bool IsPredicate(IParameterSymbol parameter, ITypeParameterSymbol eventType) =>
+        string.Equals(parameter.Name, "predicate", StringComparison.Ordinal) &&
+        parameter.Type is INamedTypeSymbol { TypeArguments: [var input, var result] } predicate &&
+        predicate.OriginalDefinition.ToDisplayString() == "System.Func<T, TResult>" &&
+        SymbolEqualityComparer.Default.Equals(input, eventType) &&
+        result.SpecialType == SpecialType.System_Boolean;
 
     /// <summary>
     /// Determines whether an assertion says the result of the command was not a success.

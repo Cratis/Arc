@@ -74,12 +74,14 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
             }
         }
 
-        var placements = DotNetSourcePlacementDerivation.Derive(candidates.Select(_ => _.PlacementRequest));
+        var placements = DotNetSourcePlacementDerivation.Derive(candidates.SelectMany(_ => _.PlacementRequests));
         diagnostics.AddRange(placements.Diagnostics);
         foreach (var candidate in candidates)
         {
-            var placement = placements.Placements.SingleOrDefault(_ => _.Artifact == candidate.PlacementRequest.Artifact);
-            if (placement is null)
+            var candidatePlacements = candidate.PlacementRequests
+                .Select(request => placements.Placements.SingleOrDefault(_ => _.Artifact == request.Artifact))
+                .ToArray();
+            if (candidatePlacements.Any(_ => _ is null))
             {
                 continue;
             }
@@ -92,10 +94,13 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
                 }
             }
 
-            var placementFact = ArcSpecificationArtifactFacts.Placement(Identity, placement);
-            if (!facts.Exists(_ => _.Id == placementFact.Id))
+            foreach (var placement in candidatePlacements.OfType<DotNetSourcePlacement>())
             {
-                facts.Add(placementFact);
+                var placementFact = ArcSpecificationArtifactFacts.Placement(Identity, placement);
+                if (!facts.Exists(_ => _.Id == placementFact.Id))
+                {
+                    facts.Add(placementFact);
+                }
             }
         }
 

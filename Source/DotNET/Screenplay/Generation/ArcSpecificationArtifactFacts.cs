@@ -39,7 +39,7 @@ internal sealed class ArcSpecificationArtifactFacts(
             Adapter = adapter,
             Strength = EvidenceStrength.Exact,
             Source = placement.Structure.Source,
-            Explanation = "The shared source-placement derivation places the exact scenario target"
+            Explanation = "The shared source-placement derivation places the exact scenario artifact"
         },
         Artifact = placement.Artifact,
         Placement = placement.Placement
@@ -95,9 +95,9 @@ internal sealed class ArcSpecificationArtifactFacts(
     }
 
     /// <summary>
-    /// Creates a shared placement request for the exact scenario target.
+    /// Creates a shared placement request for one exact scenario artifact.
     /// </summary>
-    /// <param name="target">The exact target artifact.</param>
+    /// <param name="target">The exact scenario artifact.</param>
     /// <param name="sliceKind">The independently established semantic slice kind.</param>
     /// <param name="policy">The host-owned source-structure policy.</param>
     /// <returns>The placement request, or <see langword="null"/> when no exact source structure exists.</returns>
