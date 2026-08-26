@@ -33,6 +33,9 @@
                           OutputItemType="Analyzer" 
                           ReferenceOutputAssembly="false"
                           PrivateAssets="all" />
+        <ProjectReference Include="../Arc.Core.CodeAnalysis.CodeFixes/Arc.Core.CodeAnalysis.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
         <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"
@@ -40,6 +43,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="../Arc.Core.CodeAnalysis.CodeFixes/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
         <None Include="../Arc.Core.Generators/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.Generators.dll"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"

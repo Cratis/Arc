@@ -19,5 +19,14 @@
         <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj" 
                           OutputItemType="Analyzer" 
                           ReferenceOutputAssembly="false" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis.CodeFixes/Chronicle.CodeAnalysis.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="../Chronicle.CodeAnalysis.CodeFixes/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
     </ItemGroup>
 </Project>

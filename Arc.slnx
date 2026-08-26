@@ -5,6 +5,8 @@
         <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis\Arc.Core.CodeAnalysis.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.CodeFixes\Arc.Core.CodeAnalysis.CodeFixes.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Package\Arc.Core.CodeAnalysis.Package.csproj" />
         <Project Path="Source/DotNET/Swagger.Specs/Swagger.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Specs\Arc.Core.CodeAnalysis.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Generators\Arc.Core.Generators.csproj" />
@@ -21,6 +23,8 @@
         <Project Path="Source\DotNET\Chronicle\Chronicle.csproj" />
         <Project Path="Source\DotNET\Chronicle.Specs\Chronicle.Specs.csproj" />
         <Project Path="Source\DotNET\Chronicle.CodeAnalysis\Chronicle.CodeAnalysis.csproj" />
+        <Project Path="Source\DotNET\Chronicle.CodeAnalysis.CodeFixes\Chronicle.CodeAnalysis.CodeFixes.csproj" />
+        <Project Path="Source\DotNET\Chronicle.CodeAnalysis.Package\Chronicle.CodeAnalysis.Package.csproj" />
         <Project Path="Source\DotNET\Chronicle.CodeAnalysis.Specs\Chronicle.CodeAnalysis.Specs.csproj" />
         <Project Path="Source\DotNET\EntityFrameworkCore\EntityFrameworkCore.csproj" />
         <Project Path="Source\DotNET\EntityFrameworkCore.Specs\EntityFrameworkCore.Specs.csproj" />

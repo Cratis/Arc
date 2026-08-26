@@ -35,46 +35,6 @@
     <ItemGroup>
         <EmbeddedResource Include="Scenarios\Infrastructure\arc-bootstrap.js" Condition="Exists('Scenarios\Infrastructure\arc-bootstrap.js')" />
     </ItemGroup>
-    <ItemGroup>
-        <!-- The scenario specs compile generated TypeScript in-process through ClearScript's V8 engine, which
-             requires the classic JavaScript-based TypeScript compiler (lib/typescript.js). TypeScript 7 ships a
-             native compiler that no longer exposes lib/typescript.js, so prefer the classic 'typescript-for-eslint'
-             alias (npm:typescript@6.0.3) when present, and fall back to the root 'typescript' package for
-             environments that still resolve a classic TypeScript. Either source lands at the same TargetPath the
-             runtime fixture reads. -->
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
-            <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/lib*.d.ts"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib')">
-            <TargetPath>node_modules/typescript/lib/%(Filename)%(Extension)</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/typescript.js') AND !Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
-            <TargetPath>node_modules/typescript/lib/typescript.js</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib/lib*.d.ts"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript/lib') AND !Exists('$(MSBuildThisFileDirectory)../../../../node_modules/typescript-for-eslint/lib/typescript.js')">
-            <TargetPath>node_modules/typescript/lib/%(Filename)%(Extension)</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/package.json"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/package.json')">
-            <TargetPath>node_modules/@cratis/fundamentals/package.json</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs/**/*"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/cjs')">
-            <TargetPath>node_modules/@cratis/fundamentals/dist/cjs/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/esm/**/*.d.ts"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/@cratis/fundamentals/dist/esm')">
-            <TargetPath>node_modules/@cratis/fundamentals/dist/esm/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-        </ProxyJavaScriptDependency>
-        <ProxyJavaScriptDependency Include="$(MSBuildThisFileDirectory)../../../../node_modules/rxjs/dist/cjs/**/*"
-                                   Condition="Exists('$(MSBuildThisFileDirectory)../../../../node_modules/rxjs/dist/cjs')">
-            <TargetPath>node_modules/rxjs/dist/cjs/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-        </ProxyJavaScriptDependency>
-    </ItemGroup>
     <PropertyGroup>
         <ArcJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc</ArcJavaScriptPath>
         <ArcReactJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc.React</ArcReactJavaScriptPath>
@@ -106,10 +66,5 @@
         <Message Text="Building @cratis/arc.react JavaScript package..." Importance="high" Condition="$(ArcReactNeedsRebuild)" />
         <Exec Command="yarn build" WorkingDirectory="$(ArcReactJavaScriptPath)" Condition="$(ArcReactNeedsRebuild)" />
         <Message Text="Skipping @cratis/arc.react build - sources unchanged" Importance="high" Condition="!$(ArcReactNeedsRebuild)" />
-    </Target>
-    <Target Name="CopyProxyJavaScriptDependencies" AfterTargets="Build" Condition="'$(TargetFramework)' == 'net10.0'">
-        <Copy SourceFiles="@(ProxyJavaScriptDependency)"
-              DestinationFiles="@(ProxyJavaScriptDependency->'$(OutDir)%(TargetPath)')"
-              SkipUnchangedFiles="true" />
     </Target>
 </Project>

@@ -16,23 +16,33 @@
         <NoWarn>$(NoWarn);NU5128</NoWarn>
     </PropertyGroup>
 
-    <!-- Build the in-repo lint analyzers first so their assemblies exist to bundle. ReferenceOutputAssembly=false
+    <!-- Build the in-repo lint analyzers (and their code fixes, a separate assembly each - see the analyzer
+         projects' own comments for why) first so their assemblies exist to bundle. ReferenceOutputAssembly=false
          and PrivateAssets=all keep them off this package's compile/runtime surface and out of its dependencies.
-         Only the lint analyzers are bundled here — functional source generators (e.g. Cratis.Arc.Core.Generators)
-         ship with the package they serve, never here, so this umbrella can never collide with a functional
-         package's generator. -->
+         Only the lint analyzers and their code fixes are bundled here — functional source generators (e.g.
+         Cratis.Arc.Core.Generators) ship with the package they serve, never here, so this umbrella can never
+         collide with a functional package's generator. -->
     <ItemGroup>
         <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../Arc.Core.CodeAnalysis.CodeFixes/Arc.Core.CodeAnalysis.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false" PrivateAssets="all" />
         <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis.CodeFixes/Chronicle.CodeAnalysis.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false" PrivateAssets="all" />
     </ItemGroup>
 
-    <!-- Bundle the lint analyzer assemblies so a single Cratis.CodeAnalysis reference brings the full set. -->
+    <!-- Bundle the lint analyzer and code fix assemblies so a single Cratis.CodeAnalysis reference brings the
+         full set, exactly as it did before analyzers and code fixes were split into separate assemblies. -->
     <ItemGroup>
         <None Include="../Arc.Core.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.dll"
               Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="../Arc.Core.CodeAnalysis.CodeFixes/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
         <None Include="../Chronicle.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="../Chronicle.CodeAnalysis.CodeFixes/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes.dll"
               Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
 </Project>
