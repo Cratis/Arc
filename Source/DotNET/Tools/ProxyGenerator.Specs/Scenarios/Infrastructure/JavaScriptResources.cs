@@ -13,7 +13,9 @@ public static class JavaScriptResources
         RepoRoot = FindRepositoryRoot(AppContext.BaseDirectory)
             ?? throw new DirectoryNotFoundException("Could not find the Arc repository root");
         ScenariosRoot = Path.Combine(RepoRoot, "Source", "DotNET", "Tools", "ProxyGenerator.Specs", "Scenarios");
-        NodeModulesRoot = RepoRoot;
+        NodeModulesRoot = Directory.Exists(Path.Combine(RepoRoot, "node_modules"))
+            ? RepoRoot
+            : AppContext.BaseDirectory;
     }
 
     /// <summary>
