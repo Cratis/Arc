@@ -1,18 +1,17 @@
 name: Verify Semver Label
 
-# Every pull request declares one release intent. major/minor/patch authorizes a package release when the
-# publish workflow's path filters also match; no-release explicitly records that the change should publish
-# nothing. Requiring exactly one intent prevents both accidental releases and ambiguous silent skips.
-#
-# Triggered on labeled/unlabeled as well as the usual events, so adding the label re-runs the check rather than
-# leaving a red cross behind that only a push would clear.
+# Thin caller of the organization-wide release-intent gate. The policy - which
+# labels are accepted and what the errors say - lives in
+# Cratis/Workflows/.github/workflows/verify-release-intent.yml. Thirty diverging
+# per-repository copies of that logic are how the 2026-08-25 unintended releases
+# happened; do not reintroduce logic here.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled, unlabeled, edited]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
     # Scoped to the same base branch Publish releases from. A pull request stacked onto another one's
     # branch cannot cut a release, so demanding a version label of it would be asking which version a
     # merge that publishes nothing should carry.
@@ -24,25 +23,4 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Require exactly one release-intent label
-        env:
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: |
-          count=$(printf '%s' "$LABELS" | jq '[.[] | select(. == "major" or . == "minor" or . == "patch" or . == "no-release")] | length')
-
-          if [ "$count" -eq 1 ]; then
-            echo "Found one release-intent label."
-            exit 0
-          fi
-
-          if [ "$count" -eq 0 ]; then
-            echo "::error::This pull request has no release-intent label. Add exactly one of major, minor, patch or no-release."
-          else
-            echo "::error::This pull request carries $count release-intent labels. Add exactly one of major, minor, patch or no-release."
-          fi
-
-          exit 1
+    uses: Cratis/Workflows/.github/workflows/verify-release-intent.yml@main
