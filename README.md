@@ -125,7 +125,7 @@ Before submitting documentation-only work, verify its links, anchors, and exampl
   against Roslyn 5.9.0, which ships with .NET SDK 10.0.400 and newer. On an older SDK band the compiler
   refuses to load them (CS9057), silently disabling proxy generation and the ARC*/ARCCHR* analyzers.
   Consuming the `Cratis.Arc` packages carries the same floor. Raising this floor is a minor version bump.
-* [Node 16+](https://nodejs.org/en)
+* [Node 23+](https://nodejs.org/en)
 * [Yarn](https://yarnpkg.com)
 
 ## Community and repository
