@@ -157,6 +157,7 @@ public sealed class PackageGraphFixture : IDisposable
 
     Dictionary<string, PackageArchive> PackPackages()
     {
+        PreparePackageOutputs();
         foreach (var package in _packageDefinitions)
         {
             var projectPath = Path.Combine(_sourceDirectory, "Source", "DotNET", package.ProjectPath);
@@ -167,6 +168,8 @@ public sealed class PackageGraphFixture : IDisposable
                     projectPath,
                     "-c",
                     "Release",
+                    "--no-build",
+                    "--no-restore",
                     "--output",
                     _feedDirectory,
                     $"-p:Version={PackageVersion}",
@@ -183,6 +186,47 @@ public sealed class PackageGraphFixture : IDisposable
             package => package.Id,
             package => ReadPackage(package.Id),
             StringComparer.Ordinal);
+    }
+
+    void PreparePackageOutputs()
+    {
+        var projectPaths = new[]
+        {
+            Path.Combine(_sourceDirectory, "Source", "DotNET", "Cratis", "Cratis.csproj"),
+            Path.Combine(_sourceDirectory, "Source", "DotNET", "Cratis.CodeAnalysis", "Cratis.CodeAnalysis.csproj")
+        };
+
+        foreach (var projectPath in projectPaths)
+        {
+            RunDotNet(
+                _sourceDirectory,
+                [
+                    "restore",
+                    projectPath,
+                    "-p:Configuration=Release",
+                    $"-p:Version={PackageVersion}",
+                    "-p:EnableSourceControlManagerQueries=false",
+                    "-p:EnableSourceLink=false",
+                    "-p:EmbedUntrackedSources=false"
+                ],
+                isolatedPackages: true);
+            RunDotNet(
+                _sourceDirectory,
+                [
+                    "build",
+                    projectPath,
+                    "-c",
+                    "Release",
+                    "--no-restore",
+                    $"-p:Version={PackageVersion}",
+                    "-p:EnableSourceControlManagerQueries=false",
+                    "-p:EnableSourceLink=false",
+                    "-p:EmbedUntrackedSources=false",
+                    "-p:IncludeSymbols=false",
+                    "-p:IncludeSource=false"
+                ],
+                isolatedPackages: true);
+        }
     }
 
     PackageArchive ReadPackage(string packageId)
