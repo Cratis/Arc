@@ -62,6 +62,7 @@ permissions:
   contents: write
   deployments: write
   id-token: write
+  pull-requests: read
 
 jobs:
   release:
@@ -201,7 +202,11 @@ jobs:
       - name: Publish NPM packages
         run: |
           echo "npm $(npm --version) | node $(node --version)"
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL is $([ -n \"$ACTIONS_ID_TOKEN_REQUEST_URL\" ] && echo 'set' || echo 'NOT set')"
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL is set"
+          else
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL is NOT set"
+          fi
           echo "NODE_AUTH_TOKEN is '${NODE_AUTH_TOKEN:-(unset)}'"
           echo "--- .npmrc ---"
           cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(no .npmrc)"
@@ -240,7 +245,29 @@ jobs:
     needs: [release]
 
     steps:
-      - name: Report that nothing was published
+      - name: Verify an intentional no-release merge
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "::error::Nothing was published and no release was cut (reason: ${{ needs.release.outputs.reason }}). For 'no-label', add exactly one of major, minor or patch to the merged pull request and re-run this workflow - see verify-semver-label, which is meant to catch this before the merge."
+          reason='${{ needs.release.outputs.reason }}'
+          if [ "$reason" = "error" ]; then
+            echo "::error::The release action failed; no-release cannot suppress a release error."
+            exit 1
+          fi
+
+          pulls=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls")
+          merged_count=$(printf '%s' "$pulls" | jq --arg sha "$GITHUB_SHA" '[.[] | select(.merge_commit_sha == $sha)] | length')
+          if [ "$merged_count" -ne 1 ]; then
+            echo "::error::Expected exactly one pull request whose merge commit is $GITHUB_SHA; found $merged_count."
+            exit 1
+          fi
+          no_release=$(printf '%s' "$pulls" | jq -r --arg sha "$GITHUB_SHA" \
+            '[.[] | select(.merge_commit_sha == $sha) | .labels[].name] | any(. == "no-release")')
+
+          if [ "$no_release" = "true" ]; then
+            echo "The merged pull request explicitly selected no-release; publishing nothing is the intended result."
+            exit 0
+          fi
+
+          echo "::error::Nothing was published and no release was cut (reason: ${{ needs.release.outputs.reason }}). Add exactly one release-intent label before merge; use no-release when publishing nothing is intentional."
           exit 1

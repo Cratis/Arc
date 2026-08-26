@@ -4,7 +4,7 @@ This guide walks you through building your first Arc.Core application from scrat
 
 ## Prerequisites
 
-- .NET 9 SDK or later
+- .NET SDK 10.0.301 or later
 - Basic understanding of C# and .NET concepts
 
 ## Installation
