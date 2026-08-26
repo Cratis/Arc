@@ -30,6 +30,7 @@ internal sealed class ArcSpecificationFactBuilder(
     List<GenerationDiagnostic> diagnostics)
 {
     readonly List<GenerationFact> _facts = [];
+    readonly Dictionary<ArtifactKey, INamedTypeSymbol> _artifactTypes = [];
     readonly ArcSpecificationEvidence _sourceEvidence = new(context, scenarioProject, adapter, diagnostics);
 
     ArcSpecificationArtifactFacts ArtifactFacts => new(context, scenarioProject, adapter, sourceStructures, _facts);
@@ -128,15 +129,20 @@ internal sealed class ArcSpecificationFactBuilder(
         {
             [targetKey] = sliceKind
         };
-        if (!targetsStateView)
+        var eventsToPlace = targetsStateView
+            ? stepFacts.Where(_ => _.Definition.Phase == SpecificationStepPhase.Given && _.Definition.Kind == SpecificationStepKind.Event)
+            : stepFacts.Where(_ => _.Definition.Phase == SpecificationStepPhase.Then && _.Definition.Kind == SpecificationStepKind.Event);
+        foreach (var artifact in eventsToPlace.Select(_ => _.Definition.Artifact).OfType<ArtifactKey>())
         {
-            foreach (var artifact in stepFacts
-                         .Where(_ => _.Definition.Phase == SpecificationStepPhase.Then && _.Definition.Kind == SpecificationStepKind.Event)
-                         .Select(_ => _.Definition.Artifact)
-                         .OfType<ArtifactKey>())
+            if (targetsStateView &&
+                (!_artifactTypes.TryGetValue(artifact, out var eventType) ||
+                 !ArcSpecificationEventPlacement.IsStateChangeEvent(context, eventType)))
             {
-                artifactPlacements[artifact] = GenerationSliceKind.StateChange;
+                _sourceEvidence.Block(specification, evidence, $"event '{artifact.Subject.Value}' has no exact command production proving its StateChange placement");
+                return null;
             }
+
+            artifactPlacements[artifact] = GenerationSliceKind.StateChange;
         }
 
         var placementRequests = new List<DotNetSourcePlacementRequest>();
@@ -185,6 +191,14 @@ internal sealed class ArcSpecificationFactBuilder(
             return false;
         }
 
+        if (_artifactTypes.TryGetValue(artifactKey, out var existingArtifact) &&
+            !SymbolEqualityComparer.Default.Equals(existingArtifact, artifact))
+        {
+            _sourceEvidence.Block(specification, evidence, $"step {index} resolves one artifact identity to several source types");
+            return false;
+        }
+
+        _artifactTypes[artifactKey] = artifact;
         if (kind != SpecificationStepKind.ReadModel && !HasEveryRequiredConstructionValue(artifact, state.Values.Count()))
         {
             _sourceEvidence.Block(specification, evidence, $"step {index} omits a required computed or unreadable construction value");

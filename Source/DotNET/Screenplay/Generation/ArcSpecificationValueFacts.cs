@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
@@ -48,7 +49,7 @@ internal static class ArcSpecificationValueFacts
             return false;
         }
 
-        var property = artifact.GetMembers(value.Property).OfType<IPropertySymbol>().SingleOrDefault();
+        var property = artifact.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, value.Property, StringComparison.Ordinal));
         if (property is null || !TryValue(literal.Value, out var kind, out var scalar))
         {
             reason = $"value '{artifact.Name}.{value.Property}' has an unsupported type or shape";

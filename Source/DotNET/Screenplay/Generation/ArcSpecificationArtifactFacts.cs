@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -79,9 +80,7 @@ internal sealed class ArcSpecificationArtifactFacts(
                     Key = key,
                     Name = type.Name,
                     File = evidence.Source?.Path,
-                    Properties = [.. type.GetMembers().OfType<IPropertySymbol>()
-                        .Where(property => !property.IsStatic)
-                        .OrderBy(property => property.Name, StringComparer.Ordinal)
+                    Properties = [.. type.DeclaredProperties()
                         .Select(property => new PropertyDefinition
                         {
                             Name = property.Name,
