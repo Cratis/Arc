@@ -1262,6 +1262,9 @@ public static class TypeExtensions
             .Where(File.Exists)
             .Distinct(new FileNameComparer())
             .ToArray();
+        var managedAppAssemblyNames = managedAppAssemblyPaths
+            .Select(Path.GetFileNameWithoutExtension)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         string[] paths = [.. runtimeAssemblies, .. aspNetCoreAssemblies, .. managedAppAssemblyPaths];
 
         var fundamentalsPackage = dependencyContext.RuntimeLibraries.SingleOrDefault(_ => _.Type == "package" && _.Name == "Cratis.Fundamentals");
@@ -1307,8 +1310,10 @@ public static class TypeExtensions
 
         try
         {
+            // Project references can represent analyzer-only or package-only dependencies with no runtime assembly.
+            // Load only project libraries that contributed an existing runtime asset to this dependency context.
             Assemblies = [.. dependencyContext.RuntimeLibraries
-                                            .Where(_ => _.Type.Equals("project"))
+                                            .Where(_ => _.Type.Equals("project") && managedAppAssemblyNames.Contains(_.Name))
                                             .Select(_ => LoadMetadataAssembly(Path.Join(assemblyFolder, $"{_.Name}.dll")))
                                             .Distinct()];
 
