@@ -51,6 +51,7 @@ public sealed class PackageGraphFixture : IDisposable
     readonly string _workingDirectory;
     readonly string _feedDirectory;
     readonly string _packagesDirectory;
+    readonly string _globalPackagesDirectory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PackageGraphFixture"/> class.
@@ -63,6 +64,8 @@ public sealed class PackageGraphFixture : IDisposable
         _workingDirectory = Path.Combine(physicalTemporaryDirectory, "Cratis.Arc.PackageGraph.Integration", Guid.NewGuid().ToString("N"));
         _feedDirectory = Path.Combine(_workingDirectory, "feed");
         _packagesDirectory = Path.Combine(_workingDirectory, "packages");
+        _globalPackagesDirectory = Environment.GetEnvironmentVariable("NUGET_PACKAGES") ??
+                                   Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
         Directory.CreateDirectory(_workingDirectory);
         Directory.CreateDirectory(_feedDirectory);
         Directory.CreateDirectory(_packagesDirectory);
@@ -258,7 +261,8 @@ public sealed class PackageGraphFixture : IDisposable
                 "--source",
                 "https://api.nuget.org/v3/index.json",
                 "--packages",
-                _packagesDirectory
+                _packagesDirectory,
+                $"-p:RestoreFallbackFolders={_globalPackagesDirectory}"
             ],
             isolatedPackages: true);
 
