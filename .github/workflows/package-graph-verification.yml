@@ -54,10 +54,17 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
+      - name: Build package graph outputs
+        run: |
+          dotnet build Source/DotNET/Cratis/Cratis.csproj --configuration Release
+          dotnet build Source/DotNET/Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj --configuration Release
+          dotnet build Source/DotNET/Arc.Core.Generators.Integration/Specs/PackageGraph.Integration.csproj --configuration Release --framework net10.0
+
       - name: Verify packed consumers and code-fix hosts
         run: >-
           dotnet test
           Source/DotNET/Arc.Core.Generators.Integration/Specs/PackageGraph.Integration.csproj
+          --no-build
           --configuration Release
           --framework net10.0
           --logger "console;verbosity=normal"
