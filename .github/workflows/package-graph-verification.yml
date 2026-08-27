@@ -23,7 +23,11 @@ concurrency:
 jobs:
   package-graph:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      MSBUILDDISABLENODEREUSE: "1"
 
     steps:
       - name: Checkout code

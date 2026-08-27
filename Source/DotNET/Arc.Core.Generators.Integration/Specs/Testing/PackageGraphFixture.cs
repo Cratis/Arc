@@ -416,20 +416,30 @@ public sealed class PackageGraphFixture : IDisposable
         {
             process.StartInfo.ArgumentList.Add(argument);
         }
+        process.StartInfo.Environment["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1";
+        process.StartInfo.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
+        process.StartInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
         if (isolatedPackages)
         {
             process.StartInfo.Environment["NUGET_PACKAGES"] = _packagesDirectory;
         }
 
+        var command = $"dotnet {string.Join(' ', arguments)}";
         process.Start();
         var standardOutputTask = process.StandardOutput.ReadToEndAsync();
         var standardErrorTask = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        if (!process.WaitForExit((int)TimeSpan.FromMinutes(3).TotalMilliseconds))
+        {
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+            throw new PackageGraphFailure($"{command} exceeded the three-minute package-graph command budget.");
+        }
+
         var standardOutput = standardOutputTask.GetAwaiter().GetResult();
         var standardError = standardErrorTask.GetAwaiter().GetResult();
         if (process.ExitCode != 0)
         {
-            throw new PackageGraphFailure($"dotnet {string.Join(' ', arguments)} failed with exit code {process.ExitCode}.{Environment.NewLine}{standardOutput}{Environment.NewLine}{standardError}");
+            throw new PackageGraphFailure($"{command} failed with exit code {process.ExitCode}.{Environment.NewLine}{standardOutput}{Environment.NewLine}{standardError}");
         }
 
         return new(standardOutput, standardError);
