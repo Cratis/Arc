@@ -12,8 +12,8 @@ public static class JavaScriptResources
     {
         RepoRoot = FindRepositoryRoot(AppContext.BaseDirectory)
             ?? throw new DirectoryNotFoundException("Could not find the Arc repository root");
-        ScenariosRoot = Path.Combine(RepoRoot, "Source", "DotNET", "Tools", "ProxyGenerator.Specs", "Scenarios");
-        NodeModulesRoot = Directory.Exists(Path.Combine(RepoRoot, "node_modules"))
+        ScenariosRoot = Path.Join(RepoRoot, "Source", "DotNET", "Tools", "ProxyGenerator.Specs", "Scenarios");
+        NodeModulesRoot = Directory.Exists(Path.Join(RepoRoot, "node_modules"))
             ? RepoRoot
             : AppContext.BaseDirectory;
     }
@@ -45,10 +45,10 @@ public static class JavaScriptResources
     {
         get
         {
-            var forEslintPath = Path.Combine(NodeModulesRoot, "node_modules", "typescript-for-eslint", "lib", "typescript.js");
+            var forEslintPath = Path.Join(NodeModulesRoot, "node_modules", "typescript-for-eslint", "lib", "typescript.js");
             return File.Exists(forEslintPath)
                 ? forEslintPath
-                : Path.Combine(NodeModulesRoot, "node_modules", "typescript", "lib", "typescript.js");
+                : Path.Join(NodeModulesRoot, "node_modules", "typescript", "lib", "typescript.js");
         }
     }
 
@@ -56,19 +56,19 @@ public static class JavaScriptResources
     /// Gets the path to the Arc package CJS directory.
     /// </summary>
     public static string ArcPackagePath =>
-        Path.Combine(RepoRoot, "Source", "JavaScript", "Arc", "dist", "cjs");
+        Path.Join(RepoRoot, "Source", "JavaScript", "Arc", "dist", "cjs");
 
     /// <summary>
     /// Gets the path to the Arc.React package CJS directory.
     /// </summary>
     public static string ArcReactPackagePath =>
-        Path.Combine(RepoRoot, "Source", "JavaScript", "Arc.React", "dist", "cjs");
+        Path.Join(RepoRoot, "Source", "JavaScript", "Arc.React", "dist", "cjs");
 
     /// <summary>
     /// Gets the path to the Fundamentals package CJS directory.
     /// </summary>
     public static string FundamentalsPackagePath =>
-        Path.Combine(NodeModulesRoot, "node_modules", "@cratis", "fundamentals", "dist", "cjs");
+        Path.Join(NodeModulesRoot, "node_modules", "@cratis", "fundamentals", "dist", "cjs");
 
     /// <summary>
     /// Reads the TypeScript compiler source.
@@ -97,9 +97,9 @@ public static class JavaScriptResources
         var current = new DirectoryInfo(startPath);
         while (current is not null)
         {
-            var hasRootFiles = File.Exists(Path.Combine(current.FullName, "global.json")) &&
-                               File.Exists(Path.Combine(current.FullName, "package.json"));
-            var hasProxySpecs = Directory.Exists(Path.Combine(current.FullName, "Source", "DotNET", "Tools", "ProxyGenerator.Specs"));
+            var hasRootFiles = File.Exists(Path.Join(current.FullName, "global.json")) &&
+                               File.Exists(Path.Join(current.FullName, "package.json"));
+            var hasProxySpecs = Directory.Exists(Path.Join(current.FullName, "Source", "DotNET", "Tools", "ProxyGenerator.Specs"));
             if (hasRootFiles && hasProxySpecs)
             {
                 return current.FullName;

@@ -27,7 +27,7 @@ public sealed class JavaScriptRuntime : IDisposable
         // folder into one target framework's own bin output, and that nearer, incomplete copy would then shadow
         // the real workspace root for that framework only.
         _workspaceRoot = JavaScriptResources.NodeModulesRoot;
-        _javaScriptDirectory = Path.Combine(JavaScriptResources.RepoRoot, "Source", "JavaScript");
+        _javaScriptDirectory = Path.Join(JavaScriptResources.RepoRoot, "Source", "JavaScript");
 
         Engine = new V8ScriptEngine();
         Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
