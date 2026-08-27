@@ -1,7 +1,20 @@
 {
     "name": "@cratis/arc",
     "version": "1.0.0",
-    "description": "",
+    "description": "TypeScript command, query, validation, identity, and messaging runtime for Cratis Arc — the CQRS application framework for ASP.NET Core — used by generated proxies.",
+    "keywords": [
+        "cratis",
+        "arc",
+        "cqrs",
+        "commands",
+        "queries",
+        "typescript",
+        "proxy",
+        "validation",
+        "aspnetcore",
+        "event-sourcing"
+    ],
+    "homepage": "https://www.cratis.io/arc/",
     "author": "Cratis",
     "license": "MIT",
     "repository": {

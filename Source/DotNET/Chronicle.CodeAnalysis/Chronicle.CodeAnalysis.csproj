@@ -2,6 +2,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Chronicle.CodeAnalysis</AssemblyName>
+        <Description>Roslyn analyzers (ARCCHR*) for the Cratis Arc Chronicle event-sourcing integration.</Description>
+        <PackageTags>cratis;arc;chronicle;event-sourcing;cqrs;analyzers;roslyn;codeanalysis</PackageTags>
         <RootNamespace>Cratis.Arc.Chronicle.CodeAnalysis</RootNamespace>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>

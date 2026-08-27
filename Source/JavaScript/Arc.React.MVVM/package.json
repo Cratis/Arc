@@ -1,7 +1,20 @@
 {
     "name": "@cratis/arc.react.mvvm",
     "version": "1.0.0",
-    "description": "",
+    "description": "React MVVM integration for Cratis Arc — view models, dependency injection, route parameters, and browser abstractions for CQRS applications on ASP.NET Core.",
+    "keywords": [
+        "cratis",
+        "arc",
+        "cqrs",
+        "commands",
+        "queries",
+        "react",
+        "mvvm",
+        "view-models",
+        "typescript",
+        "aspnetcore"
+    ],
+    "homepage": "https://www.cratis.io/arc/",
     "author": "Cratis",
     "license": "MIT",
     "repository": {

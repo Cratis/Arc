@@ -2,6 +2,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Core</AssemblyName>
         <RootNamespace>Cratis.Arc</RootNamespace>
+        <Description>Core command and query pipelines, validation, identity, and tenancy for Cratis Arc — the CQRS application framework for ASP.NET Core — hostable from workers, consoles, and custom services.</Description>
     </PropertyGroup>
 
     <ItemGroup>
