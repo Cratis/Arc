@@ -70,7 +70,7 @@ public class when_analyzing_a_generated_query_specification : Specification
         _withoutEstablishSource = Source([_withoutEstablish]);
         _partialSource = Source([_partial]);
         _partialReversedSource = Source([_partialReversed]);
-        _reversedFactsSource = Source([_separateProject with { Facts = [.. _separateProject.Facts.Reverse()] }]);
+        _reversedFactsSource = Source([_separateProject with { Facts = [.. Reversed(_separateProject.Facts)] }]);
         _reversedAdaptersSource = SourceRaw([_concepts, _separateProject]);
     }
 
@@ -151,7 +151,7 @@ public class when_analyzing_a_generated_query_specification : Specification
         };
         if (reverseProjects)
         {
-            projects = [.. projects.Reverse()];
+            projects = [.. Reversed(projects)];
         }
 
         return new ArcSpecificationFactAdapter().Analyze(
@@ -170,7 +170,7 @@ public class when_analyzing_a_generated_query_specification : Specification
         ];
         if (reverseTrees)
         {
-            scenarios = [.. scenarios.Reverse()];
+            scenarios = [.. Reversed(scenarios)];
         }
 
         return new ArcSpecificationFactAdapter().Analyze(
@@ -192,8 +192,8 @@ public class when_analyzing_a_generated_query_specification : Specification
     {
         if (reverseTrees)
         {
-            applicationSources = [.. applicationSources.Reverse()];
-            specificationSources = [.. specificationSources.Reverse()];
+            applicationSources = [.. Reversed(applicationSources)];
+            specificationSources = [.. Reversed(specificationSources)];
         }
 
         var application = Analyzed.Project("Projects", [], applicationSources);
@@ -214,9 +214,9 @@ public class when_analyzing_a_generated_query_specification : Specification
     {
         if (reverseTrees)
         {
-            frameworkSources = [.. frameworkSources.Reverse()];
-            applicationSources = [.. applicationSources.Reverse()];
-            specificationSources = [.. specificationSources.Reverse()];
+            frameworkSources = [.. Reversed(frameworkSources)];
+            applicationSources = [.. Reversed(applicationSources)];
+            specificationSources = [.. Reversed(specificationSources)];
         }
 
         var framework = Analyzed.Project("Projects.Framework", [], frameworkSources);
@@ -308,6 +308,8 @@ public class when_analyzing_a_generated_query_specification : Specification
             .ToArray();
         return new AdapterContribution { Adapter = adapter, Facts = concepts };
     }
+
+    static IEnumerable<T> Reversed<T>(IEnumerable<T> values) => values.Reverse();
 
     static string[] FactEvidence(AdapterContribution contribution) =>
     [
