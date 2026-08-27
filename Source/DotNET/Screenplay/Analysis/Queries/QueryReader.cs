@@ -48,12 +48,53 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// would put routes in the document that no application serves, while a query that happens not to be public is a
     /// route the application really does serve.
     /// </remarks>
-    public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type) =>
-        type.GetMembers()
+    public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type)
+    {
+        return type.GetMembers()
             .OfType<IMethodSymbol>()
-            .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: true } &&
-                !_.ReturnsVoid && _.TypeParameters.Length == 0 && Returns(_, type))
+            .Where(method =>
+            {
+                if (method is not { MethodKind: MethodKind.Ordinary, IsStatic: true } ||
+                    method.ReturnsVoid || method.TypeParameters.Length != 0)
+                {
+                    return false;
+                }
+
+                var collection = false;
+                return SymbolEqualityComparer.Default.Equals(QueryReturnTypes.Unwrap(method.ReturnType, ref collection), type);
+            })
             .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Determines whether a parameter is part of what a caller sends.
+    /// </summary>
+    /// <param name="parameter">The parameter to check.</param>
+    /// <returns>True when the parameter is input rather than infrastructure.</returns>
+    /// <remarks>
+    /// Arc decides this at run time by asking the container whether the parameter's type is a service, which is not a
+    /// question source can answer - so what is asked instead is whether a caller could possibly send one. An interface
+    /// and an abstract type both fail that outright: neither has a value to send, and both are how a collaborator the
+    /// host injects is written - <c>TimeProvider</c>, the clock a query measures a threshold against, is abstract
+    /// rather than an interface and reached the document as a parameter no caller has ever sent. Being uninstantiable
+    /// is not the whole of it though: a cancellation token, the page asked for and the order asked for are all filled
+    /// in by the host from the request, and all three are concrete values. Stating any of them as caller input puts a
+    /// parameter in the document that no caller sends, typed by a name the document never declares.
+    /// <para>
+    /// A concrete class the container happens to resolve still comes through as input, because nothing in the source
+    /// tells it apart from a value a caller sends. That is the residue of approximating a container lookup statically,
+    /// and it is the narrow side of the trade: a parameter wrongly stated is visible in the document, while one
+    /// wrongly dropped is not.
+    /// </para>
+    /// <para>
+    /// An interface parameter is never input by the same reasoning - there is no value a caller could have sent for
+    /// it, only a collaborator the host resolves - which is what excludes <c>IReadModels</c> from a recovered
+    /// specification's own arguments without naming it specially.
+    /// </para>
+    /// </remarks>
+    public static bool IsInput(IParameterSymbol parameter) =>
+        parameter.Type is { TypeKind: not TypeKind.Interface, IsAbstract: false } &&
+        !Array.Exists(InfrastructureTypes, parameter.Type.Is);
 
     /// <summary>
     /// Reads a query.
@@ -82,44 +123,6 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             [.. parameters.Where(_ => !SymbolEqualityComparer.Default.Equals(_, required)).Select(ToParameter)],
             AuthorizationReader.Read(method, declaring),
             QueryReturnTypes.IsObservable(method.ReturnType));
-    }
-
-    /// <summary>
-    /// Determines whether a parameter is part of what a caller sends.
-    /// </summary>
-    /// <param name="parameter">The parameter to check.</param>
-    /// <returns>True when the parameter is input rather than infrastructure.</returns>
-    /// <remarks>
-    /// Arc decides this at run time by asking the container whether the parameter's type is a service, which is not a
-    /// question source can answer - so what is asked instead is whether a caller could possibly send one. An interface
-    /// and an abstract type both fail that outright: neither has a value to send, and both are how a collaborator the
-    /// host injects is written - <c>TimeProvider</c>, the clock a query measures a threshold against, is abstract
-    /// rather than an interface and reached the document as a parameter no caller has ever sent. Being uninstantiable
-    /// is not the whole of it though: a cancellation token, the page asked for and the order asked for are all filled
-    /// in by the host from the request, and all three are concrete values. Stating any of them as caller input puts a
-    /// parameter in the document that no caller sends, typed by a name the document never declares.
-    /// <para>
-    /// A concrete class the container happens to resolve still comes through as input, because nothing in the source
-    /// tells it apart from a value a caller sends. That is the residue of approximating a container lookup statically,
-    /// and it is the narrow side of the trade: a parameter wrongly stated is visible in the document, while one
-    /// wrongly dropped is not.
-    /// </para>
-    /// </remarks>
-    static bool IsInput(IParameterSymbol parameter) =>
-        parameter.Type is { TypeKind: not TypeKind.Interface, IsAbstract: false } &&
-        !Array.Exists(InfrastructureTypes, parameter.Type.Is);
-
-    /// <summary>
-    /// Determines whether a method returns the read model declaring it.
-    /// </summary>
-    /// <param name="method">The method to check.</param>
-    /// <param name="readModel">The read model declaring it.</param>
-    /// <returns>True when the method returns the read model.</returns>
-    static bool Returns(IMethodSymbol method, INamedTypeSymbol readModel)
-    {
-        var collection = false;
-
-        return SymbolEqualityComparer.Default.Equals(QueryReturnTypes.Unwrap(method.ReturnType, ref collection), readModel);
     }
 
     /// <summary>

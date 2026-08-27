@@ -42,6 +42,12 @@ public static class WellKnownTypeNames
     /// <summary>The base type every strongly typed domain value derives from.</summary>
     public const string ConceptAs = "Cratis.Concepts.ConceptAs`1";
 
+    /// <summary>The generic base type every strongly typed event-source identifier derives from.</summary>
+    public const string EventSourceIdOfT = "Cratis.Chronicle.Events.EventSourceId`1";
+
+    /// <summary>The untyped event-source identifier a generated read-model substitute call casts its key to.</summary>
+    public const string EventSourceId = "Cratis.Chronicle.Events.EventSourceId";
+
     /// <summary>The attribute marking an event type.</summary>
     public const string EventTypeAttribute = "Cratis.Chronicle.Events.EventTypeAttribute";
 
@@ -161,4 +167,7 @@ public static class WellKnownTypeNames
 
     /// <summary>The attribute giving a read model or a query a route of its own rather than the conventional one.</summary>
     public const string PathAttribute = "Cratis.Arc.Queries.ModelBound.PathAttribute";
+
+    /// <summary>The interface a query reads a read model through, and the collaborator a generated query specification substitutes.</summary>
+    public const string ReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
 }

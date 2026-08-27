@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
@@ -104,6 +106,24 @@ internal static class ArcSpecificationFacts
         },
         Subject = type is INamedTypeSymbol named ? context.SubjectForType(named) : null
     };
+
+    /// <summary>
+    /// Creates the exact neutral type reference admitted by Stage query specifications.
+    /// </summary>
+    /// <param name="type">The exact query parameter or result-property type.</param>
+    /// <param name="context">The analyzed application context.</param>
+    /// <returns>The neutral type reference.</returns>
+    public static TypeReferenceDefinition QueryTypeReference(ITypeSymbol type, DotNetAnalysisContext context)
+    {
+        if (type is INamedTypeSymbol named &&
+            named.TypeKind != TypeKind.Enum &&
+            ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive))
+        {
+            return new() { Name = ScreenplayPrimitiveTypes.GetName(primitive) };
+        }
+
+        return TypeReference(type, context);
+    }
 
     /// <summary>
     /// Creates a stable adapter-qualified fact identity.

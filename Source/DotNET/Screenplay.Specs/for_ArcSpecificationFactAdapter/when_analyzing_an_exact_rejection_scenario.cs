@@ -10,8 +10,11 @@ namespace Cratis.Arc.Screenplay.for_ArcSpecificationFactAdapter;
 public class when_analyzing_an_exact_rejection_scenario : Specification
 {
     const string Slice = """
+        using System.Threading.Tasks;
         using Cratis.Arc.Commands.ModelBound;
+        using Cratis.Arc.Queries.ModelBound;
         using Cratis.Chronicle.Events;
+        using Cratis.Chronicle.ReadModels;
 
         namespace Projects.Projects.Registration.RegisterProject;
 
@@ -23,12 +26,21 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
         {
             public ProjectRegistered Handle() => new(Name);
         }
+
+        [ReadModel]
+        public record ProjectOverview(string Name)
+        {
+            public static Task<ProjectOverview?> ProjectByName(IReadModels readModels, string name) =>
+                readModels.GetInstanceById<ProjectOverview>(name);
+        }
         """;
 
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Chronicle.ReadModels;
         using Cratis.Chronicle.Testing.EventSequences;
+        using NSubstitute;
         using Projects.Projects.Registration.RegisterProject;
         using Xunit;
 
@@ -37,9 +49,15 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
         public class when_rejecting_an_empty_project_name
         {
             readonly CommandScenario<RegisterProject> _scenario = new();
+            readonly IReadModels _readModels = Substitute.For<IReadModels>();
+            ProjectOverview? _queryResult;
             Result _result = null!;
 
-            async Task Because() => _result = await _scenario.Execute(new RegisterProject(""));
+            async Task Because()
+            {
+                _queryResult = await ProjectOverview.ProjectByName(_readModels, "Screenplay");
+                _result = await _scenario.Execute(new RegisterProject(""));
+            }
 
             [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
         }
