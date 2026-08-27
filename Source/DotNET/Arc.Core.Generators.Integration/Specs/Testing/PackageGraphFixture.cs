@@ -61,11 +61,11 @@ public sealed class PackageGraphFixture : IDisposable
         RepositoryRoot = FindRepositoryRoot();
         PackageVersion = $"999.0.0-integration-{Guid.NewGuid():N}";
         var physicalTemporaryDirectory = ResolvePhysicalPath(Path.GetTempPath());
-        _workingDirectory = Path.Combine(physicalTemporaryDirectory, "Cratis.Arc.PackageGraph.Integration", Guid.NewGuid().ToString("N"));
-        _feedDirectory = Path.Combine(_workingDirectory, "feed");
-        _packagesDirectory = Path.Combine(_workingDirectory, "packages");
+        _workingDirectory = Path.Join(physicalTemporaryDirectory, "Cratis.Arc.PackageGraph.Integration", Guid.NewGuid().ToString("N"));
+        _feedDirectory = Path.Join(_workingDirectory, "feed");
+        _packagesDirectory = Path.Join(_workingDirectory, "packages");
         _globalPackagesDirectory = Environment.GetEnvironmentVariable("NUGET_PACKAGES") ??
-                                   Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+                                   Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
         Directory.CreateDirectory(_workingDirectory);
         Directory.CreateDirectory(_feedDirectory);
         Directory.CreateDirectory(_packagesDirectory);
@@ -113,7 +113,7 @@ public sealed class PackageGraphFixture : IDisposable
     {
         foreach (var package in _packageDefinitions)
         {
-            var projectPath = Path.Combine(RepositoryRoot, "Source", "DotNET", package.ProjectPath);
+            var projectPath = Path.Join(RepositoryRoot, "Source", "DotNET", package.ProjectPath);
             RunDotNet(
                 RepositoryRoot,
                 [
@@ -143,7 +143,7 @@ public sealed class PackageGraphFixture : IDisposable
 
     PackageArchive ReadPackage(string packageId)
     {
-        var packagePath = Path.Combine(_feedDirectory, $"{packageId}.{PackageVersion}.nupkg");
+        var packagePath = Path.Join(_feedDirectory, $"{packageId}.{PackageVersion}.nupkg");
         if (!File.Exists(packagePath))
         {
             throw new PackageGraphFailure($"Expected package '{packagePath}' to exist.");
@@ -170,19 +170,19 @@ public sealed class PackageGraphFixture : IDisposable
 
     ConsumerBuildResult BuildConsumer(ConsumerDefinition definition)
     {
-        var consumerDirectory = Path.Combine(_workingDirectory, "consumers", definition.Name);
+        var consumerDirectory = Path.Join(_workingDirectory, "consumers", definition.Name);
         Directory.CreateDirectory(consumerDirectory);
-        var projectPath = Path.Combine(consumerDirectory, "Consumer.csproj");
+        var projectPath = Path.Join(consumerDirectory, "Consumer.csproj");
         File.WriteAllText(projectPath, CreateConsumerProject(definition.PackageIds));
         var consumerSource = definition.ArcGeneratorCount > 0
             ? CreateRuntimeConsumerSource()
             : "public sealed class Consumer;\n";
-        File.WriteAllText(Path.Combine(consumerDirectory, "Consumer.cs"), consumerSource);
+        File.WriteAllText(Path.Join(consumerDirectory, "Consumer.cs"), consumerSource);
 
         RestoreConsumer(consumerDirectory, projectPath);
         var buildResult = RunDotNet(consumerDirectory, ["build", projectPath, "--no-restore"], isolatedPackages: true);
 
-        var analyzerEvidencePath = Path.Combine(consumerDirectory, "obj", "resolved-analyzers.txt");
+        var analyzerEvidencePath = Path.Join(consumerDirectory, "obj", "resolved-analyzers.txt");
         if (!File.Exists(analyzerEvidencePath))
         {
             throw new PackageGraphFailure($"Expected MSBuild analyzer evidence at '{analyzerEvidencePath}'.");
@@ -191,7 +191,7 @@ public sealed class PackageGraphFixture : IDisposable
         var resolvedAnalyzerFiles = File.ReadAllLines(analyzerEvidencePath)
             .Where(_ => !string.IsNullOrWhiteSpace(_))
             .ToArray();
-        var generatedDirectory = Path.Combine(consumerDirectory, "obj", "Generated");
+        var generatedDirectory = Path.Join(consumerDirectory, "obj", "Generated");
         var generatedFiles = Directory.Exists(generatedDirectory)
             ? Directory.GetFiles(generatedDirectory, "*.cs", SearchOption.AllDirectories)
             : [];
@@ -199,7 +199,7 @@ public sealed class PackageGraphFixture : IDisposable
             .Where(_ => Path.GetFileName(_) == "GeneratedQueryMetadata.g.cs")
             .ToArray();
         var generatedMetadata = string.Join(Environment.NewLine, generatedMetadataFiles.Select(File.ReadAllText));
-        var outputDirectory = Path.Combine(consumerDirectory, "bin");
+        var outputDirectory = Path.Join(consumerDirectory, "bin");
         var forbiddenOutputFiles = Directory.GetFiles(outputDirectory, "*.dll", SearchOption.AllDirectories)
             .Where(_ => Path.GetFileName(_).Contains("Workspaces", StringComparison.OrdinalIgnoreCase)
                      || Path.GetFileName(_).Contains("Composition", StringComparison.OrdinalIgnoreCase))
@@ -211,7 +211,7 @@ public sealed class PackageGraphFixture : IDisposable
             definition,
             buildWasClean,
             RestoredPackagesHaveLocalProvenance(
-                Path.Combine(consumerDirectory, "obj", "project.assets.json"),
+                Path.Join(consumerDirectory, "obj", "project.assets.json"),
                 definition.PackageIds),
             CountFile(resolvedAnalyzerFiles, ArcAnalyzer),
             CountFile(resolvedAnalyzerFiles, ArcCodeFix),
@@ -261,8 +261,8 @@ public sealed class PackageGraphFixture : IDisposable
                 return false;
             }
 
-            var packedPackage = Path.Combine(_feedDirectory, $"{package.Id}.{PackageVersion}.nupkg");
-            var restoredPackage = Path.Combine(
+            var packedPackage = Path.Join(_feedDirectory, $"{package.Id}.{PackageVersion}.nupkg");
+            var restoredPackage = Path.Join(
                 _packagesDirectory,
                 package.Id.ToLowerInvariant(),
                 PackageVersion.ToLowerInvariant(),
@@ -312,10 +312,10 @@ public sealed class PackageGraphFixture : IDisposable
 
     CodeFixHostResult DiscoverCodeFix(string name, string packageId, string diagnosticId, string originalSource, string expectedSource)
     {
-        var consumerDirectory = Path.Combine(_workingDirectory, "code-fixes", name);
+        var consumerDirectory = Path.Join(_workingDirectory, "code-fixes", name);
         Directory.CreateDirectory(consumerDirectory);
-        var projectPath = Path.Combine(consumerDirectory, "Consumer.csproj");
-        var sourcePath = Path.Combine(consumerDirectory, "Consumer.cs");
+        var projectPath = Path.Join(consumerDirectory, "Consumer.csproj");
+        var sourcePath = Path.Join(consumerDirectory, "Consumer.cs");
         File.WriteAllText(projectPath, CreateConsumerProject([packageId], emitGeneratedFiles: false));
         File.WriteAllText(sourcePath, originalSource);
 
@@ -466,14 +466,13 @@ public sealed class PackageGraphFixture : IDisposable
     string ResolvePhysicalPath(string path)
     {
         var root = Path.GetPathRoot(path) ?? string.Empty;
-        var current = root;
-        foreach (var segment in path[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
-        {
-            var candidate = Path.Combine(current, segment);
-            current = new DirectoryInfo(candidate).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? candidate;
-        }
-
-        return current;
+        return path[root.Length..]
+            .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)
+            .Aggregate(root, (current, segment) =>
+            {
+                var candidate = Path.Join(current, segment);
+                return new DirectoryInfo(candidate).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? candidate;
+            });
     }
 
     string FindRepositoryRoot()
@@ -481,7 +480,7 @@ public sealed class PackageGraphFixture : IDisposable
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "Arc.slnx")))
+            if (File.Exists(Path.Join(current.FullName, "Arc.slnx")))
             {
                 return current.FullName;
             }
