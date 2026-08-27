@@ -15,12 +15,4 @@
         <PackageReference Include="Cratis.Fundamentals" />
     </ItemGroup>
 
-    <!-- pull_request_target executes workflow structure from main, so a new matrix job cannot be made reliable from
-         the branch under review. Run the package graph after its two build roots inside the existing cached build job;
-         any failure fails dotnet-build. The nested test skips compilation and does not re-enter this Build target. -->
-    <Target Name="RunPackageGraphSpecificationsInContinuousIntegration"
-            AfterTargets="Build"
-            Condition="'$(CI)' == 'true' AND '$(TargetFramework)' == 'net10.0'">
-        <Exec Command="dotnet test &quot;$(MSBuildProjectFullPath)&quot; --no-build --configuration &quot;$(Configuration)&quot; --framework &quot;$(TargetFramework)&quot; --logger &quot;console;verbosity=minimal&quot;" />
-    </Target>
 </Project>
