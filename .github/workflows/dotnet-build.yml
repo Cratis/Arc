@@ -183,15 +183,6 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Restore NuGet packages for package-graph specs
-        if: contains(matrix.project, 'Arc.Core.Generators.Integration')
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-
       - name: Download build output
         uses: actions/download-artifact@v4
         with:
