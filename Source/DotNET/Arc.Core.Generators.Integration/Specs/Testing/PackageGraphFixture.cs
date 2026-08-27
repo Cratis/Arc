@@ -10,7 +10,7 @@ using System.Xml.Linq;
 namespace Cratis.Arc.Core.Generators.Integration.Specs.Testing;
 
 /// <summary>
-/// Packs the analyzer package graph once in a disposable source copy and exercises clean consumers against the resulting local feed.
+/// Packs the exact-head build outputs once and exercises clean consumers against the resulting local feed.
 /// </summary>
 public sealed class PackageGraphFixture : IDisposable
 {
@@ -19,16 +19,6 @@ public sealed class PackageGraphFixture : IDisposable
     const string ArcGenerator = "Cratis.Arc.Core.Generators.dll";
     const string ChronicleAnalyzer = "Cratis.Arc.Chronicle.CodeAnalysis.dll";
     const string ChronicleCodeFix = "Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes.dll";
-
-    static readonly HashSet<string> _excludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".git",
-        ".ai-work",
-        "Artifacts",
-        "bin",
-        "node_modules",
-        "obj"
-    };
 
     static readonly PackageDefinition[] _packageDefinitions =
     [
@@ -59,7 +49,6 @@ public sealed class PackageGraphFixture : IDisposable
     ];
 
     readonly string _workingDirectory;
-    readonly string _sourceDirectory;
     readonly string _feedDirectory;
     readonly string _packagesDirectory;
 
@@ -72,13 +61,11 @@ public sealed class PackageGraphFixture : IDisposable
         PackageVersion = $"999.0.0-integration-{Guid.NewGuid():N}";
         var physicalTemporaryDirectory = ResolvePhysicalPath(Path.GetTempPath());
         _workingDirectory = Path.Combine(physicalTemporaryDirectory, "Cratis.Arc.PackageGraph.Integration", Guid.NewGuid().ToString("N"));
-        _sourceDirectory = Path.Combine(_workingDirectory, "source");
         _feedDirectory = Path.Combine(_workingDirectory, "feed");
         _packagesDirectory = Path.Combine(_workingDirectory, "packages");
         Directory.CreateDirectory(_workingDirectory);
         Directory.CreateDirectory(_feedDirectory);
         Directory.CreateDirectory(_packagesDirectory);
-        CopyPackSource();
 
         Packages = PackPackages();
         Consumers = _consumerDefinitions.Select(BuildConsumer).ToArray();
@@ -87,7 +74,7 @@ public sealed class PackageGraphFixture : IDisposable
     }
 
     /// <summary>
-    /// Gets the repository root used as the source for the disposable copy.
+    /// Gets the repository root containing the exact-head build outputs.
     /// </summary>
     public string RepositoryRoot { get; }
 
@@ -119,50 +106,14 @@ public sealed class PackageGraphFixture : IDisposable
     /// <inheritdoc/>
     public void Dispose() => TryDeleteWorkingDirectory();
 
-    void CopyPackSource()
-    {
-        Directory.CreateDirectory(_sourceDirectory);
-        foreach (var file in Directory.GetFiles(RepositoryRoot, "*", SearchOption.TopDirectoryOnly))
-        {
-            if (!string.Equals(Path.GetFileName(file), ".git", StringComparison.OrdinalIgnoreCase))
-            {
-                File.Copy(file, Path.Combine(_sourceDirectory, Path.GetFileName(file)));
-            }
-        }
-
-        CopyDirectory(
-            Path.Combine(RepositoryRoot, "Source"),
-            Path.Combine(_sourceDirectory, "Source"));
-    }
-
-    void CopyDirectory(string sourceDirectory, string destinationDirectory)
-    {
-        Directory.CreateDirectory(destinationDirectory);
-        foreach (var file in Directory.GetFiles(sourceDirectory, "*", SearchOption.TopDirectoryOnly))
-        {
-            File.Copy(file, Path.Combine(destinationDirectory, Path.GetFileName(file)));
-        }
-
-        foreach (var directory in Directory.GetDirectories(sourceDirectory, "*", SearchOption.TopDirectoryOnly))
-        {
-            var directoryInfo = new DirectoryInfo(directory);
-            if (_excludedDirectoryNames.Contains(directoryInfo.Name) || directoryInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
-            {
-                continue;
-            }
-
-            CopyDirectory(directory, Path.Combine(destinationDirectory, directoryInfo.Name));
-        }
-    }
-
     Dictionary<string, PackageArchive> PackPackages()
     {
         PreparePackageOutputs();
         foreach (var package in _packageDefinitions)
         {
-            var projectPath = Path.Combine(_sourceDirectory, "Source", "DotNET", package.ProjectPath);
+            var projectPath = Path.Combine(RepositoryRoot, "Source", "DotNET", package.ProjectPath);
             RunDotNet(
-                _sourceDirectory,
+                RepositoryRoot,
                 [
                     "pack",
                     projectPath,
@@ -192,14 +143,14 @@ public sealed class PackageGraphFixture : IDisposable
     {
         var projectPaths = new[]
         {
-            Path.Combine(_sourceDirectory, "Source", "DotNET", "Cratis", "Cratis.csproj"),
-            Path.Combine(_sourceDirectory, "Source", "DotNET", "Cratis.CodeAnalysis", "Cratis.CodeAnalysis.csproj")
+            Path.Combine(RepositoryRoot, "Source", "DotNET", "Cratis", "Cratis.csproj"),
+            Path.Combine(RepositoryRoot, "Source", "DotNET", "Cratis.CodeAnalysis", "Cratis.CodeAnalysis.csproj")
         };
 
         foreach (var projectPath in projectPaths)
         {
             RunDotNet(
-                _sourceDirectory,
+                RepositoryRoot,
                 [
                     "restore",
                     projectPath,
@@ -208,24 +159,7 @@ public sealed class PackageGraphFixture : IDisposable
                     "-p:EnableSourceControlManagerQueries=false",
                     "-p:EnableSourceLink=false",
                     "-p:EmbedUntrackedSources=false"
-                ],
-                isolatedPackages: true);
-            RunDotNet(
-                _sourceDirectory,
-                [
-                    "build",
-                    projectPath,
-                    "-c",
-                    "Release",
-                    "--no-restore",
-                    $"-p:Version={PackageVersion}",
-                    "-p:EnableSourceControlManagerQueries=false",
-                    "-p:EnableSourceLink=false",
-                    "-p:EmbedUntrackedSources=false",
-                    "-p:IncludeSymbols=false",
-                    "-p:IncludeSource=false"
-                ],
-                isolatedPackages: true);
+                ]);
         }
     }
 
