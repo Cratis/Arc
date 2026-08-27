@@ -7,7 +7,7 @@ using Cratis.Screenplay.Generation.DotNet;
 
 namespace Cratis.Arc.Screenplay.for_ArcSpecificationFactAdapter;
 
-public class when_analyzing_event_predicate_values : Specification
+public class when_an_unrelated_helper_uses_the_appended_event_name : Specification
 {
     const string Slice = """
         using Cratis.Arc.Commands.ModelBound;
@@ -27,7 +27,7 @@ public class when_analyzing_event_predicate_values : Specification
 
     const string Scenario = """
         using System.Threading.Tasks;
-        using Cratis.Arc.Chronicle.Testing.Commands;
+        using Application.Assertions;
         using Cratis.Arc.Testing.Commands;
         using Projects.Projects.Registration.RegisterProject;
         using Xunit;
@@ -40,21 +40,19 @@ public class when_analyzing_event_predicate_values : Specification
 
             async Task Because() => await _scenario.Execute(new RegisterProject("Screenplay"));
 
-            static string ExpectedName() => "Screenplay";
-
             [Fact] Task should_append() => _scenario.ShouldHaveAppendedEvent<RegisterProject, ProjectRegistered>(
                 "project",
-                @event => @event.Name == ExpectedName());
+                @event => @event.Name == "Screenplay");
         }
         """;
 
-    const string Assertions = """
+    const string Lookalike = """
         using System;
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
         using Cratis.Chronicle.Events;
 
-        namespace Cratis.Arc.Chronicle.Testing.Commands;
+        namespace Application.Assertions;
 
         public static class CommandScenarioChronicleAssertionExtensions
         {
@@ -73,7 +71,7 @@ public class when_analyzing_event_predicate_values : Specification
         [
             ("Projects/Registration/RegisterProject/RegisterProject.cs", Slice),
             ("Projects/Registration/RegisterProject/when_registering.cs", Scenario),
-            ("Integration/Assertions.cs", Assertions),
+            ("Application/Assertions.cs", Lookalike),
             (IntegrationTesting.Path, IntegrationTesting.Source)
         ]);
         var project = SourceProjects.Create("Projects", DotNetProjectRole.Application, compilation);
@@ -83,6 +81,6 @@ public class when_analyzing_event_predicate_values : Specification
     }
 
     [Fact] void should_contribute_no_partial_facts() => _contribution.Facts.ShouldBeEmpty();
-    [Fact] void should_report_only_the_unrepresented_predicate_values() => _contribution.Diagnostics.Select(_ => _.Code).ShouldContainOnly("ARCSP0001");
+    [Fact] void should_report_only_the_unsupported_scenario() => _contribution.Diagnostics.Select(_ => _.Code).ShouldContainOnly("ARCSP0001");
     [Fact] void should_retain_the_scenario_source() => _contribution.Diagnostics.Single().Source!.Path.ShouldEqual("Projects/Registration/RegisterProject/when_registering.cs");
 }

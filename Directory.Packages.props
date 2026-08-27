@@ -23,9 +23,9 @@
     <PackageVersion Include="Cratis.Fundamentals" Version="7.18.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.18.0" />
     <PackageVersion Include="Cratis.Screenplay" Version="4.6.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.12.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.12.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.12.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.15.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.15.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.15.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.11" />

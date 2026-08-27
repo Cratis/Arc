@@ -50,9 +50,16 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// Adds an event a specification says followed, or records that it cannot be read.
     /// </summary>
     /// <param name="appended">The type the assertion names.</param>
-    /// <param name="source">The exact authored assertion location.</param>
+    /// <param name="invocation">The appended-event assertion.</param>
+    /// <param name="method">The exactly bound assertion method.</param>
+    /// <param name="semanticModel">The semantic model owning the assertion.</param>
     /// <param name="draft">The scenario collected so far.</param>
-    static void AddEvent(ITypeSymbol appended, Location source, SpecificationDraft draft)
+    static void AddEvent(
+        ITypeSymbol appended,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SemanticModel semanticModel,
+        SpecificationDraft draft)
     {
         if (!EventReader.IsEvent(appended))
         {
@@ -60,11 +67,27 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             return;
         }
 
-        if (!draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal)))
+        if (draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal)))
         {
-            var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, []);
-            draft.AddThen(state, appended, source);
+            draft.CannotRead($"it expects '{appended.Name}' more than once, and repeated event expectations are ambiguous");
+            return;
         }
+
+        if (!SpecificationEventPredicateValues.TryRead(
+                invocation,
+                method,
+                appended,
+                semanticModel,
+                draft,
+                out var values,
+                out var reason))
+        {
+            draft.CannotRead(reason!);
+            return;
+        }
+
+        var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values);
+        draft.AddThen(state, appended, invocation.GetLocation());
     }
 
     /// <summary>
@@ -86,6 +109,12 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
             var appended = SpecificationAssertions.AppendedEventOf(method);
             var rejection = SpecificationAssertions.IsRejection(invocation, method);
+            if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
+            {
+                draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");
+                return;
+            }
+
             if (appended is null && !rejection)
             {
                 continue;
@@ -99,7 +128,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
             if (appended is not null)
             {
-                AddEvent(appended, invocation.GetLocation(), draft);
+                AddEvent(appended, invocation, method, semanticModel, draft);
                 continue;
             }
 

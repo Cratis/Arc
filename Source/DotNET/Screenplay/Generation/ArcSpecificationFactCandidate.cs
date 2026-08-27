@@ -9,8 +9,8 @@ namespace Cratis.Arc.Screenplay.Generation;
 /// <summary>
 /// Represents one complete scenario contribution awaiting exact shared placement.
 /// </summary>
-/// <param name="PlacementRequest">The exact target placement request.</param>
+/// <param name="PlacementRequests">The exact artifact placement requests.</param>
 /// <param name="Facts">The scenario facts staged atomically.</param>
 internal sealed record ArcSpecificationFactCandidate(
-    DotNetSourcePlacementRequest PlacementRequest,
+    IReadOnlyList<DotNetSourcePlacementRequest> PlacementRequests,
     IReadOnlyList<GenerationFact> Facts);

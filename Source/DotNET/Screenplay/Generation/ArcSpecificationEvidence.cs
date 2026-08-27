@@ -47,13 +47,25 @@ internal sealed class ArcSpecificationEvidence(
     /// <param name="evidence">The exact scenario evidence.</param>
     /// <param name="reason">The blocking reason.</param>
     public void Block(SpecificationModel specification, SpecificationScenarioEvidence evidence, string reason) =>
+        Block(specification.Name, evidence.SourceType, evidence.Source, reason);
+
+    /// <summary>
+    /// Reports one exact query scenario that contributes no partial neutral facts.
+    /// </summary>
+    /// <param name="name">The recovered scenario name.</param>
+    /// <param name="evidence">The exact query scenario evidence.</param>
+    /// <param name="reason">The blocking reason.</param>
+    public void Block(string name, SpecificationQueryEvidence evidence, string reason) =>
+        Block(name, evidence.SourceType, evidence.Source, reason);
+
+    void Block(string name, INamedTypeSymbol sourceType, Location source, string reason) =>
         diagnostics.Add(new GenerationDiagnostic
         {
             Code = "ARCSP0001",
             Severity = GenerationDiagnosticSeverity.Warning,
             Outcome = GenerationDiagnosticOutcome.Unsupported,
-            Message = $"Specification '{specification.Name}' contributed no neutral scenario because {reason}",
-            Source = For(evidence.Source).Source,
-            Subject = scenarioProject.SubjectForType(evidence.SourceType)
+            Message = $"Specification '{name}' contributed no neutral scenario because {reason}",
+            Source = For(source).Source,
+            Subject = scenarioProject.SubjectForType(sourceType)
         });
 }

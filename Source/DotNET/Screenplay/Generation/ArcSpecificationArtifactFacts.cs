@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Queries;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -39,7 +41,7 @@ internal sealed class ArcSpecificationArtifactFacts(
             Adapter = adapter,
             Strength = EvidenceStrength.Exact,
             Source = placement.Structure.Source,
-            Explanation = "The shared source-placement derivation places the exact scenario target"
+            Explanation = "The shared source-placement derivation places the exact scenario artifact"
         },
         Artifact = placement.Artifact,
         Placement = placement.Placement
@@ -51,8 +53,15 @@ internal sealed class ArcSpecificationArtifactFacts(
     /// <param name="type">The exact source type.</param>
     /// <param name="kind">The neutral artifact kind.</param>
     /// <param name="source">The referencing step source.</param>
+    /// <param name="propertyName">The optional semantic property naming conversion.</param>
+    /// <param name="typeReference">The optional slice-specific type conversion.</param>
     /// <returns>The artifact key, or <see langword="null"/> when source identity is ambiguous.</returns>
-    public ArtifactKey? Artifact(INamedTypeSymbol type, ArtifactKind kind, Location source)
+    public ArtifactKey? Artifact(
+        INamedTypeSymbol type,
+        ArtifactKind kind,
+        Location source,
+        Func<string, string>? propertyName = null,
+        Func<ITypeSymbol, TypeReferenceDefinition>? typeReference = null)
     {
         var sourceProjects = context.Projects
             .Where(project => type.DeclaringSyntaxReferences.Any(_ => project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
@@ -79,13 +88,11 @@ internal sealed class ArcSpecificationArtifactFacts(
                     Key = key,
                     Name = type.Name,
                     File = evidence.Source?.Path,
-                    Properties = [.. type.GetMembers().OfType<IPropertySymbol>()
-                        .Where(property => !property.IsStatic)
-                        .OrderBy(property => property.Name, StringComparer.Ordinal)
+                    Properties = [.. type.DeclaredProperties()
                         .Select(property => new PropertyDefinition
                         {
-                            Name = property.Name,
-                            Type = TypeReference(property.Type, context)
+                            Name = propertyName?.Invoke(property.Name) ?? property.Name,
+                            Type = typeReference?.Invoke(property.Type) ?? TypeReference(property.Type, context)
                         })]
                 }
             });
@@ -95,24 +102,79 @@ internal sealed class ArcSpecificationArtifactFacts(
     }
 
     /// <summary>
-    /// Creates a shared placement request for the exact scenario target.
+    /// Adds or resolves one exact method-backed query artifact.
     /// </summary>
-    /// <param name="target">The exact target artifact.</param>
+    /// <param name="method">The exact application-declared query method.</param>
+    /// <param name="propertyName">The optional semantic parameter naming conversion.</param>
+    /// <returns>The query artifact key, or <see langword="null"/> when source identity is ambiguous.</returns>
+    public ArtifactKey? Query(IMethodSymbol method, Func<string, string>? propertyName = null)
+    {
+        var sourceProjects = context.Projects
+            .Where(project => project.Role == DotNetProjectRole.Application &&
+                method.DeclaringSyntaxReferences.Any(_ => project.AuthoredSyntaxTrees.Contains(_.SyntaxTree)))
+            .ToArray();
+        var source = method.Locations
+            .Where(_ => _.IsInSource)
+            .OrderBy(_ => _.SourceTree?.FilePath, StringComparer.Ordinal)
+            .ThenBy(_ => _.SourceSpan.Start)
+            .FirstOrDefault();
+        if (sourceProjects.Length != 1 || source is null)
+        {
+            return null;
+        }
+
+        var subject = sourceProjects[0].SubjectForMethod(method);
+        var key = new ArtifactKey { Subject = subject, Kind = ArtifactKind.Query };
+        if (!facts.OfType<ArtifactFact>().Any(fact => fact.Definition.Key == key))
+        {
+            var inputs = method.Parameters.Where(QueryReader.IsInput).ToArray();
+            var identifier = inputs.FirstOrDefault(_ => !_.HasExplicitDefaultValue);
+            var evidence = Evidence(source, "The exact application method declares this query");
+            facts.Add(new ArtifactFact
+            {
+                Id = FactId("artifact", subject, nameof(ArtifactKind.Query)),
+                Subject = subject,
+                Evidence = evidence,
+                Definition = new ArtifactDefinition
+                {
+                    Key = key,
+                    Name = method.Name,
+                    Properties = [.. inputs.Select(parameter => new PropertyDefinition
+                    {
+                        Name = propertyName?.Invoke(parameter.Name) ?? parameter.Name,
+                        Type = QueryTypeReference(parameter.Type, context),
+                        IsIdentifier = SymbolEqualityComparer.Default.Equals(parameter, identifier)
+                    })]
+                }
+            });
+        }
+
+        return key;
+    }
+
+    /// <summary>
+    /// Creates a shared placement request for one exact scenario artifact.
+    /// </summary>
+    /// <param name="target">The exact scenario artifact.</param>
     /// <param name="sliceKind">The independently established semantic slice kind.</param>
     /// <param name="policy">The host-owned source-structure policy.</param>
+    /// <param name="sourceOwner">The exact type owning a method-backed artifact's source placement, when the artifact does not own it.</param>
     /// <returns>The placement request, or <see langword="null"/> when no exact source structure exists.</returns>
     public DotNetSourcePlacementRequest? PlacementRequest(
         ArtifactKey target,
         GenerationSliceKind sliceKind,
-        DotNetSourceStructurePolicy policy)
+        DotNetSourceStructurePolicy policy,
+        SubjectId? sourceOwner = null)
     {
-        var structure = sourceStructures.Structures.SingleOrDefault(_ => _.Subject == target.Subject);
+        var structureSubject = sourceOwner ?? target.Subject;
+        var structure = sourceStructures.Structures.SingleOrDefault(_ => _.Subject == structureSubject);
         return structure is null
             ? null
             : new()
             {
                 Artifact = target,
                 Structure = structure,
+                SourceOwner = sourceOwner,
                 SliceKind = sliceKind,
                 Policy = policy
             };

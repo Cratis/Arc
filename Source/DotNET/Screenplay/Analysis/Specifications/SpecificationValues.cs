@@ -38,18 +38,34 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         ITypeSymbol type,
         string specification,
         string location,
-        SpecificationDraft draft)
-    {
-        var values = new List<PropertyMappingModel>();
-        var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
+        SpecificationDraft draft) =>
+        Read(creation, semanticModel, type, type, specification, location, draft, queryValues: false);
 
-        foreach (var (name, expression) in Stated(creation, constructor))
-        {
-            Add(values, PropertyOf(type, name), expression, semanticModel, type, specification, location, draft);
-        }
-
-        return values;
-    }
+    /// <summary>
+    /// Reads the values one exact Stage-generated query result construction states.
+    /// </summary>
+    /// <param name="creation">The construction to read.</param>
+    /// <param name="semanticModel">The semantic model of the tree the construction lives in.</param>
+    /// <param name="type">The type being constructed in the specification compilation.</param>
+    /// <param name="sourceType">The corresponding exact type declared by the application.</param>
+    /// <param name="specification">The name of the specification, for use in diagnostics.</param>
+    /// <param name="location">Where the specification lives, for use in diagnostics.</param>
+    /// <param name="draft">The scenario collecting exact value evidence.</param>
+    /// <returns>The values, in the order the source declares them.</returns>
+    /// <remarks>
+    /// Query specifications additionally admit the direct concept and framework parse syntax Stage emits. Existing
+    /// command, event, and read-model readers continue through the legacy path and retain their original source
+    /// contract.
+    /// </remarks>
+    public IEnumerable<PropertyMappingModel> ReadQuery(
+        BaseObjectCreationExpressionSyntax creation,
+        SemanticModel semanticModel,
+        ITypeSymbol type,
+        ITypeSymbol sourceType,
+        string specification,
+        string location,
+        SpecificationDraft draft) =>
+        Read(creation, semanticModel, type, sourceType, specification, location, draft, queryValues: true);
 
     /// <summary>
     /// Gets every value a construction states, from its arguments and from its initializer.
@@ -101,9 +117,34 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// </summary>
     /// <param name="type">The type being constructed.</param>
     /// <param name="name">The name to resolve.</param>
+    /// <param name="exact">Whether only exact Stage-authored casing is admitted.</param>
     /// <returns>The property name.</returns>
-    static string PropertyOf(ITypeSymbol type, string name) =>
-        type.DeclaredProperties().FirstOrDefault(_ => string.Equals(_.Name, name, StringComparison.OrdinalIgnoreCase))?.Name ?? name;
+    static string PropertyOf(ITypeSymbol type, string name, bool exact) =>
+        type.DeclaredProperties().FirstOrDefault(_ => string.Equals(
+            _.Name,
+            name,
+            exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))?.Name ?? name;
+
+    List<PropertyMappingModel> Read(
+        BaseObjectCreationExpressionSyntax creation,
+        SemanticModel semanticModel,
+        ITypeSymbol type,
+        ITypeSymbol sourceType,
+        string specification,
+        string location,
+        SpecificationDraft draft,
+        bool queryValues)
+    {
+        var values = new List<PropertyMappingModel>();
+        var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
+
+        foreach (var (name, expression) in Stated(creation, constructor))
+        {
+            Add(values, PropertyOf(type, name, queryValues), expression, semanticModel, type, sourceType, specification, location, draft, queryValues);
+        }
+
+        return values;
+    }
 
     /// <summary>
     /// Adds a value, reporting one that is code rather than stating it as something it is not.
@@ -112,10 +153,12 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="property">The property being filled in.</param>
     /// <param name="expression">The expression filling it in.</param>
     /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
-    /// <param name="type">The type being constructed.</param>
+    /// <param name="type">The type being constructed in the specification compilation.</param>
+    /// <param name="sourceType">The corresponding exact type declared by the application.</param>
     /// <param name="specification">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
     /// <param name="draft">The scenario collecting exact value evidence.</param>
+    /// <param name="queryValues">Whether the additive Stage query literal syntax is admitted.</param>
     /// <remarks>
     /// An identity made on the spot is left out without a word, because there is no value for the document to have
     /// missed - see <see cref="GeneratedIdentities"/>. Every other value that cannot be read is one the source states
@@ -127,11 +170,26 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         ITypeSymbol type,
+        ITypeSymbol sourceType,
         string specification,
         string location,
-        SpecificationDraft draft)
+        SpecificationDraft draft,
+        bool queryValues)
     {
-        if (_sources.Read(expression, semanticModel, type, location) is LiteralSource literal)
+        var localProperty = type.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
+        var sourceProperty = sourceType.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
+        LiteralSource? literal;
+        if (queryValues)
+        {
+            literal = localProperty is not null && sourceProperty is not null
+                ? _sources.ReadQueryLiteral(expression, semanticModel, localProperty.Type, sourceProperty.Type)
+                : null;
+        }
+        else
+        {
+            literal = _sources.Read(expression, semanticModel, type, location) as LiteralSource;
+        }
+        if (literal is not null)
         {
             var value = new PropertyMappingModel(property, literal);
             values.Add(value);
