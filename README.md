@@ -131,5 +131,6 @@ Before submitting documentation-only work, verify its links, anchors, and exampl
 | Bugs and feature requests | [GitHub Issues](https://github.com/Cratis/Arc/issues) |
 | Releases | [GitHub Releases](https://github.com/Cratis/Arc/releases) |
 | Documentation | [www.cratis.io/arc](https://www.cratis.io/arc/) |
+| Blog | [blog.cratis.io](https://blog.cratis.io) |
 | Security reports | [Private security reporting](mailto:oss@cratis.io?subject=Security%3A) |
 | License | [`LICENSE`](https://github.com/Cratis/Arc/blob/main/LICENSE) |
