@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.EntityFrameworkCore</AssemblyName>
+        <Description>Entity Framework Core current-state persistence for Cratis Arc: read model discovery, value conversions and mappings, migrations, and observation for SQL Server, PostgreSQL, and SQLite.</Description>
+        <PackageTags>cratis;arc;cqrs;entity-framework-core;efcore;sqlserver;postgresql;sqlite;read-models;aspnetcore</PackageTags>
         <RootNamespace>Cratis.Arc.EntityFrameworkCore</RootNamespace>
         <NoWarn>$(NoWarn);NU5104</NoWarn>
     </PropertyGroup>

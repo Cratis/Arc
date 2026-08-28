@@ -2,6 +2,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc</AssemblyName>
         <RootNamespace>Cratis.Arc</RootNamespace>
+        <Description>Opinionated CQRS application framework for ASP.NET Core with commands, queries, validation, authorization, and TypeScript proxy generation. Works without event sourcing; Chronicle integration is optional.</Description>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Specs" />
