@@ -161,3 +161,5 @@ Arc is part of [Cratis](https://www.cratis.io) — free, MIT-licensed tools for 
 - **[Samples](https://github.com/Cratis/Samples)** — runnable event sourcing and CQRS samples for the whole stack
 
 Everything Cratis publishes today is MIT licensed and free to use.
+
+Release notes and announcements: the [Cratis blog](https://blog.cratis.io).
