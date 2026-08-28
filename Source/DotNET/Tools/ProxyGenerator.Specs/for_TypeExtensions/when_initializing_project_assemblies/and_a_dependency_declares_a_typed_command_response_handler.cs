@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.ProxyGenerator.Specs.ActualDependency;
 using Cratis.Arc.ProxyGenerator.Specs.CommandResponseHandlerDependency;
 
 namespace Cratis.Arc.ProxyGenerator.for_TypeExtensions.when_initializing_project_assemblies;
@@ -14,6 +15,7 @@ public class and_a_dependency_declares_a_typed_command_response_handler : Specif
     bool _metadataHandledAfterFirstInitialization;
     bool _metadataCollectionHandledAfterFirstInitialization;
     bool _markerOnlyValueHandledAfterFirstInitialization;
+    bool _mismatchedAssemblyPresentAfterFirstInitialization;
     bool _dependencyContributesGeneratedTypeDiscoveryProvider;
     bool _dependencyTypePresentAfterSecondInitialization;
     bool _runtimeHandledAfterSecondInitialization;
@@ -41,6 +43,7 @@ public class and_a_dependency_declares_a_typed_command_response_handler : Specif
             _metadataHandledAfterFirstInitialization = graphAType?.IsServerHandledCommandResponseValue() == true;
             _metadataCollectionHandledAfterFirstInitialization = graphAType?.MakeArrayType().IsServerHandledCommandResponseValue() == true;
             _markerOnlyValueHandledAfterFirstInitialization = FindCurrentMetadataType(typeof(MarkerOnlyValue).FullName!)?.IsServerHandledCommandResponseValue() == true;
+            _mismatchedAssemblyPresentAfterFirstInitialization = FindCurrentMetadataType(typeof(MismatchedAssemblyMarker).FullName!) is not null;
             _dependencyContributesGeneratedTypeDiscoveryProvider = typeof(DependencyHandledValue).Assembly.GetTypes()
                 .Any(_ => _.Name.Contains("GeneratedTypeDiscoveryProvider", StringComparison.Ordinal));
         }
@@ -86,6 +89,7 @@ public class and_a_dependency_declares_a_typed_command_response_handler : Specif
     [Fact] void should_discover_the_dependency_handler() => _metadataHandledAfterFirstInitialization.ShouldBeTrue();
     [Fact] void should_discover_the_dependency_collection_handler() => _metadataCollectionHandledAfterFirstInitialization.ShouldBeTrue();
     [Fact] void should_ignore_a_typed_declaration_without_a_runtime_handler() => _markerOnlyValueHandledAfterFirstInitialization.ShouldBeFalse();
+    [Fact] void should_include_a_project_whose_package_id_differs_from_its_assembly_name() => _mismatchedAssemblyPresentAfterFirstInitialization.ShouldBeTrue();
     [Fact] void should_not_pollute_the_host_with_a_generated_type_discovery_provider() => _dependencyContributesGeneratedTypeDiscoveryProvider.ShouldBeFalse();
     [Fact] void should_initialize_a_second_project_graph() => Assert.True(_secondInitialization, string.Join(Environment.NewLine, _errors));
     [Fact] void should_clear_the_first_projects_handler_types() => _dependencyTypePresentAfterSecondInitialization.ShouldBeFalse();

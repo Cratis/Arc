@@ -19,6 +19,7 @@
         <PackageReference Include="System.Formats.Asn1" />
         <PackageReference Include="Cratis.Chronicle" />
         <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis.CodeFixes/Chronicle.CodeAnalysis.CodeFixes.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
     </ItemGroup>
 </Project>

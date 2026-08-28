@@ -4,6 +4,8 @@ Arc is an open-source (MIT) opinionated CQRS application framework for ASP.NET C
 
 Arc hosts application behavior, executes command and query pipelines, exposes recognized contracts over HTTP, and generates TypeScript clients for them. Its packages also cover observable queries, validation, identity and tenancy, React integration, current-state persistence, OpenAPI, analyzers, and testing. Chronicle event sourcing and Cratis Components are optional integrations.
 
+Arc reflects a broader Cratis conviction: application plumbing should not be the hard part. Commands, queries, validation, and authorization are written as plain, idiomatic .NET code, designed to reduce friction and boilerplate in service of productivity, quality, and reliability. Arc is part of one deliberately simple ecosystem — AI-friendly by design, with free [AI skills](https://github.com/Cratis/AI) for building with the stack.
+
 [![NuGet](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](https://www.nuget.org/packages/Cratis.Arc)
 [![NPM](https://img.shields.io/npm/v/@cratis/arc?label=@cratis/arc&logo=npm)](https://www.npmjs.com/package/@cratis/arc)
 [![.NET Build](https://github.com/Cratis/Arc/actions/workflows/dotnet-build.yml/badge.svg)](https://github.com/Cratis/Arc/actions/workflows/dotnet-build.yml)
@@ -126,6 +128,13 @@ Repository development currently requires the SDK and toolchain versions declare
 
 Before submitting documentation-only work, verify its links, anchors, and examples explicitly; current automated documentation checks are path-scoped. Source changes must pass the owning repository's applicable build, specification, TypeScript, and documentation gates.
 
+* [.NET SDK 10.0.400+](https://dotnet.microsoft.com/en-us/). Arc's analyzers and source generators are built
+  against Roslyn 5.9.0, which ships with .NET SDK 10.0.400 and newer. On an older SDK band the compiler
+  refuses to load them (CS9057), silently disabling proxy generation and the ARC*/ARCCHR* analyzers.
+  Consuming the `Cratis.Arc` packages carries the same floor. Raising this floor is a minor version bump.
+* [Node 23+](https://nodejs.org/en)
+* [Yarn](https://yarnpkg.com)
+
 ## Community and repository
 
 | Path | Destination |
@@ -134,6 +143,7 @@ Before submitting documentation-only work, verify its links, anchors, and exampl
 | Bugs and feature requests | [GitHub Issues](https://github.com/Cratis/Arc/issues) |
 | Releases | [GitHub Releases](https://github.com/Cratis/Arc/releases) |
 | Documentation | [www.cratis.io/arc](https://www.cratis.io/arc/) |
+| Blog | [blog.cratis.io](https://blog.cratis.io) |
 | Security reports | [Private security reporting](mailto:oss@cratis.io?subject=Security%3A) |
 | License | [`LICENSE`](https://github.com/Cratis/Arc/blob/main/LICENSE) |
 

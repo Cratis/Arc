@@ -23,15 +23,19 @@
         <PackageReference Include="Cratis.Metrics.Roslyn" />
         <PackageReference Include="FluentValidation" />
         <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" />
-    <PackageReference Include="Microsoft.Extensions.DependencyModel" />
+        <PackageReference Include="Microsoft.Extensions.DependencyModel" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="Microsoft.Extensions.Logging" />
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" 
-                          OutputItemType="Analyzer" 
+        <!-- Public package dependency for consumers; the direct analyzer reference is only for analyzing Arc.Core
+             while building from source. -->
+        <ProjectReference Include="../Arc.Core.CodeAnalysis.Package/Arc.Core.CodeAnalysis.Package.csproj"
+                          PrivateAssets="compile;runtime" />
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"
                           PrivateAssets="all" />
         <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"

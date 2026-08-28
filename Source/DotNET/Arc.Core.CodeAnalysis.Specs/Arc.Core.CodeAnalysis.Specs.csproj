@@ -18,6 +18,7 @@
         <PackageReference Include="Microsoft.Composition" />
         <PackageReference Include="System.Formats.Asn1" />
         <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" />
+        <ProjectReference Include="../Arc.Core.CodeAnalysis.CodeFixes/Arc.Core.CodeAnalysis.CodeFixes.csproj" />
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
 </Project>

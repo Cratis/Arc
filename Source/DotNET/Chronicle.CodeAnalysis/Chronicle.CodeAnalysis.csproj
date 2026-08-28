@@ -15,14 +15,24 @@
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
         <NoWarn>$(NoWarn);NU5128;NU1507</NoWarn>
+        <!-- Analyzer-only assembly: the compiler loads this in-proc, so it must reference only compiler-provided
+             assemblies (no Microsoft.CodeAnalysis.CSharp.Workspaces - code fixes for these analyzers live in the
+             separate Chronicle.CodeAnalysis.CodeFixes project instead, an IDE/Workspace extension point the
+             compiler never loads). This keeps RS1038 (compiler extensions in an assembly with non-compiler-provided
+             references) a real, un-suppressed check on this project rather than one silenced to make it pass.
+             This project no longer packs itself: it is not packable on its own, and its build output is owned by
+             the standalone 'Cratis.Arc.Chronicle.CodeAnalysis' package through Chronicle.CodeAnalysis.Package.csproj.
+             Aggregate packages reference that standalone package instead of copying this assembly. -->
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <!-- Grants the code fixes project (a separate assembly, see above) access to the internal
+             DiagnosticDescriptors this project's analyzers and that project's code fixes both need to agree on. -->
+        <InternalsVisibleTo Include="Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes" />
     </ItemGroup>
 </Project>
