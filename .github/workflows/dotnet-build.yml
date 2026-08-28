@@ -42,6 +42,7 @@ on:
       - "Directory.Build.props"
       - "Directory.Packages*.props"
       - "global.json"
+      - "stylecop.json"
       - "Arc.slnx"
       - ".github/workflows/dotnet-build.yml"
 

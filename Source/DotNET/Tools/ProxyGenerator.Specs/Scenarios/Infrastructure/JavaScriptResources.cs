@@ -10,44 +10,12 @@ public static class JavaScriptResources
 {
     static JavaScriptResources()
     {
-        // Find the Scenarios folder by looking for package.json
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current))
-        {
-            var packageJson = Path.Combine(current, "package.json");
-            if (File.Exists(packageJson) && current.EndsWith("Scenarios", StringComparison.OrdinalIgnoreCase))
-            {
-                ScenariosRoot = current;
-                break;
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
-        // If not found, calculate from assembly location (development scenario)
-        if (string.IsNullOrEmpty(ScenariosRoot))
-        {
-            // From bin/Debug/net10.0 go up to ProxyGenerator.Specs then into Scenarios
-            var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptResources).Assembly.Location);
-            ScenariosRoot = Path.GetFullPath(Path.Combine(assemblyDir, "..", "..", "..", "Scenarios"));
-        }
-
-        // Find repository root (has global.json)
-        current = ScenariosRoot;
-        while (!string.IsNullOrEmpty(current))
-        {
-            if (File.Exists(Path.Combine(current, "global.json")))
-            {
-                RepoRoot = current;
-                break;
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
-        RepoRoot ??= Path.GetFullPath(Path.Combine(ScenariosRoot, "..", "..", "..", "..", "..", ".."));
-
-        NodeModulesRoot = FindDirectoryContaining(AppContext.BaseDirectory, "node_modules") ?? RepoRoot;
+        RepoRoot = FindRepositoryRoot(AppContext.BaseDirectory)
+            ?? throw new DirectoryNotFoundException("Could not find the Arc repository root");
+        ScenariosRoot = Path.Join(RepoRoot, "Source", "DotNET", "Tools", "ProxyGenerator.Specs", "Scenarios");
+        NodeModulesRoot = Directory.Exists(Path.Join(RepoRoot, "node_modules"))
+            ? RepoRoot
+            : AppContext.BaseDirectory;
     }
 
     /// <summary>
@@ -68,26 +36,39 @@ public static class JavaScriptResources
     /// <summary>
     /// Gets the path to the TypeScript compiler.
     /// </summary>
-    public static string TypeScriptCompilerPath =>
-        Path.Combine(NodeModulesRoot, "node_modules", "typescript", "lib", "typescript.js");
+    /// <remarks>
+    /// TypeScript 7 ships a native compiler that no longer exposes lib/typescript.js, so the classic
+    /// 'typescript-for-eslint' alias (npm:typescript@6.0.3) is preferred when present, falling back to the
+    /// root 'typescript' package for environments that still resolve a classic TypeScript.
+    /// </remarks>
+    public static string TypeScriptCompilerPath
+    {
+        get
+        {
+            var forEslintPath = Path.Join(NodeModulesRoot, "node_modules", "typescript-for-eslint", "lib", "typescript.js");
+            return File.Exists(forEslintPath)
+                ? forEslintPath
+                : Path.Join(NodeModulesRoot, "node_modules", "typescript", "lib", "typescript.js");
+        }
+    }
 
     /// <summary>
     /// Gets the path to the Arc package CJS directory.
     /// </summary>
     public static string ArcPackagePath =>
-        Path.Combine(RepoRoot, "Source", "JavaScript", "Arc", "dist", "cjs");
+        Path.Join(RepoRoot, "Source", "JavaScript", "Arc", "dist", "cjs");
 
     /// <summary>
     /// Gets the path to the Arc.React package CJS directory.
     /// </summary>
     public static string ArcReactPackagePath =>
-        Path.Combine(RepoRoot, "Source", "JavaScript", "Arc.React", "dist", "cjs");
+        Path.Join(RepoRoot, "Source", "JavaScript", "Arc.React", "dist", "cjs");
 
     /// <summary>
     /// Gets the path to the Fundamentals package CJS directory.
     /// </summary>
     public static string FundamentalsPackagePath =>
-        Path.Combine(NodeModulesRoot, "node_modules", "@cratis", "fundamentals", "dist", "cjs");
+        Path.Join(NodeModulesRoot, "node_modules", "@cratis", "fundamentals", "dist", "cjs");
 
     /// <summary>
     /// Reads the TypeScript compiler source.
@@ -111,17 +92,20 @@ public static class JavaScriptResources
     /// <returns>JavaScript code to bootstrap Arc modules.</returns>
     public static string GetArcBootstrap() => EmbeddedResources.GetArcBootstrap();
 
-    static string? FindDirectoryContaining(string startPath, string directoryName)
+    static string? FindRepositoryRoot(string startPath)
     {
-        var current = startPath;
-        while (!string.IsNullOrEmpty(current))
+        var current = new DirectoryInfo(startPath);
+        while (current is not null)
         {
-            if (Directory.Exists(Path.Combine(current, directoryName)))
+            var hasRootFiles = File.Exists(Path.Join(current.FullName, "global.json")) &&
+                               File.Exists(Path.Join(current.FullName, "package.json"));
+            var hasProxySpecs = Directory.Exists(Path.Join(current.FullName, "Source", "DotNET", "Tools", "ProxyGenerator.Specs"));
+            if (hasRootFiles && hasProxySpecs)
             {
-                return current;
+                return current.FullName;
             }
 
-            current = Path.GetDirectoryName(current);
+            current = current.Parent;
         }
 
         return null;

@@ -123,6 +123,13 @@ Repository development currently requires the SDK and toolchain versions declare
 
 Before submitting documentation-only work, verify its links, anchors, and examples explicitly; current automated documentation checks are path-scoped. Source changes must pass the owning repository's applicable build, specification, TypeScript, and documentation gates.
 
+* [.NET SDK 10.0.400+](https://dotnet.microsoft.com/en-us/). Arc's analyzers and source generators are built
+  against Roslyn 5.9.0, which ships with .NET SDK 10.0.400 and newer. On an older SDK band the compiler
+  refuses to load them (CS9057), silently disabling proxy generation and the ARC*/ARCCHR* analyzers.
+  Consuming the `Cratis.Arc` packages carries the same floor. Raising this floor is a minor version bump.
+* [Node 23+](https://nodejs.org/en)
+* [Yarn](https://yarnpkg.com)
+
 ## Community and repository
 
 | Path | Destination |

@@ -42,4 +42,12 @@
         <PackageReference Include="Meziantou.Analyzer" PrivateAssets="All" />
         <PackageReference Include="System.Text.Json" />
     </ItemGroup>
+
+    <!-- StyleCop.Analyzers' SA1200 (using directive placement) needs to be told explicitly that this repository
+         places usings outside the namespace - the .editorconfig csharp_using_directive_placement setting only
+         drives the built-in IDE0065 analyzer, not StyleCop's own SA1200, which reads this stylecop.json instead.
+         A single AdditionalFiles item here applies it to every project without moving any using directives. -->
+    <ItemGroup>
+        <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" Condition="Exists('$(MSBuildThisFileDirectory)stylecop.json')" />
+    </ItemGroup>
 </Project>

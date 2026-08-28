@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Core.Generators.Integration.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Core.Generators.Integration.Specs</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <NoWarn>$(NoWarn);MA0101;RCS1266;MA0136</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../Cratis/Cratis.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../../Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <PackageReference Include="Cratis.Fundamentals" />
+    </ItemGroup>
+
+</Project>

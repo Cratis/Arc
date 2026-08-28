@@ -14,6 +14,7 @@
     <ItemGroup>
         <ProjectReference Include="../ProxyGenerator/ProxyGenerator.csproj" />
         <ProjectReference Include="../../Arc/Arc.csproj" />
+        <ProjectReference Include="TestArtifacts/AssemblyNameMismatchDependency/AssemblyNameMismatchDependency.csproj" />
         <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
         <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj" Aliases="FakeContracts" />
         <ProjectReference Include="TestArtifacts/SourceFileResolverFixture/SourceFileResolverFixture.csproj" />
