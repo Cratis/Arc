@@ -4,6 +4,8 @@ Arc is an opinionated CQRS application framework for ASP.NET Core with commands,
 
 Arc hosts application behavior, executes command and query pipelines, exposes recognized contracts over HTTP, and generates TypeScript clients for them. Its packages also cover observable queries, validation, identity and tenancy, React integration, current-state persistence, OpenAPI, analyzers, and testing. Chronicle event sourcing and Cratis Components are optional integrations.
 
+Arc reflects a broader Cratis conviction: application plumbing should not be the hard part. Commands, queries, validation, and authorization are written as plain, idiomatic .NET code, designed to reduce friction and boilerplate in service of productivity, quality, and reliability. Arc is part of one deliberately simple ecosystem — AI-friendly by design, with free [AI skills](https://github.com/Cratis/AI) for building with the stack.
+
 [![NuGet](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](https://www.nuget.org/packages/Cratis.Arc)
 [![NPM](https://img.shields.io/npm/v/@cratis/arc?label=@cratis/arc&logo=npm)](https://www.npmjs.com/package/@cratis/arc)
 [![.NET Build](https://github.com/Cratis/Arc/actions/workflows/dotnet-build.yml/badge.svg)](https://github.com/Cratis/Arc/actions/workflows/dotnet-build.yml)
