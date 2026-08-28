@@ -43,27 +43,21 @@ public class a_specification_of_a_read_model : Specification
         using System.Threading.Tasks;
         using Cratis.Chronicle.Events;
         using Cratis.Chronicle.Testing.ReadModels;
+        using Cratis.Specifications;
         using Xunit;
 
         namespace Library.Authors.Listing.when_an_author_is_archived;
 
-        public class and_the_author_was_registered_first
+        public class and_the_author_was_registered_first : Specification
         {
             readonly ReadModelScenario<Author> _scenario = new();
 
-            async Task Because() =>
+            async Task Establish() =>
                 await _scenario.Given
                     .ForEventSource(EventSourceId.New())
                     .Events(new AuthorRegistered("Jane Austen"), new AuthorArchived());
 
-            [Fact] void should_hold_the_author() => _scenario.Instance!.Id.ShouldEqualTheExpected(string.Empty);
-        }
-
-        public static class Assertions
-        {
-            public static void ShouldEqualTheExpected(this string actual, string expected)
-            {
-            }
+            [Fact] void should_hold_the_author() => _scenario.Instance!.Id.ShouldEqual("");
         }
         """;
 
@@ -90,6 +84,7 @@ public class a_specification_of_a_read_model : Specification
     [Fact] void should_issue_no_command() => _specification.When.ShouldBeNull();
     [Fact] void should_say_the_read_model_followed() => _specification.Then.Single().Name.ShouldEqual("Author");
     [Fact] void should_state_it_as_a_read_model() => _specification.Then.Single().Kind.ShouldEqual(SpecificationStateKind.ReadModel);
+    [Fact] void should_state_every_exact_read_model_value() => _specification.Then.Single().Values.ShouldContainOnly([new PropertyMappingModel("Id", new LiteralSource(string.Empty))]);
     [Fact] void should_retain_the_exact_read_model_symbol() => SpecificationEvidence.For(_specification).States[_specification.Then.Single()].Artifact.Name.ShouldEqual("Author");
     [Fact] void should_retain_read_model_step_evidence() => SpecificationEvidence.For(_specification).States[_specification.Then.Single()].Source.IsInSource.ShouldBeTrue();
     [Fact] void should_report_no_scenario_left_out() => _analysis.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeFalse();

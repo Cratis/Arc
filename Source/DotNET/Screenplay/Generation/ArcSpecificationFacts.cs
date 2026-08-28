@@ -2,12 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using Cratis.Arc.Screenplay.Analysis.Specifications;
+using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Generation;
 
@@ -108,6 +108,24 @@ internal static class ArcSpecificationFacts
     };
 
     /// <summary>
+    /// Creates the exact neutral type reference admitted by Stage query specifications.
+    /// </summary>
+    /// <param name="type">The exact query parameter or result-property type.</param>
+    /// <param name="context">The analyzed application context.</param>
+    /// <returns>The neutral type reference.</returns>
+    public static TypeReferenceDefinition QueryTypeReference(ITypeSymbol type, DotNetAnalysisContext context)
+    {
+        if (type is INamedTypeSymbol named &&
+            named.TypeKind != TypeKind.Enum &&
+            ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive))
+        {
+            return new() { Name = ScreenplayPrimitiveTypes.GetName(primitive) };
+        }
+
+        return TypeReference(type, context);
+    }
+
+    /// <summary>
     /// Creates a stable adapter-qualified fact identity.
     /// </summary>
     /// <param name="kind">The fact kind.</param>
@@ -136,23 +154,6 @@ internal static class ArcSpecificationFacts
             .Max();
         return valueCount >= required;
     }
-
-    /// <summary>
-    /// Determines whether an expected event assertion contains predicate values the legacy analyzer did not retain.
-    /// </summary>
-    /// <param name="specification">The recovered specification.</param>
-    /// <param name="evidence">The exact scenario evidence.</param>
-    /// <returns><see langword="true"/> when predicate values would be lost.</returns>
-    public static bool HasUnrepresentedEventPredicate(
-        SpecificationModel specification,
-        SpecificationScenarioEvidence evidence) =>
-        specification.Then
-            .Where(state => state.Kind == SpecificationStateKind.Event)
-            .Select(state => evidence.States[state].Source)
-            .Any(location => location.SourceTree!.GetRoot().FindNode(location.SourceSpan)
-                .DescendantNodesAndSelf()
-                .OfType<LambdaExpressionSyntax>()
-                .Any());
 
     static string AdapterId(string kind) => $"cratis.arc.specifications:{kind}";
 }

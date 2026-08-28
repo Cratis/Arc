@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Queries;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Screenplay.Generation;
 using Cratis.Screenplay.Generation.DotNet;
@@ -21,10 +22,15 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
     public AdapterIdentity Identity { get; } = new() { Id = AdapterId, Version = AdapterVersion };
 
     /// <inheritdoc/>
-    public bool CanAnalyze(DotNetAnalysisContext context) =>
-        context.Projects.SelectMany(project => ArtifactCatalog.From(project.Compilation).Types)
-            .Any(type => SpecificationMembers.CommandOf(SpecificationMembers.StepsOf(type)) is not null ||
-                         SpecificationMembers.ReadModelOf(SpecificationMembers.StepsOf(type)) is not null);
+    public bool CanAnalyze(DotNetAnalysisContext context)
+    {
+        var types = context.Projects.SelectMany(project => ArtifactCatalog.From(project.Compilation).Types).ToArray();
+        var hasLegacySpecification = types.Any(type =>
+            SpecificationMembers.CommandOf(SpecificationMembers.StepsOf(type)) is not null ||
+            SpecificationMembers.ReadModelOf(SpecificationMembers.StepsOf(type)) is not null);
+        var hasQuerySpecification = SpecificationQueryCatalog.From(context).Count > 0 && types.Any(IsQuerySpecificationShape);
+        return hasLegacySpecification || hasQuerySpecification;
+    }
 
     /// <inheritdoc/>
     public AdapterContribution Analyze(DotNetAnalysisContext context, DotNetAdapterOptions options)
@@ -37,49 +43,75 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
         var models = new SemanticModels([.. context.Projects.Select(project => project.Compilation)]);
         var readerDiagnostics = new ScreenplayDiagnostics();
         var reader = new SpecificationReader(models, readerDiagnostics);
+        var queryReader = new SpecificationQueryReader(models, SpecificationQueryCatalog.From(context));
 
         foreach (var project in context.Projects)
         {
-            foreach (var type in ArtifactCatalog.From(project.Compilation).Types.Where(reader.IsSpecification))
+            foreach (var type in ArtifactCatalog.From(project.Compilation).Types)
             {
-                var steps = SpecificationMembers.StepsOf(type);
-                var target = SpecificationMembers.CommandOf(steps) ?? SpecificationMembers.ReadModelOf(steps);
-                if (target is not INamedTypeSymbol namedTarget)
+                if (reader.IsSpecification(type))
                 {
+                    var steps = SpecificationMembers.StepsOf(type);
+                    var target = SpecificationMembers.CommandOf(steps) ?? SpecificationMembers.ReadModelOf(steps);
+                    if (target is not INamedTypeSymbol namedTarget)
+                    {
+                        continue;
+                    }
+
+                    var slice = namedTarget.ContainingNamespace.ToDisplayString();
+                    var name = SpecificationPlacement.NameOf(type, slice);
+                    var diagnosticCount = readerDiagnostics.All.Count;
+                    if (reader.Read(type, name) is not { } specification)
+                    {
+                        var reason = string.Join("; ", readerDiagnostics.All.Skip(diagnosticCount).Select(item => item.Message));
+                        diagnostics.Add(Unreadable(project, type, reason));
+                        continue;
+                    }
+
+                    if (SpecificationEvidence.For(specification) is not { } evidence)
+                    {
+                        diagnostics.Add(Unreadable(project, type, "source evidence was not retained"));
+                        continue;
+                    }
+
+                    var candidate = new ArcSpecificationFactBuilder(context, project, Identity, options, sourceStructures, diagnostics)
+                        .Build(specification, evidence, namedTarget);
+                    if (candidate is not null)
+                    {
+                        candidates.Add(candidate);
+                    }
+
                     continue;
                 }
 
-                var slice = namedTarget.ContainingNamespace.ToDisplayString();
-                var name = SpecificationPlacement.NameOf(type, slice);
-                var diagnosticCount = readerDiagnostics.All.Count;
-                if (reader.Read(type, name) is not { } specification)
+                if (queryReader.TryRead(type, out var queryEvidence, out var queryReason))
                 {
-                    var reason = string.Join("; ", readerDiagnostics.All.Skip(diagnosticCount).Select(item => item.Message));
-                    diagnostics.Add(Unreadable(project, type, reason));
+                    var queryName = SpecificationPlacement.NameOf(type, queryEvidence!.ReadModel.ContainingNamespace.ToDisplayString());
+                    var queryCandidate = new ArcSpecificationQueryFactBuilder(context, project, Identity, options, sourceStructures, diagnostics)
+                        .Build(queryName, queryEvidence);
+                    if (queryCandidate is not null)
+                    {
+                        candidates.Add(queryCandidate);
+                    }
+
                     continue;
                 }
 
-                if (SpecificationEvidence.For(specification) is not { } evidence)
+                if (queryReason is not null)
                 {
-                    diagnostics.Add(Unreadable(project, type, "source evidence was not retained"));
-                    continue;
-                }
-
-                var candidate = new ArcSpecificationFactBuilder(context, project, Identity, options, sourceStructures, diagnostics)
-                    .Build(specification, evidence, namedTarget);
-                if (candidate is not null)
-                {
-                    candidates.Add(candidate);
+                    diagnostics.Add(Unreadable(project, type, queryReason));
                 }
             }
         }
 
-        var placements = DotNetSourcePlacementDerivation.Derive(candidates.Select(_ => _.PlacementRequest));
+        var placements = DotNetSourcePlacementDerivation.Derive(candidates.SelectMany(_ => _.PlacementRequests));
         diagnostics.AddRange(placements.Diagnostics);
         foreach (var candidate in candidates)
         {
-            var placement = placements.Placements.SingleOrDefault(_ => _.Artifact == candidate.PlacementRequest.Artifact);
-            if (placement is null)
+            var candidatePlacements = candidate.PlacementRequests
+                .Select(request => placements.Placements.SingleOrDefault(_ => _.Artifact == request.Artifact))
+                .ToArray();
+            if (candidatePlacements.Any(_ => _ is null))
             {
                 continue;
             }
@@ -92,10 +124,13 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
                 }
             }
 
-            var placementFact = ArcSpecificationArtifactFacts.Placement(Identity, placement);
-            if (!facts.Exists(_ => _.Id == placementFact.Id))
+            foreach (var placement in candidatePlacements.OfType<DotNetSourcePlacement>())
             {
-                facts.Add(placementFact);
+                var placementFact = ArcSpecificationArtifactFacts.Placement(Identity, placement);
+                if (!facts.Exists(_ => _.Id == placementFact.Id))
+                {
+                    facts.Add(placementFact);
+                }
             }
         }
 
@@ -106,6 +141,11 @@ public sealed class ArcSpecificationFactAdapter : IDotNetScreenplayAdapter
             Diagnostics = diagnostics
         };
     }
+
+    static bool IsQuerySpecificationShape(INamedTypeSymbol type) =>
+        type is { TypeKind: TypeKind.Class, IsAbstract: false, ContainingType: null } &&
+        SpecificationMembers.MethodsIn(SpecificationMembers.StepsOf(type), SpecificationMembers.BecauseMethod).Any() &&
+        SpecificationMembers.AssertionsIn(type).Any();
 
     GenerationDiagnostic Unreadable(DotNetProjectCompilation project, INamedTypeSymbol type, string reason) => new()
     {
