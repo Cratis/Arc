@@ -17,11 +17,11 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="16.35.3" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.35.3" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.35.3" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.18.0" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.18.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="16.38.6-commandcausation.2" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="16.38.6-commandcausation.2" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.38.6-commandcausation.2" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.18.2" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.18.1" />
     <PackageVersion Include="Cratis.Screenplay" Version="4.6.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.15.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.15.0" />
