@@ -12,7 +12,6 @@ using Cratis.Chronicle.ExternalServices;
 using Cratis.Chronicle.Identities;
 using Cratis.Chronicle.Jobs;
 using Cratis.Chronicle.Observation;
-using Cratis.Chronicle.Patterns;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.Reactors;
 using Cratis.Chronicle.ReadModels;
@@ -107,10 +106,6 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadMo
     /// <inheritdoc/>
     public IEventSeeding Seeding =>
         throw new NotSupportedException("Seeding is not supported for command scenarios.");
-
-    /// <inheritdoc/>
-    public IPatterns Patterns =>
-        throw new NotSupportedException("Behavior patterns are not supported for command scenarios.");
 
     /// <inheritdoc/>
     public IIdentityManager Identities =>

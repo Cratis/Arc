@@ -124,11 +124,23 @@ jobs:
         if: steps.bump.outputs.changed == 'true'
         run: |
           version="${{ steps.inputs.outputs.version }}"
+          log="${RUNNER_TEMP:-/tmp}/restore.log"
           for i in $(seq 1 40); do
-            if dotnet restore; then
+            if dotnet restore > "$log" 2>&1; then
               echo "Restore succeeded — Cratis.Chronicle $version resolved."
               exit 0
             fi
+
+            # Only a missing package is worth waiting for. A version conflict is a decision this
+            # workflow cannot make - the new Chronicle wants a dependency newer than the one pinned
+            # here - and retrying it for ten minutes buries that under a timeout that blames NuGet.
+            if grep -q "NU1109" "$log"; then
+              echo "::error::Cratis.Chronicle $version needs a dependency newer than the version pinned in Directory.Packages.props. Bump the conflicting pin - retrying will not resolve it."
+              grep -E "NU1109.*(Detected package downgrade|-> Cratis\.Chronicle $version ->)" "$log" | sort -u | head -20
+              exit 1
+            fi
+
+            cat "$log"
             echo "Restore failed — Cratis.Chronicle $version may not be fully indexed on NuGet yet (retry $i/40)."
             # Clear the HTTP cache so cached negative lookups don't keep the retry failing.
             dotnet nuget locals http-cache --clear
@@ -292,4 +304,7 @@ jobs:
           steps.inputs.outputs.bump != 'major'
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
-        run: gh pr merge --auto --squash "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }}
+        # A true merge commit, never --squash: squashing collapses the branch's commits into a new
+        # one and deletes the branch, leaving the originals unreachable. The repository's history is
+        # append-only.
+        run: gh pr merge --auto --merge "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }}

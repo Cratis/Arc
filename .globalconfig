@@ -146,3 +146,8 @@ dotnet_diagnostic.MA0076.severity = none
 dotnet_diagnostic.MA0134.severity = none
 dotnet_diagnostic.MA0165.severity = none
 dotnet_diagnostic.MA0169.severity = none
+
+# Asks for a lang attribute on every inline <c> element in an XML comment. The codebase uses <c> to
+# name a type or member in prose, where there is no language to state and the attribute is noise; the
+# rule fires 1410 times and none of them is a defect.
+dotnet_diagnostic.MA0219.severity = none
