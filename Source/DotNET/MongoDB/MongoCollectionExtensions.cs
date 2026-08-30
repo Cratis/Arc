@@ -173,12 +173,24 @@ public static class MongoCollectionExtensions
         var filterRendered = filter.Render(new(collection.DocumentSerializer, collection.Settings.SerializerRegistry));
         PrefixKeys(filterRendered);
 
+        // An insert is narrowed by the observed filter server-side: a document that never matched is
+        // of no interest to this observer and there is no reason to carry it over the wire.
+        //
+        // An update or a replace is deliberately NOT narrowed, and that is the whole point. The
+        // filter is rendered against fullDocument - the document as it is *after* the change - so
+        // narrowing update events by it discards precisely the events that say a document has left
+        // the result set. An observer watching "work that is still running" would be told when work
+        // started and never when it finished, so the finished item stayed in the observed set until
+        // the client reconnected. Membership is decided per event in HandleChange instead.
         var fullFilter = Builders<ChangeStreamDocument<TDocument>>.Filter.Or(
             Builders<ChangeStreamDocument<TDocument>>.Filter.And(
                    filterRendered,
-                   Builders<ChangeStreamDocument<TDocument>>.Filter.In(
+                   Builders<ChangeStreamDocument<TDocument>>.Filter.Eq(
                        new StringFieldDefinition<ChangeStreamDocument<TDocument>, string>("operationType"),
-                       ["insert", "replace", "update", "delete"])),
+                       "insert")),
+            Builders<ChangeStreamDocument<TDocument>>.Filter.In(
+                new StringFieldDefinition<ChangeStreamDocument<TDocument>, string>("operationType"),
+                ["replace", "update", "delete"]),
             Builders<ChangeStreamDocument<TDocument>>.Filter.Eq("fullDocument", BsonNull.Value));
 
         var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<TDocument>>().Match(fullFilter);
@@ -224,13 +236,16 @@ public static class MongoCollectionExtensions
                         try
                         {
                             await HandleChange(
+                                collection,
+                                filter,
                                 queryContext,
                                 onNext,
                                 changeDocument,
                                 query,
                                 documents,
                                 subject,
-                                idProperty);
+                                idProperty,
+                                cancellationToken);
                         }
                         catch (Exception e)
                         {
@@ -274,13 +289,16 @@ public static class MongoCollectionExtensions
     }
 
     static async Task HandleChange<TDocument, TResult>(
+        IMongoCollection<TDocument> collection,
+        FilterDefinition<TDocument> filter,
         QueryContext queryContext,
         Action<IEnumerable<TDocument>, ISubject<TResult>> onNext,
         ChangeStreamDocument<TDocument> changeDocument,
         IFindFluent<TDocument, TDocument> query,
         QueryContextAwareSet<TDocument> documents,
         ISubject<TResult> subject,
-        PropertyInfo idProperty)
+        PropertyInfo idProperty,
+        CancellationToken cancellationToken)
     {
         var hasChanges = false;
         if (changeDocument.DocumentKey is not null && changeDocument.DocumentKey.TryGetValue("_id", out var idValue))
@@ -290,14 +308,7 @@ public static class MongoCollectionExtensions
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
                 queryContext.TotalItems--;
-                if (queryContext.Paging.IsPaged)
-                {
-                    hasChanges = await documents.RemoveAndAddLastInQuery(id, query);
-                }
-                else
-                {
-                   hasChanges = documents.Remove(id);
-                }
+                hasChanges = await RemoveFromSet(queryContext, query, documents, id);
             }
             else if (changeDocument.OperationType == ChangeStreamOperationType.Insert)
             {
@@ -306,7 +317,28 @@ public static class MongoCollectionExtensions
             }
             else if (fullDocument is not null)
             {
-                hasChanges = documents.Add(fullDocument);
+                // An update or a replace. It arrives whether or not the new document still satisfies
+                // the observed filter, because an event saying a document has left the result set
+                // looks exactly like one saying it never belonged. Ask the collection which it is:
+                // one indexed lookup on the document's own key.
+                var belongs = await collection
+                    .Find(Builders<TDocument>.Filter.And(filter, Builders<TDocument>.Filter.Eq("_id", idValue)))
+                    .AnyAsync(cancellationToken);
+
+                var wasPresent = documents.Contains(id);
+                if (belongs)
+                {
+                    if (!wasPresent)
+                    {
+                        queryContext.TotalItems++;
+                    }
+                    hasChanges = documents.Add(fullDocument);
+                }
+                else if (wasPresent)
+                {
+                    queryContext.TotalItems--;
+                    hasChanges = await RemoveFromSet(queryContext, query, documents, id);
+                }
             }
         }
         if (hasChanges)
@@ -314,6 +346,24 @@ public static class MongoCollectionExtensions
             onNext(documents, subject);
         }
     }
+
+    /// <summary>
+    /// Takes a document out of the observed set, refilling the page behind it when the query is paged.
+    /// </summary>
+    /// <param name="queryContext">The <see cref="QueryContext"/> carrying the paging state.</param>
+    /// <param name="query">The sorted and paged query the refill reads from.</param>
+    /// <param name="documents">The observed set to remove from.</param>
+    /// <param name="id">The identifier of the document to remove.</param>
+    /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
+    /// <returns>True when a document was removed.</returns>
+    static Task<bool> RemoveFromSet<TDocument>(
+        QueryContext queryContext,
+        IFindFluent<TDocument, TDocument> query,
+        QueryContextAwareSet<TDocument> documents,
+        object id) =>
+        queryContext.Paging.IsPaged
+            ? documents.RemoveAndAddLastInQuery(id, query)
+            : Task.FromResult(documents.Remove(id));
 
     static object GetId(PropertyInfo idProperty, BsonValue idValue)
     {
