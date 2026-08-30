@@ -18,14 +18,25 @@ public class a_guarded_websocket_connection : a_guarded_connection
     protected IHttpRequestContext _context;
     protected IWebSocket _webSocket;
     protected ConcurrentQueue<ObservableQueryHubMessage> _sentMessages;
+    protected string? _queryIdToUnsubscribe;
+    protected long?[] _subscriptionRevisions = [null];
+    protected long? _unsubscribeRevision;
+    protected long? _unsubscribeBeforeSubscribeRevision;
 
+    Func<Task> _afterUnsubscribe = () => Task.CompletedTask;
     Func<Task> _script = () => Task.CompletedTask;
     int _receiveCount;
+    bool _unsubscribeSent;
 
     void Establish()
     {
         _sentMessages = [];
+        _queryIdToUnsubscribe = null;
+        _subscriptionRevisions = [null];
+        _unsubscribeRevision = null;
+        _unsubscribeBeforeSubscribeRevision = null;
         _receiveCount = 0;
+        _unsubscribeSent = false;
 
         _context = Substitute.For<IHttpRequestContext>();
         _context.RequestAborted.Returns(CancellationToken.None);
@@ -60,9 +71,10 @@ public class a_guarded_websocket_connection : a_guarded_connection
             .Returns(Task.CompletedTask);
     }
 
-    protected async Task RunConnection(Func<Task> script)
+    protected async Task RunConnection(Func<Task> script, Func<Task>? afterUnsubscribe = null)
     {
         _script = script;
+        _afterUnsubscribe = afterUnsubscribe ?? (() => Task.CompletedTask);
         await _hub.HandleWebSocketConnection(_context);
     }
 
@@ -82,14 +94,32 @@ public class a_guarded_websocket_connection : a_guarded_connection
 
     async Task<WebSocketReceiveResult> ReceiveNextMessage(ArraySegment<byte> buffer)
     {
+        if (_unsubscribeBeforeSubscribeRevision is not null)
+        {
+            var unsubscribe = new ObservableQueryHubMessage
+            {
+                Type = ObservableQueryHubMessageType.Unsubscribe,
+                QueryId = FirstQueryId
+            };
+            typeof(ObservableQueryHubMessage).GetProperty("Revision")!.SetValue(unsubscribe, _unsubscribeBeforeSubscribeRevision);
+            _unsubscribeBeforeSubscribeRevision = null;
+
+            var unsubscribeBytes = JsonSerializer.SerializeToUtf8Bytes(unsubscribe, _arcOptions.Value.JsonSerializerOptions);
+            Array.Copy(unsubscribeBytes, 0, buffer.Array!, buffer.Offset, unsubscribeBytes.Length);
+            return new WebSocketReceiveResult(unsubscribeBytes.Length, System.Net.WebSockets.WebSocketMessageType.Text, true);
+        }
+
         if (_receiveCount < _queryIds.Length)
         {
+            var messageIndex = _receiveCount++;
             var subscribe = new ObservableQueryHubMessage
             {
                 Type = ObservableQueryHubMessageType.Subscribe,
-                QueryId = _queryIds[_receiveCount++],
+                QueryId = _queryIds[messageIndex],
                 Payload = new ObservableQuerySubscriptionRequest(QueryName, RawArguments)
             };
+            typeof(ObservableQueryHubMessage).GetProperty("Revision")!
+                .SetValue(subscribe, _subscriptionRevisions.ElementAtOrDefault(messageIndex));
 
             var bytes = JsonSerializer.SerializeToUtf8Bytes(subscribe, _arcOptions.Value.JsonSerializerOptions);
             Array.Copy(bytes, 0, buffer.Array!, buffer.Offset, bytes.Length);
@@ -100,6 +130,27 @@ public class a_guarded_websocket_connection : a_guarded_connection
         {
             _receiveCount++;
             await _script();
+
+            if (_queryIdToUnsubscribe is not null)
+            {
+                _unsubscribeSent = true;
+                var unsubscribe = new ObservableQueryHubMessage
+                {
+                    Type = ObservableQueryHubMessageType.Unsubscribe,
+                    QueryId = _queryIdToUnsubscribe
+                };
+                typeof(ObservableQueryHubMessage).GetProperty("Revision")!.SetValue(unsubscribe, _unsubscribeRevision);
+
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(unsubscribe, _arcOptions.Value.JsonSerializerOptions);
+                Array.Copy(bytes, 0, buffer.Array!, buffer.Offset, bytes.Length);
+                return new WebSocketReceiveResult(bytes.Length, System.Net.WebSockets.WebSocketMessageType.Text, true);
+            }
+        }
+
+        if (_unsubscribeSent)
+        {
+            _unsubscribeSent = false;
+            await _afterUnsubscribe();
         }
 
         return new WebSocketReceiveResult(0, System.Net.WebSockets.WebSocketMessageType.Close, true, WebSocketCloseStatus.NormalClosure, "done");

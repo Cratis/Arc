@@ -42,12 +42,14 @@ on:
       - "Directory.Build.props"
       - "Directory.Packages*.props"
       - "global.json"
+      - "stylecop.json"
       - "Arc.slnx"
       - ".github/workflows/dotnet-build.yml"
 
 jobs:
   dotnet-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       proxy-namespaces: ${{ steps.discover-namespaces.outputs.namespaces }}
       spec-projects: ${{ steps.discover-specs.outputs.projects }}
@@ -161,6 +163,7 @@ jobs:
   specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -200,6 +203,7 @@ jobs:
   screenplay-end-to-end:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -270,6 +274,7 @@ jobs:
   proxy-specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

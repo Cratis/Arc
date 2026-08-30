@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
@@ -89,5 +90,7 @@ public class a_specification_expecting_a_rejection : Specification
     [Fact] void should_expect_no_event_alongside_a_rejection() => _named.Then.ShouldBeEmpty();
     [Fact] void should_state_a_rejection_the_source_names_no_reason_for() => _unnamed.Errors.ShouldContainOnly([string.Empty]);
     [Fact] void should_state_two_ways_of_saying_the_same_rejection_once() => _unnamed.Errors.Count().ShouldEqual(1);
+    [Fact] void should_retain_rejection_step_evidence() => SpecificationEvidence.For(_named).Errors.Single().IsInSource.ShouldBeTrue();
+    [Fact] void should_retain_unnamed_rejection_step_evidence() => SpecificationEvidence.For(_unnamed).Errors.Single().IsInSource.ShouldBeTrue();
     [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
 }

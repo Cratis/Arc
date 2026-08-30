@@ -2,6 +2,8 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.MongoDB</AssemblyName>
         <RootNamespace>Cratis.Arc.MongoDB</RootNamespace>
+        <Description>MongoDB current-state persistence for Cratis Arc: serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams for CQRS read models.</Description>
+        <PackageTags>cratis;arc;cqrs;mongodb;read-models;aspnetcore;queries</PackageTags>
         <!-- CS0436: OneOf.SourceGenerator generates GenerateOneOfAttribute here, but it is also compiled
              into Cratis.Arc.Core (via Cratis.Fundamentals). Suppress the false-positive type conflict. -->
         <NoWarn>$(NoWarn);CS0436</NoWarn>

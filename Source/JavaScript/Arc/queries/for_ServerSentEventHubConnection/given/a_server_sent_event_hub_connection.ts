@@ -16,6 +16,7 @@ export class a_server_sent_event_hub_connection {
         close: sinon.SinonStub;
         readyState: number;
     };
+    eventSources!: Array<typeof this.fakeEventSource>;
     policy!: sinon.SinonStubbedInstance<IReconnectPolicy>;
     fetchStub!: sinon.SinonStub;
 
@@ -29,20 +30,28 @@ export class a_server_sent_event_hub_connection {
      * accumulation across tests sharing the same context instance.
      */
     setup(): void {
+        this.eventSources = [];
         this.fakeEventSource = {
             onopen: null,
             onmessage: null,
             onerror: null,
             close: sinon.stub(),
-            readyState: 0, // CONNECTING
+            readyState: 0,
         };
 
         // eslint-disable-next-line @typescript-eslint/no-this-alias
         const self = this;
         const FakeEventSourceClass = function (this: any) {
-            Object.assign(self.fakeEventSource, { onopen: null, onmessage: null, onerror: null });
-            self.fakeEventSource.readyState = 0; // CONNECTING
-            return self.fakeEventSource;
+            const eventSource = {
+                onopen: null,
+                onmessage: null,
+                onerror: null,
+                close: sinon.stub(),
+                readyState: 0, // CONNECTING
+            };
+            self.eventSources.push(eventSource);
+            self.fakeEventSource = eventSource;
+            return eventSource;
         };
         (globalThis as any)['EventSource'] = FakeEventSourceClass;
         (globalThis as any)['EventSource'].CONNECTING = 0;
@@ -66,7 +75,7 @@ export class a_server_sent_event_hub_connection {
             '',
             undefined,
             undefined,
-            this.policy
+            this.policy,
         );
     }
 
@@ -75,8 +84,10 @@ export class a_server_sent_event_hub_connection {
         this.fakeEventSource.onopen?.();
     }
 
-    simulateMessage(payload: object): void {
-        this.fakeEventSource.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+    simulateMessage(payload: Record<string, unknown>): void {
+        this.fakeEventSource.onmessage?.({
+            data: JSON.stringify(payload),
+        } as MessageEvent);
     }
 
     simulateError(): void {

@@ -90,15 +90,24 @@ public static class SpecificationMembers
     public static bool HoldsAScenario(INamedTypeSymbol type) => Holds(type, WellKnownTypeNames.CommandScenario) is not null;
 
     /// <summary>
+    /// Gets the command a type is written as a scenario of.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>The command, or <see langword="null"/> when the type holds no command scenario.</returns>
+    public static ITypeSymbol? CommandOf(INamedTypeSymbol type) =>
+        Holds(type, WellKnownTypeNames.CommandScenario) is INamedTypeSymbol { TypeArguments.Length: 1 } scenario
+            ? scenario.TypeArguments[0]
+            : null;
+
+    /// <summary>
     /// Gets the read model a type is written as a scenario of.
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>The read model, or <see langword="null"/> when the type holds no read model scenario.</returns>
     /// <remarks>
-    /// A read model scenario says which read model it is about in its own type argument, which is the whole of what
-    /// the outcome of such a specification is: the events went in and this is what they built. Nothing in the body
-    /// has to be read to know it, so a scenario whose assertions are written in a way this cannot follow still says
-    /// exactly as much as the language holds for it.
+    /// A read model scenario says which read model it is about in its own type argument. Exact generated assertions
+    /// against the scenario instance state what the events built; those values are read separately and an incomplete
+    /// or unsupported assertion blocks the whole scenario.
     /// </remarks>
     public static ITypeSymbol? ReadModelOf(INamedTypeSymbol type) =>
         Holds(type, WellKnownTypeNames.ReadModelScenario) is INamedTypeSymbol { TypeArguments.Length: 1 } scenario

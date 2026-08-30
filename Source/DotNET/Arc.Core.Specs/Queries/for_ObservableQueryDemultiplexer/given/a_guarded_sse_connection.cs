@@ -17,8 +17,8 @@ public class a_guarded_sse_connection : a_guarded_connection
     protected ConcurrentQueue<string> _messages;
     protected ConcurrentDictionary<string, int> _subscribeStatusCodes;
 
-    CancellationTokenSource _connectionCancellation;
-    string _connectionId;
+    protected CancellationTokenSource _connectionCancellation;
+    protected string _connectionId;
 
     void Establish()
     {
@@ -54,6 +54,16 @@ public class a_guarded_sse_connection : a_guarded_connection
         await connectionTask;
     }
 
+    protected async Task Unsubscribe(string queryId)
+    {
+        var unsubscribeContext = Substitute.For<IHttpRequestContext>();
+        unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
+        unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<object?>(new ObservableQuerySSEUnsubscribeRequest(_connectionId, queryId)));
+
+        await _hub.HandleSSEUnsubscribe(unsubscribeContext);
+    }
+
     protected int CountQueryResultsFor(string queryId) =>
         HubMessages.Count(_ => _.Type == ObservableQueryHubMessageType.QueryResult && _.QueryId == queryId);
 
@@ -70,10 +80,10 @@ public class a_guarded_sse_connection : a_guarded_connection
             .Where(_ => _ is not null)
             .Select(_ => _!)];
 
-    IEnumerable<ObservableQueryHubMessage> HubMessages =>
+    protected IEnumerable<ObservableQueryHubMessage> HubMessages =>
         _messages.Select(TryParseHubMessage).Where(_ => _ is not null).Select(_ => _!);
 
-    IHttpRequestContext CreateSubscribeContext(string queryId)
+    protected IHttpRequestContext CreateSubscribeContext(string queryId, long? revision = null)
     {
         var subscribeContext = Substitute.For<IHttpRequestContext>();
         subscribeContext.RequestAborted.Returns(CancellationToken.None);
@@ -81,16 +91,41 @@ public class a_guarded_sse_connection : a_guarded_connection
         // The subscribe POST carries the freshest identity; the demultiplexer transfers it onto the SSE connection.
         subscribeContext.User.Returns(_principal);
         subscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSESubscribeRequest), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult<object?>(new ObservableQuerySSESubscribeRequest(
-                _connectionId,
-                queryId,
-                new ObservableQuerySubscriptionRequest(QueryName, RawArguments))));
+            .Returns(_ => Task.FromResult<object?>(CreateRequest()));
         subscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
             .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
         return subscribeContext;
+
+        ObservableQuerySSESubscribeRequest CreateRequest()
+        {
+            var request = new ObservableQuerySSESubscribeRequest(
+                _connectionId,
+                queryId,
+                new ObservableQuerySubscriptionRequest(QueryName, RawArguments));
+            typeof(ObservableQuerySSESubscribeRequest).GetProperty("Revision")!.SetValue(request, revision);
+            return request;
+        }
     }
 
-    bool TryExtractConnectionId(out string connectionId)
+    protected IHttpRequestContext CreateUnsubscribeContext(string queryId, long? revision = null)
+    {
+        var unsubscribeContext = Substitute.For<IHttpRequestContext>();
+        unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
+        unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<object?>(CreateRequest()));
+        unsubscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
+            .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
+        return unsubscribeContext;
+
+        ObservableQuerySSEUnsubscribeRequest CreateRequest()
+        {
+            var request = new ObservableQuerySSEUnsubscribeRequest(_connectionId, queryId);
+            typeof(ObservableQuerySSEUnsubscribeRequest).GetProperty("Revision")!.SetValue(request, revision);
+            return request;
+        }
+    }
+
+    protected bool TryExtractConnectionId(out string connectionId)
     {
         connectionId = string.Empty;
 

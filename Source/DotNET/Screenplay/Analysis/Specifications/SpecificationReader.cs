@@ -89,9 +89,24 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         reader.ReadWhen(steps, draft, name, location);
         new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
 
-        if (readModel is not null && draft.When is null)
+        if (readModel is INamedTypeSymbol namedReadModel && draft.When is null)
         {
-            ReadStateOfTheReadModel(readModel, draft);
+            if (SpecificationReadModelOutcomeValues.TryRead(
+                    type,
+                    steps,
+                    namedReadModel,
+                    models,
+                    draft,
+                    out var values,
+                    out var source,
+                    out var reason))
+            {
+                ReadStateOfTheReadModel(namedReadModel, values, source!, draft);
+            }
+            else
+            {
+                draft.CannotRead(reason!);
+            }
         }
         else if (draft.When is null)
         {
@@ -114,7 +129,17 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        return new(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+        SpecificationEvidence.Register(
+            specification,
+            new(
+                type,
+                type.Locations.First(location => location.IsInSource),
+                draft.GetStateEvidence(),
+                draft.GetValueEvidence(),
+                draft.GetErrorEvidence(),
+                [.. stated.All]));
+        return specification;
     }
 
     /// <summary>
@@ -122,27 +147,42 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>True when the type is shaped like a specification.</returns>
-    static bool IsWrittenAsOne(INamedTypeSymbol type) =>
-        type is { TypeKind: TypeKind.Class, IsAbstract: false, ContainingType: null } &&
-        SpecificationMembers.MethodsIn(SpecificationMembers.StepsOf(type), SpecificationMembers.BecauseMethod).Any();
+    static bool IsWrittenAsOne(INamedTypeSymbol type)
+    {
+        if (type is not { TypeKind: TypeKind.Class, IsAbstract: false, ContainingType: null })
+        {
+            return false;
+        }
+
+        var steps = SpecificationMembers.StepsOf(type);
+        return SpecificationMembers.MethodsIn(steps, SpecificationMembers.BecauseMethod).Any() ||
+               (SpecificationMembers.ReadModelOf(steps) is not null &&
+                SpecificationMembers.MethodsIn(steps, SpecificationMembers.EstablishMethod).Any());
+    }
 
     /// <summary>
     /// States the read model a scenario is about as what followed the events it started from.
     /// </summary>
     /// <param name="readModel">The read model the scenario is of.</param>
+    /// <param name="values">Every exact read-model value asserted by the generated scenario.</param>
+    /// <param name="source">The exact read-model scenario type-argument source.</param>
     /// <param name="draft">The scenario collected so far.</param>
     /// <remarks>
     /// A scenario of a read model has no command to issue - the events are what happened and the model is what they
     /// built - so what it says is the two halves the language already holds: <c>given</c> the events, and then the
-    /// <c>readmodel</c> they left behind. Which values the model ended up with is asserted in the host language
-    /// against the instance the scenario holds, and stays unsaid for the same reason the values of an event do.
+    /// <c>readmodel</c> they left behind. Generated assertions against the scenario instance state every resulting
+    /// value exactly; an incomplete, repeated, conditional, or computed assertion blocks the whole scenario.
     /// <para>
     /// A scenario stating nothing that had happened is left out rather than written, because a read model with no
     /// events behind it is the empty one every read model starts as, and saying so describes nothing the application
     /// does.
     /// </para>
     /// </remarks>
-    static void ReadStateOfTheReadModel(ITypeSymbol readModel, SpecificationDraft draft)
+    static void ReadStateOfTheReadModel(
+        ITypeSymbol readModel,
+        IReadOnlyList<PropertyMappingModel> values,
+        Location source,
+        SpecificationDraft draft)
     {
         if (draft.Given.Count == 0)
         {
@@ -150,7 +190,8 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
             return;
         }
 
-        draft.Then.Add(new(readModel.Name, SpecificationStateKind.ReadModel, []));
+        var state = new SpecificationStateModel(readModel.Name, SpecificationStateKind.ReadModel, values);
+        draft.AddThen(state, readModel, source);
     }
 
     /// <summary>

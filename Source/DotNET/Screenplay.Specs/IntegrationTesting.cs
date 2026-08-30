@@ -36,7 +36,7 @@ public static class IntegrationTesting
 
                 public IEventSequence EventSequence => null!;
 
-                public Task<Result> Execute(TCommand command) => Task.FromResult(new Result());
+                public Task<CommandResult> Execute(TCommand command) => Task.FromResult(new CommandResult());
 
                 public Task<Result> Validate(TCommand command) => Task.FromResult(new Result());
             }
@@ -45,10 +45,20 @@ public static class IntegrationTesting
             {
                 public bool IsSuccess => true;
             }
+
+            public class CommandResult : Result;
+
         }
 
         namespace Cratis.Arc.Chronicle.Testing.Commands
         {
+            public static class CommandResultExtensions
+            {
+                public static void ShouldBeSuccessful(this Cratis.Arc.Testing.Commands.CommandResult result)
+                {
+                }
+            }
+
             public class CommandScenarioChronicleGivenBuilder<TCommand>
             {
                 public CommandScenarioSourceGivenBuilder<TCommand> ForEventSource(EventSourceId eventSourceId) => new();

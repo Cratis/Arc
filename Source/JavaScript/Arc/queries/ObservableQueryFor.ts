@@ -1,14 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
+import type { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
 import { ObservableQuerySubscription } from './ObservableQuerySubscription';
 import { ValidateRequestArguments } from './ValidateRequestArguments';
-import { QueryValidator } from './QueryValidator';
-import { IObservableQueryConnection } from './IObservableQueryConnection';
+import type { QueryValidator } from './QueryValidator';
+import type { IObservableQueryConnection } from './IObservableQueryConnection';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection';
 import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
-import { Constructor } from '@cratis/fundamentals';
+import type { Constructor } from '@cratis/fundamentals';
 import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel';
 import { QueryResult } from './QueryResult';
 import { Sorting } from './Sorting';
@@ -16,10 +16,10 @@ import { Paging } from './Paging';
 import { SortDirection } from './SortDirection';
 import { Globals } from '../Globals';
 import { UrlHelpers } from '../UrlHelpers';
-import { GetHttpHeaders } from '../GetHttpHeaders';
-import { ParameterDescriptor } from '../reflection/ParameterDescriptor';
+import type { GetHttpHeaders } from '../GetHttpHeaders';
+import type { ParameterDescriptor } from '../reflection/ParameterDescriptor';
 import { ParametersHelper } from '../reflection/ParametersHelper';
-import { QueryHttpMethod } from './QueryHttpMethod';
+import type { QueryHttpMethod } from './QueryHttpMethod';
 import { executeQueryHttpRequest } from './QueryHttpRequest';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -28,7 +28,10 @@ import { executeQueryHttpRequest } from './QueryHttpRequest';
  * Represents an implementation of {@link IQueryFor}.
  * @template TDataType Type of data returned by the query.
  */
-export abstract class ObservableQueryFor<TDataType, TParameters = object> implements IObservableQueryFor<TDataType, TParameters> {
+export abstract class ObservableQueryFor<
+    TDataType,
+    TParameters = object,
+> implements IObservableQueryFor<TDataType, TParameters> {
     private _microservice: string;
     private _apiBasePath: string;
     private _origin: string;
@@ -52,7 +55,10 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
      * @param modelType Type of model, if an enumerable, this is the instance type.
      * @param enumerable Whether or not it is an enumerable.
      */
-    constructor(readonly modelType: Constructor, readonly enumerable: boolean) {
+    constructor(
+        readonly modelType: Constructor,
+        readonly enumerable: boolean,
+    ) {
         this.sorting = Sorting.none;
         this.paging = Paging.noPaging;
         this._microservice = Globals.microservice ?? '';
@@ -94,21 +100,24 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
     }
 
     /** @inheritdoc */
-    subscribe(callback: OnNextResult<QueryResult<TDataType>>, args?: TParameters): ObservableQuerySubscription<TDataType> {
+    subscribe(
+        callback: OnNextResult<QueryResult<TDataType>>,
+        args?: TParameters,
+    ): ObservableQuerySubscription<TDataType> {
         if (this._connection) {
             this._connection.disconnect();
         }
 
-        const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
+        const clientValidationErrors =
+            this.validation?.validate((args as object) || {}) || [];
         if (clientValidationErrors.length > 0) {
             // Serve the failure through the connection rather than throwing, so a subscriber sees an invalid result
             // on its normal callback path instead of the empty result an unestablished connection would emit.
             this._connection = new NullObservableQueryConnection(
                 this.defaultValue,
-                QueryResult.validationFailed(clientValidationErrors, this));
-        } else if (!this.validateArguments(args)) {
-            this._connection = new NullObservableQueryConnection(this.defaultValue);
-        } else {
+                QueryResult.validationFailed(clientValidationErrors, this),
+            );
+        } else if (this.validateArguments(args)) {
             this._connection = createObservableQueryConnection({
                 route: this.route,
                 queryName: this.queryName ?? this.constructor.name,
@@ -117,6 +126,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
                 microservice: this._microservice,
                 args: args as object,
             });
+        } else {
+            this._connection = new NullObservableQueryConnection(this.defaultValue);
         }
 
         // Descriptor-backed instance properties provide defaults; fresh args passed to subscribe()
@@ -128,17 +139,25 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
         // In multiplexed mode ALL arguments — including route-derived ones — must be included
         // in the subscribe payload so the server can execute the query correctly.
         const parameterValues = ParametersHelper.collectParameterValues(this);
-        const { unusedParameters } = UrlHelpers.replaceRouteParameters(this.route, args as object);
+        const { unusedParameters } = UrlHelpers.replaceRouteParameters(
+            this.route,
+            args as object,
+        );
         const connectionQueryArguments: any = {
             ...parameterValues,
             ...(Globals.queryDirectMode ? unusedParameters : (args as object) || {}),
-            ...this.buildQueryArguments()
+            ...this.buildQueryArguments(),
         };
 
         const subscriber = new ObservableQuerySubscription(this._connection);
-        this._connection.connect(data => {
+        this._connection.connect((data) => {
             const result: any = data;
             try {
+                // Observable transports deliver structural query-result envelopes directly instead of
+                // constructing QueryResult. Servers predating readiness therefore omit the member;
+                // those results are complete by definition and must be normalized before subscribers
+                // observe them. Preserve an explicit false transient state from newer servers.
+                result.isReady ??= true;
                 this.deserializeResult(result);
                 callback(result);
             } catch (ex) {
@@ -150,9 +169,13 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
     /** @inheritdoc */
     async perform(args?: TParameters): Promise<QueryResult<TDataType>> {
-        const noSuccess = { ...QueryResult.noSuccess, ...{ data: this.defaultValue } } as QueryResult<TDataType>;
+        const noSuccess = {
+            ...QueryResult.noSuccess,
+            ...{ data: this.defaultValue },
+        } as QueryResult<TDataType>;
 
-        const clientValidationErrors = this.validation?.validate(args as object || {}) || [];
+        const clientValidationErrors =
+            this.validation?.validate((args as object) || {}) || [];
         if (clientValidationErrors.length > 0) {
             return QueryResult.validationFailed(clientValidationErrors, this);
         }
@@ -168,8 +191,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
         const headers = {
             ...(this._httpHeadersCallback?.() || {}),
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
         };
 
         if (this._microservice?.length > 0) {
@@ -184,7 +207,7 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
             parameterValues,
             paging: this.paging,
             sorting: this.sorting,
-            headers
+            headers,
         });
 
         try {
@@ -197,8 +220,12 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
     private validateArguments(args?: TParameters): boolean {
         const parameterValues = ParametersHelper.collectParameterValues(this);
-        const combinedArgs = { ...(args as object || {}), ...parameterValues };
-        return ValidateRequestArguments(this.constructor.name, this.requiredRequestParameters, combinedArgs as object);
+        const combinedArgs = { ...((args as object) || {}), ...parameterValues };
+        return ValidateRequestArguments(
+            this.constructor.name,
+            this.requiredRequestParameters,
+            combinedArgs as object,
+        );
     }
 
     private buildQueryArguments(): any {
@@ -211,7 +238,8 @@ export abstract class ObservableQueryFor<TDataType, TParameters = object> implem
 
         if (this.sorting.hasSorting) {
             queryArguments.sortBy = this.sorting.field;
-            queryArguments.sortDirection = (this.sorting.direction === SortDirection.descending) ? 'desc' : 'asc';
+            queryArguments.sortDirection =
+                this.sorting.direction === SortDirection.descending ? 'desc' : 'asc';
         }
 
         return queryArguments;

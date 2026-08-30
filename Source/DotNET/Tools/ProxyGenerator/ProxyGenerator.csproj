@@ -7,6 +7,8 @@
         <Nullable>enable</Nullable>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>proxygenerator</ToolCommandName>
+        <Description>dotnet tool that generates TypeScript proxies, referenced types, and validation metadata for Cratis Arc commands and queries.</Description>
+        <PackageTags>cratis;arc;cqrs;typescript;proxy-generation;dotnet-tool;commands;queries;aspnetcore</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

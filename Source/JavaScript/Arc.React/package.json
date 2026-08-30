@@ -1,7 +1,20 @@
 {
     "name": "@cratis/arc.react",
     "version": "1.0.0",
-    "description": "",
+    "description": "React hooks, forms, dialogs, identity, and observable query composition for Cratis Arc — the CQRS application framework for ASP.NET Core.",
+    "keywords": [
+        "cratis",
+        "arc",
+        "cqrs",
+        "commands",
+        "queries",
+        "react",
+        "hooks",
+        "forms",
+        "typescript",
+        "aspnetcore"
+    ],
+    "homepage": "https://www.cratis.io/arc/",
     "author": "Cratis",
     "license": "MIT",
     "repository": {

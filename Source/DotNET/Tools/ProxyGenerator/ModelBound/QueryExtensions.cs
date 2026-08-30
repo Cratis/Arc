@@ -232,9 +232,16 @@ public static class QueryExtensions
     /// </summary>
     /// <param name="parameter">The <see cref="ParameterInfo"/> to check.</param>
     /// <returns>True when the parameter is a query argument; otherwise false.</returns>
+    /// <remarks>
+    /// Enums are included explicitly. Everything this predicate rejects is assumed to be an injected dependency, so an
+    /// omission here does not merely skip a parameter - it silently reclassifies a caller-supplied argument as a
+    /// dependency, and the generated proxy has no way to pass it. A nullable enum already qualified by way of
+    /// <c>IsNullable</c>, which made <c>Status?</c> work while <c>Status</c> did not.
+    /// </remarks>
     static bool IsQueryParameter(ParameterInfo parameter) =>
         parameter.ParameterType.IsAPrimitiveType() ||
         parameter.ParameterType.IsConcept() ||
+        parameter.ParameterType.IsEnum ||
         parameter.ParameterType.IsEnumerableOfPrimitiveOrConcept();
 
     /// <summary>

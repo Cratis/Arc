@@ -29,4 +29,5 @@
         <None Include="GlobalUsings.cs" Pack="true" PackagePath="contentFiles/cs/any" />
         <None Include="build/Cratis.props" Pack="true" PackagePath="build;buildTransitive" />
     </ItemGroup>
+
 </Project>

@@ -1,9 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryFor, IQueryFor, ObservableQueryFor, QueryFor } from '@cratis/arc/queries';
-import { ParameterDescriptor } from '@cratis/arc/reflection';
-import { Constructor } from '@cratis/fundamentals';
+import {
+    type IObservableQueryFor,
+    type IQueryFor,
+    ObservableQueryFor,
+    QueryFor,
+} from '@cratis/arc/queries';
+import type { ParameterDescriptor } from '@cratis/arc/reflection';
+import type { Constructor } from '@cratis/fundamentals';
 import { useMemo } from 'react';
 import { useObservableQuery } from '../../queries/useObservableQuery';
 import { useQuery } from '../../queries/useQuery';
@@ -61,20 +66,35 @@ function guardSingleInstance(query: Constructor<{ enumerable?: boolean }> | unde
  * @param args Optional: arguments for the query, if any.
  * @returns The query's resolved data, or `undefined` while it has not resolved yet or no query was given.
  */
-export function usePopulateFromQuery<TDataType extends object, TQuery extends IQueryFor<TDataType>, TArguments = object>(
-    query?: Constructor<TQuery>,
-    args?: TArguments
-): TDataType | undefined {
-    useMemo(() => guardSingleInstance(query as unknown as Constructor<{ enumerable?: boolean }> | undefined), [query]);
-
-    const [result] = useQuery<TDataType, TQuery, TArguments>(
-        query ?? (NoPopulationQuery as unknown as Constructor<TQuery>),
-        args,
-        undefined,
-        query !== undefined
+export function usePopulateFromQuery<
+    TDataType extends object,
+    TQuery extends IQueryFor<TDataType>,
+    TArguments = object,
+>(query?: Constructor<TQuery>, args?: TArguments): TDataType | undefined {
+    // SAFETY: Arc query constructors expose the runtime enumerable metadata used by the guard.
+    useMemo(
+        () =>
+            guardSingleInstance(
+                query as unknown as Constructor<{ enumerable?: boolean }> | undefined,
+            ),
+        [query],
     );
 
-    return query !== undefined && result.hasData ? result.data : undefined;
+    // SAFETY: The no-op query is selected only while disabled, so its data type is never observed.
+    const queryType = query ?? (NoPopulationQuery as unknown as Constructor<TQuery>);
+    const [result] = useQuery<TDataType, TQuery, TArguments>(
+        queryType,
+        args,
+        undefined,
+        query !== undefined,
+    );
+
+    return query !== undefined &&
+        result.isReady !== false &&
+        result.isSuccess &&
+        result.hasData
+        ? result.data
+        : undefined;
 }
 
 /**
@@ -89,18 +109,34 @@ export function usePopulateFromQuery<TDataType extends object, TQuery extends IQ
  * @param args Optional: arguments for the query, if any.
  * @returns The query's resolved data, or `undefined` while it has not resolved yet or no query was given.
  */
-export function usePopulateFromObservableQuery<TDataType extends object, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(
-    query?: Constructor<TQuery>,
-    args?: TArguments
-): TDataType | undefined {
-    useMemo(() => guardSingleInstance(query as unknown as Constructor<{ enumerable?: boolean }> | undefined), [query]);
-
-    const [result] = useObservableQuery<TDataType, TQuery, TArguments>(
-        query ?? (NoPopulationObservableQuery as unknown as Constructor<TQuery>),
-        args,
-        undefined,
-        query !== undefined
+export function usePopulateFromObservableQuery<
+    TDataType extends object,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(query?: Constructor<TQuery>, args?: TArguments): TDataType | undefined {
+    // SAFETY: Arc observable-query constructors expose the runtime enumerable metadata used by the guard.
+    useMemo(
+        () =>
+            guardSingleInstance(
+                query as unknown as Constructor<{ enumerable?: boolean }> | undefined,
+            ),
+        [query],
     );
 
-    return query !== undefined && result.hasData ? result.data : undefined;
+    // SAFETY: The no-op query is selected only while disabled, so its data type is never observed.
+    const queryType =
+        query ?? (NoPopulationObservableQuery as unknown as Constructor<TQuery>);
+    const [result] = useObservableQuery<TDataType, TQuery, TArguments>(
+        queryType,
+        args,
+        undefined,
+        query !== undefined,
+    );
+
+    return query !== undefined &&
+        result.isReady !== false &&
+        result.isSuccess &&
+        result.hasData
+        ? result.data
+        : undefined;
 }
