@@ -86,7 +86,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         string path,
         HashSet<object> visited,
         List<ValidationResult> results,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool skipOwnValidator = false)
     {
         var instanceType = instance.GetType();
 
@@ -101,9 +102,21 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             return;
         }
 
-        if (TryGetValidator(request.ServiceProvider, instanceType, out var validator))
+        IReadOnlySet<string>? ignoredConceptRuleMembers = null;
+        if (!skipOwnValidator && TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
             results.AddRange(await validatorInvoker.Invoke(instance, validator, path, cancellationToken));
+
+            // A validator can suppress a cross-cutting concept validator for one of its own properties (see
+            // BaseValidator<T>.RuleFor(...).IgnoreConceptRules()) — typically because that property names an
+            // entity the model itself is creating, rather than referencing one that must already exist. The
+            // exclusion only ever applies to this validator's own direct properties, captured fresh at this
+            // level and never inherited by grandchildren, so a sibling property or an unrelated model carrying
+            // the same concept type is unaffected.
+            if (validator is IHasIgnoredConceptRuleMembers hasIgnoredConceptRuleMembers)
+            {
+                ignoredConceptRuleMembers = hasIgnoredConceptRuleMembers.IgnoredConceptRuleMembers;
+            }
         }
 
         if (IsLeaf(instanceType))
@@ -127,7 +140,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             var memberValue = member.Read(instance);
             if (memberValue is not null)
             {
-                await Validate(request, memberValue, Extend(path, member), visited, results, cancellationToken);
+                var skipMemberOwnValidator = ignoredConceptRuleMembers?.Contains(member.Name) ?? false;
+                await Validate(request, memberValue, Extend(path, member), visited, results, cancellationToken, skipMemberOwnValidator);
             }
         }
     }

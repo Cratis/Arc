@@ -14,8 +14,13 @@ namespace Cratis.Arc.Validation;
 /// Represents a base validator that we use for discovery.
 /// </summary>
 /// <typeparam name="T">Type of object the validator is for.</typeparam>
-public class BaseValidator<T> : AbstractValidator<T>
+public class BaseValidator<T> : AbstractValidator<T>, IHasIgnoredConceptRuleMembers
 {
+    readonly HashSet<string> _ignoredConceptRuleMembers = [];
+
+    /// <inheritdoc/>
+    public IReadOnlySet<string> IgnoredConceptRuleMembers => _ignoredConceptRuleMembers;
+
     /// <summary>
     /// Define a condition for when the context is a command.
     /// </summary>
@@ -43,8 +48,8 @@ public class BaseValidator<T> : AbstractValidator<T>
     /// </remarks>
     /// <param name="expression">The expression representing the property to validate.</param>
     /// <typeparam name="TValue">The primitive type wrapped by the concept.</typeparam>
-    /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
-    public IRuleBuilderInitial<T, TValue> RuleFor<TValue>(Expression<Func<T, ConceptAs<TValue>>> expression)
+    /// <returns>An <see cref="IConceptRuleBuilder{T, TValue}"/> instance on which validators can be defined.</returns>
+    public IConceptRuleBuilder<T, TValue> RuleFor<TValue>(Expression<Func<T, ConceptAs<TValue>>> expression)
         where TValue : IComparable
     {
         // CreateValueExpression handles both shapes: when the body is the parameter itself (the concept is the model
@@ -53,12 +58,21 @@ public class BaseValidator<T> : AbstractValidator<T>
         var valueExpression = CreateValueExpression(expression);
         if (expression.Body is ParameterExpression)
         {
-            return ((AbstractValidator<T>)this).RuleFor(valueExpression);
+            var rootRuleBuilder = ((AbstractValidator<T>)this).RuleFor(valueExpression);
+            return new ConceptRuleBuilder<T, TValue>(rootRuleBuilder, this, string.Empty);
         }
 
         var propertyName = GetPropertyName(expression);
-        return ((AbstractValidator<T>)this).RuleFor(valueExpression).OverridePropertyName(propertyName);
+        var ruleBuilder = ((AbstractValidator<T>)this).RuleFor(valueExpression).OverridePropertyName(propertyName);
+        return new ConceptRuleBuilder<T, TValue>(ruleBuilder, this, propertyName);
     }
+
+    /// <summary>
+    /// Records that a registered <see cref="ConceptValidator{T}"/> should not run for the given top-level property
+    /// when validating <typeparamref name="T"/>.
+    /// </summary>
+    /// <param name="propertyName">The camelCased property name, as produced by <see cref="GetPropertyName{TProperty}"/>.</param>
+    internal void IgnoreConceptRuleFor(string propertyName) => _ignoredConceptRuleMembers.Add(propertyName);
 
     static Expression<Func<T, TProperty>> CreateValueExpression<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)
         where TProperty : IComparable
