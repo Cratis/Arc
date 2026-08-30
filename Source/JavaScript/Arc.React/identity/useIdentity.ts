@@ -38,9 +38,18 @@ export function useIdentity<TDetails = object>(
     if (identity.isSet === false && actualDefaultDetails !== undefined) {
         identity.details = actualDefaultDetails!;
     }
-    
+
+    // The return type promises a TDetails, and callers dereference it without guarding precisely
+    // because of that promise. Substituting the default only when the identity is explicitly unset
+    // did not keep it: an identity that resolved while carrying no details has isSet true, so
+    // nothing stood in for the missing details and the first property access on them threw. One null
+    // reaching one call site takes the whole page down - which is how a signed-in user got a blank
+    // screen after the backend restarted. Stand in whenever there are no details to give.
+    const details = (identity.details ?? actualDefaultDetails ?? identity.details) as TDetails;
+
     return {
         ...identity,
+        details,
         // Absent means nobody is fetching - a hand-built context rather than the provider - so the
         // identity on it is as resolved as it is ever going to get.
         isLoading: contextValue.isLoading ?? false,
