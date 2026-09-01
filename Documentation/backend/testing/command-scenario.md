@@ -171,10 +171,35 @@ public class when_admin_command_executed_by_regular_user : Specification
 
 ## What the Scenario Provides
 
-`CommandScenario<TCommand>` adds console logging and calls `Services.AddCratisArcCore()` when first initialized, which wires:
+`CommandScenario<TCommand>` registers logging without a sink — `ILogger<T>` resolves as a no-op — and calls `Services.AddCratisArcCore()` when first initialized, which wires:
 
 - Type discovery for all handlers, validators, and filters
 - The real `ICommandPipeline`
 - All built-in validation and authorization filters
 
 Everything that runs in production runs in the spec — there is no hidden short-circuiting.
+
+No log output is produced by default, keeping scenarios lightweight — a console logger would otherwise spawn a background thread per scenario. To see log output while debugging a scenario, opt in before the first `Execute` or `Validate`:
+
+```csharp
+_scenario.Services.AddLogging(logging => logging.AddConsole());
+```
+
+## Disposal
+
+`CommandScenario<TCommand>` implements both `IDisposable` and `IAsyncDisposable`. Disposing it releases the service provider it built and disposes any disposable values extension packages placed in `Context` — the Chronicle extender's `EventScenario` is cleaned up this way. Disposal is idempotent, and calling `Execute` or `Validate` on a disposed scenario throws `ObjectDisposedException`.
+
+With Cratis Specifications, dispose the scenario in `Destroy()`:
+
+```csharp
+public class when_adding_item_to_cart : Specification
+{
+    readonly CommandScenario<AddItemToCart> _scenario = new();
+
+    void Destroy() => _scenario.Dispose();
+
+    // ...
+}
+```
+
+With plain xUnit, implement `IDisposable` (or `IAsyncDisposable`) on the test class and dispose the scenario there — xUnit disposes the test class after each test. Each scenario builds a full service provider on first use, so disposing it per test keeps long spec runs from accumulating providers.
