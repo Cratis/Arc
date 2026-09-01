@@ -5,7 +5,6 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Testing.Commands;
 
@@ -21,6 +20,14 @@ namespace Cratis.Arc.Testing.Commands;
 /// <para>
 /// The service provider and pipeline are built lazily on the first call to <see cref="Execute"/> or
 /// <see cref="Validate"/>. Register all services in the test constructor before any pipeline call.
+/// </para>
+/// <para>
+/// No log sink is registered by default — <c>ILogger&lt;T&gt;</c> resolves as a no-op logger, so scenarios
+/// stay lightweight and spawn no logging infrastructure threads. To see console output while debugging a
+/// scenario, opt in before the first call to <see cref="Execute"/> or <see cref="Validate"/>:
+/// <code>
+/// scenario.Services.AddLogging(logging => logging.AddConsole());
+/// </code>
 /// </para>
 /// <para>
 /// Extension packages can contribute services and context values by implementing
@@ -61,7 +68,7 @@ public class CommandScenario<TCommand>
     {
         Services = new ServiceCollection();
         Services.AddOptions();
-        Services.AddLogging(logging => logging.AddConsole());
+        Services.AddLogging();
         Services.Configure<ArcOptions>(_ => { });
 
         Context = new Dictionary<string, object>();
