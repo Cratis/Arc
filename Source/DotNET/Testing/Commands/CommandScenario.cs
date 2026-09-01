@@ -35,6 +35,11 @@ namespace Cratis.Arc.Testing.Commands;
 /// time via the type discovery system and invoked before any command is executed.
 /// </para>
 /// <para>
+/// The scenario owns the service provider it builds and any disposable values extenders placed in
+/// <see cref="Context"/>. Dispose the scenario — or let the test framework do it — to release them;
+/// see <see cref="Dispose()"/> and <see cref="DisposeAsync()"/>.
+/// </para>
+/// <para>
 /// The typical pattern with xUnit:
 /// <code>
 /// public class when_adding_item_to_cart
@@ -52,10 +57,11 @@ namespace Cratis.Arc.Testing.Commands;
 /// </para>
 /// </remarks>
 /// <typeparam name="TCommand">The type of command under test.</typeparam>
-public class CommandScenario<TCommand>
+public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
 {
     IServiceProvider? _serviceProvider;
     ICommandPipeline? _pipeline;
+    bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CommandScenario{TCommand}"/> class.
@@ -109,8 +115,10 @@ public class CommandScenario<TCommand>
     /// </remarks>
     /// <param name="command">The command to execute.</param>
     /// <returns>A <see cref="Task{TResult}"/> that resolves to the <see cref="CommandResult"/>.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown if the scenario has been disposed.</exception>
     public Task<CommandResult> Execute(TCommand command)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
         return _pipeline!.Execute(command!, _serviceProvider!);
     }
@@ -123,10 +131,106 @@ public class CommandScenario<TCommand>
     /// </remarks>
     /// <param name="command">The command to validate.</param>
     /// <returns>A <see cref="Task{TResult}"/> that resolves to the <see cref="CommandResult"/>.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown if the scenario has been disposed.</exception>
     public Task<CommandResult> Validate(TCommand command)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
         return _pipeline!.Validate(command!, _serviceProvider!);
+    }
+
+    /// <summary>
+    /// Disposes the scenario, releasing the service provider built for it and any disposable values in <see cref="Context"/>.
+    /// </summary>
+    /// <remarks>
+    /// Safe to call multiple times; only the first call disposes. After disposal, calls to
+    /// <see cref="Execute"/> or <see cref="Validate"/> throw <see cref="ObjectDisposedException"/>.
+    /// </remarks>
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Asynchronously disposes the scenario, releasing the service provider built for it and any disposable values in <see cref="Context"/>.
+    /// </summary>
+    /// <remarks>
+    /// Prefers <see cref="IAsyncDisposable"/> on the service provider and context values when available,
+    /// falling back to <see cref="IDisposable"/>. Safe to call multiple times; only the first call disposes.
+    /// After disposal, calls to <see cref="Execute"/> or <see cref="Validate"/> throw <see cref="ObjectDisposedException"/>.
+    /// </remarks>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous dispose operation.</returns>
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeAsyncCore().ConfigureAwait(false);
+        Dispose(disposing: false);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Disposes the resources owned by the scenario.
+    /// </summary>
+    /// <param name="disposing">True when called from <see cref="Dispose()"/>, false when called from a finalizer path.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            (_serviceProvider as IDisposable)?.Dispose();
+
+            foreach (var value in Context.Values.Distinct().OfType<IDisposable>())
+            {
+                value.Dispose();
+            }
+        }
+
+        _serviceProvider = null;
+        _pipeline = null;
+        _disposed = true;
+    }
+
+    /// <summary>
+    /// Asynchronously disposes the resources owned by the scenario.
+    /// </summary>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous dispose operation.</returns>
+    protected virtual async ValueTask DisposeAsyncCore()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        switch (_serviceProvider)
+        {
+            case IAsyncDisposable asyncDisposableProvider:
+                await asyncDisposableProvider.DisposeAsync().ConfigureAwait(false);
+                break;
+            case IDisposable disposableProvider:
+                disposableProvider.Dispose();
+                break;
+        }
+
+        foreach (var value in Context.Values.Distinct())
+        {
+            switch (value)
+            {
+                case IAsyncDisposable asyncDisposableValue:
+                    await asyncDisposableValue.DisposeAsync().ConfigureAwait(false);
+                    break;
+                case IDisposable disposableValue:
+                    disposableValue.Dispose();
+                    break;
+            }
+        }
+
+        _serviceProvider = null;
+        _pipeline = null;
+        _disposed = true;
     }
 
     void EnsureInitialized()
