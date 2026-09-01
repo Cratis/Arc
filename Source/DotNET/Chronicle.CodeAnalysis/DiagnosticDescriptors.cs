@@ -107,5 +107,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Two attributes are spelled [Key]. Chronicle resolves a command's event source id from Cratis.Chronicle.Keys.KeyAttribute; Arc reads System.ComponentModel.DataAnnotations.KeyAttribute, but only in an application that has no Chronicle. Marking the data annotations one in an application that uses Chronicle compiles and reads correctly while doing nothing: Chronicle finds no key property, invents a fresh event source id, and every read model keyed by the command resolves to nothing.");
 
+    /// <summary>
+    /// ARCCHR0009: Command property reads as a secret and should be marked [NotAudited].
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0009_CommandSensitiveValueShouldNotBeAudited = new(
+        id: "ARCCHR0009",
+        title: "Command property reads as a secret and should be marked [NotAudited]",
+        messageFormat: "Command '{0}' carries '{1}', whose name reads as a secret, and its value will be written to the causation of every event the command appends. Mark it [NotAudited], or [PII] if it is personal data.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A command's property values are recorded on the causation chain, which is written into the event log and stays there for as long as the events do - a secret written there cannot be taken back out by changing code. This rule reports a property whose name contains a word that reads as a secret (password, token, api key, credential, pin, cvv and the like) and which is not marked [NotAudited]. Marking the property, its positional parameter, or the command itself silences it, as does marking the value [PII], since Chronicle already withholds personal data. If the name only reads like a secret and the value is safe to record, mark it [NotAudited] anyway or rename the property - the value is written either way, so the reading is the only thing anyone reviewing the model has to go on.");
+
     const string Category = "Arc.Chronicle";
 }
