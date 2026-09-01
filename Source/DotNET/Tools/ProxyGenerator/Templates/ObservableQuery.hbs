@@ -55,7 +55,7 @@ class {{Name}}SortByWithoutQuery {
 {{#if Parameters.[0]}}
 {{#if Documentation}}
 /**
- * {{Documentation}}
+ * {{{Documentation}}}
  */
 {{/if}}
 export interface {{Name}}Parameters {
@@ -63,7 +63,7 @@ export interface {{Name}}Parameters {
     
     {{#if Documentation}}
     /**
-     * {{Documentation}}
+     * {{{Documentation}}}
      */
     {{/if}}
     {{#if IsOptional}}
@@ -89,7 +89,7 @@ export class {{Name}}Validator extends QueryValidator<{{Name}}Parameters> {
 
 {{#if Documentation}}
 /**
- * {{Documentation}}
+ * {{{Documentation}}}
  */
 {{/if}}
 {{#if IsEnumerable}}
@@ -113,7 +113,7 @@ export class {{Name}}Validator extends QueryValidator<object> {
 
 {{#if Documentation}}
 /**
- * {{Documentation}}
+ * {{{Documentation}}}
  */
 {{/if}}
 {{#if IsEnumerable}}

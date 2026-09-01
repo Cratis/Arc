@@ -14,7 +14,7 @@ import { {{{Type}}} } from '{{Module}}';
 
 {{#if Documentation}}
 /**
- * {{Documentation}}
+ * {{{Documentation}}}
  */
 {{/if}}
 export interface I{{Name}} {
@@ -22,7 +22,7 @@ export interface I{{Name}} {
     {{#if Documentation}}
     
     /**
-     * {{Documentation}}
+     * {{{Documentation}}}
      */
     {{/if}}
     {{#if IsEnumerable}}
@@ -48,7 +48,7 @@ export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
 
 {{#if Documentation}}
 /**
- * {{Documentation}}
+ * {{{Documentation}}}
  */
 {{/if}}
 {{#if HasResponse }}
@@ -105,7 +105,7 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     {{#Properties}}
     {{#if Documentation}}
     /**
-     * {{Documentation}}
+     * {{{Documentation}}}
      */
     {{/if}}
     {{#if IsEnumerable}}
