@@ -55,7 +55,7 @@ public class CommandCausationScope : ICommandExecutionScope
             return;
         }
 
-        _scope.Value = causationManager.BeginScope(CommandCausation.Type, CommandCausation.PropertiesFor(context.Type));
+        _scope.Value = causationManager.BeginScope(CommandCausation.Type, CommandCausation.PropertiesFor(context.Type, context.Command));
     }
 
     /// <inheritdoc/>

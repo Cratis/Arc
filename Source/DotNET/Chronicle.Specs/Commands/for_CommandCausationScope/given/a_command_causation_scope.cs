@@ -21,8 +21,12 @@ public class a_command_causation_scope : Specification
         _scope = new();
     }
 
-    protected CommandContext ContextFor<TCommand>() =>
-        new(CorrelationId.New(), typeof(TCommand), new object(), [], new(), ServiceProvider: _serviceProvider);
+    protected CommandContext ContextFor<TCommand>()
+        where TCommand : new() =>
+        ContextFor(new TCommand());
+
+    protected CommandContext ContextFor<TCommand>(TCommand command) =>
+        new(CorrelationId.New(), typeof(TCommand), command!, [], new(), ServiceProvider: _serviceProvider);
 
     protected sealed record ApproveExpenseReport;
 

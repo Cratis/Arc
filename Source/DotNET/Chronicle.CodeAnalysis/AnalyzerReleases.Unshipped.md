@@ -9,3 +9,4 @@ ARCCHR0005|Arc.Chronicle|Warning|Chronicle artifacts are present but Chronicle i
 ARCCHR0006|Arc.Chronicle|Warning|Reactor handler invoking ICommandPipeline.Execute must be marked with [OnceOnly]
 ARCCHR0007|Arc.Chronicle|Warning|Command handler must not inject IEventLog
 ARCCHR0008|Arc.Chronicle|Warning|Command key marked with the data annotations Key attribute
+ARCCHR0009|Arc.Chronicle|Warning|Command property reads as a secret and should be marked [NotAudited]

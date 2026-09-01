@@ -8,3 +8,5 @@
   href: ARCCHR0005.md
 - name: ARCCHR0008 - Command key marked with the data annotations Key attribute
   href: ARCCHR0008.md
+- name: ARCCHR0009 - Command property reads as a secret and should be marked [NotAudited]
+  href: ARCCHR0009.md
