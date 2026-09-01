@@ -53,6 +53,13 @@ public record ResetCredentials(Guid UserId, string Password, string RecoveryCode
 
 If the value is personal data rather than a secret, mark it `[PII]` instead — Chronicle withholds that from the causation too, and encrypts it in the event.
 
+When the secret has its own concept, mark the concept once and every command that takes one is covered:
+
+```csharp
+[NotAudited]
+public record ProviderApiKey(string Value) : ConceptAs<string>(Value);
+```
+
 ## Quick Fix
 
 None. The right response depends on what the value is: `[NotAudited]` for a secret, `[PII]` for personal data, [a suppression](#when-the-rule-is-wrong) for a false positive. The two attributes are not interchangeable — `[PII]` also encrypts the value and enrolls it in erasure, which is wrong for a password, and `[NotAudited]` does nothing for a GDPR request, which is wrong for a name.

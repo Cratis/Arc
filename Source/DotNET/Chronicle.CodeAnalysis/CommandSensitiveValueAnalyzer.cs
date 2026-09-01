@@ -190,7 +190,11 @@ public class CommandSensitiveValueAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            if (!ReadsAsSensitive(property.Name) || HoldsNoSecret(property.Type) || IsExcluded(property) || IsExcludedThroughParameter(command, property))
+            if (!ReadsAsSensitive(property.Name) ||
+                HoldsNoSecret(property.Type) ||
+                IsExcluded(property) ||
+                IsExcluded(property.Type) ||
+                IsExcludedThroughParameter(command, property))
             {
                 continue;
             }
@@ -240,6 +244,16 @@ public class CommandSensitiveValueAnalyzer : DiagnosticAnalyzer
         return type;
     }
 
+    /// <summary>
+    /// Determines whether a symbol carries a marking that keeps its value off the causation chain.
+    /// </summary>
+    /// <param name="symbol">The property, parameter, type, or command to check.</param>
+    /// <returns>True when the symbol is marked, false otherwise.</returns>
+    /// <remarks>
+    /// Applied to a type this is how a concept carries its own marking: mark <c>ApiKey</c> once and every command
+    /// that takes one is covered. The runtime withholds on exactly these markings - including the property's type -
+    /// so reporting one it already honors would be reporting correct code.
+    /// </remarks>
     static bool IsExcluded(ISymbol symbol) =>
         HasAttribute(symbol, NotAuditedAttributeName) ||
         HasAttribute(symbol, PiiAttributeName);

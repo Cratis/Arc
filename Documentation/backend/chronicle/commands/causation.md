@@ -77,6 +77,13 @@ public record ChangePassword(
 
 Written on a positional parameter — `[NotAudited] string OldPassword` — it works the same way.
 
+Applied to a concept it travels with the value, the same way `[PII]` does — mark it once and every command that takes one is covered:
+
+```csharp
+[NotAudited]
+public record ProviderApiKey(string Value) : ConceptAs<string>(Value);
+```
+
 Applied to the command itself it excludes every property at once, which is the right answer when a command exists only to carry secrets, and stays right as properties are added to it later:
 
 ```csharp
