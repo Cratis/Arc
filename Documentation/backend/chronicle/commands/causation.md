@@ -91,6 +91,8 @@ The command is still **named** on the chain either way. What is withheld is the 
 
 [ARCCHR0009](../code-analysis/ARCCHR0009.md) reports a command property whose name reads like a secret and which is not marked. It is a name-based guess, which is normally a poor basis for a diagnostic — it earns its place here because the cost of a false positive is one attribute and the cost of a miss is a password in the event log forever.
 
+It judges the type as well as the name, so a `DateTimeOffset` called `AccessTokenExpiresAt` is left alone — it is a timestamp, not a secret. When it is wrong the other way and a value that reads as a secret should be recorded, [suppress the diagnostic](../code-analysis/ARCCHR0009.md#when-the-rule-is-wrong) rather than marking it `[NotAudited]`, which would silence the warning by withholding a value you wanted.
+
 It will not catch a secret whose name does not say so. A property called `Value` holding an API key is invisible to it, and to any reviewer reading the model. The analyzer narrows the problem; it does not remove your judgment from it.
 
 ## Size
