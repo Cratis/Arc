@@ -36,6 +36,16 @@ public static class CommandCausation
     public static readonly CausationType Type = "Command";
 
     /// <summary>
+    /// The causation property names the causation's own metadata occupies, which a command's values never overwrite.
+    /// </summary>
+    public static readonly IReadOnlySet<string> ReservedProperties = new HashSet<string>(StringComparer.Ordinal)
+    {
+        CommandTypeProperty,
+        CommandTypeFullNameProperty,
+        EventSequenceIdProperty
+    };
+
+    /// <summary>
     /// Gets the causation properties naming a command.
     /// </summary>
     /// <param name="commandType">The <see cref="System.Type"/> of the command.</param>
@@ -50,4 +60,30 @@ public static class CommandCausation
         { CommandTypeProperty, commandType.Name },
         { CommandTypeFullNameProperty, commandType.FullName ?? commandType.Name }
     };
+
+    /// <summary>
+    /// Gets the causation properties naming a command and carrying the values it was asked to act on.
+    /// </summary>
+    /// <param name="commandType">The <see cref="System.Type"/> of the command.</param>
+    /// <param name="command">The command instance, whose values are recorded alongside its name.</param>
+    /// <returns>The properties to record on the causation.</returns>
+    /// <remarks>
+    /// <para>
+    /// Naming the command says what was asked for only as far as its type goes - two invocations of the same command
+    /// are indistinguishable on the chain, so "which order did this event come from" is a question the name alone
+    /// cannot answer. Recording the values answers it.
+    /// </para>
+    /// <para>
+    /// Values that must not be written are left out: anything Chronicle treats as personal data, including a concept
+    /// marked <c>[PII]</c> wherever it is used, and anything marked
+    /// <see cref="NotAuditedAttribute"/>. See <see cref="NotAuditedAttribute"/> for what belongs in that second set -
+    /// the causation is written into the event log and stays there for as long as the events do.
+    /// </para>
+    /// </remarks>
+    public static IDictionary<string, string> PropertiesFor(Type commandType, object? command)
+    {
+        var properties = PropertiesFor(commandType);
+        CommandCausationValues.AddTo(properties, commandType, command);
+        return properties;
+    }
 }

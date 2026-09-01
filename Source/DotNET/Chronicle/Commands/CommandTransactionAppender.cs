@@ -39,7 +39,7 @@ internal static class CommandTransactionAppender
     /// </remarks>
     internal static Causation CreateCommandCausation(this IEventLog eventLog, CommandContext commandContext)
     {
-        var properties = CommandCausation.PropertiesFor(commandContext.Type);
+        var properties = CommandCausation.PropertiesFor(commandContext.Type, commandContext.Command);
         properties[CausationEventSequenceIdProperty] = eventLog.Id;
         return new(DateTimeOffset.Now, CausationType, properties);
     }
