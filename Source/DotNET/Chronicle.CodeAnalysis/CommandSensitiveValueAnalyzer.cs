@@ -59,6 +59,41 @@ public class CommandSensitiveValueAnalyzer : DiagnosticAnalyzer
         "AuthorizationHeader"
     ];
 
+    /// <summary>
+    /// The types a secret is never held in, whatever the property is called.
+    /// </summary>
+    /// <remarks>
+    /// A name is weak evidence on its own. <c>AccessTokenExpiresAt</c> contains the word "token" and holds a
+    /// <see cref="DateTimeOffset"/> - it is a timestamp, and reporting it teaches people that the rule guesses badly.
+    /// This is an exclusion list rather than an "only strings" rule on purpose: skipping a date is provably safe,
+    /// while assuming only a string can hold a secret is not - a key can be a <c>byte[]</c>.
+    /// </remarks>
+    static readonly ImmutableHashSet<SpecialType> _typesThatHoldNoSecret =
+    [
+        SpecialType.System_Boolean,
+        SpecialType.System_Byte,
+        SpecialType.System_SByte,
+        SpecialType.System_Int16,
+        SpecialType.System_UInt16,
+        SpecialType.System_Int32,
+        SpecialType.System_UInt32,
+        SpecialType.System_Int64,
+        SpecialType.System_UInt64,
+        SpecialType.System_Single,
+        SpecialType.System_Double,
+        SpecialType.System_Decimal,
+        SpecialType.System_DateTime
+    ];
+
+    static readonly ImmutableArray<string> _typeNamesThatHoldNoSecret =
+    [
+        "System.DateTimeOffset",
+        "System.DateOnly",
+        "System.TimeOnly",
+        "System.TimeSpan",
+        "System.Guid"
+    ];
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticDescriptors.ARCCHR0009_CommandSensitiveValueShouldNotBeAudited];
 
@@ -155,7 +190,11 @@ public class CommandSensitiveValueAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            if (!ReadsAsSensitive(property.Name) || IsExcluded(property) || IsExcludedThroughParameter(command, property))
+            if (!ReadsAsSensitive(property.Name) ||
+                HoldsNoSecret(property.Type) ||
+                IsExcluded(property) ||
+                IsExcluded(property.Type) ||
+                IsExcludedThroughParameter(command, property))
             {
                 continue;
             }
@@ -168,6 +207,53 @@ public class CommandSensitiveValueAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    /// <summary>
+    /// Determines whether a type is one a secret is never held in, so a name that reads as a secret can be
+    /// disregarded.
+    /// </summary>
+    /// <param name="type">The type of the property.</param>
+    /// <returns>True when the type cannot hold a secret, false otherwise.</returns>
+    /// <remarks>
+    /// A concept is judged by the value it wraps, since that is what would be recorded: a
+    /// <c>ConceptAs&lt;DateTimeOffset&gt;</c> called <c>TokenExpiry</c> is as much a timestamp as the bare type is.
+    /// </remarks>
+    static bool HoldsNoSecret(ITypeSymbol type)
+    {
+        var underlying = UnderlyingTypeOf(type);
+
+        return _typesThatHoldNoSecret.Contains(underlying.SpecialType) ||
+               underlying.TypeKind == TypeKind.Enum ||
+               _typeNamesThatHoldNoSecret.Contains(underlying.ToDisplayString());
+    }
+
+    static ITypeSymbol UnderlyingTypeOf(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { IsGenericType: true } nullable && nullable.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
+        {
+            type = nullable.TypeArguments[0];
+        }
+
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && string.Equals(current.Name, "ConceptAs", StringComparison.Ordinal))
+            {
+                return current.TypeArguments[0];
+            }
+        }
+
+        return type;
+    }
+
+    /// <summary>
+    /// Determines whether a symbol carries a marking that keeps its value off the causation chain.
+    /// </summary>
+    /// <param name="symbol">The property, parameter, type, or command to check.</param>
+    /// <returns>True when the symbol is marked, false otherwise.</returns>
+    /// <remarks>
+    /// Applied to a type this is how a concept carries its own marking: mark <c>ApiKey</c> once and every command
+    /// that takes one is covered. The runtime withholds on exactly these markings - including the property's type -
+    /// so reporting one it already honors would be reporting correct code.
+    /// </remarks>
     static bool IsExcluded(ISymbol symbol) =>
         HasAttribute(symbol, NotAuditedAttributeName) ||
         HasAttribute(symbol, PiiAttributeName);
