@@ -127,9 +127,7 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
     public static IServiceCollection AddCratisArcMeter(this IServiceCollection services)
     {
-#pragma warning disable CA2000 // Dispose objects before losing scope
-        services.TryAddKeyedSingleton(Internals.MeterName, new Meter(Internals.MeterName));
-#pragma warning restore CA2000 // Dispose objects before losing scope
+        services.TryAddKeyedSingleton(Internals.MeterName, (_, _) => new Meter(Internals.MeterName));
         return services;
     }
 
