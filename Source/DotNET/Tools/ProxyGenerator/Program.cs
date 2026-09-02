@@ -9,7 +9,7 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -23,6 +23,7 @@ var apiPrefixArg = args.FirstOrDefault(_ => _.StartsWith("--api-prefix="));
 var apiPrefix = apiPrefixArg is null ? "api" : apiPrefixArg.Split('=')[^1];
 var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
+var emitInterfaces = args.Any(_ => _ == "--emit-interfaces");
 
 var assemblyPackageMappings = new Dictionary<string, string>();
 foreach (var mapping in args.Where(_ => _.StartsWith("--assembly-to-package=")).Select(_ => _["--assembly-to-package=".Length..]))
@@ -143,5 +144,6 @@ var result = await Generator.Generate(
     excludedTypeNames,
     excludedNamespacePatterns,
     namespaceRoots,
-    typeMappings);
+    typeMappings,
+    emitInterfaces);
 return result ? 0 : 1;

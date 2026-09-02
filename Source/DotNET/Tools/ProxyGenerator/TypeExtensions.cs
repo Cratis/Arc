@@ -309,26 +309,37 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is, false if not.</returns>
-    public static bool IsDictionary(this Type type)
+    public static bool IsDictionary(this Type type) => type.GetDictionaryInterface() is not null;
+
+    /// <summary>
+    /// Get the dictionary interface a <see cref="Type"/> is, or implements - mutable or read-only.
+    /// </summary>
+    /// <param name="type"><see cref="Type"/> to get it for.</param>
+    /// <returns>The closed dictionary interface, or null when the type is not a dictionary.</returns>
+    /// <remarks>
+    /// Both shapes count. <see cref="IReadOnlyDictionary{TKey, TValue}"/> does not implement
+    /// <see cref="IDictionary{TKey, TValue}"/> - they are siblings - so a model that exposes its
+    /// dictionaries read-only, which is the natural shape for an immutable record, would otherwise not be
+    /// recognized as holding dictionaries at all. It would then fall through to the enumerable path and
+    /// come out as an array of <see cref="KeyValuePair{TKey, TValue}"/> rather than a keyed object.
+    /// </remarks>
+    public static Type? GetDictionaryInterface(this Type type)
     {
-        if (IsGenericTypeDefinition(type, typeof(IDictionary<,>)))
+        if (IsDictionaryDefinition(type))
         {
-            return true;
+            return type;
         }
 
-        return type.GetInterfaces().Any(i =>
+        foreach (var candidate in type.GetInterfaces())
         {
-            if (!i.IsGenericType) return false;
-            try
+            if (!candidate.IsGenericType) continue;
+            if (IsDictionaryDefinition(candidate))
             {
-                return IsGenericTypeDefinition(i, typeof(IDictionary<,>));
+                return candidate;
             }
-            catch
-            {
-                // GetGenericTypeDefinition can throw on some types
-                return false;
-            }
-        });
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -338,9 +349,7 @@ public static class TypeExtensions
     /// <returns>The key <see cref="Type"/>.</returns>
     public static Type GetDictionaryKeyType(this Type type)
     {
-        var dictionaryInterface = IsGenericTypeDefinition(type, typeof(IDictionary<,>))
-            ? type
-            : type.GetInterfaces().First(_ => IsGenericTypeDefinition(_, typeof(IDictionary<,>)));
+        var dictionaryInterface = type.GetDictionaryInterface()!;
         return dictionaryInterface.GetGenericArguments()[0];
     }
 
@@ -351,9 +360,7 @@ public static class TypeExtensions
     /// <returns>The value <see cref="Type"/>.</returns>
     public static Type GetDictionaryValueType(this Type type)
     {
-        var dictionaryInterface = IsGenericTypeDefinition(type, typeof(IDictionary<,>))
-            ? type
-            : type.GetInterfaces().First(_ => IsGenericTypeDefinition(_, typeof(IDictionary<,>)));
+        var dictionaryInterface = type.GetDictionaryInterface()!;
         return dictionaryInterface.GetGenericArguments()[1];
     }
 
@@ -1539,6 +1546,20 @@ public static class TypeExtensions
         {
             yield return baseType;
             baseType = baseType.BaseType;
+        }
+    }
+
+    static bool IsDictionaryDefinition(Type type)
+    {
+        try
+        {
+            return IsGenericTypeDefinition(type, typeof(IDictionary<,>)) ||
+                   IsGenericTypeDefinition(type, typeof(IReadOnlyDictionary<,>));
+        }
+        catch
+        {
+            // GetGenericTypeDefinition can throw on some types
+            return false;
         }
     }
 

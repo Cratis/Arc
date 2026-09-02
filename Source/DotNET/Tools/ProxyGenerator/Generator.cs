@@ -33,6 +33,7 @@ public static class Generator
     /// <param name="excludedNamespacePatterns">Namespace glob patterns (supports <c>*</c> as wildcard) whose matching types are excluded from generation.</param>
     /// <param name="namespaceRoots">Pairs of (namespace, base folder) used as roots. When a type's namespace begins with a root the root is stripped and the remainder is placed under the base folder.</param>
     /// <param name="typeMappings">Triples of (fully qualified type name, TypeScript type, package) declaring how a type crosses the wire. Consulted ahead of the built-in map, so it can correct an existing mapping as well as add an unknown one.</param>
+    /// <param name="emitInterfaces">Emit types as plain interfaces rather than classes, with no decorators and no runtime dependency on <c>@cratis/fundamentals</c>.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -51,7 +52,8 @@ public static class Generator
         IReadOnlyCollection<string>? excludedTypeNames = null,
         IReadOnlyCollection<string>? excludedNamespacePatterns = null,
         IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null,
-        IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null)
+        IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null,
+        bool emitInterfaces = false)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -154,7 +156,13 @@ public static class Generator
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
 
         var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
-        await typeDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Type, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+
+        // A class carries `@field` decorators so Fundamentals can reconstruct it from JSON, which means a
+        // runtime dependency on `@cratis/fundamentals`. A model that is only ever built and read - never
+        // deserialized through that path - does not need either, and a package that deliberately has no
+        // dependencies cannot take one on. Interfaces say the same shape and cost nothing.
+        var typeTemplate = emitInterfaces ? TemplateTypes.Interface : TemplateTypes.Type;
+        await typeDescriptors.Write(outputPath, typesInvolved, typeTemplate, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var regularEnumDescriptors = enums
             .Where(_ => !_.IsFromMappedAssembly() && !_.IsFlagsEnum())
