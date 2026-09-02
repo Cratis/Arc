@@ -412,32 +412,40 @@ public static partial class DescriptorExtensions
     /// <returns>Dictionary mapping type short name to source file name.</returns>
     static Dictionary<string, string> BuildImportPathFixups(IReadOnlyDictionary<string, string> sourceFileMap)
     {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var claimed = new Dictionary<string, string>(StringComparer.Ordinal);
         var conflicts = new HashSet<string>(StringComparer.Ordinal);
 
+        // A type whose file is already named after it needs no rewrite, but it still has to be counted -
+        // it is the reason a short name is taken. Skipping it here would let another type with the same
+        // short name, declared in a differently named file, claim the name unopposed, and every import of
+        // the first type would then be rewritten to the second one's file.
         foreach (var (fullName, sourceFile) in sourceFileMap)
         {
             var shortName = fullName.Split('.')[^1];
-            if (shortName == sourceFile || conflicts.Contains(shortName))
+            if (conflicts.Contains(shortName))
             {
                 continue;
             }
 
-            if (result.TryGetValue(shortName, out var existing))
+            if (claimed.TryGetValue(shortName, out var existing))
             {
                 if (existing != sourceFile)
                 {
-                    result.Remove(shortName);
+                    claimed.Remove(shortName);
                     conflicts.Add(shortName);
                 }
             }
             else
             {
-                result[shortName] = sourceFile;
+                claimed[shortName] = sourceFile;
             }
         }
 
-        return result;
+        // Only the ones that actually move need an entry; a short name that already matches its file is
+        // left alone rather than rewritten to itself.
+        return claimed
+            .Where(_ => _.Key != _.Value)
+            .ToDictionary(_ => _.Key, _ => _.Value, StringComparer.Ordinal);
     }
 
     /// <summary>
