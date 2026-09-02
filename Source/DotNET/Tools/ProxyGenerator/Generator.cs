@@ -136,7 +136,9 @@ public static class Generator
                 {
                     try
                     {
-                        return a.DefinedTypes.Where(t => (t.IsPublic && !t.IsAbstract) || t.IsEnum || t.IsInterface);
+                        // An open generic definition is skipped: it has no concrete shape to emit, and walking
+                        // one reaches its own type parameters, which are not types at all.
+                        return a.DefinedTypes.Where(t => !t.IsGenericTypeDefinition && ((t.IsPublic && !t.IsAbstract) || t.IsEnum || t.IsInterface));
                     }
                     catch
                     {

@@ -832,6 +832,10 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
+        // A generic parameter is a placeholder rather than a type - `T` has no full name, and a descriptor
+        // built from one is nameless, colliding with anything else that lands on the same path. An open
+        // generic definition has no concrete shape to emit either; only its closed instantiations do.
+        if (type.IsGenericParameter || type.IsGenericTypeDefinition) return;
         if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly() || type.IsExcluded()) return;
         typesInvolved.Add(type);
 
