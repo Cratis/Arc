@@ -15,7 +15,7 @@ import { useDialogMediator } from './DialogMediator';
 export function useDialog<TProps extends object = object, TResponse = object>(
     requestType: Constructor<TProps>,
     DialogComponent: ComponentType<TProps>
-): [FC<TProps>, ShowDialog<TProps, TResponse>] {
+): [FC<Partial<TProps>>, ShowDialog<TProps, TResponse>] {
     const mediator = useDialogMediator();
     const [DialogWrapper, showDialog, actualDialogContext] = useDialogBase<TResponse, TProps>(DialogComponent);
 

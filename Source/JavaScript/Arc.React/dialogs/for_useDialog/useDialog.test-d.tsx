@@ -50,3 +50,17 @@ const NoInputDialog = (): ReactElement => <span>No input</span>;
     // @ts-expect-error - { age } is not assignable to the inferred RegisterInput
     void showDialog({ age: 42 });
 }
+
+// --- Wrapper can render with no props for a dialog with required input ---
+{
+    const [Wrapper, showDialog] = useDialog(InputDialog);
+    // Even though InputDialog has required props (RegisterInput with `name: string`),
+    // the wrapper should be renderable with no props since they are never read from the JSX site.
+    // The actual input is supplied later via showDialog(input).
+    // This should NOT be a type error:
+    const element: ReactElement = <Wrapper />;
+    // And rendering with partial props should also be fine:
+    const partialElement: ReactElement = <Wrapper name="test" />;
+    // But showDialog still requires the full input type:
+    void showDialog({ name: 'Jane' });
+}
