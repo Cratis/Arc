@@ -16,7 +16,7 @@
 import type { ReactElement } from 'react';
 import { useDialog } from '../useDialog';
 import { useDialogContext } from '../DialogContext';
-import type { DialogResult } from '../DialogResult';
+import { DialogResult } from '../DialogResult';
 
 // Reproduction from the issue: a dialog component with required input properties
 interface MyDialogInput {

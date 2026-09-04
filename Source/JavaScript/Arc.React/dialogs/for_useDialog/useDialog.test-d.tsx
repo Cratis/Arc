@@ -61,6 +61,8 @@ const NoInputDialog = (): ReactElement => <span>No input</span>;
     const element: ReactElement = <Wrapper />;
     // And rendering with partial props should also be fine:
     const partialElement: ReactElement = <Wrapper name="test" />;
+    void element;
+    void partialElement;
     // But showDialog still requires the full input type:
     void showDialog({ name: 'Jane' });
 }
