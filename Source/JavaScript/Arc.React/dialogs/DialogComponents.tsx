@@ -18,7 +18,7 @@ export interface IDialogComponents {
     /**
      * The confirmation dialog component.
      */
-    confirmation?: React.FC<ConfirmationDialogRequest>;
+    confirmation?: React.FC<Partial<ConfirmationDialogRequest>>;
 
     /**
      * Shows a confirmation dialog with the specified request.
@@ -28,7 +28,7 @@ export interface IDialogComponents {
     /**
      * The busy indicator dialog component, typically used for spinners.
      */
-    busyIndicator?: React.FC<BusyIndicatorDialogRequest>;
+    busyIndicator?: React.FC<Partial<BusyIndicatorDialogRequest>>;
 
     /**
      * Shows a busy indicator dialog with the specified request.
