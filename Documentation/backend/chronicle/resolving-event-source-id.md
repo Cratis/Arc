@@ -1,6 +1,6 @@
 ---
 title: Resolving EventSourceId
-description: "The conventions Chronicle uses to find an entity identity on a command or query argument — [Key], EventSourceId-convertible types, and ICanProvideEventSourceId."
+description: 'The conventions Chronicle uses to find an entity identity on a command or query argument — [Key], EventSourceId-convertible types, and ICanProvideEventSourceId.'
 ---
 
 Chronicle resolves an `EventSourceId` anywhere it needs an identity for an aggregate, event append, or read model lookup. The same conventions work whether the value comes from a command record or from query arguments bound from the HTTP request.
@@ -22,7 +22,7 @@ When Chronicle inspects a command, it resolves the event source id in this order
 
 1. Implement `ICanProvideEventSourceId` and return the id from `GetEventSourceId()`.
 2. Add a property whose type is `EventSourceId` or derives from it.
-3. Mark a property with `[Key]` and let Chronicle convert that value to `EventSourceId`.
+3. Mark a property with `[Key]` and let Chronicle convert that value to `EventSourceId`. On a positional record, `[Key]` can be placed directly on the matching constructor parameter, as shown below.
 
 If none of these are present, Chronicle creates a new `EventSourceId` so automatic event appends still have a valid identity.
 
