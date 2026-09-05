@@ -81,8 +81,17 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
     static bool IsEventSourceIdCandidate(IPropertySymbol property) =>
         HasAttribute(property, KeysNamespace, KeyAttributeName) ||
+        HasKeyAttributeOnMatchingConstructorParameter(property) ||
         IsOrDerivesFromEventSourceId(property.Type) ||
         HasImplicitConversionToEventSourceId(property.Type);
+
+    static bool HasKeyAttributeOnMatchingConstructorParameter(IPropertySymbol property) =>
+        property.ContainingType.InstanceConstructors
+            .SelectMany(constructor => constructor.Parameters)
+            .Any(parameter =>
+                parameter.Name == property.Name &&
+                SymbolEqualityComparer.Default.Equals(parameter.Type, property.Type) &&
+                HasAttribute(parameter, KeysNamespace, KeyAttributeName));
 
     static bool IsOrDerivesFromEventSourceId(ITypeSymbol? type)
     {
