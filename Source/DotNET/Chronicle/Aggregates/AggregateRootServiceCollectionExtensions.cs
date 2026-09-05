@@ -35,6 +35,7 @@ public static class AggregateRootServiceCollectionExtensions
     }
 
     [UnconditionalSuppressMessage("AOT", "IL2060", Justification = "The aggregate root types discovered at startup are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "Task<TAggregateRoot>.Result is unwrapped via reflection; Task's own properties are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The aggregate root types discovered at startup are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     static object ResolveAggregateRoot(Type aggregateRootType, IServiceProvider serviceProvider)
     {

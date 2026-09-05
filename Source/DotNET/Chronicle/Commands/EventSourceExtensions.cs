@@ -152,6 +152,7 @@ public static class EventSourceExtensions
         return null;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "property.DeclaringType is a user-defined command/event type whose constructors are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     static bool HasKeyAttributeOnMatchingConstructorParameter(PropertyInfo property) =>
         property.DeclaringType?
             .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)

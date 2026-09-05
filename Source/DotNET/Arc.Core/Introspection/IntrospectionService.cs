@@ -105,6 +105,8 @@ public class IntrospectionService : IIntrospectionService
         }).ToList();
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "DefaultJsonTypeInfoResolver is used only for introspection schema generation, a startup-time diagnostic surface, not the runtime request path. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "DefaultJsonTypeInfoResolver is used only for introspection schema generation, a startup-time diagnostic surface, not the runtime request path. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
     static JsonSerializerOptions CreateSchemaGenerationOptions(JsonSerializerOptions baseOptions)
     {
         var schemaGenerationOptions = new JsonSerializerOptions(baseOptions);
@@ -114,6 +116,8 @@ public class IntrospectionService : IIntrospectionService
 
     static JsonNode GetTypeSchema(Type type, JsonSerializerOptions schemaGenerationOptions) => schemaGenerationOptions.GetJsonSchemaAsNode(type);
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonArray.Add<string> is called with a primitive string argument; the flagged generic is not exercised with non-primitive types here. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonArray.Add<string> is called with a primitive string argument; the flagged generic is not exercised with non-primitive types here. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
     static JsonObject GetArgumentsSchema(QueryParameters parameters, JsonSerializerOptions schemaGenerationOptions)
     {
         var properties = new JsonObject();
