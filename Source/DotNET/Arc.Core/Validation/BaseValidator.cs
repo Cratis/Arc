@@ -8,17 +8,17 @@ using FluentValidation;
 namespace Cratis.Arc.Validation;
 
 #pragma warning disable IDE0004 // Remove unnecessary cast (We need to do this to access the correct RuleFor())
-#pragma warning disable CA1033 // IObjectValidator.ValidateObjectAsync is intentionally explicit to keep the public API of BaseValidator<T> clean
 
 /// <summary>
 /// Represents a base validator that we use for discovery.
 /// </summary>
 /// <typeparam name="T">Type of object the validator is for.</typeparam>
-public class BaseValidator<T> : AbstractValidator<T>, IObjectValidator
+public class BaseValidator<T> : AbstractValidator<T>, IHasIgnoredConceptRuleMembers
 {
+    readonly HashSet<string> _ignoredConceptRuleMembers = [];
+
     /// <inheritdoc/>
-    Task<FluentValidation.Results.ValidationResult> IObjectValidator.ValidateObjectAsync(object instance, CancellationToken cancellationToken) =>
-        ValidateAsync((T)instance, cancellationToken);
+    public IReadOnlySet<string> IgnoredConceptRuleMembers => _ignoredConceptRuleMembers;
 
     /// <summary>
     /// Define a condition for when the context is a command.
@@ -47,19 +47,31 @@ public class BaseValidator<T> : AbstractValidator<T>, IObjectValidator
     /// </remarks>
     /// <param name="expression">The expression representing the property to validate.</param>
     /// <typeparam name="TValue">The primitive type wrapped by the concept.</typeparam>
-    /// <returns>An IRuleBuilder instance on which validators can be defined.</returns>
-    public IRuleBuilderInitial<T, TValue> RuleFor<TValue>(Expression<Func<T, ConceptAs<TValue>>> expression)
+    /// <returns>An <see cref="IConceptRuleBuilder{T, TValue}"/> instance on which validators can be defined.</returns>
+    public IConceptRuleBuilder<T, TValue> RuleFor<TValue>(Expression<Func<T, ConceptAs<TValue>>> expression)
         where TValue : IComparable
     {
+        // CreateValueExpression handles both shapes: when the body is the parameter itself (the concept is the model
+        // being validated) it reads the parameter's Value directly, which is identical to compiling and invoking the
+        // identity lambda — only without the Expression.Compile() that NativeAOT cannot honor.
         var valueExpression = CreateValueExpression(expression);
-        if (expression.Body is not ParameterExpression)
+        if (expression.Body is ParameterExpression)
         {
-            var propertyName = GetPropertyName(expression);
-            return ((AbstractValidator<T>)this).RuleFor(valueExpression).OverridePropertyName(propertyName);
+            var rootRuleBuilder = ((AbstractValidator<T>)this).RuleFor(valueExpression);
+            return new ConceptRuleBuilder<T, TValue>(rootRuleBuilder, this, string.Empty);
         }
 
-        return ((AbstractValidator<T>)this).RuleFor(valueExpression);
+        var propertyName = GetPropertyName(expression);
+        var ruleBuilder = ((AbstractValidator<T>)this).RuleFor(valueExpression).OverridePropertyName(propertyName);
+        return new ConceptRuleBuilder<T, TValue>(ruleBuilder, this, propertyName);
     }
+
+    /// <summary>
+    /// Records that a registered <see cref="ConceptValidator{T}"/> should not run for the given top-level property
+    /// when validating <typeparamref name="T"/>.
+    /// </summary>
+    /// <param name="propertyName">The camelCased property name, as produced by <see cref="GetPropertyName{TProperty}"/>.</param>
+    internal void IgnoreConceptRuleFor(string propertyName) => _ignoredConceptRuleMembers.Add(propertyName);
 
     static Expression<Func<T, TProperty>> CreateValueExpression<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)
         where TProperty : IComparable
@@ -101,4 +113,3 @@ public class BaseValidator<T> : AbstractValidator<T>, IObjectValidator
 }
 
 #pragma warning restore IDE0004 // Remove unnecessary cast (We need to do this to access the correct RuleFor())
-#pragma warning restore CA1033 // IObjectValidator.ValidateObjectAsync is intentionally explicit

@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Concepts;
+using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -16,6 +18,18 @@ public static class PropertyExtensions
     static readonly ValueConverter<Guid, string> _guidValueConverter = new(
         guid => guid.ToString("D"),
         str => Guid.Parse(str));
+
+    static readonly ValueConverter<Point, string> _pointValueConverter = new(
+        point => JsonSerializer.Serialize(point),
+        str => JsonSerializer.Deserialize<Point>(str) ?? new Point(0, 0));
+
+    static readonly ValueConverter<LineString, string> _lineStringValueConverter = new(
+        linestring => JsonSerializer.Serialize(linestring),
+        str => JsonSerializer.Deserialize<LineString>(str) ?? new LineString(Array.Empty<Point>()));
+
+    static readonly ValueConverter<Polygon, string> _polygonValueConverter = new(
+        polygon => JsonSerializer.Serialize(polygon),
+        str => JsonSerializer.Deserialize<Polygon>(str) ?? new Polygon(new LinearRing(Array.Empty<Point>()), Array.Empty<LinearRing>()));
 
     /// <summary>
     /// Configures the property to use a GUID representation that is compatible across different database providers.
@@ -35,6 +49,39 @@ public static class PropertyExtensions
             propertyBuilder.HasConversion(_guidValueConverter);
         }
 
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the property to use a value conversion for Point types.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder to configure.</param>
+    /// <returns>The configured property builder.</returns>
+    public static PropertyBuilder AsPoint(this PropertyBuilder propertyBuilder)
+    {
+        propertyBuilder.HasConversion(_pointValueConverter);
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the property to use a value conversion for LineString types.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder to configure.</param>
+    /// <returns>The configured property builder.</returns>
+    public static PropertyBuilder AsLineString(this PropertyBuilder propertyBuilder)
+    {
+        propertyBuilder.HasConversion(_lineStringValueConverter);
+        return propertyBuilder;
+    }
+
+    /// <summary>
+    /// Configures the property to use a value conversion for Polygon types.
+    /// </summary>
+    /// <param name="propertyBuilder">The property builder to configure.</param>
+    /// <returns>The configured property builder.</returns>
+    public static PropertyBuilder AsPolygon(this PropertyBuilder propertyBuilder)
+    {
+        propertyBuilder.HasConversion(_polygonValueConverter);
         return propertyBuilder;
     }
 

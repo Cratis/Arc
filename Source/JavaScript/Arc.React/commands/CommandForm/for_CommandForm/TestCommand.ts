@@ -29,10 +29,6 @@ export class TestCommand extends Command<TestCommandContent> {
     email?: string;
     age?: number;
 
-    get properties(): string[] {
-        return ['name', 'email', 'age'];
-    }
-
     get requestParameters(): string[] {
         return [];
     }

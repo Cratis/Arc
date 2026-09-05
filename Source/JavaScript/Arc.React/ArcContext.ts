@@ -1,17 +1,26 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { GetHttpHeaders, ObservableQueryTransferMode, Globals } from '@cratis/arc';
+import { GetHttpHeaders, EventSourceFactory, ObservableQueryTransferMode, Globals } from '@cratis/arc';
 import { QueryTransportMethod } from '@cratis/arc/queries';
+import type { IObservableQueryDiagnostics } from '@cratis/arc/queries';
+import { IMessenger, Messenger } from '@cratis/arc/messaging';
 import React from 'react';
 
 export interface ArcConfiguration {
     microservice: string;
+    messenger?: IMessenger;
     development?: boolean
     origin?: string;
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    /**
+     * Optional factory used to create the {@link EventSource} instances that back SSE
+     * observable query connections. Mirrors {@link Globals.eventSourceFactory}.
+     * Falls back to the global {@link EventSource} constructor when not set.
+     */
+    eventSourceFactory?: EventSourceFactory;
     queryTransportMethod?: QueryTransportMethod;
     /**
      * Number of hub connections maintained for observable queries.
@@ -52,10 +61,18 @@ export interface ArcConfiguration {
      * (cookies, headers).
      */
     reconnectQueries?: () => void;
+    /**
+     * Diagnostics service that exposes live snapshots of observable query state.
+     * Consumers can call {@link IObservableQueryDiagnostics.getSnapshot} to retrieve
+     * a point-in-time view, or {@link IObservableQueryDiagnostics.subscribe} to be
+     * notified whenever a new snapshot is produced.
+     */
+    observableQueryDiagnostics?: IObservableQueryDiagnostics;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
     microservice: Globals.microservice,
+    messenger: new Messenger(),
     development: false,
     origin: '',
     basePath: '',

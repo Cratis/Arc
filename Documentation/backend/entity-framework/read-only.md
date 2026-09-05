@@ -99,7 +99,7 @@ This will prevent the `Orders` navigation from being automatically included when
 The other option is to let you inherit from whatever base `DbContext` you want and then instead leverage the extension methods:
 
 ```csharp
-services.AddReadOnlyDbContext<StoreDbContext>(opt => ...);
+services.AddReadOnlyDbContext<StoreDbContext>((serviceProvider, opt) => ...);
 ```
 
 ### Discover and register all in assemblies
@@ -107,7 +107,7 @@ services.AddReadOnlyDbContext<StoreDbContext>(opt => ...);
 For convenience you can get all types inheriting from `DbContext` automatically discovered and registered in one call.
 
 ```csharp
-services.AddReadModelDbContextsFromAssemblies(opt => 
+services.AddReadModelDbContextsFromAssemblies((serviceProvider, opt) =>
 {
     /* Configure any options */
 },
@@ -117,10 +117,11 @@ services.AddReadModelDbContextsFromAssemblies(opt =>
 Or if you want it to automatically configure it with the correct database:
 
 ```csharp
-services.AddReadModelDbContextsWithConnectionStringFromAssemblies(opt => 
-{
-    /* Configure any options */
-},
-".. your connection string..",
-[Assembly.GetExecutingAssembly()]);
+services.AddReadModelDbContextsWithConnectionStringFromAssemblies(
+    ".. your connection string..",
+    (serviceProvider, opt) =>
+    {
+        /* Configure any options */
+    },
+    [Assembly.GetExecutingAssembly()]);
 ```

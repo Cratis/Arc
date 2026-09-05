@@ -4,7 +4,7 @@ CommandForm provides a comprehensive set of built-in field components for common
 
 ## Type Safety
 
-All field components are generic and require an explicit type parameter to ensure type-safe accessor functions:
+Most field components use an explicit type parameter to ensure type-safe accessor functions:
 
 ```tsx
 // ✅ Correct: Full type safety with IntelliSense
@@ -15,6 +15,18 @@ All field components are generic and require an explicit type parameter to ensur
 ```
 
 The type parameter ensures the `value` accessor function parameter `c` is properly typed as your command class.
+
+`RadioButtonField` and `RadioGroupField` also infer the selected value type from the accessor return type. When you do not provide a JSX type argument, annotate the accessor parameter inline:
+
+```tsx
+<RadioGroupField
+    value={(c: UserCommand) => c.role}
+    options={[
+        { value: 'reader', label: 'Reader' },
+        { value: 'admin', label: 'Administrator' }
+    ]}
+/>
+```
 
 ## Common Props
 
@@ -36,6 +48,17 @@ All field components automatically handle:
 - **Validation**: Required fields and type validation are enforced
 - **Error Display**: Invalid fields show error styling (red border)
 - **Change Tracking**: Changes are detected and the command's `hasChanges` property is updated
+
+## Available Fields
+
+- [InputTextField](./input-text-field.md) - Text, email, password, date, color, and other text-based inputs
+- [NumberField](./number-field.md) - Numeric inputs with min, max, and step handling
+- [TextAreaField](./text-area-field.md) - Multi-line text input
+- [CheckboxField](./checkbox-field.md) - Boolean toggle input
+- [RadioButtonField](./radio-button-field.md) - Single radio option that assigns a specific value
+- [RadioGroupField](./radio-group-field.md) - Radio option list for one-of-many selections
+- [RangeField](./range-field.md) - Slider input for numeric ranges
+- [SelectField](./select-field.md) - Dropdown selection input
 
 ## Styling
 

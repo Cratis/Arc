@@ -9,9 +9,9 @@ public class a_read_model_interceptors : Specification
     protected ITypes _types;
     protected IServiceProvider _serviceProvider;
 
-    protected record TestReadModel(string Value);
+    public record TestReadModel(string Value);
 
-    protected class TestReadModelInterceptor : IInterceptReadModel<TestReadModel>
+    public class TestReadModelInterceptor : IInterceptReadModel<TestReadModel>
     {
         public List<TestReadModel> InterceptedItems { get; } = [];
 
@@ -22,7 +22,7 @@ public class a_read_model_interceptors : Specification
         }
     }
 
-    protected class AnotherTestReadModelInterceptor : IInterceptReadModel<TestReadModel>
+    public class AnotherTestReadModelInterceptor : IInterceptReadModel<TestReadModel>
     {
         public List<TestReadModel> InterceptedItems { get; } = [];
 
@@ -33,9 +33,34 @@ public class a_read_model_interceptors : Specification
         }
     }
 
-    protected record OtherReadModel(int Count);
+    public class GenericReadModelInterceptor<TReadModel> : IInterceptReadModel<TReadModel>
+    {
+        public List<TReadModel> InterceptedItems { get; } = [];
 
-    protected class OtherReadModelInterceptor : IInterceptReadModel<OtherReadModel>
+        public Task<TReadModel> Intercept(TReadModel readModel)
+        {
+            InterceptedItems.Add(readModel);
+            return Task.FromResult(readModel);
+        }
+    }
+
+    public class ServiceRegisteredGenericReadModelInterceptorState
+    {
+        public List<object> InterceptedItems { get; } = [];
+    }
+
+    public class ServiceRegisteredGenericReadModelInterceptor<TReadModel>(ServiceRegisteredGenericReadModelInterceptorState state) : IInterceptReadModel<TReadModel>
+    {
+        public Task<TReadModel> Intercept(TReadModel readModel)
+        {
+            state.InterceptedItems.Add(readModel!);
+            return Task.FromResult(readModel);
+        }
+    }
+
+    public record OtherReadModel(int Count);
+
+    public class OtherReadModelInterceptor : IInterceptReadModel<OtherReadModel>
     {
         public Task<OtherReadModel> Intercept(OtherReadModel readModel) => Task.FromResult(readModel);
     }

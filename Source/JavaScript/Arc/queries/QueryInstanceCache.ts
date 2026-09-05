@@ -2,6 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { QueryResultWithState } from './QueryResultWithState';
+import type {
+    CacheDiagnostics,
+    CacheEntryDiagnostics,
+} from './ObservableQueryDiagnosticsSnapshot';
+import { reconcileQueryData } from './reconcileQueryData';
 
 /**
  * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialized arguments.
@@ -11,7 +16,9 @@ export type QueryCacheKey = string;
 /**
  * Callback invoked when the cached result for an entry changes.
  */
-export type QueryCacheListener<TDataType> = (result: QueryResultWithState<TDataType>) => void;
+export type QueryCacheListener<TDataType> = (
+    result: QueryResultWithState<TDataType>,
+) => void;
 
 /**
  * Represents a single entry in the {@link QueryInstanceCache}.
@@ -76,12 +83,11 @@ export class QueryInstanceCache {
      *   value lets users navigate away and back without losing cached data.  Defaults to
      *   30 000 ms.  Pass 0 for immediate eviction.
      */
-    constructor(private readonly _retentionMs: number = 30_000) {
-    }
+    constructor(private readonly _retentionMs: number = 30_000) {}
 
     /**
      * Builds the cache key for a query.
-     * @param queryTypeName The stable type name for the query. Use the instance's {@link queryName}
+     * @param queryTypeName The stable type name for the query. Use the instance's `queryName`
      *   (a hardcoded fully-qualified string in generated proxies) rather than {@link Function.name},
      *   which is unstable under minification.
      * @param args Optional arguments supplied to the query.
@@ -112,7 +118,7 @@ export class QueryInstanceCache {
      */
     getOrCreate<TInstance>(
         key: QueryCacheKey,
-        factory: () => TInstance
+        factory: () => TInstance,
     ): { instance: TInstance; isNew: boolean } {
         if (!this._entries.has(key)) {
             const entry: QueryCacheEntry<unknown> = {
@@ -157,8 +163,12 @@ export class QueryInstanceCache {
      * @param key The cache key produced by {@link buildKey}.
      * @returns The last {@link QueryResultWithState}, or `undefined`.
      */
-    getLastResult<TDataType>(key: QueryCacheKey): QueryResultWithState<TDataType> | undefined {
-        return this._entries.get(key)?.lastResult as QueryResultWithState<TDataType> | undefined;
+    getLastResult<TDataType>(
+        key: QueryCacheKey,
+    ): QueryResultWithState<TDataType> | undefined {
+        return this._entries.get(key)?.lastResult as
+            | QueryResultWithState<TDataType>
+            | undefined;
     }
 
     /**
@@ -167,28 +177,80 @@ export class QueryInstanceCache {
      * @param key The cache key produced by {@link buildKey}.
      * @param result The result to store.
      */
-    setLastResult<TDataType>(key: QueryCacheKey, result: QueryResultWithState<TDataType>): void {
+    setLastResult<TDataType>(
+        key: QueryCacheKey,
+        result: QueryResultWithState<TDataType>,
+    ): void {
         const entry = this._entries.get(key);
 
-        if (entry) {
-            const previousResult = entry.lastResult as QueryResultWithState<TDataType> | undefined;
-            entry.lastResult = result as QueryResultWithState<unknown>;
-
-            // Suppress re-renders when the server re-sends identical data after a reconnect.
-            // We only compare `data` and `isSuccess` — other fields (e.g. changeSet) are
-            // ephemeral and do not affect what the user sees.
-            if (
-                previousResult !== undefined &&
-                previousResult.isSuccess === result.isSuccess &&
-                JSON.stringify(previousResult.data) === JSON.stringify(result.data)
-            ) {
-                return;
-            }
-
-            for (const listener of entry.listeners) {
-                (listener as QueryCacheListener<TDataType>)(result);
-            }
+        if (!entry) {
+            return;
         }
+
+        const previousResult = entry.lastResult as
+            | QueryResultWithState<TDataType>
+            | undefined;
+
+        // Reconcile the incoming payload against the one already held so items that did not actually
+        // change keep their previous references. A full snapshot — which is what the server re-sends
+        // whenever a subscription is re-established — otherwise arrives as all-new references and
+        // makes every consumer treat every item as changed.
+        const reconciled =
+            previousResult === undefined
+                ? result
+                : this.withReconciledData(previousResult, result);
+
+        entry.lastResult = reconciled as QueryResultWithState<unknown>;
+
+        // Reconciliation returns the previous data reference when nothing changed, so identity is
+        // enough to detect it. Data, success, and readiness affect what the user sees; changeSet is
+        // ephemeral and does not independently require a notification.
+        if (
+            previousResult !== undefined &&
+            previousResult.isSuccess === reconciled.isSuccess &&
+            previousResult.isReady === reconciled.isReady &&
+            previousResult.data === reconciled.data
+        ) {
+            return;
+        }
+
+        for (const listener of entry.listeners) {
+            (listener as QueryCacheListener<TDataType>)(reconciled);
+        }
+    }
+
+    /**
+     * Returns the incoming result with its data reconciled against the previous result, or the
+     * incoming result unchanged when reconciliation found nothing to carry over.
+     * @template TDataType The type of data returned by the query.
+     * @param previous The previously held result.
+     * @param next The freshly received result.
+     * @returns A result whose data preserves references for everything that did not change.
+     */
+    private withReconciledData<TDataType>(
+        previous: QueryResultWithState<TDataType>,
+        next: QueryResultWithState<TDataType>,
+    ): QueryResultWithState<TDataType> {
+        const reconciledData = reconcileQueryData(previous.data, next.data);
+
+        if (reconciledData === next.data) {
+            return next;
+        }
+
+        return new QueryResultWithState<TDataType>(
+            reconciledData,
+            next.paging,
+            next.isSuccess,
+            next.isAuthorized,
+            next.isValid,
+            next.validationResults,
+            next.hasExceptions,
+            next.exceptionMessages,
+            next.exceptionStackTrace,
+            next.isPerforming,
+            next.changeSet,
+            next.isReady,
+        );
     }
 
     /**
@@ -197,7 +259,10 @@ export class QueryInstanceCache {
      * @param key The cache key produced by {@link buildKey}.
      * @param listener The callback to register.
      */
-    addListener<TDataType>(key: QueryCacheKey, listener: QueryCacheListener<TDataType>): void {
+    addListener<TDataType>(
+        key: QueryCacheKey,
+        listener: QueryCacheListener<TDataType>,
+    ): void {
         const entry = this._entries.get(key);
 
         if (entry) {
@@ -211,7 +276,10 @@ export class QueryInstanceCache {
      * @param key The cache key produced by {@link buildKey}.
      * @param listener The callback to remove.
      */
-    removeListener<TDataType>(key: QueryCacheKey, listener: QueryCacheListener<TDataType>): void {
+    removeListener<TDataType>(
+        key: QueryCacheKey,
+        listener: QueryCacheListener<TDataType>,
+    ): void {
         const entry = this._entries.get(key);
 
         if (entry) {
@@ -359,5 +427,51 @@ export class QueryInstanceCache {
             clearTimeout(this._pendingDispose);
             this._pendingDispose = undefined;
         }
+    }
+
+    /**
+     * Returns a diagnostics snapshot of the current cache state.
+     * @returns A {@link CacheDiagnostics} describing all entries.
+     */
+    getDiagnosticsSnapshot(): CacheDiagnostics {
+        const entries: CacheEntryDiagnostics[] = [];
+        let totalBytes = 0;
+        let unhealthyCount = 0;
+
+        for (const [key, entry] of this._entries) {
+            const colonIndex = key.indexOf('::');
+            const queryName = colonIndex >= 0 ? key.substring(0, colonIndex) : key;
+
+            let estimatedBytes = 0;
+            try {
+                if (entry.lastResult !== undefined) {
+                    estimatedBytes = JSON.stringify(entry.lastResult).length;
+                }
+            } catch {
+                // Ignore serialization errors
+            }
+
+            if (entry.subscriberCount > 0 && !entry.subscribed) {
+                unhealthyCount++;
+            }
+
+            totalBytes += estimatedBytes;
+            entries.push({
+                key,
+                queryName,
+                subscriberCount: entry.subscriberCount,
+                listenerCount: entry.listeners.size,
+                subscribed: entry.subscribed,
+                hasResult: entry.lastResult !== undefined,
+                estimatedBytes,
+            });
+        }
+
+        return {
+            healthy: unhealthyCount === 0,
+            entryCount: this._entries.size,
+            estimatedBytes: totalBytes,
+            entries,
+        };
     }
 }

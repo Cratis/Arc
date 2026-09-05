@@ -17,14 +17,20 @@ internal sealed class LifetimeAwareSubject<T>(ISubject<T> inner, Action onNoSubs
     int _stopped;
 
     /// <summary>
-    /// Creates a new <see cref="LifetimeAwareSubject{T}"/> backed by a <see cref="Subject{T}"/>.
+    /// Creates a new <see cref="LifetimeAwareSubject{T}"/> backed by a <see cref="ReplaySubject{T}"/> holding the
+    /// single latest value.
     /// </summary>
     /// <param name="onNoSubscribers">The callback to invoke when the last subscriber unsubscribes.</param>
     /// <returns>A new <see cref="LifetimeAwareSubject{T}"/> instance.</returns>
+    /// <remarks>
+    /// The producers behind this subject run their initial query asynchronously. Replaying the latest value means a
+    /// subscriber arriving after that query completed still sees its result, without the subject carrying a value that
+    /// predates the query.
+    /// </remarks>
     public static LifetimeAwareSubject<T> Create(Action onNoSubscribers)
     {
 #pragma warning disable CA2000 // Dispose objects before losing scope
-        return new LifetimeAwareSubject<T>(new Subject<T>(), onNoSubscribers);
+        return new LifetimeAwareSubject<T>(new ReplaySubject<T>(1), onNoSubscribers);
 #pragma warning restore CA2000 // Dispose objects before losing scope
     }
 

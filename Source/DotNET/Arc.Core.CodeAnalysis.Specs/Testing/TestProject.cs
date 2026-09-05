@@ -49,13 +49,16 @@ public static class TestProject
         [
             MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Linq.Expressions.Expression).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(Compilation).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(CSharpCompilation).Assembly.Location),
             MetadataReference.CreateFromFile(systemRuntime.Location),
-            MetadataReference.CreateFromFile(typeof(Commands.ModelBound.CommandAttribute).Assembly.Location)
+            MetadataReference.CreateFromFile(typeof(FluentValidation.AbstractValidator<>).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Commands.ModelBound.CommandAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Cratis.Concepts.ConceptAs<>).Assembly.Location)
         ];
     }
 }

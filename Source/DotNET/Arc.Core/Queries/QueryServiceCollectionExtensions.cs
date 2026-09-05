@@ -26,6 +26,7 @@ public static class QueryServiceCollectionExtensions
         services.AddSingleton<IQueryPerformerProviders, QueryPerformerProviders>();
         services.AddSingleton<IQueryRenderers, QueryRenderers>();
         services.AddSingleton<IReadModelInterceptors, ReadModelInterceptors>();
+        services.AddSingleton<IQueryHealthTracker, QueryHealthTracker>();
 
         return services;
     }

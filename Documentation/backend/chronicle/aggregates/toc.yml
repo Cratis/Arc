@@ -1,4 +1,6 @@
-- name: Aggregate Roots
-  href: aggregate-roots.md
-- name: Aggregate Root
-  href: aggregate-root.md
+- name: Overview
+  href: index.md
+- name: Defining an aggregate root
+  href: defining-an-aggregate-root.md
+- name: Aggregate roots in commands
+  href: injecting-into-commands.md

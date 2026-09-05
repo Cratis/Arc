@@ -15,6 +15,8 @@ public class CustomArtifactsProvider : IClientArtifactsProvider
 
     public IEnumerable<Type> Reactors => throw new NotImplementedException();
 
+    public IEnumerable<Type> ReadModelReactors => throw new NotImplementedException();
+
     public IEnumerable<Type> Reducers => throw new NotImplementedException();
 
     public IEnumerable<Type> ReactorMiddlewares => throw new NotImplementedException();

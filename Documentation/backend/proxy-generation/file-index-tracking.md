@@ -207,7 +207,7 @@ File index tracking becomes **essential** when you enable incremental generation
 
 With incremental generation enabled, file tracking automatically removes orphaned files when you rename or delete commands/queries, keeping your output directory clean without requiring a full deletion on every build.
 
-**Recommendation**: Use `CratisProxiesSkipOutputDeletion=true` with file tracking enabled (default) when proxies are intertwined with your feature code. Use the default full deletion when proxies are in a dedicated folder. See [Configuration - Output Deletion Behavior](configuration.md#output-deletion-behavior) for more details.
+**Recommendation**: Use `CratisProxiesSkipOutputDeletion=true` with file tracking enabled (default) when proxies are intertwined with your feature code. Use the default full deletion when proxies are in a dedicated folder. See [Configuration - Output Behavior](Configuration/output-behavior.md) for more details.
 
 ## Troubleshooting
 

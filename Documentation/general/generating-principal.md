@@ -44,7 +44,7 @@ Here's an example of a Microsoft Client Principal token structure for an Azure A
 
 Basically what you then need to do is generate a Microsoft Client Principal token that matches the structure above and `Base64` encode it.
 If you're using VSCode, you could use an [extension](https://marketplace.visualstudio.com/items?itemName=adamhartford.vscode-base64) for doing the base64 encoding.
-As an alternative, you could also use an online base64 encoder like [this](https://www.base64encode.org).
+As an alternative, you could also use an online [base64 encoder](https://www.base64encode.org).
 
 For the above Microsoft Identity structure that would become:
 
@@ -86,7 +86,7 @@ that simulate the Azure-provided Microsoft Identity headers for local developmen
 Once you have these headers configured, your application's [Microsoft Identity authentication handler](../backend/asp-net-core/microsoft-identity.md) will automatically process the Microsoft Client Principal token and populate the ASP.NET Core authentication context. This allows you to:
 
 - Test authorization policies that depend on Azure AD claims
-- Verify that your [identity details provider](../backend/identity.md) receives the correct user information
+- Verify that your [identity details provider](../backend/identity/index.md) receives the correct user information
 - Ensure your application behaves correctly with different Microsoft Identity user scenarios
 
 The Microsoft Identity integration seamlessly handles the token validation and claim extraction, making your local development experience consistent with how the application behaves when deployed to Azure services.

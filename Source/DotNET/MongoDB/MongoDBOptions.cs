@@ -23,7 +23,7 @@ public class MongoDBOptions
     public string Database { get; set; } = null!;
 
     /// <summary>
-    /// Gets whether or use the direct connection option for MongoDB. Defaults to false.
+    /// Gets whether or use the direct connection option for MongoDB.
     /// </summary>
     /// <remarks>
     /// The direct connection option is used to connect directly to a single MongoDB server, instead
@@ -32,8 +32,8 @@ public class MongoDBOptions
     /// Also in scenarios where the MongoDB server is behind a load balancer or proxy that does not
     /// support the replica set discovery mechanism, or in a Docker compose environment and the
     /// single replicate points to "localhost".
-    /// Settings this to true will add the "directConnection=true" query parameter to the connection string,
-    /// and connect directly to the specified server.
+    /// Setting this to true forces a direct connection to the configured server.
+    /// When not set, the value from the connection string is preserved.
     /// </remarks>
-    public bool DirectConnection { get; set; }
+    public bool? DirectConnection { get; set; }
 }

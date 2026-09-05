@@ -101,6 +101,31 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped(typeof(IMongoCollection<>), typeof(MongoCollectionAdapter<>));
+
+        AddReadModelCommandResolution(services);
+    }
+
+    /// <summary>
+    /// Registers command-scoped, by-key resolution for the read models MongoDB holds a document per.
+    /// </summary>
+    /// <param name="services">The <see cref="IServiceCollection"/> to register with.</param>
+    /// <remarks>
+    /// This is what lets a read model held in MongoDB be injected into a command's <c>Handle()</c>, <c>Provide()</c>, or
+    /// <c>CommandValidator&lt;&gt;</c> the same way a Chronicle- or Entity Framework Core-backed one is. MongoDB claims the
+    /// read models as a fallback, so a provider that owns one keeps it regardless of the order the two are registered in.
+    /// </remarks>
+    static void AddReadModelCommandResolution(IServiceCollection services)
+    {
+        var readModelTypes = MongoDBReadModelForCommandResolver
+            .DiscoverReadModelTypes(Cratis.Types.Types.Instance.All)
+            .ToArray();
+
+        if (readModelTypes.Length == 0)
+        {
+            return;
+        }
+
+        services.AddReadModelsForCommand(new MongoDBReadModelForCommandResolver(readModelTypes));
     }
 
     static MongoDBBuilder CreateMongoDBBuilder(Action<MongoDBBuilder>? configure)

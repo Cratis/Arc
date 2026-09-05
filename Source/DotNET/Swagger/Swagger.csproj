@@ -2,6 +2,8 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Swagger</AssemblyName>
         <RootNamespace>Cratis.Arc.Swagger</RootNamespace>
+        <Description>Swashbuckle (Swagger) integration for Cratis Arc: schema and operation filters for concepts, commands, queries, and typed results in CQRS applications on ASP.NET Core.</Description>
+        <PackageTags>cratis;arc;cqrs;swagger;swashbuckle;openapi;aspnetcore;commands;queries</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals"/>

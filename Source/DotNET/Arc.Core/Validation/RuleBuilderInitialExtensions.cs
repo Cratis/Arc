@@ -18,8 +18,17 @@ public static class RuleBuilderInitialExtensions
     /// <param name="ruleBuilder">The rule builder.</param>
     /// <param name="propertyName">The property name to use.</param>
     /// <returns>The same rule builder for chaining.</returns>
+    /// <remarks>
+    /// FluentValidation's own <c>OverridePropertyName</c> is a public extension on
+    /// <see cref="IRuleBuilderOptions{T, TProperty}"/>. The concrete rule builder behind an
+    /// <see cref="IRuleBuilderInitial{T, TProperty}"/> also implements that interface and returns itself, so this
+    /// simply forwards to it — avoiding the private-member reflection that NativeAOT and trimming cannot preserve.
+    /// </remarks>
     public static IRuleBuilderInitial<T, TProperty> OverridePropertyName<T, TProperty>(
         this IRuleBuilderInitial<T, TProperty> ruleBuilder,
-        string propertyName) =>
-        (IRuleBuilderInitial<T, TProperty>)((IRuleBuilderOptions<T, TProperty>)ruleBuilder).OverridePropertyName(propertyName);
+        string propertyName)
+    {
+        ((IRuleBuilderOptions<T, TProperty>)ruleBuilder).OverridePropertyName(propertyName);
+        return ruleBuilder;
+    }
 }

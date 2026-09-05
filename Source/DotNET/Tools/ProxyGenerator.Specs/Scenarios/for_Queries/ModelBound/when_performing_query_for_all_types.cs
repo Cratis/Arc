@@ -122,6 +122,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
                 id: typeof __queryResult.data.id,
                 guidValue: typeof __queryResult.data.guidValue,
                 timeSpanValue: typeof __queryResult.data.timeSpanValue,
+                uriValue: typeof __queryResult.data.uriValue,
                 jsonNodeValue: typeof __queryResult.data.jsonNodeValue,
                 jsonObjectValue: typeof __queryResult.data.jsonObjectValue,
                 jsonDocumentValue: typeof __queryResult.data.jsonDocumentValue,
@@ -190,6 +191,7 @@ public class when_performing_query_for_all_types : given.a_scenario_web_applicat
     [Fact] void should_have_correct_guid_value_property() => ((System.Text.Json.JsonElement)_data["guidValue"]!).GetString().ShouldEqual("87654321-4321-4321-4321-cba987654321");
 
     [Fact] void should_have_timespan_as_string() => _types["timeSpanValue"].ToString().ShouldEqual("string");
+    [Fact] void should_have_uri_as_string() => _types["uriValue"].ToString().ShouldEqual("string");
     [Fact] void should_have_uri_value() => _data["uriValue"].ShouldNotBeNull();
 
     [Fact] void should_have_json_node_value() => _data["jsonNodeValue"].ShouldNotBeNull();

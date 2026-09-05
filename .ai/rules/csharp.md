@@ -31,19 +31,7 @@ These rules exist so that every file in the codebase reads the same way. When fo
 
 ## Language — American English Only
 
-All identifiers, comments, XML docs, and string literals must use **American English** spelling. This applies to class names, method names, properties, parameters, variables, namespaces, and documentation. Common mistakes to avoid:
-
-| Wrong (UK) | Correct (US) |
-|---|---|
-| Initialise, Serialise, Normalise | Initialize, Serialize, Normalize |
-| Behaviour, Colour, Favour, Honour | Behavior, Color, Favor, Honor |
-| Organisation, Authorisation | Organization, Authorization |
-| Centre, Fibre | Center, Fiber |
-| Modelling, Signalling, Cancelling | Modeling, Signaling, Canceling |
-| Dialogue, Catalogue | Dialog, Catalog |
-| Licence, Defence | License, Defense |
-| Judgement, Acknowledgement | Judgment, Acknowledgment |
-| Grey | Gray |
+All identifiers, comments, XML docs, and string literals must use **American English** spelling (initialize, serialize, behavior, color, organization, center, modeling, dialog, license, judgment, gray). See [general.md](./general.md) for the full guidance.
 
 ## Naming
 
@@ -62,6 +50,7 @@ Every rule here reduces noise. `var` avoids redundant type repetition. Expressio
 - Use string interpolation instead of `string.Format()` or concatenation.
 - Favor collection initializers and object initializers.
 - Use `IEnumerable<T>` for collections that are not modified; never return mutable collections from public APIs.
+- Prefer LINQ (`.Where`, `.Any`, `.Select`, `.FirstOrDefault`) over a `foreach` that filters inside its body with an `if`/`continue` or an early `return` — put the filter in the query so the intent is explicit (`items.Where(predicate)`, `return items.Any(predicate);`). Reserve `foreach` for genuine iteration with side effects. (Filtering inside a loop is what the analyzers flag as a "missed opportunity to use Where".)
 - Don't use regions — they hide code instead of organizing it. If a file needs regions, it needs refactoring.
 - Never add postfixes like `Async`, `Impl`, `Service` to class names — they add noise without information.
 - For types with no implementation body, omit the braces (e.g. `public interface IMyInterface;`).
@@ -129,6 +118,7 @@ Every exception type in the codebase should communicate *what went wrong* in dom
 - Never suffix exception class names with `Exception` — `AuthorNotFound` reads better than `AuthorNotFoundException`.
 - Always provide a meaningful message when throwing.
 - Add XML doc on the exception type starting with "The exception that is thrown when ...".
+- Never write an empty or silently-swallowing `catch` block. Handle the exception, log it, or let it propagate. When ignoring is genuinely correct, use an exception filter (`catch (SomeException) when (…)`) with a body that states the decision (a comment and/or a fallback) — never a bare `catch { }`.
 
 ## Dependency Injection
 
@@ -138,6 +128,38 @@ The framework discovers and wires dependencies by convention. Explicit registrat
 - For singletons, use the `[Singleton]` attribute — no explicit registration needed.
 - Systems with a convention of `IFoo → Foo` do not need to be registered explicitly.
 - Command/query `Handle()` method parameters are automatically resolved from DI by type.
+
+### Discovering multiple implementations — use `IInstancesOf<T>`, never `IEnumerable<T>`
+
+When a type needs every implementation of an abstraction (handlers, strategies, filters, validators, formatters), inject `IInstancesOf<TInterface>` from `Cratis.Types`. The framework discovers and instantiates every implementation by convention — no `services.AddSingleton<TInterface, Impl1>()` calls anywhere.
+
+```csharp
+// ❌ Wrong — requires hand-maintained registrations for every implementation.
+// Adding a new IReactorSideEffectHandler somewhere else in the codebase silently
+// does nothing until someone remembers to register it here, and dead registrations
+// linger after types are removed.
+services.AddSingleton<IReactorSideEffectHandler, EventResultHandler>();
+services.AddSingleton<IReactorSideEffectHandler, EventsResultHandler>();
+services.AddSingleton<IReactorSideEffectHandlers, ReactorSideEffectHandlers>();
+
+public class ReactorSideEffectHandlers(IEnumerable<IReactorSideEffectHandler> handlers) : IReactorSideEffectHandlers { ... }
+
+// ✅ Right — implementations discovered automatically. Mark singletons with [Singleton].
+[Singleton]
+public class EventResultHandler(IEventTypes eventTypes) : IReactorSideEffectHandler { ... }
+
+[Singleton]
+public class EventsResultHandler(IEventTypes eventTypes) : IReactorSideEffectHandler { ... }
+
+[Singleton]
+public class ReactorSideEffectHandlers(IInstancesOf<IReactorSideEffectHandler> handlers) : IReactorSideEffectHandlers { ... }
+```
+
+**Rules:**
+- Never inject `IEnumerable<TInterface>` to enumerate implementations of an abstraction. That signature only works if every implementation is hand-registered, which defeats convention-based discovery. Use `IInstancesOf<TInterface>` instead.
+- Never write `services.AddSingleton<TInterface, Impl>()` or `services.AddTransient<TInterface, Impl>()` for a type that exists to be discovered. Mark the implementation with `[Singleton]` (for singletons) or rely on the `IFoo → Foo` convention (for transients) and remove the registration line.
+- `IInstancesOf<T>` resolves at the point of access — implementations added later in the assembly become available without touching the consumer or any composition root.
+- `IEnumerable<T>` is still the right type to **return** from a method that yields a sequence of values. The rule applies only when the goal is to enumerate **implementations** of an abstraction.
 
 ## Logging
 
@@ -157,24 +179,25 @@ These are the building blocks. Each type has a specific role in the vertical sli
 
 | Type | Purpose |
 |---|---|
-| `ConceptAs<T>` | Strongly-typed domain value wrapper (see concepts instructions) |
-| `[EventType]` | Marks a record as a Chronicle event — **never** pass arguments to the attribute |
+| `ConceptAs<T>` | Strongly-typed domain *value* wrapper (see [concepts.md](./concepts.md)) |
+| `EventSourceId<T>` | Strongly-typed *identity* base — derive event-source ids from this, not `ConceptAs<T>` |
+| `[EventType]` | Marks a record as a Chronicle event — **never** pass arguments for a new event |
 | `[Command]` | Marks a record as a model-bound command — define `Handle()` directly on the record |
 | `[ReadModel]` | Marks a record as a model-bound query — define static query methods on the record |
 | `CommandValidator<T>` | FluentValidation validator for commands |
-| `IProjectionFor<T>` | Fluent projection definition — AutoMap is on by default |
+| `IProjectionFor<T>` | Fluent projection definition — AutoMap is on by default, never call `.AutoMap()` |
 | `IReducerFor<T>` | Imperative reducer — receives current state, returns new state |
 | `IReactor` | Marker interface for side-effect observers — method dispatch by event type parameter |
 | `IConstraint` | Constraint definition — enforced server-side by Chronicle at append time |
 | `AggregateRoot` | Chronicle aggregate root with `Apply()` and `Commit()` |
 | `ICommandPipeline` | Programmatic command execution from reactors or other code |
-| `EventSourceId` | Primary identity binding — all events for an entity share the same event source ID |
 | `EventContext` | Event metadata: `Occurred`, `SequenceNumber`, `CorrelationId`, `EventSourceId`, etc. |
-| `ISubject<T>` | Observable query return type — enables real-time WebSocket push |
+| `ISubject<T>` | Observable query return type — enables real-time push |
 | `IMongoCollection<T>` | MongoDB collection — use `.Observe()` for reactive queries |
 
 **Key conventions:**
-- Prefer `ConceptAs<T>` over raw primitives in all domain models, commands, events, and queries — prevents accidental mix-ups and makes APIs self-documenting. See [concepts.instructions.md](./concepts.instructions.md) for details.
+- Prefer `ConceptAs<T>` over raw primitives in all domain models, commands, events, and queries; derive identity concepts from `EventSourceId<T>`. See [concepts.md](./concepts.md) for details.
 - Projections join **events**, never read models — projections rebuild state from the event stream, not from other projections.
-- For fluent projections, AutoMap is on by default — just call `.From<EventType>()` without manually mapping every property.
+- For fluent projections, AutoMap is on by default — call `.From<EventType>()` without `.AutoMap()` and without manually mapping every matching property.
 - Use model-bound projection attributes (`[FromEvent<T>]`, `[SetFrom<T>]`, etc.) when possible; fall back to `IProjectionFor<T>` for complex cases.
+- Full slice anatomy lives in [vertical-slices.md](./vertical-slices.md).

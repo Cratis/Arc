@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Commands.Filters;
@@ -10,64 +8,18 @@ namespace Cratis.Arc.Commands.Filters;
 /// <summary>
 /// Represents a command filter that validates commands before they are handled.
 /// </summary>
-/// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> to use for finding validators.</param>
-public class FluentValidationFilter(IDiscoverableValidators discoverableValidators) : ICommandFilter
+/// <param name="modelGraphValidator">The <see cref="IModelGraphValidator"/> to validate the command graph with.</param>
+public class FluentValidationFilter(IModelGraphValidator modelGraphValidator) : ICommandFilter
 {
     /// <inheritdoc/>
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
+        var validationResults = await modelGraphValidator.Validate(
+            new ModelGraphValidationRequest(context.Command, context.ServiceProvider),
+            context.CancellationToken);
+
         var commandResult = CommandResult.Success(context.CorrelationId);
-        commandResult.MergeWith(await Validate(context, context.Command));
-        return commandResult;
-    }
-
-    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "instance.GetType() properties are preserved by the type system for command types. Source-generated validation dispatch is the long-term fix (tracked in GitHub issue #2204).")]
-    async Task<CommandResult> Validate(CommandContext context, object instance)
-    {
-        var commandResult = CommandResult.Success(context.CorrelationId);
-
-        var instanceType = instance.GetType();
-        if (discoverableValidators.TryGet(instanceType, out var validator) && validator is IObjectValidator objectValidator)
-        {
-            var validationResult = await objectValidator.ValidateObjectAsync(instance, CancellationToken.None);
-            if (!validationResult.IsValid)
-            {
-                commandResult.MergeWith(new CommandResult
-                {
-                    ValidationResults = validationResult.Errors.Select(_ =>
-                    {
-                        var severity = _.Severity switch
-                        {
-                            FluentValidation.Severity.Info => ValidationResultSeverity.Information,
-                            FluentValidation.Severity.Warning => ValidationResultSeverity.Warning,
-                            FluentValidation.Severity.Error => ValidationResultSeverity.Error,
-                            _ => ValidationResultSeverity.Error
-                        };
-                        return new ValidationResult(severity, _.ErrorMessage, [_.PropertyName], _.CustomState ?? null!);
-                    }).ToArray()
-                });
-            }
-        }
-
-        if (!instanceType.IsPrimitive &&
-            instanceType != typeof(string) &&
-            instanceType != typeof(DateTime) &&
-            instanceType != typeof(DateTimeOffset) &&
-            instanceType != typeof(Guid) &&
-            instanceType != typeof(decimal) &&
-            !instanceType.IsArray &&
-            !typeof(System.Collections.IEnumerable).IsAssignableFrom(instanceType))
-        {
-            foreach (var property in instanceType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                var propertyValue = property.GetValue(instance);
-                if (propertyValue is not null)
-                {
-                    commandResult.MergeWith(await Validate(context, propertyValue));
-                }
-            }
-        }
-
+        commandResult.ValidationResults = [.. validationResults];
         return commandResult;
     }
 }

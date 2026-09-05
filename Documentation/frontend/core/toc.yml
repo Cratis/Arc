@@ -6,3 +6,5 @@
   href: queries/toc.yml
 - name: Identity
   href: identity.md
+- name: Messaging
+  href: messaging.md

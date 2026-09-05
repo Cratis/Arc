@@ -36,4 +36,5 @@ public class when_merging_multiple_command_results : Specification
     [Fact] void should_contain_all_exception_messages() => _result.ExceptionMessages.ShouldContainOnly("Exception 1", "Exception 2");
     [Fact] void should_contain_all_validation_results() => _result.ValidationResults.Select(v => v.Message).ShouldContainOnly("Error 1", "Error 2");
     [Fact] void should_contain_stack_trace_from_other_result() => _result.ExceptionStackTrace.ShouldEqual("Stack trace 1\nStack trace 2");
+    [Fact] void should_leave_authorization_failure_reason_empty() => _result.AuthorizationFailureReason.ShouldEqual(string.Empty);
 }

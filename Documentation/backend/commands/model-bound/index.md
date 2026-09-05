@@ -38,7 +38,7 @@ using OneOf;
 [Command]
 public record AddItemToCart(string Sku, int Quantity)
 {
-    public Result<ValidationResult, Guid> Handle()
+    public Result<Guid, ValidationResult> Handle()
     {
         if( /* code that checks if product is carried */ )
         {
@@ -65,7 +65,7 @@ using OneOf;
 [Command]
 public record CreateOrder(string CustomerId, List<OrderItem> Items)
 {
-    public Result<ValidationResult, (OrderId, OrderCreated)> Handle()
+    public Result<(OrderId, OrderCreated), ValidationResult> Handle()
     {
         if (!IsValidOrder())
         {
@@ -110,7 +110,7 @@ The command pipeline processes tuples as follows:
 2. **Values with handlers** are processed by their respective response value handlers
 3. **Values without handlers** are considered potential response values
 4. **If exactly one value has no handler**, it becomes the response in the `CommandResult`
-5. **If multiple values have no handlers**, a `MultipleUnhandledTupleValuesException` is thrown
+5. **If multiple values have no handlers**, a `MultipleUnhandledTupleValues` is thrown
 6. **If all values have handlers**, no response value is set
 
 ### Simple Tuple (2 values)
@@ -167,7 +167,7 @@ In this example:
 
 ### Error Scenarios
 
-If your tuple contains multiple values that don't have corresponding response value handlers, the system will throw a `MultipleUnhandledTupleValuesException` with details about which values couldn't be handled:
+If your tuple contains multiple values that don't have corresponding response value handlers, the system will throw a `MultipleUnhandledTupleValues` with details about which values couldn't be handled:
 
 ```csharp
 // This would throw an exception if neither string nor int have handlers
@@ -185,7 +185,7 @@ using OneOf;
 [Command]
 public record ProcessPayment(string OrderId, decimal Amount)
 {
-    public (OrderId, Result<PaymentFailed, PaymentSucceeded>) Handle()
+    public (OrderId, Result<PaymentSucceeded, PaymentFailed>) Handle()
     {
         var orderId = new OrderId(OrderId);
         
@@ -219,6 +219,20 @@ public record AddItemToCart(string Sku, int Quantity)
     {
         carts.AddItemToCart(Sku, Quantity);
     }
+}
+```
+
+`CancellationToken` is a special dependency. Arc injects it from the command execution context instead of resolving it from the service collection. HTTP command endpoints use the request-aborted token automatically. Programmatic callers can pass a token through `ICommandPipeline`.
+
+```csharp
+[Command]
+public record ImportCatalog(CatalogId CatalogId)
+{
+    public Task<CatalogSnapshot> Provide(ICatalogs catalogs, CancellationToken cancellationToken) =>
+        catalogs.GetSnapshot(CatalogId, cancellationToken);
+
+    public Task Handle(CatalogSnapshot snapshot, ICatalogImporter importer, CancellationToken cancellationToken) =>
+        importer.Import(snapshot, cancellationToken);
 }
 ```
 

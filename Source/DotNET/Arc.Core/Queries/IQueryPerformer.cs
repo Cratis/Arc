@@ -37,6 +37,11 @@ public interface IQueryPerformer
     IEnumerable<string> Location { get; }
 
     /// <summary>
+    /// Gets the custom route for the query, if one is specified via the Route attribute.
+    /// </summary>
+    string? CustomRoute { get; }
+
+    /// <summary>
     /// Gets the dependencies required by the renderer.
     /// </summary>
     IEnumerable<Type> Dependencies { get; }

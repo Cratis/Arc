@@ -17,9 +17,9 @@ export function ValidateRequestArguments(requestName: string, expectedRequestArg
         } else {
             for (const argument of expectedRequestArguments) {
                 if (!actualArguments.hasOwnProperty(argument) ||
-                    actualArguments[argument] == undefined ||
-                    actualArguments[argument] == null ||
-                    actualArguments[argument] == '') {
+                    actualArguments[argument] === undefined ||
+                    actualArguments[argument] === null ||
+                    actualArguments[argument] === '') {
                     missing.push(argument);
                 }
             }

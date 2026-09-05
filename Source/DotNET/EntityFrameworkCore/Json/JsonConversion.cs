@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
-using Cratis.Json;
 using Cratis.Strings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -17,14 +16,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Json;
 /// </summary>
 public static class JsonConversion
 {
-    static readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerOptions.Default)
-    {
-        WriteIndented = false,
-        Converters =
-        {
-            new ConceptAsJsonConverterFactory()
-        }
-    };
+    static readonly JsonConversionOptions _defaultOptions = new();
 
     /// <summary>
     /// Applies JSON conversion to all properties marked with the <see cref="JsonAttribute"/> in the specified <see cref="ModelBuilder"/>.
@@ -32,8 +24,9 @@ public static class JsonConversion
     /// <param name="modelBuilder">The model builder to apply the JSON conversion to.</param>
     /// <param name="entityTypes">The entity types to apply the JSON conversion to.</param>
     /// <param name="databaseType">The database provider, if specific configuration is needed.</param>
+    /// <param name="options">Optional <see cref="JsonConversionOptions"/> to use; defaults to the Arc defaults when <see langword="null"/>.</param>
     /// <returns>A collection of types that only appear in JSON-converted properties.</returns>
-    public static IEnumerable<Type> ApplyJsonConversion(this ModelBuilder modelBuilder, IEnumerable<IMutableEntityType> entityTypes, DatabaseType databaseType)
+    public static IEnumerable<Type> ApplyJsonConversion(this ModelBuilder modelBuilder, IEnumerable<IMutableEntityType> entityTypes, DatabaseType databaseType, JsonConversionOptions? options = null)
     {
         var allEntityTypes = entityTypes.ToArray();
         var entityTypesWithJson = allEntityTypes.Where(t => t.HasJsonProperties()).ToArray();
@@ -80,7 +73,7 @@ public static class JsonConversion
         foreach (var entityType in entityTypesWithJson)
         {
             var entityTypeBuilder = modelBuilder.Entity(entityType.Name);
-            entityTypeBuilder.ApplyJsonConversion(databaseType);
+            entityTypeBuilder.ApplyJsonConversion(databaseType, options);
         }
 
         return typesInJsonProperties.Except(typesInNonJsonProperties);
@@ -103,8 +96,11 @@ public static class JsonConversion
     /// </summary>
     /// <param name="entityTypeBuilder">The entity type builder to apply the JSON conversion to.</param>
     /// <param name="databaseType">The database provider, if specific configuration is needed.</param>
-    public static void ApplyJsonConversion(this EntityTypeBuilder entityTypeBuilder, DatabaseType databaseType)
+    /// <param name="options">Optional <see cref="JsonConversionOptions"/> to use; defaults to the Arc defaults when <see langword="null"/>.</param>
+    public static void ApplyJsonConversion(this EntityTypeBuilder entityTypeBuilder, DatabaseType databaseType, JsonConversionOptions? options = null)
     {
+        var serializerOptions = (options ?? _defaultOptions).JsonSerializerOptions;
+
         var propertiesWithAttribute = entityTypeBuilder.Metadata.ClrType.GetProperties()
             .Where(p => Attribute.IsDefined(p, typeof(JsonAttribute), inherit: true))
             .Select(p => p.Name)
@@ -132,8 +128,8 @@ public static class JsonConversion
             var propertyBuilder = entityTypeBuilder.Property(property.Name);
             var converterType = typeof(JsonValueConverter<>).MakeGenericType(property.PropertyType);
             var comparerType = typeof(JsonValueComparer<>).MakeGenericType(property.PropertyType);
-            var converter = Activator.CreateInstance(converterType) as ValueConverter;
-            var comparer = Activator.CreateInstance(comparerType) as ValueComparer;
+            var converter = Activator.CreateInstance(converterType, serializerOptions) as ValueConverter;
+            var comparer = Activator.CreateInstance(comparerType, serializerOptions) as ValueComparer;
 
             propertyBuilder.HasConversion(converter);
             propertyBuilder.Metadata.SetValueConverter(converter);
@@ -153,16 +149,16 @@ public static class JsonConversion
         }
     }
 
-    sealed class JsonValueConverter<T>() : ValueConverter<T?, string?>(
-            v => v == null ? null : JsonSerializer.Serialize(v, _jsonSerializerOptions),
-            v => v == null ? default : JsonSerializer.Deserialize<T>(v, _jsonSerializerOptions))
+    sealed class JsonValueConverter<T>(JsonSerializerOptions serializerOptions) : ValueConverter<T?, string?>(
+            v => v == null ? null : JsonSerializer.Serialize(v, serializerOptions),
+            v => v == null ? default : JsonSerializer.Deserialize<T>(v, serializerOptions))
         where T : class;
 
-    sealed class JsonValueComparer<T>() : ValueComparer<T?>(
-            (a, b) => JsonEquals(a, b, _jsonSerializerOptions),
-            v => v == null ? 0 : JsonSerializer.Serialize(v, _jsonSerializerOptions).GetHashCode(),
+    sealed class JsonValueComparer<T>(JsonSerializerOptions serializerOptions) : ValueComparer<T?>(
+            (a, b) => JsonEquals(a, b, serializerOptions),
+            v => v == null ? 0 : JsonSerializer.Serialize(v, serializerOptions).GetHashCode(),
             v => v == null ? default : JsonSerializer.Deserialize<T>(
-                        JsonSerializer.Serialize(v, _jsonSerializerOptions), _jsonSerializerOptions))
+                        JsonSerializer.Serialize(v, serializerOptions), serializerOptions))
             where T : class
     {
         static bool JsonEquals(T? a, T? b, JsonSerializerOptions opt)

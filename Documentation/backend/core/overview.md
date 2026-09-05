@@ -113,13 +113,13 @@ Arc.Core is built around the `ArcApplicationBuilder` and `ArcApplication` abstra
 
 ```csharp
 // Builder Pattern
-var builder = ArcApplicationBuilder.CreateBuilder(args);
+var builder = ArcApplication.CreateBuilder(args);
 builder.AddCratisArc();
 // Configure services, logging, metrics, etc.
 
 // Application Pattern
 var app = builder.Build();
-app.UseCratisArc("http://localhost:5000/");
+app.UseCratisArc();
 await app.RunAsync();
 ```
 

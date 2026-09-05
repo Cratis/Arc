@@ -8,15 +8,23 @@
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>proxygenerator</ToolCommandName>
         <IsAotCompatible>false</IsAotCompatible>
+        <Description>dotnet tool that generates TypeScript proxies, referenced types, and validation metadata for Cratis Arc commands and queries.</Description>
+        <PackageTags>cratis;arc;cqrs;typescript;proxy-generation;dotnet-tool;commands;queries;aspnetcore</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
         <EmbeddedResource Include="$(MSBuildThisFileDirectory)/Templates/**/*.hbs" />
+        <InternalsVisibleTo Include="Cratis.Arc.ProxyGenerator.Specs" />
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="handlebars.net" />
         <PackageReference Include="Microsoft.Extensions.DependencyModel" />
         <PackageReference Include="System.Reflection.MetadataLoadContext" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
     </ItemGroup>
 </Project>

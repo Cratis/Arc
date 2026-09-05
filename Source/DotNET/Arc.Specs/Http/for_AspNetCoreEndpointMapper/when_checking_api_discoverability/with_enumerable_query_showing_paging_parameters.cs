@@ -48,6 +48,8 @@ public class with_enumerable_query_showing_paging_parameters : Specification
         var commandHandlerProviders = Substitute.For<ICommandHandlerProviders>();
         commandHandlerProviders.Handlers.Returns([]);
         builder.Services.AddSingleton(commandHandlerProviders);
+        builder.Services.AddSingleton<IInstancesOf<IQueryRequestReader>>(
+            new KnownInstancesOf<IQueryRequestReader>([new QueryStringQueryRequestReader(), new BodyQueryRequestReader()]));
 
         _app = builder.Build();
 

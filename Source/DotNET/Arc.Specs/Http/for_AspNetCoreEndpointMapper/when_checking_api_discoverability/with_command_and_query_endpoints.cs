@@ -54,6 +54,8 @@ public class with_command_and_query_endpoints : Specification
         var queryPerformerProviders = Substitute.For<IQueryPerformerProviders>();
         queryPerformerProviders.Performers.Returns([queryPerformer]);
         builder.Services.AddSingleton(queryPerformerProviders);
+        builder.Services.AddSingleton<IInstancesOf<IQueryRequestReader>>(
+            new KnownInstancesOf<IQueryRequestReader>([new QueryStringQueryRequestReader(), new BodyQueryRequestReader()]));
 
         _app = builder.Build();
 
@@ -79,6 +81,7 @@ public class with_command_and_query_endpoints : Specification
     [Fact] void should_have_command_execute_description() => _apiDescriptions.Any(d => d.HttpMethod == "POST" && d.RelativePath.Contains("test-command")).ShouldBeTrue();
     [Fact] void should_have_command_validate_description() => _apiDescriptions.Any(d => d.HttpMethod == "POST" && d.RelativePath.Contains("validate")).ShouldBeTrue();
     [Fact] void should_have_query_description() => _apiDescriptions.Any(d => d.HttpMethod == "GET" && d.RelativePath.Contains("all-orders")).ShouldBeTrue();
+    [Fact] void should_not_expose_the_query_method_endpoint_in_the_api_description() => _apiDescriptions.Any(d => d.HttpMethod == "QUERY").ShouldBeFalse();
     [Fact] void should_have_request_body_parameter_on_command() => _apiDescriptions.First(d => d.HttpMethod == "POST" && d.RelativePath.Contains("test-command") && !d.RelativePath.Contains("validate")).ParameterDescriptions.Any(p => p.Source.Id == "Body").ShouldBeTrue();
     [Fact] void should_have_response_type_on_command() => _apiDescriptions.First(d => d.HttpMethod == "POST" && d.RelativePath.Contains("test-command") && !d.RelativePath.Contains("validate")).SupportedResponseTypes.Any(r => r.StatusCode == 200).ShouldBeTrue();
     [Fact] void should_have_response_type_on_query() => _apiDescriptions.First(d => d.HttpMethod == "GET" && d.RelativePath.Contains("all-orders")).SupportedResponseTypes.Any(r => r.StatusCode == 200).ShouldBeTrue();

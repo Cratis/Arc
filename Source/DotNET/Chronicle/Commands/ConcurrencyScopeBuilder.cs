@@ -13,11 +13,28 @@ namespace Cratis.Arc.Chronicle.Commands;
 public static class ConcurrencyScopeBuilder
 {
     /// <summary>
-    /// Builds a concurrency scope based on metadata attributes that have Concurrency flag set to true.
+    /// Builds a concurrency scope for an append a command makes to a specific event source.
     /// </summary>
     /// <param name="commandContext">The command context containing the command.</param>
-    /// <returns>A concurrency scope if any metadata has concurrency enabled, otherwise null.</returns>
-    public static ConcurrencyScope? BuildFromCommandContext(CommandContext commandContext)
+    /// <param name="strategy">The <see cref="IConcurrencyScopeStrategy"/> that resolves the expected sequence number.</param>
+    /// <param name="eventSourceId">The <see cref="EventSourceId"/> the append targets.</param>
+    /// <returns>
+    /// A concurrency scope when any metadata attribute has concurrency enabled, otherwise null so the event
+    /// sequence keeps applying its configured strategy.
+    /// </returns>
+    /// <remarks>
+    /// The scope is built per target event source, and the expected sequence number comes from the same
+    /// strategy an unscoped append uses. Both matter. A scope with no expected sequence number is not
+    /// <see cref="ConcurrencyScope.NotSet"/>, so it displaces the strategy the event sequence would otherwise
+    /// apply, and the kernel then skips validation precisely because there is no sequence number to validate
+    /// against — a command that declares concurrency would end up with strictly less protection than one that
+    /// says nothing. And a single scope shared across every event source a command writes to would apply one
+    /// stream's expected tail to all the others, which is wrong for each of them.
+    /// </remarks>
+    public static async Task<ConcurrencyScope?> BuildFor(
+        CommandContext commandContext,
+        IConcurrencyScopeStrategy strategy,
+        EventSourceId eventSourceId)
     {
         var commandType = commandContext.Command.GetType();
 
@@ -25,28 +42,19 @@ public static class ConcurrencyScopeBuilder
         var eventStreamTypeAttribute = commandType.GetCustomAttributes(typeof(EventStreamTypeAttribute), false).FirstOrDefault() as EventStreamTypeAttribute;
         var eventSourceTypeAttribute = commandType.GetCustomAttributes(typeof(EventSourceTypeAttribute), false).FirstOrDefault() as EventSourceTypeAttribute;
 
-        var hasAnyConcurrencyMetadata =
-            (eventStreamIdAttribute?.Concurrency ?? false) ||
-            (eventStreamTypeAttribute?.Concurrency ?? false) ||
-            (eventSourceTypeAttribute?.Concurrency ?? false);
+        var scopeByEventStreamId = eventStreamIdAttribute?.Concurrency ?? false;
+        var scopeByEventStreamType = eventStreamTypeAttribute?.Concurrency ?? false;
+        var scopeByEventSourceType = eventSourceTypeAttribute?.Concurrency ?? false;
 
-        if (!hasAnyConcurrencyMetadata)
+        if (!scopeByEventStreamId && !scopeByEventStreamType && !scopeByEventSourceType)
         {
             return null;
         }
 
-        var eventStreamId = (eventStreamIdAttribute?.Concurrency ?? false) ? commandContext.GetEventStreamId() : null;
-        var eventStreamType = (eventStreamTypeAttribute?.Concurrency ?? false) ? commandContext.GetEventStreamType() : null;
-        var eventSourceType = (eventSourceTypeAttribute?.Concurrency ?? false) ? commandContext.GetEventSourceType() : null;
-
-        // EventSourceId is intentionally null as concurrency scoping is based on metadata (EventStreamId, EventStreamType, EventSourceType)
-        // rather than the event source itself.
-        return new ConcurrencyScope(
-            EventSequenceNumber.Unavailable,
-            EventSourceId: null,
-            EventStreamType: eventStreamType,
-            EventStreamId: eventStreamId,
-            EventSourceType: eventSourceType,
-            EventTypes: null);
+        return await strategy.GetScope(
+            eventSourceId,
+            eventStreamType: scopeByEventStreamType ? commandContext.GetEventStreamType() : null,
+            eventStreamId: scopeByEventStreamId ? commandContext.GetEventStreamId() : null,
+            eventSourceType: scopeByEventSourceType ? commandContext.GetEventSourceType() : null);
     }
 }

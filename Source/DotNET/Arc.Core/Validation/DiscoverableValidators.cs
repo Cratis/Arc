@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Reflection;
 using Cratis.Types;
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -15,15 +15,32 @@ namespace Cratis.Arc.Validation;
 public class DiscoverableValidators : IDiscoverableValidators
 {
     readonly Dictionary<Type, Type> _validatorTypesByModelType;
+    readonly Func<IServiceProvider> _serviceProviderAccessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DiscoverableValidators"/> class.
     /// </summary>
     /// <param name="types"><see cref="ITypes"/> for type discovery.</param>
-    public DiscoverableValidators(ITypes types)
+    public DiscoverableValidators(ITypes types) : this(types, () => Internals.ServiceProvider)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscoverableValidators"/> class.
+    /// </summary>
+    /// <param name="types"><see cref="ITypes"/> for type discovery.</param>
+    /// <param name="serviceProviderAccessor">Callback for getting the <see cref="IServiceProvider"/> to resolve validators from.</param>
+    internal DiscoverableValidators(ITypes types, Func<IServiceProvider> serviceProviderAccessor)
+    {
+        _serviceProviderAccessor = serviceProviderAccessor;
         var candidates = types.FindMultiple(typeof(IDiscoverableValidator<>));
-        var invalidValidators = candidates.Where(IsInvalidDiscoverableValidator).ToArray();
+        var invalidValidators = candidates.Where(_ =>
+        {
+            var interfaces = _.GetInterfaces();
+            var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
+            var modelType = validatorType.GetGenericArguments()[0];
+            return !DerivesFromAbstractValidatorOf(_, modelType);
+        }).ToArray();
 
         if (invalidValidators.Length > 0)
         {
@@ -31,15 +48,29 @@ public class DiscoverableValidators : IDiscoverableValidators
         }
 
         _validatorTypesByModelType = candidates
-            .ToDictionary(GetModelTypeFromValidator, _ => _);
+            .ToDictionary(
+                _ =>
+                {
+                    var current = _.BaseType!;
+                    while (!current.IsDerivedFromOpenGeneric(typeof(AbstractValidator<>)))
+                    {
+                        current = current.BaseType!;
+                    }
+                    return current.GetGenericArguments()[0];
+                },
+                _ => _);
     }
 
     /// <inheritdoc/>
-    public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator)
+    public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator) =>
+        TryGet(modelType, _serviceProviderAccessor(), out validator);
+
+    /// <inheritdoc/>
+    public bool TryGet(Type modelType, IServiceProvider serviceProvider, [MaybeNullWhen(false)] out IValidator validator)
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            validator = (Internals.ServiceProvider.GetRequiredService(value) as IValidator)!;
+            validator = (Construct(serviceProvider, value) as IValidator)!;
             return true;
         }
 
@@ -47,25 +78,62 @@ public class DiscoverableValidators : IDiscoverableValidators
         return false;
     }
 
-    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Candidate types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
-    static bool IsInvalidDiscoverableValidator(Type candidateType)
+    /// <summary>
+    /// Determines whether a type derives from <see cref="AbstractValidator{T}"/> closed over the given model type.
+    /// </summary>
+    /// <param name="type">The candidate validator type.</param>
+    /// <param name="modelType">The model type the validator must be for.</param>
+    /// <returns>True when the type derives from <c>AbstractValidator&lt;modelType&gt;</c>; otherwise false.</returns>
+    /// <remarks>
+    /// This replaces <c>IsAssignableTo(typeof(AbstractValidator&lt;&gt;).MakeGenericType(modelType))</c>. Constructing a
+    /// closed generic through <c>MakeGenericType</c> at runtime is not statically analyzable and breaks under
+    /// NativeAOT/trimming, whereas reading the generic argument off an already-constructed base type in the chain is
+    /// AOT-safe and preserves the exact "must be an AbstractValidator for this model" semantics — including rejecting a
+    /// validator whose <see cref="AbstractValidator{T}"/> is closed over a different model type.
+    /// </remarks>
+    static bool DerivesFromAbstractValidatorOf(Type type, Type modelType)
     {
-        var interfaces = candidateType.GetInterfaces();
-        var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
-        var modelType = validatorType.GetGenericArguments()[0];
-        return !interfaces.Any(i =>
-            i.IsGenericType &&
-            i.GetGenericTypeDefinition() == typeof(IValidator<>) &&
-            i.GetGenericArguments()[0] == modelType);
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType &&
+                current.GetGenericTypeDefinition() == typeof(AbstractValidator<>) &&
+                current.GetGenericArguments()[0] == modelType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    static Type GetModelTypeFromValidator(Type candidateType)
+    /// <summary>
+    /// Constructs a validator from the supplied provider.
+    /// </summary>
+    /// <remarks>
+    /// This follows command parameter binding semantics: nullable dependencies may resolve to null, while
+    /// non-nullable dependencies that resolve to null fail with <see cref="CannotResolveValidatorDependency"/>.
+    /// </remarks>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
+    /// <param name="validatorType">The validator type to construct.</param>
+    /// <returns>The constructed validator instance.</returns>
+    static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
-        var current = candidateType.BaseType!;
-        while (!current.IsDerivedFromOpenGeneric(typeof(AbstractValidator<>)))
+        // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
+        var registered = serviceProvider.GetService(validatorType);
+        if (registered is not null)
         {
-            current = current.BaseType!;
+            return registered;
         }
-        return current.GetGenericArguments()[0];
+
+        var constructor = validatorType.GetConstructors()
+            .OrderByDescending(_ => _.GetParameters().Length)
+            .First();
+
+        var arguments = ParameterDependencyResolver.Resolve(
+            serviceProvider,
+            constructor.GetParameters(),
+            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
+
+        return constructor.Invoke(arguments);
     }
 }

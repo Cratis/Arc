@@ -6,6 +6,7 @@ import { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
 import { DataReceived } from './ObservableQueryConnection';
 import { SubscriptionRequest } from './WebSocketHubConnection';
 import { Globals } from '../Globals';
+import { MultiplexerConnectionState } from './ObservableQueryDiagnosticsSnapshot';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -137,6 +138,18 @@ export class ObservableQueryMultiplexer {
 
         return request;
     }
+
+    /**
+     * Returns a snapshot of the per-connection state for diagnostics.
+     * @returns An array describing each slot in the connection pool.
+     */
+    getConnectionsSnapshot(): MultiplexerConnectionState[] {
+        return this._connections.map((conn, index) => ({
+            index,
+            isConnected: conn.isConnected,
+            queryCount: conn.queryCount,
+        }));
+    }
 }
 
 /**
@@ -216,4 +229,11 @@ export function resetSharedMultiplexer(): void {
     _sharedMultiplexer?.dispose();
     _sharedMultiplexer = undefined;
     _sharedMultiplexerKey = '';
+}
+
+/**
+ * Returns the current shared multiplexer instance, or {@code undefined} if none has been created yet.
+ */
+export function getSharedMultiplexer(): ObservableQueryMultiplexer | undefined {
+    return _sharedMultiplexer;
 }

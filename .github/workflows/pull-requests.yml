@@ -1,7 +1,9 @@
 name: PR Prerelase
 
+# This only ever runs on pull_request_target, where github.ref names the branch being merged into rather than the
+# pull request, so grouping on it made every open pull request share one group and cancel each other's prerelease.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -12,7 +14,7 @@ env:
   DOTNET10_VERSION: "10.0.x"
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened]
     branches:
       - "**"
@@ -23,6 +25,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.release.outputs.version }}
       publish: ${{ steps.release.outputs.should-publish }}
@@ -31,6 +34,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Release
         id: release
@@ -39,11 +44,14 @@ jobs:
   publish-nuget-packages:
     if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [release]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -59,7 +67,7 @@ jobs:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: yarn-cache
         with:
           path: |
@@ -99,11 +107,14 @@ jobs:
   publish-npm-packages:
     if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [release]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup node v16
         uses: actions/setup-node@v4

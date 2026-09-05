@@ -4,15 +4,27 @@
 import { given } from '../../../given';
 import { an_identity_provider } from '../given/an_identity_provider';
 
+/**
+ * The chicken-and-egg case: the initial load failed, so the identity in state was never built from a
+ * server answer. Refresh still has to be reachable on it and still has to work - otherwise a single
+ * failed request at startup leaves the application with no way back to a signed-in identity.
+ */
 describe('when refresh is called after initial failure', given(an_identity_provider, context => {
+    let identityId: string;
+    let isSet: boolean;
+
     beforeEach(async () => {
         context.setupFailedIdentityFetch();
-        
-        // Suppress console errors during this test
-        context.suppressConsoleErrors();
+        context.suppressConsoleErrors(); // Suppress expected error logs
 
         context.renderProvider();
         await context.waitForAsyncUpdates();
+
+        context.answerFetchWith('recovered-id', 'Recovered User');
+        await context.refreshIdentity();
+
+        identityId = context.capturedIdentity!.id;
+        isSet = context.capturedIdentity!.isSet;
     });
 
     afterEach(() => {
@@ -20,10 +32,6 @@ describe('when refresh is called after initial failure', given(an_identity_provi
         context.cleanup();
     });
 
-    // Test proves the chicken-and-egg fix: refresh() is available even after initial failure
-    // This is the key fix - before, if getCurrent() failed, there was no way to get a working identity
-    it('should have empty identity id', () => context.capturedIdentity!.id.should.equal(''));
-    it('should have empty identity name', () => context.capturedIdentity!.name.should.equal(''));
-    it('should mark identity as not set', () => context.capturedIdentity!.isSet.should.be.false);
-    it('should have refresh method available for retry', () => (typeof context.capturedIdentity!.refresh).should.equal('function'));
+    it('should recover the identity', () => identityId.should.equal('recovered-id'));
+    it('should mark identity as set', () => isSet.should.be.true);
 }));

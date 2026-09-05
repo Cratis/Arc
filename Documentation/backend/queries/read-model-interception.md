@@ -16,7 +16,7 @@ sequenceDiagram
     Framework->>Framework: Execute query
     loop For each item
         Framework->>Interceptor: Intercept(item)
-        Interceptor-->>Framework: (mutated in place)
+        Interceptor-->>Framework: intercepted item
     end
     Framework-->>Client: QueryResult with intercepted data
 ```
@@ -35,15 +35,18 @@ public class DecryptAccountNumbers : IInterceptReadModel<AccountSummary>
         _encryption = encryption;
     }
 
-    public Task Intercept(AccountSummary readModel)
+    public Task<AccountSummary> Intercept(AccountSummary readModel)
     {
-        readModel.AccountNumber = _encryption.Decrypt(readModel.AccountNumber);
-        return Task.CompletedTask;
+        var decrypted = readModel with
+        {
+            AccountNumber = _encryption.Decrypt(readModel.AccountNumber)
+        };
+        return Task.FromResult(decrypted);
     }
 }
 ```
 
-> **Note:** The `Intercept` method mutates the read model in place — it does not return a value. Arc captures and applies your changes automatically.
+> **Note:** The `Intercept` method returns the read model to serve. Read models are typically immutable records, so create a modified copy with a `with` expression and return it rather than mutating the original in place. Arc serves the instance you return.
 
 ## Multiple Interceptors
 
@@ -52,10 +55,13 @@ You can register any number of interceptors for the same read model type. They r
 ```csharp
 public class MaskSensitiveFields : IInterceptReadModel<AccountSummary>
 {
-    public Task Intercept(AccountSummary readModel)
+    public Task<AccountSummary> Intercept(AccountSummary readModel)
     {
-        readModel.AccountNumber = $"****{readModel.AccountNumber[^4..]}";
-        return Task.CompletedTask;
+        var masked = readModel with
+        {
+            AccountNumber = $"****{readModel.AccountNumber[^4..]}"
+        };
+        return Task.FromResult(masked);
     }
 }
 
@@ -68,10 +74,13 @@ public class EnrichWithLocale : IInterceptReadModel<AccountSummary>
         _locale = locale;
     }
 
-    public Task Intercept(AccountSummary readModel)
+    public Task<AccountSummary> Intercept(AccountSummary readModel)
     {
-        readModel.FormattedBalance = _locale.FormatCurrency(readModel.Balance);
-        return Task.CompletedTask;
+        var localized = readModel with
+        {
+            FormattedBalance = _locale.FormatCurrency(readModel.Balance)
+        };
+        return Task.FromResult(localized);
     }
 }
 ```

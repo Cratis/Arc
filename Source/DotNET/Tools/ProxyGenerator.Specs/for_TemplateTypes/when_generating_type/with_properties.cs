@@ -6,11 +6,14 @@ using Cratis.Arc.ProxyGenerator.Templates;
 namespace Cratis.Arc.ProxyGenerator.for_TemplateTypes.when_generating_type;
 
 /// <summary>
-/// Specification for verifying that types with properties include the field import.
+/// Specification for verifying that types with properties continue to use decorator metadata by default.
 /// </summary>
 public class with_properties : Specification
 {
-    string _result;
+    const string DerivedTypeIdentifier = "default-derived-type";
+
+    TypeDescriptor _descriptor = null!;
+    string _result = null!;
 
     void Establish()
     {
@@ -19,18 +22,22 @@ public class with_properties : Specification
             new PropertyDescriptor(typeof(string), "Name", "string", "String", string.Empty, false, false, true, null)
         };
 
-        var descriptor = new TypeDescriptor(
+        _descriptor = new TypeDescriptor(
             typeof(TypeWithProperties),
             "TypeWithProperties",
             properties,
             Enumerable.Empty<ImportStatement>().OrderBy(_ => _.Module),
-            []);
-
-        _result = TemplateTypes.Type(descriptor);
+            [],
+            DerivedTypeId: DerivedTypeIdentifier);
     }
 
-    [Fact] void should_contain_field_import() => _result.ShouldContain("import { field } from '@cratis/fundamentals';");
+    void Because() => _result = TemplateTypes.Type(_descriptor);
+
+    [Fact] void should_contain_metadata_imports() => _result.ShouldContain("import { field, derivedType } from '@cratis/fundamentals';");
     [Fact] void should_contain_field_decorator() => _result.ShouldContain("@field(String)");
+    [Fact] void should_contain_derived_type_decorator() => _result.ShouldContain($"@derivedType('{DerivedTypeIdentifier}')");
+    [Fact] void should_not_contain_imperative_field_registration() => _result.ShouldNotContain("field(String)(TypeWithProperties.prototype, 'name');");
+    [Fact] void should_not_contain_imperative_derived_type_registration() => _result.ShouldNotContain($"derivedType('{DerivedTypeIdentifier}')(TypeWithProperties);");
     [Fact] void should_contain_property() => _result.ShouldContain("name!: string;");
 }
 

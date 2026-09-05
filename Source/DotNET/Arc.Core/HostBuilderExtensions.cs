@@ -3,6 +3,10 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Identity;
+using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
@@ -85,22 +89,30 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
+
+        services.AddSingleton<CurrentPrincipalAccessor>();
+        services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
+        services.AddSingleton<ICurrentPrincipalOverride>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
 
         services.AddSingleton<ITenantIdResolver>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ArcOptions>>();
             return options.Value.Tenancy.ResolverType switch
             {
+                TenantResolverType.Subdomain => ActivatorUtilities.GetServiceOrCreateInstance<SubdomainTenantIdResolver>(sp),
                 TenantResolverType.Header => ActivatorUtilities.GetServiceOrCreateInstance<HeaderTenantIdResolver>(sp),
                 TenantResolverType.Query => ActivatorUtilities.GetServiceOrCreateInstance<QueryTenantIdResolver>(sp),
                 TenantResolverType.Claim => ActivatorUtilities.GetServiceOrCreateInstance<ClaimTenantIdResolver>(sp),
                 TenantResolverType.Development => ActivatorUtilities.GetServiceOrCreateInstance<DevelopmentTenantIdResolver>(sp),
-                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development")
+                TenantResolverType.Fixed => ActivatorUtilities.GetServiceOrCreateInstance<FixedTenantIdResolver>(sp),
+                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development, Subdomain, Fixed")
             };
         });
 
         services
             .AddCratisArcMeter()
+            .AddCratisArcActivitySource()
             .AddTypeDiscovery()
             .AddSingleton(Internals.DerivedTypes)
             .AddBindingsByConvention()
@@ -119,9 +131,23 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
     public static IServiceCollection AddCratisArcMeter(this IServiceCollection services)
     {
-#pragma warning disable CA2000 // Dispose objects before losing scope
-        services.TryAddKeyedSingleton(Internals.MeterName, new Meter(Internals.MeterName));
-#pragma warning restore CA2000 // Dispose objects before losing scope
+        services.TryAddKeyedSingleton(Internals.MeterName, (_, _) => new Meter(Internals.MeterName));
         return services;
+    }
+
+    /// <summary>
+    /// Add the ActivitySource for the Arc.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to add the activity source to.</param>
+    /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
+    public static IServiceCollection AddCratisArcActivitySource(this IServiceCollection services)
+    {
+        return services
+            .AddActivitySource(Internals.ActivitySourceName)
+            .AddActivitySource<CommandFilters>(Internals.ActivitySourceName)
+            .AddActivitySource<CommandPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryFilters>(Internals.ActivitySourceName)
+            .AddActivitySource<QueryPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<IdentityProvider>(Internals.ActivitySourceName);
     }
 }

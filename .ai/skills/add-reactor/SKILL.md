@@ -5,7 +5,7 @@ description: Use this skill when asked to add a Chronicle reactor (automation or
 
 Add a Chronicle **reactor** that triggers automation or translation logic in response to events.
 
-> **Always read `.github/instructions/reactors.instructions.md` first.** It is the source of truth for reactor conventions, rules, and patterns.
+> **Always read the [reactors.md](../../rules/reactors.md) rule first.** It is the source of truth for reactor conventions, rules, and patterns.
 
 ## Step 1 — Identify the event(s)
 
@@ -44,7 +44,39 @@ public class ProjectRegisteredNotifier(INotificationService notifications) : IRe
 - **`EventContext`** — optional second parameter. Omit if event metadata is not needed.
 - **Idempotent** — reactors may be called more than once for the same event. Design accordingly.
 - **Use event data directly** — never query the read model back inside the reactor.
-- **Trigger commands for further writes** — inject `ICommandPipeline` and execute a command. Never use `IEventLog` directly.
+- **Return events instead of injecting IEventLog** — to produce new events, return them directly as `Task<TEvent>`, `Task<EventForEventSourceId>`, or a collection thereof. For commands in other slices, inject `ICommandPipeline`. Avoid injecting `IEventLog` directly.
+
+## Step 3b — Return side-effect events (alternative to IEventLog)
+
+Return events directly from a handler method instead of calling `IEventLog.Append`. This keeps reactors free of direct event-store dependencies.
+
+```csharp
+// Return a single event — uses EventSourceId from incoming event, appends to EventLog
+public Task<StockDecreased> BookReserved(BookReserved @event, EventContext context) =>
+    Task.FromResult(new StockDecreased(@event.Isbn, 1));
+
+// Return multiple events
+public Task<IEnumerable<object>> BookReserved(BookReserved @event, EventContext context) =>
+    Task.FromResult<IEnumerable<object>>([new StockDecreased(@event.Isbn, 1), new StockLow(@event.Isbn)]);
+
+// Target a specific event source id with explicit metadata
+// (EventSourceId, EventStreamType, EventStreamId, EventSourceType, Subject, Occurred, Causation)
+public Task<EventForEventSourceId> BookReserved(BookReserved @event, EventContext context) =>
+    Task.FromResult(new EventForEventSourceId(@event.WarehouseId, new StockDecreased(@event.Isbn, 1))
+    {
+        EventStreamType = new("warehouse"),   // optional — others default sensibly
+    });
+
+// Target multiple event source ids in one transaction
+public Task<IEnumerable<EventForEventSourceId>> BookReserved(BookReserved @event, EventContext context) =>
+    Task.FromResult<IEnumerable<EventForEventSourceId>>(
+    [
+        new(@event.WarehouseId, new StockDecreased(@event.Isbn, 1)),
+        new(@event.Isbn, new StockLow(@event.Isbn)),
+    ]);
+```
+
+For **bare event** returns, the append-metadata is resolved from the reactor itself: `[EventStreamType]`, `[EventSourceType]`, `[EventStreamId]` attributes and the `ICanProvideEventSourceId`, `ICanProvideEventStreamId`, `ICanProvideSubject` interfaces. Return an `EventForEventSourceId` only when you need explicit per-event control or to target several event source ids at once.
 
 ## Step 4 — Translation pattern (if applicable)
 

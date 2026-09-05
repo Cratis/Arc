@@ -24,10 +24,7 @@ public static class EventSourceExtensions
     /// <returns>True if the command has an event source ID; otherwise, false.</returns>
     [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "command.GetType().GetProperties() on runtime command objects; their public properties are preserved. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     public static bool HasEventSourceId(this object command) =>
-        command.GetType().GetProperties().Any(p =>
-            p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
-            IsGenericEventSourceIdType(p.PropertyType) ||
-            p.HasAttribute<KeyAttribute>()) ||
+        command.GetType().GetProperties().Any(p => p.IsEventSourceKeyProperty()) ||
             ((command is ITuple tuple) && tuple.HasEventSourceId());
 
     /// <summary>
@@ -67,29 +64,39 @@ public static class EventSourceExtensions
             var id = values.Find(IsEventSourceIdValue);
             if (id is not null)
             {
-                eventSourceId = ToEventSourceId(id);
+                eventSourceId = ToEventSourceIdOrUnspecified(id);
             }
         }
         else
         {
             var property = command.GetType().GetProperties()
-                .FirstOrDefault(p =>
-                    p.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
-                    IsGenericEventSourceIdType(p.PropertyType) ||
-                    p.HasAttribute<KeyAttribute>());
+                .FirstOrDefault(p => p.IsEventSourceKeyProperty());
 
             if (property is not null)
             {
                 var value = property.GetValue(command);
                 if (value is not null)
                 {
-                    eventSourceId = ToEventSourceId(value);
+                    eventSourceId = ToEventSourceIdOrUnspecified(value);
                 }
             }
         }
 
         return eventSourceId;
     }
+
+    /// <summary>
+    /// Determines whether the given property is the command's event source key — an <see cref="EventSourceId"/>, a
+    /// generic <see cref="EventSourceId{T}"/> subtype, or a property carrying the <see cref="KeyAttribute"/>. For a
+    /// positional record, the key attribute can be carried by the matching primary-constructor parameter instead.
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <returns>True if the property is the event source key; otherwise, false.</returns>
+    internal static bool IsEventSourceKeyProperty(this PropertyInfo property) =>
+        property.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
+        IsGenericEventSourceIdType(property.PropertyType) ||
+        property.HasAttribute<KeyAttribute>() ||
+        HasKeyAttributeOnMatchingConstructorParameter(property);
 
     /// <summary>
     /// Determines whether the given value is an <see cref="EventSourceId"/> or a generic <see cref="EventSourceId{T}"/> subtype.
@@ -143,6 +150,40 @@ public static class EventSourceExtensions
         }
 
         return null;
+    }
+
+    static bool HasKeyAttributeOnMatchingConstructorParameter(PropertyInfo property) =>
+        property.DeclaringType?
+            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .SelectMany(_ => _.GetParameters())
+            .Any(_ =>
+                _.Name == property.Name &&
+                _.ParameterType == property.PropertyType &&
+                _.GetCustomAttribute<KeyAttribute>() is not null) == true;
+
+    /// <summary>
+    /// Converts a value to an <see cref="EventSourceId"/>, returning <see cref="EventSourceId.Unspecified"/> when the
+    /// conversion fails.
+    /// </summary>
+    /// <param name="value">The value to convert.</param>
+    /// <returns>The corresponding <see cref="EventSourceId"/>, or <see cref="EventSourceId.Unspecified"/> when conversion fails.</returns>
+    /// <remarks>
+    /// A key value whose underlying concept is null (for example a generic <see cref="EventSourceId{T}"/> or a concept
+    /// wrapping a null value) would throw inside the implicit conversion. Extracting the event source id runs before
+    /// any command filter, so a throw here would surface as an unhandled server error (HTTP 500) for hostile or partial
+    /// command input. Treat an unconvertible key as an unspecified id instead, letting the command flow reach the
+    /// validation and read-model resolution stages that turn it into a clean response.
+    /// </remarks>
+    static EventSourceId ToEventSourceIdOrUnspecified(object value)
+    {
+        try
+        {
+            return ToEventSourceId(value);
+        }
+        catch (Exception)
+        {
+            return EventSourceId.Unspecified;
+        }
     }
 
     static bool IsGenericEventSourceIdType(Type? type)

@@ -10,6 +10,4 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </summary>
 /// <param name="commandType">The command type that was being processed.</param>
 public class MissingEventSourceIdInCommandContext(Type commandType)
-    : Exception($"No event source id found in command context for command of type '{commandType.FullName}'. Ensure that a {nameof(ICommandContextValuesProvider)} is registered that provides the event source id.")
-{
-}
+    : Exception($"No event source id found in command context for command of type '{commandType.FullName}'. Ensure that a {nameof(ICommandContextValuesProvider)} is registered that provides the event source id.");

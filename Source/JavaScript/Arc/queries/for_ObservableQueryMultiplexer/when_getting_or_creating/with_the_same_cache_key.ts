@@ -15,7 +15,7 @@ describe('when getting or creating with the same cache key', () => {
         factoryCallCount = 0;
         const factory = (): IObservableQueryHubConnection => {
             factoryCallCount++;
-            return { queryCount: 0, lastPingLatency: 0, averageLatency: 0, subscribe: () => {}, unsubscribe: () => {}, dispose: () => {} };
+            return { queryCount: 0, lastPingLatency: 0, averageLatency: 0, isConnected: false, subscribe: () => {}, unsubscribe: () => {}, dispose: () => {} };
         };
         first = getOrCreateMultiplexer(factory, 'test-key', 1);
         second = getOrCreateMultiplexer(factory, 'test-key', 1);

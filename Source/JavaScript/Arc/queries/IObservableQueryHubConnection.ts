@@ -20,6 +20,11 @@ export interface IObservableQueryHubConnection {
     readonly queryCount: number;
 
     /**
+     * Gets whether the physical connection is currently established.
+     */
+    readonly isConnected: boolean;
+
+    /**
      * Gets the latency of the last ping/pong sequence in milliseconds.
      */
     readonly lastPingLatency: number;

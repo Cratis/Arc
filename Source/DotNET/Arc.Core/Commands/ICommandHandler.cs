@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+
 namespace Cratis.Arc.Commands;
 
 /// <summary>
@@ -25,6 +27,11 @@ public interface ICommandHandler
     /// Gets the dependencies required by the handler.
     /// </summary>
     IEnumerable<Type> Dependencies { get; }
+
+    /// <summary>
+    /// Gets the parameters of the handler's handle method.
+    /// </summary>
+    IEnumerable<ParameterInfo> Parameters { get; }
 
     /// <summary>
     /// Gets a value indicating whether anonymous access is allowed for this command.

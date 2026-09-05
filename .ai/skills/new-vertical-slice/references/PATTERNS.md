@@ -13,7 +13,9 @@ namespace MyApp.Projects.Registration;
 /// <summary>
 /// Represents the unique identifier of a project.
 /// </summary>
-public record ProjectId(Guid Value) : ConceptAs<Guid>(Value)
+// Identity concept → derive from EventSourceId<T> (not ConceptAs<Guid>). The base supplies the
+// Guid/EventSourceId/string conversions, so Chronicle resolves the key automatically.
+public record ProjectId(Guid Value) : EventSourceId<Guid>(Value)
 {
     /// <summary>
     /// Gets a sentinel value for an unset identifier.
@@ -21,22 +23,16 @@ public record ProjectId(Guid Value) : ConceptAs<Guid>(Value)
     public static readonly ProjectId NotSet = new(Guid.Empty);
 
     /// <summary>
-    /// Implicitly converts a <see cref="Guid"/> to a <see cref="ProjectId"/>.
-    /// </summary>
-    /// <param name="value">The <see cref="Guid"/> to convert.</param>
-    public static implicit operator ProjectId(Guid value) => new(value);
-
-    /// <summary>
-    /// Implicitly converts a <see cref="ProjectId"/> to an <see cref="EventSourceId"/>.
-    /// </summary>
-    /// <param name="id">The <see cref="ProjectId"/> to convert.</param>
-    public static implicit operator EventSourceId(ProjectId id) => new(id.Value.ToString());
-
-    /// <summary>
     /// Creates a new <see cref="ProjectId"/> with a unique value.
     /// </summary>
     /// <returns>A new <see cref="ProjectId"/>.</returns>
     public static ProjectId New() => new(Guid.NewGuid());
+
+    /// <summary>
+    /// Implicitly converts a <see cref="Guid"/> to a <see cref="ProjectId"/>.
+    /// </summary>
+    /// <param name="value">The <see cref="Guid"/> to convert.</param>
+    public static implicit operator ProjectId(Guid value) => new(value);
 }
 
 /// <summary>
@@ -248,7 +244,7 @@ public record StockDecreased(ISBN Isbn, BookStock StockBeforeDecrease);
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Column } from 'primereact/column';
+import { Column } from '@cratis/components/DataPage';
 import { DataTable } from 'primereact/datatable';
 import { AllProjects } from './AllProjects';
 
@@ -322,27 +318,24 @@ export const AddProject = ({ closeDialog }: DialogProps) => {
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { DialogResult, useDialog } from '@cratis/arc.react/dialogs';
-import { Menubar } from 'primereact/menubar';
-import { MenuItem } from 'primereact/menuitem';
+import { Button } from 'primereact/button';
 import * as mdIcons from 'react-icons/md';
-import { Page } from '../../Core/Page';
+import { Page } from '@cratis/components/Common';
 import { AddProject } from './Registration/AddProject';
 import { Listing } from './Listing/Listing';
 
 export const Projects = () => {
     const [AddProjectDialog, showAddProjectDialog] = useDialog(AddProject);
 
-    const menuItems: MenuItem[] = [
-        {
-            label: 'Add Project',
-            icon: mdIcons.MdAdd,
-            command: async () => { await showAddProjectDialog(); }
-        }
-    ];
-
+    // PrimeReact 11 removed the standalone Menubar; for a query-backed list
+    // page prefer `DataPage` + `<DataPage.MenuItems>`, or compose `Button`s
+    // (content is children in v11) for a custom toolbar.
     return (
         <Page title="Projects">
-            <Menubar model={menuItems} />
+            <Button variant="text" onClick={() => showAddProjectDialog()}>
+                <mdIcons.MdAdd />
+                <span>Add Project</span>
+            </Button>
             <Listing />
             <AddProjectDialog />
         </Page>

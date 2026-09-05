@@ -2,20 +2,34 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Globals } from '../Globals';
-import { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
-import { DataReceived } from './ObservableQueryConnection';
+import type { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
+import type { DataReceived } from './ObservableQueryConnection';
 import { HubConnectionKeepAlive } from './HubConnectionKeepAlive';
-import { IReconnectPolicy } from './IReconnectPolicy';
+import type { IReconnectPolicy } from './IReconnectPolicy';
 import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
-import { HubMessage, HubMessageType, SubscriptionRequest } from './WebSocketHubConnection';
+import {
+    type HubMessage,
+    HubMessageType,
+    type SubscriptionRequest,
+} from './WebSocketHubConnection';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 interface ActiveSubscription {
     request: SubscriptionRequest;
     callback: DataReceived<any>;
+    revision: number;
 }
+
+/**
+ * How many keep-alive intervals of silence are tolerated before the connection is considered dead.
+ *
+ * The server guarantees a message every interval, so this is pure slack for latency and jitter.
+ * It must stay above 1 — a threshold at or below the server's own cadence makes the client and
+ * server timers race, and the client tears down connections the server considers healthy.
+ */
+const IDLE_THRESHOLD_FACTOR = 2;
 
 /**
  * A multiplexed SSE hub connection that uses EventSource for server→client streaming
@@ -37,6 +51,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
     private _connectTimeoutTimer?: ReturnType<typeof setTimeout>;
+    private _nextRevision = 0;
+    private _supportsSubscriptionRevisions = false;
     private readonly _keepAlive: HubConnectionKeepAlive;
 
     /**
@@ -45,9 +61,10 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
      * @param {string} _subscribeUrl The subscribe POST endpoint URL.
      * @param {string} _unsubscribeUrl The unsubscribe POST endpoint URL.
      * @param {string} _microservice The microservice name to pass as a query argument.
-     * @param {number} keepAliveIntervalMs How long without any server message before the connection
-     *   is considered stale and a reconnect is forced (default: 30 000 ms).
-     * @param {number} connectTimeoutMs How long to wait for the {@link HubMessageType.Connected}
+     * @param {number} keepAliveIntervalMs The keep-alive cadence to assume until the server advertises
+     *   its own on the {@link HubMessageType.Connected} message (default: 30 000 ms). The connection is
+     *   considered stale after {@link IDLE_THRESHOLD_FACTOR} times this without any server message.
+     * @param {number} _connectTimeoutMs How long to wait for the {@link HubMessageType.Connected}
      *   message after the HTTP connection opens before giving up and retrying (default: 15 000 ms).
      * @param {IReconnectPolicy} _policy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
@@ -58,29 +75,47 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         private readonly _microservice: string,
         keepAliveIntervalMs: number = 30000,
         private readonly _connectTimeoutMs: number = 15000,
-        private readonly _policy: IReconnectPolicy = new ReconnectPolicy()
+        private readonly _policy: IReconnectPolicy = new ReconnectPolicy(),
     ) {
         // SSE is server→client only: the client cannot send pings. Instead we watch for
         // inactivity — if the server stops sending messages (including its own keep-alive
         // pings) for the entire idle threshold, the connection is stale and we reconnect.
         //
-        // The idle threshold is set to 1.5× the check interval so the server's keep-alive
-        // ping (which fires on the same cadence) has time to arrive over the network before
-        // the client declares the connection dead. Without this tolerance the client's timer
-        // and the server's timer race — the client often fires first and reconnects
-        // unnecessarily.
-        const idleThresholdMs = Math.round(keepAliveIntervalMs * 1.5);
-        this._keepAlive = new HubConnectionKeepAlive(keepAliveIntervalMs, () => {
-            if (!this._disconnected && this._subscriptions.size > 0) {
-                console.warn(`SSE hub: no messages received for ${idleThresholdMs}ms, reconnecting '${this._sseUrl}'`);
-                this.reconnect();
-            }
-        }, idleThresholdMs);
+        // The server guarantees a message at least every keep-alive interval, so the threshold
+        // only has to absorb network latency, timer jitter and server-side scheduling hiccups.
+        // A hard TCP drop surfaces immediately through `onerror`, so this watchdog only needs to
+        // catch silent black-holes — that makes a generous tolerance strictly better than a tight
+        // one, which would tear down healthy connections.
+        //
+        // The interval below is only the starting assumption; the server advertises its real
+        // cadence on the Connected message and {@link handleConnected} reconfigures from it.
+        this._keepAlive = new HubConnectionKeepAlive(
+            keepAliveIntervalMs,
+            () => {
+                if (!this._disconnected && this._subscriptions.size > 0) {
+                    console.warn(
+                        'SSE hub: no messages received; reconnecting',
+                        this._keepAlive.idleThresholdMs,
+                        this._sseUrl,
+                    );
+                    this.reconnect();
+                }
+            },
+            keepAliveIntervalMs * IDLE_THRESHOLD_FACTOR,
+        );
     }
 
     /** @inheritdoc */
     get queryCount(): number {
         return this._subscriptions.size;
+    }
+
+    /** @inheritdoc */
+    get isConnected(): boolean {
+        return (
+            this._connectionId !== undefined &&
+            this._eventSource?.readyState === EventSource.OPEN
+        );
     }
 
     /** @inheritdoc */
@@ -91,18 +126,28 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     /** @inheritdoc */
     get averageLatency(): number {
         if (this._latencySamples.length === 0) return 0;
-        return this._latencySamples.reduce((a, b) => a + b, 0) / this._latencySamples.length;
+        return (
+            this._latencySamples.reduce((a, b) => a + b, 0) / this._latencySamples.length
+        );
     }
 
     /** @inheritdoc */
-    subscribe(queryId: string, request: SubscriptionRequest, callback: DataReceived<any>): void {
-        const sub: ActiveSubscription = { request, callback };
+    subscribe(
+        queryId: string,
+        request: SubscriptionRequest,
+        callback: DataReceived<any>,
+    ): void {
+        const sub: ActiveSubscription = {
+            request,
+            callback,
+            revision: this.getNextRevision(),
+        };
         this._subscriptions.set(queryId, sub);
 
         this.ensureConnected();
 
         if (this._connectionId) {
-            this.sendSubscribe(queryId, request);
+            this.sendSubscribe(queryId, sub);
         } else {
             // Not yet connected, queue for when Connected message arrives.
             this._pendingSubscriptions.set(queryId, sub);
@@ -111,11 +156,12 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
     /** @inheritdoc */
     unsubscribe(queryId: string): void {
+        const subscription = this._subscriptions.get(queryId);
         this._subscriptions.delete(queryId);
         this._pendingSubscriptions.delete(queryId);
 
-        if (this._connectionId) {
-            this.sendUnsubscribe(queryId);
+        if (this._connectionId && subscription) {
+            this.sendUnsubscribe(queryId, subscription.revision);
         }
 
         if (this._subscriptions.size === 0) {
@@ -131,9 +177,22 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._policy.cancel();
         this._keepAlive.stop();
         this.clearConnectTimeout();
-        this._eventSource?.close();
-        this._eventSource = undefined;
+        this.detachAndCloseEventSource();
         this._connectionId = undefined;
+    }
+
+    private detachAndCloseEventSource(): void {
+        const eventSource = this._eventSource;
+        if (!eventSource) return;
+
+        eventSource.onopen = null;
+        eventSource.onmessage = null;
+        eventSource.onerror = null;
+        eventSource.close();
+
+        if (this._eventSource === eventSource) {
+            this._eventSource = undefined;
+        }
     }
 
     private ensureConnected(): void {
@@ -145,6 +204,9 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             return;
         }
 
+        // An immediate subscription can win while a back-off callback is pending. Cancel that callback before
+        // opening, and let openEventSource perform the same live-source guard for already-queued callbacks.
+        this._policy.cancel();
         this.openEventSource();
     }
 
@@ -153,21 +215,16 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._policy.cancel();
         this._keepAlive.stop();
         this.clearConnectTimeout();
-        if (this._eventSource) {
-            // Detach all handlers BEFORE closing so that the async onerror / onmessage
-            // events that fire after close() cannot observe the new _disconnected=false
-            // state set by an immediately following ensureConnected() call. Without this,
-            // a stale onerror triggers an unintended reconnect with exponential back-off.
-            this._eventSource.onopen = null;
-            this._eventSource.onmessage = null;
-            this._eventSource.onerror = null;
-            this._eventSource.close();
-        }
-        this._eventSource = undefined;
+        this.detachAndCloseEventSource();
         this._connectionId = undefined;
     }
 
     private openEventSource(): void {
+        if (this._eventSource && this._eventSource.readyState !== EventSource.CLOSED) {
+            return;
+        }
+
+        this._policy.cancel();
         let url = this._sseUrl;
         if (this._microservice?.length > 0) {
             const param = `${Globals.microserviceWSQueryArgument}=${encodeURIComponent(this._microservice)}`;
@@ -175,11 +232,15 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         }
 
         this._connectionId = undefined;
-        this._eventSource = new EventSource(url);
+        this._supportsSubscriptionRevisions = false;
+        const eventSource = Globals.eventSourceFactory
+            ? Globals.eventSourceFactory(url)
+            : new EventSource(url);
+        this._eventSource = eventSource;
 
-        this._eventSource.onopen = () => {
-            if (this._disconnected) return;
-            console.log(`SSE hub connection established: '${url}'`);
+        eventSource.onopen = () => {
+            if (this._disconnected || this._eventSource !== eventSource) return;
+            console.log('SSE hub connection established', url);
             this._policy.reset();
             this._keepAlive.start();
 
@@ -187,22 +248,30 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             // connection is broken. Close and retry via the reconnect policy.
             this.clearConnectTimeout();
             this._connectTimeoutTimer = setTimeout(() => {
-                if (!this._disconnected && !this._connectionId) {
-                    console.warn(`SSE hub: no Connected message within ${this._connectTimeoutMs}ms, retrying '${url}'`);
+                if (
+                    !this._disconnected &&
+                    this._eventSource === eventSource &&
+                    !this._connectionId
+                ) {
+                    console.warn(
+                        'SSE hub: no Connected message within timeout; retrying',
+                        this._connectTimeoutMs,
+                        url,
+                    );
                     this.reconnect();
                 }
             }, this._connectTimeoutMs);
         };
 
-        this._eventSource.onmessage = (event: MessageEvent) => {
-            if (this._disconnected) return;
+        eventSource.onmessage = (event: MessageEvent) => {
+            if (this._disconnected || this._eventSource !== eventSource) return;
             this._keepAlive.recordActivity();
             this.handleMessage(event.data as string);
         };
 
-        this._eventSource.onerror = () => {
-            if (this._disconnected) return;
-            console.warn(`SSE hub connection error: '${url}'`);
+        eventSource.onerror = () => {
+            if (this._disconnected || this._eventSource !== eventSource) return;
+            console.warn('SSE hub connection error', url);
             this.reconnect();
         };
     }
@@ -211,9 +280,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._keepAlive.stop();
         this.clearConnectTimeout();
 
-        // Close the EventSource so the reconnect policy manages the schedule.
-        this._eventSource?.close();
-        this._eventSource = undefined;
+        // Detach before closing so callbacks already queued by the retired source are inert.
+        this.detachAndCloseEventSource();
         this._connectionId = undefined;
 
         // Move all active subscriptions to pending so they re-subscribe when
@@ -226,7 +294,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
 
         this._policy.schedule(() => {
             if (!this._disconnected && this._subscriptions.size > 0) {
-                this.openEventSource();
+                this.ensureConnected();
             }
         }, this._sseUrl);
     }
@@ -253,11 +321,19 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     // Server-sent keep-alive ping — activity already recorded in onmessage.
                     break;
                 case HubMessageType.Unauthorized:
-                    console.warn(`SSE hub: query '${message.queryId}' unauthorized`);
-                    this.handleUnauthorized(message);
+                    if (this.isMessageForCurrentSubscription(message)) {
+                        console.warn('SSE hub: query unauthorized', message.queryId);
+                        this.handleUnauthorized(message);
+                    }
                     break;
                 case HubMessageType.Error:
-                    console.error(`SSE hub: query '${message.queryId}' error:`, message.payload);
+                    if (this.isMessageForCurrentSubscription(message)) {
+                        console.error(
+                            'SSE hub: query error',
+                            message.queryId,
+                            message.payload,
+                        );
+                    }
                     break;
             }
         } catch (error) {
@@ -266,24 +342,58 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     }
 
     private handleConnected(message: HubMessage): void {
-        this._connectionId = message.payload as string;
-        console.log(`SSE hub: connected with id '${this._connectionId}'`);
+        const connectionId = message.payload as string;
+        const connectionIdChanged = this._connectionId !== connectionId;
+        this._connectionId = connectionId;
+        this._supportsSubscriptionRevisions =
+            message.supportsSubscriptionRevisions === true;
+        console.log('SSE hub: connected', this._connectionId);
 
         // Connected message arrived — cancel the connect timeout.
         this.clearConnectTimeout();
 
-        // Send all pending subscriptions now that we have a connection ID.
-        for (const [queryId, sub] of this._pendingSubscriptions) {
-            this.sendSubscribe(queryId, sub.request);
+        this.applyServerKeepAliveInterval(message.keepAliveIntervalMs);
+
+        // The active collection is authoritative. A previous connection's subscribe POST may
+        // still be in flight, so relying only on pending subscriptions can orphan a query when
+        // the server assigns a new connection ID before that POST completes.
+        if (connectionIdChanged) {
+            for (const [queryId, subscription] of this._subscriptions) {
+                this.sendSubscribe(queryId, subscription);
+            }
         }
         this._pendingSubscriptions.clear();
+    }
+
+    /**
+     * Align the idle watchdog with the keep-alive cadence the server actually runs on.
+     *
+     * Without this the client assumes the default interval, so a server configured with a longer
+     * interval — or with keep-alive switched off entirely — would look silent and be reconnected
+     * on a loop even though it is perfectly healthy.
+     * @param {number | undefined} serverIntervalMs The interval advertised by the server, if any.
+     */
+    private applyServerKeepAliveInterval(serverIntervalMs?: number): void {
+        if (serverIntervalMs === undefined) return;
+
+        // Keep-alive disabled server-side: silence is expected, so watching for it would guarantee
+        // an endless reconnect loop. Hard drops still surface through `onerror`.
+        if (serverIntervalMs <= 0) {
+            this._keepAlive.stop();
+            return;
+        }
+
+        this._keepAlive.reconfigure(
+            serverIntervalMs,
+            serverIntervalMs * IDLE_THRESHOLD_FACTOR,
+        );
     }
 
     private handleQueryResult(message: HubMessage): void {
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
-        if (!sub) return;
+        if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
         const result = message.payload as QueryResult<any>;
         sub.callback(result);
@@ -293,25 +403,37 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
-        if (!sub) return;
+        if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
         this._subscriptions.delete(message.queryId);
         this._pendingSubscriptions.delete(message.queryId);
         sub.callback(QueryResult.unauthorized());
     }
 
-    private sendSubscribe(queryId: string, request: SubscriptionRequest, attempt: number = 0): void {
+    private sendSubscribe(
+        queryId: string,
+        subscription: ActiveSubscription,
+        attempt: number = 0,
+    ): void {
         if (!this._connectionId || this._disconnected) return;
 
-        // Capture the connection ID so retries can detect if a reconnect has already fired
-        // for a different reason and made this retry obsolete.
+        // Capture the connection ID and subscription instance so retries can detect whether
+        // either has been replaced while this request is in flight.
         const connectionId = this._connectionId;
 
-        const body = {
+        const body: {
+            connectionId: string;
+            queryId: string;
+            request: SubscriptionRequest;
+            revision?: number;
+        } = {
             connectionId,
             queryId,
-            request,
+            request: subscription.request,
         };
+        if (this._supportsSubscriptionRevisions) {
+            body.revision = subscription.revision;
+        }
 
         const customHeaders = Globals.httpHeadersCallback?.() ?? {};
 
@@ -328,32 +450,137 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...customHeaders },
             body: JSON.stringify(body),
-        }).then(response => {
-            if (!response.ok) {
-                if (attempt < maxRetries && this._connectionId === connectionId && !this._disconnected) {
-                    setTimeout(() => this.sendSubscribe(queryId, request, attempt + 1), retryDelayMs * (attempt + 1));
-                } else if (this._connectionId === connectionId && !this._disconnected) {
-                    console.warn(`SSE hub: subscribe POST for '${queryId}' returned ${response.status} after ${attempt + 1} attempt(s), reconnecting`);
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    if (
+                        !this.isCurrentSubscription(queryId, subscription, connectionId)
+                    ) {
+                        console.warn(
+                            'SSE hub: subscribe POST returned a failure for an obsolete connection or subscription; ignoring',
+                            queryId,
+                            response.status,
+                        );
+                    } else if (attempt < maxRetries) {
+                        setTimeout(
+                            () => {
+                                if (
+                                    this.isCurrentSubscription(
+                                        queryId,
+                                        subscription,
+                                        connectionId,
+                                    )
+                                ) {
+                                    this.sendSubscribe(
+                                        queryId,
+                                        subscription,
+                                        attempt + 1,
+                                    );
+                                }
+                            },
+                            retryDelayMs * (attempt + 1),
+                        );
+                    } else {
+                        console.warn(
+                            'SSE hub: subscribe POST failed after retries; reconnecting',
+                            queryId,
+                            response.status,
+                            attempt + 1,
+                        );
+                        this.reconnect();
+                    }
+                }
+            })
+            .catch((error) => {
+                if (!this.isCurrentSubscription(queryId, subscription, connectionId)) {
+                    console.warn(
+                        'SSE hub: subscribe POST failed for an obsolete connection or subscription; ignoring',
+                        queryId,
+                        error,
+                    );
+                } else if (attempt < maxRetries) {
+                    setTimeout(
+                        () => {
+                            if (
+                                this.isCurrentSubscription(
+                                    queryId,
+                                    subscription,
+                                    connectionId,
+                                )
+                            ) {
+                                this.sendSubscribe(queryId, subscription, attempt + 1);
+                            }
+                        },
+                        retryDelayMs * (attempt + 1),
+                    );
+                } else {
+                    console.error(
+                        'SSE hub: subscribe POST failed after retries; reconnecting',
+                        queryId,
+                        attempt + 1,
+                        error,
+                    );
                     this.reconnect();
                 }
-            }
-        }).catch(error => {
-            if (attempt < maxRetries && this._connectionId === connectionId && !this._disconnected) {
-                setTimeout(() => this.sendSubscribe(queryId, request, attempt + 1), retryDelayMs * (attempt + 1));
-            } else if (this._connectionId === connectionId && !this._disconnected) {
-                console.error(`SSE hub: subscribe POST failed for '${queryId}' after ${attempt + 1} attempt(s), reconnecting`, error);
-                this.reconnect();
-            }
-        });
+            });
     }
 
-    private sendUnsubscribe(queryId: string): void {
+    private isMessageForCurrentSubscription(message: HubMessage): boolean {
+        if (!message.queryId) return false;
+
+        const subscription = this._subscriptions.get(message.queryId);
+        if (!subscription) return false;
+
+        if (!this._supportsSubscriptionRevisions) {
+            return message.revision === undefined;
+        }
+
+        return (
+            this.isValidRevision(message.revision) &&
+            message.revision === subscription.revision
+        );
+    }
+
+    private isCurrentSubscription(
+        queryId: string,
+        subscription: ActiveSubscription,
+        connectionId: string,
+    ): boolean {
+        return (
+            !this._disconnected &&
+            this._connectionId === connectionId &&
+            this._subscriptions.get(queryId) === subscription
+        );
+    }
+
+    private getNextRevision(): number {
+        if (this._nextRevision >= Number.MAX_SAFE_INTEGER) {
+            throw new RangeError(
+                'SSE hub subscription revision exhausted the safe integer range',
+            );
+        }
+
+        return ++this._nextRevision;
+    }
+
+    private isValidRevision(revision: number | undefined): revision is number {
+        return revision !== undefined && Number.isSafeInteger(revision) && revision > 0;
+    }
+
+    private sendUnsubscribe(queryId: string, revision: number): void {
         if (!this._connectionId) return;
 
-        const body = {
+        const body: {
+            connectionId: string;
+            queryId: string;
+            revision?: number;
+        } = {
             connectionId: this._connectionId,
             queryId,
         };
+        if (this._supportsSubscriptionRevisions) {
+            body.revision = revision;
+        }
 
         const customHeaders = Globals.httpHeadersCallback?.() ?? {};
 
@@ -361,8 +588,8 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...customHeaders },
             body: JSON.stringify(body),
-        }).catch(error => {
-            console.error(`SSE hub: unsubscribe POST failed for '${queryId}'`, error);
+        }).catch((error) => {
+            console.error('SSE hub: unsubscribe POST failed', queryId, error);
         });
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Microsoft.ClearScript.V8;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
@@ -19,16 +20,14 @@ public sealed class JavaScriptRuntime : IDisposable
     /// </summary>
     public JavaScriptRuntime()
     {
-        var assemblyDir = Path.GetDirectoryName(typeof(JavaScriptRuntime).Assembly.Location);
-
-        // Find workspace root by looking for directory containing node_modules
-        _workspaceRoot = FindDirectoryInHierarchy(assemblyDir, "node_modules")
-            ?? throw new DirectoryNotFoundException("Could not find workspace root (node_modules directory not found in parent hierarchy)");
-
-        // Find JavaScript source directory
-        var javaScriptParent = FindDirectoryInHierarchy(assemblyDir, "JavaScript")
-            ?? throw new DirectoryNotFoundException("Could not find JavaScript source directory in parent hierarchy");
-        _javaScriptDirectory = Path.Combine(javaScriptParent, "JavaScript");
+        // The repository root - and with it the yarn workspace's single hoisted node_modules and the
+        // Source/JavaScript tree - is resolved once, deterministically, from the global.json marker in
+        // JavaScriptResources. Walking the assembly's own directory hierarchy for the nearest ancestor named
+        // "node_modules"/"JavaScript" is not deterministic: a build target may copy a partial node_modules
+        // folder into one target framework's own bin output, and that nearer, incomplete copy would then shadow
+        // the real workspace root for that framework only.
+        _workspaceRoot = JavaScriptResources.NodeModulesRoot;
+        _javaScriptDirectory = Path.Join(JavaScriptResources.RepoRoot, "Source", "JavaScript");
 
         Engine = new V8ScriptEngine();
         Engine.AddHostObject("__readTypeScriptFile", new Func<string, string>(ReadTypeScriptFile));
@@ -46,12 +45,37 @@ public sealed class JavaScriptRuntime : IDisposable
     /// Transpiles TypeScript code to JavaScript.
     /// </summary>
     /// <param name="typeScriptCode">The TypeScript code to transpile.</param>
+    /// <param name="experimentalDecorators">Whether the legacy TypeScript decorator transform is enabled.</param>
     /// <returns>The transpiled JavaScript code.</returns>
-    public string TranspileTypeScript(string typeScriptCode)
+    public string TranspileTypeScript(string typeScriptCode, bool experimentalDecorators = true)
     {
-        var escapedCode = typeScriptCode.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
-        var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, experimentalDecorators: true, emitDecoratorMetadata: true }})");
+        var escapedCode = EscapeForTemplateLiteral(typeScriptCode);
+        var decoratorOptions = experimentalDecorators
+            ? "experimentalDecorators: true, emitDecoratorMetadata: true"
+            : "experimentalDecorators: false";
+        var result = Evaluate($"ts.transpile(`{escapedCode}`, {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, {decoratorOptions} }})");
         return result?.ToString() ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Gets the syntactic diagnostics the TypeScript compiler reports for a piece of code.
+    /// </summary>
+    /// <param name="typeScriptCode">The TypeScript code to check.</param>
+    /// <param name="experimentalDecorators">Whether the legacy TypeScript decorator transform is enabled.</param>
+    /// <returns>The diagnostic messages; empty when the code parses cleanly.</returns>
+    /// <remarks>
+    /// <see cref="TranspileTypeScript"/> emits best-effort output even for code that does not parse, so a non-empty
+    /// transpilation proves nothing. This surfaces what the compiler actually objects to, so a spec can assert on an
+    /// empty collection and show the offending messages when it fails.
+    /// </remarks>
+    public IReadOnlyList<string> GetSyntacticDiagnostics(string typeScriptCode, bool experimentalDecorators = true)
+    {
+        var escapedCode = EscapeForTemplateLiteral(typeScriptCode);
+        var decoratorOptions = experimentalDecorators
+            ? "experimentalDecorators: true, emitDecoratorMetadata: true"
+            : "experimentalDecorators: false";
+        var result = Evaluate($"JSON.stringify((ts.transpileModule(`{escapedCode}`, {{ compilerOptions: {{ target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, {decoratorOptions} }}, reportDiagnostics: true }}).diagnostics || []).map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')))");
+        return JsonSerializer.Deserialize<string[]>(result?.ToString() ?? "[]") ?? [];
     }
 
     /// <summary>
@@ -115,15 +139,16 @@ public sealed class JavaScriptRuntime : IDisposable
                        "            if (!globalThis.exports) { globalThis.exports = globalThis.module.exports; }\n" +
                        "        ");
 
-        // Load reflect-metadata polyfill directly
+        // Load the Reflect metadata polyfill directly so the API is available globally
+        // before any script that relies on it runs.
         try
         {
-            var reflectMetadata = ReadJavaScriptFile("node_modules/reflect-metadata/Reflect.js");
-            Engine.Execute(reflectMetadata);
+            var reflectionPolyfill = ReadJavaScriptFile("node_modules/@cratis/fundamentals/dist/cjs/reflection.js");
+            Engine.Execute(reflectionPolyfill);
         }
         catch
         {
-            // Ignore errors loading reflect-metadata
+            // Ignore errors loading the reflection polyfill
         }
     }
 
@@ -161,21 +186,6 @@ public sealed class JavaScriptRuntime : IDisposable
         return File.Exists(fullPath);
     }
 
-    static string? FindDirectoryInHierarchy(string startPath, string directoryName)
-    {
-        var currentDir = new DirectoryInfo(startPath);
-
-        while (currentDir != null)
-        {
-            var targetPath = Path.Combine(currentDir.FullName, directoryName);
-            if (Directory.Exists(targetPath))
-            {
-                return currentDir.FullName;
-            }
-
-            currentDir = currentDir.Parent;
-        }
-
-        return null;
-    }
+    static string EscapeForTemplateLiteral(string code) =>
+        code.Replace("\\", "\\\\").Replace("`", "\\`").Replace("$", "\\$");
 }

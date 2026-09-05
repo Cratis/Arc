@@ -17,6 +17,7 @@ Each item includes:
 - `route`: The resolved command route.
 - `type`: Fully qualified command type name.
 - `documentationSummary`: Summary text from type metadata when available.
+- `payloadSchema`: JSON Schema describing the command payload contract (fields/properties and types).
 
 ## Typical uses
 

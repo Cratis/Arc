@@ -29,10 +29,11 @@ For matched operations it:
 3. Adds 400, 403, and 500 error response schemas.
 
 ```csharp
-// The handler is automatically discovered and the endpoint is documented
-public class CreateInvoiceCommandHandler : ICommandHandler<CreateInvoice>
+// The command is automatically discovered and the endpoint is documented
+[Command]
+public record CreateInvoice(CustomerId Customer, decimal Amount)
 {
-    public Task Handle(CreateInvoice command, CommandContext context) { ... }
+    public Task Handle() { ... }
 }
 ```
 
@@ -53,7 +54,7 @@ For query performers that support paging, the following query parameters are add
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sortBy` | `string` | Field name to sort by |
+| `sortby` | `string` | Field name to sort by |
 | `sortDirection` | `string` (`asc` \| `desc`) | Sort direction |
 | `pageSize` | `integer` | Number of items per page |
 | `page` | `integer` | Page number (0-based) |

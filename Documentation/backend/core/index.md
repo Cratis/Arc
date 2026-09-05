@@ -37,8 +37,8 @@ Arc.Core is designed for developers who want the power of Arc's developer experi
 
 Many Arc features work across both Arc.Core and ASP.NET Core:
 
-- [Tenancy](../tenancy/overview.md) - Tenant isolation and context management
-- [Identity](../identity.md) - Core identity system and user details
+- [Tenancy](../tenancy/index.md) - Tenant isolation and context management
+- [Identity](../identity/index.md) - Core identity system and user details
 - [Commands](../commands/index.md) - Command handling patterns
 - [Queries](../queries/index.md) - Query patterns and conventions
 - [Chronicle](../chronicle/index.md) - Event sourcing and CQRS

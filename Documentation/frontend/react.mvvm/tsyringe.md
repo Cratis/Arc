@@ -16,11 +16,11 @@ In your `tsconfig.json` make sure to enable the following compiler options:
 }
 ```
 
-In addition to this, you will also need the `reflect-metadata` package installed and included in your project at the top of the `index.tsx` file for
-your application.
+In addition to this, Tsyringe needs the `Reflect` metadata API to be available at runtime. Cratis Arc ships a lightweight
+polyfill for this (provided by `@cratis/fundamentals`) and loads it automatically when you import `@cratis/arc`, so there is
+nothing extra to install or set up.
 
 ```tsx
-import 'reflect-metadata';
 import { App } from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -30,7 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 ```
 
-This will enable the necessary reflection metadata for Tsyringe to work properly.
+This enables the necessary reflection metadata for Tsyringe to work properly.
 
 ## Vite
 
@@ -58,7 +58,7 @@ a dependency to in your view models. Within the package sits a type called `Bind
 > Note: If you're using the [MVVM context](./mvvm-context.md) all bindings are automatically configured for the MVVM scenario and you are good to go and you can skip this step.
 
 ```ts
-import { Bindings } from '@cratis/arc.react.mvvm`;
+import { Bindings } from '@cratis/arc.react.mvvm';
 
 Bindings.initialize();
 ```

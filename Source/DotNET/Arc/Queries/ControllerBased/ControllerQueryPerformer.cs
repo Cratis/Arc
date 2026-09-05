@@ -7,6 +7,7 @@ using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Tasks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -42,12 +43,15 @@ public class ControllerQueryPerformer(
     public IEnumerable<string> Location { get; } = actionDescriptor.ControllerTypeInfo.Namespace?.Split('.') ?? [];
 
     /// <inheritdoc/>
+    public string? CustomRoute { get; } = GetCustomRoute(actionDescriptor);
+
+    /// <inheritdoc/>
     public IEnumerable<Type> Dependencies { get; } = [typeof(IServiceProvider)];
 
     /// <inheritdoc/>
     public QueryParameters Parameters { get; } = new(actionDescriptor.MethodInfo.GetParameters()
         .Where(_ => !IsDependencyParameter(_, serviceProviderIsService))
-        .Select(_ => new QueryParameter(_.Name ?? string.Empty, _.ParameterType)));
+        .Select(_ => new QueryParameter(_.Name ?? string.Empty, _.ParameterType, !IsNullableOrOptional(_))));
 
     /// <inheritdoc/>
     public bool AllowsAnonymousAccess { get; } = actionDescriptor.MethodInfo.IsAnonymousAllowed();
@@ -70,7 +74,7 @@ public class ControllerQueryPerformer(
             var args = GetMethodArguments(_performMethod.GetParameters(), context.Arguments ?? QueryArguments.Empty, serviceProvider);
             var invocationResult = _performMethod.Invoke(controller, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-            return result;
+            return UnwrapMvcResult(result);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {
@@ -249,6 +253,55 @@ public class ControllerQueryPerformer(
         }
 
         return true;
+    }
+
+    static object? UnwrapMvcResult(object? result)
+    {
+        if (result is null)
+        {
+            return null;
+        }
+
+        if (result is ObjectResult objectResult)
+        {
+            return objectResult.Value;
+        }
+
+        if (result is JsonResult jsonResult)
+        {
+            return jsonResult.Value;
+        }
+
+        var resultType = result.GetType();
+        if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(ActionResult<>))
+        {
+            var nestedResult = resultType.GetProperty("Result")?.GetValue(result);
+            if (nestedResult is not null)
+            {
+                return UnwrapMvcResult(nestedResult);
+            }
+
+            return resultType.GetProperty("Value")?.GetValue(result);
+        }
+
+        return result;
+    }
+
+    static string? GetCustomRoute(ControllerActionDescriptor actionDescriptor)
+    {
+        // Check for Route attribute on method or controller type
+        var routeAttribute = actionDescriptor.MethodInfo.GetCustomAttributes(true)
+            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute") ??
+            actionDescriptor.ControllerTypeInfo.GetCustomAttributes(true)
+            .FirstOrDefault(a => a.GetType().Name == "RouteAttribute");
+
+        if (routeAttribute != null)
+        {
+            var routeProperty = routeAttribute.GetType().GetProperty("Route");
+            return routeProperty?.GetValue(routeAttribute) as string;
+        }
+
+        return null;
     }
 #pragma warning restore SA1204 // Static members should appear before non-static members
 }

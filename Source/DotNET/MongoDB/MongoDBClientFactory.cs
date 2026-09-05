@@ -53,7 +53,10 @@ public class MongoDBClientFactory(
 
     MongoClient CreateImplementation(MongoClientSettings settings)
     {
-        settings.DirectConnection = options.Value.DirectConnection;
+        if (options.Value.DirectConnection is true)
+        {
+            settings.DirectConnection = true;
+        }
         settings.RetryReads = true;
         settings.RetryWrites = true;
         settings.ClusterConfigurator = builder => ClusterConfigurator(settings, builder);

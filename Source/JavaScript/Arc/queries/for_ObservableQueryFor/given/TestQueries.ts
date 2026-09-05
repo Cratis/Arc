@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { ObservableQueryFor } from '../../ObservableQueryFor';
-import { Constructor } from '@cratis/fundamentals';
+import { Constructor, DateOnly, field, TimeOnly } from '@cratis/fundamentals';
 import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
 
 export class TestObservableQuery extends ObservableQueryFor<string, { id: string }> {
@@ -34,6 +34,35 @@ export class TestEnumerableQuery extends ObservableQueryFor<string[], { category
 
     constructor() {
         super(String as Constructor, true);
+    }
+}
+
+export class TestCalendarChild {
+    @field(DateOnly)
+    date!: DateOnly;
+
+    @field(TimeOnly)
+    time!: TimeOnly;
+}
+
+export class TestCalendarItem {
+    @field(TestCalendarChild, true)
+    children!: TestCalendarChild[];
+}
+
+export class TestCalendarEnumerableQuery extends ObservableQueryFor<TestCalendarItem[], { category: string }> {
+    readonly route = '/api/calendar-items/{category}';
+    readonly defaultValue: TestCalendarItem[] = [];
+    readonly parameterDescriptors: ParameterDescriptor[] = [
+        new ParameterDescriptor('category', String as Constructor)
+    ];
+
+    get requiredRequestParameters(): string[] {
+        return ['category'];
+    }
+
+    constructor() {
+        super(TestCalendarItem, true);
     }
 }
 

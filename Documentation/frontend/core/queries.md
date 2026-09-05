@@ -160,6 +160,6 @@ The system provides comprehensive error handling for queries:
 ## Next Steps
 
 - Learn about [React query integration](../react/queries/index.md) for React-specific query patterns
-- Explore [Commands](./commands.md) for state modification operations
+- Explore [Commands](./commands/index.md) for state modification operations
 - Understand [MVVM patterns](../react.mvvm/index.md) for more sophisticated frontend architectures
 - Set up [Proxy Generation](../../backend/proxy-generation/index.md) to automatically generate your query proxies

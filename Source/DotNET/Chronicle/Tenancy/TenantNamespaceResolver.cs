@@ -13,10 +13,15 @@ namespace Cratis.Arc.Chronicle.Tenancy;
 public class TenantNamespaceResolver(ITenantIdAccessor tenantIdAccessor) : IEventStoreNamespaceResolver
 {
     /// <inheritdoc/>
+    /// <remarks>
+    /// The default tenant — unset, or named <see cref="TenantId.Default"/> — maps to Chronicle's default
+    /// namespace. Storage that partitions by tenant has to agree with this mapping; see
+    /// <see cref="TenantId.IsDefault"/>.
+    /// </remarks>
     public EventStoreNamespaceName Resolve()
     {
         var tenantId = tenantIdAccessor.Current;
-        return tenantId == TenantId.NotSet
+        return tenantId.IsDefault
             ? EventStoreNamespaceName.Default
             : new EventStoreNamespaceName(tenantId.Value);
     }

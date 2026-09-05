@@ -7,10 +7,12 @@ using System.Reflection;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Queries;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Reducers;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -20,18 +22,16 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ReadModelServiceCollectionExtensions
 {
-    static readonly MethodInfo _releaseWithSubjectMethod = typeof(IReadModels)
+    static readonly MethodInfo _releaseMethod = typeof(IReadModels)
         .GetMethods()
         .Single(_ =>
         {
             var parameters = _.GetParameters();
             return _.Name == nameof(IReadModels.Release) &&
                    _.IsGenericMethodDefinition &&
-                   parameters.Length == 2 &&
-                   parameters[0].ParameterType == typeof(Subject) &&
-                   parameters[1].ParameterType.IsGenericParameter;
+                   parameters.Length == 1 &&
+                   parameters[0].ParameterType.IsGenericParameter;
         });
-    static bool _initialized;
 
     /// <summary>
     /// Adds read model auto-discovery and registration to the service collection.
@@ -39,33 +39,35 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="services">The <see cref="IServiceCollection"/> to add to.</param>
     /// <param name="clientArtifactsProvider">The <see cref="IClientArtifactsProvider"/> for client artifacts.</param>
     /// <returns>The service collection for continuation.</returns>
+    /// <remarks>
+    /// A read model is injectable into command-scoped code (a <c>CommandValidator&lt;&gt;</c>, <c>Provide()</c>, or
+    /// <c>Handle()</c>) because it is resolvable by key (the resolved event source id) through <see cref="IReadModels"/>.
+    /// What makes a read model resolvable that way is a Chronicle backing artifact, so this registers every read model
+    /// that has a projection, model-bound projection, or reducer — independent of whether it also carries the Arc-level
+    /// <c>[ReadModel]</c> attribute. It deliberately does not register read models by <c>[ReadModel]</c> alone: that
+    /// attribute is an Arc concept that does not imply Chronicle key resolution, and a read model backed by another
+    /// provider (for example Entity Framework Core) is registered by that provider, not here.
+    /// </remarks>
     public static IServiceCollection AddReadModels(this IServiceCollection services, IClientArtifactsProvider clientArtifactsProvider)
     {
-        if (_initialized)
-        {
-            return services;
-        }
-        _initialized = true;
-
-        var readModelTypesFromProjections = clientArtifactsProvider.Projections
-            .Select(GetReadModelTypeFromProjection)
-            .Where(type => type?.IsClass == true && !type.IsAbstract)
-            .Cast<Type>();
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
         var modelBoundReadModels = clientArtifactsProvider.ModelBoundProjections
             .Where(type => type.IsClass && !type.IsAbstract);
-        var readModelTypes = readModelTypesFromProjections
+
+        // A read model is registered for command-scope resolution because it is resolvable by key through
+        // IReadModels. That resolvability comes from a Chronicle backing artifact, so the set is the union of the
+        // read model types behind each backing kind. Adding a future backing kind is one more ReadModelTargetsFrom.
+        var readModelTypes = ReadModelTargetsFrom(clientArtifactsProvider.Projections, typeof(IProjectionFor<>))
             .Concat(modelBoundReadModels)
+            .Concat(ReadModelTargetsFrom(clientArtifactsProvider.Reducers, typeof(IReducerFor<>)))
             .Distinct()
             .ToArray();
-        foreach (var readModelType in readModelTypes)
-        {
-            services.RemoveAll(readModelType);
-            services.AddScoped(readModelType, serviceProvider => ResolveReadModel(
-                readModelType,
-                serviceProvider.GetRequiredService<CommandContext>(),
-                serviceProvider.GetRequiredService<IReadModels>()));
-        }
+
+        // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
+        // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
+        // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
+        services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
 
         return services;
     }
@@ -76,33 +78,57 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
-    /// <returns>The resolved read model instance.</returns>
-    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context does not contain a usable event source id.</exception>
-    internal static object ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
+    /// <returns>The resolved read model instance, or null when it does not exist.</returns>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
+    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
     {
         var eventSourceId = commandContext.GetEventSourceId();
         if (eventSourceId == EventSourceId.Unspecified)
         {
+            // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
+            // usable key) can never resolve one — for a nullable and a non-nullable dependency alike. That is invalid
+            // client input, not "the entity does not exist", so returning null would be misleading and letting the
+            // throw fall through as-is would be an unhandled server error. UnableToResolveReadModelFromCommandContext
+            // implements IValidationFailure, so the pipeline surfaces it as a validation failure (HTTP 400). A
+            // valid-but-not-found read model still resolves to null below.
             throw new UnableToResolveReadModelFromCommandContext(readModelType);
         }
 
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
         var subject = commandContext.GetSubject();
 
-        return subject is null
+        // A never-created or removed read model resolves to null; there is nothing to release (decrypt),
+        // and releasing null would dereference it while resolving the compliance subject. Hand back the
+        // null so command-side code can inject a nullable read model and treat null as "does not exist".
+        return subject is null || readModel is null
             ? readModel
-            : ReleaseReadModel(readModels, readModelType, subject, readModel);
+            : ReleaseReadModel(readModels, readModelType, readModel);
     }
+
+    /// <summary>
+    /// Extracts the read model target types behind a set of backing artifacts that implement a given open generic
+    /// interface (for example <see cref="IProjectionFor{T}"/> or <see cref="IReducerFor{T}"/>).
+    /// </summary>
+    /// <param name="artifactTypes">The backing artifact types to inspect.</param>
+    /// <param name="openGenericInterface">The open generic interface whose single type argument is the read model type.</param>
+    /// <returns>The concrete read model types behind the artifacts.</returns>
+    static IEnumerable<Type> ReadModelTargetsFrom(IEnumerable<Type> artifactTypes, Type openGenericInterface) =>
+        artifactTypes
+            .Select(artifactType => artifactType.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == openGenericInterface)
+                ?.GetGenericArguments()[0])
+            .Where(type => type?.IsClass == true && !type.IsAbstract)
+            .Cast<Type>();
 
     [UnconditionalSuppressMessage("AOT", "IL2060", Justification = "IReadModels.Release<T> has no non-generic overload. The read model types are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IReadModels.Release<T> has no non-generic overload. The read model types are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
-    static object ReleaseReadModel(IReadModels readModels, Type readModelType, Subject subject, object readModel)
+    static object ReleaseReadModel(IReadModels readModels, Type readModelType, object readModel)
     {
         try
         {
-            var task = (Task)_releaseWithSubjectMethod
+            var task = (Task)_releaseMethod
                 .MakeGenericMethod(readModelType)
-                .Invoke(readModels, [subject, readModel])!;
+                .Invoke(readModels, [readModel])!;
 
             task.GetAwaiter().GetResult();
 
@@ -110,15 +136,7 @@ public static class ReadModelServiceCollectionExtensions
         }
         catch (Exception exception)
         {
-            throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}' with subject '{subject.Value}'.", exception);
+            throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}'.", exception);
         }
-    }
-
-    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "The projection types from IClientArtifactsProvider are discovered at startup and their interfaces are preserved. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
-    static Type? GetReadModelTypeFromProjection(Type projectionType)
-    {
-        var projectionInterface = projectionType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionFor<>));
-        return projectionInterface?.GetGenericArguments()[0];
     }
 }

@@ -25,6 +25,33 @@ public interface IEndpointMapper
     void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null);
 
     /// <summary>
+    /// Maps an endpoint for the given HTTP method.
+    /// </summary>
+    /// <param name="httpMethod">The HTTP method (e.g. GET, POST, QUERY) to map.</param>
+    /// <param name="pattern">The route pattern.</param>
+    /// <param name="handler">The handler for the request.</param>
+    /// <param name="metadata">Optional metadata for the endpoint (tags, name, etc.).</param>
+    /// <remarks>
+    /// This is the general extension point for mapping endpoints — new HTTP methods (such as QUERY)
+    /// are supported by passing the method token, without changing the callers. The default
+    /// implementation dispatches GET and POST to <see cref="MapGet"/> and <see cref="MapPost"/> and
+    /// ignores any other method; implementers that support additional verbs (such as QUERY) override this.
+    /// </remarks>
+    void MapMethod(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
+    {
+        switch (httpMethod.ToUpperInvariant())
+        {
+            case "GET":
+                MapGet(pattern, handler, metadata);
+                break;
+
+            case "POST":
+                MapPost(pattern, handler, metadata);
+                break;
+        }
+    }
+
+    /// <summary>
     /// Checks if an endpoint with the given name already exists.
     /// </summary>
     /// <param name="name">The endpoint name.</param>

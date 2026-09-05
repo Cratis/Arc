@@ -3,7 +3,10 @@
 
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { useSuspenseObservableQuery, clearSuspenseObservableQueryCache } from '../useSuspenseObservableQuery';
+import {
+    useSuspenseObservableQuery,
+    clearSuspenseObservableQueryCache,
+} from '../useSuspenseObservableQuery';
 import { FakeSuspenseObservableQuery } from './FakeSuspenseObservableQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
 import { QueryResult } from '@cratis/arc/queries';
@@ -14,11 +17,15 @@ describe('when waiting for first data', () => {
     const config: ArcConfiguration = {
         microservice: 'test-microservice',
         apiBasePath: '/api',
-        origin: 'https://example.com'
+        origin: 'https://example.com',
     };
 
     beforeEach(() => {
+        clearSuspenseObservableQueryCache();
         FakeSuspenseObservableQuery.reset();
+    });
+
+    afterEach(() => {
         clearSuspenseObservableQueryCache();
     });
 
@@ -34,16 +41,22 @@ describe('when waiting for first data', () => {
                 { value: config },
                 React.createElement(
                     React.Suspense,
-                    { fallback: React.createElement('div', { 'data-testid': 'loading' }, 'Loading...') },
-                    React.createElement(TestComponent)
-                )
-            )
+                    {
+                        fallback: React.createElement(
+                            'div',
+                            { 'data-testid': 'loading' },
+                            'Loading...',
+                        ),
+                    },
+                    React.createElement(TestComponent),
+                ),
+            ),
         );
 
         screen.getByTestId('loading');
     });
 
-    it('should render with data after first observable emission', async () => {
+    it('should treat an observable emission with omitted readiness as ready for compatibility', async () => {
         let capturedResult: any = null;
 
         const TestComponent = () => {
@@ -59,33 +72,85 @@ describe('when waiting for first data', () => {
                 React.createElement(
                     React.Suspense,
                     { fallback: React.createElement('div', null, 'Loading...') },
-                    React.createElement(TestComponent)
-                )
-            )
+                    React.createElement(TestComponent),
+                ),
+            ),
         );
 
         const callback = FakeSuspenseObservableQuery.subscribeCallbacks[0];
         callback!.should.not.be.undefined;
 
         await act(async () => {
-            callback(new QueryResult({
-                data: [{ id: '1', name: 'Test' }],
-                isSuccess: true,
-                isAuthorized: true,
-                isValid: true,
-                hasExceptions: false,
-                validationResults: [],
-                exceptionMessages: [],
-                exceptionStackTrace: '',
-                paging: { page: 0, size: 0, totalItems: 1, totalPages: 1 }
-            }, Array, true));
+            callback(
+                new QueryResult(
+                    {
+                        data: [{ id: '1', name: 'Test' }],
+                        isSuccess: true,
+                        isAuthorized: true,
+                        isValid: true,
+                        hasExceptions: false,
+                        validationResults: [],
+                        exceptionMessages: [],
+                        exceptionStackTrace: '',
+                        paging: { page: 0, size: 0, totalItems: 1, totalPages: 1 },
+                    },
+                    Array,
+                    true,
+                ),
+            );
         });
 
         screen.getByTestId('content');
 
         capturedResult!.should.not.be.null;
         capturedResult!.isPerforming.should.be.false;
+        capturedResult!.isReady.should.be.true;
         capturedResult!.isSuccess.should.be.true;
     });
-});
 
+    it('should unsubscribe once when the ready consumer unmounts', async () => {
+        const TestComponent = () => {
+            useSuspenseObservableQuery(FakeSuspenseObservableQuery);
+            return React.createElement('div', { 'data-testid': 'content' }, 'loaded');
+        };
+
+        const rendered = render(
+            React.createElement(
+                ArcContext.Provider,
+                { value: config },
+                React.createElement(
+                    React.Suspense,
+                    { fallback: React.createElement('div', null, 'Loading...') },
+                    React.createElement(TestComponent),
+                ),
+            ),
+        );
+
+        const callback = FakeSuspenseObservableQuery.subscribeCallbacks[0];
+        await act(async () => {
+            callback(
+                new QueryResult(
+                    {
+                        data: [{ id: '1', name: 'Test' }],
+                        isSuccess: true,
+                        isAuthorized: true,
+                        isValid: true,
+                        hasExceptions: false,
+                        validationResults: [],
+                        exceptionMessages: [],
+                        exceptionStackTrace: '',
+                        paging: { page: 0, size: 0, totalItems: 1, totalPages: 1 },
+                    },
+                    Array,
+                    true,
+                ),
+            );
+        });
+
+        await act(async () => {
+            rendered.unmount();
+        });
+
+        FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(1);
+    });
+});

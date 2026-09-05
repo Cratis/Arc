@@ -2,11 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
+using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandPipeline_with_events.given;
@@ -19,15 +21,20 @@ public class a_command_pipeline_with_event_handlers : Specification
     protected ICommandResponseValueHandlers _commandResponseValueHandlers;
     protected ICommandContextModifier _commandContextModifier;
     protected ICommandContextValuesBuilder _commandContextValuesBuilder;
+    protected ICommandHandlerArgumentResolver _commandHandlerArgumentResolver;
     protected IServiceProvider _serviceProvider;
     protected IServiceScopeFactory _serviceScopeFactory;
     protected IEventLog _eventLog;
     protected IEventTypes _eventTypes;
+    protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
     protected CommandPipeline _commandPipeline;
     protected CorrelationId _correlationId;
     protected SingleEventCommandResponseValueHandler _singleEventHandler;
     protected EventsCommandResponseValueHandler _eventsHandler;
     protected SubjectCommandResponseValueHandler _subjectHandler;
+    protected SingleEventForEventSourceIdCommandResponseValueHandler _singleEventForEventSourceIdHandler;
+    protected EventsForEventSourceIdCommandResponseValueHandler _eventsForEventSourceIdHandler;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -39,6 +46,10 @@ public class a_command_pipeline_with_event_handlers : Specification
         _commandHandlerProviders = Substitute.For<ICommandHandlerProviders>();
         _commandContextModifier = Substitute.For<ICommandContextModifier>();
         _commandContextValuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
+        _commandHandlerArgumentResolver = Substitute.For<ICommandHandlerArgumentResolver>();
+        _commandHandlerArgumentResolver
+            .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
+            .Returns(_ => new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution([], CommandResult.Success(_correlationId))));
         _serviceProvider = Substitute.For<IServiceProvider>();
 
         var serviceScope = Substitute.For<IServiceScope>();
@@ -49,9 +60,13 @@ public class a_command_pipeline_with_event_handlers : Specification
         // Set up event handling infrastructure
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
-        _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes);
-        _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes);
+        _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
+        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(Substitute.For<IConcurrencyScopeStrategy>());
+        _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
+        _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _subjectHandler = new SubjectCommandResponseValueHandler();
+        _singleEventForEventSourceIdHandler = new SingleEventForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
+        _eventsForEventSourceIdHandler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
 
         // Set up successful append results
         var successfulAppendResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);
@@ -78,14 +93,18 @@ public class a_command_pipeline_with_event_handlers : Specification
             Arg.Any<IEnumerable<string>?>(),
             Arg.Any<ConcurrencyScope>()).Returns(successfulAppendManyResult);
 
-        // Create a command response value handlers that includes event handlers
+        // Create a command response value handlers that includes all event handlers
         _commandResponseValueHandlers = Substitute.For<ICommandResponseValueHandlers>();
         _commandResponseValueHandlers.CanHandle(Arg.Any<CommandContext>(), Arg.Any<object>())
             .Returns(callInfo =>
             {
                 var ctx = callInfo.ArgAt<CommandContext>(0);
                 var value = callInfo.ArgAt<object>(1);
-                return _singleEventHandler.CanHandle(ctx, value) || _eventsHandler.CanHandle(ctx, value) || _subjectHandler.CanHandle(ctx, value);
+                return _singleEventHandler.CanHandle(ctx, value)
+                    || _eventsHandler.CanHandle(ctx, value)
+                    || _singleEventForEventSourceIdHandler.CanHandle(ctx, value)
+                    || _eventsForEventSourceIdHandler.CanHandle(ctx, value)
+                    || _subjectHandler.CanHandle(ctx, value);
             });
 
         _commandResponseValueHandlers.When(_ => _.UpdateContext(Arg.Any<CommandContext>(), Arg.Any<object>()))
@@ -112,6 +131,14 @@ public class a_command_pipeline_with_event_handlers : Specification
                 {
                     return await _eventsHandler.Handle(ctx, value);
                 }
+                if (_singleEventForEventSourceIdHandler.CanHandle(ctx, value))
+                {
+                    return await _singleEventForEventSourceIdHandler.Handle(ctx, value);
+                }
+                if (_eventsForEventSourceIdHandler.CanHandle(ctx, value))
+                {
+                    return await _eventsForEventSourceIdHandler.Handle(ctx, value);
+                }
                 if (_subjectHandler.CanHandle(ctx, value))
                 {
                     return await _subjectHandler.Handle(ctx, value);
@@ -126,9 +153,25 @@ public class a_command_pipeline_with_event_handlers : Specification
             _commandResponseValueHandlers,
             _commandContextModifier,
             _commandContextValuesBuilder,
-            _serviceScopeFactory);
+            _commandHandlerArgumentResolver,
+            new KnownInstancesOf<ICommandExecutionScope>([]),
+            _serviceScopeFactory,
+            CreateActivitySource<CommandPipeline>());
     }
 
-    protected record TestEvent(string Name);
-    protected record AnotherTestEvent(int Value);
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
+        return activitySource;
+    }
+
+    public record TestEvent(string Name);
+    public record AnotherTestEvent(int Value);
 }

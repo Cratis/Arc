@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Serialization;
+
 namespace Cratis.Arc.EntityFrameworkCore;
 
 /// <summary>
@@ -19,4 +21,11 @@ public class EntityFrameworkCoreOptions
     /// Defaults to true.
     /// </summary>
     public bool AutoDiscoverDbContexts { get; set; } = true;
+
+    /// <summary>
+    /// Gets the additional <see cref="JsonConverter"/> instances to include when serializing and
+    /// deserializing <c>[Json]</c>-annotated entity properties. These converters are appended after
+    /// the built-in Arc defaults (ConceptAs, Enum, DateOnly, TimeOnly, Type, Uri, …).
+    /// </summary>
+    public IList<JsonConverter> JsonConverters { get; } = [];
 }

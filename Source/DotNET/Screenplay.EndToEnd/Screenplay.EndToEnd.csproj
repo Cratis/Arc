@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <AssemblyName>Cratis.Arc.Screenplay.EndToEnd</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay.EndToEnd</RootNamespace>
+        <!-- Set as the plural so that the multi targeting the repository defaults to in Release is really replaced
+             rather than only overridden for the inner build, which would restore this for frameworks the workspace
+             packages do not support. This runs on one framework because it is a check rather than something shipped. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Screenplay/Screenplay.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Reading a real project rather than source strings is the whole point of this check. -->
+        <PackageReference Include="Microsoft.Build.Locator" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+        <!-- Without the C# language services a loaded project silently produces no compilation at all. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <!-- MSBuild itself has to come from the SDK that MSBuildLocator registers, never from the output folder. -->
+        <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.NET.StringTools" ExcludeAssets="runtime" PrivateAssets="all" />
+    </ItemGroup>
+</Project>

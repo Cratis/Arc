@@ -76,15 +76,15 @@ Both query methods support paging automatically because they return `IQueryable<
 
 ## Observable queries with paging
 
-Observable queries that return `ISubject<IQueryable<T>>` also support automatic paging. The pipeline applies paging to each update pushed through the observable:
+Observable queries that return `ISubject<IEnumerable<T>>` also support automatic paging. The pipeline applies paging to each update pushed through the observable:
 
 ```csharp
 [ReadModel]
 public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
 {
-    public static ISubject<IQueryable<DebitAccount>> ObserveAllAccounts(
+    public static ISubject<IEnumerable<DebitAccount>> ObserveAllAccounts(
         IMongoCollection<DebitAccount> collection)
-        => collection.ObserveAsQueryable();
+        => collection.Observe();
 }
 ```
 

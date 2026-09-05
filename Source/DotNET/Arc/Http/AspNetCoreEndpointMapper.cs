@@ -20,8 +20,37 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
             ? endpoints.MapGroup(string.Empty)
             : endpoints.MapGroup(groupPrefix);
 
+    readonly HashSet<string> _mapped = new(StringComparer.Ordinal);
+    IReadOnlySet<string>? _preExisting;
+
+    /// <summary>
+    /// Gets the names of the endpoints that were already registered when this mapper started mapping.
+    /// </summary>
+    /// <remarks>
+    /// Taken once, on first use, rather than per registration. Asking the route builder is not a lookup - it
+    /// rebuilds the entire endpoint table (see <c>EndpointNames</c>) - so doing it for every endpoint made
+    /// mapping cost grow with the square of the number of commands and queries.
+    /// A mapper is created immediately before the pass that uses it and nothing else registers endpoints during
+    /// that pass, so a single snapshot plus the names this mapper has since added is the same answer.
+    /// </remarks>
+    IReadOnlySet<string> PreExisting => _preExisting ??= endpoints.EndpointNames();
+
     /// <inheritdoc/>
-    public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
+    public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
+        Map("GET", pattern, handler, metadata);
+
+    /// <inheritdoc/>
+    public void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
+        Map("POST", pattern, handler, metadata);
+
+    /// <inheritdoc/>
+    public void MapMethod(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
+        Map(httpMethod, pattern, handler, metadata);
+
+    /// <inheritdoc/>
+    public bool EndpointExists(string name) => _mapped.Contains(name) || PreExisting.Contains(name);
+
+    void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
         Delegate requestHandler = async (HttpContext httpContext) =>
         {
@@ -31,35 +60,22 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
             await handler(context);
         };
 
-        var builder = _group.MapGet(pattern, requestHandler);
+        var builder = _group.MapMethods(pattern, [httpMethod], requestHandler);
 
-        ApplyMetadata((RouteHandlerBuilder)(object)builder, metadata);
+        ApplyMetadata(builder, metadata);
     }
-
-    /// <inheritdoc/>
-    public void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
-    {
-        Delegate requestHandler = async (HttpContext httpContext) =>
-        {
-            var context = new AspNetCoreHttpRequestContext(httpContext);
-            var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-            accessor.Current = context;
-            await handler(context);
-        };
-
-        var builder = _group.MapPost(pattern, requestHandler);
-
-        ApplyMetadata((RouteHandlerBuilder)(object)builder, metadata);
-    }
-
-    /// <inheritdoc/>
-    public bool EndpointExists(string name) => endpoints.EndpointExists(name);
 
     void ApplyMetadata(RouteHandlerBuilder builder, EndpointMetadata? metadata)
     {
         if (metadata is null) return;
 
+        if (metadata.ExcludeFromApiDescription)
+        {
+            builder.ExcludeFromDescription();
+        }
+
         builder.WithName(metadata.Name);
+        _mapped.Add(metadata.Name);
 
         if (!string.IsNullOrEmpty(metadata.Summary))
         {

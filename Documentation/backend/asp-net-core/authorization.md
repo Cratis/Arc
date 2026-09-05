@@ -364,46 +364,68 @@ Queries also support both authorization approaches for data protection:
 ### Using Standard Authorization for Queries
 
 ```csharp
-[Query]
+[ReadModel]
 [Authorize(Roles = "Admin,Manager")]
-public record GetUserAuditLog(
-    string UserId,
-    DateTime FromDate,
-    DateTime ToDate);
+public record UserAuditLog(string UserId, DateTime Occurred, string Action)
+{
+    public static IEnumerable<UserAuditLog> GetUserAuditLog(
+        IMongoCollection<UserAuditLog> collection,
+        string userId,
+        DateTime fromDate,
+        DateTime toDate) =>
+        collection.Find(entry =>
+            entry.UserId == userId &&
+            entry.Occurred >= fromDate &&
+            entry.Occurred <= toDate).ToList();
+}
 ```
 
 ### Using the Roles Attribute for Queries
 
 ```csharp
-[Query]
+[ReadModel]
 [Roles("Manager", "Admin", "Auditor")]
-public record GetUserAuditLog(
-    string UserId,
-    DateTime FromDate,
-    DateTime ToDate);
+public record UserAuditLog(string UserId, DateTime Occurred, string Action)
+{
+    public static IEnumerable<UserAuditLog> GetUserAuditLog(
+        IMongoCollection<UserAuditLog> collection,
+        string userId,
+        DateTime fromDate,
+        DateTime toDate) =>
+        collection.Find(entry =>
+            entry.UserId == userId &&
+            entry.Occurred >= fromDate &&
+            entry.Occurred <= toDate).ToList();
+}
 
-[Query]
+[ReadModel]
 [Roles("Viewer", "Editor", "Admin")]
-public record GetProductDetails(string ProductId);
+public record ProductDetails(string ProductId, string Name, decimal Price)
+{
+    public static ProductDetails? GetProductDetails(
+        IMongoCollection<ProductDetails> collection,
+        string productId) =>
+        collection.Find(product => product.ProductId == productId).FirstOrDefault();
+}
 ```
 
 ### Authorization Results for Queries
 
-Query results include authorization status that can be checked:
+Model-bound queries are invoked by calling their static method directly. The
+authorization attributes are enforced by the query pipeline before the method runs,
+so a caller that lacks the required roles never reaches the query logic:
 
 ```csharp
-var result = await mediator.Send(new GetUserAuditLogQuery("user123", DateTime.Now.AddDays(-30), DateTime.Now));
+var auditLog = UserAuditLog.GetUserAuditLog(
+    collection,
+    "user123",
+    DateTime.Now.AddDays(-30),
+    DateTime.Now);
 
-if (!result.IsAuthorized)
+// Use the returned data
+foreach (var entry in auditLog)
 {
-    // Handle unauthorized access
-    return Unauthorized();
-}
-
-if (result.IsSuccess)
-{
-    // Query executed successfully, use result.Data
-    var auditLog = result.Data;
+    // Process each audit log entry
 }
 ```
 
@@ -472,7 +494,7 @@ public class QueryAuthorizationFilter : IQueryFilter
         // Custom authorization logic for queries
         if (!IsAuthorized(context))
         {
-            return Task.FromResult(QueryResult.Unauthorized(context.CorrelationId, "Access denied"));
+            return Task.FromResult(QueryResult.Unauthorized(context.CorrelationId));
         }
         
         return Task.FromResult(QueryResult.Success(context.CorrelationId));
@@ -519,7 +541,7 @@ This filter is automatically registered and executes before command handlers and
 
 ## Integration with Identity
 
-Authorization works seamlessly with the [Identity](../identity.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
+Authorization works seamlessly with the [Identity](../identity/index.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
 
 ```csharp
 public class IdentityDetailsProvider : IProvideIdentityDetails
@@ -553,5 +575,5 @@ Authorization attributes work seamlessly with the [proxy generator](../proxy-gen
 - [Model-Bound Commands](../commands/model-bound/index.md) - Model-bound command authorization
 - [Queries](../queries/index.md) - Query documentation
 - [Command Filters](../commands/command-filters.md) - Including the AuthorizationFilter
-- [Identity](../identity.md) - Identity and authentication setup
+- [Identity](../identity/index.md) - Identity and authentication setup
 - [Microsoft Identity](microsoft-identity.md) - Microsoft Identity integration

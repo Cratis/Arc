@@ -65,6 +65,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     }
 
     /// <inheritdoc/>
+    public void MapMethod(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
+    {
+        MapRoute(httpMethod, pattern, handler, metadata);
+    }
+
+    /// <inheritdoc/>
     public bool EndpointExists(string name)
     {
         return _endpoints.ContainsKey(name);

@@ -124,7 +124,9 @@ dotnet_diagnostic.IDE0055.severity = none
 # prefere brace indentation when creating objects etc
 csharp_indent_braces = false
 
-[{**/*.Specs/**/*.cs,Integration/**/*.cs}]
+# A specification is recognized by where it sits as well as by the project it is in, because a slice is specified
+# beside the source it specifies - a `when_<behavior>` folder inside the application project, not a project of its own.
+[{**/*.Specs/**/*.cs,Integration/**/*.cs,**/when_*/**.cs}]
 dotnet_diagnostic.CA1001.severity = none
 dotnet_diagnostic.CA1008.severity = none
 dotnet_diagnostic.CA1024.severity = none

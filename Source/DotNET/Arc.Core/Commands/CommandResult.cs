@@ -59,6 +59,12 @@ public class CommandResult
     public string AuthorizationFailureReason { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets the response value carried by this result, if any, boxed as an <see cref="object"/>. This lets a caller
+    /// read the response without knowing its concrete generic type.
+    /// </summary>
+    protected internal virtual object? ResponseValue => null;
+
+    /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing a successful command execution.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
@@ -90,6 +96,23 @@ public class CommandResult
     public static CommandResult Error(CorrelationId correlationId, string message) => new() { CorrelationId = correlationId, ExceptionMessages = [message] };
 
     /// <summary>
+    /// Creates a new <see cref="CommandResult"/> representing a request body that could not be read or deserialized.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
+    /// <returns>A <see cref="CommandResult"/> that is a validation failure (mapping to HTTP 400), carrying no internal detail.</returns>
+    /// <remarks>
+    /// A malformed or wrong-typed request body is a client error, not a server fault. This surfaces it as a
+    /// validation failure (so the endpoint returns 400) without echoing the underlying parser message.
+    /// </remarks>
+    public static CommandResult InvalidBody(CorrelationId correlationId) => new()
+    {
+        CorrelationId = correlationId,
+        ValidationResults = [ValidationResult.Error(
+            "The request body could not be read or is not valid for this command.",
+            reason: ValidationResultReason.MalformedRequest)]
+    };
+
+    /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing an error.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
@@ -98,12 +121,33 @@ public class CommandResult
     public static CommandResult Error(CorrelationId correlationId, Exception exception) => new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 
     /// <summary>
+    /// Creates a new <see cref="CommandResult"/> from an exception.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
+    /// <param name="exception">The exception to convert.</param>
+    /// <returns>A <see cref="CommandResult"/>.</returns>
+    /// <remarks>
+    /// An exception implementing <see cref="IValidationFailure"/> represents invalid client input and becomes a
+    /// validation failure (mapping to HTTP 400); any other exception becomes an error result (HTTP 500). This lets
+    /// code running inside the pipeline reject a command as invalid without knowing how the result is serialized.
+    /// </remarks>
+    public static CommandResult FromException(CorrelationId correlationId, Exception exception) =>
+        exception is IValidationFailure validationFailure
+            ? new() { CorrelationId = correlationId, ValidationResults = [validationFailure.ValidationResult] }
+            : Error(correlationId, exception);
+
+    /// <summary>
     /// Merges the results of one or more <see cref="CommandResult"/> instances into this.
     /// </summary>
     /// <param name="commandResults">Params of <see cref="CommandResult"/> to merge with.</param>
     public void MergeWith(params CommandResult[] commandResults)
     {
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
+        if (string.IsNullOrEmpty(AuthorizationFailureReason))
+        {
+            AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
+        }
+
         ValidationResults = [.. ValidationResults, .. commandResults.SelectMany(r => r.ValidationResults)];
         ExceptionMessages = [.. ExceptionMessages, .. commandResults.SelectMany(r => r.ExceptionMessages)];
         ExceptionStackTrace = string.Join(Environment.NewLine, new[] { ExceptionStackTrace }.Concat(commandResults.Select(r => r.ExceptionStackTrace)));
@@ -111,6 +155,20 @@ public class CommandResult
         {
             ExceptionStackTrace = ExceptionStackTrace[Environment.NewLine.Length..];
         }
+    }
+
+    /// <summary>
+    /// Removes the response value carried by this result, if any. This lets a caller holding an untyped
+    /// <see cref="CommandResult"/> remove the response without knowing its concrete generic type.
+    /// </summary>
+    /// <remarks>
+    /// A response is bound onto the result the moment the handler produces it - before the command's execution scopes
+    /// complete, and therefore before a transaction has committed. Anything failing after that point leaves a result
+    /// that is not successful yet still carries a value the caller must not act on. This is the seam that lets the
+    /// pipeline take that value back. The base result carries no response, so this does nothing.
+    /// </remarks>
+    protected internal virtual void ClearResponse()
+    {
     }
 }
 
@@ -152,10 +210,16 @@ public class CommandResult<TResponse> : CommandResult
     /// </summary>
     public TResponse? Response { get; set; }
 
+    /// <inheritdoc/>
+    protected internal override object? ResponseValue => Response;
+
     /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing a successful command execution.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
     /// <returns>A <see cref="CommandResult{T}"/>.</returns>
     public static new CommandResult<TResponse> Success(CorrelationId correlationId) => new() { CorrelationId = correlationId };
+
+    /// <inheritdoc/>
+    protected internal override void ClearResponse() => Response = default;
 }

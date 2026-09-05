@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Validation;
+using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -13,9 +14,11 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <param name="contextModifier">The <see cref="ICommandContextModifier"/> to use for setting the current command context.</param>
 /// <param name="contextValuesBuilder">The <see cref="ICommandContextValuesBuilder"/> to use for building command context values.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 public class CommandActionFilter(
     ICommandContextModifier contextModifier,
-    ICommandContextValuesBuilder contextValuesBuilder) : IAsyncActionFilter
+    ICommandContextValuesBuilder contextValuesBuilder,
+    IActivitySource<CommandActionFilter> activitySource) : IAsyncActionFilter
 {
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -28,6 +31,8 @@ public class CommandActionFilter(
             var exceptionStackTrace = string.Empty;
             ActionExecutedContext? result = null;
             object? response = null;
+            var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
+            using var span = activitySource.OnCommand(routeTemplate);
 
             var ignoreValidation = context.ShouldIgnoreValidation();
             var isValidationRequest = IsValidationRequest(context);
@@ -69,14 +74,26 @@ public class CommandActionFilter(
                 }
             }
 
+            var blockingValidationResults = FilterValidationResults(validationResult, treatWarningsAsErrors, ignoreWarnings);
+
             var commandResult = new CommandResult<object>
             {
                 CorrelationId = context.HttpContext.GetCorrelationId(),
-                ValidationResults = FilterValidationResults(validationResult, treatWarningsAsErrors, ignoreWarnings),
+                ValidationResults = blockingValidationResults,
                 ExceptionMessages = [.. exceptionMessages],
                 ExceptionStackTrace = exceptionStackTrace ?? string.Empty,
                 Response = response
             };
+
+            // A response describes what the command produced. A controller action that threw, or whose input was
+            // rejected, produced nothing the caller may act on - so its response must never travel back in the error
+            // response body. The result itself decides what "did not succeed" means, exactly as the command pipeline
+            // does for model-bound commands, rather than this filter keeping a second copy of that predicate that
+            // would quietly disagree the moment another outcome (an unauthorized one, say) is added to it.
+            if (!commandResult.IsSuccess)
+            {
+                commandResult.Response = null;
+            }
 
             context.HttpContext.Response.SetResponseStatusCode(commandResult);
 
@@ -149,7 +166,8 @@ public class CommandActionFilter(
             commandType,
             command,
             [],
-            values);
+            values,
+            CancellationToken: context.HttpContext.RequestAborted);
 
         contextModifier.SetCurrent(commandContext);
     }

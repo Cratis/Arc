@@ -12,10 +12,12 @@ namespace Cratis.Arc.Http;
 /// <param name="AllowAnonymous">Whether anonymous access is allowed.</param>
 /// <param name="RequestBodyType">The type of the request body, if any.</param>
 /// <param name="ResponseType">The type of the response body, if any.</param>
+/// <param name="ExcludeFromApiDescription">Whether the endpoint should be excluded from the generated API description (e.g. OpenAPI).</param>
 public record EndpointMetadata(
     string Name,
     string? Summary = default,
     IEnumerable<string>? Tags = default,
     bool AllowAnonymous = false,
     Type? RequestBodyType = default,
-    Type? ResponseType = default);
+    Type? ResponseType = default,
+    bool ExcludeFromApiDescription = false);

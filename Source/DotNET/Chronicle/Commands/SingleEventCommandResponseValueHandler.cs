@@ -4,6 +4,7 @@
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -12,7 +13,16 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </summary>
 /// <param name="eventLog">The event log to append events to.</param>
 /// <param name="eventTypes">The event types.</param>
-public class SingleEventCommandResponseValueHandler(IEventLog eventLog, IEventTypes eventTypes) : ICommandResponseValueHandler
+/// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
+/// <remarks>
+/// This handler intentionally has no typed response declaration. Its event-type registry decides at runtime whether
+/// an arbitrary value is a domain event; declaring <see cref="object"/> would incorrectly hide every client response
+/// type from generated proxies.
+/// </remarks>
+public class SingleEventCommandResponseValueHandler(
+    IEventLog eventLog,
+    IEventTypes eventTypes,
+    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>
@@ -24,21 +34,25 @@ public class SingleEventCommandResponseValueHandler(IEventLog eventLog, IEventTy
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var eventSourceId = commandContext.GetEventSourceId();
-        var concurrencyScope = ConcurrencyScopeBuilder.BuildFromCommandContext(commandContext);
-        var result = await eventLog.Append(
-            eventSourceId,
-            value,
-            commandContext.GetEventStreamType(),
-            commandContext.GetEventStreamId(),
-            commandContext.GetEventSourceType(),
-            correlationId: default,
-            concurrencyScope: concurrencyScope,
-            subject: commandContext.GetSubject());
-
-        if (!result.IsSuccess)
+        var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(commandContext, concurrencyScopeStrategies.GetFor(eventLog), eventSourceId);
+        if (!eventLog.TryEnrollForCommand(eventSourceId, value, commandContext, concurrencyScope))
         {
-            return result.ToCommandResult();
+            var result = await eventLog.Append(
+                eventSourceId,
+                value,
+                commandContext.GetEventStreamType(),
+                commandContext.GetEventStreamId(),
+                commandContext.GetEventSourceType(),
+                correlationId: default,
+                concurrencyScope: concurrencyScope,
+                subject: commandContext.GetSubject());
+
+            if (!result.IsSuccess)
+            {
+                return result.ToCommandResult();
+            }
         }
+
         return CommandResult.Success(commandContext.CorrelationId);
     }
 }

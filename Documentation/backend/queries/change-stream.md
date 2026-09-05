@@ -74,4 +74,4 @@ PropertyInfo? idProp = ChangeSetComputor.FindIdentityProperty(typeof(MyReadModel
 
 - [Change Stream — Frontend](../../frontend/react/queries/change-stream.md) — React `useChangeStream()` hook, transfer mode configuration, and usage examples.
 - [Observable Query Demultiplexer](observable-query-demultiplexer.md) — The backend component that manages WebSocket and SSE connections and invokes the `ChangeSetComputor`.
-- [Observable Query Hub](observable-query-hub.md) — Wire protocol reference for observable query connections.
+- [Observable Query Hub](observable-query-demultiplexer.md) — Wire protocol reference for observable query connections.

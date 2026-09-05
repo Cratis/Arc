@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Validation;
 using Cratis.Execution;
+using Cratis.Traces;
 
 namespace Cratis.Arc.Queries.for_QueryPipeline.given;
 
@@ -19,6 +20,7 @@ public class a_query_pipeline : Specification
     protected IQueryPerformer _queryPerformer;
     protected CorrelationId _correlationId;
     protected IDiscoverableValidators _discoverableValidators;
+    System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
@@ -45,6 +47,20 @@ public class a_query_pipeline : Specification
             _queryPerformerProviders,
             _queryRenderers,
             _readModelInterceptors,
-            _discoverableValidators);
+            _discoverableValidators,
+            CreateActivitySource<QueryPipeline>());
+    }
+
+    void Cleanup()
+    {
+        _activitySource?.Dispose();
+    }
+
+    IActivitySource<T> CreateActivitySource<T>()
+    {
+        var activitySource = Substitute.For<IActivitySource<T>>();
+        _activitySource = new System.Diagnostics.ActivitySource("Cratis.Arc.Test");
+        activitySource.ActualSource.Returns(_activitySource);
+        return activitySource;
     }
 }

@@ -81,7 +81,8 @@ public class AggregateRootMutation(
     /// <inheritdoc/>
     public async Task<AggregateRootCommitResult> Commit()
     {
-        var eventCount = UncommittedEvents.Count;
+        var events = UncommittedEvents;
+        var eventCount = events.Count;
         await aggregateRootContext.UnitOfWOrk.Commit();
 
         IEnumerable<EventSequenceNumber> sequenceNumbers = [];
@@ -90,7 +91,11 @@ public class AggregateRootMutation(
         {
             aggregateRootContext.NextSequenceNumber = lastCommittedEventSequenceNumber + 1;
 
-            if (eventCount > 0)
+            // Only derive sequence numbers when this aggregate's events are the whole unit of work. When the unit of
+            // work also carries events from elsewhere — for example a second aggregate committed through the same
+            // shared unit of work — the tail-minus-count arithmetic would attribute the wrong numbers, so report none
+            // rather than fabricate them.
+            if (eventCount > 0 && aggregateRootContext.UnitOfWOrk.GetEvents().Count() == eventCount)
             {
                 var firstSequenceNumber = lastCommittedEventSequenceNumber.Value - (ulong)(eventCount - 1);
                 sequenceNumbers = Enumerable.Range(0, eventCount)
@@ -100,6 +105,9 @@ public class AggregateRootMutation(
         }
 
         UncommittedEvents = ImmutableList<object>.Empty;
-        return AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, sequenceNumbers);
+
+        // Report this aggregate's own events, not the whole unit of work, so Events and SequenceNumbers correspond
+        // one-to-one. Violations and errors are legitimately unit-of-work wide and stay sourced from it.
+        return AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, events, sequenceNumbers);
     }
 }

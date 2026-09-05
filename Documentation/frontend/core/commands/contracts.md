@@ -7,15 +7,22 @@ Core command support in `@cratis/arc` is built around typed command classes gene
 The core command interface provides execution and state-management capabilities:
 
 ```typescript
-interface ICommand<TCommandContent = object, TCommandResponse = object> {
+interface ICommand<TCommandContent = object, TCommandResponse = object> extends ICanBeConfigured {
     readonly route: string;
-    execute(): Promise<CommandResult<TCommandResponse>>;
+    readonly roles: string[];
+    readonly propertyDescriptors: PropertyDescriptor[];
+    execute(
+        allowedSeverity?: ValidationResultSeverity,
+        ignoreWarnings?: boolean
+    ): Promise<CommandResult<TCommandResponse>>;
+    validate(): Promise<CommandResult<TCommandResponse>>;
     clear(): void;
     setInitialValues(values: TCommandContent): void;
     setInitialValuesFromCurrentValues(): void;
     revertChanges(): void;
-    hasChanges: boolean;
-    onPropertyChanged(callback: PropertyChanged, thisArg?: any): void;
+    readonly hasChanges: boolean;
+    propertyChanged(property: string): void;
+    onPropertyChanged(callback: PropertyChanged, thisArg: object): void;
 }
 ```
 
@@ -27,6 +34,7 @@ Commands track property changes automatically.
 - `setInitialValues()` sets an explicit baseline.
 - `setInitialValuesFromCurrentValues()` snapshots current values as baseline.
 - `revertChanges()` restores baseline values.
+- `validate()` runs the server-side authorization and validation path without executing the handler.
 
 ## Property Change Notifications
 

@@ -1,27 +1,43 @@
 ---
-uid: Arc.Chronicle.Tenancy
+title: Tenancy
+description: Each tenant's events and projections land in their own Chronicle namespace automatically, resolved from Arc's tenant context with no per-query filtering.
 ---
 
-# Tenancy in Chronicle
+The usual way multi-tenancy goes wrong is a forgotten `WHERE TenantId = ...`. One query misses the filter and one tenant sees another's data. The defense is discipline, applied everywhere, forever.
 
-Chronicle uses tenant context to keep event streams and projections isolated between tenants. When you enable the Chronicle extension for Arc, a tenant-aware namespace resolver is automatically registered so each tenant writes to its own event store [namespace](xref:Chronicle.Namespaces).
+Chronicle removes the filter instead of asking you to remember it. Each tenant gets its own **namespace** — a separate event store partition — so there is no shared table to accidentally read across. Arc wires the two together: whatever resolved Arc's tenant for the current request also picks the Chronicle namespace, automatically.
 
-## TenantNamespaceResolver
+## What you write
 
-`TenantNamespaceResolver` maps the resolved tenant ID to the Chronicle event store [namespace](xref:Chronicle.Namespaces):
+Nothing. Adding the Chronicle integration registers `TenantNamespaceResolver`, and from then on every append, projection, and query runs in the current tenant's namespace:
 
-- When a tenant is resolved, the [namespace](xref:Chronicle.Namespaces) is set to the tenant ID.
-- When no tenant is resolved, the default [namespace](xref:Chronicle.Namespaces) is used.
+```csharp
+[Command]
+public record RegisterAuthor(AuthorId Id, AuthorName Name)
+{
+    public AuthorRegistered Handle() => new(Name);
+}
+```
 
-This keeps event data separated without requiring manual namespace management in your application code.
+That command is tenant-aware. There is no tenant parameter, no filter, and no namespace argument — the event lands in the namespace belonging to whoever made the request.
 
-## How It Is Wired
+## The mapping rule
 
-When you add the Chronicle extension for Arc, the tenant namespace resolver is automatically hooked up as part of the Chronicle integration. You do not need to register it manually.
+`TenantNamespaceResolver` implements Chronicle's `IEventStoreNamespaceResolver` and reads Arc's current tenant:
 
-## Configure Core Tenancy
+| Arc tenant context | Chronicle namespace |
+|---|---|
+| A tenant is resolved | the tenant id, used verbatim as the namespace name |
+| No tenant is resolved (`TenantId.NotSet`) | `EventStoreNamespaceName.Default` |
 
-Chronicle relies on the core tenancy resolution from Arc. For resolver choices and configuration options, see the main tenancy documentation:
+The fallback matters: a request with no tenant does not fail and does not leak across tenants — it uses the default namespace. Single-tenant applications therefore need no tenancy configuration at all; they simply always use the default.
 
-- [Tenancy](../tenancy/overview.md)
+:::caution[Isolation follows the tenant resolver, not Chronicle]
+Chronicle isolates by whatever tenant id Arc hands it. If the resolver picks the wrong tenant — a spoofable header, say — Chronicle will faithfully write to the wrong namespace. The security boundary lives in how the tenant is resolved, so choose that resolver deliberately.
+:::
 
+## Configure how the tenant is resolved
+
+Chronicle consumes Arc's tenant resolution rather than defining its own, so the interesting decision — where the tenant comes from — is an Arc-level one: a claim, a header, a subdomain, or a custom resolver.
+
+See [Tenancy](../tenancy/index.md) for the resolver choices and configuration, and [Namespaces](/chronicle/namespaces/) for what a Chronicle namespace is and how it partitions the event store.

@@ -13,10 +13,9 @@ echo "Markdown Verification"
 echo "=========================================="
 echo ""
 
-# Check if running from repository root or Documentation folder
-if [ "$(basename "$PWD")" = "Documentation" ]; then
-    cd ..
-fi
+# Both steps address paths from the repository root, whether this script is run
+# from there or from the Documentation folder.
+cd "$ROOT_DIR"
 
 echo "Working directory: $PWD"
 echo ""
@@ -32,8 +31,13 @@ if ! command -v npx &> /dev/null; then
     exit 1
 fi
 
-npx markdownlint-cli2 "Documentation/**/*.md"
-LINT_EXIT_CODE=$?
+# Each step captures its own exit code and the run continues, so that a failing
+# lint step does not leave the state of the links unreported.
+if npx --yes markdownlint-cli2 "Documentation/**/*.md"; then
+    LINT_EXIT_CODE=0
+else
+    LINT_EXIT_CODE=$?
+fi
 
 echo ""
 if [ $LINT_EXIT_CODE -eq 0 ]; then
@@ -48,17 +52,11 @@ echo "=========================================="
 echo "Step 2: Running link verification..."
 echo "=========================================="
 echo ""
-echo "This may take a few minutes to check all links..."
-echo ""
 
-npx linkinator "Documentation/**/*.md" --markdown --recurse --verbosity error --status-code "403:ok" --skip "^(https?:\\/\\/)?(localhost|127\\.0\\.0\\.1)(:\\d+)?(\\/|$)"
-LINK_EXIT_CODE=$?
-
-echo ""
-if [ $LINK_EXIT_CODE -eq 0 ]; then
-    echo "✓ Link verification passed!"
+if "$SCRIPT_DIR/verify-links.sh"; then
+    LINK_EXIT_CODE=0
 else
-    echo "✗ Link verification failed with exit code $LINK_EXIT_CODE"
+    LINK_EXIT_CODE=$?
 fi
 echo ""
 

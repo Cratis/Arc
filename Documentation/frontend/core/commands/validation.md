@@ -20,7 +20,7 @@ When you validate a command, the request is sent to the backend validation endpo
 3. A `CommandResult` is returned with validation and authorization status
 4. No side effects occur on the system
 
-For details on the backend validation pipeline, see [Backend Command Validation](../../backend/commands/command-validation.md).
+For details on the backend validation pipeline, see [Backend Command Validation](../../../backend/commands/command-validation.md).
 
 ## Command.validate() Method
 
@@ -101,7 +101,7 @@ The `validate()` method runs all registered command filters on the backend:
 - **DataAnnotationValidationFilter**: Validates data annotations
 - **FluentValidationFilter**: Runs FluentValidation validators
 
-For more information, see [Backend Command Filters](../../backend/commands/command-filters.md).
+For more information, see [Backend Command Filters](../../../backend/commands/command-filters.md).
 
 ## Best Practices
 
@@ -161,4 +161,4 @@ debounceValidation(command, (result) => {
 
 ## Framework-Specific Usage
 
-For React-specific patterns and hooks, see [React Command Validation](../react/commands/validation.md).
+For React-specific patterns and hooks, see [React Command Validation](../../react/commands/validation.md).

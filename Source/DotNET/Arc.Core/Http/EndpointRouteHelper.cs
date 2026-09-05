@@ -15,6 +15,7 @@ public static class EndpointRouteHelper
     /// </summary>
     /// <param name="options">The <see cref="ApiEndpointOptions"/>.</param>
     /// <param name="location">The namespace segments for the endpoint.</param>
+    /// <param name="segmentsToSkip">The number of leading namespace segments to skip.</param>
     /// <param name="endpointName">The name of the endpoint (command type name or query name).</param>
     /// <param name="includeNameInRoute">Whether to include the endpoint name as the last route segment.</param>
     /// <returns>A sanitized, kebab-cased, lowercase route URL.</returns>
@@ -22,11 +23,12 @@ public static class EndpointRouteHelper
     public static string BuildRouteUrl(
         ApiEndpointOptions options,
         IEnumerable<string> location,
+        int segmentsToSkip,
         string endpointName,
         bool includeNameInRoute)
     {
         var prefix = options.RoutePrefix.Trim('/');
-        var segments = location.Select(segment => segment.ToKebabCase());
+        var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
 
         var typeName = includeNameInRoute ? endpointName : string.Empty;
@@ -74,19 +76,26 @@ public static class EndpointRouteHelper
     }
 
     /// <summary>
-    /// Determines the HTTP status code for a result that has success, authorization, and validation state.
+    /// Determines the HTTP status code for a result that has success, authorization, validation, and readiness state.
     /// </summary>
     /// <param name="isSuccess">Whether the operation succeeded.</param>
     /// <param name="isAuthorized">Whether the operation was authorized.</param>
     /// <param name="isValid">Whether the input was valid.</param>
+    /// <param name="isReady">Whether the result is ready; defaults to <see langword="true"/> for results that have no readiness concept (for example command results).</param>
     /// <returns>The appropriate <see cref="HttpStatusCode"/>.</returns>
-    public static HttpStatusCode GetStatusCode(bool isSuccess, bool isAuthorized, bool isValid)
+    /// <remarks>
+    /// A not-ready result (an observable query that has not yet produced its first result) maps to <c>202 Accepted</c>
+    /// rather than a server error. Not-ready and error are mutually exclusive by construction — a not-ready result
+    /// carries no exception — so mapping readiness before the error fall-through cannot hide a genuine failure.
+    /// </remarks>
+    public static HttpStatusCode GetStatusCode(bool isSuccess, bool isAuthorized, bool isValid, bool isReady = true)
     {
-        return (isSuccess, isAuthorized, isValid) switch
+        return (isSuccess, isAuthorized, isValid, isReady) switch
         {
-            (true, _, _) => HttpStatusCode.OK,
-            (_, false, _) => HttpStatusCode.Forbidden,
-            (_, _, false) => HttpStatusCode.BadRequest,
+            (true, _, _, _) => HttpStatusCode.OK,
+            (_, false, _, _) => HttpStatusCode.Forbidden,
+            (_, _, false, _) => HttpStatusCode.BadRequest,
+            (_, _, _, false) => HttpStatusCode.Accepted,
             _ => HttpStatusCode.InternalServerError
         };
     }

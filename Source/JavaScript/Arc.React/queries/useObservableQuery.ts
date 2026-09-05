@@ -1,14 +1,23 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResultWithState, IObservableQueryFor, Sorting, Paging, ChangeSet } from '@cratis/arc/queries';
-import { Constructor, JsonSerializer } from '@cratis/fundamentals';
+import {
+    QueryResultWithState,
+    type QueryResult,
+    type IObservableQueryFor,
+    Sorting,
+    Paging,
+    type ChangeSet,
+    isPrimitiveModelType,
+} from '@cratis/arc/queries';
+import { type Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { SetSorting } from './SetSorting';
-import { SetPage } from './SetPage';
-import { SetPageSize } from './SetPageSize';
+import type { SetSorting } from './SetSorting';
+import type { SetPage } from './SetPage';
+import type { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+import { serializeArgsForDependency } from './serializeArgsForDependency';
 import { useQueryScope } from './useQueryScope';
 
 /**
@@ -18,9 +27,20 @@ import { useQueryScope } from './useQueryScope';
  * server-side {@code ChangeSetComputor}). Without an identity property, JSON-string equality
  * is used as a fallback (additions and removals only — no replacements).
  */
+type ItemIdentity =
+    | string
+    | number
+    | boolean
+    | bigint
+    | symbol
+    | object
+    | null
+    | undefined;
+
 function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
-    const getId = (item: unknown): unknown => (item as Record<string, unknown>)?.id;
-    const toIdentityValue = (id: unknown): unknown => {
+    const getId = (item: unknown): ItemIdentity =>
+        (item as Record<string, ItemIdentity>)?.id;
+    const toIdentityValue = (id: ItemIdentity): ItemIdentity => {
         if (id === null || id === undefined) {
             return id;
         }
@@ -36,12 +56,17 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
         return id;
     };
 
-    const idsEqual = (left: unknown, right: unknown): boolean => {
+    const idsEqual = (left: ItemIdentity, right: ItemIdentity): boolean => {
         if (left === right) {
             return true;
         }
 
-        if (left === null || left === undefined || right === null || right === undefined) {
+        if (
+            left === null ||
+            left === undefined ||
+            right === null ||
+            right === undefined
+        ) {
             return false;
         }
 
@@ -58,65 +83,121 @@ function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
         return toIdentityValue(left) === toIdentityValue(right);
     };
 
-    const useIdentity = changeSet.removed.length > 0
-        ? getId(changeSet.removed[0]) !== undefined
-        : changeSet.replaced.length > 0;
+    const useIdentity =
+        changeSet.removed.length > 0
+            ? getId(changeSet.removed[0]) !== undefined
+            : changeSet.replaced.length > 0;
 
     let result: unknown[];
 
     if (useIdentity) {
         const removedIds = changeSet.removed.map(getId);
-        result = (previous as unknown[]).filter(item => !removedIds.some(removedId => idsEqual(getId(item), removedId)));
+        result = (previous as unknown[]).filter(
+            (item) => !removedIds.some((removedId) => idsEqual(getId(item), removedId)),
+        );
 
-        result = result.map(item => {
-            const replacement = changeSet.replaced.find(candidate => idsEqual(getId(candidate), getId(item)));
-            return replacement !== undefined ? replacement : item;
+        result = result.map((item) => {
+            const replacement = changeSet.replaced.find((candidate) =>
+                idsEqual(getId(candidate), getId(item)),
+            );
+            return replacement === undefined ? item : replacement;
         });
     } else {
-        const removedJsons = new Set(changeSet.removed.map(item => JSON.stringify(item)));
-        result = (previous as unknown[]).filter(item => !removedJsons.has(JSON.stringify(item)));
+        const removedJsons = new Set(
+            changeSet.removed.map((item) => JSON.stringify(item)),
+        );
+        result = (previous as unknown[]).filter(
+            (item) => !removedJsons.has(JSON.stringify(item)),
+        );
     }
 
     return [...result, ...changeSet.added] as T[];
 }
 
-function deserializeChangeSet(changeSet: ChangeSet<unknown>, modelType: Constructor): ChangeSet<unknown> {
+/**
+ * Deserializes a payload collection into its model type, passing primitives through untouched.
+ *
+ * A query whose backend returns a primitive collection - `IEnumerable<string>`, `IEnumerable<int>` -
+ * generates a proxy with `String`, `Number` or `Boolean` as its model type, and
+ * {@link JsonSerializer.deserializeArrayFromInstance} is destructive for those: it constructs
+ * `new String()` per item and copies declared fields onto it, discarding the value and leaving an
+ * empty wrapper object behind.
+ *
+ * Only the primitive check itself is shared with `@cratis/arc` - the deserialization must run
+ * through this package's own {@link JsonSerializer}, whose converter registry is module state and
+ * therefore only knows the `Guid`, `Date` and concept types registered in this package's copy.
+ * @param {Constructor} modelType The instance type of the items to deserialize into.
+ * @param {unknown[]} items The items to deserialize.
+ * @returns {unknown[]} The deserialized items, or the items unchanged for primitive model types.
+ */
+function deserializeItems(modelType: Constructor | null, items: unknown[]): unknown[] {
+    if (!modelType || modelType === Object || isPrimitiveModelType(modelType)) {
+        return Array.from(items);
+    }
+
+    return JsonSerializer.deserializeArrayFromInstance(modelType, items);
+}
+
+function deserializeChangeSet(
+    changeSet: ChangeSet<unknown>,
+    modelType: Constructor,
+): ChangeSet<unknown> {
     return {
-        added: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.added ?? []),
-        replaced: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.replaced ?? []),
-        removed: JsonSerializer.deserializeArrayFromInstance(modelType, changeSet.removed ?? []),
+        added: deserializeItems(modelType, changeSet.added ?? []),
+        replaced: deserializeItems(modelType, changeSet.replaced ?? []),
+        removed: deserializeItems(modelType, changeSet.removed ?? []),
     };
 }
 
-function deserializeResponseData<TDataType>(data: unknown, modelType: Constructor | null): TDataType {
-    // If data is an array and we have a model type, deserialize each item
-    if (Array.isArray(data) && modelType && modelType !== Object) {
-        return JsonSerializer.deserializeArrayFromInstance(modelType, data) as TDataType;
-    }
-    // Otherwise return data as-is (could be null, undefined, or non-array type)
-    return data as TDataType;
-}
-
-function hasAllRequiredArguments(requiredRequestParameters: string[], args?: object): boolean {
+function hasAllRequiredArguments(
+    requiredRequestParameters: string[],
+    args?: Record<string, unknown>,
+): boolean {
     if (requiredRequestParameters.length === 0) {
         return true;
     }
 
-    const argumentValues = args as Record<string, unknown> | undefined;
-    return requiredRequestParameters.every(requiredRequestParameter => {
-        const value = argumentValues?.[requiredRequestParameter];
+    return requiredRequestParameters.every((requiredRequestParameter) => {
+        const value = args?.[requiredRequestParameter];
         return value !== undefined && value !== null && value !== '';
     });
 }
 
-function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled: boolean = true):
-    [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
+function useObservableQueryInternal<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    query: Constructor<TQuery>,
+    sorting?: Sorting,
+    paging?: Paging,
+    args?: TArguments,
+    isEnabled?: boolean,
+    owner?: string,
+): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize];
+function useObservableQueryInternal<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    query: Constructor<TQuery>,
+    sorting?: Sorting,
+    paging?: Paging,
+    args?: TArguments,
+    isEnabled?: boolean,
+    owner?: string,
+): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
-    const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
+    const [currentSorting, setCurrentSorting] = useState<Sorting>(
+        sorting ?? Sorting.none,
+    );
     const arc = useContext(ArcContext);
     const queryCache = useContext(QueryInstanceCacheContext);
     const queryScope = useQueryScope();
     const cacheKeyRef = useRef<string>('');
+    const ownerRef = useRef<string | undefined>(owner);
+    ownerRef.current = owner;
+    const argsDependency = serializeArgsForDependency(args as object | undefined);
 
     const queryInstance = useMemo(() => {
         // Create the instance first to read queryName, which is a hardcoded fully-qualified
@@ -129,7 +210,8 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         freshInstance.setApiBasePath(arc.apiBasePath ?? '');
         freshInstance.setOrigin(arc.origin ?? '');
 
-        const typeName = (freshInstance as { queryName?: string }).queryName ?? query.name;
+        const typeName =
+            (freshInstance as { queryName?: string }).queryName ?? query.name;
         const key = queryCache.buildKey(typeName, args as object | undefined);
         cacheKeyRef.current = key;
 
@@ -142,12 +224,19 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         }
 
         return instance as TQuery;
-    }, [currentPaging, currentSorting, arc.microservice, arc.apiBasePath, arc.origin, ...(args ? Object.values(args) : [])]);
+    }, [
+        currentPaging,
+        currentSorting,
+        arc.microservice,
+        arc.apiBasePath,
+        arc.origin,
+        argsDependency,
+    ]);
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKeyRef.current);
 
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(
-        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
+        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue),
     );
 
     // Stable listener ref so we can add/remove the same function reference.
@@ -156,14 +245,27 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         listenerRef.current = (r: QueryResultWithState<TDataType>) => setResult(r);
     }
 
-    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(queryInstance.requiredRequestParameters, args as object | undefined);
+    const hasAllRequiredArgumentsSet = hasAllRequiredArguments(
+        queryInstance.requiredRequestParameters,
+        args as Record<string, unknown> | undefined,
+    );
 
     // Use all arg values (not just required ones) because the cache key includes every arg.
     // Also include arc context values so the effect re-runs and cleans up the old subscription
     // when the microservice, API base path, or origin changes.
     // Include queryVersion so that reconnectQueries() forces all hooks to re-subscribe
     // through fresh transport connections.
-    const effectDeps = [...(args ? Object.values(args) : []), currentPaging, currentSorting, isEnabled, hasAllRequiredArgumentsSet, arc.microservice, arc.apiBasePath, arc.origin, arc.queryVersion];
+    const effectDeps = [
+        argsDependency,
+        currentPaging,
+        currentSorting,
+        isEnabled,
+        hasAllRequiredArgumentsSet,
+        arc.microservice,
+        arc.apiBasePath,
+        arc.origin,
+        arc.queryVersion,
+    ];
 
     useEffect(() => {
         const key = cacheKeyRef.current;
@@ -171,7 +273,7 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
 
         queryCache.acquire(key);
 
-        if (!isEnabled || !hasAllRequiredArgumentsSet) {
+        if (isEnabled === false || !hasAllRequiredArgumentsSet) {
             return () => {
                 queryCache.release(key);
             };
@@ -192,68 +294,68 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             let receivedFirstResult = false;
             queryScope.notifyPerformingStarted();
 
-            const subscription = queryInstance.subscribe(response => {
+            const subscription = queryInstance.subscribe((response) => {
                 let withState: QueryResultWithState<TDataType>;
-                const modelType = (queryInstance as unknown as { modelType?: Constructor }).modelType ?? null;
+                // SAFETY: Observable query implementations expose this runtime metadata even though the interface omits it.
+                const queryMetadata = queryInstance as unknown as {
+                    modelType?: Constructor;
+                    enumerable: boolean;
+                    queryName?: string;
+                };
+                const modelType = queryMetadata.modelType ?? null;
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const isDataArray = Array.isArray(response.data);
-                const isEnumerable = (queryInstance as unknown as { enumerable: boolean }).enumerable;
-                if (isEnumerable && !isDataArray && response.data !== null && response.data !== undefined && (response.data as unknown as object) !== null) {
-                    console.error(`[useObservableQuery] NON-ARRAY data received for key="${key}" queryName="${(queryInstance as unknown as {queryName?: string}).queryName}" data type=${typeof response.data} constructor=${(response.data as unknown as {constructor?: {name?: string}})?.constructor?.name}`, response.data);
+                const responseData: unknown = response.data;
+                const isDataArray = Array.isArray(responseData);
+                const isEnumerable = queryMetadata.enumerable;
+                if (
+                    isEnumerable &&
+                    !isDataArray &&
+                    responseData !== null &&
+                    responseData !== undefined
+                ) {
+                    const responseDataConstructor =
+                        typeof responseData === 'object'
+                            ? (responseData as { constructor?: { name?: string } })
+                                  .constructor?.name
+                            : undefined;
+                    console.error(
+                        `[useObservableQuery] NON-ARRAY data received for key="${key}" queryName="${queryMetadata.queryName}" data type=${typeof responseData} constructor=${responseDataConstructor}`,
+                        responseData,
+                    );
                 }
 
-                if (response.changeSet && Array.isArray(response.data) && response.data.length === 0) {
+                if (
+                    response.changeSet &&
+                    Array.isArray(response.data) &&
+                    response.data.length === 0
+                ) {
                     // Delta mode subsequent push: the server omits `data` (serialised as null → []).
                     // Reconstruct the full collection by applying the ChangeSet to the previous state.
                     const previousResult = queryCache.getLastResult<TDataType>(key);
                     if (previousResult && Array.isArray(previousResult.data)) {
-                        const deserializedChangeSet = deserializeChangeSet(response.changeSet, modelType ?? Object);
-                        const reconstructed = applyChangeSet(previousResult.data as unknown[], deserializedChangeSet) as TDataType;
-                        withState = new QueryResultWithState<TDataType>(
-                            reconstructed,
-                            response.paging,
-                            response.isSuccess,
-                            response.isAuthorized,
-                            response.isValid,
-                            response.validationResults,
-                            response.hasExceptions,
-                            response.exceptionMessages,
-                            response.exceptionStackTrace,
+                        const deserializedChangeSet = deserializeChangeSet(
+                            response.changeSet,
+                            modelType ?? Object,
+                        );
+                        const reconstructed = applyChangeSet(
+                            previousResult.data as unknown[],
+                            deserializedChangeSet,
+                        ) as TDataType;
+                        withState = QueryResultWithState.fromQueryResult(
+                            {
+                                ...response,
+                                data: reconstructed,
+                                changeSet: deserializedChangeSet,
+                            } as QueryResult<TDataType>,
                             false,
-                            deserializedChangeSet
                         );
                     } else {
-                        // Fallback if there's no previous result
-                        const deserializedData = deserializeResponseData<TDataType>(response.data, modelType);
-                        withState = new QueryResultWithState<TDataType>(
-                            deserializedData,
-                            response.paging,
-                            response.isSuccess,
-                            response.isAuthorized,
-                            response.isValid,
-                            response.validationResults,
-                            response.hasExceptions,
-                            response.exceptionMessages,
-                            response.exceptionStackTrace,
-                            false,
-                            response.changeSet);
+                        // Fallback if there's no previous result. ObservableQueryFor has already deserialized response.data.
+                        withState = QueryResultWithState.fromQueryResult(response, false);
                     }
                 } else {
-                    // Initial response or full-data responses (non-delta mode)
-                    const deserializedData = deserializeResponseData<TDataType>(response.data, modelType);
-                    withState = new QueryResultWithState<TDataType>(
-                        deserializedData,
-                        response.paging,
-                        response.isSuccess,
-                        response.isAuthorized,
-                        response.isValid,
-                        response.validationResults,
-                        response.hasExceptions,
-                        response.exceptionMessages,
-                        response.exceptionStackTrace,
-                        false,
-                        response.changeSet);
+                    // ObservableQueryFor deserializes initial and full response data before invoking this callback.
+                    withState = QueryResultWithState.fromQueryResult(response, false);
                 }
 
                 if (!receivedFirstResult) {
@@ -273,14 +375,18 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
             });
         }
 
+        arc.observableQueryDiagnostics?.beginTracking(key, ownerRef.current ?? '');
         return () => {
+            arc.observableQueryDiagnostics?.endTracking(key);
             queryCache.removeListener(key, listener);
             queryCache.release(key);
         };
     }, effectDeps);
 
     return [
-        !isEnabled ? QueryResultWithState.empty(queryInstance.defaultValue) : result,
+        isEnabled === false
+            ? QueryResultWithState.empty(queryInstance.defaultValue)
+            : result,
         async (sorting: Sorting) => {
             setCurrentSorting(sorting);
         },
@@ -289,7 +395,8 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
         },
         async (pageSize: number) => {
             setCurrentPaging(new Paging(currentPaging.page, pageSize));
-        }];
+        },
+    ];
 }
 
 /**
@@ -303,9 +410,32 @@ function useObservableQueryInternal<TDataType, TQuery extends IObservableQueryFo
  * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResultWithState} and a {@link PerformQuery} delegate.
  */
-export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
-    [QueryResultWithState<TDataType>, SetSorting] {
-    const [result, setSorting] = useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, Paging.noPaging, args, isEnabled);
+export function useObservableQuery<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    query: Constructor<TQuery>,
+    args?: TArguments,
+    sorting?: Sorting,
+    isEnabled?: boolean,
+): [QueryResultWithState<TDataType>, SetSorting];
+export function useObservableQuery<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    query: Constructor<TQuery>,
+    args?: TArguments,
+    sorting?: Sorting,
+    isEnabled?: boolean,
+    owner?: string,
+): [QueryResultWithState<TDataType>, SetSorting] {
+    const [result, setSorting] = useObservableQueryInternal<
+        TDataType,
+        TQuery,
+        TArguments
+    >(query, sorting, Paging.noPaging, args, isEnabled, owner);
     return [result, setSorting];
 }
 
@@ -321,7 +451,35 @@ export function useObservableQuery<TDataType, TQuery extends IObservableQueryFor
  * @param isEnabled Optional: Whether the query should subscribe. Defaults to true. When false, the hook is a no-op and returns an empty result.
  * @returns Tuple of {@link QueryResultWithState} and paging/sorting controls.
  */
-export function useObservableQueryWithPaging<TDataType, TQuery extends IObservableQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled: boolean = true):
-    [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    return useObservableQueryInternal<TDataType, TQuery, TArguments>(query, sorting, paging, args, isEnabled);
+export function useObservableQueryWithPaging<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    query: Constructor<TQuery>,
+    paging: Paging,
+    args?: TArguments,
+    sorting?: Sorting,
+    isEnabled?: boolean,
+): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize];
+export function useObservableQueryWithPaging<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    query: Constructor<TQuery>,
+    paging: Paging,
+    args?: TArguments,
+    sorting?: Sorting,
+    isEnabled?: boolean,
+    owner?: string,
+): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
+    return useObservableQueryInternal<TDataType, TQuery, TArguments>(
+        query,
+        sorting,
+        paging,
+        args,
+        isEnabled,
+        owner,
+    );
 }

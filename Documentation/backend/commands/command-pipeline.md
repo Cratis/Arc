@@ -76,6 +76,46 @@ public class OrderCreatedReactor
 }
 ```
 
+## Cancellation
+
+HTTP command endpoints pass the request-aborted token into the command execution automatically. That token can be injected into `Provide()` and `Handle()` as a `CancellationToken`.
+
+When you execute commands directly, pass the token to the pipeline:
+
+```csharp
+public class ImportWorker
+{
+    readonly ICommandPipeline _commandPipeline;
+
+    public ImportWorker(ICommandPipeline commandPipeline)
+    {
+        _commandPipeline = commandPipeline;
+    }
+
+    public Task<CommandResult> Import(CatalogId catalogId, CancellationToken cancellationToken) =>
+        _commandPipeline.Execute(new ImportCatalog(catalogId), cancellationToken);
+}
+```
+
+Use the scope-explicit form when the command should share the caller's scoped services:
+
+```csharp
+var result = await _commandPipeline.Execute(
+    new ImportCatalog(catalogId),
+    _serviceProvider,
+    cancellationToken);
+```
+
+If you also use validation severity filtering, pass both values:
+
+```csharp
+var result = await _commandPipeline.Execute(
+    command,
+    _serviceProvider,
+    allowedSeverity: ValidationResultSeverity.Warning,
+    cancellationToken);
+```
+
 ## Command Results
 
 The `ICommandPipeline.Execute()` method returns a `CommandResult` with comprehensive information about the execution:
@@ -307,4 +347,3 @@ If the handler returns no value at all (a `void`-equivalent handler), `Response`
 // Fine when you don't need a typed response
 var result = await _commandPipeline.Execute(new CancelOrder(orderId));
 ```
-

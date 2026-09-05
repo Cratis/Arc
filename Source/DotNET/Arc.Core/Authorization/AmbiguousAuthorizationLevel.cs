@@ -11,6 +11,4 @@ namespace Cratis.Arc.Authorization;
 /// </summary>
 /// <param name="member">The member with ambiguous authorization.</param>
 public class AmbiguousAuthorizationLevel(MemberInfo member)
-    : Exception($"Member '{member.DeclaringType?.FullName}.{member.Name}' has both [Authorize] and [AllowAnonymous] attributes defined, which is ambiguous.")
-{
-}
+    : Exception($"Member '{member.DeclaringType?.FullName}.{member.Name}' has both [Authorize] and [AllowAnonymous] attributes defined, which is ambiguous.");

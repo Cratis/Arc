@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Numerics;
+using Cratis.Geospatial;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations.Builders;
@@ -142,5 +143,65 @@ public static class AddColumnExtensions
     {
         var type = ColumnTypeMappings.GetDateTimeOffsetType(mb.GetDatabaseType());
         return mb.AddColumn<DateTimeOffset>(name, table, type: type, schema: schema, nullable: nullable);
+    }
+
+    /// <summary>
+    /// Adds a Point column to an existing table with appropriate database-specific type.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="nullable">Whether the column should be nullable.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddPointColumn(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        bool nullable = true,
+        string? schema = null)
+    {
+        var type = ColumnTypeMappings.GetPointType(mb.GetDatabaseType());
+        return mb.AddColumn<Point>(name, table, type: type, schema: schema, nullable: nullable);
+    }
+
+    /// <summary>
+    /// Adds a LineString column to an existing table with appropriate database-specific type.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="nullable">Whether the column should be nullable.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddLineStringColumn(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        bool nullable = true,
+        string? schema = null)
+    {
+        var type = ColumnTypeMappings.GetLineStringType(mb.GetDatabaseType());
+        return mb.AddColumn<LineString>(name, table, type: type, schema: schema, nullable: nullable);
+    }
+
+    /// <summary>
+    /// Adds a Polygon column to an existing table with appropriate database-specific type.
+    /// </summary>
+    /// <param name="mb">Migration builder.</param>
+    /// <param name="name">The name of the column.</param>
+    /// <param name="table">The name of the table.</param>
+    /// <param name="nullable">Whether the column should be nullable.</param>
+    /// <param name="schema">The schema of the table.</param>
+    /// <returns>Operation builder for the column.</returns>
+    public static OperationBuilder<AddColumnOperation> AddPolygonColumn(
+        this MigrationBuilder mb,
+        string name,
+        string table,
+        bool nullable = true,
+        string? schema = null)
+    {
+        var type = ColumnTypeMappings.GetPolygonType(mb.GetDatabaseType());
+        return mb.AddColumn<Polygon>(name, table, type: type, schema: schema, nullable: nullable);
     }
 }

@@ -30,6 +30,7 @@ const config: StorybookConfig = {
             '@cratis/arc/queries': resolve(__dirname, '../../Arc/queries/index.ts'),
             '@cratis/arc/validation': resolve(__dirname, '../../Arc/validation/index.ts'),
             '@cratis/arc/identity': resolve(__dirname, '../../Arc/identity/index.ts'),
+            '@cratis/arc/messaging': resolve(__dirname, '../../Arc/messaging/index.ts'),
             '@cratis/arc': resolve(__dirname, '../../Arc/index.ts'),
         };
         return config;

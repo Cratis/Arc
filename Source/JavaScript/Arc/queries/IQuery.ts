@@ -4,11 +4,18 @@
 import { ICanBeConfigured } from '../ICanBeConfigured';
 import { Paging } from './Paging';
 import { Sorting } from './Sorting';
+import { QueryHttpMethod } from './QueryHttpMethod';
 
 /**
  * Defines the commonalities between all query types.
  */
 export interface IQuery extends ICanBeConfigured {
+    /**
+     * Set the HTTP method used to perform the query, overriding the global default.
+     * @param method The {@link QueryHttpMethod} to use.
+     */
+    setHttpMethod(method: QueryHttpMethod): void;
+
     /**
      * Gets the sorting for the query.
      */

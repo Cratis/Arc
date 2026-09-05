@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
+using System.Text;
 using HandlebarsDotNet;
 
 namespace Cratis.Arc.ProxyGenerator.Templates;
@@ -56,7 +58,117 @@ public static class TemplateTypes
         Handlebars.RegisterHelper("camelcase", (writer, _, parameters) => writer.WriteSafeString(parameters[0].ToString()!.ToCamelCase()));
         Handlebars.RegisterHelper("lowercase", (writer, _, parameters) => writer.WriteSafeString(parameters[0].ToString()!.ToLowerInvariant()));
         Handlebars.RegisterHelper("kebabcase", (writer, _, parameters) => writer.WriteSafeString(parameters[0].ToString()!.ToKebabCase()));
+        Handlebars.RegisterHelper("ruleargs", (writer, _, parameters) => writer.WriteSafeString(FormatRuleArguments(parameters[0])));
+        Handlebars.RegisterHelper("jsstring", (writer, _, parameters) => writer.WriteSafeString(FormatJavaScriptString(parameters[0]?.ToString())));
     }
+
+    /// <summary>
+    /// Formats a validation rule's arguments as a TypeScript argument list.
+    /// </summary>
+    /// <param name="arguments">The rule arguments to format.</param>
+    /// <returns>The formatted argument list, empty when there are none.</returns>
+    static string FormatRuleArguments(object? arguments) =>
+        arguments is IEnumerable<object> values
+            ? string.Join(", ", values.Select(FormatRuleArgument))
+            : string.Empty;
+
+    /// <summary>
+    /// Formats a single rule argument as a TypeScript literal.
+    /// </summary>
+    /// <param name="value">The argument value.</param>
+    /// <returns>The formatted literal.</returns>
+    /// <remarks>
+    /// A string argument is emitted as a quoted, escaped literal; writing it bare produces TypeScript that does not
+    /// parse. A regular-expression pattern is emitted as a regex literal, which is what the client-side
+    /// <c>matches</c> rule expects.
+    /// </remarks>
+    static string FormatRuleArgument(object? value) => value switch
+    {
+        null => "null",
+        RegularExpressionPattern regex => FormatRegularExpression(regex.Pattern),
+        string text => FormatJavaScriptString(text),
+        bool flag => flag ? "true" : "false",
+        byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal =>
+            ((IFormattable)value).ToString(null, CultureInfo.InvariantCulture),
+
+        // Anything else — a date, say — has no bare TypeScript literal (its invariant text such as 01/01/0001 does
+        // not parse), so it is quoted. Numeric-only rules are the norm; this only guards an unexpected argument type.
+        IFormattable formattable => FormatJavaScriptString(formattable.ToString(null, CultureInfo.InvariantCulture)),
+        _ => FormatJavaScriptString(value.ToString())
+    };
+
+    /// <summary>
+    /// Formats a pattern as a JavaScript regular-expression literal.
+    /// </summary>
+    /// <param name="pattern">The pattern to format.</param>
+    /// <returns>The regular-expression literal.</returns>
+    /// <remarks>
+    /// An empty pattern becomes <c>/(?:)/</c> rather than <c>//</c>, which JavaScript reads as a line comment. An
+    /// unescaped slash is escaped so it does not close the literal early, while a slash the pattern already escapes
+    /// passes through untouched — <c>\/</c> must not become <c>\\/</c>, whose escaped backslash would leave the
+    /// slash free to terminate the literal. A line terminator cannot appear in a regex literal at all, so it is
+    /// rewritten to its escape sequence.
+    /// </remarks>
+    static string FormatRegularExpression(string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern))
+        {
+            return "/(?:)/";
+        }
+
+        var literal = new StringBuilder(pattern.Length + 2);
+        var escaped = false;
+
+        foreach (var character in pattern)
+        {
+            if (character == '\\' && !escaped)
+            {
+                literal.Append('\\');
+                escaped = true;
+                continue;
+            }
+
+            switch (character)
+            {
+                case '/' when !escaped:
+                    literal.Append("\\/");
+                    break;
+                case '\r':
+                    literal.Append(escaped ? "r" : "\\r");
+                    break;
+                case '\n':
+                    literal.Append(escaped ? "n" : "\\n");
+                    break;
+                case '\u2028':
+                    literal.Append(escaped ? "u2028" : "\\u2028");
+                    break;
+                case '\u2029':
+                    literal.Append(escaped ? "u2029" : "\\u2029");
+                    break;
+                default:
+                    literal.Append(character);
+                    break;
+            }
+
+            escaped = false;
+        }
+
+        // A trailing lone backslash would escape the closing slash; doubling it keeps the literal well formed.
+        if (escaped)
+        {
+            literal.Append('\\');
+        }
+
+        return $"/{literal}/";
+    }
+
+    /// <summary>
+    /// Formats a value as a single-quoted, escaped JavaScript string literal.
+    /// </summary>
+    /// <param name="value">The value to format.</param>
+    /// <returns>The quoted literal.</returns>
+    static string FormatJavaScriptString(string? value) =>
+        $"'{(value ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "\\r").Replace("\n", "\\n")}'";
 
     static string GetTemplate(string name)
     {

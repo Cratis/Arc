@@ -7,6 +7,7 @@ public class with_interceptor_for_different_type : given.a_read_model_intercepto
 {
     OtherReadModelInterceptor _otherInterceptor;
     TestReadModel _item;
+    IEnumerable<object> _result;
 
     void Establish()
     {
@@ -20,7 +21,8 @@ public class with_interceptor_for_different_type : given.a_read_model_intercepto
         _interceptors = new ReadModelInterceptors(types);
     }
 
-    async Task Because() => await _interceptors.Intercept(typeof(TestReadModel), [_item], _serviceProvider);
+    async Task Because() => _result = await _interceptors.Intercept(typeof(TestReadModel), [_item], _serviceProvider);
 
-    [Fact] void should_not_call_service_provider() => _serviceProvider.DidNotReceive().GetService(Arg.Any<Type>());
+    [Fact] void should_not_resolve_unmatched_interceptor() => _serviceProvider.DidNotReceive().GetService(typeof(OtherReadModelInterceptor));
+    [Fact] void should_return_original_item() => _result.ShouldContain(_item);
 }

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.CodeAnalysis</AssemblyName>
+        <RootNamespace>Cratis.CodeAnalysis</RootNamespace>
+        <Description>The full set of Cratis Arc Roslyn analyzers (ARC*, ARCCHR*) in a single reference. Opt in to all the analyzers at once instead of referencing each analyzer package individually.</Description>
+        <PackageTags>cratis;arc;chronicle;analyzers;roslyn;codeanalysis</PackageTags>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeSymbols>false</IncludeSymbols>
+        <IncludeSource>false</IncludeSource>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- This is a dependency-only metapackage. The standalone packages remain the sole physical owners of
+             their analyzer and code-fix assemblies. -->
+        <ProjectReference Include="../Arc.Core.CodeAnalysis.Package/Arc.Core.CodeAnalysis.Package.csproj"
+                          PrivateAssets="compile;runtime" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis.Package/Chronicle.CodeAnalysis.Package.csproj"
+                          PrivateAssets="compile;runtime" />
+        <PackageReference Update="System.Text.Json" PrivateAssets="all" />
+    </ItemGroup>
+</Project>

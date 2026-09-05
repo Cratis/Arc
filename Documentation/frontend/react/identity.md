@@ -112,30 +112,39 @@ export const Home = () => {
 };
 ```
 
-## Role checking
+## Has the identity arrived yet?
 
-The identity context includes information about the roles assigned to the user. You can check if a user is in a specific role using the `isInRole()` method:
+The identity is fetched from the backend, which means there is a moment - short, but real - where your
+application is rendering and nobody knows who the user is yet. `isSet` cannot tell you about that
+moment: it reads `false` both *before* the first request has answered and *after* it answered that
+nobody is signed in.
+
+That is what `isLoading` is for. It is on the object `useIdentity()` returns and it separates the two:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
 
-export const AdminPanel = () => {
+export const Greeting = () => {
     const identity = useIdentity();
 
-    if (!identity.isInRole('Admin')) {
-        return <div>Access denied. Admin role required.</div>;
-    }
+    if (identity.isLoading) return <Spinner />;
+    if (!identity.isSet) return <SignInPrompt />;
 
-    return (
-        <div>
-            <h3>Admin Panel</h3>
-            {/* Admin content */}
-        </div>
-    );
+    return <h3>Welcome back, {identity.name}</h3>;
 };
 ```
 
-You can also access the roles array directly:
+`isLoading` covers every resolution, not only the first one. Calling `refresh()` - which is what you do
+after a sign-in or after the backend grants a role - puts it back up until the round-trip answers, so
+anything that gates on who the user is keeps waiting instead of briefly deciding on the old identity.
+
+Note that `isLoading` lives on `IIdentityContext`, not on the framework-agnostic `IIdentity` in the
+core package. It is a React lifecycle concern and it stays on the React side.
+
+## Role checking
+
+The identity context includes information about the roles assigned to the user. You can check if a
+user is in a specific role using the `isInRole()` method, or read the roles array directly:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -147,12 +156,122 @@ export const UserProfile = () => {
         <div>
             <h3>User: {identity.name}</h3>
             <p>Roles: {identity.roles.join(', ')}</p>
+            {identity.isInRole('Admin') && <AdminBadge />}
         </div>
     );
 };
 ```
 
-### Type-safe identity with complex types
+That is the right shape for decorating a screen. It is the wrong shape for guarding one:
+
+```typescript
+// Don't do this - it decides on an identity that may not have arrived.
+if (!identity.isInRole('Admin')) {
+    return <div>Access denied. Admin role required.</div>;
+}
+```
+
+Before the identity request answers, an administrator holds no roles yet - so this renders "Access
+denied", then swaps to the panel a moment later. Every signed-in user sees the rejection flash by on
+every load. There are three outcomes here, not two, and a guard has to say something about all of
+them.
+
+## Guarding a screen with RequireRole
+
+`RequireRole` is that guard. It renders one of three slots, and which one is never in doubt:
+
+```typescript
+import { RequireRole } from '@cratis/arc.react/identity';
+
+export const Admin = () => (
+    <RequireRole
+        roles={['Administrator', 'Auditor']}
+        whileLoading={<Spinner />}
+        forbidden={<AccessDenied />}>
+        <AdminPanel />
+    </RequireRole>
+);
+```
+
+| Prop | Type | What it does |
+| --- | --- | --- |
+| `roles` | `string[]` | Roles that grant access - the identity needs any one of them |
+| `allow` | `(details, identity) => boolean` | Predicate deciding access from the identity's details |
+| `children` | `ReactNode` | Rendered when the caller is authenticated and allowed |
+| `whileLoading` | `ReactNode` | Rendered while the identity is still being resolved. Defaults to nothing |
+| `forbidden` | `ReactNode` | Rendered for an anonymous caller, or an authenticated one that is not allowed. Defaults to nothing |
+
+At least one of `roles` and `allow` has to be there; the type system says so, and the component denies
+at runtime if `undefined` gets past it anyway. Supply both and both must pass.
+
+`forbidden` is a slot rather than a `redirectTo` on purpose. Arc.React does not depend on a router, so
+instead of picking one for you it lets you hand it whatever your application already uses:
+
+```typescript
+<RequireRole roles={['Administrator']} forbidden={<Navigate to="/" replace />}>
+    <AdminPanel />
+</RequireRole>
+```
+
+### Deciding on details
+
+Roles are what the backend put in the token. When access depends on something your own domain knows,
+pass a predicate over the identity's details:
+
+```typescript
+import { RequireRole } from '@cratis/arc.react/identity';
+
+type OrganizationDetails = {
+    department: string;
+};
+
+export const Ledger = () => (
+    <RequireRole<OrganizationDetails>
+        allow={details => details?.department === 'Finance'}
+        forbidden={<AccessDenied />}>
+        <LedgerContent />
+    </RequireRole>
+);
+```
+
+The details come first because that is what an application's own access rules are written against; the
+whole identity arrives as a second argument when a rule also needs `isInRole`.
+
+The details are typed as possibly absent, and the `?.` above is not decoration. An identity is set as
+soon as the backend answers, whether or not the application registered anything to fill details in -
+so a predicate written as though they are always there throws on exactly the deployments that have
+none.
+
+### Everything that is not a yes is a no
+
+A gate that cannot reach a decision does not open. `RequireRole` renders `forbidden` for all of these,
+and warns on the console for the ones that are configuration mistakes:
+
+- The caller is anonymous.
+- No role matched, or the predicate answered `false`.
+- `roles` is an empty array. That is not "no rule" - it is a rule no caller can satisfy.
+- `roles` is not an array at all (a `null` out of JSON configuration, say).
+- Neither `roles` nor `allow` was supplied. A key renamed in a feature-flag object arrives as
+  `undefined`, compiles, lints, and would otherwise open the panel to everyone signed in. If
+  authentication alone really is the rule, say so: `allow={() => true}`.
+- The predicate threw.
+- The identity carries no details but an `allow` predicate was supplied. There is nothing to decide on,
+  and the two natural ways to phrase a predicate disagree about absence - one throws, the other reads
+  it as innocence and admits - so the gate answers instead of letting the phrasing decide.
+
+### RequireRole hides UI, it does not protect data
+
+> [!CAUTION]
+> `RequireRole` is a usability feature, not a security boundary. The identity it reads comes from a
+> cookie that is deliberately not `HttpOnly` - the frontend has to be able to read it - which means the
+> browser, and anyone driving it, can edit that cookie and render these children at will.
+>
+> Use the gate to keep people out of screens that would only frustrate them. Never use it as the thing
+> that keeps them out of the data. Every query and command behind the gate has to carry its own
+> `[Authorize]` / `[Roles]` on the server, where the decision is made from the real credential and
+> cannot be edited.
+
+## Type-safe identity with complex types
 
 If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by providing a constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
 
@@ -207,7 +326,7 @@ export const Home = () => {
 
 This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateTime`, and other custom types are properly instantiated rather than being plain JSON objects.
 
-### Refreshing with hook
+## Refreshing with hook
 
 Since the `useIdentity()` returns an instance of the `IIdentityContext`. So for refreshing with a hook, its easily
 accessible:

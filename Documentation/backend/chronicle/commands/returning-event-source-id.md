@@ -1,7 +1,7 @@
 ---
-uid: Arc.Chronicle.Commands.ReturningEventSourceId
+title: Returning EventSourceId from a command
+description: Hand the generated identity back to the caller when the command is what creates the entity.
 ---
-# Returning EventSourceId from a command
 
 Return `EventSourceId` from `Handle()` when the command decides which event source to append to at runtime. This is the pattern to use when the command does not already carry the final identity as part of its input.
 
@@ -10,7 +10,7 @@ Return `EventSourceId` from `Handle()` when the command decides which event sour
 When `Handle()` returns a tuple that contains both an event and an `EventSourceId`, Chronicle uses the returned id for the automatic append.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -30,7 +30,7 @@ public record CustomerRegistered(string Email, string DisplayName);
 The tuple order does not matter. Chronicle looks for the `EventSourceId` value anywhere in the tuple.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 [Command]
@@ -52,7 +52,7 @@ public record CustomerRegistered(string Email, string DisplayName);
 If your solution uses a type that derives from `EventSourceId`, you can return that type in the tuple as well.
 
 ```csharp
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 
 public record CustomerId(Guid Value) : EventSourceId<Guid>(Value);

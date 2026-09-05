@@ -31,11 +31,13 @@ The `<Arc />` component provides centralized configuration for all commands and 
 | basePath | String | Base path for the application |
 | apiBasePath | String | Base path prepended to all Command and Query requests |
 | httpHeadersCallback | Function | Optional callback function that returns additional HTTP headers to include with all commands, queries, and identity requests (e.g., for including cookies or authentication tokens) |
+| eventSourceFactory | `(url: string) => EventSource` | Optional factory for creating the `EventSource` instances used by SSE observable query connections. Falls back to the global `EventSource` constructor when not set — see [Custom EventSource Factory](./queries/configuration.md#custom-eventsource-factory) |
 | queryTransportMethod | `QueryTransportMethod` | Transport used by observable queries (`ServerSentEvents` or `WebSocket`) |
 | queryDirectMode | Boolean | Whether observable queries bypass the central hub and connect directly per-query |
 | queryConnectionCount | Number | Number of observable query hub connection slots |
 | observableQueryTransferMode | `ObservableQueryTransferMode` | Transfer mode used by `useChangeStream` |
 | queryCacheRetentionMs | Number | How long (ms) to keep query data in cache after the last subscriber unmounts — defaults to `30000` |
+| observableQueryDiagnostics | `IObservableQueryDiagnostics` | Live diagnostics stream for query cache, transport, and ownership state |
 
 Example:
 
@@ -133,6 +135,12 @@ export const App = () => {
 ## Query Configuration
 
 Query-related Arc configuration (transport, direct mode, connection count, transfer mode, and headers) is documented in [Queries Configuration](./queries/configuration.md).
+
+## Observable Query Diagnostics
+
+Arc exposes a diagnostics service through `ArcContext.observableQueryDiagnostics` for tooling and internal dashboards. The service provides both a snapshot API and a live observable stream for the current query cache, transport, and ownership state.
+
+See [Observable Query Diagnostics](./queries/observable-query-diagnostics.md) for usage examples.
 
 ## HTTP Headers Callback
 

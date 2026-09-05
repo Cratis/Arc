@@ -9,61 +9,95 @@ import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
 
 import * as sinon from 'sinon';
 
-describe('when subscribing with direct mode and SSE transport', given(an_observable_query_for, context => {
-    let callback: sinon.SinonStub;
-    let subscription: ObservableQuerySubscription<string>;
-    let capturedUrl: string;
-    let originalQueryDirectMode: boolean;
-    let originalTransportMethod: QueryTransportMethod;
-
-    beforeEach(() => {
-        originalQueryDirectMode = Globals.queryDirectMode;
-        originalTransportMethod = Globals.queryTransportMethod;
-
-        Globals.queryDirectMode = true;
-        Globals.queryTransportMethod = QueryTransportMethod.ServerSentEvents;
-
-        context.query.setOrigin('https://example.com');
-        callback = sinon.stub();
-
-        const FakeEventSourceConstructor = function (this: EventSource, url: string) {
-            capturedUrl = url;
-            Object.assign(this, {
-                onopen: null,
-                onerror: null,
-                onmessage: null,
-                close: sinon.stub(),
-                addEventListener: sinon.stub(),
-                removeEventListener: sinon.stub(),
-            });
+describe(
+    'when subscribing with direct mode and SSE transport',
+    given(an_observable_query_for, (context) => {
+        let callback: sinon.SinonStub;
+        let subscription: ObservableQuerySubscription<string>;
+        let capturedUrl: string;
+        let eventSourceInstance: EventSource & {
+            onmessage: ((event: { data: string }) => void) | null;
         };
-        (globalThis as Record<string, unknown>)['EventSource'] = FakeEventSourceConstructor;
+        let originalQueryDirectMode: boolean;
+        let originalTransportMethod: QueryTransportMethod;
 
-        subscription = context.query.subscribe(callback, { id: 'test-id' });
-    });
+        beforeEach(() => {
+            originalQueryDirectMode = Globals.queryDirectMode;
+            originalTransportMethod = Globals.queryTransportMethod;
 
-    afterEach(() => {
-        Globals.queryDirectMode = originalQueryDirectMode;
-        Globals.queryTransportMethod = originalTransportMethod;
-        if (subscription) {
-            subscription.unsubscribe();
-        }
-        delete (globalThis as Record<string, unknown>)['EventSource'];
-    });
+            Globals.queryDirectMode = true;
+            Globals.queryTransportMethod = QueryTransportMethod.ServerSentEvents;
 
-    it('should connect to the per-query SSE URL', () => {
-        capturedUrl.should.include('/api/test/test-id');
-    });
+            context.query.setOrigin('https://example.com');
+            callback = sinon.stub();
 
-    it('should not connect to the hub SSE endpoint', () => {
-        capturedUrl.should.not.include('/.cratis/queries/sse');
-    });
+            const FakeEventSourceConstructor = function (this: EventSource, url: string) {
+                capturedUrl = url;
+                eventSourceInstance = this as EventSource & {
+                    onmessage: ((event: { data: string }) => void) | null;
+                };
+                Object.assign(this, {
+                    onopen: null,
+                    onerror: null,
+                    onmessage: null,
+                    close: sinon.stub(),
+                    addEventListener: sinon.stub(),
+                    removeEventListener: sinon.stub(),
+                });
+            };
+            (globalThis as Record<string, unknown>)['EventSource'] =
+                FakeEventSourceConstructor;
 
-    it('should not include a query name parameter', () => {
-        capturedUrl.should.not.include('query=');
-    });
+            subscription = context.query.subscribe(callback, { id: 'test-id' });
 
-    it('should return a subscription', () => {
-        subscription.should.not.be.undefined;
-    });
-}));
+            const result = {
+                data: 'ready result',
+                isSuccess: true,
+                isAuthorized: true,
+                isValid: true,
+                hasExceptions: false,
+                validationResults: [],
+                exceptionMessages: [],
+                exceptionStackTrace: '',
+                paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 },
+            };
+            eventSourceInstance.onmessage?.({ data: JSON.stringify(result) });
+            eventSourceInstance.onmessage?.({
+                data: JSON.stringify({ ...result, isSuccess: false, isReady: false }),
+            });
+        });
+
+        afterEach(() => {
+            Globals.queryDirectMode = originalQueryDirectMode;
+            Globals.queryTransportMethod = originalTransportMethod;
+            if (subscription) {
+                subscription.unsubscribe();
+            }
+            delete (globalThis as Record<string, unknown>)['EventSource'];
+        });
+
+        it('should connect to the per-query SSE URL', () => {
+            capturedUrl.should.include('/api/test/test-id');
+        });
+
+        it('should not connect to the hub SSE endpoint', () => {
+            capturedUrl.should.not.include('/.cratis/queries/sse');
+        });
+
+        it('should not include a query name parameter', () => {
+            capturedUrl.should.not.include('query=');
+        });
+
+        it('should return a subscription', () => {
+            subscription.should.not.be.undefined;
+        });
+
+        it('should normalize omitted readiness to true', () => {
+            callback.firstCall.args[0].isReady.should.be.true;
+        });
+
+        it('should preserve false readiness', () => {
+            callback.secondCall.args[0].isReady.should.be.false;
+        });
+    }),
+);

@@ -5,6 +5,7 @@
         <Description>Simplified setup for Cratis Arc applications with Chronicle event sourcing and MongoDB storage</Description>
         <PackageTags>cratis;arc;chronicle;event-sourcing;cqrs;mongodb</PackageTags>
         <NoWarn>$(NoWarn);IDE0005</NoWarn>
+        <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
     </PropertyGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -13,7 +14,13 @@
         <ProjectReference Include="../Arc/Arc.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
         <ProjectReference Include="../Swagger/Swagger.csproj" />
-        <ProjectReference Include="../Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" />
+        <!-- The alias hides the build-time tool from Cratis's source compilation, while compile/runtime private assets
+             prevent its executable assembly from flowing through the project-reference graph into applications. Keep
+             the reference output enabled so NuGet retains ProxyGenerator.Build as a package dependency; only its
+             build/buildTransitive assets should flow from the packed Cratis meta-package. -->
+        <ProjectReference Include="../Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj"
+                          Aliases="ProxyGeneratorBuild"
+                          PrivateAssets="compile;runtime" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.AspNetCore" />
@@ -22,4 +29,5 @@
         <None Include="GlobalUsings.cs" Pack="true" PackagePath="contentFiles/cs/any" />
         <None Include="build/Cratis.props" Pack="true" PackagePath="build;buildTransitive" />
     </ItemGroup>
+
 </Project>

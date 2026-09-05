@@ -5,10 +5,13 @@ import { CommandScope } from './commands';
 import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
-import { GetHttpHeaders, Globals, ObservableQueryTransferMode } from '@cratis/arc';
+import { GetHttpHeaders, EventSourceFactory, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
+import { ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
+import { Messenger } from '@cratis/arc/messaging';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
+import { MessengerScopeContext } from './messaging/MessengerScopeContext';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**
@@ -22,6 +25,13 @@ export interface ArcProps {
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    /**
+     * Optional factory used to create the {@link EventSource} instances that back SSE
+     * observable query connections. Falls back to the global {@link EventSource}
+     * constructor when not set — override it to supply a custom SSE client (e.g. a
+     * native implementation on React Native, where the global constructor is unavailable).
+     */
+    eventSourceFactory?: EventSourceFactory;
     /**
      * The transport method used for observable query subscriptions.
      * Defaults to {@link QueryTransportMethod.ServerSentEvents}.
@@ -65,12 +75,22 @@ export interface ArcProps {
  */
 export const Arc = (props: ArcProps) => {
     const [queryVersion, setQueryVersion] = useState(0);
+    const messenger = useRef(new Messenger());
 
     // The cache is application-scoped — create once per Arc mount.
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
     // can cancel it — preventing the synthetic unmount from destroying entries that child
     // effects are about to re-acquire.
     const queryInstanceCache = useRef(new QueryInstanceCache(props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs));
+
+    const observableQueryDiagnostics = useRef(new ObservableQueryDiagnostics(
+        queryInstanceCache.current,
+        () => getSharedMultiplexer(),
+        () => ({
+            queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
+            queryDirectMode: props.queryDirectMode ?? false,
+        }),
+    ));
 
     const reconnectQueries = useCallback(() => {
         queryInstanceCache.current.teardownAllSubscriptions();
@@ -80,11 +100,13 @@ export const Arc = (props: ArcProps) => {
 
     const configuration: ArcConfiguration = {
         microservice: props.microservice ?? '',
+        messenger: messenger.current,
         development: props.development ?? false,
         origin: props.origin ?? '',
         basePath: props.basePath ?? '',
         apiBasePath: props.apiBasePath ?? '',
         httpHeadersCallback: props.httpHeadersCallback,
+        eventSourceFactory: props.eventSourceFactory,
         queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
         queryConnectionCount: props.queryConnectionCount ?? 1,
         queryDirectMode: props.queryDirectMode ?? false,
@@ -92,6 +114,7 @@ export const Arc = (props: ArcProps) => {
         queryCacheRetentionMs: props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs,
         queryVersion,
         reconnectQueries,
+        observableQueryDiagnostics: observableQueryDiagnostics.current,
     };
 
     Bindings.initialize(
@@ -102,7 +125,8 @@ export const Arc = (props: ArcProps) => {
         configuration.queryTransportMethod,
         configuration.queryConnectionCount,
         configuration.queryDirectMode,
-        configuration.observableQueryTransferMode);
+        configuration.observableQueryTransferMode,
+        configuration.eventSourceFactory);
 
     useEffect(() => {
         const cache = queryInstanceCache.current;
@@ -116,12 +140,14 @@ export const Arc = (props: ArcProps) => {
 
     return (
         <ArcContext.Provider value={configuration}>
-            <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
-                <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
-                    <CommandScope>
-                        {props.children}
-                    </CommandScope>
-                </IdentityProvider>
-            </QueryInstanceCacheContext.Provider>
+            <MessengerScopeContext.Provider value={configuration.messenger}>
+                <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
+                    <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
+                        <CommandScope>
+                            {props.children}
+                        </CommandScope>
+                    </IdentityProvider>
+                </QueryInstanceCacheContext.Provider>
+            </MessengerScopeContext.Provider>
         </ArcContext.Provider>);
 };

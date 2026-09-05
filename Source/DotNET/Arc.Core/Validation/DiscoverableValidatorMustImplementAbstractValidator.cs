@@ -11,6 +11,4 @@ namespace Cratis.Arc.Validation;
 /// </remarks>
 /// <param name="type">Validator type that is invalid.</param>
 public class DiscoverableValidatorMustImplementAbstractValidator(Type type)
-    : Exception($"Discoverable validator of type '{type.FullName}' does not derive from AbstractValidator<>, suggest using either BaseValidator<>, DiscoverableValidator<>, CommandValidator<>, QueryValidator<>, ConceptValidator<> or the AbstractValidator<> as base type.")
-{
-}
+    : Exception($"Discoverable validator of type '{type.FullName}' does not derive from AbstractValidator<>, suggest using either BaseValidator<>, DiscoverableValidator<>, CommandValidator<>, QueryValidator<>, ConceptValidator<> or the AbstractValidator<> as base type.");

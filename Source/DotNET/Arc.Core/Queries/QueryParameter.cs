@@ -8,4 +8,5 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <param name="Name">The name of the query parameter.</param>
 /// <param name="Type">The type of the query parameter.</param>
-public record QueryParameter(string Name, Type Type);
+/// <param name="IsRequired">Whether the query parameter is required.</param>
+public record QueryParameter(string Name, Type Type, bool IsRequired = false);

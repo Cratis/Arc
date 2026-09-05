@@ -33,10 +33,10 @@ describe('when keep-alive interval elapses without any server message', given(a_
         // Deliver Connected so the connection is fully established.
         context.simulateMessage({ type: HubMessageType.Connected, payload: 'conn-123' });
 
-        // Advance past the idle threshold (1.5× keep-alive interval) without any further messages.
-        // The check interval fires every KEEP_ALIVE_MS; the idle threshold is KEEP_ALIVE_MS * 1.5.
-        // After the first interval tick (500ms) the elapsed idle time (500ms) is below the
-        // threshold (750ms). At the second tick (1000ms) the elapsed time exceeds the threshold.
+        // Advance past the idle threshold (IDLE_THRESHOLD_FACTOR × keep-alive interval) without any
+        // further messages. The check interval fires every KEEP_ALIVE_MS; the idle threshold is
+        // KEEP_ALIVE_MS * 2. After the first interval tick (500ms) the elapsed idle time (500ms) is
+        // below the threshold (1000ms). At the second tick (1000ms) the elapsed time reaches it.
         clock.tick(KEEP_ALIVE_MS * 2 + 1);
     });
 

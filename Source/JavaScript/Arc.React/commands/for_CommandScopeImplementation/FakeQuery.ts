@@ -22,6 +22,7 @@ export class FakeQuery implements IQueryFor<any, any> {
     setOrigin: sinon.SinonStub;
     setHttpHeadersCallback: sinon.SinonStub;
     setMicroservice: sinon.SinonStub;
+    setHttpMethod: sinon.SinonStub;
 
     constructor() {
         this.perform = sinon.fake(() => {
@@ -33,5 +34,6 @@ export class FakeQuery implements IQueryFor<any, any> {
         this.setOrigin = sinon.stub();
         this.setHttpHeadersCallback = sinon.stub();
         this.setMicroservice = sinon.stub();
+        this.setHttpMethod = sinon.stub();
     }
 }

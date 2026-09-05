@@ -44,5 +44,10 @@ public record Paging
     /// <summary>
     /// Gets the number of items to skip.
     /// </summary>
-    public int Skip => Page.Value * Size.Value;
+    /// <remarks>
+    /// The multiplication is performed in 64-bit and clamped to the non-negative <see cref="int"/> range: a hostile or
+    /// malformed page/size (for example <c>page=999999999</c> with a very large page size) would otherwise overflow the
+    /// 32-bit product into a negative value and surface as a server error when passed to the underlying data source.
+    /// </remarks>
+    public int Skip => (int)Math.Clamp((long)Page.Value * Size.Value, 0L, int.MaxValue);
 }

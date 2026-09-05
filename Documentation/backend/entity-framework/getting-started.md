@@ -36,6 +36,7 @@ The `EntityFrameworkCoreOptions` class provides the following configuration:
 | -------- | ---- | ------- | ----------- |
 | `ConnectionString` | `string` | `""` | The database connection string. Required for auto-discovery. |
 | `AutoDiscoverDbContexts` | `bool` | `true` | Whether to automatically discover and register DbContext types. |
+| `JsonConverters` | `IList<JsonConverter>` | `[]` | Additional `System.Text.Json` converters merged into `JsonConversionOptions` at startup. Use this to handle interface-typed or abstract `[Json]` properties. See [JSON Conversion](./json.md#registering-custom-converters). |
 
 ### Auto-Discovery
 

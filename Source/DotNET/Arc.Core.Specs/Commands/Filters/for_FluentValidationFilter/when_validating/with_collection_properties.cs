@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using FluentValidation;
-
 namespace Cratis.Arc.Commands.Filters.for_FluentValidationFilter.when_validating;
 
 public class with_collection_properties : given.a_fluent_validation_filter
@@ -15,9 +13,6 @@ public class with_collection_properties : given.a_fluent_validation_filter
         var items = new[] { new Item("Item1"), new Item("Item2") };
         _command = new CommandWithCollection("CommandName", items);
         _context = new CommandContext(_correlationId, typeof(CommandWithCollection), _command, [], new());
-
-        // No validators found for any type
-        _discoverableValidators.TryGet(Arg.Any<Type>(), out Arg.Any<IValidator>()).Returns(false);
     }
 
     async Task Because() => _result = await _filter.OnExecution(_context);
@@ -28,8 +23,6 @@ public class with_collection_properties : given.a_fluent_validation_filter
     [Fact] void should_be_valid() => _result.IsValid.ShouldBeTrue();
     [Fact] void should_not_have_exceptions() => _result.HasExceptions.ShouldBeFalse();
     [Fact] void should_not_have_validation_results() => _result.ValidationResults.ShouldBeEmpty();
-    [Fact] void should_attempt_to_get_validator_for_command() => _discoverableValidators.Received(1).TryGet(typeof(CommandWithCollection), out Arg.Any<IValidator>());
-    [Fact] void should_attempt_to_get_validator_for_array() => _discoverableValidators.Received(1).TryGet(typeof(Item[]), out Arg.Any<IValidator>());
 
     record CommandWithCollection(string Name, Item[] Items);
     record Item(string Name);

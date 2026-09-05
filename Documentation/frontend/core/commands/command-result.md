@@ -48,10 +48,10 @@ if (result.isSuccess) {
 
 ### isAuthorized
 
-Indicates whether the user is authorized to execute this command.
+Indicates whether Arc's command pipeline authorized this command.
 
 - `true`: The user has permission to execute the command
-- `false`: The user lacks the necessary permissions (HTTP 401/403)
+- `false`: The generated command endpoint returned an authorization failure, typically HTTP 403. An upstream authentication challenge can return HTTP 401 before a `CommandResult` payload is produced.
 
 **Use this when:**
 
@@ -171,6 +171,7 @@ if (!result.isValid) {
         console.log(`Message: ${error.message}`);
         console.log(`Members: ${error.members.join('.')}`);
         console.log(`State: ${JSON.stringify(error.state)}`);
+        console.log(`Reason: ${error.reason}`);
     });
 }
 ```
@@ -178,9 +179,58 @@ if (!result.isValid) {
 Each `ValidationResult` contains:
 
 - `severity`: The severity level of the validation error
-- `message`: Human-readable error message
+- `message`: A developer-facing message. Only meant to be shown to a user when `reason` is `rule`
 - `members`: Array of property names that failed validation
-- `state`: Additional context about the validation failure
+- `state`: Additional context, set by whoever authored the rule (FluentValidation's `WithState`)
+- `reason`: What composed the result — see below
+- `reasonDetail`: Which specific thing within `reason` produced the result — the name of the violated constraint for `constraintViolation`. `undefined` when the reason carries no finer identity
+
+### Telling one kind of rejection from another
+
+A rejection your own rules produced and one the framework composed on your behalf arrive in the same array, in the same shape. `reason` is what separates them, so you never have to match the message text:
+
+| `reason` | What happened | What to do |
+|---|---|---|
+| `rule` | A rule you authored rejected the input. The default. | Show `message` — it is your copy |
+| `concurrencyViolation` | The event source moved on since it was read | Offer a retry; `state` carries the violation |
+| `constraintViolation` | A constraint on the event store rejected the append | Show your own copy for that constraint |
+| `validatorFailed` | A validator threw; nothing the author wrote survives | Show your own generic copy, and check the server log |
+
+```typescript
+import { ValidationResultReason } from '@cratis/arc';
+
+const result = await command.execute();
+
+if (result.validationResults.some(_ => _.reason === ValidationResultReason.ConcurrencyViolation)) {
+    // Someone else changed this while the form was open. Re-read and resubmit — the
+    // input was never the problem, so do not put an error on any field.
+    return retry();
+}
+```
+
+### Telling one constraint from another
+
+`reason` says a constraint on the event store rejected the append; `reasonDetail` says **which** one. Two uniqueness constraints on the same command produce the same `reason`, so branching on it alone cannot pick the copy that belongs to each — and the message is developer text you should not be matching on either. Branch on the constraint name:
+
+```typescript
+const result = await command.execute();
+
+const rejectedBy = (constraint: string) =>
+    result.validationResults.some(_ =>
+        _.reason === ValidationResultReason.ConstraintViolation && _.reasonDetail === constraint);
+
+if (rejectedBy('UniqueOrganizationNumber')) {
+    return setFieldError('organizationNumber', 'That organization number is already registered.');
+}
+```
+
+The value is the constraint's own name as Chronicle reports it on the violation — the same name a backend spec asserts with `ShouldHaveConstraintViolationFor`.
+
+:::note
+`reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Treat an unrecognized value the way you treat `rule`, and never `switch` over it exhaustively.
+
+Only `rule` means the message is yours to show. Everything else is Cratis-authored developer text: it is in English, it is not localized, and it describes framework state rather than the user's situation. Map those to your own copy.
+:::
 
 ### Exception Details
 
@@ -287,6 +337,6 @@ This is especially useful for debugging and support scenarios.
 
 ## Related Topics
 
-- [Commands](./commands/index.md) - Core command concepts and usage
-- [React Commands](../react/commands/index.md) - Using commands in React components
-- [Validation](../../backend/commands/validation.md) - Understanding validation rules
+- [Commands](./index.md) - Core command concepts and usage
+- [React Commands](../../react/commands/index.md) - Using commands in React components
+- [Validation](../../../backend/commands/validation.md) - Understanding validation rules

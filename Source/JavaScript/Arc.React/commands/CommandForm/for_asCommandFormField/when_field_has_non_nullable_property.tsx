@@ -49,6 +49,7 @@ describe('when field has non-nullable property', () => {
             customFieldErrors: {},
             isValid: true,
             isAuthorized: true,
+            isExecuting: false,
             // eslint-disable-next-line @typescript-eslint/no-empty-function
             setFieldValidity: () => {},
             showTitles: true,
@@ -63,8 +64,8 @@ describe('when field has non-nullable property', () => {
 onFieldChange: undefined,
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
                 markUserInteracted: () => {},
-                // eslint-disable-next-line @typescript-eslint/no-empty-function
-                setSilentValidationResult: () => {}
+                beginSilentValidation: () => 0,
+                setSilentValidationResult: () => true
         };
 
         const { container } = render(

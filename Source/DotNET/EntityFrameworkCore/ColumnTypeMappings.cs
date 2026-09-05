@@ -77,6 +77,48 @@ internal static class ColumnTypeMappings
         };
 
     /// <summary>
+    /// Gets the appropriate SQL type for a Point column.
+    /// </summary>
+    /// <param name="databaseType">The database type.</param>
+    /// <returns>The SQL type string.</returns>
+    internal static string GetPointType(DatabaseType databaseType) =>
+        databaseType switch
+        {
+            DatabaseType.PostgreSql => "geometry(Point, 4326)",
+            DatabaseType.SqlServer => "geography",
+            DatabaseType.Sqlite => "TEXT",
+            _ => "text"
+        };
+
+    /// <summary>
+    /// Gets the appropriate SQL type for a LineString column.
+    /// </summary>
+    /// <param name="databaseType">The database type.</param>
+    /// <returns>The SQL type string.</returns>
+    internal static string GetLineStringType(DatabaseType databaseType) =>
+        databaseType switch
+        {
+            DatabaseType.PostgreSql => "geometry(LineString, 4326)",
+            DatabaseType.SqlServer => "geography",
+            DatabaseType.Sqlite => "TEXT",
+            _ => "text"
+        };
+
+    /// <summary>
+    /// Gets the appropriate SQL type for a Polygon column.
+    /// </summary>
+    /// <param name="databaseType">The database type.</param>
+    /// <returns>The SQL type string.</returns>
+    internal static string GetPolygonType(DatabaseType databaseType) =>
+        databaseType switch
+        {
+            DatabaseType.PostgreSql => "geometry(Polygon, 4326)",
+            DatabaseType.SqlServer => "geography",
+            DatabaseType.Sqlite => "TEXT",
+            _ => "text"
+        };
+
+    /// <summary>
     /// Gets the appropriate SQL type and annotation for an auto-increment column.
     /// </summary>
     /// <param name="databaseType">The database type.</param>

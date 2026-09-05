@@ -7,6 +7,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
+using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -17,10 +18,12 @@ namespace Cratis.Arc.Identity;
 /// </summary>
 /// <param name="httpRequestContextAccessor">The <see cref="IHttpRequestContextAccessor"/>.</param>
 /// <param name="options">The <see cref="IOptions{ArcOptions}"/>.</param>
+/// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
 [Singleton]
 public class IdentityProvider(
     IHttpRequestContextAccessor httpRequestContextAccessor,
-    IOptions<ArcOptions> options) : IIdentityProvider
+    IOptions<ArcOptions> options,
+    IActivitySource<IdentityProvider> activitySource) : IIdentityProvider
 {
     /// <summary>
     /// The name of the identity cookie.
@@ -35,6 +38,7 @@ public class IdentityProvider(
     /// <inheritdoc/>
     public async Task<IdentityProviderResult> Get()
     {
+        using var span = activitySource.Resolve();
         var context = httpRequestContextAccessor.Current;
         if (context is null)
         {
@@ -52,6 +56,7 @@ public class IdentityProvider(
     /// <inheritdoc/>
     public async Task<IdentityProviderResult<TDetails>> Get<TDetails>()
     {
+        using var span = activitySource.Resolve();
         var context = httpRequestContextAccessor.Current;
         if (context is null)
         {
@@ -184,7 +189,12 @@ public class IdentityProvider(
 
         var claimsPrincipal = context.User;
         var identityId = claimsPrincipal.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
-        var identityName = claimsPrincipal.Identity?.Name ?? "unknown";
+        var identityName = claimsPrincipal.Identity?.Name;
+        if (string.IsNullOrEmpty(identityName))
+        {
+            context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out identityName);
+        }
+        identityName = string.IsNullOrEmpty(identityName) ? "unknown" : identityName;
         var claims = claimsPrincipal.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value));
         var roles = claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
 

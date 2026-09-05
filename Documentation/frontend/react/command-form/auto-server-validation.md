@@ -319,7 +319,7 @@ Always validate client-side first to reduce unnecessary server calls:
 Here's a full registration form with auto server validation:
 
 ```tsx
-import { CommandForm, InputTextField } from '@cratis/applications-react/commands';
+import { CommandForm, InputTextField } from '@cratis/arc.react/commands';
 import { RegisterUser } from './commands';
 
 function RegistrationForm() {

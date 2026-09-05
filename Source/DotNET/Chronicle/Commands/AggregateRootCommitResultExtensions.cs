@@ -26,15 +26,12 @@ public static class AggregateRootCommitResultExtensions
 
         if (result.ConstraintViolations.Any())
         {
-            validationResults.AddRange(result.ConstraintViolations.Select(v =>
-                ValidationResult.Error(v.Message.Value)));
+            validationResults.AddRange(result.ConstraintViolations.Select(v => v.ToValidationResult()));
         }
 
         if (result.ConcurrencyViolations.Any())
         {
-            validationResults.AddRange(result.ConcurrencyViolations.Select(v =>
-                ValidationResult.Error(
-                    $"Concurrency violation for event source {v.EventSourceId}: Expected sequence number {v.ExpectedEventSequenceNumber}, but actual is {v.ActualEventSequenceNumber}")));
+            validationResults.AddRange(result.ConcurrencyViolations.Select(_ => _.ToValidationResult()));
         }
 
         return new Arc.Commands.CommandResult

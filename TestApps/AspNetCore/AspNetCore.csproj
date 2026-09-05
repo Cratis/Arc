@@ -4,7 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>$(NoWarn);SA0001;SA1600;SA1649;SA1402;MA0048;IDE0005</NoWarn>
+    <!-- CA1707 is off because a concept here is named with a separator on purpose, so that the reduction every name
+         reaching a Screenplay document goes through is exercised by a real compilation rather than only by source
+         strings. See Features/Reservations/Reservations.cs. -->
+    <NoWarn>$(NoWarn);SA0001;SA1600;SA1649;SA1402;MA0048;IDE0005;CA1707</NoWarn>
     <IsPackable>false</IsPackable>
 
     <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)/</CratisProxiesOutputPath>

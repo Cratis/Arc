@@ -130,11 +130,9 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
         _maxSize = null;
         if (_queryContext.Paging.IsPaged)
         {
-            _maxSize = _queryContext.Paging.Size;
-            if (_maxSize < 1)
-            {
-                throw new ArgumentException("Page size must be greater than 0", nameof(newQueryContext));
-            }
+            // Clamp a non-positive (out-of-range) page size to a minimum of one item rather than throwing: a
+            // malformed or hostile page size must degrade to a valid page instead of surfacing a server error.
+            _maxSize = Math.Max(1, _queryContext.Paging.Size);
         }
 
         var createNewStorage = oldQueryContext?.Paging.IsPaged == true && _maxSize < oldQueryContext.Paging.Size;
@@ -148,24 +146,28 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
 
         if (SortingIsEnabled())
         {
-            var sortingFieldProperty = typeof(TEntity).GetProperty(_queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public)
-                ?? throw new ArgumentException($"Sorting field could not be found on {typeof(TEntity)}", nameof(newQueryContext));
-            _sortingFieldComparer = (typeof(Comparer<>)
-                .MakeGenericType(sortingFieldProperty.PropertyType)
-                .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
-                .GetValue(null)
-                as IComparer)!;
-            _getSortingField = entity =>
+            // An unknown sort field is ignored rather than throwing: throwing would surface as a server error and
+            // leak the read model type name for hostile or malformed input. The set keeps insertion order instead.
+            var sortingFieldProperty = typeof(TEntity).GetProperty(_queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
+            if (sortingFieldProperty is not null)
             {
-                try
+                _sortingFieldComparer = (typeof(Comparer<>)
+                    .MakeGenericType(sortingFieldProperty.PropertyType)
+                    .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
+                    .GetValue(null)
+                    as IComparer)!;
+                _getSortingField = entity =>
                 {
-                    return sortingFieldProperty.GetValue(entity);
-                }
-                catch (Exception)
-                {
-                    return null;
-                }
-            };
+                    try
+                    {
+                        return sortingFieldProperty.GetValue(entity);
+                    }
+                    catch (Exception)
+                    {
+                        return null;
+                    }
+                };
+            }
         }
 
         if (_items is null || createNewStorage)

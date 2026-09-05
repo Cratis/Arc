@@ -1,0 +1,26 @@
+name: Verify Semver Label
+
+# Thin caller of the organization-wide release-intent gate. The policy - which
+# labels are accepted and what the errors say - lives in
+# Cratis/Workflows/.github/workflows/verify-release-intent.yml. Thirty diverging
+# per-repository copies of that logic are how the 2026-08-25 unintended releases
+# happened; do not reintroduce logic here.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+    # Scoped to the same base branch Publish releases from. A pull request stacked onto another one's
+    # branch cannot cut a release, so demanding a version label of it would be asking which version a
+    # merge that publishes nothing should carry.
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: Cratis/Workflows/.github/workflows/verify-release-intent.yml@main

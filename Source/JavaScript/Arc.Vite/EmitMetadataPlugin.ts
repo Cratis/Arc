@@ -2,56 +2,47 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 // Based on: https://github.com/arjendeblok/vite-plugin-emit-metadata
+//
+// TypeScript 7 ships a native (Go) compiler whose npm package no longer exposes
+// the programmatic compiler API (ts.transpileModule / ts.sys / config parsing).
+// The single-file transpile that emits `Reflect.metadata("design:type", …)` for
+// decorated classes is therefore done with @swc/core, which supports the legacy
+// decorator + emitDecoratorMetadata transform Arc's dependency injection relies on.
 
 import path from 'path';
-import ts from 'typescript';
+import fs from 'fs';
+import { transformSync, type JscTarget } from '@swc/core';
 
 const findContent = (fileContent: string, contentRegEx: RegExp) => contentRegEx.test(fileContent);
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+interface TsConfigCompilerOptions {
+    target?: string;
+    emitDecoratorMetadata?: boolean;
+}
 
+const knownTargets: JscTarget[] = ['es3', 'es5', 'es2015', 'es2016', 'es2017', 'es2018', 'es2019', 'es2020', 'es2021', 'es2022', 'esnext'];
 
-const parseTsConfig = (tsconfig: string, cwd = process.cwd()): ts.ParsedCommandLine => {
-    const fileName = ts.findConfigFile(
-        cwd,
-        ts.sys.fileExists,
-        tsconfig
-    );
+// Reads the compiler options from a tsconfig.json without depending on the
+// TypeScript compiler API. Strips comments and trailing commas so a standard
+// JSON.parse can handle the tsconfig relaxations, then reads compilerOptions.
+const readCompilerOptions = (tsconfigPath: string): TsConfigCompilerOptions => {
+    if (!fs.existsSync(tsconfigPath)) return {};
 
-    // if the value was provided, but no file, fail hard
-    if (tsconfig !== undefined && !fileName)
-        throw new Error(`failed to open '${fileName}'`);
-
-    let loadedConfig: any = {};
-    let baseDir = cwd;
-    if (fileName) {
-        const text = ts.sys.readFile(fileName);
-        if (text === undefined) throw new Error(`failed to read '${fileName}'`);
-
-        const result = ts.parseConfigFileTextToJson(fileName, text);
-
-        if (result.error !== undefined) {
-            console.error(`failed to parse '${fileName}'`);
-            throw new Error(`failed to parse '${fileName}'`);
-        }
-
-        loadedConfig = result.config;
-        baseDir = path.dirname(fileName);
+    try {
+        const text = fs.readFileSync(tsconfigPath, 'utf-8');
+        const withoutComments = text
+            .replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (match, comment) => (comment ? '' : match))
+            .replace(/,(\s*[}\]])/g, '$1');
+        const parsed = JSON.parse(withoutComments) as { compilerOptions?: TsConfigCompilerOptions };
+        return parsed.compilerOptions ?? {};
+    } catch {
+        return {};
     }
+};
 
-    const parsedTsConfig = ts.parseJsonConfigFileContent(
-        loadedConfig,
-        ts.sys,
-        baseDir
-    );
-
-    if (parsedTsConfig.errors[0]) console.error(parsedTsConfig.errors);
-
-    if (loadedConfig.emitDecoratorMetadata == false) {
-        console.error('vite-plugin-metadata: emitDecoratorMetadata not set', parsedTsConfig);
-    }
-
-    return parsedTsConfig;
+const toSwcTarget = (target?: string): JscTarget => {
+    const normalized = (target ?? '').toLowerCase() as JscTarget;
+    return knownTargets.includes(normalized) ? normalized : 'es2022';
 };
 
 export const EmitMetadataPlugin = ({
@@ -60,37 +51,49 @@ export const EmitMetadataPlugin = ({
     contentRegEx = /((?<![\\(\s]\s*['"])@\w*[\w\d]\s*(?![;])[\\((?=\s)])/
 } = {}) => {
 
-    let parsedTsConfig: ts.ParsedCommandLine | null = null;
+    let compilerOptions: TsConfigCompilerOptions | null = null;
 
     return {
         name: 'transform-file',
-        enforce: 'pre',
+        enforce: 'pre' as const,
 
         transform(src: string, id: string) {
-            if (!parsedTsConfig) {
-                parsedTsConfig = parseTsConfig(tsconfigPath, process.cwd());
-                if (parsedTsConfig.options.sourceMap) {
-                    parsedTsConfig.options.sourcemap = false;
-                    parsedTsConfig.options.inlineSources = true;
-                    parsedTsConfig.options.inlineSourceMap = true;
+            if (!compilerOptions) {
+                compilerOptions = readCompilerOptions(tsconfigPath);
+                if (compilerOptions.emitDecoratorMetadata === false) {
+                    console.error('vite-plugin-metadata: emitDecoratorMetadata not set', compilerOptions);
                 }
             }
 
-            if (fileRegEx.test(id)) {
-                const hasDecorator = findContent(src, contentRegEx);
-                if (!hasDecorator) {
-                    return;
-                }
+            if (!fileRegEx.test(id)) return;
 
-                const program = ts.transpileModule(src, { compilerOptions: parsedTsConfig.options });
-                return {
-                    code: program.outputText,
-                    map: null
-                };
-            }
+            const hasDecorator = findContent(src, contentRegEx);
+            if (!hasDecorator) return;
 
-            return;
+            const result = transformSync(src, {
+                filename: id,
+                sourceMaps: 'inline',
+                configFile: false,
+                swcrc: false,
+                jsc: {
+                    parser: {
+                        syntax: 'typescript',
+                        tsx: id.endsWith('.tsx'),
+                        decorators: true,
+                    },
+                    transform: {
+                        legacyDecorator: true,
+                        decoratorMetadata: true,
+                    },
+                    target: toSwcTarget(compilerOptions.target),
+                    keepClassNames: true,
+                },
+            });
+
+            return {
+                code: result.code,
+                map: null,
+            };
         },
     };
 };
-

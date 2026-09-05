@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.ActualDependency</AssemblyName>
+        <PackageId>Cratis.Arc.ProxyGenerator.Specs.LogicalDependency</PackageId>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.ActualDependency</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+</Project>

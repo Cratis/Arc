@@ -105,6 +105,7 @@ public static class MethodInfoExtensions
                 continue;
             }
 
+            // Named-argument form, e.g. [Authorize(Roles = "Librarian")].
             var rolesArg = attr.NamedArguments.FirstOrDefault(a => a.MemberName == "Roles");
             if (rolesArg != default && rolesArg.TypedValue.Value is string rolesStr && !string.IsNullOrEmpty(rolesStr))
             {
@@ -113,15 +114,32 @@ public static class MethodInfoExtensions
                     yield return role;
                 }
             }
+
+            // Constructor form, e.g. [Roles("Librarian", "Admin")] where the attribute takes a params string[].
+            if (attr.ConstructorArguments.Count > 0 &&
+                attr.ConstructorArguments[0].Value is IReadOnlyCollection<CustomAttributeTypedArgument> roleArgs)
+            {
+                foreach (var role in roleArgs.Select(a => a.Value as string).Where(r => !string.IsNullOrEmpty(r)))
+                {
+                    yield return role!;
+                }
+            }
         }
     }
 
     static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type)
     {
+        if (type.IsServerHandledCommandResponseValue())
+        {
+            return (false, ModelDescriptor.Empty);
+        }
+
         if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))
         {
             var bestType = type.GetBestTupleType();
-            return (true, bestType.ToModelDescriptor());
+            return bestType is null
+                ? (false, ModelDescriptor.Empty)
+                : (true, bestType.ToModelDescriptor());
         }
 
         if (type.IsOneOf())

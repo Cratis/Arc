@@ -1,5 +1,5 @@
 - name: Overview
-  href: overview.md
+  href: index.md
 - name: Resolving Tenant IDs
   href: resolvers.md
 - name: Configuration

@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBased;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -48,6 +50,8 @@ public sealed class SharedScenarioWebHostFixture : IAsyncLifetime
     {
         _current = this;
 
+        RegisterReadModels(typeof(SharedScenarioWebHostFixture).Assembly);
+
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseKestrel(options =>
             options.Listen(IPAddress.Loopback, 0, o => o.Protocols = HttpProtocols.Http1AndHttp2));
@@ -81,6 +85,25 @@ public sealed class SharedScenarioWebHostFixture : IAsyncLifetime
         {
             await _host.StopAsync();
             _host.Dispose();
+        }
+    }
+
+    static void RegisterReadModels(Assembly assembly)
+    {
+        foreach (var type in assembly.GetTypes())
+        {
+            if (!type.IsReadModel())
+            {
+                continue;
+            }
+
+            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(m => m.IsValidQueryFor(type));
+
+            foreach (var method in methods)
+            {
+                QueryMetadataRegistry.Register($"{type.FullName}.{method.Name}", type);
+            }
         }
     }
 }

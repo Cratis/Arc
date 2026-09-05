@@ -1,6 +1,13 @@
 // Patch TimeSpan values in command result from HTTP response
 try {
     var httpResponse = JSON.parse('{{ESCAPED_RESPONSE}}');
+    if (typeof httpResponse.response === 'string' &&
+        __cmdResult &&
+        typeof __cmdResult.response !== 'undefined' &&
+        String(__cmdResult.response).length === 0 &&
+        httpResponse.response.length > 0) {
+        __cmdResult.response = httpResponse.response;
+    }
     if (httpResponse.response && __cmdResult.response) {
         // Iterate through all properties in the HTTP response
         for (var key in httpResponse.response) {

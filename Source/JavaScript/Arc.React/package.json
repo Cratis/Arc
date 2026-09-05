@@ -1,7 +1,20 @@
 {
     "name": "@cratis/arc.react",
     "version": "1.0.0",
-    "description": "",
+    "description": "React hooks, forms, dialogs, identity, and observable query composition for Cratis Arc — the CQRS application framework for ASP.NET Core.",
+    "keywords": [
+        "cratis",
+        "arc",
+        "cqrs",
+        "commands",
+        "queries",
+        "react",
+        "hooks",
+        "forms",
+        "typescript",
+        "aspnetcore"
+    ],
+    "homepage": "https://www.cratis.io/arc/",
     "author": "Cratis",
     "license": "MIT",
     "repository": {
@@ -41,6 +54,11 @@
             "require": "./dist/cjs/dialogs/index.js",
             "import": "./dist/esm/dialogs/index.js"
         },
+        "./messaging": {
+            "types": "./dist/esm/messaging/index.d.ts",
+            "require": "./dist/cjs/messaging/index.js",
+            "import": "./dist/esm/messaging/index.js"
+        },
         "./identity": {
             "types": "./dist/esm/identity/index.d.ts",
             "require": "./dist/cjs/identity/index.js",
@@ -50,7 +68,8 @@
             "types": "./dist/esm/stories/index.d.ts",
             "require": "./dist/cjs/stories/index.js",
             "import": "./dist/esm/stories/index.js"
-        }
+        },
+        "./stories/styles.css": "./dist/esm/stories/stories.css"
     },
     "scripts": {
         "prepare": "yarn g:build",
@@ -66,17 +85,19 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
+        "@cratis/fundamentals": "^7.18.0",
         "tsyringe": "^4.10.0"
     },
     "devDependencies": {
-        "@storybook/addon-links": "^10.2.10",
-        "@storybook/react": "^10.2.10",
-        "@storybook/react-vite": "^10.2.10",
-        "@vitejs/plugin-react": "^6.0.1",
-        "react": "^19.2.4",
-        "react-dom": "^19.2.4",
-        "storybook": "^10.2.10",
-        "vite": "^8.0.8"
+        "@cratis/fundamentals": "7.18.0",
+        "@storybook/addon-links": "^10.4.1",
+        "@storybook/react": "^10.4.1",
+        "@storybook/react-vite": "^10.4.1",
+        "@vitejs/plugin-react": "^6.0.2",
+        "react": "^19.2.6",
+        "react-dom": "^19.2.6",
+        "storybook": "^10.4.1",
+        "vite": "^8.0.16"
     },
     "peerDependencies": {
         "react": "^18.0.0 || ^19.0.0"

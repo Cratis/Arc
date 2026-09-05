@@ -17,6 +17,7 @@ import {
 } from './dialogs';
 import { IViewModelDetached } from './IViewModelDetached';
 import { ArcContext } from '@cratis/arc.react';
+import { useMessenger } from '@cratis/arc.react/messaging';
 import { WellKnownBindings } from "./WellKnownBindings";
 import { deepEqual } from '@cratis/arc';
 import { IHandleParams } from './IHandleParams';
@@ -30,6 +31,7 @@ import { ICanBeConfigured } from '@cratis/arc/ICanBeConfigured';
 import { DialogComponentsContext, DialogContextContent, IDialogComponents, useDialogContext } from '@cratis/arc.react/dialogs';
 import { ICommandScope, useCommandScope } from '@cratis/arc.react/commands';
 import { IQueryScope, useQueryScope } from '@cratis/arc.react/queries';
+import { IMessenger } from '@cratis/arc/messaging';
 
 interface IViewModel extends IViewModelDetached {
     __childContainer: DependencyContainer;
@@ -91,6 +93,7 @@ export function withViewModel<TViewModel extends object, TProps extends object =
         const dialogComponentsContext = useContext<IDialogComponents>(DialogComponentsContext);
         const commandScope = useCommandScope();
         const queryScope = useQueryScope();
+        const messenger = useMessenger();
         const params = useParams();
         const [currentProps, setCurrentProps] = useState(props);
         const [previousParams, setPreviousParams] = useState(params);
@@ -128,6 +131,7 @@ export function withViewModel<TViewModel extends object, TProps extends object =
             child.registerInstance(DialogContextContent, dialogContext as unknown);
             child.registerInstance(ICommandScope as Constructor<ICommandScope>, commandScope);
             child.registerInstance(IQueryScope as Constructor<IQueryScope>, queryScope);
+            child.registerInstance(IMessenger as Constructor<IMessenger>, messenger);
 
             const originalResolve = child.resolve;
 

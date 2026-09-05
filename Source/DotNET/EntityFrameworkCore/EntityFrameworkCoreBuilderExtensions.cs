@@ -97,6 +97,10 @@ public static class EntityFrameworkCoreBuilderExtensions
                 .Invoke(null, [builder.Services, connectionString, null]);
         }
 
+        // Contribute the EF Core read model entities to command-scoped, by-key resolution so they can be injected into
+        // commands the same way Chronicle-backed read models are.
+        DbContextServiceCollectionExtensions.AddReadModelCommandResolution(builder.Services, readOnlyTypes);
+
         return builder;
     }
 }

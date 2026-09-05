@@ -13,8 +13,11 @@ export class NullObservableQueryConnection<TDataType> implements IObservableQuer
     /**
      * Initializes a new instance of the {@link NullObservableQueryConnection} class.
      * @param {TDataType} defaultValue The default value to serve.
+     * @param {QueryResult<TDataType>} result Optional result to serve instead of an empty one. Supply it when the
+     * subscription failed for a reason the subscriber must be able to see — client-side validation in particular,
+     * which would otherwise be indistinguishable from a query that simply has no data yet.
      */
-    constructor(readonly defaultValue: TDataType) {
+    constructor(readonly defaultValue: TDataType, readonly result?: QueryResult<TDataType>) {
     }
 
     /** @inheritdoc */
@@ -29,7 +32,7 @@ export class NullObservableQueryConnection<TDataType> implements IObservableQuer
 
     /** @inheritdoc */
     connect(dataReceived: DataReceived<TDataType>) {
-        dataReceived(QueryResult.empty(this.defaultValue));
+        dataReceived(this.result ?? QueryResult.empty(this.defaultValue));
     }
 
     /** @inheritdoc */

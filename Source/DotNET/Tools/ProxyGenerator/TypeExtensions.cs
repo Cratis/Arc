@@ -24,17 +24,14 @@ public static class TypeExtensions
 
 #pragma warning disable SA1600 // Elements should be documented
     internal static Type _conceptType = typeof(NoConcept);
-    internal static Type _nullableType = typeof(Nullable<>);
-    internal static Type _expandoObjectType = typeof(ExpandoObject);
-    internal static Type _stringType = typeof(string);
-    internal static Type _enumerableType = typeof(IEnumerable);
-    internal static Type _genericEnumerableType = typeof(IEnumerable<>);
-    internal static Type _dictionaryType = typeof(IDictionary<,>);
-    internal static Type _asyncEnumerableType = typeof(IAsyncEnumerable<>);
     internal static Type _controllerBaseType = typeof(object);
     internal static Type _taskType = typeof(Task);
     internal static Type _voidType = typeof(void);
 #pragma warning restore SA1600 // Elements should be documented
+
+    const string CommandResponseValueHandlerTypeName = "Cratis.Arc.Commands.ICommandResponseValueHandler`1";
+    const string RuntimeCommandResponseValueHandlerTypeName = "Cratis.Arc.Commands.ICommandResponseValueHandler";
+    const string CommandResponseValueHandlerContractsAssemblyName = "Cratis.Arc.Core";
 
     static readonly TargetType _numberTargetType = new(typeof(int), "number", "Number");
     static readonly TargetType _dateTargetType = new(typeof(DateTimeOffset), "Date", "Date");
@@ -62,30 +59,42 @@ public static class TypeExtensions
         { typeof(DateTimeOffset).FullName!, _dateTargetType },
         { typeof(Guid).FullName!, new(typeof(Guid), "Guid", "Guid", "@cratis/fundamentals", FromPackage: true) },
         { typeof(TimeSpan).FullName!, new(typeof(TimeSpan), "TimeSpan", "TimeSpan", "@cratis/fundamentals", FromPackage: true) },
-        { typeof(DateOnly).FullName!, _dateTargetType },
-        { typeof(TimeOnly).FullName!, _dateTargetType },
+
+        // A calendar date and a time of day are not instants, and a JavaScript Date can only be one. Mapping them
+        // onto Date invents an instant that was never sent - `new Date("2026-05-12")` is UTC midnight, which every
+        // browser-local getter west of UTC reads back as the 11th, and `new Date("14:30:45")` is not a date at all
+        // and yields Invalid Date. Both already cross the wire as their ISO-8601 string, so carrying that string
+        // through is the faithful mapping: nothing is invented, nothing is lost, and the timezone decision moves to
+        // the call site that actually needs one instead of being made silently by the deserializer.
+        //
+        // They map to first-class types rather than to string for the same reason Guid and TimeSpan do two lines
+        // above: a string would be correct but say nothing about what it holds, leaving a calendar date
+        // indistinguishable from any other string. Both carry converters in @cratis/fundamentals, so the value
+        // arrives as the type rather than as text a call site has to parse.
+        { typeof(DateOnly).FullName!, new(typeof(DateOnly), "DateOnly", "DateOnly", "@cratis/fundamentals", FromPackage: true) },
+        { typeof(TimeOnly).FullName!, new(typeof(TimeOnly), "TimeOnly", "TimeOnly", "@cratis/fundamentals", FromPackage: true) },
         { typeof(System.Text.Json.Nodes.JsonNode).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonObject).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.Nodes.JsonArray).FullName!, ObjectTypeFinal },
         { typeof(System.Text.Json.JsonDocument).FullName!, ObjectTypeFinal },
-        { typeof(Uri).FullName!, _dateTargetType }
+        { typeof(Uri).FullName!, _stringTargetType },
+        { "Cratis.Geospatial.Point", new(typeof(object), "Point", "Point", "@cratis/fundamentals", FromPackage: true) },
+        { "Cratis.Geospatial.LineString", new(typeof(object), "LineString", "LineString", "@cratis/fundamentals", FromPackage: true) },
+        { "Cratis.Geospatial.Polygon", new(typeof(object), "Polygon", "Polygon", "@cratis/fundamentals", FromPackage: true) }
     };
 
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
 
-    static readonly HashSet<string> _wellKnownTypeNames =
-    [
-        "Cratis.Arc.Validation.ValidationResult",
-        "Cratis.Arc.Authorization.AuthorizationResult"
-    ];
-
     static Dictionary<string, string> _assemblyPackageMappings = [];
+    static Dictionary<string, TargetType> _typeMappings = [];
     static HashSet<string> _excludedTypeNames = [];
     static List<string> _excludedNamespacePatterns = [];
     static List<(string Namespace, string Folder)> _namespaceRoots = [];
 
     static MetadataAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
+    static Func<AssemblyLoadContext, AssemblyName, Assembly?>? _assemblyResolvingHandler;
+    static HashSet<string>? _serverHandledCommandResponseValueTypeNames;
 
     /// <summary>
     /// Gets all assemblies gathered from the <see cref="InitializeProjectAssemblies(string, Action{string}, Action{string})"/> method.
@@ -99,6 +108,36 @@ public static class TypeExtensions
     public static void SetAssemblyPackageMappings(IReadOnlyDictionary<string, string> mappings)
     {
         _assemblyPackageMappings = new Dictionary<string, string>(mappings);
+    }
+
+    /// <summary>
+    /// Sets explicit mappings from a .NET type to the TypeScript type it should cross the wire as.
+    /// </summary>
+    /// <param name="mappings">Triples of (fully qualified type name, TypeScript type, package the type is imported from).</param>
+    /// <remarks>
+    /// <para>
+    /// Consulted ahead of the built-in map, so a consumer can correct how an existing type is generated
+    /// as well as declare one the generator has never seen. Nothing is mapped unless asked for, so a
+    /// build that passes no mappings generates exactly what it generated before.
+    /// </para>
+    /// <para>
+    /// A mapping with no package generates a bare TypeScript type and emits no import; one with a
+    /// package emits the package as a bare specifier, the way <c>Guid</c> and <c>TimeSpan</c> are
+    /// imported from <c>@cratis/fundamentals</c>.
+    /// </para>
+    /// </remarks>
+    public static void SetTypeMappings(IReadOnlyCollection<(string TypeName, string TsType, string Package)> mappings)
+    {
+        _typeMappings = mappings.ToDictionary(
+            static mapping => mapping.TypeName,
+            static mapping => new TargetType(
+                typeof(object),
+                mapping.TsType,
+                mapping.TsType,
+                mapping.Package,
+                Final: true,
+                FromPackage: !string.IsNullOrEmpty(mapping.Package)),
+            StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -159,78 +198,8 @@ public static class TypeExtensions
     /// <param name="message">Callback for outputting messages.</param>
     /// <param name="errorMessage">Callback for outputting error messages.</param>
     /// <returns>True if successful, false if not.</returns>
-    public static bool InitializeProjectAssemblies(string assemblyFile, Action<string> message, Action<string> errorMessage)
-    {
-        message($"  Gather all project referenced assemblies for {assemblyFile}");
-        var assemblyFolder = Path.GetDirectoryName(assemblyFile)!;
-
-        var assembly = Assembly.LoadFile(assemblyFile);
-        var dependencyContext = DependencyContext.Load(assembly);
-        if (dependencyContext is null)
-        {
-            errorMessage($"Could not load dependency context for assembly '{assemblyFile}'");
-            return false;
-        }
-
-        var root = RuntimeEnvironment.GetRuntimeDirectory();
-        root = Path.GetDirectoryName(root)!;
-        var version = Path.GetFileName(root)!;
-        var framework = Directory.GetParent(root)!;
-        var shared = Directory.GetParent(framework.FullName)!;
-        var aspNetCoreAppPath = Path.Combine(shared.FullName, "Microsoft.AspNetCore.App", version);
-
-        message($"  Runtime assemblies: {root}");
-        message($"  AspNetCoreApp assemblies: {aspNetCoreAppPath}");
-
-        var runtimeAssemblies = Directory.GetFiles(root, "*.dll");
-        var aspNetCoreAssemblies = Directory.GetFiles(aspNetCoreAppPath, "*.dll");
-        var appAssemblies = Directory.GetFiles(assemblyFolder, "*.dll");
-        string[] paths = [.. runtimeAssemblies, .. aspNetCoreAssemblies, .. appAssemblies];
-
-        var fundamentalsPackage = dependencyContext.RuntimeLibraries.SingleOrDefault(_ => _.Type == "package" && _.Name == "Cratis.Fundamentals");
-        if (fundamentalsPackage is not null)
-        {
-            var assetPaths = fundamentalsPackage.RuntimeAssemblyGroups
-                .SelectMany(_ => _.AssetPaths)
-                .ToArray();
-
-            var nugetCachePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".nuget",
-                "packages");
-
-            var fullPath = Path.Combine(nugetCachePath, fundamentalsPackage.Path!, assetPaths[0]);
-            if (File.Exists(fullPath))
-            {
-                paths = [.. paths, fullPath];
-            }
-        }
-
-        var filtered = paths.Distinct(new FileNameComparer()).ToArray();
-
-        _assemblyResolver = new PathAssemblyResolver(filtered);
-#pragma warning disable CA2000 // Dispose objects before losing scope
-        _metadataLoadContext = new MetadataLoadContext(_assemblyResolver);
-#pragma warning restore CA2000 // Dispose objects before losing scope
-
-        AssemblyLoadContext.Default.Resolving += (_, name) =>
-            _assembliesByName[name.Name!] = _assemblyResolver.Resolve(_metadataLoadContext, name)!;
-
-        Assemblies = [.. dependencyContext.RuntimeLibraries
-                                        .Where(_ => _.Type.Equals("project"))
-                                        .Select(_ => _metadataLoadContext.LoadFromAssemblyPath(Path.Join(assemblyFolder, $"{_.Name}.dll")))
-                                        .Where(_ => _ is not null)
-                                        .Distinct()];
-
-        foreach (var loadedAssembly in _metadataLoadContext.GetAssemblies())
-        {
-            _assembliesByName[loadedAssembly.GetName().Name!] = loadedAssembly;
-        }
-
-        InitializeWellKnownTypes();
-
-        return true;
-    }
+    public static bool InitializeProjectAssemblies(string assemblyFile, Action<string> message, Action<string> errorMessage) =>
+        TryInitializeProjectAssemblies(assemblyFile, message, errorMessage);
 
     /// <summary>
     /// Check if a type is a controller.
@@ -254,7 +223,8 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is an async enumerable, false if not.</returns>
-    public static bool IsAsyncEnumerable(this Type type) => type.IsAssignableTo(_asyncEnumerableType);
+    public static bool IsAsyncEnumerable(this Type type) =>
+        EnumerateTypeAndContracts(type).Any(_ => IsGenericTypeDefinition(_, typeof(IAsyncEnumerable<>)));
 
     /// <summary>
     /// Check if a type is observable.
@@ -262,8 +232,8 @@ public static class TypeExtensions
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is observable, false if not.</returns>
     public static bool IsSubject(this Type type) =>
-        type.FullName!.StartsWith("System.Reactive.Subjects.ISubject`1") ||
-        type.FullName!.StartsWith("System.IObservable`1");
+        (type.FullName?.StartsWith("System.Reactive.Subjects.ISubject`1") ?? false) ||
+        (type.FullName?.StartsWith("System.IObservable`1") ?? false);
 
     /// <summary>
     /// Check if a type is a task or a task of T.
@@ -271,15 +241,15 @@ public static class TypeExtensions
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is a task, false if not.</returns>
     public static bool IsTask(this Type type) =>
-        type.FullName!.StartsWith(_taskType.FullName!) ||
-        (type.IsGenericType && type.GetGenericTypeDefinition().FullName!.StartsWith(typeof(Task<>).FullName!));
+        (type.FullName?.StartsWith(_taskType.FullName!) ?? false) ||
+        (type.IsGenericType && (type.GetGenericTypeDefinition().FullName?.StartsWith(typeof(Task<>).FullName!) ?? false));
 
     /// <summary>
     /// Check if a type is a String or not.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
     /// <returns>True if type is a string, false otherwise.</returns>
-    public static bool IsString(this Type type) => type == _stringType;
+    public static bool IsString(this Type type) => type.FullName == typeof(string).FullName;
 
     /// <summary>
     /// Check if a type is assignable to a specific type.
@@ -313,7 +283,14 @@ public static class TypeExtensions
             type = type.GetConceptValueType();
         }
 
-        return _primitiveTypeMap.ContainsKey(type.FullName!);
+        // Unwrap nullable types before checking the primitive map - Nullable<T> primitives
+        // should be treated as known types since they map to TypeScript primitives
+        if (IsGenericTypeDefinition(type, typeof(Nullable<>)))
+        {
+            type = type.GetGenericArguments()[0];
+        }
+
+        return type.FullName is not null && _primitiveTypeMap.ContainsKey(type.FullName);
     }
 
     /// <summary>
@@ -332,9 +309,38 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if it is, false if not.</returns>
-    public static bool IsDictionary(this Type type) =>
-        (type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType) ||
-        type.GetInterfaces().Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+    public static bool IsDictionary(this Type type) => type.GetDictionaryInterface() is not null;
+
+    /// <summary>
+    /// Get the dictionary interface a <see cref="Type"/> is, or implements - mutable or read-only.
+    /// </summary>
+    /// <param name="type"><see cref="Type"/> to get it for.</param>
+    /// <returns>The closed dictionary interface, or null when the type is not a dictionary.</returns>
+    /// <remarks>
+    /// Both shapes count. <see cref="IReadOnlyDictionary{TKey, TValue}"/> does not implement
+    /// <see cref="IDictionary{TKey, TValue}"/> - they are siblings - so a model that exposes its
+    /// dictionaries read-only, which is the natural shape for an immutable record, would otherwise not be
+    /// recognized as holding dictionaries at all. It would then fall through to the enumerable path and
+    /// come out as an array of <see cref="KeyValuePair{TKey, TValue}"/> rather than a keyed object.
+    /// </remarks>
+    public static Type? GetDictionaryInterface(this Type type)
+    {
+        if (IsDictionaryDefinition(type))
+        {
+            return type;
+        }
+
+        foreach (var candidate in type.GetInterfaces())
+        {
+            if (!candidate.IsGenericType) continue;
+            if (IsDictionaryDefinition(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Get the key type of a dictionary type.
@@ -343,9 +349,7 @@ public static class TypeExtensions
     /// <returns>The key <see cref="Type"/>.</returns>
     public static Type GetDictionaryKeyType(this Type type)
     {
-        var dictionaryInterface = type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType
-            ? type
-            : type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+        var dictionaryInterface = type.GetDictionaryInterface()!;
         return dictionaryInterface.GetGenericArguments()[0];
     }
 
@@ -356,9 +360,7 @@ public static class TypeExtensions
     /// <returns>The value <see cref="Type"/>.</returns>
     public static Type GetDictionaryValueType(this Type type)
     {
-        var dictionaryInterface = type.IsGenericType && type.GetGenericTypeDefinition() == _dictionaryType
-            ? type
-            : type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == _dictionaryType);
+        var dictionaryInterface = type.GetDictionaryInterface()!;
         return dictionaryInterface.GetGenericArguments()[1];
     }
 
@@ -384,7 +386,7 @@ public static class TypeExtensions
     /// <returns>The effective element type to use for proxy generation and type collection.</returns>
     public static Type GetDictionaryEffectiveValueType(this Type valueType) =>
         valueType.IsEnumerable() && !valueType.IsDictionary()
-            ? valueType.GetEnumerableElementType()
+            ? valueType.GetEnumerableElementType() ?? valueType
             : valueType;
 
     /// <summary>
@@ -439,7 +441,7 @@ public static class TypeExtensions
             var resolvedKeyType = keyType.IsConcept() ? keyType.GetConceptValueType() : keyType;
             var keyTargetType = resolvedKeyType.IsEnum
                 ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
-                : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var primitiveKeyType)
+                : resolvedKeyType.FullName is not null && _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName, out var primitiveKeyType)
                     ? primitiveKeyType
                     : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
 
@@ -458,7 +460,25 @@ public static class TypeExtensions
             type = type.GetConceptValueType();
         }
 
-        if (_primitiveTypeMap.TryGetValue(type.FullName!, out var value))
+        // Handle nullable types (Nullable<T>) by unwrapping and getting the target type of the underlying type
+        // IMPORTANT: Cannot use Nullable.GetUnderlyingType() with MetadataLoadContext types because it's a
+        // runtime reflection API that accesses private CLR implementation details. MetadataLoadContext types
+        // are metadata-only and not backed by runtime CLR types, so Nullable.GetUnderlyingType returns null.
+        // Instead, we use GetGenericArguments()[0] which works with metadata-only reflection.
+        if (IsGenericTypeDefinition(type, typeof(Nullable<>)))
+        {
+            var underlyingType = type.GetGenericArguments()[0];
+            return underlyingType.GetTargetType();
+        }
+
+        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than
+        // only add an unknown one. The built-in map is still what answers when nothing was configured.
+        if (type.FullName is not null && _typeMappings.TryGetValue(type.FullName, out var mapped))
+        {
+            return mapped with { OriginalType = type };
+        }
+
+        if (type.FullName is not null && _primitiveTypeMap.TryGetValue(type.FullName, out var value))
         {
             return value;
         }
@@ -518,12 +538,27 @@ public static class TypeExtensions
 
                 var resolvedKeyTargetType = resolvedKeyType.IsEnum
                     ? new TargetType(resolvedKeyType, resolvedKeyType.Name, "Number")
-                    : _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName!, out var keyPrimitiveType)
+                    : resolvedKeyType.FullName is not null && _primitiveTypeMap.TryGetValue(resolvedKeyType.FullName, out var keyPrimitiveType)
                         ? keyPrimitiveType
                         : new TargetType(resolvedKeyType, resolvedKeyType.Name, resolvedKeyType.Name);
                 if (resolvedKeyTargetType.Type != "string")
                 {
                     imports.Add(new ImportStatement(property.OriginalType, "ValueMap", "@cratis/fundamentals"));
+                }
+
+                // A package-mapped key or value (for example Guid, TimeSpan, or a concept over one) still needs its
+                // own import. It is not collected into typesInvolved above (primitives/concepts are skipped), and a
+                // dictionary property's own Module is empty, so the general property import below never covers it —
+                // leaving the generated Record/ValueMap referencing an undeclared type.
+                if (resolvedKeyTargetType.FromPackage)
+                {
+                    imports.Add(new ImportStatement(resolvedKeyType, resolvedKeyTargetType.Type, resolvedKeyTargetType.Module));
+                }
+
+                var effectiveValueTargetType = effectiveValueType.GetTargetType();
+                if (effectiveValueTargetType.FromPackage)
+                {
+                    imports.Add(new ImportStatement(effectiveValueType, effectiveValueTargetType.Type, effectiveValueTargetType.Module));
                 }
             }
             if (!string.IsNullOrEmpty(property.Module))
@@ -541,6 +576,18 @@ public static class TypeExtensions
         }
 
         imports.AddRange(typesInvolved.GetImports(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+
+        // For interface-typed properties, derivative types must be imported explicitly.
+        // They are from mapped assemblies and are excluded from typesInvolved collection,
+        // so they never reach GetImports(). Without this, derivative constructor names are
+        // emitted in @field(...) but have no corresponding import statements.
+        foreach (var pd in propertyDescriptors.Where(pd => !string.IsNullOrEmpty(pd.Derivatives)))
+        {
+            foreach (var derivativeType in pd.OriginalType.GetDerivativeTypes())
+            {
+                imports.Add(derivativeType.GetImportStatement(targetPath, type.ResolveTargetPath(segmentsToSkip), segmentsToSkip));
+            }
+        }
 
         var derivativeConstructorNames = new HashSet<string>(
             propertyDescriptors
@@ -622,7 +669,11 @@ public static class TypeExtensions
     /// <returns>Converted <see cref="EnumDescriptor"/>.</returns>
     public static EnumDescriptor ToEnumDescriptor(this Type type)
     {
-        var values = Enum.GetValuesAsUnderlyingType(type).Cast<int>();
+        // Keep the underlying values boxed as-is. GetValuesAsUnderlyingType returns the enum's actual underlying
+        // type (byte, long, ...), and Cast<int> unbox-casts each element to int, which throws for any enum not
+        // backed by int — e.g. `enum X : byte` or `[Flags] enum X : long`. EnumMemberDescriptor.Value is object
+        // and the flags math uses Convert.ToInt64, so the boxed underlying value flows through unchanged.
+        var values = Enum.GetValuesAsUnderlyingType(type).Cast<object>();
         var names = Enum.GetNames(type);
         var members = values.Select((value, index) => new EnumMemberDescriptor(names[index], value)).ToArray();
         var isFlags = type.IsFlagsEnum();
@@ -693,7 +744,14 @@ public static class TypeExtensions
             {
                 var fullPath = Path.Join(targetPath, relativePath);
                 var fullPathForType = Path.Join(targetPath, type.ResolveTargetPath(segmentsToSkip));
-                importPath = $"{Path.GetRelativePath(fullPath, fullPathForType)}/{type.Name}";
+                var typeName = type.Name;
+                var backtickIndex = typeName.IndexOf('`');
+                if (backtickIndex >= 0)
+                {
+                    typeName = typeName[..backtickIndex];
+                }
+
+                importPath = $"{Path.GetRelativePath(fullPath, fullPathForType)}/{typeName}";
             }
 
             if (!importPath.StartsWith('.') && !importPath.StartsWith('/'))
@@ -774,6 +832,10 @@ public static class TypeExtensions
     /// <remarks>It skips any types already added to the collection passed to it.</remarks>
     public static void CollectTypesInvolved(this Type type, IList<Type> typesInvolved)
     {
+        // A generic parameter is a placeholder rather than a type - `T` has no full name, and a descriptor
+        // built from one is nameless, colliding with anything else that lands on the same path. An open
+        // generic definition has no concrete shape to emit either; only its closed instantiations do.
+        if (type.IsGenericParameter || type.IsGenericTypeDefinition) return;
         if (typesInvolved.Contains(type) || type.IsAPrimitiveType() || type.IsConcept() || type.IsKnownType() || type.IsFromMappedAssembly() || type.IsExcluded()) return;
         typesInvolved.Add(type);
 
@@ -801,7 +863,10 @@ public static class TypeExtensions
     /// <returns>True if type is enumerable, false if not an enumerable.</returns>
     public static bool IsEnumerable(this Type type)
     {
-        return !type.IsAPrimitiveType() && type != _expandoObjectType && !type.IsString() && _enumerableType.IsAssignableFrom(type);
+        return !type.IsAPrimitiveType() &&
+               type.FullName != typeof(ExpandoObject).FullName &&
+               !type.IsString() &&
+               EnumerateTypeAndContracts(type).Any(_ => _.FullName == typeof(IEnumerable).FullName);
     }
 
     /// <summary>
@@ -827,7 +892,7 @@ public static class TypeExtensions
     public static bool IsAPrimitiveType(this Type type)
     {
         return type.GetTypeInfo().IsPrimitive
-                || type.IsNullable() || _primitiveTypeMap.ContainsKey(type.FullName!);
+                || type.IsNullable() || (type.FullName is not null && _primitiveTypeMap.ContainsKey(type.FullName));
     }
 
     /// <summary>
@@ -839,8 +904,7 @@ public static class TypeExtensions
     {
         while (!type.Equals(typeof(object)))
         {
-            if (type.GetTypeInfo().IsGenericType &&
-               type.GetGenericTypeDefinition() == _nullableType)
+            if (IsGenericTypeDefinition(type, typeof(Nullable<>)))
             {
                 return true;
             }
@@ -868,14 +932,13 @@ public static class TypeExtensions
             return enumerableType.GetElementType()!;
         }
 
-        if (enumerableType.IsGenericType && enumerableType.GetGenericTypeDefinition() == _genericEnumerableType)
+        if (IsGenericTypeDefinition(enumerableType, typeof(IEnumerable<>)))
         {
             return enumerableType.GetGenericArguments()[0];
         }
 
         return enumerableType.GetInterfaces()
-            .Where(t => t.IsGenericType &&
-                t.GetGenericTypeDefinition() == _genericEnumerableType)
+            .Where(_ => IsGenericTypeDefinition(_, typeof(IEnumerable<>)))
             .Select(t => t.GenericTypeArguments[0]).FirstOrDefault()!;
     }
 
@@ -904,14 +967,13 @@ public static class TypeExtensions
     /// <returns>The element type.</returns>
     public static Type GetAsyncEnumerableElementType(this Type asyncEnumerableType)
     {
-        if (asyncEnumerableType.IsGenericType && asyncEnumerableType.GetGenericTypeDefinition() == _asyncEnumerableType)
+        if (IsGenericTypeDefinition(asyncEnumerableType, typeof(IAsyncEnumerable<>)))
         {
             return asyncEnumerableType.GetGenericArguments()[0];
         }
 
         return asyncEnumerableType.GetInterfaces()
-            .Where(t => t.IsGenericType &&
-                t.GetGenericTypeDefinition() == _asyncEnumerableType)
+            .Where(_ => IsGenericTypeDefinition(_, typeof(IAsyncEnumerable<>)))
             .Select(t => t.GenericTypeArguments[0]).FirstOrDefault()!;
     }
 
@@ -1000,7 +1062,7 @@ public static class TypeExtensions
     /// <param name="type"><see cref="Type"/> to check.</param>
     /// <returns>True if type implements IEnumerable, false if not.</returns>
     public static bool ImplementsEnumerable(this Type type) =>
-        type.ImplementsOpenGeneric(_genericEnumerableType) || (type.IsGenericType && type.GetGenericTypeDefinition() == _genericEnumerableType);
+        EnumerateTypeAndContracts(type).Any(_ => IsGenericTypeDefinition(_, typeof(IEnumerable<>)));
 
     /// <summary>
     /// Check if a type implements IOneOf from the OneOf namespace.
@@ -1067,29 +1129,48 @@ public static class TypeExtensions
     }
 
     /// <summary>
-    /// Check if a type is a well-known type that should be ignored as a response type.
+    /// Check if a type is consumed by a declared server-side command response value handler.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
-    /// <returns>True if the type is a well-known type to be ignored, false otherwise.</returns>
-    public static bool IsWellKnownType(this Type type) =>
-        type.FullName is not null && _wellKnownTypeNames.Contains(type.FullName);
+    /// <returns>True if the type is consumed on the server and should be ignored as a client response, false otherwise.</returns>
+    public static bool IsWellKnownType(this Type type) => type.IsServerHandledCommandResponseValue();
+
+    /// <summary>
+    /// Check if a command response value type is consumed by a server-side command response value handler.
+    /// </summary>
+    /// <param name="type">Type to check.</param>
+    /// <returns>True if the value is handled on the server and should not be exposed as a client response.</returns>
+    public static bool IsServerHandledCommandResponseValue(this Type type)
+    {
+        var isFromCurrentMetadataContext = _metadataLoadContext?.GetAssemblies().Contains(type.Assembly) == true;
+        var handledTypeIdentities = isFromCurrentMetadataContext
+            ? _serverHandledCommandResponseValueTypeNames ?? []
+            : FindRuntimeServerHandledCommandResponseValueTypeNames();
+
+        return EnumerateTypeAndContracts(type).Any(_ =>
+            _.AssemblyQualifiedName is not null && handledTypeIdentities.Contains(_.AssemblyQualifiedName));
+    }
 
     /// <summary>
     /// Get the best type from a tuple by selecting either a ConceptAs implementation or a primitive type.
     /// </summary>
     /// <param name="type">Tuple <see cref="Type"/> to inspect.</param>
-    /// <returns>The best type found, or the original tuple type if none match the criteria.</returns>
-    public static Type GetBestTupleType(this Type type)
+    /// <returns>The best type found, the original non-tuple type, or null when every tuple value is server-handled.</returns>
+    public static Type? GetBestTupleType(this Type type)
     {
-        if (!type.IsGenericType || !type.FullName!.StartsWith("System.ValueTuple"))
+        if (!type.IsGenericType || !(type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
             return type;
         }
 
-        var genericArguments = type.GetGenericArguments().Where(t => !t.IsWellKnownType()).ToArray();
+        var genericArguments = type.GetGenericArguments()
+            .Select(UnwrapType)
+            .Where(_ => _?.IsServerHandledCommandResponseValue() == false)
+            .Cast<Type>()
+            .ToArray();
         if (genericArguments.Length == 0)
         {
-            return type;
+            return null;
         }
 
         var conceptType = genericArguments.FirstOrDefault(t => t.IsConcept());
@@ -1121,7 +1202,7 @@ public static class TypeExtensions
         foreach (var arg in genericArguments)
         {
             var unwrappedType = UnwrapType(arg);
-            if (unwrappedType?.IsWellKnownType() == false)
+            if (unwrappedType?.IsServerHandledCommandResponseValue() == false)
             {
                 candidateTypes.Add(unwrappedType);
             }
@@ -1138,6 +1219,226 @@ public static class TypeExtensions
     }
 
     /// <summary>
+    /// Try to initialize the project assemblies.
+    /// </summary>
+    /// <param name="assemblyFile">Assembly file to start from.</param>
+    /// <param name="message">Callback for outputting messages.</param>
+    /// <param name="errorMessage">Callback for outputting error messages.</param>
+    /// <returns>True if successful, false if not.</returns>
+    internal static bool TryInitializeProjectAssemblies(string assemblyFile, Action<string> message, Action<string> errorMessage)
+    {
+        DetachProjectAssemblies(disposeMetadataLoadContext: true);
+        _serverHandledCommandResponseValueTypeNames = [];
+        message($"  Gather all project referenced assemblies for {assemblyFile}");
+        var assemblyFolder = Path.GetDirectoryName(assemblyFile)!;
+
+        Assembly assembly;
+        DependencyContext? dependencyContext;
+        try
+        {
+            assembly = LoadRuntimeAssembly(assemblyFile);
+            dependencyContext = DependencyContext.Load(assembly);
+        }
+        catch (Exception ex) when (ex is BadImageFormatException or FileLoadException or FileNotFoundException)
+        {
+            errorMessage($"Could not load project assembly '{assemblyFile}': {ex.Message}");
+            return false;
+        }
+
+        if (dependencyContext is null)
+        {
+            errorMessage($"Could not load dependency context for assembly '{assemblyFile}'");
+            return false;
+        }
+
+        var root = RuntimeEnvironment.GetRuntimeDirectory();
+        root = Path.GetDirectoryName(root)!;
+        var version = Path.GetFileName(root)!;
+        var framework = Directory.GetParent(root)!;
+        var shared = Directory.GetParent(framework.FullName)!;
+        var aspNetCoreAppPath = Path.Combine(shared.FullName, "Microsoft.AspNetCore.App", version);
+
+        message($"  Runtime assemblies: {root}");
+        message($"  AspNetCoreApp assemblies: {aspNetCoreAppPath}");
+
+        var runtimeAssemblies = Directory.GetFiles(root, "*.dll");
+        var aspNetCoreAssemblies = Directory.GetFiles(aspNetCoreAppPath, "*.dll");
+        var managedAppAssemblyPaths = dependencyContext.RuntimeLibraries
+            .SelectMany(_ => _.RuntimeAssemblyGroups)
+            .SelectMany(_ => _.AssetPaths)
+            .Select(Path.GetFileName)
+            .Where(_ => !string.IsNullOrEmpty(_))
+            .Select(_ => Path.Join(assemblyFolder, _))
+            .Append(assemblyFile)
+            .Where(File.Exists)
+            .Distinct(new FileNameComparer())
+            .ToArray();
+        var managedProjectAssemblyPaths = dependencyContext.RuntimeLibraries
+            .Where(_ => _.Type.Equals("project"))
+            .SelectMany(_ => _.RuntimeAssemblyGroups)
+            .SelectMany(_ => _.AssetPaths)
+            .Select(Path.GetFileName)
+            .Where(_ => !string.IsNullOrEmpty(_))
+            .Select(_ => Path.Join(assemblyFolder, _))
+            .Append(assemblyFile)
+            .Where(File.Exists)
+            .Distinct(new FileNameComparer())
+            .ToArray();
+        string[] paths = [.. runtimeAssemblies, .. aspNetCoreAssemblies, .. managedAppAssemblyPaths];
+
+        var fundamentalsPackage = dependencyContext.RuntimeLibraries.SingleOrDefault(_ => _.Type == "package" && _.Name == "Cratis.Fundamentals");
+        if (fundamentalsPackage is not null)
+        {
+            var assetPaths = fundamentalsPackage.RuntimeAssemblyGroups
+                .SelectMany(_ => _.AssetPaths)
+                .ToArray();
+
+            var nugetCachePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".nuget",
+                "packages");
+
+            var fullPath = Path.Combine(nugetCachePath, fundamentalsPackage.Path!, assetPaths[0]);
+            if (File.Exists(fullPath))
+            {
+                paths = [.. paths, fullPath];
+            }
+        }
+
+        var filtered = paths.Distinct(new FileNameComparer()).ToArray();
+
+        _assemblyResolver = new PathAssemblyResolver(filtered);
+#pragma warning disable CA2000 // Dispose objects before losing scope
+        _metadataLoadContext = new MetadataLoadContext(_assemblyResolver);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+        _assemblyResolvingHandler = (_, name) =>
+        {
+            // Caching the metadata-only assembly is the point here - IsAssignableTo<T> needs it to translate a
+            // runtime type into the metadata world. Handing it back is not: the default context accepts only runtime
+            // assemblies and throws "Resolved assembly must be a runtime Assembly object" on anything else, which
+            // would turn any genuine resolution miss into a hard failure.
+            if (_assemblyResolver.Resolve(_metadataLoadContext, name) is { } resolved)
+            {
+                _assembliesByName[name.Name!] = resolved;
+            }
+
+            return null;
+        };
+        AssemblyLoadContext.Default.Resolving += _assemblyResolvingHandler;
+
+        try
+        {
+            // Project references can represent analyzer-only or package-only dependencies with no runtime assembly,
+            // and their logical package ID can differ from the assembly file name. Load the actual existing runtime
+            // assets declared by project libraries instead of synthesizing file names from dependency identities.
+            Assemblies = [.. managedProjectAssemblyPaths
+                                            .Select(LoadMetadataAssembly)
+                                            .Distinct()];
+
+            var commandResponseValueHandlerContractsAssembly = managedAppAssemblyPaths
+                .Where(_ => Path.GetFileNameWithoutExtension(_) == CommandResponseValueHandlerContractsAssemblyName)
+                .Select(LoadMetadataAssembly)
+                .SingleOrDefault();
+            _serverHandledCommandResponseValueTypeNames = FindServerHandledCommandResponseValueTypeNames(
+                managedAppAssemblyPaths.Select(LoadMetadataAssembly), commandResponseValueHandlerContractsAssembly, errorMessage);
+
+            foreach (var loadedAssembly in _metadataLoadContext.GetAssemblies())
+            {
+                _assembliesByName[loadedAssembly.GetName().Name!] = loadedAssembly;
+            }
+
+            InitializeWellKnownTypes();
+        }
+        catch (Exception ex) when (ex is BadImageFormatException or FileLoadException or FileNotFoundException)
+        {
+            errorMessage($"Could not load a managed project dependency for '{assemblyFile}': {ex.Message}");
+            DisposeUnpublishedMetadataLoadContext();
+            _serverHandledCommandResponseValueTypeNames = [];
+            return false;
+        }
+        catch
+        {
+            DisposeUnpublishedMetadataLoadContext();
+            _serverHandledCommandResponseValueTypeNames = [];
+            throw;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Creates an owner for the currently initialized project assemblies.
+    /// </summary>
+    /// <returns>An owner that releases the metadata graph when disposed.</returns>
+    internal static IDisposable OwnProjectAssemblies() => new ProjectAssembliesLifetime(_metadataLoadContext);
+
+    /// <summary>
+    /// Find the identities of every response value type declared as consumed on the server.
+    /// </summary>
+    /// <param name="assemblies">Assemblies to inspect.</param>
+    /// <param name="commandResponseValueHandlerContractsAssembly">The assembly defining the genuine handler contracts.</param>
+    /// <param name="errorMessage">Callback for outputting error messages.</param>
+    /// <returns>The assembly qualified names of the declared types.</returns>
+    /// <remarks>
+    /// Only assemblies that reference the contracts assembly are inspected. Declaring a handler requires implementing
+    /// its contracts, so an assembly without that reference cannot contribute a declaration, and skipping it avoids
+    /// materializing the type metadata of every unrelated dependency.
+    /// </remarks>
+    internal static HashSet<string> FindServerHandledCommandResponseValueTypeNames(
+        IEnumerable<Assembly> assemblies,
+        Assembly? commandResponseValueHandlerContractsAssembly,
+        Action<string> errorMessage) =>
+        commandResponseValueHandlerContractsAssembly is null
+            ? []
+            : assemblies
+                .Where(CanDeclareCommandResponseValueHandlers)
+                .SelectMany(_ => GetLoadableTypes(_, errorMessage))
+                .Where(_ => !_.IsAbstract && !_.IsInterface)
+                .Select(_ => GetLoadableInterfaces(_, errorMessage))
+                .SelectMany(_ => GetServerHandledCommandResponseValueTypeNames(_, commandResponseValueHandlerContractsAssembly))
+                .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Check whether an assembly could possibly declare a command response value handler.
+    /// </summary>
+    /// <param name="assembly">Assembly to check.</param>
+    /// <returns>True if the assembly defines or references the handler contracts, false if not.</returns>
+    internal static bool CanDeclareCommandResponseValueHandlers(Assembly assembly) =>
+        assembly.GetName().Name == CommandResponseValueHandlerContractsAssemblyName ||
+        assembly.GetReferencedAssemblies().Any(_ => _.Name == CommandResponseValueHandlerContractsAssemblyName);
+
+    /// <summary>
+    /// Get the response value types a handler declares as consumed on the server.
+    /// </summary>
+    /// <param name="interfaces">The interfaces implemented by the candidate handler.</param>
+    /// <param name="commandResponseValueHandlerContractsAssembly">The assembly defining the genuine handler contracts.</param>
+    /// <returns>The assembly qualified names of the declared types.</returns>
+    /// <remarks>
+    /// Both contracts are matched on assembly identity rather than name, so a dependency shipping look-alike
+    /// interfaces in the same namespace cannot claim a value and have its client response suppressed.
+    /// </remarks>
+    internal static IEnumerable<string> GetServerHandledCommandResponseValueTypeNames(
+        Type[] interfaces,
+        Assembly? commandResponseValueHandlerContractsAssembly)
+    {
+        if (commandResponseValueHandlerContractsAssembly is null ||
+            !interfaces.Any(_ => _.FullName == RuntimeCommandResponseValueHandlerTypeName &&
+                                 ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly)))
+        {
+            return [];
+        }
+
+        return interfaces
+            .Where(_ => _.IsGenericType &&
+                        _.GetGenericTypeDefinition().FullName == CommandResponseValueHandlerTypeName &&
+                        ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly))
+            .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
+            .Where(_ => _ is not null)
+            .Cast<string>();
+    }
+
+    /// <summary>
     /// Unwrap a type to get the best response type candidate.
     /// Handles tuples and OneOf types recursively.
     /// </summary>
@@ -1145,7 +1446,12 @@ public static class TypeExtensions
     /// <returns>The unwrapped type, or null if the type should be skipped.</returns>
     static Type? UnwrapType(Type type)
     {
-        if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))
+        if (type.IsServerHandledCommandResponseValue())
+        {
+            return null;
+        }
+
+        if (type.IsGenericType && (type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
             return type.GetBestTupleType();
         }
@@ -1158,6 +1464,182 @@ public static class TypeExtensions
         return type;
     }
 
+    /// <summary>
+    /// Find the declared server-handled response value identities from the assemblies loaded into the runtime.
+    /// </summary>
+    /// <returns>The assembly qualified names of the declared types.</returns>
+    /// <remarks>
+    /// Used for types outside the current metadata graph. More than one copy of the contracts assembly can be loaded
+    /// when the generator is hosted rather than run as a tool; picking the first only narrows what is recognized as
+    /// server-handled, which leaves the response generated rather than wrongly suppressed.
+    /// </remarks>
+    static HashSet<string> FindRuntimeServerHandledCommandResponseValueTypeNames()
+    {
+        var runtimeAssemblies = AppDomain.CurrentDomain.GetAssemblies().Where(_ => !_.IsDynamic).ToArray();
+        return FindServerHandledCommandResponseValueTypeNames(
+            runtimeAssemblies,
+            Array.Find(runtimeAssemblies, _ => _.GetName().Name == CommandResponseValueHandlerContractsAssemblyName),
+            _ => { });
+    }
+
+    static Assembly LoadMetadataAssembly(string assemblyPath)
+    {
+        var normalizedPath = Path.GetFullPath(assemblyPath);
+        var loadedAssembly = _metadataLoadContext!.GetAssemblies()
+            .FirstOrDefault(_ => string.Equals(Path.GetFullPath(_.Location), normalizedPath, StringComparison.OrdinalIgnoreCase));
+        if (loadedAssembly is not null)
+        {
+            return loadedAssembly;
+        }
+
+        var assemblyName = AssemblyName.GetAssemblyName(normalizedPath);
+        loadedAssembly = _metadataLoadContext.GetAssemblies()
+            .FirstOrDefault(_ => string.Equals(_.FullName, assemblyName.FullName, StringComparison.Ordinal));
+
+        return loadedAssembly ?? _metadataLoadContext.LoadFromAssemblyPath(normalizedPath);
+    }
+
+    static Assembly LoadRuntimeAssembly(string assemblyPath)
+    {
+        var normalizedPath = Path.GetFullPath(assemblyPath);
+        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().Where(_ => !_.IsDynamic).ToArray();
+        var loadedAssembly = loadedAssemblies.FirstOrDefault(_ =>
+        {
+            try
+            {
+                return !string.IsNullOrEmpty(_.Location) &&
+                       string.Equals(Path.GetFullPath(_.Location), normalizedPath, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (NotSupportedException)
+            {
+                return false;
+            }
+        });
+        if (loadedAssembly is not null)
+        {
+            return loadedAssembly;
+        }
+
+        var assemblyName = AssemblyName.GetAssemblyName(normalizedPath);
+        loadedAssembly = loadedAssemblies.FirstOrDefault(_ =>
+        {
+            try
+            {
+                return string.IsNullOrEmpty(_.Location) && string.Equals(_.FullName, assemblyName.FullName, StringComparison.Ordinal);
+            }
+            catch (NotSupportedException)
+            {
+                return string.Equals(_.FullName, assemblyName.FullName, StringComparison.Ordinal);
+            }
+        });
+
+        return loadedAssembly ?? Assembly.LoadFile(normalizedPath);
+    }
+
+    static IEnumerable<Type> EnumerateTypeAndContracts(Type type)
+    {
+        yield return type;
+
+        foreach (var contract in type.GetInterfaces())
+        {
+            yield return contract;
+        }
+
+        var baseType = type.BaseType;
+        while (baseType is not null)
+        {
+            yield return baseType;
+            baseType = baseType.BaseType;
+        }
+    }
+
+    static bool IsDictionaryDefinition(Type type)
+    {
+        try
+        {
+            return IsGenericTypeDefinition(type, typeof(IDictionary<,>)) ||
+                   IsGenericTypeDefinition(type, typeof(IReadOnlyDictionary<,>));
+        }
+        catch
+        {
+            // GetGenericTypeDefinition can throw on some types
+            return false;
+        }
+    }
+
+    static bool IsGenericTypeDefinition(Type type, Type runtimeGenericTypeDefinition) =>
+        type.IsGenericType && type.GetGenericTypeDefinition().FullName == runtimeGenericTypeDefinition.FullName;
+
+    static IEnumerable<Type> GetLoadableTypes(Assembly assembly, Action<string> errorMessage)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            foreach (var loaderException in ex.LoaderExceptions.Where(_ => _ is not null))
+            {
+                errorMessage($"Could not load a type from managed dependency '{assembly.FullName}': {loaderException!.Message}");
+            }
+
+            return ex.Types.Where(_ => _ is not null).Cast<Type>();
+        }
+        catch (Exception ex) when (ex is FileLoadException or FileNotFoundException)
+        {
+            errorMessage($"Could not inspect managed dependency '{assembly.FullName}': {ex.Message}");
+            return [];
+        }
+    }
+
+    static Type[] GetLoadableInterfaces(Type type, Action<string> errorMessage)
+    {
+        try
+        {
+            return type.GetInterfaces();
+        }
+        catch (Exception ex) when (ex is FileLoadException or FileNotFoundException or TypeLoadException)
+        {
+            errorMessage($"Could not inspect managed type '{type.FullName}': {ex.Message}");
+            return [];
+        }
+    }
+
+    static void DetachProjectAssemblies(bool disposeMetadataLoadContext = false)
+    {
+        var metadataLoadContext = _metadataLoadContext;
+        Assemblies = [];
+        _assembliesByName.Clear();
+        _serverHandledCommandResponseValueTypeNames = null;
+        ResetWellKnownTypes();
+
+        if (_assemblyResolvingHandler is not null)
+        {
+            AssemblyLoadContext.Default.Resolving -= _assemblyResolvingHandler;
+            _assemblyResolvingHandler = null;
+        }
+
+        _metadataLoadContext = null;
+        _assemblyResolver = null;
+        if (disposeMetadataLoadContext)
+        {
+            metadataLoadContext?.Dispose();
+        }
+    }
+
+    static void ResetWellKnownTypes()
+    {
+        _conceptType = typeof(NoConcept);
+        _controllerBaseType = typeof(object);
+        _taskType = typeof(Task);
+        _voidType = typeof(void);
+    }
+
+    static void DisposeUnpublishedMetadataLoadContext()
+    {
+        DetachProjectAssemblies(disposeMetadataLoadContext: true);
+    }
+
 #pragma warning disable MA0009 // Add regex evaluation timeout
     static bool TypeNameIsReferenced(string propertyType, string importTypeName) =>
         propertyType == importTypeName ||
@@ -1166,16 +1648,8 @@ public static class TypeExtensions
 
     static void InitializeWellKnownTypes()
     {
-        var assembly = _metadataLoadContext!.CoreAssembly!;
-        _nullableType = assembly.GetType(typeof(Nullable<>).FullName!)!;
-        _expandoObjectType = assembly.GetType(typeof(ExpandoObject).FullName!)!;
-        _stringType = assembly.GetType(typeof(string).FullName!)!;
-        _enumerableType = assembly.GetType(typeof(IEnumerable).FullName!)!;
-        _genericEnumerableType = assembly.GetType(typeof(IEnumerable<>).FullName!)!;
-        _asyncEnumerableType = assembly.GetType(typeof(IAsyncEnumerable<>).FullName!)!;
-        _dictionaryType = assembly.GetType(typeof(IDictionary<,>).FullName!)!;
-        _taskType = assembly.GetType(typeof(Task).FullName!)!;
-        _voidType = assembly.GetType(typeof(void).FullName!)!;
+        _taskType = GetMetadataType(typeof(Task));
+        _voidType = GetMetadataType(typeof(void));
 
         try
         {
@@ -1190,6 +1664,11 @@ public static class TypeExtensions
         var aspNetCore = _metadataLoadContext.LoadFromAssemblyName("Microsoft.AspNetCore.Mvc.Core");
         _controllerBaseType = aspNetCore.GetType("Microsoft.AspNetCore.Mvc.ControllerBase")!;
     }
+
+    static Type GetMetadataType(Type runtimeType) =>
+        _metadataLoadContext!
+            .LoadFromAssemblyName(runtimeType.Assembly.GetName())
+            .GetType(runtimeType.FullName!)!;
 
     /// <summary>
     /// Match a namespace string against a glob pattern where <c>*</c> matches any sequence of characters.
@@ -1236,6 +1715,31 @@ public static class TypeExtensions
         }
 
         return false;
+    }
+
+    sealed class ProjectAssembliesLifetime(MetadataLoadContext? ownedMetadataLoadContext) : IDisposable
+    {
+        bool _disposed;
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(_metadataLoadContext, ownedMetadataLoadContext))
+            {
+                DetachProjectAssemblies(disposeMetadataLoadContext: true);
+            }
+            else
+            {
+                ownedMetadataLoadContext?.Dispose();
+            }
+
+            _disposed = true;
+        }
     }
 
     /// <summary>

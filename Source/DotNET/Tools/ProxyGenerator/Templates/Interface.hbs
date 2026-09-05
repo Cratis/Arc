@@ -8,12 +8,31 @@
 import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
 
-export interface {{Name}} {
+{{#if Documentation}}
+/**
+ * {{{Documentation}}}
+ */
+{{/if}}
+export interface {{Name}}{{#if BaseTypeName}} extends {{BaseTypeName}}{{/if}} {
     {{#Properties}}
+    {{#if Documentation}}
+
+    /**
+     * {{{Documentation}}}
+     */
+    {{/if}}
     {{#if IsEnumerable}}
+    {{#if IsNullable}}
+    {{camelcase Name}}?: {{{Type}}}[];
+    {{else}}
     {{camelcase Name}}: {{{Type}}}[];
+    {{/if}}
+    {{else}}
+    {{#if IsNullable}}
+    {{camelcase Name}}?: {{{Type}}};
     {{else}}
     {{camelcase Name}}: {{{Type}}};
+    {{/if}}
     {{/if}}
     {{/Properties}}
 }

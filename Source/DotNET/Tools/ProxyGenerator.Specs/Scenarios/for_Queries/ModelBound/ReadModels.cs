@@ -325,6 +325,73 @@ public enum ReadModelStatus
 }
 
 /// <summary>
+/// A read model used to verify that a validator declared against a query's argument set is enforced by the server,
+/// and not only by the generated client proxy.
+/// </summary>
+/// <remarks>
+/// It carries its own uniquely named query so a spec can resolve the route unambiguously. Two other read models in
+/// this assembly both expose a query called <c>GetByEmailAndAge</c>, which makes that name ambiguous.
+/// </remarks>
+[ReadModel]
+public class ServerEnforcedValidationReadModel
+{
+    internal static int SearchCallCount;
+
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the email.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Searches by email and a minimum age.
+    /// </summary>
+    /// <param name="email">The email filter.</param>
+    /// <param name="minAge">Minimum age.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<ServerEnforcedValidationReadModel> SearchByEmailAndMinimumAge(string email, int minAge)
+    {
+        SearchCallCount++;
+        return [new ServerEnforcedValidationReadModel { Id = Guid.NewGuid(), Email = email }];
+    }
+}
+
+/// <summary>
+/// Models the argument set of <see cref="ServerEnforcedValidationReadModel.SearchByEmailAndMinimumAge"/>.
+/// </summary>
+public class SearchByEmailAndMinimumAgeParameters
+{
+    /// <summary>
+    /// Gets or sets the email filter.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the minimum age.
+    /// </summary>
+    public int MinAge { get; set; }
+}
+
+/// <summary>
+/// Validator for the argument set of <see cref="ServerEnforcedValidationReadModel.SearchByEmailAndMinimumAge"/>.
+/// </summary>
+public class SearchByEmailAndMinimumAgeValidator : QueryValidator<SearchByEmailAndMinimumAgeParameters>
+{
+    public const string EmailMessage = "A valid email is required";
+    public const string AgeMessage = "Age must be zero or greater";
+
+    public SearchByEmailAndMinimumAgeValidator()
+    {
+        RuleFor(q => q.Email).NotEmpty().WithMessage(EmailMessage).EmailAddress().WithMessage(EmailMessage);
+        RuleFor(q => q.MinAge).GreaterThanOrEqualTo(0).WithMessage(AgeMessage);
+    }
+}
+
+/// <summary>
 /// A read model with FluentValidation for parameters.
 /// </summary>
 [ReadModel]
@@ -702,4 +769,90 @@ public class EnumerableParameterReadModel
             Category = "Default"
         });
     }
+}
+
+/// <summary>
+/// A read model with enum query parameters, used to verify an enum survives proxy generation as a query argument.
+/// </summary>
+/// <remarks>
+/// The nullable variant is covered alongside the plain one because the two took different paths through the
+/// generator's parameter classification: a nullable enum already qualified as a query parameter, while a plain one
+/// was classified as an injected dependency and dropped from the proxy entirely.
+/// </remarks>
+[ReadModel]
+public class EnumParameterReadModel
+{
+    /// <summary>
+    /// Gets or sets the ID.
+    /// </summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the status.
+    /// </summary>
+    public ReadModelStatus Status { get; set; }
+
+    /// <summary>
+    /// Searches by status.
+    /// </summary>
+    /// <param name="status">The status to filter by.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<EnumParameterReadModel> SearchByStatus(ReadModelStatus status)
+    {
+        return
+        [
+            new EnumParameterReadModel { Id = Guid.NewGuid(), Name = $"Item {status}", Status = status }
+        ];
+    }
+
+    /// <summary>
+    /// Searches by status and name.
+    /// </summary>
+    /// <param name="status">The status to filter by.</param>
+    /// <param name="name">The name to filter by.</param>
+    /// <returns>Collection of matching read models.</returns>
+    public static IEnumerable<EnumParameterReadModel> SearchByStatusAndName(ReadModelStatus status, string name)
+    {
+        return
+        [
+            new EnumParameterReadModel { Id = Guid.NewGuid(), Name = name, Status = status }
+        ];
+    }
+
+    /// <summary>
+    /// Searches by status, alongside an injected dependency.
+    /// </summary>
+    /// <param name="status">The status to filter by.</param>
+    /// <param name="dependency">An injected dependency, resolved from the container rather than supplied by the caller.</param>
+    /// <returns>Collection of matching read models.</returns>
+    /// <remarks>
+    /// This is the shape the defect was reported against: an enum argument sitting next to real injected services.
+    /// It is covered separately because the enum and the dependency are classified by the same predicate, so a fix
+    /// that rescues the enum could just as easily start treating the dependency as a caller-supplied argument.
+    /// </remarks>
+    public static IEnumerable<EnumParameterReadModel> SearchByStatusWithDependency(ReadModelStatus status, EnumParameterQueryDependency dependency)
+    {
+        return
+        [
+            new EnumParameterReadModel { Id = Guid.NewGuid(), Name = dependency.Describe(status), Status = status }
+        ];
+    }
+}
+
+/// <summary>
+/// A dependency injected into a query that also takes an enum argument.
+/// </summary>
+public class EnumParameterQueryDependency
+{
+    /// <summary>
+    /// Describes a status.
+    /// </summary>
+    /// <param name="status">The status to describe.</param>
+    /// <returns>The description.</returns>
+    public string Describe(ReadModelStatus status) => $"Resolved {status}";
 }

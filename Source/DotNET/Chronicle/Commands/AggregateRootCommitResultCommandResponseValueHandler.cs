@@ -11,7 +11,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// into a <see cref="CommandResult"/>, propagating validation results, constraint violations,
 /// concurrency violations, and errors back to the command pipeline.
 /// </summary>
-public class AggregateRootCommitResultCommandResponseValueHandler : ICommandResponseValueHandler
+public class AggregateRootCommitResultCommandResponseValueHandler : ICommandResponseValueHandler, ICommandResponseValueHandler<AggregateRootCommitResult>
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>

@@ -11,6 +11,7 @@ public class CommandWithValidation
     public string Email { get; set; } = string.Empty;
     public int Age { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
 }
 
 public class CommandWithValidationValidator : BaseValidator<CommandWithValidation>
@@ -20,5 +21,6 @@ public class CommandWithValidationValidator : BaseValidator<CommandWithValidatio
         RuleFor(x => x.Email).NotEmpty().WithMessage("Email is required").EmailAddress();
         RuleFor(x => x.Age).GreaterThanOrEqualTo(18);
         RuleFor(x => x.Name).NotEmpty().MinimumLength(2).MaximumLength(50);
+        RuleFor(x => x.PostalCode).Matches(@"^\d{4}$");
     }
 }

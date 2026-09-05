@@ -14,7 +14,7 @@ public class a_json_conversion_context : Specification
             .Options;
     }
 
-    protected class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
+    public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
     {
         public DbSet<EntityWithJsonProperties> EntitiesWithJson { get; set; } = null!;
         public DbSet<EntityWithoutJsonProperties> EntitiesWithoutJson { get; set; } = null!;

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Commands.for_CommandPipeline.when_executing;
@@ -18,5 +19,6 @@ public class and_command_filters_are_reporting_not_successful : given.a_command_
 
     [Fact] void should_return_not_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_call_command_handler() => _commandHandler.DidNotReceive().Handle(Arg.Any<CommandContext>());
+    [Fact] void should_not_resolve_arguments() => _commandHandlerArgumentResolver.DidNotReceive().Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>());
     [Fact] void should_set_current_command_context() => _commandContextModifier.Received(1).SetCurrent(Arg.Any<CommandContext>());
 }

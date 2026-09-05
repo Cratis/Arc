@@ -203,7 +203,7 @@ app.MapGet("/api/products", async context =>
         new { Id = 2, Name = "Product 2", Price = 39.99 }
     };
     
-    await context.WriteResponseAsJsonAsync(products, products.GetType());
+    await context.WriteResponseAsJson(products, products.GetType());
 },
 new EndpointMetadata(
     Name: "ListProducts",
@@ -213,9 +213,9 @@ new EndpointMetadata(
 
 app.MapPost("/api/products", async context =>
 {
-    var product = await context.ReadBodyAsJsonAsync(typeof(object));
+    var product = await context.ReadBodyAsJson(typeof(object));
     context.SetStatusCode(201);
-    await context.WriteResponseAsJsonAsync(product, product?.GetType() ?? typeof(object));
+    await context.WriteResponseAsJson(product, product?.GetType() ?? typeof(object));
 },
 new EndpointMetadata(
     Name: "CreateProduct",

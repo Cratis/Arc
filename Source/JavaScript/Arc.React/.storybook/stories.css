@@ -1,73 +1,20 @@
 /* Copyright (c) Cratis. All rights reserved. */
 /* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
 
+/*
+ * Chrome for this repository's own Storybook - the canvas background, the base typography and the
+ * element defaults that make a story readable. None of it is part of the published package.
+ *
+ * The story kit's own contract - the design tokens and the `.story-*` classes - lives in
+ * ../stories/stories.css and ships with the package. It is imported here rather than repeated,
+ * so this Storybook renders the same styling a consumer gets and there is one place to change it.
+ */
+
+@import '../stories/stories.css';
+
 /* Story canvas background */
 body, #storybook-root {
   background-color: #2a2a2a;
-}
-
-/* Modern font stack optimized for readability */
-:root {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Source Code Pro',
-    'Menlo', 'Consolas', 'DejaVu Sans Mono', monospace;
-  
-  /* Spacing system */
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2rem;
-  --space-2xl: 3rem;
-  
-  /* Border radius */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-}
-
-/* Dark mode color scheme (default) */
-.sb-show-main,
-body[data-theme="dark"] {
-  --color-text: #e4e4e7;
-  --color-text-secondary: #a1a1aa;
-  --color-text-muted: #71717a;
-  --color-background: #1a1a1a;
-  --color-background-secondary: #262626;
-  --color-background-tertiary: #404040;
-  --color-border: #3f3f3f;
-  --color-border-light: #525252;
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #06b6d4;
-}
-
-/* Light mode color scheme */
-body[data-theme="light"] {
-  --color-text: #0f172a;
-  --color-text-secondary: #334155;
-  --color-text-muted: #64748b;
-  --color-background: #f8fafc;
-  --color-background-secondary: #ffffff;
-  --color-background-tertiary: #f1f5f9;
-  --color-border: #cbd5e1;
-  --color-border-light: #e2e8f0;
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-error: #dc2626;
-  --color-info: #0891b2;
 }
 
 /* Base typography */
@@ -254,83 +201,6 @@ body[data-theme="light"] {
   border-bottom: none;
 }
 
-/* Utility classes for story containers */
-.story-container {
-  padding: var(--space-xl);
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.story-container-sm {
-  padding: var(--space-xl);
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.story-container-lg {
-  padding: var(--space-xl);
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.story-section {
-  margin-bottom: var(--space-2xl);
-}
-
-.story-section:last-child {
-  margin-bottom: 0;
-}
-
-.story-card {
-  background-color: var(--color-background-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  box-shadow: var(--shadow-sm);
-}
-
-.story-grid {
-  display: grid;
-  gap: var(--space-lg);
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-}
-
-.story-divider {
-  height: 1px;
-  background-color: var(--color-border);
-  margin: var(--space-xl) 0;
-  border: none;
-}
-
-/* Status badges */
-.story-badge {
-  display: inline-block;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.story-badge-success {
-  background-color: rgba(34, 197, 94, 0.1);
-  color: var(--color-success);
-}
-
-.story-badge-warning {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: var(--color-warning);
-}
-
-.story-badge-error {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: var(--color-error);
-}
-
-.story-badge-info {
-  background-color: rgba(6, 182, 212, 0.1);
-  color: var(--color-info);
-}
-
 /* Smooth transitions */
 * {
   transition-property: background-color, border-color, color;
@@ -356,6 +226,7 @@ body[data-theme="light"] {
 .sb-show-main ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-light);
 }
+
 /* Date input calendar icon color fix for dark mode */
 .sb-show-main input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.8);

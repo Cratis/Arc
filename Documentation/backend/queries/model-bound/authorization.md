@@ -245,7 +245,7 @@ public class AccountOwnershipHandler : AuthorizationHandler<AccountOwnershipRequ
         var userId = context.User.FindFirst("sub")?.Value;
         
         // Check if user owns the account being accessed
-        if (/* ownership check logic */index.md)
+        if (userId is not null /* && user owns the account being accessed */)
         {
             context.Succeed(requirement);
         }

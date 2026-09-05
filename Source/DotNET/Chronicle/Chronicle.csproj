@@ -3,6 +3,8 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Chronicle</AssemblyName>
         <RootNamespace>Cratis.Arc.Chronicle</RootNamespace>
+        <Description>Optional Cratis Chronicle event-sourcing integration for Cratis Arc: event-sourced commands, projections, reducers, aggregates, reactors, and tenant namespaces for CQRS applications on ASP.NET Core.</Description>
+        <PackageTags>cratis;arc;chronicle;event-sourcing;event-store;cqrs;commands;queries;aspnetcore</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
@@ -16,8 +18,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj" 
-                          OutputItemType="Analyzer" 
-                          ReferenceOutputAssembly="false" />
+        <!-- Public package dependency for consumers; the direct analyzer reference is only for analyzing
+             Arc.Chronicle while building from source. -->
+        <ProjectReference Include="../Chronicle.CodeAnalysis.Package/Chronicle.CodeAnalysis.Package.csproj"
+                          PrivateAssets="compile;runtime" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
     </ItemGroup>
 </Project>

@@ -1,10 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Commands;
@@ -37,7 +39,7 @@ public static class CommandEndpointMapper
                 options.IncludeCommandNameInRoute,
                 location,
                 handlersByNamespace);
-            var url = EndpointRouteHelper.BuildRouteUrl(options, location, handler.CommandType.Name, includeCommandName);
+            var url = EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
             MapCommandEndpoint(
                 mapper,
@@ -57,6 +59,48 @@ public static class CommandEndpointMapper
                 location,
                 handler.AllowsAnonymousAccess,
                 validateOnly: true);
+        }
+    }
+
+    /// <summary>
+    /// Reads and deserializes the request body into a command instance, mapping a deserialization failure
+    /// (malformed or wrong-typed body) to a validation failure (HTTP 400) instead of a server error (HTTP 500).
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/> to read the body from.</param>
+    /// <param name="commandType">The type of command to deserialize.</param>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the request.</param>
+    /// <param name="logger">The <see cref="ILogger"/> used to log the underlying parser detail server-side.</param>
+    /// <returns>
+    /// A tuple with the deserialized command (when successful) or a <see cref="CommandResult"/> describing the
+    /// failure (when the body could not be read). Exactly one of the two is non-null.
+    /// </returns>
+    internal static async Task<(object? Command, CommandResult? Failure)> ReadCommandBody(
+        IHttpRequestContext context,
+        Type commandType,
+        CorrelationId correlationId,
+        ILogger logger)
+    {
+        try
+        {
+            var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
+            if (command is null)
+            {
+                logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, null);
+                return (null, CommandResult.InvalidBody(correlationId));
+            }
+
+            return (command, null);
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or OverflowException or ArgumentException)
+        {
+            // A malformed body (JsonException) or a value the concept/type converters cannot parse is invalid
+            // client input, not a server fault: FormatException/OverflowException from a Guid- or numeric-backed
+            // concept property fed a wrong-type string, and ArgumentException from an enum-backed concept. These
+            // escape the JSON deserializer unwrapped, so without this they would surface as an HTTP 500 rather than
+            // the 400 the body-read contract promises. Cancellation and genuine server faults are not matched here
+            // and continue to surface as a server error.
+            logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, ex);
+            return (null, CommandResult.InvalidBody(correlationId));
         }
     }
 
@@ -90,6 +134,7 @@ public static class CommandEndpointMapper
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CommandEndpointMapper).FullName!);
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
@@ -103,23 +148,17 @@ public static class CommandEndpointMapper
                 CommandResult commandResult;
                 try
                 {
-                    var command = await context.ReadBodyAsJson(commandType, context.RequestAborted);
-
-                    if (command is null)
-                    {
-                        commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Could not deserialize command of type '{commandType}' from request body.");
-                    }
-                    else
-                    {
-                        commandResult = validateOnly
-                            ? await commandPipeline.Validate(command, context.RequestServices, allowedSeverity)
-                            : await commandPipeline.Execute(command, context.RequestServices, allowedSeverity);
-                    }
+                    var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
+                    commandResult = bodyFailure ?? (validateOnly
+                        ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
+                        : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted));
                 }
                 catch (Exception ex)
                 {
-                    commandResult = CommandResult.Error(correlationIdAccessor.Current, $"Failed to read request body: {ex.Message}");
+                    commandResult = CommandResult.Error(correlationIdAccessor.Current, ex);
                 }
+
+                ExceptionDetailRedactor.Redact(commandResult, arcOptions.ExposeExceptionDetails, logger);
 
                 var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
                 context.SetStatusCode(statusCode);

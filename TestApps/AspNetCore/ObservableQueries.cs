@@ -10,7 +10,7 @@ namespace AspNetCore;
 public class ObservableQueries : ControllerBase
 {
     [HttpGet("messages")]
-    public ISubject<string> Messages()
+    public ActionResult<ISubject<string>> Messages()
     {
         var subject = new Subject<string>();
 

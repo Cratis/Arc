@@ -6,27 +6,46 @@ import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event
 import { given } from '../../../given';
 import { HubMessageType } from '../../WebSocketHubConnection';
 
-describe('when unsubscribing the only query', given(a_server_sent_event_hub_connection, context => {
-    beforeEach(async () => {
-        context.setup();
-        context.connection.subscribe('q1', { queryName: 'MyQuery' }, sinon.stub());
-        context.simulateOpen();
-        context.simulateMessage({ type: HubMessageType.Connected, payload: 'conn-abc' });
+describe(
+    'when unsubscribing the only query',
+    given(a_server_sent_event_hub_connection, (context) => {
+        beforeEach(async () => {
+            context.setup();
+            context.connection.subscribe('q1', { queryName: 'MyQuery' }, sinon.stub());
+            context.simulateOpen();
+            context.simulateMessage({
+                type: HubMessageType.Connected,
+                payload: 'conn-abc',
+                supportsSubscriptionRevisions: true,
+            });
 
-        context.connection.unsubscribe('q1');
+            context.connection.unsubscribe('q1');
 
-        // Allow the micro-task queue to drain so the async fetch completes.
-        await Promise.resolve();
-    });
+            // Allow the micro-task queue to drain so the async fetch completes.
+            await Promise.resolve();
+        });
 
-    afterEach(() => sinon.restore());
+        afterEach(() => sinon.restore());
 
-    it('should close the event source', () => context.fakeEventSource.close.calledOnce.should.be.true);
+        it('should close the event source', () =>
+            context.fakeEventSource.close.calledOnce.should.be.true);
 
-    it('should send an unsubscribe POST request', () => {
-        const unsubscribeCalls = context.fetchStub.args.filter(
-            (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('unsubscribe')
-        );
-        unsubscribeCalls.length.should.equal(1);
-    });
-}));
+        it('should send an unsubscribe POST request with the exact revision', () => {
+            const unsubscribeCalls = context.fetchStub.args.filter(
+                (args: unknown[]) =>
+                    typeof args[0] === 'string' &&
+                    (args[0] as string).includes('unsubscribe'),
+            );
+            unsubscribeCalls.length.should.equal(1);
+            getBody(unsubscribeCalls[0][1]).revision.should.equal(1);
+        });
+
+        function getBody(init: RequestInit): { revision: number } {
+            try {
+                return JSON.parse(init.body as string) as { revision: number };
+            } catch (error) {
+                throw new Error('Expected a valid unsubscribe body', { cause: error });
+            }
+        }
+    }),
+);

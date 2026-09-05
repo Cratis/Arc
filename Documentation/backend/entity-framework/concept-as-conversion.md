@@ -60,7 +60,8 @@ public class StoreDbContext(DbContextOptions options) : DbContext(options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConceptAsConversion(Database);
+        var entityTypes = modelBuilder.Model.GetEntityTypes();
+        modelBuilder.ApplyConceptAsConversion(entityTypes, Database.GetDatabaseType());
         base.OnModelCreating(modelBuilder);
     }
 }

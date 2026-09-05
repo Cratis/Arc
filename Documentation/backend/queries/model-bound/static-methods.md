@@ -234,7 +234,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
         AccountId id,
         IMongoCollection<DebitAccount> collection)
     {
-        return collection.Observe(a => a.Id == id);
+        return collection.ObserveSingle(a => a.Id == id);
     }
 }
 ```

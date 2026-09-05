@@ -3,6 +3,7 @@
 
 export * from './Validator';
 export * from './ValidationResult';
+export * from './ValidationResultReason';
 export * from './ValidationResultSeverity';
 export * from './IValidationRule';
 export * from './PropertyValidator';

@@ -2,7 +2,7 @@
 
 Observable queries provide real-time updates in React through `useObservableQuery()` and generated proxy helpers. Arc supports both centralized hub routing and direct per-query connections.
 
-For backend implementation patterns, see [Controller-based Observable Queries](../../../backend/queries/controller-based/observable-queries.md), [Model-bound Observable Queries](../../../backend/queries/model-bound/observable-queries.md), and [Observable Query Hub](../../../backend/queries/observable-query-hub.md).
+For backend implementation patterns, see [Controller-based Observable Queries](../../../backend/queries/controller-based/observable-queries.md), [Model-bound Observable Queries](../../../backend/queries/model-bound/observable-queries.md), and [Observable Query Hub](../../../backend/queries/observable-query-demultiplexer.md).
 
 ## Observable Query Transport
 

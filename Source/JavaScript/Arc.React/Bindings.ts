@@ -4,11 +4,11 @@
 import { container } from 'tsyringe';
 import { Constructor } from '@cratis/fundamentals';
 import { IQueryProvider, QueryProvider, QueryTransportMethod } from '@cratis/arc/queries';
-import { Globals, GetHttpHeaders, ObservableQueryTransferMode } from '@cratis/arc';
+import { Globals, GetHttpHeaders, EventSourceFactory, ObservableQueryTransferMode } from '@cratis/arc';
 import { WellKnownBindings } from './WellKnownBindings';
 
 export class Bindings {
-    static initialize(microservice: string, apiBasePath?: string, origin?: string, httpHeadersCallback?: GetHttpHeaders, queryTransportMethod?: QueryTransportMethod, queryConnectionCount?: number, queryDirectMode?: boolean, observableQueryTransferMode?: ObservableQueryTransferMode): void {
+    static initialize(microservice: string, apiBasePath?: string, origin?: string, httpHeadersCallback?: GetHttpHeaders, queryTransportMethod?: QueryTransportMethod, queryConnectionCount?: number, queryDirectMode?: boolean, observableQueryTransferMode?: ObservableQueryTransferMode, eventSourceFactory?: EventSourceFactory): void {
         Globals.microservice = microservice;
         Globals.apiBasePath = apiBasePath ?? '';
         Globals.origin = origin ?? '';
@@ -17,6 +17,7 @@ export class Bindings {
         Globals.queryDirectMode = queryDirectMode ?? false;
         Globals.observableQueryTransferMode = observableQueryTransferMode ?? ObservableQueryTransferMode.Delta;
         Globals.httpHeadersCallback = httpHeadersCallback ?? (() => ({}));
+        Globals.eventSourceFactory = eventSourceFactory;
         container.registerSingleton(WellKnownBindings.microservice, microservice);
         container.register(IQueryProvider as Constructor<IQueryProvider>, { useValue: new QueryProvider(microservice, apiBasePath ?? '', origin ?? '', httpHeadersCallback ?? (() => ({}))) });
     }

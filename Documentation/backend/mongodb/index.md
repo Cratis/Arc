@@ -28,10 +28,12 @@ MongoDB support in Cratis Applications provides a comprehensive set of features 
 To get started with MongoDB in your application:
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args)
-    .UseCratisArc();
-
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
 builder.UseCratisMongoDB();
+
+var app = builder.Build();
+app.UseCratisArc();
 ```
 
-This single line configures your application with MongoDB support, including all default serializers, conventions, and mappings.
+This configures your application with MongoDB support, including all default serializers, conventions, and mappings.

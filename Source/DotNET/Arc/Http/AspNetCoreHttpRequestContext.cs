@@ -22,9 +22,15 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
         kvp => kvp.Value.ToString());
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// HTTP header names are case-insensitive, and HTTP/2 lowercases them on the wire. The lookup is therefore
+    /// case-insensitive so a configured header such as <c>Tenant-ID</c> still matches when it arrives as
+    /// <c>tenant-id</c>. This mirrors the self-hosted <c>HttpListenerRequestContext</c>.
+    /// </remarks>
     public IReadOnlyDictionary<string, string> Headers => httpContext.Request.Headers.ToDictionary(
         kvp => kvp.Key,
-        kvp => kvp.Value.ToString());
+        kvp => kvp.Value.ToString(),
+        StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Cookies => httpContext.Request.Cookies.ToDictionary(

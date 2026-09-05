@@ -16,6 +16,7 @@ public interface IQueryPipeline
     /// <param name="paging">The paging to apply to the query.</param>
     /// <param name="sorting">The sorting to apply to the query.</param>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> scoped to the current request, used to resolve dependencies.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> for cancelling the query.</param>
     /// <returns>A <see cref="QueryResult"/> representing the result of executing the command.</returns>
-    Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider);
+    Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default);
 }

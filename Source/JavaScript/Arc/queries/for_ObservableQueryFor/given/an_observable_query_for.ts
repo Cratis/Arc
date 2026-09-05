@@ -4,6 +4,7 @@
 import {
     TestObservableQuery,
     TestEnumerableQuery,
+    TestCalendarEnumerableQuery,
     TestObservableQueryWithParameterDescriptorValues,
     TestObservableQueryWithRouteAndQueryArgs,
     TestObservableQueryWithMultipleRequiredParameters
@@ -12,6 +13,7 @@ import {
 export class an_observable_query_for {
     query: TestObservableQuery;
     enumerableQuery: TestEnumerableQuery;
+    calendarEnumerableQuery: TestCalendarEnumerableQuery;
     queryWithParameterDescriptorValues: TestObservableQueryWithParameterDescriptorValues;
     queryWithRouteAndQueryArgs: TestObservableQueryWithRouteAndQueryArgs;
     queryWithMultipleRequiredParameters: TestObservableQueryWithMultipleRequiredParameters;
@@ -19,6 +21,7 @@ export class an_observable_query_for {
     constructor() {
         this.query = new TestObservableQuery();
         this.enumerableQuery = new TestEnumerableQuery();
+        this.calendarEnumerableQuery = new TestCalendarEnumerableQuery();
         this.queryWithParameterDescriptorValues = new TestObservableQueryWithParameterDescriptorValues();
         this.queryWithRouteAndQueryArgs = new TestObservableQueryWithRouteAndQueryArgs();
         this.queryWithMultipleRequiredParameters = new TestObservableQueryWithMultipleRequiredParameters();

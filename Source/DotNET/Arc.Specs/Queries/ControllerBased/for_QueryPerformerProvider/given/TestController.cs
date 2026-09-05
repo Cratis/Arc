@@ -23,4 +23,7 @@ public class TestController : ControllerBase
     [HttpGet("observe-anonymous")]
     [AllowAnonymous]
     public ISubject<IEnumerable<string>> AnonymousEventStores(string tenant) => _eventStores.ObserveFor(tenant);
+
+    [HttpGet("observe-as-action-result")]
+    public ActionResult<ISubject<IEnumerable<string>>> EventStoresAsActionResult(string tenant) => new(_eventStores.ObserveFor(tenant));
 }

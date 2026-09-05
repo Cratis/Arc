@@ -54,6 +54,30 @@ public class Schedule
 }
 ```
 
+### TimeSpan Serializer
+
+**Class**: `TimeSpanSerializer`
+
+Handles serialization of `TimeSpan` values:
+
+```csharp
+public class Task
+{
+    public TimeSpan Duration { get; set; }
+    public TimeSpan EstimatedTime { get; set; }
+}
+```
+
+### Geospatial Serializers
+
+Cratis provides specialized serializers for geospatial types from `Cratis.Geospatial`. These types follow the GeoJSON specification and are fully integrated with MongoDB's geospatial query operators.
+
+For comprehensive documentation on storing and querying geographic data, see the [Geospatial Types](./geospatial/) section, which covers:
+
+- **[Point](./geospatial/point.md)** — Single coordinates for locations and landmarks
+- **[LineString](./geospatial/linestring.md)** — Routes, paths, and trajectories
+- **[Polygon](./geospatial/polygon.md)** — Geographic areas and boundaries with optional exclusion zones
+
 ### Type Serializer
 
 **Class**: `TypeSerializer`

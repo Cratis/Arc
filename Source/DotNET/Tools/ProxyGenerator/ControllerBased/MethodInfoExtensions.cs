@@ -100,14 +100,18 @@ public static class MethodInfoExtensions
     {
         List<PropertyDescriptor> properties = [];
         var parameters = method.GetParameters();
-        var primitives = parameters.Where(_ =>
-            _.ParameterType.IsAPrimitiveType() ||
-            _.ParameterType.IsConcept() ||
-            _.ParameterType.IsEnumerableOfPrimitiveOrConcept());
-        var complex = parameters.Where(_ =>
-            !_.ParameterType.IsAPrimitiveType() &&
-            !_.ParameterType.IsConcept() &&
-            !_.ParameterType.IsEnumerableOfPrimitiveOrConcept());
+
+        // The two predicates are exact complements on purpose - a parameter this classifies as complex has its own
+        // properties flattened into the request, so a type missing from the simple side is not skipped, it is
+        // expanded into its members. An enum expanded that way emits its static fields as request properties.
+        static bool IsSimple(ParameterInfo parameter) =>
+            parameter.ParameterType.IsAPrimitiveType() ||
+            parameter.ParameterType.IsConcept() ||
+            parameter.ParameterType.IsEnum ||
+            parameter.ParameterType.IsEnumerableOfPrimitiveOrConcept();
+
+        var primitives = parameters.Where(IsSimple);
+        var complex = parameters.Where(_ => !IsSimple(_));
 
         properties.AddRange(primitives.ToList().ConvertAll(_ => _.ToPropertyDescriptor()));
 

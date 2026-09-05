@@ -27,11 +27,14 @@ public static class AnalyzerVerifier<TAnalyzer>
     /// <param name="source">The C# source to analyze.</param>
     /// <param name="expected">The expected diagnostics.</param>
     /// <returns>A task representing the verification.</returns>
+    /// <exception cref="SnippetDoesNotCompile">Thrown when the source does not compile.</exception>
     public static async Task VerifyAnalyzerAsync(string source, params ExpectedDiagnostic[] expected)
     {
         var markedSource = SourceMarker.Parse(source);
         var project = TestProject.CreateProject(markedSource.Source);
         var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+
+        VerifyItCompiles(compilation!);
 
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new TAnalyzer());
         var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers);
@@ -47,6 +50,16 @@ public static class AnalyzerVerifier<TAnalyzer>
         for (var i = 0; i < expected.Length; i++)
         {
             VerifyDiagnostic(orderedDiagnostics[i], expected[i], markedSource.Markers, i);
+        }
+    }
+
+    static void VerifyItCompiles(Compilation compilation)
+    {
+        var errors = compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
+
+        if (errors.Length > 0)
+        {
+            throw new SnippetDoesNotCompile(errors);
         }
     }
 

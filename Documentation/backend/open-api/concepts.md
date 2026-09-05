@@ -1,6 +1,6 @@
 # Concepts
 
-Arc uses [concept types](../core/concepts.md) as strongly-typed wrappers around primitives such as `Guid`, `string`, or `int`. Without special handling, the generated API schema would expose these as complex objects with a single `Value` property—which is rarely what API consumers expect.
+Arc uses [concept types](../core/overview.md) as strongly-typed wrappers around primitives such as `Guid`, `string`, or `int`. Without special handling, the generated API schema would expose these as complex objects with a single `Value` property—which is rarely what API consumers expect.
 
 The `ConceptSchemaTransformer` detects any schema type that inherits from `ConceptAs<T>` and replaces the schema with the equivalent JSON primitive type of the underlying value.
 

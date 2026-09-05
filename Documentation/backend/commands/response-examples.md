@@ -102,7 +102,7 @@ public record BadCommand()
 }
 ```
 
-**Result**: `MultipleUnhandledTupleValuesException` because both `string` and `int` lack handlers.
+**Result**: `MultipleUnhandledTupleValues` because both `string` and `int` lack handlers.
 
 ## Custom Value Handler Example
 

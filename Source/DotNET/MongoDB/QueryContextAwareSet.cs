@@ -87,6 +87,18 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
         query.ForEachAsync(document => _items.AddLast((_getId(document), document)));
 
     /// <summary>
+    /// Whether the set currently holds a document with the given id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <returns>True when the document is in the set.</returns>
+    /// <remarks>
+    /// Tells an item entering the observed result set apart from one that was already in it, which
+    /// is what keeps <see cref="QueryContext.TotalItems"/> honest when a document changes in a way
+    /// that moves it across the observed filter.
+    /// </remarks>
+    public bool Contains(object id) => _items.Any(node => _idEqualityComparer.Equals(node.Id, id));
+
+    /// <summary>
     /// Removes the document with the given id.
     /// </summary>
     /// <param name="id">The id.</param>
@@ -152,11 +164,9 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
         _maxSize = null;
         if (_queryContext.Paging.IsPaged)
         {
-            _maxSize = _queryContext.Paging.Size;
-        }
-        if (_maxSize < 1)
-        {
-            throw new ArgumentException("Page size must be greater than 0", nameof(newQueryContext));
+            // Clamp a non-positive (out-of-range) page size to a minimum of one item rather than throwing: a
+            // malformed or hostile page size must degrade to a valid page instead of surfacing a server error.
+            _maxSize = Math.Max(1, _queryContext.Paging.Size);
         }
 
         var createNewStorage = oldQueryContext?.Paging.IsPaged == true && _maxSize < oldQueryContext.Paging.Size;
@@ -170,23 +180,28 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
 
         if (SortingIsEnabled())
         {
-            var sortingFieldProperty = typeof(TDocument).GetProperty(_queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public) ?? throw new ArgumentException($"Sorting field could not be found on {typeof(TDocument)}", nameof(newQueryContext));
-            _sortingFieldComparer = (typeof(Comparer<>)
-                .MakeGenericType(sortingFieldProperty.PropertyType)
-                .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
-                .GetValue(null)
-                as IComparer)!;
-            _getSortingField = document =>
+            // An unknown sort field is ignored rather than throwing: throwing would surface as a server error and
+            // leak the read model type name for hostile or malformed input. The set keeps insertion order instead.
+            var sortingFieldProperty = typeof(TDocument).GetProperty(_queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
+            if (sortingFieldProperty is not null)
             {
-                try
+                _sortingFieldComparer = (typeof(Comparer<>)
+                    .MakeGenericType(sortingFieldProperty.PropertyType)
+                    .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
+                    .GetValue(null)
+                    as IComparer)!;
+                _getSortingField = document =>
                 {
-                    return sortingFieldProperty.GetValue(document);
-                }
-                catch (Exception)
-                {
-                    return null;
-                }
-            };
+                    try
+                    {
+                        return sortingFieldProperty.GetValue(document);
+                    }
+                    catch (Exception)
+                    {
+                        return null;
+                    }
+                };
+            }
         }
 
         if (_items is null || createNewStorage)

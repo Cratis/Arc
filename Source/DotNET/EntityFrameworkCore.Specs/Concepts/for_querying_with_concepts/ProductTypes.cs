@@ -25,12 +25,20 @@ public record ProductName(string Value) : ConceptAs<string>(Value)
     public static implicit operator ProductName(string value) => new(value);
 }
 
+public record ProductSequenceNumber(ulong Value) : ConceptAs<ulong>(Value)
+{
+    public static readonly ProductSequenceNumber First = new(0UL);
+    public static implicit operator ProductSequenceNumber(ulong value) => new(value);
+    public static implicit operator ulong(ProductSequenceNumber sn) => sn.Value;
+}
+
 public class Product
 {
     public ProductId Id { get; set; } = ProductId.NotSet;
     public ProductCode Code { get; set; } = null!;
     public ProductName Name { get; set; } = null!;
     public decimal Price { get; set; }
+    public ProductSequenceNumber ProductSequenceNumber { get; set; } = ProductSequenceNumber.First;
 }
 
 public record CategoryId(Guid Value) : ConceptAs<Guid>(Value)
@@ -70,6 +78,9 @@ public class ProductDbContext(DbContextOptions<ProductDbContext> options) : DbCo
                 entity.Property(e => e.Name).IsRequired().HasConversion(
                     v => v.Value,
                     v => new ProductName(v));
+                entity.Property(e => e.ProductSequenceNumber).HasConversion(
+                    v => v.Value,
+                    v => new ProductSequenceNumber(v));
             })
             .Entity<Category>(entity =>
             {

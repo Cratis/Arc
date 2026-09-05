@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Core.CodeAnalysis.CodeFixes</AssemblyName>
+        <RootNamespace>Cratis.Arc.CodeAnalysis.CodeFixes</RootNamespace>
+        <!-- Code fix providers are an IDE/Workspace extension point, not a compiler extension point: the compiler
+             never loads this assembly, only the IDE and command-line code-fix tooling do (both of which already
+             have Microsoft.CodeAnalysis.Workspaces loaded). Keeping code fixes in a separate assembly from the
+             analyzers (Arc.Core.CodeAnalysis.csproj, IsRoslynComponent=true) means the analyzer assembly the
+             compiler actually loads in-proc never references Workspaces, so RS1038 has nothing to warn about
+             there and is not suppressed to make it pass. -->
+        <IsRoslynComponent>false</IsRoslynComponent>
+        <IsPackable>false</IsPackable>
+        <IncludeSymbols>false</IncludeSymbols>
+        <IncludeSource>false</IncludeSource>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <NoWarn>$(NoWarn);NU5128;NU1507</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <PackageReference Include="Microsoft.Composition" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Compile-time only: gives the code fixes access to the analyzers' internal DiagnosticDescriptors
+             (via InternalsVisibleTo on Arc.Core.CodeAnalysis) without the analyzer assembly referencing this
+             one back - that direction stays one-way so the two projects never form a circular reference. -->
+        <ProjectReference Include="../Arc.Core.CodeAnalysis/Arc.Core.CodeAnalysis.csproj" />
+    </ItemGroup>
+</Project>

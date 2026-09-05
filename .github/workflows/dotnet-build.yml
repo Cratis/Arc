@@ -1,15 +1,20 @@
 name: .NET Build
 
+# The build runs on pull_request_target, where github.ref is the branch being merged into rather than the pull
+# request - refs/heads/main for every one of them. Grouping on it therefore put every open pull request in one
+# group, and cancel-in-progress made each new one cancel the build of whichever was already running. The pull
+# request that lost was left with a cancelled run and no failing job, which reads as though it is still going
+# rather than as though anything is wrong. So the group is the pull request when there is one, and the ref only
+# for the manual runs that have no pull request to name.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   DOTNET8_VERSION: "8.0.407"
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
-  DOTNET_BIN_CACHE: "dotnet-bin-${{ github.sha }}"
-  JS_DIST_CACHE: "js-dist-${{ github.sha }}"
+  DOTNET_OBJ_CACHE: "dotnet-obj-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
 on:
   workflow_dispatch:
@@ -23,17 +28,28 @@ on:
         - info
         - warning
         - debug
-  pull_request:
+  pull_request_target:
     branches:
       - "**"
     paths:
       - "Source/DotNET/**"
       - "Specifications/**"
+      - "TestApps/**"
+      # What the build compiles against, not only what it compiles. A package
+      # version bump touches none of the paths above, so it used to reach main
+      # without ever having been built - which is how a Chronicle release that
+      # added members to an interface Arc implements got merged unbuilt.
+      - "Directory.Build.props"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - "stylecop.json"
+      - "Arc.slnx"
       - ".github/workflows/dotnet-build.yml"
 
 jobs:
   dotnet-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       proxy-namespaces: ${{ steps.discover-namespaces.outputs.namespaces }}
       spec-projects: ${{ steps.discover-specs.outputs.projects }}
@@ -41,6 +57,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Discover ProxyGenerator spec namespaces
         id: discover-namespaces
@@ -80,7 +98,7 @@ jobs:
             ${{ env.DOTNET10_VERSION }}
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
@@ -88,18 +106,12 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore obj cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./**/obj
-          key: dotnet-obj-${{ github.sha }}
+          key: ${{ env.DOTNET_OBJ_CACHE }}
           restore-keys: |
             dotnet-obj-
-
-      - name: Cache build output
-        uses: actions/cache@v4
-        with:
-          path: ./**/bin
-          key: ${{ env.DOTNET_BIN_CACHE }}
 
       - name: Setup node
         uses: actions/setup-node@v4
@@ -107,11 +119,12 @@ jobs:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: yarn-cache
         with:
           path: |
             .yarn/cache
+            node_modules
             **/node_modules
             **/.eslintcache
             **/yarn.lock
@@ -120,18 +133,37 @@ jobs:
       - name: Yarn install
         run: yarn
 
-      - name: Cache JavaScript dist output
-        uses: actions/cache@v4
-        with:
-          path: Source/JavaScript/**/dist
-          key: ${{ env.JS_DIST_CACHE }}
-
       - name: Build
         run: dotnet build --configuration Release
+
+      # Hand off the compiled binaries AND the JavaScript dist output to the spec jobs
+      # via an artifact rather than actions/cache. This is an intra-run handoff, not
+      # cross-run reuse: actions/cache keys on the immutable commit SHA, so a single
+      # flaky save (reservation collision) permanently poisons the key and every
+      # --no-build spec job fails with "cache not found" — and a re-run cannot recover
+      # because the key is fixed to the SHA. The proxy-specs jobs execute generated
+      # proxies against Source/JavaScript/**/dist (e.g. Arc/dist/cjs/index.js), so that
+      # output must ride along in the same artifact. Artifacts are the correct primitive
+      # for passing build output between jobs in the same run.
+      - name: Archive build output
+        run: |
+          {
+            find . -type d -name bin -not -path '*/node_modules/*' -not -path './.git/*' -print0
+            find Source/JavaScript -type d -name dist -not -path '*/node_modules/*' -print0
+          } | tar --null -czf build-output.tar.gz -T -
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build-output.tar.gz
+          retention-days: 1
+          if-no-files-found: error
 
   specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -140,6 +172,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -149,18 +183,98 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Restore build output
-        uses: actions/cache@v4
+      - name: Download build output
+        uses: actions/download-artifact@v4
         with:
-          path: ./**/bin
-          key: ${{ env.DOTNET_BIN_CACHE }}
+          name: build-output
+
+      - name: Extract build output
+        run: tar -xzf build-output.tar.gz
 
       - name: Test (${{ matrix.project }})
         run: dotnet test ${{ matrix.project }} --no-build --configuration Release --framework net10.0
 
+  # Every Screenplay specification builds its compilation from source strings, which is what makes them hermetic -
+  # and what puts a whole class of defect out of their reach by construction. A compilation built that way has no
+  # intermediate folder, no source generator output on disk and no referenced package declaring an event, so a
+  # generator that mis-attributes one of those produces a wrong document that every specification still passes. Two
+  # shipped that way. This reads a real project through MSBuild and holds the document it generates to the compiler
+  # the language ships - it has to come back with nothing to say, warnings included.
+  screenplay-end-to-end:
+    needs: [dotnet-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup .Net
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ env.DOTNET8_VERSION }}
+            ${{ env.DOTNET9_VERSION }}
+            ${{ env.DOTNET10_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Extract build output
+        run: tar -xzf build-output.tar.gz
+
+      # The build output artifact carries bin folders only, and reading a project through MSBuild needs the assets
+      # file that restore writes to obj.
+      - name: Restore the applications to generate from
+        run: |
+          dotnet restore TestApps/AspNetCore/AspNetCore.csproj
+          dotnet restore TestApps/Chronicle/Chronicle.csproj
+          dotnet restore TestApps/Layered/Layered.csproj
+
+      - name: Generate and read back the document of a real application
+        run: |
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+            TestApps/AspNetCore/AspNetCore.csproj \
+            "${RUNNER_TEMP}/AspNetCore.play"
+
+      # Everything an event sourced application declares - events, the constants a projection sets and the scenarios
+      # a slice is specified by - lives in the Chronicle application, which is a second application rather than more
+      # of the first one, so its document is generated and read back on its own.
+      - name: Generate and read back the document of a real event sourced application
+        run: |
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+            TestApps/Chronicle/Chronicle.csproj \
+            "${RUNNER_TEMP}/Chronicle.play"
+
+      # The two applications above are each one project, and a whole class of defect only exists between projects: a
+      # referenced project arrives as the compilation the workspace built rather than as an assembly on disk, so its
+      # declarations have real source belonging to a compilation that is not the one reading them. Two defects
+      # shipped through that gap and neither was reachable from here until this application existed. It is held to
+      # what its document says as well as to reading back clean, because a generator that quietly declines to read
+      # something writes a smaller document that compiles just as well.
+      - name: Generate and read back the document of a real application written as several projects
+        run: |
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+            TestApps/Layered/Layered.csproj \
+            "${RUNNER_TEMP}/Layered.play" \
+            TestApps/Layered/Layered.expected
+
   proxy-specs:
     needs: [dotnet-build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -169,6 +283,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -179,26 +295,23 @@ jobs:
             ${{ env.DOTNET10_VERSION }}
 
       - name: Restore node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .yarn/cache
+            node_modules
             **/node_modules
             **/.eslintcache
             **/yarn.lock
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
 
-      - name: Restore JavaScript dist output
-        uses: actions/cache@v4
+      - name: Download build output
+        uses: actions/download-artifact@v4
         with:
-          path: Source/JavaScript/**/dist
-          key: ${{ env.JS_DIST_CACHE }}
+          name: build-output
 
-      - name: Restore build output
-        uses: actions/cache@v4
-        with:
-          path: ./**/bin
-          key: ${{ env.DOTNET_BIN_CACHE }}
+      - name: Extract build output
+        run: tar -xzf build-output.tar.gz
 
       - name: Test (${{ matrix.namespace }})
         run: |

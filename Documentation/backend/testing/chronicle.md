@@ -7,73 +7,78 @@ When `Cratis.Arc.Chronicle.Testing` (or the `Cratis.Testing` meta-package) is re
 
 The extension is wired via `ChronicleCommandScenarioExtender`, which implements `ICommandScenarioExtender` and is discovered automatically by `CommandScenario<TCommand>` at construction time using the Cratis type discovery system.
 
+In a Cratis Specification, that gives you the event-sourced test shape directly: seed prior facts with `_scenario.EventScenario.Given` in `Establish()`, execute the command once in `Because()`, then assert the `CommandResult` and the captured events from `[Fact]` methods.
+
 ## Package
 
 ```xml
+<PackageReference Include="Cratis.Specifications.XUnit" />
 <PackageReference Include="Cratis.Arc.Chronicle.Testing" />
 ```
 
 Or via the meta-package:
 
 ```xml
+<PackageReference Include="Cratis.Specifications.XUnit" />
 <PackageReference Include="Cratis.Testing" />
 ```
 
 ## Basic Usage
 
-Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, three extension properties are available directly on the scenario:
+Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. When the Chronicle testing package is present, these extension properties are available directly on the scenario:
 
 | Property | Type | Purpose |
 | -------- | ---- | ------- |
-| `EventScenario` | `EventScenario` | The full scenario object — use for seeding via `Given` |
+| `Given` | `CommandScenarioChronicleGivenBuilder<TCommand>` | Seed the read model state a command observes — `Given.ForEventSource(id).Events(...)` or `.ReadModel(...)` |
+| `EventScenario` | `EventScenario` | The full event scenario — use `EventScenario.Given` to seed the event log |
 | `EventLog` | `IEventLog` | The in-memory event log — use for appending and assertions |
 | `EventSequence` | `IEventSequence` | The same instance as `EventLog` — use with Chronicle's assertion helpers |
+| `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | The events captured during command execution |
 
 ```csharp
-public class when_registering_author
+public class when_registering_author : Specification
 {
+    readonly EventSourceId _authorId = EventSourceId.New();
     readonly CommandScenario<RegisterAuthor> _scenario = new();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_succeed()
-    {
-        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        result.ShouldBeSuccessful();
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_authorId, "Jane Austen"));
 
-    [Fact]
-    public async Task should_have_appended_registered_event()
-    {
-        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(EventSequenceNumber.First);
-    }
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_registered_event() =>
+        _scenario.EventLog.ShouldHaveAppendedEvent<AuthorRegistered>(_authorId);
 }
 ```
+
+The spec executes the command once and then asserts both the Arc result and the Chronicle fact that was recorded.
 
 ## Seeding Pre-existing Events with `Given`
 
 Use `_scenario.EventScenario.Given` to append events to the in-memory event log *before* the command runs. Call `ForEventSource` with the event source identifier, then pass the pre-existing events to `Events`:
 
 ```csharp
-public class when_registering_author_with_same_name
+public class when_registering_author_with_same_name : Specification
 {
+    readonly EventSourceId _authorId = EventSourceId.New();
     readonly CommandScenario<RegisterAuthor> _scenario = new();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_not_succeed()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(AuthorId.New()).Events(new AuthorRegistered("Jane Austen"));
-        var result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        result.ShouldNotBeSuccessful();
-    }
+    Task Establish() =>
+        _scenario.EventScenario.Given
+            .ForEventSource(_authorId)
+            .Events(new AuthorRegistered("Jane Austen"));
 
-    [Fact]
-    public async Task should_not_have_appended_a_second_event()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(AuthorId.New()).Events(new AuthorRegistered("Jane Austen"));
-        await _scenario.Execute(new RegisterAuthor("Jane Austen"));
-        await _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_authorId, "Jane Austen"));
+
+    [Fact] void should_not_succeed() =>
+        _result.ShouldNotBeSuccessful();
+
+    [Fact] Task should_not_have_appended_a_second_event() =>
+        _scenario.EventLog.ShouldHaveTailSequenceNumber(EventSequenceNumber.First);
 }
 ```
 
@@ -81,40 +86,202 @@ Seed events before calling `Execute` so they are present when the command handle
 
 ## EventLog Assertion Helpers
 
-Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see <xref:Chronicle.Testing.Events.Assertions>.
+Chronicle provides a set of assertion helpers that extend `IEventSequence` directly. Call them on `_scenario.EventLog` or `_scenario.EventSequence` after `Execute`. For the full list of available assertions, see the [Chronicle event assertions reference](/chronicle/testing/events/assertions/).
+
+## Transactional Commands in Tests
+
+The harness runs commands with the same [transactional scope](../commands/transactional-commands.md) as production: the events a command returns — and appends through `eventLog.Transactional` — commit atomically when it succeeds and roll back when it fails, including when a unique constraint rejects the commit. Immediate appends through `IEventLog`/`IEventStore.EventLog` land right away and are final, but a failed one fails the command. That gives specs two natural assertions:
+
+```csharp
+public class when_registering_author_with_taken_name : Specification
+{
+    readonly EventSourceId _existing = EventSourceId.New();
+    readonly EventSourceId _author = EventSourceId.New();
+    readonly CommandScenario<RegisterAuthor> _scenario = new();
+    CommandResult _result = default!;
+
+    Task Establish() =>
+        _scenario.EventScenario.Given
+            .ForEventSource(_existing)
+            .Events(new AuthorRegistered("Jane Austen"));
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterAuthor(_author, "Jane Austen"));
+
+    [Fact] void should_not_succeed() =>
+        _result.IsSuccess.ShouldBeFalse();
+
+    [Fact] void should_surface_the_violation() =>
+        _result.ValidationResults.ShouldNotBeEmpty();
+
+    [Fact] async Task should_append_nothing_for_the_rejected_author() =>
+        (await _scenario.EventLog.HasEventsFor(_author)).ShouldBeFalse();
+}
+```
+
+Two things to be aware of:
+
+- **When events show up in `AppendedEvents` depends on the style.** Immediate appends surface as they happen; the command's enrolled events — returned events and `Transactional` appends — surface as one batch when the command's transaction commits.
+- **Immediate appends are final.** A handler that appends through the plain `IEventLog.Append` (or `IEventStore.EventLog`) writes immediately — a successful append remains in the log even when the command fails afterwards, and a spec can assert exactly that.
+
+## Testing Commands That Use EventForEventSourceId
+
+When a command handler returns `EventForEventSourceId` or `IEnumerable<EventForEventSourceId>`, events are appended to different event sources than the command's own event source id. The standard `EventLog.ShouldHaveAppendedEvent<T>(sequenceNumber)` helpers work against a single sequence and cannot filter by event source id. For these cases use the `CommandScenario`-level assertion helpers, which capture events during execution via the client-side `AppendOperations` observable.
+
+| Method | Asserts that... |
+| ------ | --------------- |
+| `ShouldHaveAppendedEvent<TCommand, TEvent>(eventSourceId)` | At least one event of type `TEvent` was appended for the given `EventSourceId` |
+| `ShouldHaveAppendedEvent<TCommand, TEvent>(eventSourceId, predicate)` | Same, and the event also satisfies the predicate |
+| `ShouldHaveTailSequenceNumber<TCommand>(expected)` | The highest sequence number among all captured events equals `expected` |
+
+### Example: Single cross-source event
+
+```csharp
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Chronicle.Events;
+
+public class when_migrating_customer_to_new_id : Specification
+{
+    readonly CommandScenario<MigrateCustomerToNewId> _scenario = new();
+    readonly EventSourceId _oldId = EventSourceId.New();
+    readonly EventSourceId _newId = EventSourceId.New();
+    CommandResult _result = default!;
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new MigrateCustomerToNewId(_oldId, _newId));
+
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_migrated_event_for_new_id() =>
+        _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(_newId);
+
+    [Fact] Task should_reference_old_id_in_event() =>
+        _scenario.ShouldHaveAppendedEvent<MigrateCustomerToNewId, CustomerMigrated>(
+            _newId,
+            e => e.OldCustomerId == _oldId);
+}
+```
+
+### Example: Multiple cross-source events (fund transfer)
+
+```csharp
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Chronicle.Events;
+
+public class when_transferring_funds : Specification
+{
+    readonly CommandScenario<TransferFunds> _scenario = new();
+    readonly EventSourceId _fromAccount = EventSourceId.New();
+    readonly EventSourceId _toAccount = EventSourceId.New();
+    CommandResult _result = default!;
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new TransferFunds(_fromAccount, _toAccount, 250m));
+
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_debited_from_account() =>
+        _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount);
+
+    [Fact] Task should_have_credited_to_account() =>
+        _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsCredited>(_toAccount);
+
+    [Fact] Task should_have_debited_correct_amount() =>
+        _scenario.ShouldHaveAppendedEvent<TransferFunds, FundsDebited>(_fromAccount, e => e.Amount == 250m);
+
+    [Fact] Task should_have_appended_two_events() =>
+        _scenario.ShouldHaveTailSequenceNumber<TransferFunds>(1ul);
+}
+```
+
+> **Sequence numbering applies here too**: `ShouldHaveTailSequenceNumber` checks the highest sequence number across all captured events. Two events means a tail of `1` (zero-based).
+
+The `AppendedEvents` extension property gives you the raw list if you need to write custom assertions:
+
+```csharp
+[Fact]
+void should_have_exactly_two_events() =>
+    _scenario.AppendedEvents.Count.ShouldEqual(2);
+```
+
+## Testing Commands That Take Read Model Dependencies
+
+A command handler, `Provide` method, or `CommandValidator<T>` can take a read model as a parameter — Arc resolves it for the command's event source id exactly as it does at runtime (`IProjectionFor<T>`, `IReducerFor<T>`, and model-bound projections). See [Use current state in a command](/arc/scenarios/use-current-state-in-a-command/) for the production-side pattern. To test such a command you need to control what that read model contains, and the awkward way is to hand-mock `IReadModels`.
+
+`_scenario.Given.ForEventSource(id)` does it for you, two ways: seed the **events** the read model is built from, or pin a materialized **instance** directly.
+
+### Seeding Read Model State from Events
+
+State the events that happened for the event source. Any read model a command injects for that source is materialized from those events through its own reducer or projection — you never name the read model type here, just as you never do in production:
+
+```csharp
+public class when_withdrawing_with_sufficient_funds : Specification
+{
+    readonly EventSourceId _accountId = EventSourceId.New();
+    readonly CommandScenario<Withdraw> _scenario = new();
+    CommandResult _result = default!;
+
+    void Establish() =>
+        _scenario.Given
+            .ForEventSource(_accountId)
+            .Events(new MoneyDeposited(100m), new MoneyDeposited(50m));
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new Withdraw(_accountId, 120m));
+
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+}
+```
+
+Events are the facts; read models are derived from them. One `Events(...)` call feeds *every* read model built from those events: if the command injects both an `AccountBalance` and an `AccountStatement`, both are materialized from the same events — no read model type appears in the test.
+
+This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters.
+
+### Pinning a Read Model Instance
+
+When you would rather assert against a known value than express the events behind it, pin the instance directly. The read model type is inferred from the value:
+
+```csharp
+void Establish() =>
+    _scenario.Given
+        .ForEventSource(_accountId)
+        .ReadModel(new AccountBalance(150m));
+```
+
+A read model seeded for one event source is not visible to a command targeting another: resolving an unseeded source yields `null`, so a command that injects a nullable read model parameter sees `null`, exactly as in production.
 
 ## Multiple Events
 
 When a command appends several events, assert each one by its sequence number:
 
 ```csharp
-public class when_completing_order
+public class when_completing_order : Specification
 {
     readonly CommandScenario<CompleteOrder> _scenario = new();
+    readonly EventSourceId _orderId = EventSourceId.New();
+    CommandResult _result = default!;
 
-    [Fact]
-    public async Task should_succeed()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
-        var result = await _scenario.Execute(new CompleteOrder());
-        result.ShouldBeSuccessful();
-    }
+    Task Establish() =>
+        _scenario.EventScenario.Given
+            .ForEventSource(_orderId)
+            .Events(new OrderPlaced("item-1", 3));
 
-    [Fact]
-    public async Task should_have_appended_two_events()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
-        await _scenario.Execute(new CompleteOrder());
-        await _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
-    }
+    async Task Because() =>
+        _result = await _scenario.Execute(new CompleteOrder(_orderId));
 
-    [Fact]
-    public async Task should_have_appended_completed_event()
-    {
-        await _scenario.EventScenario.Given.ForEventSource(OrderId.New()).Events(new OrderPlaced("item-1", 3));
-        await _scenario.Execute(new CompleteOrder());
-        await _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
-    }
+    [Fact] void should_succeed() =>
+        _result.ShouldBeSuccessful();
+
+    [Fact] Task should_have_appended_two_events() =>
+        _scenario.EventLog.ShouldHaveTailSequenceNumber(new EventSequenceNumber(1));
+
+    [Fact] Task should_have_appended_completed_event() =>
+        _scenario.EventLog.ShouldHaveAppendedEvent<OrderCompleted>(new EventSequenceNumber(1));
 }
 ```
 
@@ -127,10 +294,14 @@ When `Cratis.Arc.Chronicle.Testing` is referenced, `ChronicleCommandScenarioExte
 - `IEventTypes` → discovered from the assemblies loaded in the test process (same convention used in production)
 - `IEventLog` → backed by the real in-process Chronicle kernel (no server required)
 - `IEventSequence` → the same in-process instance
+- `IReadModels` → resolves a command's injected read models from the state seeded with the `Given` builder — by projecting seeded events on demand, or from a pinned instance — enabling direct read model dependencies in handlers, validators, and `Provide` methods
 
-It also populates the scenario context with an `EventScenario` instance, which is exposed through three C# 14 extension properties:
+It also populates the scenario context, exposed through C# 14 extension properties:
 
-- `EventScenario` — the full scenario, including the `Given` builder for seeding events
-- `EventLog` — shortcut to `EventScenario.EventLog` for assertions
-- `EventSequence` — shortcut to `EventScenario.EventSequence` for assertion helpers
-
+| Property | Type | Purpose |
+| -------- | ---- | ------- |
+| `Given` | `CommandScenarioChronicleGivenBuilder<TCommand>` | The given builder for seeding read model state — `ForEventSource(id).Events(...)` or `.ReadModel(...)` |
+| `EventScenario` | `EventScenario` | The full scenario, including the `Given` builder for seeding the event log |
+| `EventLog` | `IEventLog` | Shortcut to `EventScenario.EventLog` for Chronicle's own assertion helpers |
+| `EventSequence` | `IEventSequence` | Shortcut to `EventScenario.EventSequence` for Chronicle's assertion helpers |
+| `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | All events captured during command execution, used by `ShouldHaveAppendedEvent` and `ShouldHaveTailSequenceNumber` |
