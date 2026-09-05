@@ -41,9 +41,37 @@ public static class HostBuilderExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Turns off eager service-provider validation without discarding the other options the host applied.
+    /// </summary>
+    /// <param name="builder"><see cref="IHostBuilder"/> to extend.</param>
+    /// <returns><see cref="IHostBuilder"/> for building continuation.</returns>
+    /// <remarks>
+    /// <para>
+    /// Arc supplies registrations contextually — <see cref="IHostApplicationBuilder"/>, the type a convention
+    /// binding is for, values only an executing command or an in-flight HTTP request can hand over. Eager
+    /// validation constructs every registration up front and can resolve none of them, so
+    /// <see cref="ServiceProviderOptions.ValidateOnBuild"/> has to be off.
+    /// </para>
+    /// <para>
+    /// Both <c>UseDefaultServiceProvider</c> overloads hand their callback a brand new
+    /// <see cref="ServiceProviderOptions"/>, so setting a single field discards every other value the host had
+    /// applied — including <see cref="ServiceProviderOptions.ValidateScopes"/>, which the host derives from
+    /// <c>IsDevelopment()</c>. Restating it keeps the framework's Development-time captive-dependency detection on
+    /// for applications that add Arc. An application wanting a different value states it by calling
+    /// <c>UseDefaultServiceProvider</c> itself after Arc has been added.
+    /// </para>
+    /// </remarks>
+    internal static IHostBuilder SkipEagerServiceProviderValidation(this IHostBuilder builder) =>
+        builder.UseDefaultServiceProvider((context, options) =>
+        {
+            options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
+            options.ValidateOnBuild = false;
+        });
+
     static IHostBuilder AddArcImplementation(this IHostBuilder builder)
     {
-        builder.UseDefaultServiceProvider(_ => _.ValidateOnBuild = false);
+        builder.SkipEagerServiceProviderValidation();
         builder.AddCorrelationIdLogEnricher();
 
         builder

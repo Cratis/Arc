@@ -28,7 +28,7 @@ public record CreateProject(ProjectName Name, EmailAddress Email, Description De
 }
 ```
 
-Run a Release `dotnet build` to generate the `CreateProject` TypeScript proxy before importing it.
+Run a Debug `dotnet build` to generate the `CreateProject` TypeScript proxy before importing it.
 
 ---
 
@@ -36,7 +36,7 @@ Run a Release `dotnet build` to generate the `CreateProject` TypeScript proxy be
 
 ```tsx
 import { StepperCommandDialog } from '@cratis/components/CommandDialog';
-import { StepperPanel } from 'primereact/stepperpanel';
+import { StepperPanel } from '@cratis/components/CommandDialog';
 import { InputTextField, TextAreaField, NumberField } from '@cratis/components/CommandForm/fields';
 import { DialogResult, useDialogContext } from '@cratis/arc.react/dialogs';
 import { CreateProject } from '../api/Projects/CreateProject';

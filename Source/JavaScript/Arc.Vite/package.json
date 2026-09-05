@@ -1,7 +1,18 @@
 {
     "name": "@cratis/arc.vite",
     "version": "1.0.0",
-    "description": "",
+    "description": "Vite helpers for Cratis Arc applications — metadata and query plugins for the generated TypeScript proxies of the CQRS framework for ASP.NET Core.",
+    "keywords": [
+        "cratis",
+        "arc",
+        "cqrs",
+        "vite",
+        "vite-plugin",
+        "typescript",
+        "proxy",
+        "aspnetcore"
+    ],
+    "homepage": "https://www.cratis.io/arc/",
     "author": "Cratis",
     "license": "MIT",
     "repository": {

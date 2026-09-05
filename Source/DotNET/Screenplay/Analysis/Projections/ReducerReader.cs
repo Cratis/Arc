@@ -58,7 +58,7 @@ public class ReducerReader(ScreenplayDiagnostics diagnostics)
 
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.ReducerWithoutCounterpart,
-            $"'{type.Name}' folds events into '{readModel.Name}' with code, which Screenplay has no counterpart for, so only the events it observes are stated",
+            $"'{type.Name}' folds events into '{readModel.Name}' with code, and what that code works out cannot be stated, so it is carried as a projection over the events it observes and nothing is said of the fold",
             location);
 
         return new(

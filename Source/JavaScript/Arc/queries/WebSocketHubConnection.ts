@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Globals } from '../Globals';
-import { DataReceived } from './ObservableQueryConnection';
+import type { DataReceived } from './ObservableQueryConnection';
 import { HubConnectionKeepAlive } from './HubConnectionKeepAlive';
-import { IReconnectPolicy } from './IReconnectPolicy';
+import type { IReconnectPolicy } from './IReconnectPolicy';
 import { ReconnectPolicy } from './ReconnectPolicy';
 import { QueryResult } from './QueryResult';
 
@@ -26,11 +26,20 @@ export enum HubMessageType {
 }
 
 /**
- * Wire format for messages exchanged over the {@link WebSocketHubConnection}.
+ * Wire format for messages exchanged over the observable query WebSocket and SSE hub transports.
  */
 export interface HubMessage {
     type: HubMessageType;
     queryId?: string;
+
+    /** Optional positive safe-integer revision used to reject stale replacement messages. */
+    revision?: number;
+
+    /**
+     * Whether the server supports revision-aware subscription operations and result frames.
+     * Only present on {@link HubMessageType.Connected} messages from capable servers.
+     */
+    supportsSubscriptionRevisions?: boolean;
     payload?: any;
     timestamp?: number;
 
@@ -57,6 +66,7 @@ export interface SubscriptionRequest {
 interface ActiveSubscription {
     request: SubscriptionRequest;
     callback: DataReceived<any>;
+    revision: number;
 }
 
 /**
@@ -65,7 +75,9 @@ interface ActiveSubscription {
  *
  * Multiple query subscriptions are carried over the same physical WebSocket. Each subscription
  * is identified by a client-generated {@code queryId}; the server tags every result message with
- * the same id so responses can be routed to the correct callback.
+ * the same id so responses can be routed to the correct callback. The client initially subscribes
+ * without revisions for compatibility with older servers, then replaces active subscriptions with
+ * revision-aware operations when the server advertises support in a Connected message.
  */
 export class WebSocketHubConnection {
     private _socket?: WebSocket;
@@ -75,24 +87,30 @@ export class WebSocketHubConnection {
     private _lastPingSentTime?: number;
     private _lastPongLatency: number = 0;
     private _latencySamples: number[] = [];
+    private _nextRevision = 0;
+    private _supportsSubscriptionRevisions = false;
+    private _reconnectPending = false;
 
     /**
      * Initializes a new instance of {@link WebSocketHubConnection}.
-     * @param {string} url The WebSocket URL of the hub endpoint (e.g. {@code ws://localhost:5000/.cratis/queries/ws}).
-     * @param {string} microservice The microservice name to pass as a query argument.
+     * @param {string} _url The WebSocket URL of the hub endpoint (e.g. {@code ws://localhost:5000/.cratis/queries/ws}).
+     * @param {string} _microservice The microservice name to pass as a query argument.
      * @param {number} pingIntervalMs How often to send keep-alive pings when the connection is idle (default: 10 000 ms).
-     * @param {IReconnectPolicy} reconnectPolicy The reconnect policy to use (default: {@link ReconnectPolicy}).
+     * @param {IReconnectPolicy} _policy The reconnect policy to use (default: {@link ReconnectPolicy}).
      */
     constructor(
         private readonly _url: string,
         private readonly _microservice: string,
         pingIntervalMs: number = 10000,
-        private readonly _policy: IReconnectPolicy = new ReconnectPolicy()
+        private readonly _policy: IReconnectPolicy = new ReconnectPolicy(),
     ) {
         this._keepAlive = new HubConnectionKeepAlive(pingIntervalMs, () => {
             if (this._socket?.readyState === WebSocket.OPEN) {
                 this._lastPingSentTime = Date.now();
-                this.sendMessage({ type: HubMessageType.Ping, timestamp: this._lastPingSentTime });
+                this.sendMessage({
+                    type: HubMessageType.Ping,
+                    timestamp: this._lastPingSentTime,
+                });
             }
         });
     }
@@ -123,7 +141,9 @@ export class WebSocketHubConnection {
      */
     get averageLatency(): number {
         if (this._latencySamples.length === 0) return 0;
-        return this._latencySamples.reduce((a, b) => a + b, 0) / this._latencySamples.length;
+        return (
+            this._latencySamples.reduce((a, b) => a + b, 0) / this._latencySamples.length
+        );
     }
 
     /**
@@ -133,12 +153,17 @@ export class WebSocketHubConnection {
      * @param {SubscriptionRequest} request The subscription request payload.
      * @param {DataReceived<any>} callback Callback invoked whenever the server pushes a result for this query.
      */
-    subscribe(queryId: string, request: SubscriptionRequest, callback: DataReceived<any>): void {
-        this._subscriptions.set(queryId, { request, callback });
+    subscribe(
+        queryId: string,
+        request: SubscriptionRequest,
+        callback: DataReceived<any>,
+    ): void {
+        const subscription = { request, callback, revision: this.getNextRevision() };
+        this._subscriptions.set(queryId, subscription);
         this.ensureConnected();
 
         if (this._socket?.readyState === WebSocket.OPEN) {
-            this.sendSubscribeMessage(queryId, request);
+            this.sendSubscribeMessage(queryId, subscription);
         }
         // If not yet open, sendAllSubscriptions will fire in onopen.
     }
@@ -148,10 +173,18 @@ export class WebSocketHubConnection {
      * @param {string} queryId The identifier of the subscription to cancel.
      */
     unsubscribe(queryId: string): void {
+        const subscription = this._subscriptions.get(queryId);
         this._subscriptions.delete(queryId);
 
-        if (this._socket?.readyState === WebSocket.OPEN) {
-            this.sendMessage({ type: HubMessageType.Unsubscribe, queryId });
+        if (this._socket?.readyState === WebSocket.OPEN && subscription) {
+            const message: HubMessage = {
+                type: HubMessageType.Unsubscribe,
+                queryId,
+            };
+            if (this._supportsSubscriptionRevisions) {
+                message.revision = subscription.revision;
+            }
+            this.sendMessage(message);
         }
 
         // If no subscriptions remain, close the connection to free resources.
@@ -164,12 +197,8 @@ export class WebSocketHubConnection {
      * Permanently close this hub connection and clean up all subscriptions.
      */
     dispose(): void {
-        this._disconnected = true;
         this._subscriptions.clear();
-        this._keepAlive.stop();
-        this._policy.cancel();
-        this._socket?.close();
-        this._socket = undefined;
+        this.close();
     }
 
     private ensureConnected(): void {
@@ -178,10 +207,18 @@ export class WebSocketHubConnection {
             this._disconnected = false;
         }
 
-        if (this._socket && (this._socket.readyState === WebSocket.OPEN || this._socket.readyState === WebSocket.CONNECTING)) {
+        if (
+            this._socket &&
+            (this._socket.readyState === WebSocket.OPEN ||
+                this._socket.readyState === WebSocket.CONNECTING)
+        ) {
+            this.cancelPendingReconnect();
             return;
         }
 
+        // A subscription can arrive while an earlier close is waiting in reconnect backoff. The immediate open owns
+        // the connection now, so the delayed callback must not be allowed to create a competing socket later.
+        this.cancelPendingReconnect();
         this.openSocket();
     }
 
@@ -189,75 +226,116 @@ export class WebSocketHubConnection {
         this._disconnected = true;
         this._keepAlive.stop();
         this._policy.cancel();
-        if (this._socket) {
-            // Detach all handlers BEFORE closing so that the async onclose event cannot
-            // fire after a new subscription has reset _disconnected to false and opened a
-            // fresh socket. Without this, the stale onclose triggers an unintended
-            // reconnect via the back-off policy, causing a 1-10 second delay before the
-            // new page's queries receive their first data.
-            this._socket.onopen = null;
-            this._socket.onclose = null;
-            this._socket.onerror = null;
-            this._socket.onmessage = null;
-            this._socket.close();
-        }
+        this._reconnectPending = false;
+        const socket = this._socket;
         this._socket = undefined;
+        this._supportsSubscriptionRevisions = false;
+        if (socket) {
+            this.detachAndCloseSocket(socket);
+        }
     }
 
     private openSocket(): void {
+        const currentSocket = this._socket;
+        if (
+            currentSocket &&
+            (currentSocket.readyState === WebSocket.OPEN ||
+                currentSocket.readyState === WebSocket.CONNECTING)
+        ) {
+            return;
+        }
+
+        if (currentSocket) {
+            this._socket = undefined;
+            this.detachAndCloseSocket(currentSocket);
+        }
+
+        this._supportsSubscriptionRevisions = false;
+
         let url = this._url;
         if (this._microservice?.length > 0) {
             const param = `${Globals.microserviceWSQueryArgument}=${encodeURIComponent(this._microservice)}`;
             url += (url.includes('?') ? '&' : '?') + param;
         }
 
-        this._socket = new WebSocket(url);
+        const socket = new WebSocket(url);
+        this._socket = socket;
 
-        this._socket.onopen = () => {
-            if (this._disconnected) return;
-            console.log(`Hub connection established: '${url}'`);
+        socket.onopen = () => {
+            if (this._socket !== socket || this._disconnected) return;
+            console.log('Hub connection established', url);
+            this.cancelPendingReconnect();
             this._policy.reset();
             this._keepAlive.start();
             this.sendAllSubscriptions();
         };
 
-        this._socket.onclose = () => {
-            if (this._disconnected) return;
-            console.log(`Hub connection closed: '${url}'`);
+        socket.onclose = () => {
+            if (this._socket !== socket || this._disconnected) return;
+            console.log('Hub connection closed', url);
+            this._socket = undefined;
+            this._supportsSubscriptionRevisions = false;
             this._keepAlive.stop();
             if (this._subscriptions.size === 0) return;
-            this._policy.schedule(() => {
+            this._reconnectPending = true;
+            const scheduled = this._policy.schedule(() => {
+                this._reconnectPending = false;
                 if (!this._disconnected && this._subscriptions.size > 0) {
-                    this.openSocket();
+                    this.ensureConnected();
                 }
             }, this._url);
+            if (!scheduled) {
+                this._reconnectPending = false;
+            }
         };
 
-        this._socket.onerror = (error) => {
-            if (this._disconnected) return;
-            console.error(`Hub connection error: '${url}'`, error);
+        socket.onerror = (error) => {
+            if (this._socket !== socket || this._disconnected) return;
+            console.error('Hub connection error', url, error);
             this._keepAlive.stop();
             // onclose will fire after onerror, triggering reconnect
         };
 
-        this._socket.onmessage = (ev) => {
-            if (this._disconnected) return;
+        socket.onmessage = (ev) => {
+            if (this._socket !== socket || this._disconnected) return;
             this.handleMessage(ev.data as string);
         };
     }
 
+    private cancelPendingReconnect(): void {
+        if (!this._reconnectPending) return;
+
+        this._policy.cancel();
+        this._reconnectPending = false;
+    }
+
+    private detachAndCloseSocket(socket: WebSocket): void {
+        socket.onopen = null;
+        socket.onclose = null;
+        socket.onerror = null;
+        socket.onmessage = null;
+        socket.close();
+    }
+
     private sendAllSubscriptions(): void {
         for (const [queryId, sub] of this._subscriptions) {
-            this.sendSubscribeMessage(queryId, sub.request);
+            this.sendSubscribeMessage(queryId, sub);
         }
     }
 
-    private sendSubscribeMessage(queryId: string, request: SubscriptionRequest): void {
-        this.sendMessage({
+    private sendSubscribeMessage(
+        queryId: string,
+        subscription: ActiveSubscription,
+    ): void {
+        const message: HubMessage = {
             type: HubMessageType.Subscribe,
             queryId,
-            payload: request,
-        });
+            payload: subscription.request,
+        };
+        if (this._supportsSubscriptionRevisions) {
+            message.revision = subscription.revision;
+        }
+        this.sendMessage(message);
     }
 
     private sendMessage(message: HubMessage): void {
@@ -274,6 +352,9 @@ export class WebSocketHubConnection {
             this._keepAlive.recordActivity();
 
             switch (message.type) {
+                case HubMessageType.Connected:
+                    this.handleConnected(message);
+                    break;
                 case HubMessageType.QueryResult:
                     this.handleQueryResult(message);
                     break;
@@ -281,11 +362,17 @@ export class WebSocketHubConnection {
                     this.handlePong(message);
                     break;
                 case HubMessageType.Unauthorized:
-                    console.warn(`Hub: query '${message.queryId}' unauthorized`);
+                    console.warn('Hub: query unauthorized', message.queryId);
                     this.handleUnauthorized(message);
                     break;
                 case HubMessageType.Error:
-                    console.error(`Hub: query '${message.queryId}' error:`, message.payload);
+                    if (this.isMessageForCurrentSubscription(message)) {
+                        console.error(
+                            'Hub: query error',
+                            message.queryId,
+                            message.payload,
+                        );
+                    }
                     break;
             }
         } catch (error) {
@@ -293,11 +380,26 @@ export class WebSocketHubConnection {
         }
     }
 
+    private handleConnected(message: HubMessage): void {
+        if (
+            message.supportsSubscriptionRevisions !== true ||
+            this._supportsSubscriptionRevisions
+        ) {
+            return;
+        }
+
+        this._supportsSubscriptionRevisions = true;
+
+        // The legacy subscriptions sent on socket open keep this client compatible with older servers.
+        // Ordered WebSocket delivery means these revision-aware replacements are processed afterwards.
+        this.sendAllSubscriptions();
+    }
+
     private handleQueryResult(message: HubMessage): void {
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
-        if (!sub) return;
+        if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
         const result = message.payload as QueryResult<any>;
         sub.callback(result);
@@ -307,10 +409,40 @@ export class WebSocketHubConnection {
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
-        if (!sub) return;
+        if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
         this._subscriptions.delete(message.queryId);
         sub.callback(QueryResult.unauthorized());
+    }
+
+    private isMessageForCurrentSubscription(message: HubMessage): boolean {
+        if (!message.queryId) return false;
+
+        if (!this._supportsSubscriptionRevisions) {
+            return (
+                message.revision === undefined &&
+                this._subscriptions.has(message.queryId)
+            );
+        }
+
+        return (
+            this.isValidRevision(message.revision) &&
+            this._subscriptions.get(message.queryId)?.revision === message.revision
+        );
+    }
+
+    private isValidRevision(revision: number | undefined): revision is number {
+        return revision !== undefined && Number.isSafeInteger(revision) && revision > 0;
+    }
+
+    private getNextRevision(): number {
+        if (this._nextRevision >= Number.MAX_SAFE_INTEGER) {
+            throw new RangeError(
+                'WebSocket hub subscription revision exhausted the safe integer range',
+            );
+        }
+
+        return ++this._nextRevision;
     }
 
     private handlePong(message: HubMessage): void {

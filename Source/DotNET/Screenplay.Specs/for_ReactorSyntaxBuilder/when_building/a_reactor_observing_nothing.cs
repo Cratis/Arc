@@ -15,7 +15,7 @@ public class a_reactor_observing_nothing : Specification
 {
     ScreenplayDiagnostics _diagnostics;
     ReactorSyntaxBuilder _builder;
-    ReactorSyntax? _result;
+    ReactionSyntax? _result;
 
     void Establish()
     {

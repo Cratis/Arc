@@ -7,6 +7,8 @@ Chronicle's [concurrency control](/chronicle/events/concurrency/) prevents confl
 
 On model-bound commands, you declare concurrency intent directly on the command record using attributes and interfaces. Chronicle then builds the `ConcurrencyScope` automatically when appending the events returned by `Handle()`. No manual scope construction is required.
 
+That automatic path is the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
+
 ## Concurrency Metadata Attributes
 
 Three attributes control concurrency scope declaration on a command. Each attribute serves a dual purpose: it tags the appended events with metadata *and*, when `concurrency: true` is set, contributes that metadata to the concurrency scope.
@@ -71,7 +73,7 @@ public record CustomerRegistered(EventSourceId CustomerId, string Email);
 
 ## Combining Attributes
 
-You can combine multiple concurrency attributes to build a precise scope. Only the attributes with `concurrency: true` contribute to the scope; others still tag the events but do not affect concurrency.
+You can combine multiple concurrency attributes to build a precise scope. Only the attributes with `concurrency: true` contribute to the scope the command declares — but the others still tag the appended events, and the fallback strategy narrows by whatever tags an append carries, so they are not concurrency-inert either. See [what a routing-only tag already does](#what-a-routing-only-tag-already-does) below.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -98,7 +100,21 @@ public record CustomerDisplayNameChanged(EventSourceId CustomerId, string Displa
 public record CustomerEmailChanged(EventSourceId CustomerId, string Email);
 ```
 
-If no attribute has `concurrency: true`, the command contributes no scope of its own and the append is left to the concurrency strategy configured on the event sequence — by default the optimistic one, which resolves the expected tail for the event source being appended to.
+If no attribute has `concurrency: true`, the command contributes no scope of its own and the append is left to the concurrency strategy configured on the event sequence — by default the optimistic one, which resolves the expected tail for the event source being appended to, **narrowed by whatever routing metadata the command carries**.
+
+## What a routing-only tag already does
+
+A metadata attribute declared *without* `concurrency: true` still narrows the concurrency check. Its value reaches the append regardless of the flag, and the fallback strategy resolves the expected tail with the same narrowing — so the flag governs whether the command **declares** a scope, while the tag governs what the check is **narrowed by**. Both are true at once.
+
+Three consequences follow, and the third is the surprising one:
+
+- **A routing-only tag silently narrows every concurrency check on that command.** `[EventStreamType("Attachments")]` with no flag restricts the expected tail to `Attachments` events, so a concurrent append to the same event source under a different stream type is invisible to the check.
+- **Declaring `concurrency: true` on *every* metadata attribute a command carries is behaviorally identical to declaring it on none.** The declared scope passes the context values; the fallback passes the same values, with a sentinel standing in for anything absent — and a sentinel adds no filter. Same filter set, same expected tail.
+- **Declaring it on a *subset* produces a strictly broader scope than declaring it on none.** The declared scope passes `null` for every dimension that did not opt in, while the fallback would have passed its real value. Declaring it on `[EventStreamType]` alone, on a command that also carries `[EventSourceType("X")]`, **drops** the `EventSourceType == "X"` filter and widens the check.
+
+:::note
+The practical reading: reach for `concurrency: true` to state intent and to pin which dimensions bound the check, not because its absence leaves the check unbounded. If you want a check bounded by the whole event source, do not tag the command at all.
+:::
 
 ## Dynamic Event Stream Id
 
@@ -137,3 +153,11 @@ Two properties of that scope decide whether the check actually happens, and both
 
 - **It carries an expected sequence number**, resolved by the same concurrency strategy an unscoped append would use. A scope without one is skipped by the kernel — there is nothing to compare against — so the append would proceed unchecked.
 - **It is bound to the event source being appended to.** A command that appends across streams gets a scope per target, because an expected tail belongs to exactly one stream; applying one stream's tail to another would be wrong for both.
+
+## Carrying the revision used by the decision
+
+Automatic optimistic concurrency resolves the expected tail while Arc handles the returned value. A concurrent append that lands after `Handle()` read its state but before Arc handles the response is therefore part of the new tail, and the automatic strategy accepts it.
+
+When that newer tail would invalidate the decision, capture the revision during the read and return it in `EventsWithConcurrencyScopes`. Arc passes it unchanged into the same command transaction as the ordered events. Interference after the read then produces a concurrency validation failure at commit, with no partial append.
+
+This is opt-in. Returning ordinary events or `EventForEventSourceId` values keeps the automatic strategy and its existing behavior.

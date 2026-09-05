@@ -23,6 +23,12 @@ public class ChronicleReadModelForCommandResolver(IEnumerable<Type> readModelTyp
     /// A Chronicle projection, model-bound projection, or reducer in the application targets each of these read models,
     /// which is what makes Chronicle own them — and what makes Chronicle the provider that has to resolve them, since it
     /// is the only one that releases their compliance-protected values.
+    /// <para>
+    /// What follows from declaring: an instance resolved this way is deserialized from a JSON payload with
+    /// <c>System.Text.Json</c>, so it never meets the MongoDB driver. No convention pack, class-map customization,
+    /// element rename or custom <c>IBsonSerializer</c> applies to it, even where the same customization is visibly at
+    /// work on the query side.
+    /// </para>
     /// </remarks>
     public ReadModelForCommandOwnership Ownership => ReadModelForCommandOwnership.Declared;
 

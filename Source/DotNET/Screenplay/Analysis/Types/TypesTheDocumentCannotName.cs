@@ -45,9 +45,9 @@ public static class TypesTheDocumentCannotName
 
         foreach (var shape in types.Shapes)
         {
-            diagnostics.Information(
+            diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UndeclarableShape,
-                $"'{shape}' is a record an artifact carries, and there is no way to declare what a record holds, so the document names it without saying what is in it - the concepts it carries are declared, the shape itself is not",
+                $"'{shape.Type}' is a record an artifact carries, and no type declaration could be written for it because {shape.Reason}, so the document names it without saying what is in it",
                 location);
         }
     }

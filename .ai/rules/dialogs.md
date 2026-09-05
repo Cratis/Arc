@@ -75,7 +75,7 @@ It receives the current command values and **must return them** (mutated or not)
 
 ### CommandForm fields
 
-Use built-in `CommandForm` fields (from `@cratis/components/CommandForm`) for every user-input value — a raw PrimeReact control inside a command dialog bypasses `CommandFormFieldWrapper`, so validation never re-runs and the submit button stays **permanently disabled**. Catalog: `InputTextField`, `NumberField`, `DropdownField`, `CheckboxField`, `TextAreaField`, `CalendarField`, `RadioButtonField`, `RadioGroupField`, `ChipsField`, `MultiSelectField`, `ColorPickerField`, `SliderField`.
+Use built-in `CommandForm` fields (from `@cratis/components/CommandForm`) for every user-input value — a raw PrimeReact control inside a command dialog bypasses `CommandFormFieldWrapper`, so validation never re-runs and the submit button stays **permanently disabled**. Catalog: `InputTextField`, `PasswordField`, `NumberField`, `DropdownField`, `CheckboxField`, `ToggleSwitchField`, `TextAreaField`, `CalendarField`, `RadioButtonField`, `RadioGroupField`, `ChipsField`, `MultiSelectField`, `ColorPickerField`, `SliderField`, `RatingField`.
 
 - The `value={c => c.name}` **accessor lambda doubles as the binding and type-checked field selection** — renaming a command property surfaces a compile error at every binding.
 - **`RadioGroupField<T>`** renders a whole group from data (`options`/`optionLabel`/`optionValue`, `layout='horizontal'|'vertical'`); **`RadioButtonField<T>`** is one component per option (each takes a `buttonValue`). Both infer the value type from the accessor — no `as string` casts.
@@ -88,7 +88,7 @@ Use built-in `CommandForm` fields (from `@cratis/components/CommandForm`) for ev
 
 ### Multi-step wizards — `StepperCommandDialog`
 
-For a command split across named steps use `StepperCommandDialog` (`@cratis/components/CommandDialog`) — see the **stepper-command-dialog** skill. ⚠️ It **cannot handle conditional steps**, because `React.Children.count` counts falsy children. When steps are conditional, a step needs non-CommandForm inputs, or cross-step state is complex, fall back to a manual `Dialog` + PrimeReact `Stepper`.
+For a command split across named steps use `StepperCommandDialog` (`@cratis/components/CommandDialog`) — see the **stepper-command-dialog** skill. Conditional steps written as `{condition && <StepperPanel/>}` are supported **from 2.7.1**: only the steps that actually render are counted, so Next and Submit appear where the user expects them. ⚠️ On earlier versions a hidden step is still counted — Submit never appears on the real last step and a dead Next takes its place, so check what you are pinned to before relying on this. ⚠️ A `<>…</>` fragment wrapping several panels still counts as **one** step — give each step its own `StepperPanel` child. When a step needs non-CommandForm inputs, or cross-step state is complex, fall back to a manual `Dialog` + PrimeReact `Stepper`.
 
 ## When Using `Dialog`
 
@@ -223,4 +223,4 @@ Use `buttons={null}` for dialogs that contain their own internal actions (e.g. a
 | `width` | `string` | Dialog width (e.g. `'50vw'`) — replaces PrimeReact `style={{ width }}` |
 | `resizable` | `boolean` | Default `false` |
 
-PrimeReact-specific props (`style`, `contentStyle`, `modal`, `dismissableMask`, `draggable`, `footer`, `onHide`) are **not** available — do not use them.
+`style`, `contentStyle`, and `dismissable` **are** supported. The other v10 PrimeReact Dialog props (`modal`, `dismissableMask`, `draggable`, `footer`, `onHide`) are **not** available — do not use them. (`resizable` is accepted for compatibility but is a no-op in PrimeReact 11.)

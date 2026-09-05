@@ -10,7 +10,7 @@ using Cratis.Screenplay.Syntax;
 namespace Cratis.Arc.Screenplay.Emission.Reactors;
 
 /// <summary>
-/// Builds the Screenplay <c>reactor</c> declaration for a reactor.
+/// Builds the Screenplay <c>reaction</c> declaration for a reactor.
 /// </summary>
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
@@ -25,8 +25,8 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// </summary>
     /// <param name="reactor">The reactor to build for.</param>
     /// <param name="namespace">The namespace of the slice the reactor lives in.</param>
-    /// <returns>The <see cref="ReactorSyntax"/>, or <see langword="null"/> when it observes no events.</returns>
-    public ReactorSyntax? Build(ReactorModel reactor, string @namespace)
+    /// <returns>The <see cref="ReactionSyntax"/>, or <see langword="null"/> when it observes no events.</returns>
+    public ReactionSyntax? Build(ReactorModel reactor, string @namespace)
     {
         var name = naming.ToDeclarationName(reactor.Name);
         var path = naming.ToFilePath(reactor.SourceFilePath) ?? SourceFilePaths.Conventional(@namespace, name);
@@ -36,7 +36,12 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             .Select(naming.ToDeclarationName)
             .Where(_ => _.Length > 1)
             .Distinct(StringComparer.Ordinal)
-            .Select(_ => new ReactorTriggerSyntax(_, file, null, SourceLocation.Start))
+            .Select(_ => new ReactionTriggerSyntax(
+                new NamedTriggerSourceSyntax(_, SourceLocation.Start),
+                [],
+                file,
+                null,
+                SourceLocation.Start))
             .ToList();
 
         if (triggers.Count == 0)

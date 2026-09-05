@@ -12,4 +12,9 @@ public static class ConventionPacks
     /// Gets the ignore extra elements convention pack name.
     /// </summary>
     public const string IgnoreExtraElements = "Ignore extra elements convention";
+
+    /// <summary>
+    /// Gets the read model collections never null convention pack name.
+    /// </summary>
+    public const string ReadModelCollectionsNeverNull = "Read model collections never null convention";
 }

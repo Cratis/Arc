@@ -74,17 +74,53 @@ public class ArtifactCatalog
     }
 
     /// <summary>
-    /// Collects a type and everything nested within it.
+    /// Collects a type and everything nested within it, stopping at a specification.
     /// </summary>
     /// <param name="type">The type to collect.</param>
     /// <param name="types">The types collected so far.</param>
+    /// <remarks>
+    /// A specification is collected - the catalogue is where specifications are read from - but nothing nested
+    /// inside one is. A fixture a specification declares to assert something about a contract is written to be
+    /// examined, not to run: it ships only in Debug and is stripped from the application anyone deploys. Capturing
+    /// it emits an artifact the application does not have, and where the fixture stands in for a real one - a
+    /// second projection over a read model that already has one - the captured document contradicts itself and no
+    /// longer compiles.
+    /// </remarks>
     static void Collect(INamedTypeSymbol type, List<INamedTypeSymbol> types)
     {
         types.Add(type);
+
+        if (IsSpecification(type))
+        {
+            return;
+        }
 
         foreach (var nested in type.GetTypeMembers())
         {
             Collect(nested, types);
         }
+    }
+
+    /// <summary>
+    /// Whether a type is a specification, by what it derives from.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>True when the type derives from the specification base class.</returns>
+    /// <remarks>
+    /// Deliberately the base class rather than the shape of its members: a specification that only inspects a
+    /// contract has no <c>Because</c>, so a rule written around the members it usually holds does not recognise
+    /// one - and those are exactly the specifications that declare a fixture worth not capturing.
+    /// </remarks>
+    static bool IsSpecification(INamedTypeSymbol type)
+    {
+        for (var candidate = type.BaseType; candidate is not null; candidate = candidate.BaseType)
+        {
+            if (string.Equals(candidate.ToDisplayString(), WellKnownTypeNames.Specification, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

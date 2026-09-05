@@ -3,7 +3,10 @@
 
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { useSuspenseObservableQuery, clearSuspenseObservableQueryCache } from '../useSuspenseObservableQuery';
+import {
+    useSuspenseObservableQuery,
+    clearSuspenseObservableQueryCache,
+} from '../useSuspenseObservableQuery';
 import { QueryFailed } from '../QueryFailed';
 import { FakeSuspenseObservableQuery } from './FakeSuspenseObservableQuery';
 import { ArcContext, ArcConfiguration } from '../../ArcContext';
@@ -17,14 +20,16 @@ describe('when observable query returns exceptions', () => {
     const config: ArcConfiguration = {
         microservice: 'test-microservice',
         apiBasePath: '/api',
-        origin: 'https://example.com'
+        origin: 'https://example.com',
     };
 
     beforeEach(() => {
         originalConsoleError = console.error;
-        console.error = () => { /* suppress React ErrorBoundary output */ };
-        FakeSuspenseObservableQuery.reset();
+        console.error = () => {
+            /* suppress React ErrorBoundary output */
+        };
         clearSuspenseObservableQueryCache();
+        FakeSuspenseObservableQuery.reset();
     });
 
     afterEach(() => {
@@ -35,7 +40,10 @@ describe('when observable query returns exceptions', () => {
     it('should propagate a QueryFailed error to the error boundary', async () => {
         let capturedError: Error | null = null;
 
-        class TestErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+        class TestErrorBoundary extends React.Component<
+            { children: React.ReactNode },
+            { error: Error | null }
+        > {
             constructor(props: { children: React.ReactNode }) {
                 super(props);
                 this.state = { error: null };
@@ -51,7 +59,11 @@ describe('when observable query returns exceptions', () => {
 
             render() {
                 if (this.state.error) {
-                    return React.createElement('div', { 'data-testid': 'error' }, 'Error occurred');
+                    return React.createElement(
+                        'div',
+                        { 'data-testid': 'error' },
+                        'Error occurred',
+                    );
                 }
                 return this.props.children as React.ReactElement;
             }
@@ -72,34 +84,43 @@ describe('when observable query returns exceptions', () => {
                     React.createElement(
                         React.Suspense,
                         { fallback: React.createElement('div', null, 'Loading...') },
-                        React.createElement(TestComponent)
-                    )
-                )
-            )
+                        React.createElement(TestComponent),
+                    ),
+                ),
+            ),
         );
 
         const callback = FakeSuspenseObservableQuery.subscribeCallbacks[0];
         callback!.should.not.be.undefined;
 
         await act(async () => {
-            callback(new QueryResult({
-                data: null,
-                isSuccess: false,
-                isAuthorized: true,
-                isValid: true,
-                hasExceptions: true,
-                validationResults: [],
-                exceptionMessages: ['Unexpected error occurred'],
-                exceptionStackTrace: 'at line 42',
-                paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 }
-            }, Array, true));
+            callback(
+                new QueryResult(
+                    {
+                        data: null,
+                        isSuccess: false,
+                        isReady: true,
+                        isAuthorized: true,
+                        isValid: true,
+                        hasExceptions: true,
+                        validationResults: [],
+                        exceptionMessages: ['Unexpected error occurred'],
+                        exceptionStackTrace: 'at line 42',
+                        paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 },
+                    },
+                    Array,
+                    true,
+                ),
+            );
         });
 
         screen.getByTestId('error');
 
         capturedError!.should.not.be.null;
         capturedError!.should.be.instanceOf(QueryFailed);
-        (capturedError as unknown as QueryFailed).exceptionMessages.should.deep.equal(['Unexpected error occurred']);
+        // SAFETY: The preceding runtime assertion verifies the captured error type.
+        (capturedError as unknown as QueryFailed).exceptionMessages.should.deep.equal([
+            'Unexpected error occurred',
+        ]);
     });
 });
-

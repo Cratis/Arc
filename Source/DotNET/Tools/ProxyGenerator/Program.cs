@@ -9,7 +9,7 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -23,6 +23,7 @@ var apiPrefixArg = args.FirstOrDefault(_ => _.StartsWith("--api-prefix="));
 var apiPrefix = apiPrefixArg is null ? "api" : apiPrefixArg.Split('=')[^1];
 var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
+var emitInterfaces = args.Any(_ => _ == "--emit-interfaces");
 
 var assemblyPackageMappings = new Dictionary<string, string>();
 foreach (var mapping in args.Where(_ => _.StartsWith("--assembly-to-package=")).Select(_ => _["--assembly-to-package=".Length..]))
@@ -50,11 +51,25 @@ var excludedNamespacePatterns = args
 var typeMappings = new List<(string TypeName, string TsType, string Package)>();
 foreach (var entry in args.Where(_ => _.StartsWith("--type-to-ts=")).Select(_ => _["--type-to-ts=".Length..]))
 {
-    var parts = entry.Split('=');
+    // Bounded to three parts so an '=' inside the TypeScript type stays part of the type rather than being
+    // read as the package separator, the way --assembly-to-package and --namespace-root already slice to the
+    // end. An unbounded Split dropped everything past the third field without saying so.
+    var parts = entry.Split('=', 3);
     if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[0]) && !string.IsNullOrWhiteSpace(parts[1]))
     {
         typeMappings.Add((parts[0], parts[1], parts.Length > 2 ? parts[2] : string.Empty));
+        continue;
     }
+
+    // Named rather than dropped. A mapping that does not apply produces the generator's built-in type instead,
+    // which is a plausible-looking result for a declaration that never took effect - the failure is only
+    // visible in generated output nobody reads until it is wrong.
+    //
+    // On stdout, not stderr: the build invokes this through Exec, which treats what arrives on stderr as build
+    // errors, so an ignorable entry would fail the build outright. Exec sets ConsoleToMsBuild, so stdout is
+    // carried into the build log either way.
+    Console.WriteLine(
+        $"warning: ignoring unusable --type-to-ts entry '{entry}'. Expected <FullyQualifiedTypeName>=<TsType>[=<Package>] with both a type name and a TypeScript type.");
 }
 
 var namespaceRoots = new List<(string Namespace, string Folder)>();
@@ -129,5 +144,6 @@ var result = await Generator.Generate(
     excludedTypeNames,
     excludedNamespacePatterns,
     namespaceRoots,
-    typeMappings);
+    typeMappings,
+    emitInterfaces);
 return result ? 0 : 1;

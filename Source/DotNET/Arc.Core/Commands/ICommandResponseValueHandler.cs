@@ -24,3 +24,14 @@ public interface ICommandResponseValueHandler
     /// <returns><see cref="CommandResult"/> representing the result of handling the value.</returns>
     Task<CommandResult> Handle(CommandContext commandContext, object value);
 }
+
+/// <summary>
+/// Defines a command response value handler for a specific value type.
+/// </summary>
+/// <typeparam name="TValue">The type of value consumed by the handler on the server.</typeparam>
+/// <remarks>
+/// The typed declaration lets build-time tooling distinguish values consumed by the command pipeline from values
+/// returned to the client. Runtime handlers continue to implement <see cref="ICommandResponseValueHandler"/>
+/// directly so type discovery and dependency injection retain their existing contract.
+/// </remarks>
+public interface ICommandResponseValueHandler<TValue>;

@@ -37,12 +37,7 @@ public class and_concurrent_messages_are_sent : given.an_observable_query_demult
         _caughtException = null;
 
         _subject = new Subject<IEnumerable<string>>();
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 var queryResult = QueryResult.Success(CorrelationId.New());

@@ -11,7 +11,7 @@ namespace Cratis.Arc.Chronicle.Commands.for_EventSourceValuesProvider.when_provi
 /// </summary>
 public class with_a_command_that_provides_its_key : Specification
 {
-    const string TheKey = "d4d1a3f0-0f4a-4f6a-9a9f-8b2c1e5a7d31";
+    const string TheKey = "event-source-id-from-command";
 
     EventSourceValuesProvider _provider;
     CommandContextValues _result;

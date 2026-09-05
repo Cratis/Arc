@@ -1,57 +1,204 @@
 ---
 title: Arc
-description: The full-stack application framework for Cratis — CQRS commands and queries with end-to-end type safety, from C# to React.
+description: Commands, queries, validation, authorization, and TypeScript proxy generation for ASP.NET Core.
 ---
 
-import { CardGrid } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 import SimpleCard from '@components/SimpleCard.astro';
 import TopicHero from '@components/TopicHero.astro';
 
-<TopicHero icon="puzzle" eyebrow="Arc" title="Full-stack CQRS, typed to the browser">
-Turn **commands** and **queries** into a full-stack CQRS application with **generated TypeScript proxies** that keep React in lockstep with your C#: no hand-written API client, no DTO duplication. Arc pairs naturally with Chronicle's event sourcing, and runs just as well over MongoDB or EF Core — no event log required. [Build your first slice →](/arc/backend/getting-started/your-first-command/) · [Why Arc? →](/arc/why-arc/)
+<TopicHero
+  icon="puzzle"
+  eyebrow="Arc"
+  title="CQRS application framework for ASP.NET Core"
+>
+  Arc is an opinionated CQRS application framework for ASP.NET Core with
+  commands, queries, validation, authorization, and TypeScript proxy generation.
+  Event sourcing is not required.
 </TopicHero>
 
 ## Start here
 
+When commands, queries, validation, authorization, frontend contracts, and
+persistence each grow their own conventions, Arc gives them one application
+boundary. Start with current-state persistence or application services. Add
+Chronicle only where event sourcing fits, and add Components only where its
+React compositions fit.
+
 <CardGrid>
-  <SimpleCard title="Your first command & query" icon="rocket" link="/arc/backend/getting-started/your-first-command/">
-    Build a backend slice end to end: a command with `Handle()`, the read model it writes, and the live query that serves it.
+  <SimpleCard title="Start an Arc host" icon="rocket" link="#start-an-arc-host">
+    Add the Arc package and configure an ASP.NET Core host.
   </SimpleCard>
-  <SimpleCard title="Wire up the React frontend" icon="seti:react" link="/arc/frontend/getting-started/">
-    Consume the generated proxies from React — a typed query and a command, with the client model generated from C#.
+  <SimpleCard title="Commands and queries" icon="seti:c-sharp" link="#commands-and-queries">
+    Execute changes, expose reads, and generate the client contracts for both.
   </SimpleCard>
-  <SimpleCard title="MediatR, MVC, and Arc" icon="right-arrow" link="/arc/coming-from-mediatr-and-mvc/">
-    Maps controllers, handlers, and DTOs onto Arc's command/query model so the shift is short.
+  <SimpleCard title="Frontend contracts" icon="laptop" link="#frontend-contracts">
+    Use the generated TypeScript runtime directly or compose it with React.
+  </SimpleCard>
+  <SimpleCard title="Persistence choices" icon="seti:db" link="#persistence-choices">
+    Keep current state in application services, MongoDB, or EF Core, or add Chronicle.
   </SimpleCard>
 </CardGrid>
 
-## Explore Arc
-
 <CardGrid>
-  <SimpleCard title="Why Arc" icon="approve-check" link="/arc/why-arc/">
-    The plumbing Arc removes, and why CQRS plus proxy generation keeps a full-stack app honest.
-  </SimpleCard>
-  <SimpleCard title="Vertical slices" icon="seti:folder" link="/arc/vertical-slices/">
-    How everything for one feature — backend and frontend — can live in a single folder.
-  </SimpleCard>
-  <SimpleCard title="CQRS without event sourcing" icon="right-arrow" link="/arc/arc-without-event-sourcing/">
-    Use Arc on its own over MongoDB or EF Core when you want the CQRS boundary without an event log.
-  </SimpleCard>
-  <SimpleCard title="Integrate with Chronicle" icon="seti:db" link="/arc/backend/chronicle/">
-    Add Chronicle when a slice needs events, projections, reducers, reactors, history, or aggregate roots.
-  </SimpleCard>
-  <SimpleCard title="Backend" icon="seti:c-sharp" link="/arc/backend/">
-    Commands, queries, validation, identity, tenancy, persistence, and proxy generation.
-  </SimpleCard>
-  <SimpleCard title="Frontend" icon="laptop" link="/arc/frontend/">
-    React integration, command forms, observable queries, and the optional MVVM approach.
-  </SimpleCard>
-  <SimpleCard title="Build a full-stack feature" icon="open-book" link="/build-a-full-app/">
-    One slice from command to React screen, with full-stack type safety throughout.
-  </SimpleCard>
-  <SimpleCard title="Troubleshooting" icon="list-format" link="/arc/troubleshooting/">
-    Answers to the questions that come up most when wiring Arc together.
-  </SimpleCard>
+  <LinkCard
+    title="Why Arc"
+    description="The problem Arc solves, why it leans on CQRS and proxy generation, and how it keeps a full-stack app type-safe end to end."
+    href="/arc/why-arc/"
+  />
+  <LinkCard
+    title="Coming from MediatR and MVC"
+    description="Map controllers, DTOs, and MediatR handlers onto Arc's command and query model."
+    href="/arc/coming-from-mediatr-and-mvc/"
+  />
+  <LinkCard
+    title="Samples"
+    description="Runnable event sourcing and CQRS samples for the Cratis stack, including full Arc applications."
+    href="/samples/"
+  />
 </CardGrid>
 
-Arc feeds [Components](/components/) and gives the application its CQRS boundary. In the full Cratis loop it sits on top of [Chronicle](/chronicle/) through the [Chronicle integration](/arc/backend/chronicle/); for bounded current-state slices it can also run over MongoDB or EF Core. See [Why developers choose Cratis](/why-cratis/) for how the pieces fit.
+## Start an Arc host
+
+Use the .NET SDK declared by Arc's current `global.json`.
+
+<Steps>
+1. Install the umbrella host package.
+
+   ```bash
+   dotnet add package Cratis.Arc
+   ```
+
+2. Configure and run the host.
+
+   ```csharp
+   using Cratis.Arc;
+
+   var builder = ArcApplication.CreateBuilder(args);
+   builder.AddCratisArc();
+
+   var app = builder.Build();
+   app.UseCratisArc();
+   await app.RunAsync();
+   ```
+
+3. Confirm the application starts on the selected SDK/package profile.
+</Steps>
+
+Starting the host verifies the setup path only. Commands, queries, generated
+proxies, persistence integrations, and frontend packages each have additional
+configuration and version requirements.
+
+## Commands and queries
+
+Arc supports model-bound records and methods as well as controller-based
+endpoints. The command and query pipelines handle dependency injection,
+validation, authorization, filters, execution scopes, result conversion, and
+HTTP exposure.
+
+Queries can return one result or use Arc's observable-query APIs. The TypeScript
+generator creates clients for recognized commands, queries, referenced types,
+validation rules, and identity details. See the detailed product documentation for the exact transport, subscription,
+and lifecycle behavior.
+
+<CardGrid>
+  <LinkCard
+    title="Command pipeline"
+    description="Model intentions, validate and authorize them, provide dependencies, execute handlers, and convert typed results into HTTP responses."
+    href="/arc/backend/commands/"
+  />
+  <LinkCard
+    title="Query pipeline"
+    description="Expose purpose-shaped reads with paging, sorting, filtering, result rendering, and diagnostics."
+    href="/arc/backend/queries/"
+  />
+  <LinkCard
+    title="Observable-query APIs"
+    description="Work with documented query subscriptions, collection changes, subscription guards, and query health information."
+    href="/arc/backend/queries/observable-query-demultiplexer/"
+  />
+</CardGrid>
+
+## Frontend contracts
+
+`@cratis/arc` supplies the TypeScript command, query, validation, identity, and
+messaging runtime used by generated proxies. `@cratis/arc.react` adds hooks,
+command forms, dialogs, identity composition, and query components. The optional
+React/MVVM package adds view models, dependency injection, route parameters, and
+browser abstractions.
+
+[Explore Arc's frontend packages](/arc/frontend/) to choose the TypeScript,
+React, or React/MVVM path. Components is separate: applications may use Arc
+without Components, and may use the generated TypeScript clients without Arc's
+React packages.
+
+## Identity and tenancy
+
+Arc includes [pluggable identity and access behavior](/arc/understanding-identity-and-access/),
+identity-detail providers, server-side authorization and role checks, and
+frontend identity context. [Tenant resolution](/arc/backend/tenancy/) can use a
+header, query parameter, claim, subdomain, fixed value, or development setting
+before provider-specific database or namespace mapping.
+
+Frontend visibility helpers do not replace server-side authorization. Tenant
+resolution also does not by itself establish isolation for an application or
+storage topology.
+
+## Persistence choices
+
+Arc.Core does not depend on Chronicle. Commands and queries can use application
+services or current-state persistence without an event log.
+
+<CardGrid>
+  <LinkCard
+    title="MongoDB"
+    description="Use Arc's serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams."
+    href="/arc/backend/mongodb/"
+  />
+  <LinkCard
+    title="Entity Framework Core"
+    description="Discover read models, configure value conversions and mappings, run migrations, and observe supported SQL Server, PostgreSQL, or SQLite changes."
+    href="/arc/backend/entity-framework/"
+  />
+  <LinkCard
+    title="Chronicle"
+    description="Add event-sourced commands, projections, reducers, aggregates, reactors, concurrency behavior, tenant namespaces, and Chronicle-specific testing."
+    href="/arc/backend/chronicle/"
+  />
+</CardGrid>
+
+## Inspection, contracts, and testing
+
+Arc can describe registered commands, queries, identity schemas, and OpenAPI
+operations at runtime. Repository packages also include analyzers, source
+generators, command-scenario testing, proxy-generation checks, Vite helpers, and
+Arc-specific ESLint rules.
+
+- [Inspect registered application contracts](/arc/backend/introspection/)
+- [Generate OpenAPI descriptions](/arc/backend/open-api/)
+- [Test command behavior](/arc/backend/testing/)
+- [Review analyzer rules](/arc/backend/code-analysis/)
+
+:::caution[Check the combination you use]
+These are separate packages and integration surfaces. Their existence does not
+establish compatibility with every frontend, runtime, persistence provider,
+browser, or product version. Check the package manifests and the evidence for the
+combination you evaluate.
+:::
+
+## Continue
+
+<CardGrid>
+  <SimpleCard title="Arc source and README" icon="seti:folder" link="https://github.com/Cratis/Arc">
+    Repository structure, package roles, contribution guidance, and current limits.
+  </SimpleCard>
+  <SimpleCard title="Arc packages" icon="open-book" link="https://www.nuget.org/packages/Cratis.Arc">
+    Published .NET package metadata and versions.
+  </SimpleCard>
+  <SimpleCard title="Chronicle" icon="seti:db" link="/chronicle/">
+    The optional event-sourced runtime integration for Arc application behavior.
+  </SimpleCard>
+  <SimpleCard title="Components" icon="laptop" link="/components/">
+    Optional React components aligned with Arc application patterns.
+  </SimpleCard>
+</CardGrid>

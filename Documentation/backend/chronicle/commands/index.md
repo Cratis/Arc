@@ -21,6 +21,7 @@ Chronicle inspects the value `Handle()` returns and appends accordingly. Anythin
 | An `[EventType]` event | Appended to the resolved event source's log. |
 | `IEnumerable<object>` of events | Each is appended, in order. |
 | `EventForEventSourceId` (or a collection of them) | Appended to the event source id carried *in the value*, overriding the resolved one — for writing to a different or several streams. |
+| `EventsWithConcurrencyScopes` | Appends ordered cross-source events with exact, independently labeled concurrency scopes in the command transaction. |
 | Tuple `(event, result)` | The event is appended; the other element is returned to the caller as the response. |
 | Tuple `(EventSourceId, event)` | The `EventSourceId` sets the stream; the event is appended. See [Returning EventSourceId](./returning-event-source-id.md). |
 | Tuple `(event, Subject)` | The event is appended; the `Subject` is attached as [compliance metadata](./subject.md), not returned. |

@@ -13,6 +13,8 @@
 
     <ItemGroup>
         <PackageReference Include="Cratis.Screenplay" />
+        <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
+        <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     </ItemGroup>
 </Project>

@@ -1,7 +1,20 @@
 {
     "name": "@cratis/arc.react",
     "version": "1.0.0",
-    "description": "",
+    "description": "React hooks, forms, dialogs, identity, and observable query composition for Cratis Arc — the CQRS application framework for ASP.NET Core.",
+    "keywords": [
+        "cratis",
+        "arc",
+        "cqrs",
+        "commands",
+        "queries",
+        "react",
+        "hooks",
+        "forms",
+        "typescript",
+        "aspnetcore"
+    ],
+    "homepage": "https://www.cratis.io/arc/",
     "author": "Cratis",
     "license": "MIT",
     "repository": {
@@ -55,7 +68,8 @@
             "types": "./dist/esm/stories/index.d.ts",
             "require": "./dist/cjs/stories/index.js",
             "import": "./dist/esm/stories/index.js"
-        }
+        },
+        "./stories/styles.css": "./dist/esm/stories/stories.css"
     },
     "scripts": {
         "prepare": "yarn g:build",
@@ -71,9 +85,11 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
+        "@cratis/fundamentals": "^7.18.0",
         "tsyringe": "^4.10.0"
     },
     "devDependencies": {
+        "@cratis/fundamentals": "7.18.0",
         "@storybook/addon-links": "^10.4.1",
         "@storybook/react": "^10.4.1",
         "@storybook/react-vite": "^10.4.1",

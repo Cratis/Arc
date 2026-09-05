@@ -44,12 +44,7 @@ public class and_query_context_has_paging : given.an_observable_query_demultiple
         _queryContextManager.Current.Returns(_queryContextWithPaging);
 
         _subject = new BehaviorSubject<IEnumerable<string>>([]);
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 var queryResult = QueryResult.Success(CorrelationId.New());

@@ -14,8 +14,10 @@ All rules follow the identifier format `ARCCHR####` where the numbers are sequen
 | Rule ID | Title | Severity | Description |
 | --- | --- | --- | --- |
 | [ARCCHR0001](ARCCHR0001.md) | Incorrect aggregate root event handler signature | Error | Aggregate root event handlers must follow allowed `On` method signatures. |
+| [ARCCHR0003](ARCCHR0003.md) | Reactor must not reach the default event log | Warning | A reactor appends to the default event log directly instead of returning the events. |
 | [ARCCHR0005](ARCCHR0005.md) | Chronicle is used but not wired up | Warning | A project uses Chronicle features but sets up Arc without `WithChronicle()` or `AddCratis()`. |
 | [ARCCHR0008](ARCCHR0008.md) | Command key marked with the data annotations Key attribute | Warning | A command marks its key with an attribute Chronicle does not resolve keys from. |
+| [ARCCHR0009](ARCCHR0009.md) | Command property reads as a secret and should be marked `[NotAudited]` | Warning | A command carries a property whose name reads like a secret, whose value is written to the causation of every event it appends. |
 
 ## Quick Fixes
 

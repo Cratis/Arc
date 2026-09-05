@@ -36,7 +36,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     public IReadOnlyDictionary<string, string> Cookies { get; } = ParseCookies(context.Request.Cookies);
 
     /// <inheritdoc/>
-    public string Host => context.Request.UserHostName?.Split(':')[0] ?? string.Empty;
+    public string Host => HostName.WithoutPort(context.Request.UserHostName ?? string.Empty);
 
     /// <inheritdoc/>
     public string Path => context.Request.Url?.AbsolutePath ?? string.Empty;

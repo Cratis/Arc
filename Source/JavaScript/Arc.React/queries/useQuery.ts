@@ -10,6 +10,7 @@ import { SetPageSize } from './SetPageSize';
 import { ArcContext } from '../ArcContext';
 import { useCommandScope } from '../commands/useCommandScope';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
+import { serializeArgsForDependency } from './serializeArgsForDependency';
 import { useQueryScope } from './useQueryScope';
 
 /**
@@ -18,6 +19,42 @@ import { useQueryScope } from './useQueryScope';
 export type PerformQuery<TArguments = object> = (args?: TArguments) => Promise<void>;
 
 type QueryPerformer<TQuery extends IQueryFor<TDataType>, TDataType, TArguments = object> = (performer: TQuery, args?: TArguments) => Promise<QueryResult<TDataType>>;
+
+/**
+ * Determines whether an error is the rejection produced by aborting a request.
+ * Duplicated from the query transport rather than imported, since it is internal to `@cratis/arc`.
+ * @param error The error to inspect.
+ * @returns True if the error represents an aborted request, false otherwise.
+ */
+function isAbortError(error: unknown): boolean {
+    return (error as { name?: string })?.name === 'AbortError';
+}
+
+/**
+ * Creates the terminal state for a query that failed before it produced a result, so the hook settles
+ * as unsuccessful instead of staying on its initial - and permanently performing - state.
+ * @template TDataType Type of model the query is for.
+ * @param defaultValue The default value of the query, used as the data of the failed result.
+ * @param error The error the query failed with.
+ * @returns A {@link QueryResultWithState} describing the failure.
+ */
+function failedResult<TDataType>(defaultValue: TDataType, error: unknown): QueryResultWithState<TDataType> {
+    // Destructuring a nullish rejection value throws, which would make the `String(error)` fallback
+    // written for exactly that case unreachable - so the rejection is coerced to an object first.
+    const { message } = (error ?? {}) as { message?: string };
+    return QueryResultWithState.fromQueryResult({
+        ...QueryResult.noSuccess,
+        data: defaultValue,
+        isSuccess: false,
+        isAuthorized: true,
+        isValid: true,
+        hasExceptions: true,
+        exceptionMessages: [message ?? String(error)],
+        // Left empty on purpose - see the matching comment in QueryFor. A stack trace here would be
+        // the one that escapes the redaction every server-returned result goes through.
+        exceptionStackTrace: ''
+    } as QueryResult<TDataType>, false);
+}
 
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
@@ -68,7 +105,14 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
         cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
     );
 
-    const argumentsDependency = queryInstance.requiredRequestParameters.map(_ => args?.[_ as keyof TArguments]);
+    // Serialized rather than spread as raw values. React compares dependencies with `Object.is`, so a
+    // required parameter whose runtime type is an object - a `Guid`, a `DateOnly`, any generated
+    // concept - would be compared by identity. A value re-derived in render position is a new object
+    // every render, which re-runs the effect, which aborts the in-flight request and settles a fresh
+    // result object, which re-renders: a loop that never converges. Serializing compares them by
+    // value, the same way the observable and suspense hooks already do.
+    const argumentsDependency = serializeArgsForDependency(
+        Object.fromEntries(queryInstance.requiredRequestParameters.map(_ => [_, args?.[_ as keyof TArguments]])));
 
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
@@ -76,10 +120,28 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
             try {
                 const queryResult = await performer(queryInstance, args);
                 const withState = QueryResultWithState.fromQueryResult(queryResult, false);
-                queryCache.setLastResult(cacheKeyRef.current, withState);
+                // Only a successful result is cached. The cache exists to hand the last known good
+                // payload to future subscribers, so caching a failure would poison every mount for the
+                // whole retention window; leaving it out means a remount shows stale-but-good data and
+                // re-fetches - stale while revalidate.
+                if (withState.isSuccess) {
+                    queryCache.setLastResult(cacheKeyRef.current, withState);
+                }
                 setResult(withState);
-            } catch {
-                // Ignore
+            } catch (error) {
+                // An abort means this hook's request was superseded. The superseding request is not
+                // necessarily this hook's own: the query instance is shared through the cache, so a
+                // co-subscriber mounting with the same query and arguments aborts whatever that shared
+                // instance had in flight. The superseded request must therefore not overwrite the
+                // result - but it must stop reporting that it is performing, or a co-subscriber that
+                // never issued the newer request stays on its initial, permanently performing state.
+                // Settling functionally keeps whatever result is current: this hook's own newer result
+                // when it superseded itself, and its existing one otherwise.
+                if (isAbortError(error)) {
+                    setResult(current => QueryResultWithState.fromQueryResult(current, false));
+                    return;
+                }
+                setResult(failedResult(queryInstance.defaultValue, error));
             } finally {
                 queryScope.notifyPerformingCompleted();
             }
@@ -103,7 +165,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
             arc.observableQueryDiagnostics?.endTracking(key);
             queryCache.release(key);
         };
-    }, [...argumentsDependency, ...[currentPaging, currentSorting, isEnabled]]);
+    }, [argumentsDependency, currentPaging, currentSorting, isEnabled]);
 
     return [
         isEnabled === false ? QueryResultWithState.empty(queryInstance.defaultValue) : result!,

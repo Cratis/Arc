@@ -36,7 +36,7 @@ public static class IntegrationTesting
 
                 public IEventSequence EventSequence => null!;
 
-                public Task<Result> Execute(TCommand command) => Task.FromResult(new Result());
+                public Task<CommandResult> Execute(TCommand command) => Task.FromResult(new CommandResult());
 
                 public Task<Result> Validate(TCommand command) => Task.FromResult(new Result());
             }
@@ -45,10 +45,20 @@ public static class IntegrationTesting
             {
                 public bool IsSuccess => true;
             }
+
+            public class CommandResult : Result;
+
         }
 
         namespace Cratis.Arc.Chronicle.Testing.Commands
         {
+            public static class CommandResultExtensions
+            {
+                public static void ShouldBeSuccessful(this Cratis.Arc.Testing.Commands.CommandResult result)
+                {
+                }
+            }
+
             public class CommandScenarioChronicleGivenBuilder<TCommand>
             {
                 public CommandScenarioSourceGivenBuilder<TCommand> ForEventSource(EventSourceId eventSourceId) => new();
@@ -67,6 +77,51 @@ public static class IntegrationTesting
             }
         }
 
+        namespace Cratis.Chronicle.Testing.ReadModels
+        {
+            public class ReadModelScenario<TReadModel>
+                where TReadModel : class
+            {
+                public TReadModel? Instance => null;
+
+                public ReadModelScenarioGivenBuilder<TReadModel> Given => new();
+            }
+
+            public class ReadModelScenarioGivenBuilder<TReadModel>
+                where TReadModel : class
+            {
+                public ReadModelSourceGivenBuilder<TReadModel> ForEventSource(EventSourceId eventSourceId) => new();
+
+                public ReadModelSourceGivenBuilder<TReadModel> ForEventSourceId(EventSourceId eventSourceId) => new();
+            }
+
+            public class ReadModelSourceGivenBuilder<TReadModel>
+                where TReadModel : class
+            {
+                public Task Events(params object[] events) => Task.CompletedTask;
+
+                public Task ReadModel(TReadModel readModel) => Task.CompletedTask;
+            }
+        }
+
+        namespace Cratis.Chronicle.Testing.Reactors
+        {
+            public class ReactorScenario<TReactor>
+            {
+                public ReactorScenarioGivenBuilder<TReactor> Given => new();
+            }
+
+            public class ReactorScenarioGivenBuilder<TReactor>
+            {
+                public ReactorSourceGivenBuilder<TReactor> ForEventSource(EventSourceId eventSourceId) => new();
+            }
+
+            public class ReactorSourceGivenBuilder<TReactor>
+            {
+                public Task Events(params object[] events) => Task.CompletedTask;
+            }
+        }
+
         namespace Cratis.Chronicle.XUnit.Integration
         {
             public static class HttpClientExtensions
@@ -80,6 +135,23 @@ public static class IntegrationTesting
 
         namespace Cratis.Chronicle.Testing.EventSequences
         {
+            public class EventScenario
+            {
+                public EventScenarioGivenBuilder Given => new();
+
+                public IEventSequence EventSequence => null!;
+            }
+
+            public class EventScenarioGivenBuilder
+            {
+                public EventSourceGivenBuilder ForEventSource(EventSourceId eventSourceId) => new();
+            }
+
+            public class EventSourceGivenBuilder
+            {
+                public Task Events(params object[] events) => Task.CompletedTask;
+            }
+
             public static class EventSequenceShouldExtensions
             {
                 public static void ShouldHaveAppendedEvent<TEvent>(this IEventSequence sequence, EventSourceId eventSourceId)

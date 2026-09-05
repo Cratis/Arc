@@ -10,7 +10,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Recognizes an expression yielding an identity made on the spot.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every declaration is read through.</param>
 /// <remarks>
 /// Every other value a scenario states that cannot be read is a gap: the source says something concrete and the
 /// document says less than the source. A fresh identity is not that. It has no value to state - the whole point of
@@ -27,8 +27,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// therefore holds it in a field rather than writing it twice. Following the initializer of that field is what makes
 /// the recognition about the value rather than about how close to the step it happens to be written.
 /// </para>
+/// <para>
+/// Where that member is declared is not where the scenario is. A sentinel identity or an enumeration member the
+/// scenario names is routinely declared in the contracts project below it, so the declaration followed belongs to
+/// another project's compilation - which is why it is read through the models of the whole application rather than
+/// through any one of them.
+/// </para>
 /// </remarks>
-public class GeneratedIdentities(Compilation compilation)
+public class GeneratedIdentities(SemanticModels models)
 {
     /// <summary>
     /// The fully qualified metadata name of the type every generated identity is a value of, or wraps.
@@ -104,6 +110,11 @@ public class GeneratedIdentities(Compilation compilation)
     /// <param name="symbol">The member the expression names.</param>
     /// <param name="followed">The members already followed.</param>
     /// <returns>True when the member holds one.</returns>
+    /// <remarks>
+    /// A member declared in a project that was not handed over holds nothing this can read, so it is not one of these.
+    /// The value naming it is then stated as one nothing was recovered from, which says less than the source does but
+    /// says it out loud - and is what the reader is owed when a project is missing.
+    /// </remarks>
     bool Holds(ISymbol? symbol, ISet<string> followed)
     {
         if (symbol is not (IFieldSymbol or IPropertySymbol) || !followed.Add(symbol.ToDisplayString()))
@@ -114,6 +125,6 @@ public class GeneratedIdentities(Compilation compilation)
         return symbol.DeclaringSyntaxReferences
             .Select(_ => ValueOf(_.GetSyntax()))
             .OfType<ExpressionSyntax>()
-            .Any(value => Yields(value, compilation.GetSemanticModel(value.SyntaxTree), followed));
+            .Any(value => models.For(value.SyntaxTree) is { } semanticModel && Yields(value, semanticModel, followed));
     }
 }

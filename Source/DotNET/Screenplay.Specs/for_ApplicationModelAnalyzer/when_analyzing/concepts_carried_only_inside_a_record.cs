@@ -7,10 +7,10 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// A record is referred to by name and never declared, so nothing inside it is ever named on its own. Collecting only
-/// the types written straight onto an artifact therefore lost every concept reached through one - and a concept marked
-/// as personal data lost that way leaves a document understating what the application holds about people, which is the
-/// one thing declaring concepts is most for. A concept can be declared wherever it was reached from, so it is.
+/// A record an artifact carries is declared as a <c>type</c> and everything inside it named on its own. Collecting
+/// only the types written straight onto an artifact lost every concept reached through one - and a concept marked as
+/// personal data lost that way leaves a document understating what the application holds about people, which is the
+/// one thing declaring concepts is most for. Both are declared wherever they were reached from, so both are.
 /// </summary>
 public class concepts_carried_only_inside_a_record : Specification
 {
@@ -59,6 +59,8 @@ public class concepts_carried_only_inside_a_record : Specification
 
     ConceptModel Concept(string name) => _analysis.Model.Concepts.First(_ => _.Name == name);
 
+    TypeModel Shape(string name) => _analysis.Model.Types.First(_ => _.Name == name);
+
     IEnumerable<ScreenplayDiagnostic> Shapes =>
         _analysis.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.UndeclarableShape);
 
@@ -69,7 +71,10 @@ public class concepts_carried_only_inside_a_record : Specification
     [Fact] void should_declare_a_concept_carried_inside_a_record_a_collection_holds() => Concept("MentorNote").Primitive.ShouldEqual(ScreenplayPrimitive.String);
     [Fact] void should_declare_a_concept_only_a_read_model_carries() => Concept("ShelfCode").Primitive.ShouldEqual(ScreenplayPrimitive.String);
     [Fact] void should_walk_a_record_referring_to_itself_only_once() => _analysis.Model.Concepts.Select(_ => _.Name).ShouldContainOnly(["AuthorId", "ContactPreference", "FirstName", "MentorNote", "ShelfCode"]);
-    [Fact] void should_say_the_shape_of_a_record_a_property_carries_is_not_declared() => Shapes.Count().ShouldEqual(2);
-    [Fact] void should_name_the_records_it_could_not_declare() => Shapes.All(_ => _.Message.Contains("PersonalDetails", StringComparison.Ordinal) || _.Message.Contains("Mentorship", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_not_say_it_of_a_read_model_the_slice_describes() => Shapes.Any(_ => _.Message.Contains("Author'", StringComparison.Ordinal)).ShouldBeFalse();
+    [Fact] void should_declare_the_shape_of_every_record_a_property_carries() => _analysis.Model.Types.Select(_ => _.Name).ShouldContainOnly(["Mentorship", "PersonalDetails"]);
+    [Fact] void should_say_what_a_shape_carries() => Shape("PersonalDetails").Properties.Select(_ => _.Type.Name).ShouldContainOnly(["ContactPreference", "FirstName"]);
+    [Fact] void should_declare_a_record_referring_to_itself_once() => Shape("Mentorship").Properties.Select(_ => _.Name).ShouldContainOnly(["Next", "Note"]);
+    [Fact] void should_say_a_value_that_may_be_absent_is_optional() => Shape("Mentorship").Properties.Single(_ => _.Name == "Next").Type.IsOptional.ShouldBeTrue();
+    [Fact] void should_not_declare_the_shape_of_a_read_model_the_slice_describes() => _analysis.Model.Types.Any(_ => _.Name == "Author").ShouldBeFalse();
+    [Fact] void should_report_no_shape_it_could_not_declare() => Shapes.ShouldBeEmpty();
 }

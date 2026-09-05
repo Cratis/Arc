@@ -42,6 +42,12 @@ public static class WellKnownTypeNames
     /// <summary>The base type every strongly typed domain value derives from.</summary>
     public const string ConceptAs = "Cratis.Concepts.ConceptAs`1";
 
+    /// <summary>The generic base type every strongly typed event-source identifier derives from.</summary>
+    public const string EventSourceIdOfT = "Cratis.Chronicle.Events.EventSourceId`1";
+
+    /// <summary>The untyped event-source identifier a generated read-model substitute call casts its key to.</summary>
+    public const string EventSourceId = "Cratis.Chronicle.Events.EventSourceId";
+
     /// <summary>The attribute marking an event type.</summary>
     public const string EventTypeAttribute = "Cratis.Chronicle.Events.EventTypeAttribute";
 
@@ -80,6 +86,9 @@ public static class WellKnownTypeNames
 
     /// <summary>The interface a fluent projection implements.</summary>
     public const string ProjectionFor = "Cratis.Chronicle.Projections.IProjectionFor`1";
+
+    /// <summary>The base class a specification derives from.</summary>
+    public const string Specification = "Cratis.Specifications.Specification";
 
     /// <summary>The attribute configuring a projection.</summary>
     public const string ProjectionAttribute = "Cratis.Chronicle.Projections.ProjectionAttribute";
@@ -132,6 +141,18 @@ public static class WellKnownTypeNames
     /// <summary>The builder a specification states the state of one event source with.</summary>
     public const string CommandScenarioSourceGivenBuilder = "Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioSourceGivenBuilder`1";
 
+    /// <summary>The scenario a specification drives a read model through in process.</summary>
+    public const string ReadModelScenario = "Cratis.Chronicle.Testing.ReadModels.ReadModelScenario`1";
+
+    /// <summary>The builder a specification states the events one event source had seen with.</summary>
+    public const string ReadModelSourceGivenBuilder = "Cratis.Chronicle.Testing.ReadModels.ReadModelSourceGivenBuilder`1";
+
+    /// <summary>The scenario a specification appends events through in process, without a command pipeline.</summary>
+    public const string EventScenario = "Cratis.Chronicle.Testing.EventSequences.EventScenario";
+
+    /// <summary>The scenario a specification drives a reactor through in process.</summary>
+    public const string ReactorScenario = "Cratis.Chronicle.Testing.Reactors.ReactorScenario`1";
+
     /// <summary>The extensions a specification issues a command through over HTTP.</summary>
     public const string HttpClientExtensions = "Cratis.Chronicle.XUnit.Integration.HttpClientExtensions";
 
@@ -146,4 +167,7 @@ public static class WellKnownTypeNames
 
     /// <summary>The attribute giving a read model or a query a route of its own rather than the conventional one.</summary>
     public const string PathAttribute = "Cratis.Arc.Queries.ModelBound.PathAttribute";
+
+    /// <summary>The interface a query reads a read model through, and the collaborator a generated query specification substitutes.</summary>
+    public const string ReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
 }

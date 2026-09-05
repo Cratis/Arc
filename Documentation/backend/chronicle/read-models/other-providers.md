@@ -72,6 +72,24 @@ More than one provider can be able to load the same read model, and the order an
 
 A declaring provider always wins, in either registration order. MongoDB claims only what nothing else resolves, and it also leaves your own registration of a read model type alone. This matters beyond tidiness: Chronicle is the provider that releases a read model's compliance-protected values, so a read model Chronicle projects has to be resolved by Chronicle.
 
+### What else the winner decides
+
+The provider that claims a read model also decides which serialization boundary the injected instance crosses, and the three cross entirely different ones:
+
+| Provider | Materializes a command-side read model through |
+|---|---|
+| Chronicle | a JSON payload deserialized with `System.Text.Json` |
+| Entity Framework Core | its own entity model |
+| MongoDB | the driver's `BsonClassMap` and convention machinery |
+
+So whatever customization belongs to one of those boundaries — a convention pack, a class-map customization, an element rename, a custom serializer, a JSON converter — reaches a command-side read model only when its own provider is the one that claimed it.
+
+Chronicle and Entity Framework Core both declare. In an application whose read models are owned by either, MongoDB never claims a command-side read model, and no MongoDB serialization customization reaches one — however the MongoDB integration is configured, and in whatever order anything is registered.
+
+:::warning[The same customization can be plainly at work on the query side]
+A convention registered through `ICanProvideMongoDBConventionPacks` goes into the driver's global registry, so it applies wherever the driver materializes a read model — which includes queries served from an `IMongoCollection<T>`. Seeing it work there says nothing about the command side, and this is the shape the failure takes: the customization looks discovered and correct, because the surface anybody checks first is the one it does reach.
+:::
+
 To contribute a provider of your own, implement `ICanResolveReadModelForCommand` — reporting the types it resolves, the `ReadModelForCommandOwnership` it claims them with, and how to load one by key — and register it with `services.AddReadModelsForCommand(...)`.
 
 ## Declaring the key without Chronicle

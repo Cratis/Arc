@@ -26,12 +26,7 @@ public class and_subscription_is_unauthorized : given.an_observable_query_demult
         _messages = [];
         _connectionId = string.Empty;
 
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult(QueryResult.Unauthorized(CorrelationId.New())));
 
         _connectionContext = Substitute.For<IHttpRequestContext>();

@@ -638,20 +638,14 @@ public static class ValidationRulesExtractor
                 }
             }
 
-            // A message declared lazily - .WithMessage(_ => Messages.Something), the form a localized message takes -
-            // is held as a factory instead. Resolving it against no instance is enough for a factory that just
-            // returns a constant; one that reads the instance throws and is left unprojected rather than guessed at.
-            var errorMessageFactoryField = component.GetType()
-                .GetField("_errorMessageFactory", BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (errorMessageFactoryField?.GetValue(component) is Delegate errorMessageFactory)
-            {
-                var arguments = new object?[errorMessageFactory.Method.GetParameters().Length];
-                if (errorMessageFactory.DynamicInvoke(arguments) is string factoryMessage && !string.IsNullOrEmpty(factoryMessage))
-                {
-                    return factoryMessage;
-                }
-            }
+            // A message declared lazily - .WithMessage(_ => Messages.Something) - is held as a factory instead, and
+            // is deliberately left unprojected. A factory is deferred precisely because its value is not known yet,
+            // so calling it here would answer for a different process, on a different machine, at a different time,
+            // under ambient state this one cannot stand in for - the culture, the clock, a tenant, a feature flag.
+            // A delegate is opaque, so there is no way to tell a factory that returns a constant from one that does
+            // not, which leaves not calling it as the only guess-free move. The cost is small and the rule still
+            // mirrors: the generated client rule falls back to its own default message, and any message the author
+            // actually authored is resolved by the server, correctly, for the request that asked for it.
 
             // Fallback: Try FluentValidation 11.x approach with ErrorMessageSource property
             var errorMessageSource = component.GetType()

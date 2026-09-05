@@ -127,24 +127,26 @@ Tagged **[contract]** (framework-enforced) or **[convention]** (house default). 
 ## Implementation Workflow
 
 - **Phase 0 — Model the request.** Confirm Module/Feature, Slice name, slice type, domain rules. For new behavior or unclear event vocabulary, run the **event-modeling** skill before writing code.
-- **Phase 1 — Backend.** Write the slice file. **Gate:** build clean Debug *and* Release (Release regenerates the TypeScript proxies; Debug compiles `#if DEBUG` spec code).
+- **Phase 1 — Backend.** Write the slice file. **Gate:** build clean Debug *and* Release (Debug regenerates the TypeScript proxies and compiles `#if DEBUG` spec code; Release is a build-only check — see the proxy-generation note below).
 - **Phase 2 — Specs.** Mandatory for every slice type, in-process scenario family first: `CommandScenario<T>` (commands), `EventScenario` (constraints/append), `ReadModelScenario<T>` (projections/reducers), `ReactorScenario<T>` (reactors). Reserve out-of-process integration specs for host/infra/transport boundaries. **Gate:** tests pass.
 - **Phase 3 — Frontend.** Proxies now exist. Build React components from generated proxies, register in the composition page, wire routing. **Gate:** lint, conditional test, and build all clean.
 
-**Backend before frontend, always** — the frontend depends on proxies that only exist after a successful Release build. After creating each new file, build (C#) or compile (TypeScript) before moving on — fix every error as it appears rather than accumulating it.
+**Backend before frontend, always** — the frontend depends on proxies that only exist after a successful Debug build. After creating each new file, build (C#) or compile (TypeScript) before moving on — fix every error as it appears rather than accumulating it.
+
+**Proxy generation runs on Debug, not Release.** `dotnet build -c Debug` is the canonical trigger for regenerating TypeScript proxies — it carries the fullest, most reliably-emitted PDB debug information the proxy generator relies on to place generated files. Generate proxies with a Debug build first; when you (or an agent) subsequently build Release purely to verify the app compiles in that configuration, skip proxy regeneration so the second build can't re-run the generator against a different compilation and touch already-correct generated files: `dotnet build -c Release -p:CratisProxiesOutputPath=`. The empty override clears the output path property the generator's MSBuild target is conditioned on, so the target no-ops for that invocation — no generated file is read or written.
 
 ## Quality Gates
 
 | Phase | Command (app-pinned) | Pass criteria |
 |---|---|---|
-| Backend | build (Debug) | zero errors, zero warnings — validates `#if DEBUG` spec code |
-| Backend | build (Release) | zero errors, zero warnings — regenerates proxies |
+| Backend | build (Debug) | zero errors, zero warnings — validates `#if DEBUG` spec code and regenerates proxies |
+| Backend | build (Release) | zero errors, zero warnings — build-only check; pass `-p:CratisProxiesOutputPath=` to skip re-running proxy generation |
 | Specs | test | zero failures |
 | Frontend | lint | zero errors |
 | Frontend | test | zero failures when frontend specs/behavior changed |
 | Frontend | build | zero errors |
 
-All gates pass before merging, opening a PR, or marking a slice complete. After pushing to a PR, monitor CI with the GitHub MCP tools (`pull_request_read` → `get_check_runs`, `get_job_logs`); investigate and fix any failure, then push again — the task is not done until CI is green or the only remaining failures are confirmed pre-existing flakes unrelated to the change.
+All gates pass before merging, opening a PR, or marking a slice complete — except for a **documentation-only** pull request, which waits for nothing and carries no version label (see [pull-requests.md](./pull-requests.md)). After pushing to a PR, monitor CI with the GitHub MCP tools (`pull_request_read` → `get_check_runs`, `get_job_logs`); investigate and fix any failure, then push again — the task is not done until CI is green or the only remaining failures are confirmed pre-existing flakes unrelated to the change.
 
 ---
 
@@ -176,6 +178,7 @@ All gates pass before merging, opening a PR, or marking a slice complete. After 
 | Strongly-typed values (`ConceptAs<T>`, `EventSourceId<T>`) | `concepts.md` |
 | Shared term definitions (event, projection, reducer, reactor, observer, DCB, …) | `glossary.md` |
 | Diagnosing a misbehaving slice (read model stale, proxy missing, quarantine, …) | the **diagnose-slice** skill |
+| Inspecting or operating a **running** Chronicle store (failed partitions, replays, browsing events) with the `cratis` CLI | the **inspect-running-chronicle** skill |
 | EF Core read models / migrations | `efcore.md`, `efcore.specs.md` |
 | PRs / commits | `pull-requests.md`, `git-commits.md` |
 | Event modeling / schema migration / calling commands from code / paging / cross-cutting metadata / multi-tenancy | the matching skills |
@@ -200,3 +203,13 @@ All gates pass before merging, opening a PR, or marking a slice complete. After 
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 ```
+
+## Local AI work artifacts — `.ai-work/` only
+
+AI-assisted sessions produce working artifacts: plans, handover documents, session notes, continuation prompts, status boards, scratch analyses, research dumps. These are **work records, not documentation**:
+
+- Create every such artifact inside **`.ai-work/`** at the repository root — never at the repository root itself, never under documentation folders, never anywhere else.
+- `.ai-work/` is gitignored and must stay untracked. Never commit anything inside it, never `git add -f` anything inside it, and never remove the ignore entry.
+- These artifacts must never enter git history or reach GitHub — not on any branch. If you find one tracked in git, move it into `.ai-work/` and remove it from tracking in a dedicated commit.
+- A genuine follow-up that must survive the session is **not** a work record — suggest opening a GitHub issue for it (or open one when asked) so future work is tracked where everyone can see it, instead of leaving a planning file behind.
+- Knowledge that must outlive the session belongs in the repository's documentation structure through normal review, not in a work record.

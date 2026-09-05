@@ -33,7 +33,7 @@ public static class LibraryLending
                 new EventModel("PremiumReservationGranted", [Declare.Property("MemberId", "MemberId")], [])
             ],
             [],
-            Availability(),
+            [Availability()],
             [],
             []);
 
@@ -50,7 +50,7 @@ public static class LibraryLending
             [],
             [],
             [],
-            null,
+            [],
             [
                 new ReactorModel(
                     "ReservationNotifier",
@@ -77,7 +77,7 @@ public static class LibraryLending
             [],
             [new EventModel("RestockRequested", [Declare.Property("Isbn", "ISBN")], [])],
             [],
-            null,
+            [],
             [new ReactorModel("RestockRequester", ["BookReserved"], true, null)],
             []);
 

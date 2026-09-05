@@ -22,6 +22,7 @@
 
         <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
         <IsPackable>true</IsPackable>
+        <PackageTags Condition="'$(PackageTags)' == ''">cratis;arc;cqrs;commands;queries;aspnetcore;typescript;proxy-generation;event-sourcing</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     </PropertyGroup>

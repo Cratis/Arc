@@ -68,8 +68,20 @@ AccountCommands/
 
 > **Note:** This feature requires PDB debug symbols alongside the compiled assembly. Without PDB information the generator falls back to one file per type.
 
+Generate proxies during development with a Debug build (`dotnet build -c Debug`), then commit the generated TypeScript. Release and publish builds can consume those committed proxies without regenerating them. This is a recommended workflow rather than a Release restriction: the generator still runs in Release whenever `CratisProxiesOutputPath` is configured.
+
 ### CLI
 
 ```bash
 proxygenerator assembly.dll output-path --use-source-file-as-output-file
 ```
+
+## Decorator Metadata
+
+Generated types use `@field(...)` property decorators and `@derivedType(...)` class decorators. The decorators keep the runtime serialization metadata beside the type and property they describe, with no proxy-generator configuration required.
+
+TypeScript 5.2 and newer support these decorators through the standard decorator transform. Leave `experimentalDecorators` unset or set it to `false`; `@cratis/fundamentals` consumes the standard decorator metadata when the generated class is defined.
+
+Existing applications can continue using TypeScript's legacy decorator transform with `experimentalDecorators` set to `true`. The generated proxy source is the same in both modes, so you can change compiler modes without regenerating a different proxy shape.
+
+If Babel transforms the generated proxies, configure its decorators plugin for the `2023-11` protocol. Hermes executes the JavaScript that Babel produces; Hermes does not transform decorator syntax itself, so the Babel step must run before the bundle reaches Hermes.

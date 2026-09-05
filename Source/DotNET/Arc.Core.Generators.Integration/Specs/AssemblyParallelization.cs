@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-// These integration specs shell out to `dotnet pack` and `dotnet build` against the same in-repo projects and
-// their shared build outputs. Running them concurrently races on those outputs and the NuGet restore, so the
-// whole assembly must run sequentially.
+// These integration specs share one disposable package graph and local NuGet feed. Run the assembly sequentially
+// so fixture construction, consumer builds, code-fix hosts, and temporary cleanup cannot race one another.
 [assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]

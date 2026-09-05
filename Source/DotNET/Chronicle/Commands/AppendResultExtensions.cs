@@ -42,13 +42,11 @@ public static class AppendResultExtensions
             {
                 if (result is AppendResult appendResult && appendResult.ConcurrencyViolation is not null)
                 {
-                    validationResults.Add(ValidationResult.Error(
-                        $"Concurrency violation for event source {appendResult.ConcurrencyViolation.EventSourceId}: Expected sequence number {appendResult.ConcurrencyViolation.ExpectedEventSequenceNumber}, but actual is {appendResult.ConcurrencyViolation.ActualEventSequenceNumber}"));
+                    validationResults.Add(appendResult.ConcurrencyViolation.ToValidationResult());
                 }
                 else if (result is AppendManyResult appendManyResult)
                 {
-                    validationResults.AddRange(appendManyResult.ConcurrencyViolations.Select(v =>
-                        ValidationResult.Error($"Concurrency violation for event source {v.EventSourceId}: Expected sequence number {v.ExpectedEventSequenceNumber}, but actual is {v.ActualEventSequenceNumber}")));
+                    validationResults.AddRange(appendManyResult.ConcurrencyViolations.Select(_ => _.ToValidationResult()));
                 }
             }
 

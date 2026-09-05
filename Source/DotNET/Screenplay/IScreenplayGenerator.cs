@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay;
@@ -9,9 +10,10 @@ namespace Cratis.Arc.Screenplay;
 /// Defines a system that generates a Screenplay document from the source of an application.
 /// </summary>
 /// <remarks>
-/// The generator never loads an MSBuild workspace - the caller supplies the <see cref="Compilation"/>. That single
-/// seam is what lets the same generator run from a command line tool, from an MSBuild task, from an analyzer and
-/// from a specification built with <c>CSharpCompilation.Create</c>.
+/// The generator never loads an MSBuild workspace - the caller supplies a <see cref="Compilation"/> or a
+/// <see cref="DotNetProjectCompilation"/> carrying host-owned source context. That seam lets the same generator run
+/// from a command line tool, from an MSBuild task, from an analyzer and from a specification built with
+/// <c>CSharpCompilation.Create</c>.
 /// </remarks>
 public interface IScreenplayGenerator
 {
@@ -22,6 +24,14 @@ public interface IScreenplayGenerator
     /// <param name="options">The options to generate with.</param>
     /// <returns>The <see cref="ScreenplayGenerationResult"/>.</returns>
     ScreenplayGenerationResult Generate(Compilation compilation, ScreenplayOptions options);
+
+    /// <summary>
+    /// Generates the Screenplay document describing one project-aware application source set.
+    /// </summary>
+    /// <param name="project">The project compilation and its host-owned source context.</param>
+    /// <param name="options">The options to generate with.</param>
+    /// <returns>The <see cref="ScreenplayGenerationResult"/>.</returns>
+    ScreenplayGenerationResult Generate(DotNetProjectCompilation project, ScreenplayOptions options);
 
     /// <summary>
     /// Generates the Screenplay document describing an application written as several projects.
@@ -42,4 +52,16 @@ public interface IScreenplayGenerator
     /// </para>
     /// </remarks>
     ScreenplayGenerationResult Generate(IReadOnlyList<Compilation> compilations, ScreenplayOptions options);
+
+    /// <summary>
+    /// Generates the Screenplay document describing a project-aware application source set.
+    /// </summary>
+    /// <param name="projects">The project compilations and their host-owned source contexts.</param>
+    /// <param name="options">The options to generate with.</param>
+    /// <returns>The <see cref="ScreenplayGenerationResult"/>.</returns>
+    /// <remarks>
+    /// The compatibility document retains the established compilation-only behavior. Project roles and source
+    /// contexts travel with this overload so hosts can use the neutral adapters without reconstructing them.
+    /// </remarks>
+    ScreenplayGenerationResult Generate(IReadOnlyList<DotNetProjectCompilation> projects, ScreenplayOptions options);
 }

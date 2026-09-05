@@ -24,7 +24,7 @@ public class a_projection_with_an_unmappable_expression : given.an_emitter
             Slices =
             [
                 LibraryAuthors.Registration(),
-                LibraryAuthors.Listing() with { Projection = ProjectionWithAnUnmappableMapping() }
+                LibraryAuthors.Listing() with { Projections = [ProjectionWithAnUnmappableMapping()] }
             ]
         };
 

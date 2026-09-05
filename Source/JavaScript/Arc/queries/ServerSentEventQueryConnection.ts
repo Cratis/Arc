@@ -23,6 +23,7 @@ export const SSE_HUB_ROUTE = '/.cratis/queries/sse';
 export class ServerSentEventQueryConnection<TDataType> implements IObservableQueryConnection<TDataType> {
     private _eventSource?: EventSource;
     private _disconnected = false;
+    private _unauthorized = false;
 
     /** @inheritdoc */
     readonly lastPingLatency: number = 0;
@@ -38,7 +39,7 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
 
     /** @inheritdoc */
     connect(dataReceived: DataReceived<TDataType>, queryArguments?: object): void {
-        if (this._disconnected) return;
+        if (this._disconnected || this._unauthorized) return;
 
         // Guard against environments where EventSource is not available (e.g. Node.js, SSR)
         // and no custom factory has been supplied to substitute it.
@@ -64,6 +65,10 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
             if (this._disconnected) return;
             try {
                 const result = JSON.parse(event.data as string) as QueryResult<TDataType>;
+                if ((result as unknown as { isAuthorized?: boolean })?.isAuthorized === false) {
+                    this.handleUnauthorized(url, result, dataReceived);
+                    return;
+                }
                 dataReceived(result);
             } catch (error) {
                 console.error('SSE: error parsing message', error);
@@ -71,7 +76,7 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
         };
 
         this._eventSource.onerror = () => {
-            if (this._disconnected) return;
+            if (this._disconnected || this._unauthorized) return;
             console.warn(`SSE: connection error for '${url}', EventSource will retry automatically.`);
         };
     }
@@ -82,5 +87,24 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
         this._disconnected = true;
         this._eventSource?.close();
         this._eventSource = undefined;
+    }
+
+    /**
+     * Handles the terminal result the server sends when the caller is no longer authorized for the query it is
+     * subscribed to.
+     *
+     * Unlike a WebSocket, an `EventSource` re-establishes a stream the server ended - the server closing its response
+     * is precisely the signal the browser retries on, roughly every three seconds. Each retry re-runs the whole query
+     * pipeline server side just to be denied again, so the stream is only actually terminal if this client closes it.
+     * @param {string} url The stream url, for diagnostics.
+     * @param {QueryResult<TDataType>} result The unauthorized result to deliver.
+     * @param {DataReceived<TDataType>} dataReceived Callback that receives the result.
+     */
+    private handleUnauthorized(url: string, result: QueryResult<TDataType>, dataReceived: DataReceived<TDataType>): void {
+        console.warn(`SSE: stream for '${url}' was ended by the server - no longer authorized`);
+        this._unauthorized = true;
+        this._eventSource?.close();
+        this._eventSource = undefined;
+        dataReceived(result);
     }
 }

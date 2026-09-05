@@ -44,9 +44,21 @@ public class DerivedTypeDiscriminatorConvention(IDerivedTypes derivedTypes) : ID
         // a leaf derived type being deserialized after its discriminator was resolved one level up). The
         // discriminator element may still be present on the document, so only resolve a derived type when
         // the nominal type actually has derivatives to avoid throwing for an unknown target type.
-        return type is null || !derivedTypes.HasDerivatives(nominalType)
+        var actualType = type is null || !derivedTypes.HasDerivatives(nominalType)
             ? nominalType
             : derivedTypes.GetDerivedTypeFor(nominalType, type);
+
+        // Guard against handing back a non-instantiable type. MongoDB constructs a DiscriminatedInterfaceSerializer
+        // for interface (and abstract) nominal types; if GetActualType returns that same non-instantiable type, the
+        // driver looks the discriminated serializer up again and calls GetActualType on the identical bytes, looping
+        // until the stack overflows and the process is killed (SIGSEGV). A polymorphic value that reaches here without
+        // resolving to a concrete type is malformed or unregistered — surface it as a catchable exception instead.
+        if (actualType.IsInterface || actualType.IsAbstract)
+        {
+            throw new CannotResolveConcreteDerivedType(nominalType, type);
+        }
+
+        return actualType;
     }
 
     /// <inheritdoc/>

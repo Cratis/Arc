@@ -11,14 +11,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Constraints;
 /// <summary>
 /// Reads the constraints a slice declares, in both shapes an application can write them.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every defining method is read through.</param>
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of the file each constraint lives in.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// Screenplay knows exactly two rules - a property of an event has to be unique, and an event may occur once. A
 /// rule declared in code that says anything else is pointed at rather than described as something it is not.
+/// <para>
+/// A rule whose defining method belongs to a project that was not handed over is a rule nothing can be read from, so
+/// the file holding it is pointed at exactly as one saying something unmappable is.
+/// </para>
 /// </remarks>
-public class ConstraintReader(Compilation compilation, SourcePaths paths, ScreenplayDiagnostics diagnostics)
+public class ConstraintReader(SemanticModels models, SourcePaths paths, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
     /// The call declaring a uniqueness rule.
@@ -97,7 +101,10 @@ public class ConstraintReader(Compilation compilation, SourcePaths paths, Screen
     /// <param name="declared">The constraints collected so far.</param>
     void ReadDeclaration(INamedTypeSymbol type, SyntaxNode declaration, string location, List<ConstraintModel> declared)
     {
-        var semanticModel = compilation.GetSemanticModel(declaration.SyntaxTree);
+        if (models.For(declaration.SyntaxTree) is not { } semanticModel)
+        {
+            return;
+        }
 
         foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {

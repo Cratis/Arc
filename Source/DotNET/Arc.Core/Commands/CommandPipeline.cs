@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -112,8 +113,10 @@ public class CommandPipeline(
                 CancellationToken: cancellationToken);
             contextModifier.SetCurrent(commandContext);
 
-            // Materialized once so Begin and Complete are guaranteed to act on the same scope instances.
-            scopes = [.. executionScopes];
+            // Materialized once so Begin and Complete are guaranteed to act on the same scope instances, and resolved
+            // from the command's own scope rather than the provider that constructed this singleton, so an execution
+            // scope depending on a scoped service is created in the scope the command runs in instead of the root.
+            scopes = [.. DiscoveredInstances.ResolvedFrom(serviceProvider, executionScopes)];
             foreach (var executionScope in scopes)
             {
                 executionScope.Begin(commandContext);
@@ -174,6 +177,15 @@ public class CommandPipeline(
                 {
                     commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
                 }
+            }
+
+            // A response describes what the command produced, and it is bound onto the result as soon as the handler
+            // returns it - before the scopes above complete, and therefore before a transaction has committed. Once
+            // every scope has had its say, a command that did not succeed produced nothing the caller may act on, so
+            // the response is taken back rather than serialized into an error response body.
+            if (!commandResult.IsSuccess)
+            {
+                commandResult.ClearResponse();
             }
 
             return commandResult;

@@ -20,6 +20,21 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
             ? endpoints.MapGroup(string.Empty)
             : endpoints.MapGroup(groupPrefix);
 
+    readonly HashSet<string> _mapped = new(StringComparer.Ordinal);
+    IReadOnlySet<string>? _preExisting;
+
+    /// <summary>
+    /// Gets the names of the endpoints that were already registered when this mapper started mapping.
+    /// </summary>
+    /// <remarks>
+    /// Taken once, on first use, rather than per registration. Asking the route builder is not a lookup - it
+    /// rebuilds the entire endpoint table (see <c>EndpointNames</c>) - so doing it for every endpoint made
+    /// mapping cost grow with the square of the number of commands and queries.
+    /// A mapper is created immediately before the pass that uses it and nothing else registers endpoints during
+    /// that pass, so a single snapshot plus the names this mapper has since added is the same answer.
+    /// </remarks>
+    IReadOnlySet<string> PreExisting => _preExisting ??= endpoints.EndpointNames();
+
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
         Map("GET", pattern, handler, metadata);
@@ -33,7 +48,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         Map(httpMethod, pattern, handler, metadata);
 
     /// <inheritdoc/>
-    public bool EndpointExists(string name) => endpoints.EndpointExists(name);
+    public bool EndpointExists(string name) => _mapped.Contains(name) || PreExisting.Contains(name);
 
     void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
@@ -60,6 +75,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         }
 
         builder.WithName(metadata.Name);
+        _mapped.Add(metadata.Name);
 
         if (!string.IsNullOrEmpty(metadata.Summary))
         {

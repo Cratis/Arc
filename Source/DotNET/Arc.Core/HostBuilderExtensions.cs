@@ -85,6 +85,7 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
 
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
@@ -100,7 +101,8 @@ public static class HostBuilderExtensions
                 TenantResolverType.Query => ActivatorUtilities.GetServiceOrCreateInstance<QueryTenantIdResolver>(sp),
                 TenantResolverType.Claim => ActivatorUtilities.GetServiceOrCreateInstance<ClaimTenantIdResolver>(sp),
                 TenantResolverType.Development => ActivatorUtilities.GetServiceOrCreateInstance<DevelopmentTenantIdResolver>(sp),
-                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development")
+                TenantResolverType.Fixed => ActivatorUtilities.GetServiceOrCreateInstance<FixedTenantIdResolver>(sp),
+                _ => throw new InvalidOperationException($"Unknown tenant resolver type: {options.Value.Tenancy.ResolverType}. Valid types are: Header, Query, Claim, Development, Subdomain, Fixed")
             };
         });
 
@@ -125,9 +127,7 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
     public static IServiceCollection AddCratisArcMeter(this IServiceCollection services)
     {
-#pragma warning disable CA2000 // Dispose objects before losing scope
-        services.TryAddKeyedSingleton(Internals.MeterName, new Meter(Internals.MeterName));
-#pragma warning restore CA2000 // Dispose objects before losing scope
+        services.TryAddKeyedSingleton(Internals.MeterName, (_, _) => new Meter(Internals.MeterName));
         return services;
     }
 

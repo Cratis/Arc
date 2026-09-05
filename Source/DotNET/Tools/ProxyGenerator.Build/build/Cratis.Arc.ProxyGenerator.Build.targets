@@ -37,7 +37,12 @@
             <ExcludeTypes>@(ExcludeType -> '--exclude-type=%(TypeName)', ' ')</ExcludeTypes>
             <ExcludeNamespaces>@(ExcludeNamespace -> '--exclude-namespace=%(Namespace)', ' ')</ExcludeNamespaces>
             <NamespaceRoots>@(NamespaceRoot -> '--namespace-root=%(Namespace)=%(Folder)', ' ')</NamespaceRoots>
-            <TypeMappings>@(TypeToTsType -> '--type-to-ts=%(TypeName)=%(TsType)=%(Package)', ' ')</TypeMappings>
+            <!-- Quoted, unlike the items above, because a TypeScript type is the one metadata value here that
+                 legitimately contains a space: Record<string, number>, string | null, { a: number }. Unquoted,
+                 the shell split that into two arguments, the first still parsed as a valid mapping with the
+                 TsType truncated at the space, and the generator emitted that truncation as the property's type
+                 with no diagnostic anywhere. -->
+            <TypeMappings>@(TypeToTsType -> '&quot;--type-to-ts=%(TypeName)=%(TsType)=%(Package)&quot;', ' ')</TypeMappings>
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true"

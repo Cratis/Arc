@@ -46,10 +46,10 @@ public class a_projection_keyed_on_several_properties : Specification
 
     void Establish() => _analysis = Analyzed.Source(Source);
 
-    Model.ProjectionFromModel From => _analysis.Slice().Projection!.Scope.From.Single();
+    Model.ProjectionFromModel From => _analysis.Slice().Projections.Single().Scope.From.Single();
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_turn_automatic_mapping_off() => _analysis.Slice().Projection!.AutoMap.ShouldEqual(Model.ProjectionAutoMapMode.Disabled);
+    [Fact] void should_turn_automatic_mapping_off() => _analysis.Slice().Projections.Single().AutoMap.ShouldEqual(Model.ProjectionAutoMapMode.Disabled);
     [Fact] void should_name_the_type_the_key_identifies() => From.Key!.Contains("$composite(OrderKey,", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_carry_every_part_of_the_key() => From.Key!.Contains("CustomerId=customerId", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_carry_the_second_part_too() => From.Key!.Contains("Number=orderNumber", StringComparison.Ordinal).ShouldBeTrue();

@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import { markAsCommandFormField } from './commandFormMarkers';
+
 /**
  * Props for the CommandFormField marker component.
  *
@@ -11,7 +13,7 @@
  *
  *   <CommandFormField<MyCommand> value={c => c.name} />
  */
-export interface CommandFormFieldProps<TCommand = unknown> {
+export interface CommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     icon?: React.ReactElement;
     /** Accessor function that selects a property on the command, e.g. c => c.name */
     value?(instance: TCommand): unknown;
@@ -25,11 +27,22 @@ export interface CommandFormFieldProps<TCommand = unknown> {
     description?: string;
     propertyDescriptor?: unknown;
     fieldName?: string;
+    /** Skips this field when a command's initial values are populated from a query or a plain source object. */
+    noInitialValue?: boolean;
+    /** Overrides how this field's initial value is derived from the population source. */
+    initialValue?(source: TSource): unknown;
+    /**
+     * Semantic key for values captured by initialValue. Change it to repopulate from the current
+     * source with the latest callback without coupling registration to callback identity.
+     */
+    populationKey?: unknown;
 }
 
-export const CommandFormField = <TCommand = unknown,>(_props: CommandFormFieldProps<TCommand>) => {
+export const CommandFormField = <TCommand = unknown,>(
+    _props: CommandFormFieldProps<TCommand>,
+) => {
     void _props;
     return <></>;
 };
 
-CommandFormField.displayName = 'CommandFormField';
+markAsCommandFormField(CommandFormField);

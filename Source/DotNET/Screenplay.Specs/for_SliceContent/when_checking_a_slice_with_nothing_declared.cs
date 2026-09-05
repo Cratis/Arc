@@ -32,5 +32,5 @@ public class when_checking_a_slice_with_nothing_declared : Specification
     [Fact] void should_not_report_a_slice_carrying_only_a_description_as_empty() => SliceContent.IsEmpty(_withOnlyADescription).ShouldBeFalse();
 
     static SliceSyntax Slice(string? description) =>
-        new(SliceType.StateView, "Listing", [], [], [], null, [], [], [], [], [], SourceLocation.Start, description);
+        new(SliceType.StateView, "Listing", [], [], [], [], [], [], [], [], [], SourceLocation.Start, description);
 }

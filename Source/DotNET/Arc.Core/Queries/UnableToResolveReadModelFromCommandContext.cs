@@ -25,5 +25,11 @@ public class UnableToResolveReadModelFromCommandContext(Type readModelType)
     public Type ReadModelType { get; } = readModelType;
 
     /// <inheritdoc/>
-    public ValidationResult ValidationResult { get; } = ValidationResult.Error("The command is missing the identifier required to load its current state.");
+    /// <remarks>
+    /// Carries <see cref="ValidationResultReason.DependencyUnavailable"/>: this is raised before any rule runs, so
+    /// nothing about the command's own rules has been decided.
+    /// </remarks>
+    public ValidationResult ValidationResult { get; } = ValidationResult.Error(
+        "The command is missing the identifier required to load its current state.",
+        reason: ValidationResultReason.DependencyUnavailable);
 }

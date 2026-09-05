@@ -129,10 +129,17 @@ public static class MethodInfoExtensions
 
     static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type)
     {
+        if (type.IsServerHandledCommandResponseValue())
+        {
+            return (false, ModelDescriptor.Empty);
+        }
+
         if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))
         {
             var bestType = type.GetBestTupleType();
-            return (true, bestType.ToModelDescriptor());
+            return bestType is null
+                ? (false, ModelDescriptor.Empty)
+                : (true, bestType.ToModelDescriptor());
         }
 
         if (type.IsOneOf())

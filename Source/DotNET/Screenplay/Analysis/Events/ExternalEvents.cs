@@ -78,7 +78,7 @@ public static class ExternalEvents
         slice.Commands.SelectMany(_ => _.Produces).Select(_ => _.EventName)
             .Concat(slice.Reactors.SelectMany(_ => _.ObservedEvents))
             .Concat(slice.Constraints.SelectMany(EventsOf))
-            .Concat(ProjectionEvents.In(slice.Projection))
+            .Concat(slice.Projections.SelectMany(ProjectionEvents.In))
             .Distinct(StringComparer.Ordinal);
 
     /// <summary>

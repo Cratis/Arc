@@ -17,6 +17,7 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
 
     private _socket!: WebSocket;
     private _disconnected = false;
+    private _unauthorized = false;
     private _url: string;
     private _pingInterval?: ReturnType<typeof setInterval>;
     private _pingIntervalMs: number = 10000;
@@ -95,13 +96,13 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
                 this.startPinging();
             };
             this._socket.onclose = () => {
-                if (this._disconnected) return;
+                if (this._disconnected || this._unauthorized) return;
                 console.log(`Unexpected connection closed for route '${url}'`);
                 this.stopPinging();
                 this._reconnectPolicy.schedule(connectSocket, url);
             };
             this._socket.onerror = (error) => {
-                if (this._disconnected) return;
+                if (this._disconnected || this._unauthorized) return;
                 console.log(`Error with connection for '${url}' - ${error}`);
                 this.stopPinging();
                 this._reconnectPolicy.schedule(connectSocket, url);
@@ -115,7 +116,7 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
             };
         };
 
-        if (this._disconnected) return;
+        if (this._disconnected || this._unauthorized) return;
         connectSocket();
     }
 
@@ -172,11 +173,34 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
                 // For new-style messages (type === 'Data') the query result is wrapped in message.data.
                 // For legacy/backward-compatible messages (no type) the entire message IS the query result.
                 const data = message.type === WebSocketMessageType.Data ? message.data : message;
-                dataReceived(data as QueryResult<TDataType>);
+                const result = data as QueryResult<TDataType>;
+
+                if (result?.isAuthorized === false) {
+                    this.handleUnauthorized(result, dataReceived);
+                    return;
+                }
+
+                dataReceived(result);
             }
         } catch (error) {
             console.error('Error parsing WebSocket message:', error);
         }
+    }
+
+    /**
+     * Handles the terminal result the server sends when the caller is no longer authorized for the query it is
+     * subscribed to. The subscription is over for good, so the result is delivered and the automatic reconnect is
+     * suppressed — reconnecting would re-subscribe, be denied again, and loop.
+     * @param {QueryResult<TDataType>} result The unauthorized result to deliver.
+     * @param {DataReceived<TDataType>} dataReceived Callback that receives the result.
+     */
+    private handleUnauthorized(result: QueryResult<TDataType>, dataReceived: DataReceived<TDataType>) {
+        console.warn(`Connection for '${this._url}' was ended by the server - no longer authorized`);
+        this._unauthorized = true;
+        this.stopPinging();
+        this._reconnectPolicy.cancel();
+        dataReceived(result);
+        this._socket?.close();
     }
 
     private handlePong(message: WebSocketMessage) {

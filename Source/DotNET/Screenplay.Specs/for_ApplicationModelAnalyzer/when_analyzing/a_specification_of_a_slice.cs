@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
@@ -87,5 +88,12 @@ public class a_specification_of_a_slice : Specification
     [Fact] void should_state_the_values_the_command_was_issued_with() => _specification.When.Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Mary Shelley")), new PropertyMappingModel("Age", new LiteralSource(42))]);
     [Fact] void should_expect_the_event_the_assertion_names() => _specification.Then.Single().Name.ShouldEqual("AuthorRegistered");
     [Fact] void should_expect_no_rejection() => _specification.Errors.ShouldBeEmpty();
+    [Fact] void should_retain_the_exact_scenario_type() => Evidence().SourceType.Name.ShouldEqual("and_the_author_is_new");
+    [Fact] void should_retain_the_exact_command_symbol() => Evidence().States[_specification.When].Artifact.Name.ShouldEqual("RegisterAuthor");
+    [Fact] void should_retain_step_level_source_evidence() => Evidence().States.Values.All(step => step.Source.IsInSource).ShouldBeTrue();
+    [Fact] void should_retain_value_level_source_evidence() => Evidence().Values.Values.All(source => source.IsInSource).ShouldBeTrue();
+    [Fact] void should_have_no_neutral_fact_blockers() => Evidence().Blockers.ShouldBeEmpty();
     [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
+
+    SpecificationScenarioEvidence Evidence() => SpecificationEvidence.For(_specification)!;
 }

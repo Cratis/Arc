@@ -4,6 +4,7 @@
 using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario.when_appending_via_the_event_store;
@@ -24,6 +25,6 @@ public class and_the_organization_number_already_exists : Specification
     async Task Because() => _result = await _scenario.Execute(new AppendViaEventStoreWithDuplicate(_partner, "ORG-123"));
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_surface_the_constraint_violation() => _result.ValidationResults.Any(validationResult => validationResult.Message.Contains("unique constraint")).ShouldBeTrue();
+    [Fact] void should_surface_the_constraint_violation() => _result.ValidationResults.Any(validationResult => validationResult.Reason == ValidationResultReason.ConstraintViolation).ShouldBeTrue();
     [Fact] async Task should_append_nothing_for_the_rejected_partner() => (await _scenario.EventScenario.EventLog.HasEventsFor(_partner)).ShouldBeFalse();
 }

@@ -27,7 +27,7 @@ public static class OrderingSlice
             [],
             [.. Events()],
             [new QueryModel("AllOrders", Declare.Many("Order"), null, [], null)],
-            Projection(),
+            [Projection()],
             [],
             []);
 

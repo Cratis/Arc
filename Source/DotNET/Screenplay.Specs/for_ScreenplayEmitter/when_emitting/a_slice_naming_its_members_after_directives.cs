@@ -84,7 +84,7 @@ public class a_slice_naming_its_members_after_directives : given.an_emitter
                     [])
             ],
             [],
-            null,
+            [],
             [],
             []);
 }

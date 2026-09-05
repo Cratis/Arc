@@ -26,7 +26,7 @@ public class ConceptSyntaxBuilder(
     /// <summary>
     /// The Screenplay attribute marking a concept as personally identifiable information.
     /// </summary>
-    public const string PersonallyIdentifiableInformation = "pii";
+    public const string PersonallyIdentifiableInformation = ConceptAttributeSyntax.Pii;
 
     /// <summary>
     /// Builds every concept the document declares.
@@ -59,7 +59,7 @@ public class ConceptSyntaxBuilder(
             declared[name] = new(
                 name,
                 ScreenplayPrimitiveTypes.GetName(concept.Primitive),
-                concept.IsPii ? [PersonallyIdentifiableInformation] : [],
+                concept.IsPii ? [new ConceptAttributeSyntax(PersonallyIdentifiableInformation, SourceLocation.Start)] : [],
                 values,
                 SourceLocation.Start,
                 [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)]);

@@ -103,10 +103,21 @@ The `CommandResultShouldExtensions` class provides fluent BDD-style assertions f
 | `ShouldBeValid()` | `IsValid` is `true`; lists all validation errors on failure |
 | `ShouldHaveValidationErrors()` | `IsValid` is `false` |
 | `ShouldHaveValidationErrorFor(message)` | At least one validation error contains the given text |
+| `ShouldHaveValidationErrorBecauseOf(reason)` | At least one validation error carries the given `ValidationResultReason` |
+| `ShouldHaveConstraintViolationFor(constraintName)` | At least one validation error is a constraint violation for the named constraint |
 | `ShouldBeAuthorized()` | `IsAuthorized` is `true` |
 | `ShouldNotBeAuthorized()` | `IsAuthorized` is `false` |
 | `ShouldNotHaveExceptions()` | `HasExceptions` is `false` |
 | `ShouldHaveExceptions()` | `HasExceptions` is `true` |
+
+### Assert the constraint name, not the message
+
+`ShouldHaveValidationErrorFor(message)` matches against text a human wrote, so the spec stops asserting anything the day someone rewords it — and it cannot tell one constraint from another when two produce similar copy. When a command was rejected by a Chronicle constraint, name the constraint instead. It is the same assertion Chronicle offers on an append result, so a spec says the same thing whether the events reach the store through a command or a raw append.
+
+```csharp
+[Fact] void should_be_rejected_by_the_uniqueness_constraint() =>
+    _result.ShouldHaveConstraintViolationFor(AuthorConstraintNames.UniqueName);
+```
 
 ### Example: Validation spec
 
@@ -160,10 +171,35 @@ public class when_admin_command_executed_by_regular_user : Specification
 
 ## What the Scenario Provides
 
-`CommandScenario<TCommand>` adds console logging and calls `Services.AddCratisArcCore()` when first initialized, which wires:
+`CommandScenario<TCommand>` registers logging without a sink — `ILogger<T>` resolves as a no-op — and calls `Services.AddCratisArcCore()` when first initialized, which wires:
 
 - Type discovery for all handlers, validators, and filters
 - The real `ICommandPipeline`
 - All built-in validation and authorization filters
 
 Everything that runs in production runs in the spec — there is no hidden short-circuiting.
+
+No log output is produced by default, keeping scenarios lightweight — a console logger would otherwise spawn a background thread per scenario. To see log output while debugging a scenario, opt in before the first `Execute` or `Validate`:
+
+```csharp
+_scenario.Services.AddLogging(logging => logging.AddConsole());
+```
+
+## Disposal
+
+`CommandScenario<TCommand>` implements both `IDisposable` and `IAsyncDisposable`. Disposing it releases the service provider it built and disposes any disposable values extension packages placed in `Context` — the Chronicle extender's `EventScenario` is cleaned up this way. Disposal is idempotent, and calling `Execute` or `Validate` on a disposed scenario throws `ObjectDisposedException`.
+
+With Cratis Specifications, dispose the scenario in `Destroy()`:
+
+```csharp
+public class when_adding_item_to_cart : Specification
+{
+    readonly CommandScenario<AddItemToCart> _scenario = new();
+
+    void Destroy() => _scenario.Dispose();
+
+    // ...
+}
+```
+
+With plain xUnit, implement `IDisposable` (or `IAsyncDisposable`) on the test class and dispose the scenario there — xUnit disposes the test class after each test. Each scenario builds a full service provider on first use, so disposing it per test keeps long spec runs from accumulating providers.

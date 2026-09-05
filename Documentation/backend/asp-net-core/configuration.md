@@ -54,11 +54,12 @@ Controls how correlation IDs are handled in HTTP requests.
 
 Controls how the active tenant is resolved on each request.
 
-- **ResolverType** (`TenantResolverType`, default: `Header`): How to resolve the tenant — `Header`, `Query`, `Claim`, or `Development`.
-- **HttpHeader** (string, default: `"x-cratis-tenant-id"`): The HTTP header used when `ResolverType` is `Header`.
+- **ResolverType** (`TenantResolverType`, default: `Header`): How to resolve the tenant — `Header`, `Query`, `Claim`, `Subdomain`, `Development`, or `Fixed`.
+- **HttpHeader** (string, default: `"x-cratis-tenant-id"`): The HTTP header used when `ResolverType` is `Header`, and the fallback header when it is `Subdomain`.
 - **QueryParameter** (string, default: `"tenantId"`): The query-string parameter used when `ResolverType` is `Query`.
 - **ClaimType** (string, default: `"tenant_id"`): The claim used when `ResolverType` is `Claim`.
-- **DevelopmentTenantId** (string, default: `"development"`): The fixed tenant used when `ResolverType` is `Development`.
+- **FixedTenantId** (string, default: `"development"`): The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. Prefer `Fixed` for a single-tenant production deployment — `Development` resolves identically but is named for an environment it does not check.
+- **DevelopmentTenantId** (string, default: `"development"`): The same value under its original name — reading or writing either key sets both. Supply only one; if both are present the binder's property order decides.
 
 #### GeneratedApis
 

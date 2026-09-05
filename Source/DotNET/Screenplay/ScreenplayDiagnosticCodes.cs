@@ -90,11 +90,10 @@ public static class ScreenplayDiagnosticCodes
     /// A projection declares something the projection definition language has no counterpart for.
     /// </summary>
     /// <remarks>
-    /// Most of what this reports is a construct the language has no word for. One case is not: a slice holding a
-    /// second projection has that projection turned away because a slice declares at most one, which drops a read
-    /// model the application really builds (Cratis/Screenplay#30). Reporting it stays the right thing to do until a
-    /// slice can hold more than one - the projection is left out either way, and a reader counting read models
-    /// against the application otherwise has no way of seeing which one went missing.
+    /// Everything this reports is a construct within a projection that the language has no word for. A slice holding
+    /// a second projection was once reported here too, because a slice used to declare at most one and the rest were
+    /// turned away (Cratis/Screenplay#30); a slice now holds as many as its behavior needs, so they are all carried
+    /// and there is nothing left to say about them.
     /// </remarks>
     public const string UnmappableProjectionConstruct = "SP0015";
 
@@ -127,13 +126,13 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableQuery = "SP0019";
 
     /// <summary>
-    /// A reducer folds events into a read model, which Screenplay has no counterpart for.
+    /// A reducer folds events into a read model with code that cannot be stated.
     /// </summary>
     /// <remarks>
     /// A projection says what each event does to the read model it builds. A reducer says the same thing as code,
     /// and the language has no construct to fold one value into another (Cratis/Screenplay#39). The events it
-    /// observes are read from its signatures and are real, so the document states which events reach the read model
-    /// while leaving unsaid what they do to it.
+    /// observes are read from its signatures and are real, so the read model is carried as a projection over those
+    /// events while what the fold works out is left unsaid.
     /// </remarks>
     public const string ReducerWithoutCounterpart = "SP0020";
 
@@ -235,12 +234,18 @@ public static class ScreenplayDiagnosticCodes
     // be declared with it.
 
     /// <summary>
-    /// A type is referred to by a name that does not say what it is, because Screenplay cannot express it.
+    /// A type is referred to by a name the document never declares, because Screenplay cannot express it.
     /// </summary>
     /// <remarks>
     /// A Screenplay type reference is a single identifier. A constructed generic loses its arguments the moment it is
     /// written as one - a map of names to values becomes the word <c>KeyValuePair</c> - and the document then refers
     /// to a type it never declares. Nothing better can be written, so what was lost is said instead.
+    /// <para>
+    /// An interface or an abstract class ends in the same place by the opposite route. Its name survives being written
+    /// as a single identifier, so nothing is lost in the writing; what cannot be written is the declaration, because a
+    /// <c>type</c> says what a value holds and a contract leaves that to whatever implements it. Either way the
+    /// property names something the document never introduces, which is the one thing worth saying about both.
+    /// </para>
     /// </remarks>
     public const string UnmappableTypeReference = "SP0030";
 
@@ -286,16 +291,17 @@ public static class ScreenplayDiagnosticCodes
     public const string DocumentDidNotCompile = "SP0034";
 
     /// <summary>
-    /// A value an artifact carries is a record, whose shape no declaration in the language can hold.
+    /// A value an artifact carries is a record no <c>type</c> declaration could be written for.
     /// </summary>
     /// <remarks>
-    /// A concept is one value with a name, and every concept the application refers to is declared. A record carrying
-    /// several values is a different thing: an event property written as <c>days ApprovedDayLine[]</c> names a shape
-    /// the document has no construct to introduce, so what that line holds is stated nowhere - including anything
-    /// within it the application marks as personal data. The concepts inside it are recovered and declared, because a
-    /// concept can be declared wherever it was reached from; the shape itself waits on the language
-    /// (Cratis/Screenplay#29). This is reported rather than left unsaid because a reader counting what the document
-    /// declares against what the application holds otherwise has no way of knowing where the difference went.
+    /// A record carrying several values is what a <c>type</c> declares, so an event property written as
+    /// <c>days ApprovedDayLine[]</c> names a shape the document introduces and the line resolves. What is left is the
+    /// handful of records no declaration can be written for: one carrying no value at all, and one whose simple name a
+    /// concept or another record already holds - a document is one namespace of declarations, and the second of two
+    /// names cannot be written twice. The concepts inside such a record are still recovered and declared, because a
+    /// concept can be declared wherever it was reached from; the shape is not, so the property naming it refers to
+    /// something the document never introduces. That is what this reports, and why it says which of the reasons it
+    /// was: only one of them is closed by renaming something.
     /// </remarks>
     public const string UndeclarableShape = "SP0035";
 
@@ -402,4 +408,28 @@ public static class ScreenplayDiagnosticCodes
     /// about the request, it is a declaration the document does not make at all.
     /// </remarks>
     public const string ReadModelFeatureWithoutCounterpart = "SP0042";
+
+    /// <summary>
+    /// A slice is specified by a scenario of a kind the language has nowhere to put, so the whole of it is left out.
+    /// </summary>
+    /// <remarks>
+    /// An application specifies its slices through four scenarios, and a <c>specification</c> holds two of them. One
+    /// issuing a command is a <c>when</c>; one driving a read model is <c>given</c> the events and then the
+    /// <c>readmodel</c> they built. The other two have nowhere to go, for reasons of their own rather than one
+    /// shared reason.
+    /// <para>
+    /// A scenario appending an event states the append as its action, and a <c>when</c> names a command and nothing
+    /// else - so writing the appended event as something that followed would state the action as an outcome, and
+    /// writing only the rejection would say a scenario was rejected without saying what was. A scenario driving a
+    /// reactor says what a collaborator was asked to do, which is a statement about the inside of a slice in the same
+    /// way a unit level specification is, and is left out for the same reason.
+    /// </para>
+    /// <para>
+    /// This is reported rather than passed over precisely because those two are not unit level specifications. They
+    /// hold a scenario, which is what says a specification is about the behavior of the slice - so a document silent
+    /// about them reads exactly like a slice specified by nothing, and on a real application that is a large fraction
+    /// of everything the slice is specified by.
+    /// </para>
+    /// </remarks>
+    public const string ScenarioWithoutCounterpart = "SP0043";
 }

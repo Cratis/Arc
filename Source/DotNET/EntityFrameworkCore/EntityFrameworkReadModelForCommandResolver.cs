@@ -23,6 +23,11 @@ public class EntityFrameworkReadModelForCommandResolver(IReadOnlyDictionary<Type
     /// <remarks>
     /// A <see cref="DbSet{TEntity}"/> on a read model <see cref="ReadOnlyDbContext"/> in the application carries each of
     /// these read models, which is what makes Entity Framework Core own them.
+    /// <para>
+    /// What follows from declaring: an instance resolved this way is materialized by Entity Framework Core's own entity
+    /// model, so it never meets the MongoDB driver and no MongoDB serialization customization applies to it, even where
+    /// the same customization is visibly at work on the query side.
+    /// </para>
     /// </remarks>
     public ReadModelForCommandOwnership Ownership => ReadModelForCommandOwnership.Declared;
 

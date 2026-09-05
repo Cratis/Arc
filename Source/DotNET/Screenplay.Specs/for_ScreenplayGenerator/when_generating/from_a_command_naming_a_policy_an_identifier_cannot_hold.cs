@@ -47,13 +47,16 @@ public class from_a_command_naming_a_policy_an_identifier_cannot_hold : Specific
 
     bool HasLine(string text) => _result.Source.Split('\n').Any(_ => string.Equals(_.Trim(), text, StringComparison.Ordinal));
 
+    string Authorize() => _result.Source.Split('\n').Select(_ => _.Trim()).Single(_ => _.StartsWith("authorize ", StringComparison.Ordinal));
+
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
     [Fact] void should_produce_a_document_the_compiler_says_nothing_about() => _compiled.Diagnostics.ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
-    [Fact] void should_refer_to_the_policy_by_a_name_the_grammar_accepts() => HasLine("CanReserve").ShouldBeTrue();
+    [Fact] void should_refer_to_the_policy_by_a_name_the_grammar_accepts() => Authorize().Contains("CanReserve", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_declare_the_policy_it_refers_to() => HasLine("policy CanReserve").ShouldBeTrue();
-    [Fact] void should_refer_to_the_role_by_a_name_the_grammar_accepts() => HasLine("authorize Reader").ShouldBeTrue();
+    [Fact] void should_refer_to_the_role_by_a_name_the_grammar_accepts() => Authorize().Contains("Reader", StringComparison.Ordinal).ShouldBeTrue();
+    [Fact] void should_demand_the_policy_on_top_of_the_role() => Authorize().ShouldEqual("authorize Reader and CanReserve");
     [Fact] void should_keep_the_role_the_application_really_names() => HasLine("require role \"reader\"").ShouldBeTrue();
     [Fact] void should_report_that_nothing_registers_the_policy() => _result.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.PolicyRequirementsUnrecoverable]);
 }

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ public class an_observable_query_demultiplexer : Specification
     protected IReadModelInterceptors _readModelInterceptors;
     protected IServiceProvider _serviceProvider;
     protected IOptions<ArcOptions> _arcOptions;
+    protected IObservableQueryEmissionGuards _emissionGuards;
     protected ILogger<ObservableQueryDemultiplexer> _logger;
     protected ObservableQueryDemultiplexer _hub;
 
@@ -33,9 +35,18 @@ public class an_observable_query_demultiplexer : Specification
         _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
-        _serviceProvider = Substitute.For<IServiceProvider>();
+
+        // A real container — the hub creates a per-subscription IServiceScope from this, which a bare
+        // NSubstitute mock cannot satisfy (it has no working IServiceScopeFactory to resolve).
+        _serviceProvider = new ServiceCollection().BuildServiceProvider();
 
         _arcOptions = Options.Create(new ArcOptions());
+
+        // No guards by default — HasGuards is false on a fresh substitute, which is the opt-in-by-presence fast
+        // path every existing spec runs on. Specs that exercise a guard configure this substitute in their own
+        // Establish, which runs after this one and is picked up because the hub holds the same instance.
+        _emissionGuards = Substitute.For<IObservableQueryEmissionGuards>();
+
         _logger = Substitute.For<ILogger<ObservableQueryDemultiplexer>>();
         _hub = new ObservableQueryDemultiplexer(
             _queryPipeline,
@@ -46,6 +57,7 @@ public class an_observable_query_demultiplexer : Specification
             _serviceProvider,
             _arcOptions,
             Substitute.For<IQueryHealthTracker>(),
+            _emissionGuards,
             _logger);
     }
 

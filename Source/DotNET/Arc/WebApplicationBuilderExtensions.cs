@@ -79,7 +79,7 @@ public static class WebApplicationBuilderExtensions
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddControllersFromProjectReferencedAssembles(Internals.Types);
 
-        builder.Host.UseDefaultServiceProvider(_ => _.ValidateOnBuild = false);
+        builder.Host.SkipEagerServiceProviderValidation();
         builder.AddCorrelationIdLogEnricher();
 
         if (configureBuilder is not null)

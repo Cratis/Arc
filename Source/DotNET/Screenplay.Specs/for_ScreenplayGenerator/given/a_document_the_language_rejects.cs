@@ -16,8 +16,11 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 /// Every way of emitting a rejected document that anyone has found has since been fixed, which is exactly why the
 /// check exists - it has to hold for the one nobody has found yet. Replacing the printed text is the smallest seam
 /// that produces one: the analysis, the emitter, the syntax tree the emitter builds and the compiler reading the
-/// text back are all the real ones, and nothing on the path a host takes is substituted. The text is the defect that
-/// shipped, which is a command property called <c>Description</c> written out as the directive of the same name.
+/// text back are all the real ones, and nothing on the path a host takes is substituted. The text is the shape the
+/// defect that shipped took - a name written where the grammar holds a quoted description - moved to a body that
+/// reads <c>description</c> as nothing but the directive. The command body it was written in no longer rejects it:
+/// the language now reads a directive-shaped property line as the property, so the exact text that shipped is
+/// something it holds rather than something it turns away.
 /// </remarks>
 public class a_document_the_language_rejects : Specification
 {
@@ -28,8 +31,8 @@ public class a_document_the_language_rejects : Specification
         domain Library
         module Library
           feature Authors
-            slice StateChange Registration
-              command RegisterAuthor
+            slice StateView Registration
+              query AuthorById => Author
                 description RequestDescription
         """;
 

@@ -29,12 +29,7 @@ public class and_connection_is_known_and_query_streams_results : given.an_observ
         _connectionId = string.Empty;
 
         _subject = new BehaviorSubject<IEnumerable<string>>([]);
-        _queryPipeline.Perform(
-                Arg.Any<FullyQualifiedQueryName>(),
-                Arg.Any<QueryArguments>(),
-                Arg.Any<Paging>(),
-                Arg.Any<Sorting>(),
-                Arg.Any<IServiceProvider>())
+        _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 var queryResult = QueryResult.Success(CorrelationId.New());
@@ -86,7 +81,8 @@ public class and_connection_is_known_and_query_streams_results : given.an_observ
             Arg.Any<QueryArguments>(),
             Arg.Any<Paging>(),
             Arg.Any<Sorting>(),
-            Arg.Any<IServiceProvider>());
+            Arg.Any<IServiceProvider>(),
+            Arg.Any<CancellationToken>());
 
     [Fact] void should_send_query_result_message_over_sse() => HasQueryResultMessage().ShouldBeTrue();
 

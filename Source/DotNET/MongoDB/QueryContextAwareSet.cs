@@ -86,6 +86,18 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
         query.ForEachAsync(document => _items.AddLast((_getId(document), document)));
 
     /// <summary>
+    /// Whether the set currently holds a document with the given id.
+    /// </summary>
+    /// <param name="id">The id.</param>
+    /// <returns>True when the document is in the set.</returns>
+    /// <remarks>
+    /// Tells an item entering the observed result set apart from one that was already in it, which
+    /// is what keeps <see cref="QueryContext.TotalItems"/> honest when a document changes in a way
+    /// that moves it across the observed filter.
+    /// </remarks>
+    public bool Contains(object id) => _items.Any(node => _idEqualityComparer.Equals(node.Id, id));
+
+    /// <summary>
     /// Removes the document with the given id.
     /// </summary>
     /// <param name="id">The id.</param>

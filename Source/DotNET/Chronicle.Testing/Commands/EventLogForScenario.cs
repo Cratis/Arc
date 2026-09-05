@@ -65,6 +65,9 @@ internal sealed class EventLogForScenario(IEventLog inner, IUnitOfWorkManager un
     public Task<EventSequenceNumber> GetTailSequenceNumberForObserver(Type type) => inner.GetTailSequenceNumberForObserver(type);
 
     /// <inheritdoc/>
+    public Task Revise(EventSequenceNumber sequenceNumber, object @event) => inner.Revise(sequenceNumber, @event);
+
+    /// <inheritdoc/>
     public Task Redact(EventSequenceNumber sequenceNumber, RedactionReason reason) => inner.Redact(sequenceNumber, reason);
 
     /// <inheritdoc/>

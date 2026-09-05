@@ -12,14 +12,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Reads what a specification says followed from the command it issued.
 /// </summary>
-/// <param name="compilation">The compilation being analyzed.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
 /// <remarks>
 /// Each assertion is one sentence about the outcome, and several of them routinely say the same sentence about a
 /// different part of the same event - once for each value it carries. Screenplay says an event followed once, so a
 /// sentence already said is passed over rather than repeated.
+/// <para>
+/// An assertion inherited from a base context is written wherever that context is, which need not be the project the
+/// scenario is - so which model reads a body is asked rather than assumed.
+/// </para>
 /// </remarks>
-public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagnostics diagnostics)
+public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
     /// Reads what a specification says followed.
@@ -34,7 +38,10 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
         {
             foreach (var body in HandlerBodies.Of(assertion))
             {
-                ReadBody(body, compilation.GetSemanticModel(body.SyntaxTree), draft, name, location);
+                if (models.For(body.SyntaxTree) is { } semanticModel)
+                {
+                    ReadBody(body, semanticModel, draft, name, location);
+                }
             }
         }
     }
@@ -43,8 +50,16 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
     /// Adds an event a specification says followed, or records that it cannot be read.
     /// </summary>
     /// <param name="appended">The type the assertion names.</param>
+    /// <param name="invocation">The appended-event assertion.</param>
+    /// <param name="method">The exactly bound assertion method.</param>
+    /// <param name="semanticModel">The semantic model owning the assertion.</param>
     /// <param name="draft">The scenario collected so far.</param>
-    static void AddEvent(ITypeSymbol appended, SpecificationDraft draft)
+    static void AddEvent(
+        ITypeSymbol appended,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SemanticModel semanticModel,
+        SpecificationDraft draft)
     {
         if (!EventReader.IsEvent(appended))
         {
@@ -52,10 +67,27 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
             return;
         }
 
-        if (!draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal)))
+        if (draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal)))
         {
-            draft.Then.Add(new(appended.Name, SpecificationStateKind.Event, []));
+            draft.CannotRead($"it expects '{appended.Name}' more than once, and repeated event expectations are ambiguous");
+            return;
         }
+
+        if (!SpecificationEventPredicateValues.TryRead(
+                invocation,
+                method,
+                appended,
+                semanticModel,
+                draft,
+                out var values,
+                out var reason))
+        {
+            draft.CannotRead(reason!);
+            return;
+        }
+
+        var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values);
+        draft.AddThen(state, appended, invocation.GetLocation());
     }
 
     /// <summary>
@@ -77,6 +109,12 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
 
             var appended = SpecificationAssertions.AppendedEventOf(method);
             var rejection = SpecificationAssertions.IsRejection(invocation, method);
+            if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
+            {
+                draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");
+                return;
+            }
+
             if (appended is null && !rejection)
             {
                 continue;
@@ -90,7 +128,7 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
 
             if (appended is not null)
             {
-                AddEvent(appended, draft);
+                AddEvent(appended, invocation, method, semanticModel, draft);
                 continue;
             }
 
@@ -121,7 +159,7 @@ public class SpecificationOutcomeReader(Compilation compilation, ScreenplayDiagn
 
         if (!draft.Errors.Contains(reason, StringComparer.Ordinal))
         {
-            draft.Errors.Add(reason);
+            draft.AddError(reason, invocation.GetLocation());
         }
     }
 

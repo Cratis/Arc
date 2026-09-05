@@ -47,5 +47,6 @@ The proxy generator maintains the folder structure based on your C# namespaces (
 - [Configuration](Configuration/index.md) - All configuration options
 - [Commands](commands.md) - Command proxy generation
 - [Queries](queries.md) - Query proxy generation
+- [Type Mapping](type-mapping.md) - How .NET types translate to TypeScript
 - [Identity Details](identity-details.md) - Identity details type generation
 - [File Index Tracking](file-index-tracking.md) - Incremental cleanup of generated files

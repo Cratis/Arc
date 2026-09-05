@@ -2,6 +2,8 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.ProxyGenerator.Build</AssemblyName>
         <OutputType>Exe</OutputType>
+        <Description>Build-time TypeScript proxy generation for Cratis Arc: an MSBuild task that emits proxies, referenced types, and validation metadata for recognized commands and queries.</Description>
+        <PackageTags>cratis;arc;cqrs;typescript;proxy-generation;msbuild;commands;queries;aspnetcore</PackageTags>
         <NoPackageAnalysis>true</NoPackageAnalysis>
         <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
         <NoWarn>$(NoWarn);NU5118</NoWarn>

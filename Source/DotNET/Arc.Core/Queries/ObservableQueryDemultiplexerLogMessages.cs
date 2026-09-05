@@ -51,4 +51,10 @@ internal static partial class ObservableQueryDemultiplexerLogMessages
 
     [LoggerMessage(LogLevel.Debug, "Emission for query id '{QueryId}' arrived after the connection was disposed — dropping it as the client has disconnected")]
     internal static partial void EmissionAfterDisconnect(this ILogger<ObservableQueryDemultiplexer> logger, string queryId);
+
+    [LoggerMessage(LogLevel.Debug, "An emission guard withheld a single emission for query id '{QueryId}' — the subscription stays live")]
+    internal static partial void EmissionSuppressed(this ILogger<ObservableQueryDemultiplexer> logger, string queryId);
+
+    [LoggerMessage(LogLevel.Information, "An emission guard denied query id '{QueryId}' mid-stream — terminating the subscription")]
+    internal static partial void EmissionDenied(this ILogger<ObservableQueryDemultiplexer> logger, string queryId);
 }

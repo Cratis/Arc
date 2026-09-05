@@ -28,6 +28,6 @@ public class a_concept_carrying_personal_data : given.a_concept_syntax_builder
         _unmarked = concepts.First(_ => _.Name == "BookTitle");
     }
 
-    [Fact] void should_mark_the_concept_carrying_personal_data() => _marked.Attributes.ShouldContainOnly([ConceptSyntaxBuilder.PersonallyIdentifiableInformation]);
+    [Fact] void should_mark_the_concept_carrying_personal_data() => _marked.AttributeNames.ShouldContainOnly([ConceptSyntaxBuilder.PersonallyIdentifiableInformation]);
     [Fact] void should_not_mark_a_concept_that_carries_none() => _unmarked.Attributes.ShouldBeEmpty();
 }

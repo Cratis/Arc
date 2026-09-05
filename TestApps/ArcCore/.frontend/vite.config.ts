@@ -12,7 +12,6 @@ export default defineConfig({
     root: fileURLToPath(new URL('../', import.meta.url)),
     build: {
         outDir: 'wwwroot',
-        assetsDir: '',
     },
     plugins: [react()],
     resolve: {

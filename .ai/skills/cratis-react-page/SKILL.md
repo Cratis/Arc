@@ -8,13 +8,13 @@ description: Step-by-step guidance for building a React page in a Cratis Arc app
 ### Step 1 — Prerequisites
 
 - Backend query and command endpoints must already exist (see `cratis-readmodel` and `cratis-command` skills).
-- Run a Release `dotnet build` on the backend to regenerate proxies before importing them.
+- Run a Debug `dotnet build` on the backend to regenerate proxies before importing them.
 
 Import `DataPage` (and its `Column`/`MenuItem` helpers) from the **subpath**, not the root barrel:
 
 ```tsx
 import { DataPage, MenuItem } from '@cratis/components/DataPage';
-import { Column } from 'primereact/column';
+import { Column } from '@cratis/components/DataPage';
 import { CommandDialog } from '@cratis/components/CommandDialog';
 import { useDialog, DialogProps } from '@cratis/arc.react/dialogs';
 ```
@@ -27,7 +27,7 @@ import { useDialog, DialogProps } from '@cratis/arc.react/dialogs';
 
 ```tsx
 import { DataPage } from '@cratis/components/DataPage';
-import { Column } from 'primereact/column';
+import { Column } from '@cratis/components/DataPage';
 import { AllAccounts } from './AllAccounts';
 
 export const AccountsPage = () => (
@@ -68,7 +68,7 @@ export const CreateAccountDialog = ({ closeDialog }: DialogProps) => (
 
 ```tsx
 import { DataPage, MenuItem } from '@cratis/components/DataPage';
-import { Column } from 'primereact/column';
+import { Column } from '@cratis/components/DataPage';
 import { useDialog } from '@cratis/arc.react/dialogs';
 import { CreateAccountDialog } from './CreateAccountDialog';
 

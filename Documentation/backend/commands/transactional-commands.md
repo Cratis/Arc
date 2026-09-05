@@ -11,6 +11,7 @@ Appends through an injected `IEventLog` (or `IEventStore.EventLog`) are **immedi
 | You write | Semantics | What you get back |
 | --- | --- | --- |
 | Return events from `Handle()` | Transactional — atomic with the command | The `CommandResult` is the outcome |
+| Return `EventsWithConcurrencyScopes` | Transactional — ordered cross-source events with the exact revisions the decision used | The `CommandResult` is the outcome |
 | `eventLog.Transactional.Append(...)` | Transactional — atomic with the command | A plain `Task` — no per-append result exists until commit |
 | `eventLog.Append(...)` / `eventStore.EventLog.Append(...)` | Immediate and final — same as any event sequence | The real `AppendResult`; a failed one also fails the command |
 

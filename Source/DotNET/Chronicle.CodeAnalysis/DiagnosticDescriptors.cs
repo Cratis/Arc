@@ -35,16 +35,16 @@ static class DiagnosticDescriptors
         description: "When a command exposes more than one property that can resolve to an EventSourceId (an EventSourceId, an EventSourceId<T>, a type with an implicit conversion to EventSourceId, or a [Key]-marked property), the framework resolves the event source id from the first matching property, which is ambiguous. Implement ICanProvideEventSourceId to declare which value to use. This is not required when the command's Handle method returns only EventForEventSourceId events, since each such event carries its own event source id.");
 
     /// <summary>
-    /// ARCCHR0003: Reactor must not inject IEventLog.
+    /// ARCCHR0003: Reactor must not reach the default event log.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0003_ReactorMustNotInjectEventLog = new(
+    public static readonly DiagnosticDescriptor ARCCHR0003_ReactorMustNotReachEventLog = new(
         id: "ARCCHR0003",
-        title: "Reactor must not inject IEventLog",
-        messageFormat: "Reactor '{0}' injects IEventLog through parameter '{1}'. Return events from the handler method (Task<TEvent>, Task<ReactorSideEffect>, or a collection) instead of appending through IEventLog directly.",
+        title: "Reactor must not reach the default event log",
+        messageFormat: "Reactor '{0}' reaches the default event log through '{1}'. Return the events from the handler method — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers — instead of appending directly.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Reactors observe events and produce side effects; they must not append to the event log directly. To produce new events, return them from the handler method as Task<TEvent>, Task<ReactorSideEffect>, or a collection thereof. To trigger work in another slice, inject ICommandPipeline and execute a command. Injecting IEventLog couples the reactor to the event log and bypasses the side-effect pipeline.");
+        description: "Reactors observe events and produce side effects; they must not append to the default event log directly, whether by injecting IEventLog or by appending through an injected IEventStore (its EventLog property or GetEventSequence(EventSequenceId.Log)). Both write to the sequence the handler's return type already targets, so return the events instead — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers for another event source. To trigger work in another slice, inject ICommandPipeline and execute a command. Two shapes a returned event cannot express are not reported: routing to a different sequence, such as GetEventSequence(EventSequenceId.Outbox), and appending to an event store other than the one the reactor was handed, such as one obtained from IChronicleClient.GetEventStore.");
 
     /// <summary>
     /// ARCCHR0004: [EventType] should not specify an explicit id.
@@ -106,6 +106,18 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Two attributes are spelled [Key]. Chronicle resolves a command's event source id from Cratis.Chronicle.Keys.KeyAttribute; Arc reads System.ComponentModel.DataAnnotations.KeyAttribute, but only in an application that has no Chronicle. Marking the data annotations one in an application that uses Chronicle compiles and reads correctly while doing nothing: Chronicle finds no key property, invents a fresh event source id, and every read model keyed by the command resolves to nothing.");
+
+    /// <summary>
+    /// ARCCHR0009: Command property reads as a secret and should be marked [NotAudited].
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0009_CommandSensitiveValueShouldNotBeAudited = new(
+        id: "ARCCHR0009",
+        title: "Command property reads as a secret and should be marked [NotAudited]",
+        messageFormat: "Command '{0}' carries '{1}', whose name reads as a secret, and its value will be written to the causation of every event the command appends. Mark it [NotAudited], or [PII] if it is personal data.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A command's property values are recorded on the causation chain, which is written into the event log and stays there for as long as the events do - a secret written there cannot be taken back out by changing code. This rule reports a property whose name contains a word that reads as a secret (password, token, api key, credential, pin, cvv and the like) and which is not marked [NotAudited]. Marking the property, its positional parameter, or the command itself silences it, as does marking the value [PII], since Chronicle already withholds personal data. If the name only reads like a secret and the value is safe to record, mark it [NotAudited] anyway or rename the property - the value is written either way, so the reading is the only thing anyone reviewing the model has to go on.");
 
     const string Category = "Arc.Chronicle";
 }

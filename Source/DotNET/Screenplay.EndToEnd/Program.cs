@@ -8,18 +8,20 @@ using Cratis.Screenplay;
 if (args.Length < 2)
 {
     Console.WriteLine("Usage:");
-    Console.WriteLine("  Cratis.Arc.Screenplay.EndToEnd <project-or-solution> <output-file>");
+    Console.WriteLine("  Cratis.Arc.Screenplay.EndToEnd <project-or-solution> <output-file> [expectations-file]");
 
     return 2;
 }
 
 var project = Path.GetFullPath(args[0]);
 var output = Path.GetFullPath(args[1]);
+var expected = args.Length > 2 ? Path.GetFullPath(args[2]) : null;
 
 Console.WriteLine($"Generating the Screenplay document of '{project}'");
 
 var failures = new List<string>();
-var compilations = await ProjectCompilation.Of(project, failures);
+var loaded = await ProjectCompilation.Of(project, failures);
+var compilations = loaded.Compilations;
 
 foreach (var failure in failures)
 {
@@ -33,12 +35,12 @@ if (compilations.Count == 0)
     return 1;
 }
 
-foreach (var loaded in compilations)
+foreach (var compilation in compilations)
 {
-    Console.WriteLine($"  project: {loaded.AssemblyName}");
+    Console.WriteLine($"  project: {compilation.AssemblyName}");
 }
 
-var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions());
+var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions { Domain = loaded.Name });
 
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, generated.Source);
@@ -81,5 +83,29 @@ if (errors.Count > 0)
 }
 
 Console.WriteLine("The generated document reads back clean");
+
+// Reading back clean proves the document is valid, not that it is true. A generator that quietly declined to read
+// something writes a smaller document that compiles just as well, so an application whose expectations are declared
+// beside it is held to what the document actually says - and to what was reported, because a value recovered and a
+// value given up on are both absent from the text and only the report tells them apart.
+if (expected is null)
+{
+    return 0;
+}
+
+var unmet = (await Expectations.In(expected)).NotMetBy(generated.Source, generated.Diagnostics).ToList();
+foreach (var failure in unmet)
+{
+    Console.WriteLine($"  expectation: {failure}");
+}
+
+if (unmet.Count > 0)
+{
+    Console.WriteLine($"The generated document did not hold to '{expected}' - {unmet.Count} expectation(s)");
+
+    return 1;
+}
+
+Console.WriteLine($"The generated document holds to every expectation in '{expected}'");
 
 return 0;

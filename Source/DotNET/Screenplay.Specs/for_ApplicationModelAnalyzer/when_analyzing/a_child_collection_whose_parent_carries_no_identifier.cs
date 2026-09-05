@@ -45,7 +45,7 @@ public class a_child_collection_whose_parent_carries_no_identifier : Specificati
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _from = _analysis.Slice().Projection!.Scope.Children.Single().Scope.From.Single();
+        _from = _analysis.Slice().Projections.Single().Scope.Children.Single().Scope.From.Single();
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();

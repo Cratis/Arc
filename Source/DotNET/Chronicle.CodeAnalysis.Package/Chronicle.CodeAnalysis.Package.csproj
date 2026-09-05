@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- Package-only project: it carries no source of its own, only the standalone
+             'Cratis.Arc.Chronicle.CodeAnalysis' package identity that bundles the analyzer assembly
+             (Chronicle.CodeAnalysis.csproj) and its code fixes (Chronicle.CodeAnalysis.CodeFixes.csproj) together,
+             exactly as they shipped from one assembly before the two were split apart to keep RS1038 (Workspaces
+             references in a compiler-loaded assembly) out of the analyzer. Consumers of this standalone package -
+             as opposed to the 'Cratis.CodeAnalysis' umbrella - see no change from the split. -->
+        <PackageId>Cratis.Arc.Chronicle.CodeAnalysis</PackageId>
+        <AssemblyName>Cratis.Arc.Chronicle.CodeAnalysis.Package</AssemblyName>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeSymbols>false</IncludeSymbols>
+        <IncludeSource>false</IncludeSource>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
+    </PropertyGroup>
+
+    <!-- Build-order-only references: neither assembly is linked into this package-only project's own (empty)
+         compilation, they are only required to exist in their bin output before Pack runs. -->
+    <ItemGroup>
+        <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../Chronicle.CodeAnalysis.CodeFixes/Chronicle.CodeAnalysis.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../Chronicle.CodeAnalysis/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="../Chronicle.CodeAnalysis.CodeFixes/bin/$(Configuration)/netstandard2.0/Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes.dll"
+              Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+</Project>

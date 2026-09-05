@@ -36,7 +36,7 @@ public static class LibraryAuthors
             ],
             [new EventModel("AuthorRegistered", [Declare.Property("Name", "AuthorName")], ["audit", "authors"])],
             [],
-            null,
+            [],
             [],
             [new UniquePropertyConstraintModel("UniqueAuthorName", "Name", "AuthorRegistered")]);
 
@@ -61,16 +61,18 @@ public static class LibraryAuthors
                     [],
                     null)
             ],
-            new ProjectionModel(
-                "Library.Authors.Listing.AuthorProjection",
-                "Author",
-                "event-log",
-                ProjectionAutoMapMode.Enabled,
-                false,
-                ProjectionScopeModel.Empty with
-                {
-                    From = [new(["AuthorRegistered"], "$eventSourceId", null, Declare.Map(("name", "name")))]
-                }),
+            [
+                new ProjectionModel(
+                    "Library.Authors.Listing.AuthorProjection",
+                    "Author",
+                    "event-log",
+                    ProjectionAutoMapMode.Enabled,
+                    false,
+                    ProjectionScopeModel.Empty with
+                    {
+                        From = [new(["AuthorRegistered"], "$eventSourceId", null, Declare.Map(("name", "name")))]
+                    })
+            ],
             [],
             []);
 }

@@ -54,7 +54,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     {
         var domain = ToName(model.Domain, options.Domain);
         var modules = BuildModules(model, options, domain);
-        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts);
+        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
+        var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain);
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
@@ -63,7 +64,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             [.. policies],
             [.. modules],
             SourceLocation.Start,
-            new DomainSyntax(domain, SourceLocation.Start));
+            new DomainSyntax(domain, SourceLocation.Start),
+            Types: [.. declaredTypes]);
     }
 
     /// <summary>

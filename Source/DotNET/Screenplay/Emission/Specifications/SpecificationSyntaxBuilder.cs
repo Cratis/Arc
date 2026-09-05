@@ -44,15 +44,26 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
-            new SpecificationCommandSyntax(
-                naming.ToDeclarationName(specification.When.Name),
-                [.. Values(specification.When)],
-                SourceLocation.Start),
+            When(specification.When),
             [.. Events(specification.Then)],
             [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_) ?? string.Empty, SourceLocation.Start))],
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
             [.. ReadModels(specification.Then)]);
+
+    /// <summary>
+    /// Builds the command a scenario issued.
+    /// </summary>
+    /// <param name="command">The command, or <see langword="null"/> when the scenario issued none.</param>
+    /// <returns>The <see cref="SpecificationCommandSyntax"/>, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// A scenario about a read model issues no command - the events are what happened - and the language holds that
+    /// as a specification with no <c>when</c> rather than as one with an empty one.
+    /// </remarks>
+    SpecificationCommandSyntax? When(SpecificationStateModel? command) =>
+        command is null
+            ? null
+            : new(naming.ToDeclarationName(command.Name), [.. Values(command)], SourceLocation.Start);
 
     /// <summary>
     /// Builds the states of a step that name an event.

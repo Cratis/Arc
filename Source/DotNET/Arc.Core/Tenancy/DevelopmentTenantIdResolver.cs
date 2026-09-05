@@ -10,9 +10,11 @@ namespace Cratis.Arc.Tenancy;
 /// Represents an implementation of <see cref="ITenantIdResolver"/> that resolves to a fixed tenant ID for development purposes.
 /// </summary>
 /// <param name="options">The <see cref="IOptions{TOptions}"/>.</param>
+/// <remarks>
+/// This is <see cref="FixedTenantIdResolver"/> under its original name and resolves the same configured tenant ID.
+/// The resolver never consulted the hosting environment, so prefer <see cref="FixedTenantIdResolver"/> and
+/// <see cref="TenantResolverType.Fixed"/> when the fixed tenant is a deployment level constant rather than a
+/// development convenience.
+/// </remarks>
 [IgnoreConvention]
-public class DevelopmentTenantIdResolver(IOptions<ArcOptions> options) : ITenantIdResolver
-{
-    /// <inheritdoc/>
-    public string Resolve() => options.Value.Tenancy.DevelopmentTenantId;
-}
+public class DevelopmentTenantIdResolver(IOptions<ArcOptions> options) : FixedTenantIdResolver(options);

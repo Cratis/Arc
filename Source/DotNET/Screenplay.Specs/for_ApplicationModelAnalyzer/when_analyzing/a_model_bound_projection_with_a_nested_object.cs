@@ -43,7 +43,7 @@ public class a_model_bound_projection_with_a_nested_object : Specification
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _nested = _analysis.Slice().Projection!.Scope.Nested.Single();
+        _nested = _analysis.Slice().Projections.Single().Scope.Nested.Single();
     }
 
     ProjectionFromModel From => _nested.Scope.From.Single();
@@ -55,6 +55,6 @@ public class a_model_bound_projection_with_a_nested_object : Specification
     [Fact] void should_observe_the_event_its_type_names() => From.EventTypes.ShouldContainOnly(["LoanShipped"]);
     [Fact] void should_map_what_its_type_declares() => From.Properties["Carrier"].ShouldEqual("carrier");
     [Fact] void should_map_every_property_its_type_declares() => From.Properties["TrackingNumber"].ShouldEqual("trackingNumber");
-    [Fact] void should_declare_no_children_alongside_it() => _analysis.Slice().Projection!.Scope.Children.ShouldBeEmpty();
+    [Fact] void should_declare_no_children_alongside_it() => _analysis.Slice().Projections.Single().Scope.Children.ShouldBeEmpty();
     [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
 }

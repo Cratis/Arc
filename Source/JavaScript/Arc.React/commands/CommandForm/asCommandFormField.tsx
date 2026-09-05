@@ -1,9 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { PropertyDescriptor } from '@cratis/arc/reflection';
-import React, { ComponentType } from 'react';
-import { useCommandFormContext } from './CommandForm';
+import type { PropertyDescriptor } from '@cratis/arc/reflection';
+import React, { type ComponentType } from 'react';
+import { useCommandFormContext } from './CommandFormContext';
+import { withCommandFormFieldBinding } from './withCommandFormFieldBinding';
 
 /**
  * Props that will be injected by CommandFormFields into your wrapped component
@@ -26,12 +27,35 @@ export interface InjectedCommandFormFieldProps {
  *
  *   <MyField<MyCommand> value={c => c.name} />
  */
-export interface BaseCommandFormFieldProps<TCommand = unknown> {
+export interface BaseCommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     icon?: React.ReactElement;
     value(instance: TCommand): unknown;
     required?: boolean;
     title?: string;
     description?: string;
+
+    /**
+     * Skips this field when a command's initial values are populated from a query or a plain source
+     * object - e.g. via {@link CommandFormProps.populateFromQuery}. Has no effect on
+     * {@link CommandFormProps.initialValues}/{@link CommandFormProps.currentValues}, which are
+     * explicit values a caller already chose to seed.
+     */
+    noInitialValue?: boolean;
+
+    /**
+     * Overrides how this field's initial value is derived from the population source. Accepts either
+     * a property accessor matched onto the source by name (mirroring {@link value}), or an arbitrary
+     * function that composes a value from the whole source object. Defaults to matching {@link value}'s
+     * own property name on the source when omitted.
+     */
+    initialValue?(source: TSource): unknown;
+
+    /**
+     * Identifies the semantics captured by {@link initialValue} that CommandForm cannot infer from
+     * the callback itself. Change the key to repopulate this field from the current source with the
+     * latest callback. Inline callback identity changes alone intentionally do not repopulate.
+     */
+    populationKey?: unknown;
 }
 
 /**
@@ -61,8 +85,12 @@ export interface WrappedFieldProps<TValue = unknown> {
  * TCommand defaults to unknown; callers should specify the command type
  * explicitly for full type safety on the value accessor.
  */
-export type CommandFormFieldComponentProps<TComponentProps extends WrappedFieldProps, TCommand = unknown> =
-    Omit<TComponentProps, keyof WrappedFieldProps> & BaseCommandFormFieldProps<TCommand> & InjectedCommandFormFieldProps;
+export type CommandFormFieldComponentProps<
+    TComponentProps extends WrappedFieldProps,
+    TCommand = unknown,
+> = Omit<TComponentProps, keyof WrappedFieldProps> &
+    BaseCommandFormFieldProps<TCommand> &
+    InjectedCommandFormFieldProps;
 
 /**
  * Wraps a field component to work with CommandForm, handling all integration automatically.
@@ -104,16 +132,18 @@ export type CommandFormFieldComponentProps<TComponentProps extends WrappedFieldP
  * ```
  */
 export function asCommandFormField<TComponentProps extends WrappedFieldProps<unknown>>(
-    component: ComponentType<TComponentProps> | ((props: TComponentProps) => React.ReactElement),
-    config: CommandFormFieldConfig<TComponentProps['value']>
+    component:
+        | ComponentType<TComponentProps>
+        | ((props: TComponentProps) => React.ReactElement),
+    config: CommandFormFieldConfig<TComponentProps['value']>,
 ) {
     const { defaultValue, extractValue } = config;
-    const Component = typeof component === 'function' && !component.prototype?.render
-        ? component
-        : component as ComponentType<TComponentProps>;
-
-    const WrappedField = <TCommand = unknown,>(
-        props: CommandFormFieldComponentProps<TComponentProps, TCommand>
+    const Component =
+        typeof component === 'function' && !component.prototype?.render
+            ? component
+            : (component as ComponentType<TComponentProps>);
+    const BoundField = <TCommand = unknown,>(
+        props: CommandFormFieldComponentProps<TComponentProps, TCommand>,
     ): React.ReactElement => {
         const {
             currentValue,
@@ -128,7 +158,8 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
         const { getFieldError, customFieldErrors } = useCommandFormContext();
 
         // Determine if field is required based on PropertyDescriptor or explicit prop
-        const isRequired = required ?? (propertyDescriptor ? !propertyDescriptor.isOptional : true);
+        const isRequired =
+            required ?? (propertyDescriptor ? !propertyDescriptor.isOptional : true);
 
         const serverError = fieldName ? getFieldError(fieldName) : undefined;
         const customError = fieldName ? customFieldErrors[fieldName] : undefined;
@@ -144,7 +175,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             onValueChange?.(newValue);
         };
 
-        const displayValue = currentValue !== undefined ? currentValue : defaultValue;
+        const displayValue = currentValue === undefined ? defaultValue : currentValue;
 
         const wrappedProps = {
             ...componentProps,
@@ -153,13 +184,16 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             onBlur,
             invalid: isInvalid,
             required: isRequired,
-            errors
+            errors,
         } as TComponentProps;
 
         return <Component {...wrappedProps} />;
     };
 
-    WrappedField.displayName = 'CommandFormField';
-
-    return WrappedField;
+    const wrappedField = withCommandFormFieldBinding(BoundField);
+    wrappedField.commandFormFieldName =
+        (component as ComponentType<TComponentProps>).displayName ||
+        component.name ||
+        'CommandFormField';
+    return wrappedField;
 }

@@ -47,7 +47,7 @@ public class an_application_importing_an_event : given.an_emitter
     }
 
     [Fact] void should_declare_the_import() => _emission.Source.Contains("import Partners.Contracts.InvitationToJoinAdaAccepted", StringComparison.Ordinal).ShouldBeTrue();
-    [Fact] void should_still_observe_it_from_the_reactor() => _emission.Source.Contains("on InvitationToJoinAdaAccepted", StringComparison.Ordinal).ShouldBeTrue();
+    [Fact] void should_still_observe_it_from_the_reactor() => _emission.Source.Contains("when InvitationToJoinAdaAccepted", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
     [Fact] void should_leave_the_language_nothing_to_warn_about() => _roundTrip.Diagnostics.ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);

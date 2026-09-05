@@ -44,7 +44,7 @@ public class a_reducer : Specification
 
     void Establish() => _analysis = Analyzed.Source(Source);
 
-    ProjectionModel Projection => _analysis.Slice().Projection!;
+    ProjectionModel Projection => _analysis.Slice().Projections.Single();
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_still_state_the_read_model_it_builds() => Projection.ReadModel.ShouldEqual("Balance");

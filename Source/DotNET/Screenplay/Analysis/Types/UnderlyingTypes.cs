@@ -57,6 +57,13 @@ public static class UnderlyingTypes
     /// <param name="type">The type to strip.</param>
     /// <param name="optional">Set when a wrapper said the value may be absent.</param>
     /// <returns>The wrapped type.</returns>
+    /// <remarks>
+    /// The annotation saying a reference may be absent is stripped along with the wrapper that says the same of a
+    /// value, and for the same reason: whether it is there is answered by <paramref name="optional"/>, so leaving it
+    /// on hands back a symbol whose name carries the answer twice. That is not cosmetic - a reader telling two types
+    /// apart by the text of their name reads <c>Mentorship</c> and <c>Mentorship?</c> as two different records, and a
+    /// record referring to itself through an optional property is exactly where that happens.
+    /// </remarks>
     static ITypeSymbol Unwrap(ITypeSymbol type, ref bool optional)
     {
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
@@ -66,11 +73,16 @@ public static class UnderlyingTypes
             return nullable.TypeArguments[0];
         }
 
-        if (type.NullableAnnotation == NullableAnnotation.Annotated && type.IsReferenceType)
+        if (type.NullableAnnotation != NullableAnnotation.Annotated)
+        {
+            return type;
+        }
+
+        if (type.IsReferenceType)
         {
             optional = true;
         }
 
-        return type;
+        return type.WithNullableAnnotation(NullableAnnotation.None);
     }
 }

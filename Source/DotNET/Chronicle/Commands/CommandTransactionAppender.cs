@@ -19,12 +19,46 @@ internal static class CommandTransactionAppender
     /// <summary>
     /// The causation property carrying the event sequence id.
     /// </summary>
-    internal const string CausationEventSequenceIdProperty = "eventSequenceId";
+    internal const string CausationEventSequenceIdProperty = CommandCausation.EventSequenceIdProperty;
 
     /// <summary>
     /// The causation type recorded for events a command appends through its transaction.
     /// </summary>
-    internal static readonly CausationType CausationType = "Command";
+    internal static readonly CausationType CausationType = CommandCausation.Type;
+
+    /// <summary>
+    /// Creates the causation recorded for an event returned from a command handler.
+    /// </summary>
+    /// <param name="eventLog">The <see cref="IEventLog"/> the event targets.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> of the command that produced the event.</param>
+    /// <returns>The command causation for the event.</returns>
+    /// <remarks>
+    /// The causation names the command, not just the fact that a command was involved. An event whose causation
+    /// says only "Command" can be traced back to the pipeline and no further, which is no more than the event
+    /// already implies.
+    /// </remarks>
+    internal static Causation CreateCommandCausation(this IEventLog eventLog, CommandContext commandContext)
+    {
+        var properties = CommandCausation.PropertiesFor(commandContext.Type, commandContext.Command);
+        properties[CausationEventSequenceIdProperty] = eventLog.Id;
+        return new(DateTimeOffset.Now, CausationType, properties);
+    }
+
+    /// <summary>
+    /// Applies the command context metadata used by returned-event handlers to an event for an explicit event source.
+    /// </summary>
+    /// <param name="eventLog">The <see cref="IEventLog"/> the event targets.</param>
+    /// <param name="event">The event and target event source returned by the command.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> carrying the event metadata.</param>
+    /// <returns>A new event value carrying the command metadata.</returns>
+    internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext) =>
+        new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
+        {
+            EventStreamType = commandContext.GetEventStreamType() ?? EventStreamType.All,
+            EventStreamId = commandContext.GetEventStreamId() ?? EventStreamId.Default,
+            EventSourceType = commandContext.GetEventSourceType() ?? EventSourceType.Default,
+            Subject = commandContext.GetSubject()
+        };
 
     /// <summary>
     /// Tries to enroll the event in the command's transaction, using the same metadata the immediate append would
@@ -47,7 +81,7 @@ internal static class CommandTransactionAppender
             eventLog.Id,
             eventSourceId,
             @event,
-            new Causation(DateTimeOffset.Now, CausationType, new Dictionary<string, string> { { CausationEventSequenceIdProperty, eventLog.Id } }),
+            eventLog.CreateCommandCausation(commandContext),
             commandContext.GetEventStreamType(),
             commandContext.GetEventStreamId(),
             commandContext.GetEventSourceType(),

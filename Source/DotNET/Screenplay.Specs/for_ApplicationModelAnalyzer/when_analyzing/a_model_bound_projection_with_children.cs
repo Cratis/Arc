@@ -49,7 +49,7 @@ public class a_model_bound_projection_with_children : Specification
     void Establish()
     {
         _analysis = Analyzed.Source(Source);
-        _children = _analysis.Slice().Projection!.Scope.Children.Single();
+        _children = _analysis.Slice().Projections.Single().Scope.Children.Single();
     }
 
     ProjectionFromModel From => _children.Scope.From.Single();
@@ -62,6 +62,6 @@ public class a_model_bound_projection_with_children : Specification
     [Fact] void should_key_a_child_on_the_property_the_declaration_names() => From.Key.ShouldEqual("bookId");
     [Fact] void should_find_the_parent_by_the_property_the_declaration_names() => From.ParentKey.ShouldEqual("shelfId");
     [Fact] void should_map_what_the_type_of_the_child_declares() => From.Properties["Title"].ShouldEqual("title");
-    [Fact] void should_still_observe_the_event_the_read_model_names() => _analysis.Slice().Projection!.Scope.From.Single().EventTypes.ShouldContainOnly(["ShelfInstalled"]);
+    [Fact] void should_still_observe_the_event_the_read_model_names() => _analysis.Slice().Projections.Single().Scope.From.Single().EventTypes.ShouldContainOnly(["ShelfInstalled"]);
     [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
 }
