@@ -84,14 +84,16 @@ public static class EventSourceExtensions
 
     /// <summary>
     /// Determines whether the given property is the command's event source key — an <see cref="EventSourceId"/>, a
-    /// generic <see cref="EventSourceId{T}"/> subtype, or a property carrying the <see cref="KeyAttribute"/>.
+    /// generic <see cref="EventSourceId{T}"/> subtype, or a property carrying the <see cref="KeyAttribute"/>. For a
+    /// positional record, the key attribute can be carried by the matching primary-constructor parameter instead.
     /// </summary>
     /// <param name="property">The property to check.</param>
     /// <returns>True if the property is the event source key; otherwise, false.</returns>
     internal static bool IsEventSourceKeyProperty(this PropertyInfo property) =>
         property.PropertyType.IsAssignableTo(typeof(EventSourceId)) ||
         IsGenericEventSourceIdType(property.PropertyType) ||
-        property.HasAttribute<KeyAttribute>();
+        property.HasAttribute<KeyAttribute>() ||
+        HasKeyAttributeOnMatchingConstructorParameter(property);
 
     /// <summary>
     /// Determines whether the given value is an <see cref="EventSourceId"/> or a generic <see cref="EventSourceId{T}"/> subtype.
@@ -134,6 +136,15 @@ public static class EventSourceExtensions
 
         return value.ToString()!;
     }
+
+    static bool HasKeyAttributeOnMatchingConstructorParameter(PropertyInfo property) =>
+        property.DeclaringType?
+            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .SelectMany(_ => _.GetParameters())
+            .Any(_ =>
+                _.Name == property.Name &&
+                _.ParameterType == property.PropertyType &&
+                _.GetCustomAttribute<KeyAttribute>() is not null) == true;
 
     /// <summary>
     /// Converts a value to an <see cref="EventSourceId"/>, returning <see cref="EventSourceId.Unspecified"/> when the
