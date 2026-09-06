@@ -5,3 +5,4 @@ export * from './IdentityProvider';
 export * from './IdentityProviderResult';
 export * from './IIdentityProvider';
 export * from './IIdentity';
+export * from './deserializeIdentityDetails';
