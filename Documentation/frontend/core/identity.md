@@ -36,7 +36,7 @@ console.log(`Hello '${identity.name}'`);
 Part of the identity can hold details that are beyond what the identity provider provides. These details are application specific and something that your
 application or ingress should be responsible for filling out. Details can be considered optional, as that might not be a requirement for your application.
 
-The `getCurrent()` method takes a generic parameter that allows you to specify the type of the details object.
+The `getCurrent()` method takes a generic type parameter that allows you to specify the type of the details object.
 
 ```typescript
 import { IdentityProvider } from '@cratis/arc/identity';
@@ -50,6 +50,28 @@ const identity = await IdentityProvider.getCurrent<IdentityDetails>();
 
 console.log(`Hello '${identity.name}' from ´${identity.details.department}`);
 ```
+
+> [!IMPORTANT]
+> The `<IdentityDetails>` **type parameter** only tells TypeScript what shape to expect at compile time - it has no effect at runtime, because a type is erased before the code ever runs. `identity.details` above is still the raw JSON object the server sent.
+>
+> Deserialization into a real class - constructing `Guid`, `DateOnly`, or other complex types with their methods and behavior instead of plain JSON - only happens when you additionally pass a class **constructor** as a runtime argument to `getCurrent()`:
+>
+> ```typescript
+> import { IdentityProvider } from '@cratis/arc/identity';
+> import { Guid, field } from '@cratis/fundamentals';
+>
+> class IdentityDetails {
+>     @field(Guid)
+>     userId!: Guid;
+> }
+>
+> // The constructor argument is what deserializes - not just the <IdentityDetails> type parameter.
+> const identity = await IdentityProvider.getCurrent(IdentityDetails);
+>
+> console.log(identity.details.userId.toString());
+> ```
+>
+> The class also needs an `@field` decorator on every property you want populated - a class with none of them cannot be deserialized into, and the raw payload is passed through unchanged instead of being silently blanked.
 
 ## IIdentity
 
