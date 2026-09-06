@@ -6,7 +6,7 @@ using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifie
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorCommandPipelineExecuteOnceOnlyAnalyzer.when_analyzing_reactor_methods;
 
-public class and_method_invokes_execute_without_once_only : Specification
+public class and_the_execute_is_reached_through_two_helpers : Specification
 {
     Exception _result;
 
@@ -24,14 +24,18 @@ namespace TestNamespace
 
     public class StockKeeping(ICommandPipeline commandPipeline) : IReactor
     {
-        public Task BookReserved(BookReserved @event) =>
-            {|#0:commandPipeline.Execute(new DecreaseStock(@event.Isbn))|};
+        public Task On(BookReserved @event) => First(@event.Isbn);
+
+        Task First(string isbn) => Second(isbn);
+
+        Task Second(string isbn) =>
+            {|#0:commandPipeline.Execute(new DecreaseStock(isbn))|};
     }
 }",
                 VerifyCS.Diagnostic("ARCCHR0006")
                     .WithSeverity(DiagnosticSeverity.Warning)
                     .WithLocation(0)
-                    .WithArguments("BookReserved")));
+                    .WithArguments("On")));
 
     [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }

@@ -1,12 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.CodeAnalysis;
 using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.Chronicle.CodeAnalysis.ReactorCommandPipelineExecuteOnceOnlyAnalyzer>;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorCommandPipelineExecuteOnceOnlyAnalyzer.when_analyzing_reactor_methods;
 
-public class and_method_invokes_execute_without_once_only : Specification
+/// <summary>
+/// A class-level [OnceOnly] excludes the whole reactor from replay, so no handler on it can ever need a replay
+/// decision.
+/// </summary>
+public class and_the_reactor_is_marked_once_only : Specification
 {
     Exception _result;
 
@@ -22,16 +25,13 @@ namespace TestNamespace
     public record BookReserved(string Isbn);
     public record DecreaseStock(string Isbn);
 
+    [OnceOnly]
     public class StockKeeping(ICommandPipeline commandPipeline) : IReactor
     {
-        public Task BookReserved(BookReserved @event) =>
-            {|#0:commandPipeline.Execute(new DecreaseStock(@event.Isbn))|};
+        public Task On(BookReserved @event) =>
+            commandPipeline.Execute(new DecreaseStock(@event.Isbn));
     }
-}",
-                VerifyCS.Diagnostic("ARCCHR0006")
-                    .WithSeverity(DiagnosticSeverity.Warning)
-                    .WithLocation(0)
-                    .WithArguments("BookReserved")));
+}"));
 
-    [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
+    [Fact] void should_not_report_diagnostic() => _result.ShouldBeNull();
 }

@@ -6,7 +6,11 @@ using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifie
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorCommandPipelineExecuteOnceOnlyAnalyzer.when_analyzing_reactor_methods;
 
-public class and_method_invokes_execute_without_once_only : Specification
+/// <summary>
+/// The private helper itself is never a dispatch candidate, but the public handler that reaches it through the
+/// call is — the rule has to walk back from the <c>Execute</c> call to the handler that owns the decision.
+/// </summary>
+public class and_the_execute_is_in_a_private_helper_called_by_a_handler_without_once_only : Specification
 {
     Exception _result;
 
@@ -24,14 +28,16 @@ namespace TestNamespace
 
     public class StockKeeping(ICommandPipeline commandPipeline) : IReactor
     {
-        public Task BookReserved(BookReserved @event) =>
-            {|#0:commandPipeline.Execute(new DecreaseStock(@event.Isbn))|};
+        public Task On(BookReserved @event) => Decrease(@event.Isbn);
+
+        Task Decrease(string isbn) =>
+            {|#0:commandPipeline.Execute(new DecreaseStock(isbn))|};
     }
 }",
                 VerifyCS.Diagnostic("ARCCHR0006")
                     .WithSeverity(DiagnosticSeverity.Warning)
                     .WithLocation(0)
-                    .WithArguments("BookReserved")));
+                    .WithArguments("On")));
 
     [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }

@@ -6,7 +6,12 @@ using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifie
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReactorCommandPipelineExecuteOnceOnlyAnalyzer.when_analyzing_reactor_methods;
 
-public class and_method_invokes_execute_without_once_only : Specification
+/// <summary>
+/// Chronicle's dispatch is not public-only: a private method whose first parameter is an event type is invoked
+/// when no public candidate claims the same event, exactly as it would be here. Reporting only public handlers
+/// would miss the case dispatch actually selects.
+/// </summary>
+public class and_the_only_handler_for_the_event_is_private : Specification
 {
     Exception _result;
 
@@ -24,14 +29,14 @@ namespace TestNamespace
 
     public class StockKeeping(ICommandPipeline commandPipeline) : IReactor
     {
-        public Task BookReserved(BookReserved @event) =>
+        Task On(BookReserved @event) =>
             {|#0:commandPipeline.Execute(new DecreaseStock(@event.Isbn))|};
     }
 }",
                 VerifyCS.Diagnostic("ARCCHR0006")
                     .WithSeverity(DiagnosticSeverity.Warning)
                     .WithLocation(0)
-                    .WithArguments("BookReserved")));
+                    .WithArguments("On")));
 
     [Fact] void should_report_diagnostic() => _result.ShouldBeNull();
 }
