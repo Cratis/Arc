@@ -47,16 +47,16 @@ static class DiagnosticDescriptors
         description: "Reactors observe events and produce side effects; they must not append to the default event log directly, whether by injecting IEventLog or by appending through an injected IEventStore (its EventLog property or GetEventSequence(EventSequenceId.Log)). Both write to the sequence the handler's return type already targets, so return the events instead — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers for another event source. To trigger work in another slice, inject ICommandPipeline and execute a command. Two shapes a returned event cannot express are not reported: routing to a different sequence, such as GetEventSequence(EventSequenceId.Outbox), and appending to an event store other than the one the reactor was handed, such as one obtained from IChronicleClient.GetEventStore.");
 
     /// <summary>
-    /// ARCCHR0004: [EventType] should not specify an explicit id.
+    /// ARCCHR0004: [EventType] repeats the type name as its id.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0004_EventTypeShouldNotSpecifyId = new(
+    public static readonly DiagnosticDescriptor ARCCHR0004_EventTypeIdRepeatsTypeName = new(
         id: "ARCCHR0004",
-        title: "[EventType] should not specify an explicit id",
-        messageFormat: "Event type '{0}' specifies an explicit id on [EventType]. Remove the id argument — the type name is used as the identifier automatically.",
+        title: "[EventType] repeats the type name as its id",
+        messageFormat: "Event type '{0}' passes its own name as the id on [EventType]. Remove the id argument — the type name is what the identifier defaults to, so it changes nothing.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "The [EventType] attribute derives its identifier from the type name by convention, so an explicit id should not be passed. Use a bare [EventType]. The generation argument is still allowed for event evolution.");
+        description: "This rule only reports the redundant case: an id equal to the type's own name, or an empty string, neither of which changes what the event type resolves to. An id that differs from the type name is the documented way to rename an event record while stored events keep resolving under the old identifier — removing it there would orphan every stored event of that type, so it is left alone. A non-constant id cannot be evaluated at compile time and is also left alone. The generation argument is never reported.");
 
     /// <summary>
     /// ARCCHR0005: Chronicle artifacts are present but Chronicle is not wired up.
