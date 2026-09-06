@@ -30,14 +30,28 @@ const deserializedDetailsCache = new WeakMap<object, Map<Constructor, unknown>>(
  * @param {unknown} rawDetails The details currently held by the identity context.
  * @param {unknown} defaultDetails The default to fall back to when there are no details to give. Used
  * as-is, never deserialized - the caller already supplies it typed.
+ * @param {boolean} isSet Whether the identity has resolved to a signed-in caller.
  * @returns {TDetails} The resolved details.
  */
 function resolveDetails<TDetails>(
     providerDetailsConstructor: Constructor | undefined,
     type: Constructor<TDetails> | undefined,
     rawDetails: unknown,
-    defaultDetails: unknown
+    defaultDetails: unknown,
+    isSet: boolean
 ): TDetails {
+    if (!isSet) {
+        // Nobody is signed in yet - either the identity has not resolved, or it resolved to
+        // anonymous - so there are no real details to give. The caller's default is exactly what
+        // exists for this moment, and it wins outright without ever touching deserialization.
+        //
+        // Gated on `isSet`, not on the shape of `rawDetails`. The anonymous/not-yet-resolved sentinel
+        // happens to be `{}`, but `{}` is also a legitimate deserialized value for a details type with
+        // no populated members - guessing "there is nothing here" from shape would misfire for that
+        // caller, so `isSet` is the only signal trusted here.
+        return (defaultDetails ?? rawDetails) as TDetails;
+    }
+
     if (!type) {
         // No type was asked for - behave exactly as before this hook could deserialize anything.
         return (rawDetails ?? defaultDetails ?? rawDetails) as TDetails;
@@ -111,7 +125,7 @@ export function useIdentity<TDetails = object>(
     const type = isConstructor ? typeOrDefaultDetails as Constructor<TDetails> : undefined;
     const actualDefaultDetails = isConstructor ? defaultDetails : typeOrDefaultDetails;
 
-    const details = resolveDetails(contextValue.detailsConstructor, type, identity.details, actualDefaultDetails);
+    const details = resolveDetails(contextValue.detailsConstructor, type, identity.details, actualDefaultDetails, identity.isSet);
 
     return {
         ...identity,
