@@ -886,6 +886,22 @@ public class EnumParameterReadModel
             new EnumParameterReadModel { Id = Guid.NewGuid(), Name = dependency.Describe(status), Status = status }
         ];
     }
+
+    /// <summary>
+    /// Searches by a collection of statuses.
+    /// </summary>
+    /// <param name="statuses">The statuses to filter by.</param>
+    /// <returns>Collection of matching read models, one per requested status.</returns>
+    /// <remarks>
+    /// Covers a collection of enums as a query argument - the same defect that affected collections of primitives
+    /// and concepts also affected collections of enums, since all three share the same runtime classification
+    /// (<c>ConverterExtensions.IsEnumerableOfQueryArgumentElement</c> in Arc.Core) and generator predicate
+    /// (<c>TypeExtensions.IsEnumerableOfPrimitiveOrConcept</c>).
+    /// </remarks>
+    public static IEnumerable<EnumParameterReadModel> SearchByStatuses(IEnumerable<ReadModelStatus> statuses)
+    {
+        return statuses.Select(status => new EnumParameterReadModel { Id = Guid.NewGuid(), Name = $"Item {status}", Status = status });
+    }
 }
 
 /// <summary>
