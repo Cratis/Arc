@@ -107,8 +107,20 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
             _ => collection.Find(_ => false).ToList()
         };
     }
+
+    // A nullable enum works the same way — omit it from the query string to search across every status.
+    public static IEnumerable<DebitAccount> GetAccountsByOptionalStatus(
+        AccountStatus? status,
+        IMongoCollection<DebitAccount> collection)
+    {
+        return status.HasValue
+            ? collection.Find(a => a.Balance > 0).ToList()
+            : collection.Find(_ => true).ToList();
+    }
 }
 ```
+
+Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives or concepts. Everything else, including a plain class or an interface like `IMongoCollection<T>` or `ILogger<T>`, is treated as an injected dependency. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
 
 ### Collection Arguments
 
