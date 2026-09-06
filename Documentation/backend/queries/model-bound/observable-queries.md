@@ -70,6 +70,30 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
+### When There Is No Matching Document
+
+`ObserveSingle()` and `ObserveById()` emit `null` — not an error, and not a completed observable — when there is no document to report: the document was deleted, an update moved it out of the filter, or the initial query never found one. The subscription stays open, so if a document with the same key reappears later, subscribers start receiving it again.
+
+This is also what happens when a `[ReadModel]` marked `[RemovedWith<T>]` is removed: removal hard-deletes the backing document, and an active subscriber sees that removal as this same `null` emission — "the read model was removed" is not a special case to handle separately.
+
+Guard against it on the frontend the same way you guard against "not loaded yet" — with `result.hasData` (or `result.isReady` if you need to tell "no result yet" apart from "ready, but nothing matches"):
+
+```tsx
+const [result] = GetAccountObservable.use(accountId);
+
+if (!result.isReady) {
+    return <Spinner />;
+}
+
+if (!result.hasData) {
+    return <NotFound />;
+}
+
+return <AccountDetails account={result.data} />;
+```
+
+See [Observing Collections](../../mongodb/observing-collections.md#when-the-observed-document-is-gone) for the MongoDB-level detail.
+
 ## Custom Observable Logic
 
 For computed or derived data, build on top of the collection's observable. `Observe()`
