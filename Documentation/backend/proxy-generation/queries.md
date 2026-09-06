@@ -62,6 +62,8 @@ For each query, the generator creates:
 2. **Query Class**: Extends `QueryFor<TResult>` or `ObservableQueryFor<TResult>`
 3. **Route**: The HTTP route derived from the controller route or model-bound configuration
 
+Every generated query class also declares a `defaultValue` — the value the query result holds before the first response arrives. A single-instance query's `defaultValue` is a typed empty placeholder, `{} as TModel`, so the property is typed as the model without asserting a shape it does not yet have; an enumerable query's `defaultValue` is simply `[]`.
+
 ## Query Base Classes
 
 Depending on the query type, the generated class extends:
