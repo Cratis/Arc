@@ -270,9 +270,27 @@ public static class QueryExtensions
     /// </summary>
     /// <param name="parameterInfo">Parameter to convert.</param>
     /// <returns>Converted <see cref="RequestParameterDescriptor"/>.</returns>
+    /// <remarks>
+    /// <c>Nullable&lt;T&gt;</c> is unwrapped before anything else is derived from the type. Left wrapped, a nullable
+    /// enum's <see cref="RequestParameterDescriptor.OriginalType"/> stays <c>Nullable&lt;TEnum&gt;</c> rather than
+    /// <c>TEnum</c> - <see cref="TypeExtensions.IsKnownType"/> unwraps <c>Nullable&lt;T&gt;</c> before consulting the
+    /// primitive map, but an enum is never in that map either way, so the wrapper type (not the enum) is what
+    /// <see cref="QueryExtensions.ToQueryDescriptor"/> collects into <c>TypesInvolved</c>. <c>Nullable&lt;TEnum&gt;</c>
+    /// is not itself an enum, so it is missed by the enum split in the generator and instead run through
+    /// <see cref="TypeExtensions.ToTypeDescriptor"/> as if it were a plain class - reflecting <c>Nullable&lt;T&gt;</c>'s
+    /// own <c>HasValue</c>/<c>Value</c> properties into a bogus emitted type that collides with the enum's real name.
+    /// Optionality already comes from <see cref="IsOptional(ParameterInfo)"/>/<see cref="ParameterInfo.HasDefaultValue"/>,
+    /// not from the parameter's CLR type, so unwrapping here cannot change whether the parameter is treated as optional.
+    /// </remarks>
     static RequestParameterDescriptor ToQueryRequestParameterDescriptor(this ParameterInfo parameterInfo)
     {
         var paramType = parameterInfo.ParameterType;
+
+        if (paramType.IsNullable())
+        {
+            paramType = paramType.GetGenericArguments()[0];
+        }
+
         var isEnumerable = paramType.IsEnumerableOfPrimitiveOrConcept();
 
         if (isEnumerable)
