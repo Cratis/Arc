@@ -13,9 +13,16 @@ env:
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
 
+# The token is scoped to what prerelease publishing needs. Jobs that check out the pull request's own commit run
+# only for pull requests from this repository, so a fork's code never builds or publishes under this token.
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
 on:
   pull_request_target:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, synchronize, reopened]
     branches:
       - "**"
     paths:
@@ -24,6 +31,7 @@ on:
 
 jobs:
   release:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -42,7 +50,7 @@ jobs:
         uses: cratis/release-action@v1
 
   publish-nuget-packages:
-    if: needs.release.outputs.publish == 'true'
+    if: needs.release.outputs.publish == 'true' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [release]
@@ -105,7 +113,7 @@ jobs:
           allow-repeats: false
 
   publish-npm-packages:
-    if: needs.release.outputs.publish == 'true'
+    if: needs.release.outputs.publish == 'true' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [release]
