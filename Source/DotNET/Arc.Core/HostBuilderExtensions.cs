@@ -80,7 +80,6 @@ public static class HostBuilderExtensions
     {
         GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
 
-        Internals.DerivedTypes = DerivedTypes.Instance;
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
@@ -109,12 +108,12 @@ public static class HostBuilderExtensions
             .AddCratisArcMeter()
             .AddCratisArcActivitySource()
             .AddTypeDiscovery()
-            .AddSingleton(Internals.DerivedTypes)
             .AddBindingsByConvention()
             .AddSelfBindings();
 
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();
+        Internals.DerivedTypes = services.UseDerivedTypesFrom(Internals.Types);
 
         services.AddCratisCommands();
         services.AddCratisQueries();
@@ -176,8 +175,8 @@ public static class HostBuilderExtensions
     /// </para>
     /// <para>
     /// Reordering the chain to walk before <c>AddTypeDiscovery</c> would work out to the same universe, but it also
-    /// exposes <c>ITypes</c> and <c>IDerivedTypes</c> to convention binding, and a conventionally bound
-    /// <c>ITypes</c> constructs a whole new universe per resolution.
+    /// exposes <c>ITypes</c> to convention binding, and a conventionally bound <c>ITypes</c> constructs a whole new
+    /// universe per resolution.
     /// </para>
     /// </remarks>
     static ITypes UseCurrentTypeUniverse(this IServiceCollection services)
@@ -188,6 +187,39 @@ public static class HostBuilderExtensions
             .ImplementationInstance!;
 
         services.Replace(ServiceDescriptor.Singleton<ITypes>(current));
+        return current;
+    }
+
+    /// <summary>
+    /// Registers the derived types read off the given universe, replacing whatever else claimed
+    /// <see cref="IDerivedTypes"/> while the collection was being built, and returns it so the caller holds the same
+    /// instance the container resolves.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to register the derived types with.</param>
+    /// <param name="types">The <see cref="ITypes"/> universe to read derived types off.</param>
+    /// <returns>The <see cref="DerivedTypes"/> the container will hand out.</returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="DerivedTypes.Instance"/> is built from <c>Types.Instance</c>, so it carries the same narrowed
+    /// universe taking <c>Internals.Types</c> late exists to avoid - and merely reading it pins that static to
+    /// whatever the provider registry held at that moment, for the rest of the process and for every other Cratis
+    /// product sharing it. Building from the universe Arc just took keeps polymorphic JSON and the MongoDB
+    /// discriminator conventions seeing the same types everything else in the host sees, at the cost of no longer
+    /// sharing Fundamentals' global singleton. The cost is one more pass over a universe
+    /// <c>RegisterTypeConvertersForConcepts</c> has already walked in the same call.
+    /// </para>
+    /// <para>
+    /// <c>Replace</c> rather than <c>AddSingleton</c> because <c>AddBindingsByConvention</c> binds
+    /// <see cref="IDerivedTypes"/> to <see cref="DerivedTypes"/> by convention unless the service type is already
+    /// registered, and it now runs first. A conventionally bound one would resolve off the container's
+    /// <see cref="ITypes"/> to an instance that is equivalent but not the one Arc itself holds, which is the
+    /// divergence between <c>Internals</c> and the container this whole sequence exists to close.
+    /// </para>
+    /// </remarks>
+    static DerivedTypes UseDerivedTypesFrom(this IServiceCollection services, ITypes types)
+    {
+        var current = new DerivedTypes(types);
+        services.Replace(ServiceDescriptor.Singleton<IDerivedTypes>(current));
         return current;
     }
 }
