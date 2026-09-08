@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Cratis.Arc.Chronicle.Commands;
@@ -111,6 +112,7 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="artifactTypes">The backing artifact types to inspect.</param>
     /// <param name="openGenericInterface">The open generic interface whose single type argument is the read model type.</param>
     /// <returns>The concrete read model types behind the artifacts.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Artifact types are discovered via IClientArtifactsProvider at startup; their interfaces are preserved by the type system. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     static IEnumerable<Type> ReadModelTargetsFrom(IEnumerable<Type> artifactTypes, Type openGenericInterface) =>
         artifactTypes
             .Select(artifactType => artifactType.GetInterfaces()
@@ -119,6 +121,9 @@ public static class ReadModelServiceCollectionExtensions
             .Where(type => type?.IsClass == true && !type.IsAbstract)
             .Cast<Type>();
 
+    [UnconditionalSuppressMessage("AOT", "IL2060", Justification = "IReadModels.Release<T> has no non-generic overload. The read model types are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "Task<TReadModel>.Result is unwrapped via reflection; Task's own properties are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IReadModels.Release<T> has no non-generic overload. The read model types are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     static object ReleaseReadModel(IReadModels readModels, Type readModelType, object readModel)
     {
         try

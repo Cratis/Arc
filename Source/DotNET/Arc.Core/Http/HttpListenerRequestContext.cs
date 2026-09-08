@@ -3,6 +3,7 @@
 
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -79,6 +80,8 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)
     {
         using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
@@ -103,6 +106,8 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

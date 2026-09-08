@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Execution;
 using Cratis.Types;
 
@@ -20,6 +21,8 @@ public class QueryRenderers(
     readonly IEnumerable<Type> _queryProviders = types.FindMultiple(typeof(IQueryRendererFor<>));
 
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Query renderer types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "queryProviderType.GetMethod returns a method from a framework-defined interface preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     public QueryRendererResult Render(FullyQualifiedQueryName queryName, object query, IServiceProvider serviceProvider)
     {
         var queryType = query.GetType();

@@ -30,6 +30,7 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// </summary>
     /// <param name="types"><see cref="ITypes"/> for type discovery.</param>
     /// <param name="serviceProviderAccessor">Callback for getting the <see cref="IServiceProvider"/> to resolve validators from.</param>
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Candidate types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
     internal DiscoverableValidators(ITypes types, Func<IServiceProvider> serviceProviderAccessor)
     {
         _serviceProviderAccessor = serviceProviderAccessor;
@@ -116,6 +117,7 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Validator types from ITypes.FindMultiple have their constructors preserved by the type system. Source-generated construction is the long-term fix (tracked in GitHub issue #2204).")]
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
         // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.

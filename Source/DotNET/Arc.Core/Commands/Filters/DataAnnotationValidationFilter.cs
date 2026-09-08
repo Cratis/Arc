@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Commands.Filters;
@@ -11,6 +12,7 @@ namespace Cratis.Arc.Commands.Filters;
 public class DataAnnotationValidationFilter : ICommandFilter
 {
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "ValidationContext and Validator.TryValidateObject use reflection on the command type. Source-generated validation attributes are the long-term fix (tracked in GitHub issue #2204).")]
     public Task<CommandResult> OnExecution(CommandContext context)
     {
         var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();

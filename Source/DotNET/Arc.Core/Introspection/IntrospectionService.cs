@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
@@ -104,6 +105,8 @@ public class IntrospectionService : IIntrospectionService
         }).ToList();
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "DefaultJsonTypeInfoResolver is used only for introspection schema generation, a startup-time diagnostic surface, not the runtime request path. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "DefaultJsonTypeInfoResolver is used only for introspection schema generation, a startup-time diagnostic surface, not the runtime request path. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
     static JsonSerializerOptions CreateSchemaGenerationOptions(JsonSerializerOptions baseOptions)
     {
         var schemaGenerationOptions = new JsonSerializerOptions(baseOptions);
@@ -113,6 +116,8 @@ public class IntrospectionService : IIntrospectionService
 
     static JsonNode GetTypeSchema(Type type, JsonSerializerOptions schemaGenerationOptions) => schemaGenerationOptions.GetJsonSchemaAsNode(type);
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonArray.Add<string> is called with a primitive string argument; the flagged generic is not exercised with non-primitive types here. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonArray.Add<string> is called with a primitive string argument; the flagged generic is not exercised with non-primitive types here. Source-generated resolution is the long-term fix (tracked in GitHub issue #2204).")]
     static JsonObject GetArgumentsSchema(QueryParameters parameters, JsonSerializerOptions schemaGenerationOptions)
     {
         var properties = new JsonObject();
@@ -141,6 +146,7 @@ public class IntrospectionService : IIntrospectionService
         return schema;
     }
 
+    [UnconditionalSuppressMessage("SingleFile", "IL3000", Justification = "Assembly.Location is used only for XML documentation discovery; returns empty string in single-file mode, handled gracefully by File.Exists check (tracked in GitHub issue #2204).")]
     static string GetDocumentationSummary(Type type)
     {
         var xmlFile = Path.ChangeExtension(type.Assembly.Location, ".xml");

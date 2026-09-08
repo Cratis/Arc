@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.DependencyModel;
 
@@ -21,6 +22,7 @@ static class GeneratedMetadataRegistration
         EnsureProjectAssembliesLoaded();
     }
 
+    [UnconditionalSuppressMessage("SingleFile", "IL3002", Justification = "DependencyContext.Default is used only for project-assembly discovery at startup in non-single-file deployments; returns null in single-file mode so the branch is safely skipped (tracked in GitHub issue #2204 item 2).")]
     static void EnsureProjectAssembliesLoaded()
     {
         if (Interlocked.Exchange(ref _hasLoadedProjectAssemblies, 1) == 1)

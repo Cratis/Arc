@@ -5,6 +5,7 @@
         <RootNamespace>Cratis.Arc.Chronicle</RootNamespace>
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
+        <IsAotCompatible>false</IsAotCompatible>
         <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>

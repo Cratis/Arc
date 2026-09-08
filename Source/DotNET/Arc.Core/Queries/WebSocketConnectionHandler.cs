@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Cratis.Arc.Http;
@@ -81,6 +82,8 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
     }
 
     /// <inheritdoc/>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public async Task<Exception?> SendMessage(
         IWebSocket webSocket,
         QueryResult queryResult,
@@ -130,6 +133,8 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer with custom options. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     async Task HandlePotentialPingMessage(IWebSocket webSocket, byte[] buffer, int count, SemaphoreSlim writeLock, CancellationToken token)
     {
         try

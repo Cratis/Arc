@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Cratis.Arc;
 
@@ -19,6 +20,7 @@ public static class ConverterExtensions
     /// <remarks>
     /// Supports converting primitives to their <see cref="ConceptAs{T}"/> counterparts.
     /// </remarks>
+    [UnconditionalSuppressMessage("AOT", "IL2067", Justification = "Activator.CreateInstance(targetType) on value-type fallback path; targetType.IsValueType ensures it has a default constructor. Source-generated type converters are the long-term fix (tracked in GitHub issue #2204).")]
     public static object? ConvertTo(this object value, Type targetType)
     {
         if (value is null)
@@ -47,6 +49,9 @@ public static class ConverterExtensions
         return ConvertToUnderlyingType(value, targetType);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2067", Justification = "Activator.CreateInstance(targetType) on value-type fallback path; targetType.IsValueType ensures it has a default constructor. Source-generated type converters are the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "TypeDescriptor.GetConverter uses reflection. Source-generated TypeConverter registration is the long-term fix (tracked in GitHub issue #2204 item 7).")]
+    [UnconditionalSuppressMessage("AOT", "IL2067", Justification = "TypeDescriptor.GetConverter requires All members on the type. The targetType/underlyingType values come from user code at runtime; source-generated registration is the long-term fix (tracked in GitHub issue #2204 item 7).")]
     static object? ConvertToUnderlyingType(object value, Type targetType)
     {
         if (value is null)

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.DependencyInjection;
 using Cratis.Types;
@@ -38,6 +39,8 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return await Task.WhenAll(items.Select(item => InterceptItem(item, entries, serviceInterceptors, serviceEntry, serviceProvider)));
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Interceptor types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The returned MethodInfo/PropertyInfo are for interface members which are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
     static InterceptorCache BuildCache(ITypes types)
     {
         var interceptorTypes = types.FindMultiple(typeof(IInterceptReadModel<>));
@@ -80,6 +83,10 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return new(concreteInterceptors, openGenericInterceptorTypes);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2055", Justification = "MakeGenericType closes an open-generic interceptor over a read model type discovered at startup; both are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Open-generic interceptor types are discovered via ITypes.FindMultiple which preserves interfaces. Source-generated type discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The returned MethodInfo/PropertyInfo are for interface members which are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "MakeGenericType closes an open-generic interceptor over a read model type discovered at startup; both are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     static bool TryCreateOpenGenericEntry(Type openGenericInterceptorType, Type readModelType, out InterceptorEntry entry)
     {
         entry = default;
@@ -116,6 +123,8 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return true;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "The returned MethodInfo/PropertyInfo are for interface members which are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "MakeGenericType closes IInterceptReadModel<> over a read model type discovered at startup; both are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204).")]
     static ServiceInterceptorEntry CreateServiceEntry(Type readModelType)
     {
         var serviceType = typeof(IInterceptReadModel<>).MakeGenericType(readModelType);
@@ -156,6 +165,7 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return entries;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2072", Justification = "Interceptor types from ITypes.FindMultiple have their constructors preserved by the type system. Source-generated registration is the long-term fix (tracked in GitHub issue #2204).")]
     async Task<object> InterceptItem(
         object item,
         IEnumerable<InterceptorEntry> entries,

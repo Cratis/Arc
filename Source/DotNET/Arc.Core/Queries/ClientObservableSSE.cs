@@ -105,7 +105,9 @@ public class ClientObservableSSE<T>(
                     return;
                 }
 
+#pragma warning disable IL2026, IL3050 // JsonSerializer with custom options requires source-generated JsonSerializerContext (tracked in GitHub issue #2204 item 5)
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
+#pragma warning restore IL2026, IL3050
                 var sseMessage = $"data: {json}\n\n";
 
                 try

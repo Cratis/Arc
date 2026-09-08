@@ -13,6 +13,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
+        <IsAotCompatible>false</IsAotCompatible>
         <NoWarn>$(NoWarn);NU5128;NU1507</NoWarn>
         <!-- Analyzer-only assembly: the compiler loads this in-proc, so it must reference only compiler-provided
              assemblies (no Microsoft.CodeAnalysis.CSharp.Workspaces - code fixes for these analyzers live in the
