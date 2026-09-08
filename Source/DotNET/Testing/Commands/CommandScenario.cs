@@ -79,7 +79,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
 
         Context = new Dictionary<string, object>();
 
-        foreach (var extender in Cratis.Types.Types.Instance.FindMultiple<ICommandScenarioExtender>()
+        foreach (var extender in TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandScenarioExtender>()
                      .Select(extenderType => Activator.CreateInstance(extenderType) as ICommandScenarioExtender
                          ?? throw new InvalidOperationException(
                              $"Failed to create an instance of command scenario extender '{extenderType.FullName}'. " +
@@ -250,7 +250,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
         // command scope (see DiscoverableValidators.TryGet), so a validator taking a read model resolves the same
         // way a command handler does — no registration required.
         var discoverableValidators = new DiscoverableValidators(
-            Cratis.Types.Types.Instance,
+            TypesServiceCollectionExtensions.CurrentTypeUniverse(),
             () => serviceProvider ?? throw new InvalidOperationException("The command scenario service provider has not been built."));
 
         if (!hasExplicitDiscoverableValidatorsRegistration)
