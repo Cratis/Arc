@@ -11,6 +11,7 @@ using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Serialization;
+using Cratis.Types;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -79,8 +80,6 @@ public static class HostBuilderExtensions
     {
         GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
 
-        Internals.Types = Types.Types.Instance;
-        Internals.Types.RegisterTypeConvertersForConcepts();
         Internals.DerivedTypes = DerivedTypes.Instance;
         TypeConverters.Register();
 
@@ -114,6 +113,9 @@ public static class HostBuilderExtensions
             .AddBindingsByConvention()
             .AddSelfBindings();
 
+        Internals.Types = services.UseCurrentTypeUniverse();
+        Internals.Types.RegisterTypeConvertersForConcepts();
+
         services.AddCratisCommands();
         services.AddCratisQueries();
 
@@ -145,5 +147,47 @@ public static class HostBuilderExtensions
             .AddActivitySource<QueryFilters>(Internals.ActivitySourceName)
             .AddActivitySource<QueryPipeline>(Internals.ActivitySourceName)
             .AddActivitySource<IdentityProvider>(Internals.ActivitySourceName);
+    }
+
+    /// <summary>
+    /// Registers the type universe as it stands once every generated type discovery provider has registered,
+    /// replacing the one <see cref="TypesServiceCollectionExtensions.AddTypeDiscovery"/> registered earlier, and
+    /// returns it so the caller holds the same instance the container resolves.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to register the universe with.</param>
+    /// <returns>The <see cref="ITypes"/> the container will hand out.</returns>
+    /// <remarks>
+    /// <para>
+    /// <c>AddBindingsByConvention</c> and <c>AddSelfBindings</c> walk the assembly reference closure and run module
+    /// constructors, which is where generated providers for assemblies nothing had touched yet register themselves.
+    /// A universe built before that walk is missing everything the walk brings in, and nothing about it says so - a
+    /// shorter <c>ITypes.All</c> is indistinguishable from a feature nobody wrote. That is why the universe is taken
+    /// here rather than at the top of <c>AddCratisArcCore</c>, and why <c>Types.Instance</c> is no longer used for
+    /// it at all: being a static field it snapshots the provider registry the first time anything touches the type,
+    /// so a later provider can never reach it.
+    /// </para>
+    /// <para>
+    /// Asking <c>AddTypeDiscovery</c> for the universe - rather than constructing one - is what keeps this instance
+    /// identical to the one a container configured after the walk resolves. Fundamentals 7.18.5 adds to that only
+    /// the cost: it keys its default universe on the registered provider set, so this rebuilds while the set is
+    /// still growing and is a lookup once it has settled, where 7.18.2 built an equally correct universe from
+    /// scratch every call. Correctness comes from taking the universe late; the pin moves so that taking it late
+    /// stays affordable for a host that configures many containers.
+    /// </para>
+    /// <para>
+    /// Reordering the chain to walk before <c>AddTypeDiscovery</c> would work out to the same universe, but it also
+    /// exposes <c>ITypes</c> and <c>IDerivedTypes</c> to convention binding, and a conventionally bound
+    /// <c>ITypes</c> constructs a whole new universe per resolution.
+    /// </para>
+    /// </remarks>
+    static ITypes UseCurrentTypeUniverse(this IServiceCollection services)
+    {
+        var current = (ITypes)new ServiceCollection()
+            .AddTypeDiscovery()
+            .Single(_ => _.ServiceType == typeof(ITypes))
+            .ImplementationInstance!;
+
+        services.Replace(ServiceDescriptor.Singleton<ITypes>(current));
+        return current;
     }
 }
