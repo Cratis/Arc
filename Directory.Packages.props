@@ -20,8 +20,8 @@
     <PackageVersion Include="Cratis.Chronicle" Version="17.0.4" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="17.0.4" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="17.0.4" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.18.2" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.18.2" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.19.1" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.19.1" />
     <PackageVersion Include="Cratis.Screenplay" Version="4.6.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.17.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.17.0" />

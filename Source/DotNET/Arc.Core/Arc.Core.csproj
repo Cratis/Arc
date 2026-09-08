@@ -8,6 +8,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Core.TypeDiscovery.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB" />
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore" />

@@ -3,6 +3,7 @@
 
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Testing.Commands;
 
@@ -42,7 +43,7 @@ public static class CommandResultAssertionPolicies
 
     static IReadOnlyList<ICommandResultAssertionPolicy> Discover() =>
     [
-        .. Cratis.Types.Types.Instance.FindMultiple<ICommandResultAssertionPolicy>()
+        .. TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandResultAssertionPolicy>()
             .Select(policyType => Activator.CreateInstance(policyType) as ICommandResultAssertionPolicy
                 ?? throw new InvalidOperationException(
                     $"Failed to create an instance of command result assertion policy '{policyType.FullName}'. " +
