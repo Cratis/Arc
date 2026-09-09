@@ -55,10 +55,12 @@ function MyForm() {
 | `initialValues` | `Partial<TCommand>` | `undefined` | Initial values for the form fields |
 | `currentValues` | `Partial<TCommand>` | `undefined` | Current values that will be merged with initial values |
 | `showTitles` | `boolean` | `true` | Whether to show field titles automatically |
-| `showErrors` | `boolean` | `true` | Whether to show field error messages automatically |
+| `showErrors` | `boolean` | `true` | Whether to show automatic field errors and form-level exception feedback, including the custom exception renderer |
+| `exceptionMessage` | `string` | `'An unexpected error occurred. Please try again.'` | Safe user-facing exception text; supports localization and preserves an explicitly empty string |
+| `exceptionDisplayComponent` | `React.ComponentType<ExceptionDisplayProps>` | `undefined` | Replaces the default exception panel; receives only `{ message: string }` and is not invoked when `showErrors` is false |
 | `fieldContainerComponent` | `React.ComponentType<FieldContainerProps>` | `undefined` | Custom component for rendering field containers |
 | `fieldDecoratorComponent` | `React.ComponentType<FieldDecoratorProps>` | `undefined` | Custom component for decorating fields with icons and tooltips |
-| `errorDisplayComponent` | `React.ComponentType<ErrorDisplayProps>` | `undefined` | Custom component for rendering validation errors |
+| `errorDisplayComponent` | `React.ComponentType<ErrorDisplayProps>` | `undefined` | Custom component for rendering field validation errors, not form-level exceptions |
 | `tooltipComponent` | `React.ComponentType<TooltipWrapperProps>` | `undefined` | Custom component for rendering tooltips on field descriptions |
 | `errorClassName` | `string` | `'p-error'` | CSS class name for error message elements |
 | `iconAddonClassName` | `string` | `'p-inputgroup-addon'` | CSS class name for icon addon containers |
@@ -66,10 +68,12 @@ function MyForm() {
 | `onFieldChange` | `(command, fieldName, oldValue, newValue) => void` | `undefined` | Callback when field value changes |
 | `onBeforeExecute` | `(values) => values` | `undefined` | Transform command values before execution |
 | `onSuccess` | `(response: TResponse) => void` | `undefined` | Called when command executes successfully |
-| `onFailed` | `(commandResult: CommandResult<TResponse>) => void` | `undefined` | Called when command execution fails |
-| `onException` | `(messages: string[], stackTrace: string) => void` | `undefined` | Called when command throws an exception |
+| `onFailed` | `(commandResult: ICommandResult<TResponse>) => void` | `undefined` | Called with the original result when command execution fails |
+| `onException` | `(messages: string[], stackTrace: string) => void` | `undefined` | Called with original diagnostics when the command result has `hasExceptions: true` |
 | `onUnauthorized` | `() => void` | `undefined` | Called when user is not authorized |
 | `onValidationFailure` | `(validationResults: ValidationResult[]) => void` | `undefined` | Called when command fails validation |
+
+Exception feedback uses safe text rather than raw server diagnostics. See [safe exception customization](./customization.md#safe-exception-feedback) for localization and replacement renderers, and [exception diagnostics and display](./form-lifecycle.md#exception-diagnostics-and-display) for callback and context behavior.
 
 ## Initial Values
 

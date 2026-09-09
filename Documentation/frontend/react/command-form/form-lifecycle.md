@@ -7,7 +7,8 @@ Control form behavior throughout its lifecycle with hooks, state management, cal
 Handle command execution results with dedicated callbacks. These callbacks are invoked automatically after command execution based on the result state:
 
 ```tsx
-import { CommandForm } from '@cratis/arc/commands';
+import { CommandForm } from '@cratis/arc.react/commands';
+import type { ICommandResult } from '@cratis/arc/commands';
 import { ValidationResult } from '@cratis/arc/validation';
 
 interface CreateUserResponse {
@@ -21,14 +22,14 @@ function UserForm() {
         // Navigate to user profile, show success message, etc.
     };
     
-    const handleFailed = (result: CommandResult<CreateUserResponse>) => {
+    const handleFailed = (result: ICommandResult<CreateUserResponse>) => {
         console.error('Command failed:', result);
         // Handle general failure
     };
     
     const handleException = (messages: string[], stackTrace: string) => {
         console.error('Exception occurred:', messages);
-        // Log exception, show error dialog, etc.
+        // Keep diagnostics in trusted logging; use safe text for user-facing feedback.
     };
     
     const handleUnauthorized = () => {
@@ -63,8 +64,8 @@ function UserForm() {
 | Callback | Parameters | When Invoked |
 |----------|------------|--------------|
 | `onSuccess` | `(response: TResponse) => void` | Command executed successfully |
-| `onFailed` | `(commandResult: CommandResult<TResponse>) => void` | Command execution failed (any failure type) |
-| `onException` | `(messages: string[], stackTrace: string) => void` | Command threw an exception |
+| `onFailed` | `(commandResult: ICommandResult<TResponse>) => void` | Command execution failed (any failure type) |
+| `onException` | `(messages: string[], stackTrace: string) => void` | Command result has `hasExceptions: true` |
 | `onUnauthorized` | `() => void` | User is not authorized to execute the command |
 | `onValidationFailure` | `(validationResults: ValidationResult[]) => void` | Command failed validation |
 
@@ -76,6 +77,14 @@ When a command fails, multiple callbacks may be invoked:
    - `onException` if `hasExceptions` is `true`
    - `onUnauthorized` if `isAuthorized` is `false`
    - `onValidationFailure` if `isValid` is `false`
+
+### Exception diagnostics and display
+
+CommandForm separates user-facing exception feedback from diagnostics. The default panel displays only `An unexpected error occurred. Please try again.`. Use `exceptionMessage` for safe localized text or `exceptionDisplayComponent` to replace the panel; see [safe exception feedback](./customization.md#safe-exception-feedback).
+
+The display does not sanitize, clone, or mutate results: `onFailed` receives the original command result, `onException` receives the original diagnostic array and stack trace, and `commandResult` in the form context retains the original result. Keep these diagnostics in trusted logging or telemetry rather than rendering them to users. `showErrors={false}` hides automatic feedback without disabling callbacks or changing result state.
+
+A descendant can supply a result through `useSetCommandResult`. The same safe display applies, but setting a result directly does not invoke execution callbacks. A subsequent successful result with no exception flag or messages removes the previous exception feedback.
 
 ### Type-Safe Response Handling
 

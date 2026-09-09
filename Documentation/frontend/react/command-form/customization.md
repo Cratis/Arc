@@ -50,7 +50,7 @@ CommandForm automatically displays error messages below fields when validation f
 
 ### Disabling Automatic Error Messages
 
-Set the `showErrors` prop to `false`:
+Set the `showErrors` prop to `false` to hide automatic field errors and form-level exception feedback. This also prevents invocation of a custom `exceptionDisplayComponent`; validation, result state, and execution callbacks still work:
 
 ```tsx
 <CommandForm command={MyCommand} showErrors={false}>
@@ -391,6 +391,41 @@ Use it with CommandForm:
 |------|------|-------------|
 | `errors` | `string[]` | Array of error messages for the field. |
 | `fieldName` | `string \| undefined` | Name of the field with errors (useful for custom error handling). |
+
+## Safe exception feedback
+
+Unexpected failures should tell users what to do next, not expose server diagnostics. By default, CommandForm shows an accessible alert containing only:
+
+> An unexpected error occurred. Please try again.
+
+Set `exceptionMessage` to safe application-specific or localized text. An explicitly empty string stays empty rather than falling back to the default.
+
+```tsx
+<CommandForm
+    command={MyCommand}
+    exceptionMessage="We couldn't save your changes. Please try again."
+/>
+```
+
+To replace the entire default panel, provide `exceptionDisplayComponent`. It receives only `{ message: string }` through the exported `ExceptionDisplayProps` interface, never the command result, diagnostic messages, or stack trace. Supply accessible feedback in your replacement:
+
+```tsx
+import { CommandForm, type ExceptionDisplayProps } from '@cratis/arc.react/commands';
+
+const ExceptionNotice = ({ message }: ExceptionDisplayProps) => (
+    <div className="exception-notice" role="alert">{message}</div>
+);
+
+<CommandForm
+    command={MyCommand}
+    exceptionMessage="We couldn't save your changes. Please try again."
+    exceptionDisplayComponent={ExceptionNotice}
+/>
+```
+
+`errorDisplayComponent` remains exclusively for field validation errors; CommandForm never calls it for a form-level exception. `showErrors={false}` hides both the default exception panel and the custom replacement without invoking the replacement.
+
+Treat `exceptionMessage` as user-facing content: do not populate it from raw exception diagnostics. Original diagnostics remain available through [execution callbacks and result state](./form-lifecycle.md#exception-diagnostics-and-display) for trusted handling, not automatic display.
 
 ## Custom Tooltip Component
 
