@@ -206,7 +206,7 @@ By default, CommandForm displays error messages below each invalid field:
 
 ### Disabling Error Display
 
-Disable automatic errors to implement custom error rendering:
+Set `showErrors={false}` to hide automatic field errors and form-level exception feedback, including any custom `exceptionDisplayComponent`. Validation and result state are unchanged:
 
 ```tsx
 <CommandForm command={CreateAccount} showErrors={false}>
@@ -216,6 +216,12 @@ Disable automatic errors to implement custom error rendering:
 ```
 
 See [Customization](./customization.md) for custom error rendering patterns.
+
+### Validation failures and exceptions
+
+Field validation messages remain associated with their fields and continue to use `errorDisplayComponent` when supplied. A validation-only result does not produce form-level exception feedback. If a result contains both validation failures and exceptions, the field messages remain visible alongside the safe exception message.
+
+CommandForm shows exception feedback when `hasExceptions` is true or `exceptionMessages` is nonempty, even if those values are inconsistent. It never displays those diagnostic messages or the stack trace automatically. The default text is `An unexpected error occurred. Please try again.`; use [safe exception customization](./customization.md#safe-exception-feedback) to localize it or replace its panel.
 
 ## HTML5 Validation
 
