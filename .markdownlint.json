@@ -3,7 +3,30 @@
   "default": true,
   "MD013": false,
   "MD033": {
-    "allowed_elements": ["antml:function_calls", "antml:invoke", "antml:parameter", "a"]
+    "allowed_elements": [
+      "a",
+      "Aside",
+      "Badge",
+      "Card",
+      "CardGrid",
+      "Code",
+      "FileTree",
+      "Fragment",
+      "FullStackTabs",
+      "Icon",
+      "LinkButton",
+      "LinkCard",
+      "OsAwareTabs",
+      "Recap",
+      "SimpleCard",
+      "StackDiagram",
+      "Steps",
+      "StorybookEmbed",
+      "TabItem",
+      "Tabs",
+      "TopicHero",
+      "YouWillLearn"
+    ]
   },
   "MD041": false,
   "MD012": {
