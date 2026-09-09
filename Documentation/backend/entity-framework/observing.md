@@ -48,8 +48,9 @@ Arc applies the filter and current query-context paging/sorting to the configure
 | PostgreSQL | Same interception path | `LISTEN/NOTIFY`; Arc attempts to create a function and table trigger. The database user needs suitable permissions, or an administrator must supply a compatible trigger/channel. |
 | SQL Server | Same interception path | `SqlDependency` with Service Broker enabled and query-notification permissions/compatible queries. Arc attempts to enable Service Broker. No general polling fallback. |
 
-> [!WARNING]
-> When Service Broker is disabled, Arc attempts `ALTER DATABASE [databaseName] SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE`. With sufficient permissions, this operation can terminate other connections and roll back their transactions. Pre-provision Service Broker through a controlled administrative maintenance/deployment procedure and use least-privilege application credentials. Do not grant `ALTER DATABASE` merely to make `Observe()` initialize.
+:::danger[Enabling Service Broker can terminate connections]
+When Service Broker is disabled, Arc attempts `ALTER DATABASE [databaseName] SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE`. With sufficient permissions, this operation can terminate other connections and roll back their transactions. Pre-provision Service Broker through a controlled administrative maintenance/deployment procedure and use least-privilege application credentials. Do not grant `ALTER DATABASE` merely to make `Observe()` initialize.
+:::
 
 A PostgreSQL listener can start even when trigger creation fails. That alone does not establish that external changes are observable. Notifier setup failures are logged and observation can continue with in-process notifications only. Monitor logs and verify an external write in a test database before relying on cross-process updates.
 

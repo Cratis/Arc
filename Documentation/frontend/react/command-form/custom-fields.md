@@ -90,7 +90,7 @@ The configuration requires `defaultValue: TValue` and optionally accepts `extrac
 
 Binding uses a private framework marker, not the presence of an `onValueChange` prop. A layout can wrap `onValueChange` without disabling binding; the form updates the command before invoking that consumer callback. Do not treat that callback's presence as proof of prior binding.
 
-:::caution
+:::caution[Keep command-form field markers intact]
 Do not strip field static markers. If both recognition markers disappear, CommandForm no longer discovers the field. In development, an unresolved accessor produces a warning; production remains non-throwing and unbound. Use a simple accessor such as `c => c.name` rather than a computed expression.
 :::
 

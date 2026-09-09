@@ -133,7 +133,7 @@ So whatever customization belongs to one of those boundaries — a convention pa
 
 Chronicle and Entity Framework Core both declare. For each type claimed by either, MongoDB's fallback does not supply the command-side instance. Its BSON customization therefore does not govern that instance. Other types in the same application can still be MongoDB-owned. See [materialized and passive paths](./index.md#materialized-and-passive-paths).
 
-:::warning[The same customization can be plainly at work on the query side]
+:::caution[The same customization can be plainly at work on the query side]
 A convention registered through `ICanProvideMongoDBConventionPacks` goes into the driver's global registry, so it applies wherever the driver materializes a read model — which includes queries served from an `IMongoCollection<T>`. Seeing it work there says nothing about the command side, and this is the shape the failure takes: the customization looks discovered and correct, because the surface anybody checks first is the one it does reach.
 :::
 
@@ -174,7 +174,7 @@ Without Chronicle, nothing is inferred from the shape of a command. One carrying
 
 To key commands your own way across an application, implement `ICanResolveKeyForCommand`. It is discovered automatically and asked before the rule Arc ships, whichever order the two happen to be discovered in.
 
-:::warning[Two attributes are spelled `[Key]`]
+:::caution[Two attributes are spelled `[Key]`]
 In an application **with** Chronicle, the data annotations `[Key]` is not used by the Chronicle resolver. If no other provider or recognized identity property supplies a key, Chronicle generates a fresh event source id; a lookup for existing state then usually finds nothing. [ARCCHR0008](../code-analysis/ARCCHR0008.md) reports it, so this is a build warning rather than a puzzling "the entity does not exist" at runtime.
 :::
 

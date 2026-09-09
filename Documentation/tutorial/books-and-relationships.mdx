@@ -76,6 +76,7 @@ The read model is just the book document — it carries the `AuthorId` it belong
 
 <Tabs syncKey="db">
 <TabItem label="MongoDB" icon="seti:db">
+
 ```csharp
 [ReadModel]
 public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
@@ -84,8 +85,10 @@ public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
         books.Observe(b => b.AuthorId == authorId);
 }
 ```
+
 </TabItem>
 <TabItem label="EF Core" icon="seti:db">
+
 ```csharp
 [ReadModel]
 public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
@@ -95,6 +98,7 @@ public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 
 }
 ```
+
 </TabItem>
 </Tabs>
 

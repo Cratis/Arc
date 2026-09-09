@@ -307,7 +307,9 @@ export const AccountCreator = () => {
 };
 ```
 
-**Note:** For React components, prefer using the [React Hook Usage](./react-usage.md) approach, as it provides automatic re-rendering and better integration with React's lifecycle.
+:::tip[Prefer the hook in React components]
+Use the [React hook approach](./react-usage.md) in components for automatic re-rendering and integration with React's lifecycle.
+:::
 
 ## Best Practices
 

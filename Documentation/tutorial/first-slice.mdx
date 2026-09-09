@@ -30,6 +30,7 @@ These are **excerpts from the backend checkpoint**, not additional files:
 
 <Tabs syncKey="db">
 <TabItem label="MongoDB" icon="seti:db">
+
 ```csharp
 [Command]
 public record RegisterAuthor(AuthorId Id, AuthorName Name)
@@ -45,8 +46,10 @@ public record Author(AuthorId Id, AuthorName Name)
         authors.Observe();
 }
 ```
+
 </TabItem>
 <TabItem label="EF Core" icon="seti:db">
+
 ```csharp
 [Command]
 public record RegisterAuthor(AuthorId Id, AuthorName Name)
@@ -65,6 +68,7 @@ public record Author(AuthorId Id, AuthorName Name)
         db.Authors.Observe();
 }
 ```
+
 </TabItem>
 </Tabs>
 

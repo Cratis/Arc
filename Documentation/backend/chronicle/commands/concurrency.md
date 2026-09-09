@@ -127,7 +127,7 @@ Three consequences follow, and the third is the surprising one:
 - **Declaring `concurrency: true` on _every_ metadata attribute uses the same narrowing dimensions as declaring it on none, under the default optimistic strategy.** The declared scope passes the context values; the fallback passes the same values, with a sentinel standing in for anything absent — and a sentinel adds no filter. The capture timing differs: Arc resolves an explicit scope while processing the response; Chronicle resolves a missing scope during the unit of work's commit-time `AppendMany()`. An intervening append can conflict with the earlier expectation but be included in the later fallback tail.
 - **Declaring it on a _subset_ produces a strictly broader scope than declaring it on none.** The declared scope passes `null` for every dimension that did not opt in, while the fallback would have passed its real value. Declaring it on `[EventStreamType]` alone, on a command that also carries `[EventSourceType("X")]`, **drops** the `EventSourceType == "X"` filter and widens the check.
 
-:::note
+:::note[Concurrency tags narrow the default check]
 The practical reading: reach for `concurrency: true` to state intent and to pin which dimensions bound the check, not because its absence leaves the check unbounded. If you want a check bounded by the whole event source, do not tag the command at all.
 :::
 

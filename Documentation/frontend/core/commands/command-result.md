@@ -242,7 +242,7 @@ if (rejectedBy('UniqueOrganizationNumber')) {
 
 The value is the constraint's own name as Chronicle reports it on the violation — the same name a backend spec asserts with `ShouldHaveConstraintViolationFor`.
 
-:::note
+:::note[Treat reason values as extensible]
 `reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Accept unfamiliar values without an exhaustive enum assumption. Decide explicitly whether your application recognizes their messages as safe user-facing copy; otherwise use a generic fallback.
 
 Only `rule` means the message is yours to show. Everything else is Cratis-authored developer text: it is in English, it is not localized, and it describes framework state rather than the user's situation. Map those to your own copy.

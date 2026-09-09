@@ -36,7 +36,7 @@ To rebuild a **disposable output directory** from scratch:
 </PropertyGroup>
 ```
 
-:::caution
+:::danger[Full regeneration deletes the entire output directory]
 This recursively deletes the entire output directory, including handwritten files and indexes, before writing proxies. Never point this mode at your frontend source root.
 :::
 
