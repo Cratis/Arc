@@ -1,50 +1,51 @@
 ---
 name: edit-cratis-docs
-description: Use this skill to change, fix, or improve Cratis documentation whose source is under `Documentation/**` in a product or contributing repo. Docs are split across repos (each product owns its `Documentation/` folder; the `Documentation` repo aggregates), so it finds the real source file, edits, syncs, and verifies. Trigger on edit/fix/reword a docs page, fix a broken link, or correct a code example/outdated page — for any Cratis product.
+description: Use this skill whenever changing, correcting, moving, renaming, or deleting Cratis documentation, including prose, examples, links, callouts, diagrams, and navigation. It finds the authored product or site source, preserves public routes, applies the Astro/Starlight contract, and runs the appropriate local and rendered checks. For a brand-new page use add-cratis-docs-page; for a visual/rendering failure use qa-cratis-docs as well.
 ---
 
-# Editing a Cratis documentation page
+# Edit a Cratis documentation page
 
-> Scope this skill to source files under `Documentation/**` in the product or contributing repo. Site-level pages in `Documentation/web` are owned by the Documentation repo.
+Cratis product documentation is authored in each product repository and synchronized into the sibling Documentation site's generated trees. Read [Editing Cratis Documentation](../../rules/editing-cratis-docs.md) before touching a URL-backed page; it owns the complete source map and generated-content boundaries.
 
-Cratis docs content lives in **each product's own repo** under that repo's `Documentation/` folder; the published site (in the `Documentation` repo at `Documentation/web/`) aggregates them. Editing the wrong copy wastes the work — the per-product folders under `web/src/content/docs/` are **generated and overwritten**.
+## 1. Locate the authored source
 
-## 1. Find the source of truth
+- Map the public route through `PRODUCTS` in `../Documentation/web/scripts/sync-content.mjs` when ownership is not obvious.
+- Never edit a synchronized product subtree under `../Documentation/web/src/content/docs/`, including the generated `architecture/` tree.
+- Read the whole page plus its `toc.yml`, inbound links, and immediate neighboring pages. A local wording change can still alter a public anchor or duplicate a landing route.
 
-Map the page URL to its owning repo:
+For move/rename/delete work, search inbound links and check whether the public route needs a Documentation-site redirect. Do not assume a source move preserves the URL.
 
-| URL | Source file |
-|---|---|
-| `/chronicle/**` | `Chronicle/Documentation/**` |
-| `/arc/**` | `Arc/Documentation/**` (the `ApplicationModel` repo, cloned as `Arc`) |
-| `/components/**` | `Components/Documentation/**` |
-| `/cli/**`, `/fundamentals/**`, `/contributing/**` | the matching repo's `Documentation/` |
-| `/`, `/why-cratis`, `/cratis-stack`, `/glossary`, `/comparisons/**`, `/adopting-cratis`, … | Site-level pages: use the Documentation repo; source lives in `Documentation/web/src/content/docs/*.{md,mdx}`. |
+## 2. Make the smallest coherent improvement
 
-Example: `/chronicle/concepts/event-source/` → `Chronicle/Documentation/concepts/event-source.md`. If unsure, `grep -rl "<a distinctive sentence>" */Documentation Documentation/web/src/content/docs/*.md*`.
+- Preserve the page's single Diátaxis purpose and use the tour voice from `writing-cratis-docs`.
+- Verify every framework API against source using `writing-correct-examples`; another docs page is not evidence.
+- Follow `documentation-structure-and-formatting` as the single rendering authority. It covers frontmatter, headings, `.md` versus `.mdx`, the closed aside set, code metadata, tables, diagrams, components, icons, links, and navigation behavior.
+- Prefer semantic structure over decoration. Keep sequential examples visible when their order teaches cause and effect; use tabs only for true alternatives.
+- Avoid unrelated mass modernization. Convert legacy alerts or add missing descriptions when already touching the page, but do not churn dozens of otherwise-correct files for visual consistency alone.
 
-**Never edit `Documentation/web/src/content/docs/{chronicle,arc,components,cli,fundamentals,contributing}/`** — generated and git-ignored.
+## 3. Verify locally
 
-## 2. Edit the source
-
-- Match the page's **Diátaxis type** (tutorial / how-to / explanation / reference) and the **tour voice** (teach, don't dump) — see the **`writing-cratis-docs`** rule (the tour-voice checklist + Starlight authoring tools). Don't mix types.
-- **Verify every framework API in a code example against real source** before writing it — readers paste them verbatim. (See the `writing-correct-examples` rule; grep Studio `*.cs`/`*.tsx` and the product `Source/` trees.)
-- Link rules: product `.md` may use `./foo.md`; links to a `.mdx` page must be **extension-less** (`./foo`); site-level `.mdx` uses clean root-relative URLs (`/arc/...`).
-
-## 3. Sync, preview, verify
+From the product repository:
 
 ```bash
-cd Documentation/web
-npm run dev      # serves http://localhost:4321 (re-syncs the product repos)
-npm run check    # the gate: build + lint + link-check
+./Documentation/verify-markdown.sh
 ```
 
-`npm run check` MUST end **0 error(s)** and **0 broken** links (≈187 advisory style warnings are expected). Fix anything it flags. **Restart `npm run dev` after running the gate** — the gate's re-sync degrades a live dev server.
+This checks Markdown and MDX linting, Starlight authoring hazards, landing collisions, and links. Fix all failures introduced by the change.
 
-For visual changes, screenshot the page in light and dark and read the result — use the `qa-cratis-docs` skill.
+## 4. Verify the rendered site
 
-## 4. Commit
+When the sibling Documentation checkout is available:
 
-Commit the change in the **product repo** that owns the page (the site repo only changes if you touched a site-level page, the nav buckets in `sync-content.mjs`, or the build). Keep commits to one logical unit; don't push without explicit approval.
+```bash
+cd ../Documentation/web
+npm run check
+```
 
-→ Site build and rendering internals live in the Documentation repo. To create a *new* page (not edit an existing one), use the `add-cratis-docs-page` skill.
+The full check syncs all available products, builds Astro, runs Chronicle client-doc parity, linting, and rendered-link checks. Report unrelated sibling failures separately; do not waive failures from the edited page. Some optional local tools skip when unavailable, so say what actually ran.
+
+For callouts, diagrams, tabs, cards, component changes, or layout-sensitive prose, use `qa-cratis-docs` and inspect light and dark screenshots. Restart `npm run dev` after a build/check before trusting the preview.
+
+## 5. Stop at the requested scope
+
+Commit only in the repository that owns the authored change. Do not modify generated site copies, publish, push, or change redirects/site styling unless the user requested that scope.

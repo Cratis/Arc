@@ -45,7 +45,7 @@ Command fetches include `httpHeadersCallback` headers configured in [Arc](../arc
 
 ## Proxy Generation
 
-Commands are automatically generated from your backend using the [proxy generator](../../../backend/proxy-generation.md). The generator scans HTTP Post actions during compile time and creates TypeScript classes that:
+Commands are automatically generated from your backend using the [proxy generator](../../../backend/proxy-generation/index.md). The generator scans HTTP Post actions during compile time and creates TypeScript classes that:
 
 - Match your backend command structure
 - Provide type-safe properties
@@ -53,7 +53,7 @@ Commands are automatically generated from your backend using the [proxy generato
 - Offer a `.use()` method for React integration
 - Track changes automatically
 
-See [Proxy Generation](../../../backend/proxy-generation.md) for setup details.
+See [Proxy Generation](../../../backend/proxy-generation/index.md) for setup details.
 
 ## Command Result
 
@@ -91,4 +91,4 @@ For comprehensive details, see [Command Result documentation](../../core/command
 - [CommandForm](../command-form/index.md) - Declarative form component for commands
 - [Queries](../queries/index.md) - Data retrieval operations
 - [Core Commands](../../core/commands/index.md) - Lower-level command concepts
-- [Proxy Generation](../../../backend/proxy-generation.md) - Setting up command generation
+- [Proxy Generation](../../../backend/proxy-generation/index.md) - Setting up command generation

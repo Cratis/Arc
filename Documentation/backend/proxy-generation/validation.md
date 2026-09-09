@@ -124,7 +124,7 @@ Each extracted rule gets its own statement. The command template attaches the va
 | `[Phone]`                                  | `phone()`                                                                                |
 | `[CreditCard]`                             | `creditCard()` is emitted, but the current client rule builder does **not** implement it |
 
-:::caution
+:::caution[CreditCard validation is not generated correctly]
 `[CreditCard]` currently exposes a generator/client gap: the emitted call fails TypeScript checking against Arc's current validation API. Do not treat it as supported client validation or manually repair the generated file. Keep server enforcement and account for this limitation before adopting that annotation in a generated endpoint.
 :::
 

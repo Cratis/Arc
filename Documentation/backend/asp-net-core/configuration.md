@@ -260,11 +260,13 @@ Given a command class `MyApp.Sales.Commands.CreateOrderCommand`:
 
 **Generated route**: `/api/commands` for this single command. A single query with location `MyApp.Sales.Queries` would use `/api/queries` with these options.
 
-**Note**: When `IncludeCommandNameInRoute` or `IncludeQueryNameInRoute` is set to `false`, the system automatically detects route conflicts. If multiple commands or queries exist in the same namespace (after skipping segments), the type name will be automatically included in the route to prevent conflicts. Within those generated command or query groups:
+:::note[Route conflicts restore the type name]
+When `IncludeCommandNameInRoute` or `IncludeQueryNameInRoute` is set to `false`, Arc detects route conflicts. If multiple commands or queries remain in the same namespace after skipping segments, Arc includes the type name in the route. Within those generated command or query groups:
 
 - Single command/query in a namespace: Route remains clean without the type name
 - Multiple commands/queries in the same namespace: Type names are automatically added to prevent route collisions
 - Both runtime endpoint mapping and proxy generation apply this logic consistently
+:::
 
 For example, with the configuration above:
 

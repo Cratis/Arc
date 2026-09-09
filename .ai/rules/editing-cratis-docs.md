@@ -5,50 +5,67 @@ paths:
   - "**/Documentation/**/*.mdx"
 ---
 
-# Editing Cratis Documentation (the content is split across repos)
+# Editing Cratis documentation
 
-Cratis documentation is **not** one folder. The content lives in **each product's own repo** under that repo's `Documentation/` folder, and a single published site (in the **`Documentation` repo**, at `Documentation/web/`) aggregates them all at build time. Know where a page actually lives before you edit it, or you'll edit a generated copy that gets overwritten.
+Cratis documentation is split across product repositories and aggregated by the sibling `Documentation` repository. Find the authored source before editing; synced product copies under `Documentation/web/src/content/docs/` are disposable build output.
 
-## Where each page actually lives
+## Find the source of truth
 
-| Page | Source of truth |
+Common routes map as follows:
+
+| Public route | Authored source |
 |---|---|
 | `/chronicle/**` | `Chronicle/Documentation/**` |
-| `/arc/**` | `Arc/Documentation/**` (the `ApplicationModel` repo, cloned as `Arc`) |
+| `/arc/**` | `Arc/Documentation/**` |
 | `/components/**` | `Components/Documentation/**` |
-| `/cli/**`, `/fundamentals/**`, `/contributing/**` | the matching repo's `Documentation/` |
-| Site-level pages (`/`, `/why-cratis`, `/cratis-stack`, `/glossary`, `/comparisons/**`, …) | `Documentation/web/src/content/docs/*.{md,mdx}` (authored directly in the site) |
+| `/chronicle-mcp/**`, `/authproxy/**`, `/cli/**`, `/fundamentals/**`, `/screenplay/**`, `/prologue/**`, `/prompter/**` | The matching product repository's `Documentation/**` |
+| `/contributing/**` | The organization `.github` repository (legacy fallback: `GitHubLanding`) |
+| Site-level routes such as `/`, `/why-cratis`, `/cratis-stack`, `/glossary`, `/compare-event-sourcing-dotnet`, and `/compare-event-sourcing-jvm` | `Documentation/web/src/content/docs/**` |
 
-**Map a URL to a file:** `/chronicle/concepts/event-source/` → `Chronicle/Documentation/concepts/event-source.md`. The site reads each product repo as a **sibling clone** (`<parent>/{Documentation,Chronicle,Arc,Components,Fundamentals,cli,.github}`), all on the same branch.
+The definitive map is `PRODUCTS` in `Documentation/web/scripts/sync-content.mjs`. The site prefers sibling checkouts and falls back to configured submodules.
 
-## The one rule that prevents wasted work
+Never edit a synced subtree under `Documentation/web/src/content/docs/`. Current generated prefixes include `chronicle`, `chronicle-mcp`, `arc`, `components`, `authproxy`, `cli`, `fundamentals`, `contributing`, `architecture`, `screenplay`, `prologue`, and `prompter`. `architecture/` is generated even if Git currently makes it look trackable.
 
-**NEVER edit `Documentation/web/src/content/docs/{chronicle,arc,components,cli,fundamentals,contributing}/`.** Those are **generated and git-ignored** — `web/scripts/sync-content.mjs` regenerates them from the product repos on every build. Edit the **product-repo source** and re-sync. (Site-level pages directly under `web/src/content/docs/` *are* hand-authored — only the per-product subfolders are generated.)
+Site-level files authored directly under `web/src/content/docs/` are the exception. Check `PRODUCTS` and `web/.gitignore` when ownership is unclear.
 
-## The loop
+## Edit and verify
 
-1. **Edit** the source `.md`/`.mdx` in the owning product repo (or the site-level page in `web/src/content/docs/`).
-2. **Sync + preview:** from `Documentation/web`, `npm run dev` (runs the sync, serves http://localhost:4321). The sync also runs automatically in `predev`/`prebuild`.
-3. **Verify:** `npm run check` — the full gate. It MUST end **0 error(s)** and **0 broken** links (≈187 advisory style warnings are expected and fine). Run it after every change.
-4. Commit the change in the **product repo** (content) — the site repo only changes if you touched site-level pages, nav buckets, or the build.
+From the product repository:
 
-## Adding or moving a page
+1. Edit the authored `.md` or `.mdx` file.
+2. Run the product's local gate: `./Documentation/verify-markdown.sh`.
+3. For full rendering, run the site from the sibling checkout:
 
-- Create the file in the product repo's `Documentation/`, add a `toc.yml` entry, and add that entry's `name` to the right Diátaxis **bucket** in `web/scripts/sync-content.mjs` (`PRODUCTS[].buckets`). Site-level pages are wired in `astro.config.mjs` instead.
-- Buckets are the Diátaxis order: **Get started** (tutorials) → **Guides** (how-to) → **Understand** (explanation) → **Reference**. Keep every product on this shape.
+   ```bash
+   cd ../Documentation/web
+   npm run check
+   ```
 
-## Links (the rules differ by file type)
+4. Preview with `npm run dev` from that same `../Documentation/web` directory and inspect visual changes in light and dark.
 
-- **Product `.md`** goes through the converter — `[x](./foo.md)` is fine (it strips `.md`).
-- **Intra-doc links to a `.mdx` page must be EXTENSION-LESS** (`./validation`, not `./validation.mdx`) — slugify strips the dot and breaks `.mdx`.
-- **Site-level `.mdx`** does NOT go through the converter — use clean root-relative URLs (`/arc/...`), never `.md`.
-- Cross-product links are root-relative: `/chronicle/...`. Sections whose landing is `overview.md` (no `index.md`) 404 on the bare URL — link to a specific page.
+The full site check syncs every available product and also runs Chronicle client-doc parity. It can expose an unrelated sibling failure; diagnose and report that separately. Local prose, Markdown, or external-link tools may skip when their executables are absent, so report which checks actually ran.
 
-## Hard gotchas (these will bite you)
+Restart `npm run dev` after a build/check. The build re-sync can degrade a running dev server, producing 500s or missing table rendering. If a change still appears stale, clear `web/.astro` and `web/node_modules/.astro`, restart, and recheck before blaming the source.
 
-- **A long-running `npm run dev` degrades** (every page 500s / tables stop rendering) — and **running `npm run check`/`build` while dev is live** corrupts it (the build re-syncs content the dev server is watching). Fix: **restart `npm run dev`** (kill `lsof -ti tcp:4321`). Re-verify a fresh dev server before trusting any "X doesn't render".
-- **The Astro content cache (`.astro/`, `node_modules/.astro`) silently serves a PARTIAL prior render** between iterations. If a change "didn't take" or a build looks half-done, `rm -rf .astro node_modules/.astro` and rebuild.
-- **Code examples are copied verbatim by readers** — verify every framework API against real source before writing it. See [Writing Correct Code Examples](./writing-correct-examples.md).
-- Match the **tour voice** (teach, don't dump) and the right **Diátaxis** type — see [Writing Cratis Documentation](./writing-cratis-docs.md).
+## Add, move, rename, or delete a page
 
-→ Site build and rendering internals live in the Documentation repo.
+- Product navigation comes from its `toc.yml`; site-level navigation comes from `astro.config.mjs`.
+- Product navigation buckets are defined per product in `PRODUCTS[].buckets`. Read the actual names and section lists before changing them.
+- Keep exactly one landing for a route. A sibling `<folder>.md[x]` collides with `<folder>/index.md[x]`; the converter moves the directory index to `/overview/`, which can leave it orphaned.
+- Update inbound links and `toc.yml` together. For a published route change, inspect the Documentation site's redirect mechanism rather than assuming a source-file move preserves old URLs.
+- Watch sync output for dropped toc entries and verify the built sidebar. External, `../`, and `/api/` toc targets are intentionally omitted; single-child groups collapse.
+
+## Links
+
+- Product source links to files keep the real `.md` or `.mdx` extension. The converter removes either extension for the public route.
+- Directory links end in `/`.
+- Site-level MDX and cross-product links use clean root-relative public routes such as `/arc/backend/commands/`.
+- Slugification removes punctuation from path segments (`react.mvvm` becomes `reactmvvm`), so verify hand-authored site-absolute paths against the build.
+
+## Content and rendering
+
+- Match the page's Diátaxis type and the tour voice in [Writing Cratis Documentation](./writing-cratis-docs.md).
+- Verify framework APIs against source using [Writing Correct Code Examples](./writing-correct-examples.md).
+- Follow [Documentation Structure and Formatting](./documentation-structure-and-formatting.md) for Markdown/MDX boundaries, asides, components, navigation behavior, and gates.
+
+Commit in the repository that owns the authored source. Touch the Documentation repository only when the task deliberately changes site-level content, navigation composition, components, styling, redirects, or build behavior.

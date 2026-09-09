@@ -26,7 +26,7 @@ jobs:
       - name: Lint Markdown files
         uses: DavidAnson/markdownlint-cli2-action@v18
         with:
-          globs: 'Documentation/**/*.md'
+          globs: 'Documentation/**/*.{md,mdx}'
 
   link-verification:
     runs-on: ubuntu-latest
@@ -39,6 +39,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 23.x
+
+      - name: Validate Starlight authoring
+        run: node ./Documentation/verify-authoring.mjs
 
       # The same script contributors run locally, so that what CI checks and
       # what verify-markdown.sh checks cannot drift apart.

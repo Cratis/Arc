@@ -73,6 +73,7 @@ Bare `EventSourceId` remains supported by the API, but `CustomerId : EventSource
 
 ## A raw Guid is only a response
 
+:::caution[Do not use a raw Guid as the new event source id]
 Do not return `(Guid, event)` when the `Guid` is meant to identify the new event source:
 
 ```csharp
@@ -86,6 +87,7 @@ public record RegisterCustomer(CustomerEmail Email, CustomerDisplayName DisplayN
 ```
 
 A raw `Guid` is an ordinary command response. It does not carry event-source semantics, even though `Guid` can be converted to `EventSourceId` when a command property is explicitly selected as the key. Because this command declares no key, Chronicle creates a fallback event source id before `Handle()` runs and appends `CustomerRegistered` under that fallback—not under the returned `Guid`.
+:::
 
 [ARCCHR0010](../code-analysis/ARCCHR0010.md) heuristically reports supported signatures and offers a bounded quick fix to `EventSourceId<Guid>` when the edit compiles. Prefer a domain identity such as `CustomerId` when this value really identifies the event source.
 

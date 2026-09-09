@@ -1,8 +1,11 @@
-# Validation And Results
+---
+title: Validation and results
+description: Inspect command validation, response payloads, and frontend failure categories.
+---
 
 Commands return `CommandResult<TResponse>` and perform validation before execution.
 
-## Client-Side Validation
+## Client-side validation
 
 Validation metadata is generated from backend FluentValidation rules by the proxy generator.
 
@@ -18,7 +21,7 @@ const result = await command.execute();
 
 For deeper validation behavior, see [Validation](../validation/index.md) and [Validation](./validation.md).
 
-## Result Shape
+## Result shape
 
 A command result includes status and diagnostics such as:
 
@@ -29,7 +32,7 @@ A command result includes status and diagnostics such as:
 
 For full `CommandResult` details, see [Command Result](./command-result.md).
 
-## Error Categories
+## Error categories
 
 Typical failure categories include:
 
@@ -38,7 +41,7 @@ Typical failure categories include:
 - HTTP status failures
 - Domain/application exceptions
 
-## See Also
+## See also
 
 - [Command Result](./command-result.md)
 - [Validation](./validation.md)

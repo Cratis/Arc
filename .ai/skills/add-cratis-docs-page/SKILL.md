@@ -1,43 +1,58 @@
 ---
 name: add-cratis-docs-page
-description: Use this skill when creating a NEW Cratis documentation page under `Documentation/**` (tutorial, how-to, explanation, reference, or recipe). Handles where the file goes (which product repo), sidebar wiring (toc.yml + Diátaxis bucket), and verifying it renders. Trigger on add/create/write a new docs page, document a new feature, or add a new section to a product's docs.
+description: Use this skill whenever creating a new Cratis documentation page, tutorial chapter, guide, explanation, reference page, or documented feature. It chooses the owning repository and Diátaxis purpose, creates the correct Markdown or MDX source, wires product-specific navigation, and verifies both the local source and rendered Astro/Starlight page.
 ---
 
-# Adding a new Cratis documentation page
+# Add a Cratis documentation page
 
-> Scope this skill to new source files under `Documentation/**` in the product or contributing repo. Site-level pages in `Documentation/web` are owned by the Documentation repo.
+A new page must have one purpose, one authored source, one public route, and one intentional place in navigation. Product docs live in product repositories; site-level cross-product pages live under the Documentation site's authored root.
 
-The site builds its navigation from each product's `toc.yml`, regrouped into Diátaxis buckets. A new page must be created in the right repo AND wired into the nav, or it builds but is unreachable.
+## 1. Choose purpose and ownership
 
-## 1. Decide the type and the home
+- Classify the page as one Diátaxis type: tutorial, how-to, explanation, or reference. Use `write-documentation` for the content shape and `writing-cratis-docs` for the tour voice.
+- Find the owner using [Editing Cratis Documentation](../../rules/editing-cratis-docs.md). Confirm ambiguous routes in `../Documentation/web/scripts/sync-content.mjs` rather than editing a generated site copy.
+- Check neighboring pages before creating a new one. Extend an existing page when the reader's goal is the same; do not fragment one task across shallow pages.
 
-- **Which product?** Put the file in that product's repo: `Chronicle/Documentation/`, `Arc/Documentation/`, `Components/Documentation/`, `cli/Documentation/`, `Fundamentals/Documentation/`. A cross-product / site-level page belongs in the Documentation repo's `web/src/content/docs/`, not in this product repo.
-- **Which Diátaxis type?** It decides the bucket and the voice — write *only* that type:
-  - **Tutorial** (Get started) — learning by doing, steps with visible results.
-  - **How-to / Guide** (Guides) — a recipe for a specific task; assume competence.
-  - **Explanation / Concept** (Understand) — the *why*, trade-offs, a diagram.
-  - **Reference** — exhaustive, terse, tables/signatures.
+## 2. Create the source
 
-## 2. Create the file
+Follow [Documentation Structure and Formatting](../../rules/documentation-structure-and-formatting.md):
 
-- Author in the **tour voice** (open with a scenario, name the friction, narrate the code, show the result, forward-link at the end). The Chronicle tutorial (`Chronicle/Documentation/tutorial/*`) is the reference voice.
-- **Format it to fit the site** — frontmatter (`title` + `description`, **no body H1**), H2-only structure, `:::note` asides, language-tagged code fences, GFM tables. The full spec is the **`documentation-structure-and-formatting`** rule.
-- **`.mdx`** unlocks `<Steps>`, `<Tabs>`, `<Aside>` (from `@astrojs/starlight/components`) and the shared `@components` (`FullStackTabs`, `TopicHero`, `SimpleCard`, `StackDiagram`).
-- Add a **Mermaid diagram** for any non-trivial concept (they're pre-rendered to SVG at build time).
-- Verify every framework API in code examples against real source (the `writing-correct-examples` rule).
+- Add `title` and a useful `description`; do not add a body H1.
+- Default to `.md` for prose, tables, code, diagrams, images, and titled asides.
+- Choose `.mdx` only when Steps, Tabs, Cards, or an established shared component materially improves comprehension.
+- Verify framework APIs against source using `writing-correct-examples`.
+- Use Mermaid for non-trivial architecture or flow; use `eventmodeling` for EventModeling diagrams.
+- Do not create both `<topic>.md[x]` and `<topic>/index.md[x]`; they collide at the public route.
 
-## 3. Wire it into the nav
+## 3. Wire navigation
 
-- **Product page:** add the entry to that repo's `Documentation/toc.yml`, then add the entry's `name` to the correct bucket's `sections` in `Documentation/web/scripts/sync-content.mjs` (`PRODUCTS[].buckets`). Buckets order: **Get started → Guides → Understand → Reference**.
-- **Site-level page:** use the Documentation repo copy of this skill; site-level pages are wired in `astro.config.mjs` there.
-- **Links:** to a `.mdx` page use an **extension-less** link; `.md` keeps the extension; cross-product links are root-relative (`/chronicle/...`).
+For product content:
+
+1. Add the page to the owning `toc.yml`.
+2. Read that product's actual `PRODUCTS[].buckets` in `../Documentation/web/scripts/sync-content.mjs`.
+3. Add or place the section in the matching product-specific bucket only when needed.
+
+The bucket names are not universal. A missing `toc.yml` entry makes a page unreachable; a missing bucket assignment can leave it misplaced rather than absent. External URLs, `../`, and `/api/` toc targets are dropped, and one-child groups collapse, so inspect generated navigation.
+
+For site-level pages, wire the hand-authored topic in `../Documentation/web/astro.config.mjs` instead.
+
+Use real `.md`/`.mdx` extensions in product-source links. Use clean root-relative public routes for site-level and cross-product links.
 
 ## 4. Verify
 
+From the owning product repository:
+
 ```bash
-cd Documentation/web && npm run check
+./Documentation/verify-markdown.sh
 ```
 
-Must end **0 error(s)** and **0 broken** links, and your page must appear in the nav (the converter drops `toc.yml` entries whose slug doesn't match a built page — check the sync output for "broken toc entries dropped"). Preview at http://localhost:4321 (`npm run dev`); screenshot it with the `qa-cratis-docs` skill. Commit in the owning product repo (+ the site repo if you touched buckets/`astro.config`).
+Then, when the sibling site checkout is available:
 
-→ To edit an existing page instead, use `edit-cratis-docs`. The content craft — tour voice + how to use Starlight's authoring tools (`<Steps>`, `<Tabs>`, `<FullStackTabs>`, diagrams) — is the **`writing-cratis-docs`** rule. Read it before writing.
+```bash
+cd ../Documentation/web
+npm run check
+```
+
+Require zero dropped/broken toc entries for the new page, zero hard lint errors, and zero broken rendered links attributable to the change. Preview and use `qa-cratis-docs` in light and dark for any visual authoring feature.
+
+Commit in the owning product repository. Change the Documentation repository too only when the new page deliberately requires site-level navigation, a shared component/style, or a redirect.

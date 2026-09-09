@@ -134,7 +134,7 @@ Every `DateOnly` then generates as `LocalDate`, imported from `@acme/time`. Omit
 
 Mappings are consulted **ahead of** the built-in table, so this corrects an existing type as readily as it declares a new one. A build that configures none generates exactly what it generated before.
 
-:::note
+:::note[Mappings change both the type and deserialization]
 The defaults are chosen to be right without configuration — reach for a mapping when your application wants a _different_ type, not to work around a default that is wrong.
 
 Whatever you map to has to be able to deserialize from what the server actually sends. `DateOnly` arrives as `"2026-05-12"` and `TimeOnly` as `"14:30:45"`, so register a converter for the type you map to with `JsonSerializer.registerConverter`, or the value arrives as the raw string wearing the declared type's name.

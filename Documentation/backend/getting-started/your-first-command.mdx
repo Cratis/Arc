@@ -50,6 +50,7 @@ flowchart LR
 
    <Tabs syncKey="db">
    <TabItem label="MongoDB" icon="seti:db">
+
    ```csharp
    namespace Library.Authors;
 
@@ -60,8 +61,10 @@ flowchart LR
            authors.InsertOneAsync(new Author(Id, Name));
    }
    ```
+
    </TabItem>
    <TabItem label="EF Core" icon="seti:db">
+
    ```csharp
    namespace Library.Authors;
 
@@ -75,6 +78,7 @@ flowchart LR
        }
    }
    ```
+
    </TabItem>
    </Tabs>
 
@@ -84,6 +88,7 @@ flowchart LR
 
    <Tabs syncKey="db">
    <TabItem label="MongoDB" icon="seti:db">
+
    ```csharp
    namespace Library.Authors;
 
@@ -94,8 +99,10 @@ flowchart LR
            authors.Observe();
    }
    ```
+
    </TabItem>
    <TabItem label="EF Core" icon="seti:db">
+
    ```csharp
    namespace Library.Authors;
 
@@ -117,6 +124,7 @@ flowchart LR
        public DbSet<Author> Authors => Set<Author>();
    }
    ```
+
    </TabItem>
    </Tabs>
 

@@ -1,122 +1,71 @@
 ---
 name: write-documentation
-description: "Diátaxis classification and authoring guidance for Cratis docs — decide whether a page is a Tutorial, How-to, Reference, or Explanation and draft its content in that style. For WHERE a new page goes + sidebar wiring use add-cratis-docs-page; to change an existing page use edit-cratis-docs."
+description: Use this skill whenever drafting or substantially restructuring Cratis documentation content. It selects one Diátaxis purpose, audience, reader goal, teaching flow, and evidence standard. Use add-cratis-docs-page for placement/navigation, edit-cratis-docs for an existing source file, and qa-cratis-docs for rendering or visual diagnosis.
 ---
 
-# Diátaxis Documentation Expert
+# Write Cratis documentation
 
-You are an expert technical writer producing documentation for Cratis projects. The site is built with Astro Starlight; you author product `.md`/`.mdx` that a converter syncs into it (see the `documentation-structure-and-formatting` rule for the mechanical conventions). Every page you write is guided by the [Diátaxis framework](https://diataxis.fr/) — a systematic approach that classifies documentation into four distinct types, each serving a different user need.
+Write for a developer using the framework, not the team that built it. Every page should make one reader goal easier and belong to exactly one Diátaxis type.
 
-## Guiding Principles
+## Choose the page type
 
-1. **Clarity** — Write in simple, clear, unambiguous language.
-2. **Accuracy** — Every code example must be complete, correct, and runnable. No pseudo-code.
-3. **User-centricity** — Every page helps a specific reader achieve a specific goal. Lead with *why*, then *how*.
-4. **Consistency** — Match the project's existing tone, terminology, and style. If it's "event source" in one place, it's "event source" everywhere.
+| Type | Reader need | Shape |
+|---|---|---|
+| Tutorial | Learn by doing | A guided lesson whose steps produce visible results |
+| How-to | Solve a specific problem | Goal, prerequisites, focused steps, completion check |
+| Reference | Look up exact behavior | Exhaustive, terse tables, signatures, and contracts |
+| Explanation | Understand why | Concepts, trade-offs, architecture, and diagrams; no procedural recipe |
 
-## The Four Document Types
+Do not mix types. Navigation bucket names are product-specific and do not determine the page's purpose.
 
-Before writing, determine which Diátaxis quadrant the page belongs to:
+## Establish the writing contract
 
-| Type | Orientation | Analogy | When to use |
-|---|---|---|---|
-| **Tutorial** | Learning | A lesson | Guide a newcomer step-by-step to a successful first outcome |
-| **How-to Guide** | Problem-solving | A recipe | Show an experienced user how to accomplish a specific task |
-| **Reference** | Information | A dictionary | Describe the technical machinery — APIs, attributes, configuration |
-| **Explanation** | Understanding | A discussion | Clarify *why* something works the way it does, trade-offs, architecture |
+Before drafting, determine from the request and repository context:
 
-### Rules per type
+- target audience;
+- the reader's concrete goal or question;
+- what the page includes and deliberately excludes;
+- prerequisite pages and the natural next page;
+- the public behavior and source evidence the examples require.
 
-- **Tutorial** — Never explain *why*; focus on *do this, then this*. Each step must produce a visible, verifiable result. The reader should succeed even if they don't fully understand the concepts yet.
-- **How-to Guide** — Assume competence. State the goal, list prerequisites, give the steps, done. No teaching.
-- **Reference** — Be exhaustive and terse. Tables, type signatures, attribute lists. No narrative.
-- **Explanation** — No steps. Discuss concepts, trade-offs, and architecture decisions. Use Mermaid diagrams freely.
+Ask only when those choices cannot be resolved from the existing corpus or source.
 
-## Workflow
+## Build the narrative
 
-Follow this process for every documentation request:
+- Lead with the reader's friction and the relief the feature provides.
+- Use active voice, present tense, second person, and American English.
+- Organize tutorials and explanations chronologically: define → perform → observe → verify.
+- Explain invisible behavior after code blocks: what the framework discovers, generates, validates, appends, or subscribes to.
+- Show the visible result so the reader can tell whether they succeeded.
+- State limits and wrong-fit cases directly.
+- End with a useful recap or next step, not a generic “see also” dump.
 
-1. **Clarify** — Determine before writing:
-   - **Document type** — Tutorial, How-to, Reference, or Explanation
-   - **Target audience** — e.g. new developer, experienced contributor, framework consumer
-   - **Reader's goal** — What they want to achieve by reading this page
-   - **Scope** — What to include *and* what to exclude
-   If the request is ambiguous, ask before proceeding.
+Reference pages are the exception to the tour cadence: keep them concise and exhaustive, while linking from educational pages into them.
 
-2. **Propose structure** — Present an outline (headings + one-line descriptions). Wait for approval before writing full content.
+## Write trustworthy examples
 
-3. **Write** — Produce the full documentation in well-formatted Markdown. Adhere to all rules below.
+- Verify every framework type, attribute, method, overload, prop, import, and extension receiver against current source. Follow `writing-correct-examples`.
+- Invented domain names are fine; invented framework APIs are not.
+- Use short purpose-built examples only when they remain complete and verifiable. Embed longer real samples from compiled/tested source when available.
+- Do not use pseudo-code or `// ...` omissions that make a pasted example fail.
+- Use argument-free `[EventType]` for new events. `generation:` or a legacy identifier is valid only when documenting evolution of an existing stored-event contract.
+- Show backend and generated frontend shapes when both matter, but keep causal examples sequential. Tabs are for alternatives, not for hiding half of an explanation.
 
-## File Structure
+## Choose presentation deliberately
 
-**Each product repository owns its docs** in its own `Documentation/` folder (Chronicle, Arc, Components, …); a converter syncs them into one aggregated [Astro Starlight](https://starlight.astro.build/) site — there is no single repo-root docs tree. **Where** a new page goes and how it's wired into the sidebar is owned by the **add-cratis-docs-page** skill, and **editing** an existing page by **edit-cratis-docs**; use *this* skill for the page's content and Diátaxis classification.
+Follow `documentation-structure-and-formatting` as the single authority for frontmatter, Markdown versus MDX, asides, diagrams, code metadata, components, links, navigation, and verification. Presentation reinforces meaning; it does not replace it.
 
-For a new topic (placement/wiring detail in `add-cratis-docs-page`):
+The AI and “Copy Markdown” surfaces preserve raw authored content. Prefer plain Markdown unless an MDX component creates a real teaching advantage.
 
-    Documentation/<Section>/<Topic>/
-    ├── index.md      ← main content page
-    └── toc.yml       ← local table of contents
+## Quality check
 
-Update the **parent** `toc.yml` to link to the new folder's `toc.yml`.
+Before handing the draft to the edit/add workflow, confirm:
 
-### Structure rules
-
-- Every folder must have a `toc.yml` for navigation.
-- Every folder must have an `index.md` as its landing page.
-- In `toc.yml`, link to a subfolder's `toc.yml`, not its `index.md`.
-- Use relative links for all internal references.
-
-## toc.yml format
-
-Simple topic:
-
-    - name: <Topic Title>
-      href: index.md
-
-With sub-topics:
-
-    - name: <Topic Title>
-      href: index.md
-      items:
-        - name: Sub-topic
-          href: subtopic/toc.yml
-
-## Writing Style
-
-The project's voice is **direct, practical, and opinionated**. Write like an experienced colleague explaining something to a capable developer — confident but never condescending.
-
-- **Active voice, present tense.** "Chronicle appends the event" not "The event is appended by Chronicle."
-- **Second person.** "You configure…" not "One configures…" or "It is possible to configure…"
-- **Lead with the most important information.** Don't bury the key point after three paragraphs of context.
-- Use headings, lists, and code blocks to organize content — dense paragraphs lose readers.
-- Focus on public APIs and features — never internal implementation.
-- Do not document third-party libraries.
-- **American English only.** Always use US spellings: `color` not `colour`, `behavior` not `behaviour`, `customize` not `customise`, `organize` not `organise`, `recognize` not `recognise`, `analyze` not `analyse`, `initialize` not `initialise`.
-
-## Code Examples
-
-- Prefer `record` types for data structures (events, commands, read models).
-- `[EventType]` takes no arguments — never add a GUID or string.
-- Never include verbatim code from the repository — APIs change. Write purpose-built examples.
-- Every example must be complete and correct — no `// ...` elisions.
-
-## Diagrams
-
-Use [Mermaid](https://mermaid-js.github.io/mermaid/#/) for:
-- Architecture diagrams (`graph TD` or `graph LR`)
-- Sequence flows (`sequenceDiagram`)
-- State transitions (`stateDiagram-v2`)
-
-## Contextual Awareness
-
-- When existing documentation files are available, read them first to match tone, style, and terminology.
-- Do not copy content from them unless explicitly asked.
-- Do not fabricate external URLs — only link to resources you can verify exist.
-
-## Validation
-
-After writing, verify:
-- `toc.yml` is valid YAML
-- All `href` values point to files that exist (or will exist when created)
-- All Mermaid blocks are syntactically valid (balanced brackets, correct syntax)
-- File ends with a single trailing newline
+- one clear Diátaxis type and reader goal;
+- accurate, source-verified APIs;
+- complete examples and visible outcomes;
+- meaningful `title` and `description`;
+- sentence-case headings and descriptive links;
+- explicit limitations where they matter;
+- one natural next step;
+- a single trailing newline.
