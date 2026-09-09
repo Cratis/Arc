@@ -6,7 +6,7 @@ import { CommandResult } from '@cratis/arc/commands';
 import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validation';
 import sinon from 'sinon';
 import { InputTextField, type ErrorDisplayProps, type ExceptionDisplayProps } from '../../index';
-import { TestCommand } from '../TestCommand';
+import type { TestCommand } from '../TestCommand';
 import { given } from '../../../../given';
 import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
 
