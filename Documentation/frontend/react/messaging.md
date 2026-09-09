@@ -45,8 +45,8 @@ the actual typed message and tells the hook whether the consumer is interested:
 ```tsx
 useOnMessage(
     UserSelected,
-    message => console.log('Selected admin:', message.userId),
-    message => message.role === 'admin'
+    message => console.log('Selected tracked user:', message.userId),
+    message => message.userId === '42'
 );
 ```
 

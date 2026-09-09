@@ -8,7 +8,7 @@ typed TypeScript proxy for the frontend. CQRS without the ceremony. In the full 
 ```mermaid
 flowchart LR
     REC["Command / query record"] -->|Arc discovers| EP[HTTP endpoint]
-    EP -->|proxy generator| TS[Typed TS proxy]
+    REC -->|compiled assembly/PDB · configured post-build tool| TS[Typed TS proxy]
     REC -->|commands write| DB[(MongoDB / EF Core)]
     REC -->|queries read| RM[(Read models)]
     DB --> RM
@@ -42,9 +42,9 @@ Arc meets the rest of your stack:
 | ------- | ----------- |
 | [Core](./core/index.md) | Commands, queries, and dependency injection at the lower level. |
 | [Identity](./identity/index.md) | Who the user is — authentication and identity details. |
-| [Tenancy](./tenancy/index.md) | Multi-tenant isolation. |
+| [Tenancy](./tenancy/index.md) | Tenant selection and provider-specific storage routing; membership authorization is separate. |
 | [Open API](./open-api/index.md) | OpenAPI/Swagger generation. |
 | [Code Analysis](./code-analysis/index.md) | Analyzers and fixers that catch mistakes at compile time. |
 
-Building the UI on top? Head to the [frontend](../frontend/index.mdx), which consumes everything here
+Building the UI on top? Head to the [frontend](../frontend/), which consumes everything here
 through the generated proxies.

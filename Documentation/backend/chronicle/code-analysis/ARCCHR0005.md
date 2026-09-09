@@ -30,9 +30,6 @@ Warning
 ```csharp
 using Cratis.Chronicle.Events;
 
-[EventType]
-public record AuthorRegistered(string Name);
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ARCCHR0005: Chronicle artifacts exist, but Chronicle is never wired up
@@ -41,14 +38,20 @@ builder.AddCratisArc();
 var app = builder.Build();
 app.UseCratisArc();
 app.Run();
+
+[EventType]
+public record AuthorRegistered(string Name);
 ```
+
+This is a host fragment with a deliberate ARCCHR0005 diagnostic. Supply the ASP.NET/Arc extension imports and packages; the type declaration follows all top-level statements.
 
 ### Fix
 
-Add the event store with `WithChronicle()` on the Arc builder:
+For this ASP.NET Core host, reference the **`Cratis` package** (`dotnet add package Cratis`). `Cratis.Arc.Chronicle` alone supplies the generic-host integration, not all the ASP.NET Core extensions used here. Add the Chronicle client with the explicitly qualified ASP.NET Core `WithChronicle()` overload; this avoids ambiguity when both `Cratis.Arc` and `Microsoft.AspNetCore.Builder` are imported:
 
 ```csharp
-builder.AddCratisArc(configureBuilder: arc => arc.WithChronicle());
+builder.AddCratisArc(configureBuilder: arc =>
+    Microsoft.AspNetCore.Builder.ArcBuilderExtensions.WithChronicle(arc));
 
 var app = builder.Build();
 app.UseCratisArc();
@@ -56,7 +59,7 @@ app.UseCratisChronicle();
 app.Run();
 ```
 
-Or use the all-in-one `AddCratis()`, which wires Arc, the Chronicle client, and identity together:
+Or use the all-in-one `AddCratis()`, which wires Arc, the Chronicle client, and identity together. Its header-based identity adapter requires [trusted authenticated ingress](../cratis-package.md#basic-setup):
 
 ```csharp
 builder.AddCratis();

@@ -1,39 +1,27 @@
-# MongoDB
+---
+title: MongoDB
+description: Optional document persistence, BSON conventions, and observation for standalone Arc.
+---
 
-Welcome to the MongoDB documentation for Cratis Applications. This section covers all aspects of MongoDB integration, from basic setup to advanced configuration and mapping features.
+Use MongoDB when your Arc application needs document storage. `Cratis.Arc.MongoDB` handles collection injection and BSON conventions while letting you use the MongoDB driver directly. It is optional and does not require Chronicle.
 
-MongoDB support in Cratis Applications provides a comprehensive set of features designed to make working with MongoDB in .NET applications seamless and productive. The framework sets up sensible defaults while allowing for extensive customization when needed.
+## Start with a read
 
-## Key Features
+Follow [getting started](./getting-started.md) to install the package, configure a server/database, and activate your host. Keep that page as the canonical setup path rather than copying an incomplete bootstrap.
 
-- **Easy Setup**: Simple configuration with sane defaults
-- **Custom Serializers**: Built-in serializers for common .NET types
-- **Concept Support**: Automatic serialization support for Cratis Concepts
-- **Naming Policies**: Flexible naming conventions for collections and properties
-- **Class Mapping**: Automatic discovery and registration of custom mappings
-- **Convention Packs**: Extensible convention system with filtering capabilities
+## Model your documents
 
-## Topics
+- [Concepts](./concepts.md): store strongly typed values without wrapper documents.
+- [Serializers](./serializers.md): understand BSON representations, including date precision and Guid formats.
+- [Naming policies](./naming-policies.md): choose collection and member names before writing data.
+- [Class mapping](./class-mapping.md): customize individual document types.
+- [Convention packs](./convention-packs.md): apply and filter shared conventions.
+- [Geospatial types](./geospatial/index.md): store GeoJSON and construct driver query geometry.
 
-- [**Getting Started**](getting-started.md) - Basic setup and configuration
-- [**Serializers**](serializers.md) - Built-in serializers for common types
-- [**Concepts**](concepts.md) - Working with Cratis Concepts in MongoDB
-- [**Naming Policies**](naming-policies.md) - Configuring naming conventions
-- [**Class Mapping**](class-mapping.md) - Custom BSON class mapping with automatic discovery
-- [**Convention Packs**](convention-packs.md) - Advanced convention system and filtering
-- [**Tenancy**](tenancy.md) - MongoDB tenant database naming strategies
+## Add live reads and tenancy
 
-## Quick Start
+- [Observe collections](./observing-collections.md): per-collection change streams, lifetime, and errors.
+- [Watch multiple collections](./change-stream-watcher.md): shared database change streams and joined results.
+- [Tenancy](./tenancy.md): database naming and scope boundaries.
 
-To get started with MongoDB in your application:
-
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-builder.AddCratisArc();
-builder.UseCratisMongoDB();
-
-var app = builder.Build();
-app.UseCratisArc();
-```
-
-This configures your application with MongoDB support, including all default serializers, conventions, and mappings.
+MongoDB observation is not an event log, and MongoDB persistence does not append Chronicle events. See the separate [Chronicle integration](../chronicle/index.md) if you intentionally add event sourcing.

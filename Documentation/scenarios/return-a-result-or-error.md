@@ -1,42 +1,58 @@
 ---
 title: Return a result or an error
-description: Choose what a command's Handle() hands back — one event, several, a value for the caller, or a typed failure — and read it on the client.
+description: Return ordinary response data or a typed validation failure from a standalone Arc command, and distinguish response handling from optional Chronicle event persistence.
 ---
 
-**Goal:** your command needs to return more than a single event — maybe a generated id the caller needs, maybe a typed failure, maybe several events at once.
+**Goal:** explicitly write through a database or service, then return a value the caller needs — or a typed rejection. Arc.Core does not append events just because a returned object has an event-like name.
 
-## `Handle()` returns what happened
+## Choose a standalone result
 
-A command's `Handle()` method returns the event(s) it produced, and Arc appends them. The *shape* you return is how you express intent — Arc understands several, so pick the one that fits rather than bending your logic to a single form.
+| You want to…                           | Return                                                        |
+| -------------------------------------- | ------------------------------------------------------------- |
+| Complete without response data         | `void`, `Task`, or `ValueTask`                                |
+| Give the caller a value                | that value, or `Task<T>` / `ValueTask<T>`                     |
+| Succeed with data or reject validation | `Result<TResponse, ValidationResult>` (possibly asynchronous) |
+| Return multiple ordinary values        | a tuple; review the generated response contract               |
 
-## Do it
-
-Return the shape that matches the outcome:
-
-| You want to… | Return |
-|---|---|
-| record one event (source from the command's `[Key]`) | the event: `AuthorRegistered Handle()` |
-| record one event against an explicit source | a tuple: `(AuthorId, AuthorRegistered) Handle()` |
-| also hand the caller a value | a tuple of `(result, event)` |
-| reject with a typed failure *or* succeed | `Result<AuthorRegistered, ValidationResult>` |
-| record several events | return them together as an `IEnumerable<…>` |
-| record nothing | `void` |
-
-The `Result<,>` form is how a handler rejects based on state it had to consult — return `ValidationResult.Error("…")` to fail, or the event to proceed:
+The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/getting-started/your-first-command/). Add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
 
 ```csharp
-public Result<AuthorRegistered, ValidationResult> Handle(RegisteredAuthorName? existing) =>
-    existing is not null && existing.Name != AuthorName.NotSet
-        ? ValidationResult.Error("An author with that name is already registered.")
-        : new AuthorRegistered(Name);
+public async Task<Result<AuthorId, ValidationResult>> Handle(IMongoCollection<Author> authors)
+{
+    if (await authors.Find(author => author.Name == Name).AnyAsync())
+    {
+        return ValidationResult.Error("An author with that name is already registered.", [nameof(Name)]);
+    }
+
+    await authors.InsertOneAsync(new Author(Id, Name));
+    return Id;
+}
 ```
 
-## Reading it on the client
+The insert is the persistent effect; the `AuthorId` is response data. The pre-check gives a friendly failure but is **not atomic**. Keep the database unique index from [validation](/arc/tutorial/validation/) and explicitly translate its duplicate-write failure if you need friendly errors under races. Other storage exceptions remain exception results; do not disguise them as ordinary validation.
 
-Whatever the handler returns, the generated proxy gives the caller a `CommandResult`. Check `isSuccess`, read any returned value off the result, and inspect validation errors when it failed — the same object carries all three.
+For rules that can reject before work begins, prefer a `CommandValidator<T>`; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.md).
+
+## Read it on the client
+
+After regenerating the proxy, `execute()` returns a `CommandResult` (a response-bearing result for this signature). Check `isSuccess` before using `response`; otherwise inspect `validationResults`, `isAuthorized`, and exception information. The [command-result contract](/arc/frontend/core/commands/command-result/) documents these independently — success is not synonymous with absence of validation errors.
+
+## Optional: event results with Chronicle
+
+Only after configuring [Arc + Chronicle](/arc/backend/chronicle/) do registered-event response handlers append events. These are **integration signatures**, not replacements for a standalone write:
+
+| Integrated intention                  | Return shape and prerequisite                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Append a registered event             | `AuthorRegistered Handle()`; Chronicle resolves the source from the command                                     |
+| Select the source in the response     | `(AuthorId, AuthorRegistered)` only when `AuthorId` derives from Chronicle `EventSourceId` / `EventSourceId<T>` |
+| Return caller data alongside an event | `(result, event)`; unhandled values remain response data                                                        |
+| Reject or append                      | `Result<AuthorRegistered, ValidationResult>`                                                                    |
+| Append several events                 | an enumerable of registered events; use `EventForEventSourceId` for explicit cross-stream targeting             |
+
+The standalone tutorial's `AuthorId : ConceptAs<Guid>` is **not** an event-source identifier. An ordinary `Guid` in a response remains ordinary caller data; do not reinterpret it as an append target. See [Chronicle response identifiers](/arc/backend/chronicle/commands/returning-event-source-id/) for explicit-source contracts.
 
 ## See also
 
-- [Commands](/arc/backend/commands/) — the full command model and handler signatures.
-- [Command Result](/arc/frontend/core/commands/command-result/) — reading the result on the frontend.
-- [Validate a command](./validate-a-command.md) — where `ValidationResult.Error` comes from.
+- [Commands](/arc/backend/commands/) — supported handlers and pipeline behavior.
+- [Validate a command](./validate-a-command.md) — choose the right rejection point.
+- [Test a command](./test-a-command.md) — assert the actual write, not just a successful result.

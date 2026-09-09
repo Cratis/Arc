@@ -1,205 +1,201 @@
 ---
 uid: Arc.Testing.CommandScenario
+title: Command scenarios
+description: Configure and execute standalone command scenarios, and assert precise validation and authorization outcomes.
 ---
-# Command Scenarios
 
-`CommandScenario<TCommand>` is a self-contained class for testing any Arc command through the **real** command pipeline — the same infrastructure used in production. Validation filters, authorization filters, and the command handler all execute; nothing is mocked by default.
+`CommandScenario<TCommand>` exercises Arc's real command pipeline. Use it when a direct `Handle()` call would miss validation, authorization, dependency resolution, or execution scopes. It complements fast decision specs; it is not a requirement for every command test. Start with [the decision-and-pipeline lesson](./command-decisions.md), or use [Testing](./index.md) to choose the right boundary. This page is the scenario API reference.
 
-The examples use [Cratis Specifications](/testing-with-cratis/) so the spec reads as given/when/then: `Establish()` registers dependencies, `Because()` runs the command, and each `[Fact]` asserts one outcome.
+<a id="package"></a>
+<a id="basic-usage"></a>
 
-## Package
+## Package and API
 
-```xml
-<PackageReference Include="Cratis.Specifications.XUnit" />
-<PackageReference Include="Cratis.Arc.Testing" />
-```
+Use `Cratis.Arc.Testing` for standalone Arc tests, plus `Cratis.Specifications.XUnit` when writing Specifications. Chronicle is not required. The optional `Cratis.Testing` meta-package also brings Chronicle support; it is not the minimal standalone choice.
 
-Or via the meta-package:
+Import `Cratis.Arc.Testing.Commands` for both the scenario and result assertion extensions.
 
-```xml
-<PackageReference Include="Cratis.Specifications.XUnit" />
-<PackageReference Include="Cratis.Testing" />
-```
+| Member                         | Contract                                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Services`                     | `IServiceCollection` for registrations made before initialization                                                                                |
+| `Context`                      | `IDictionary<string, object>` populated by extenders                                                                                             |
+| `Execute(TCommand command)`    | Returns `Task<CommandResult>`; runs filters, argument resolution (including `Provide()`), the handler, response processing, and execution scopes |
+| `Validate(TCommand command)`   | Returns `Task<CommandResult>`; runs pipeline filters but skips handler argument resolution, `Provide()`, `Handle()`, and execution scopes        |
+| `Dispose()` / `DisposeAsync()` | Releases the provider and disposable context values                                                                                              |
 
-## How It Works
+There is no typed `Execute<TResult>` overload on the scenario. For a known successful response, cast to `CommandResult<TResponse>` and inspect its public `Response`, as in the [standalone checkpoint](./index.md#try-a-standalone-command-spec). The pipeline constructs that generic result from the returned value's runtime type; do not assume a cast to a base/interface response type will work. Failure or no-response results need not have that generic type.
 
-`CommandScenario<TCommand>` is a concrete class that you **instantiate** in your test class. Create it as a field, register any additional services via `Services`, then call `Execute` or `Validate` from `Because()` so each `[Fact]` asserts the same behavior. The service provider and pipeline are built lazily on the first `Execute` or `Validate` call so all services registered before that point are available.
+<a id="how-it-works"></a>
+<a id="registering-additional-services"></a>
+<a id="what-the-scenario-provides"></a>
 
-At construction time `CommandScenario<TCommand>` discovers all `ICommandScenarioExtender` implementations loaded in the test process and calls each one. Extension packages such as `Cratis.Arc.Chronicle.Testing` use this mechanism to register additional services and expose them through C# extension properties — without requiring any base class or explicit setup.
+## Initialization and dependencies
 
-## Basic Usage
+Instantiate the scenario in your spec. At construction it creates `Services` and `Context`, configures options and logging without a sink, then discovers and invokes `ICommandScenarioExtender` implementations. Extenders need a public parameterless constructor. Optional packages can therefore change the scenario's services without a different base class.
 
-```csharp
-public class when_adding_item_to_cart : Specification
-{
-    readonly CommandScenario<AddItemToCart> _scenario = new();
-    CommandResult _result = default!;
+The first `Execute` or `Validate` call builds the service provider and resolves `ICommandPipeline`. Before that call, register application services, substitutes, and options through `Services`, usually in `Establish()`. Later registrations do not rebuild the provider. Discovered validators are constructed on demand using the command scope; you do not need to manually register every validator.
 
-    async Task Because() =>
-        _result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
+This runs pipeline behavior, **not everything in your production host**. There is no HTTP routing, request binding, authentication middleware, or automatic copy of your host's registrations. Application services may still access external infrastructure unless you replace them. Use host/integration tests for those boundaries.
 
-    [Fact] void should_succeed() =>
-        _result.ShouldBeSuccessful();
-
-    [Fact] void should_be_valid() =>
-        _result.ShouldBeValid();
-}
-```
-
-## Registering Additional Services
-
-Register mocks or stub implementations in `Establish()` via `scenario.Services`. `Establish()` runs before `Because()`, so all registrations are in place when the pipeline is built:
-
-```csharp
-public class when_adding_item_to_cart : Specification
-{
-    readonly IInventoryService _inventory = Substitute.For<IInventoryService>();
-    readonly CommandScenario<AddItemToCart> _scenario = new();
-    CommandResult _result = default!;
-
-    void Establish()
-    {
-        _inventory.IsInStock("SKU-123").Returns(true);
-        _scenario.Services.AddSingleton(_inventory);
-    }
-
-    async Task Because() =>
-        _result = await _scenario.Execute(new AddItemToCart("SKU-123", 2));
-
-    [Fact] void should_succeed() =>
-        _result.ShouldBeSuccessful();
-}
-```
-
-## Validating Without Executing
-
-Use `Validate` instead of `Execute` to run only the authorization and validation filters without invoking the command handler. This is useful for verifying validation rules in isolation:
-
-```csharp
-public class when_adding_item_with_empty_sku : Specification
-{
-    readonly CommandScenario<AddItemToCart> _scenario = new();
-    CommandResult _result = default!;
-
-    async Task Because() =>
-        _result = await _scenario.Validate(new AddItemToCart(string.Empty, 2));
-
-    [Fact] void should_not_be_valid() =>
-        _result.ShouldHaveValidationErrors();
-
-    [Fact] void should_report_sku_error() =>
-        _result.ShouldHaveValidationErrorFor("Sku");
-}
-```
-
-## CommandResult Assertion Helpers
-
-The `CommandResultShouldExtensions` class provides fluent BDD-style assertions for `CommandResult`. All helpers throw `CommandResultAssertionException` with a descriptive message on failure.
-
-| Method | Asserts that... |
-| ------ | --------------- |
-| `ShouldBeSuccessful()` | `IsSuccess` is `true`; prints all failure reasons on failure |
-| `ShouldNotBeSuccessful()` | `IsSuccess` is `false` |
-| `ShouldBeValid()` | `IsValid` is `true`; lists all validation errors on failure |
-| `ShouldHaveValidationErrors()` | `IsValid` is `false` |
-| `ShouldHaveValidationErrorFor(message)` | At least one validation error contains the given text |
-| `ShouldHaveValidationErrorBecauseOf(reason)` | At least one validation error carries the given `ValidationResultReason` |
-| `ShouldHaveConstraintViolationFor(constraintName)` | At least one validation error is a constraint violation for the named constraint |
-| `ShouldBeAuthorized()` | `IsAuthorized` is `true` |
-| `ShouldNotBeAuthorized()` | `IsAuthorized` is `false` |
-| `ShouldNotHaveExceptions()` | `HasExceptions` is `false` |
-| `ShouldHaveExceptions()` | `HasExceptions` is `true` |
-
-### Assert the constraint name, not the message
-
-`ShouldHaveValidationErrorFor(message)` matches against text a human wrote, so the spec stops asserting anything the day someone rewords it — and it cannot tell one constraint from another when two produce similar copy. When a command was rejected by a Chronicle constraint, name the constraint instead. It is the same assertion Chronicle offers on an append result, so a spec says the same thing whether the events reach the store through a command or a raw append.
-
-```csharp
-[Fact] void should_be_rejected_by_the_uniqueness_constraint() =>
-    _result.ShouldHaveConstraintViolationFor(AuthorConstraintNames.UniqueName);
-```
-
-### Example: Validation spec
-
-```csharp
-public class when_adding_item_with_zero_quantity : Specification
-{
-    readonly CommandScenario<AddItemToCart> _scenario = new();
-    CommandResult _result = default!;
-
-    async Task Because() =>
-        _result = await _scenario.Validate(new AddItemToCart("SKU-123", 0));
-
-    [Fact] void should_not_be_valid() =>
-        _result.ShouldHaveValidationErrors();
-
-    [Fact] void should_have_quantity_error() =>
-        _result.ShouldHaveValidationErrorFor("must be greater than zero");
-}
-```
-
-### Example: Authorization spec
-
-```csharp
-public class when_admin_command_executed_by_regular_user : Specification
-{
-    readonly CommandScenario<DeleteAllOrders> _scenario = new();
-    CommandResult _result = default!;
-
-    void Establish()
-    {
-        // Arc authorization reads the current principal from IHttpRequestContextAccessor.
-        // Supply a request context whose user lacks the "admin" role that DeleteAllOrders
-        // requires via [Authorize(Roles = "admin")].
-        var requestContext = Substitute.For<IHttpRequestContext>();
-        requestContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.Role, "user")], authenticationType: "test")));
-
-        var requestContextAccessor = Substitute.For<IHttpRequestContextAccessor>();
-        requestContextAccessor.Current.Returns(requestContext);
-
-        _scenario.Services.AddSingleton(requestContextAccessor);
-    }
-
-    async Task Because() =>
-        _result = await _scenario.Execute(new DeleteAllOrders());
-
-    [Fact] void should_not_be_authorized() =>
-        _result.ShouldNotBeAuthorized();
-}
-```
-
-## What the Scenario Provides
-
-`CommandScenario<TCommand>` registers logging without a sink — `ILogger<T>` resolves as a no-op — and calls `Services.AddCratisArcCore()` when first initialized, which wires:
-
-- Type discovery for all handlers, validators, and filters
-- The real `ICommandPipeline`
-- All built-in validation and authorization filters
-
-Everything that runs in production runs in the spec — there is no hidden short-circuiting.
-
-No log output is produced by default, keeping scenarios lightweight — a console logger would otherwise spawn a background thread per scenario. To see log output while debugging a scenario, opt in before the first `Execute` or `Validate`:
+To opt into console logging while debugging, use this setup fragment before the first pipeline call (with `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Logging` imported and the console logging package available):
 
 ```csharp
 _scenario.Services.AddLogging(logging => logging.AddConsole());
 ```
 
-## Disposal
+<a id="validating-without-executing"></a>
+<a id="example-validation-spec"></a>
 
-`CommandScenario<TCommand>` implements both `IDisposable` and `IAsyncDisposable`. Disposing it releases the service provider it built and disposes any disposable values extension packages placed in `Context` — the Chronicle extender's `EventScenario` is cleaned up this way. Disposal is idempotent, and calling `Execute` or `Validate` on a disposed scenario throws `ObjectDisposedException`.
+## Validate without executing
 
-With Cratis Specifications, dispose the scenario in `Destroy()`:
+This complete test file uses the packages from the [standalone quick start](./index.md). It defines the command and validator so the message assertion has a known source. Compile it separately from the quick-start file, or give the types distinct names.
 
 ```csharp
-public class when_adding_item_to_cart : Specification
+using System.Threading.Tasks;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Specifications;
+using FluentValidation;
+using Xunit;
+
+namespace ValidationSpecs;
+
+[Command]
+public record NormalizeName(string Name)
 {
-    readonly CommandScenario<AddItemToCart> _scenario = new();
+    public string Handle() => Name.Trim();
+}
+
+public class NormalizeNameValidator : CommandValidator<NormalizeName>
+{
+    public NormalizeNameValidator()
+    {
+        RuleFor(command => command.Name)
+            .NotEmpty()
+            .WithMessage("Name is required");
+    }
+}
+
+public class when_validating_an_empty_name : Specification
+{
+    readonly CommandScenario<NormalizeName> _scenario = new();
+    CommandResult _result = default!;
+
+    async Task Because() =>
+        _result = await _scenario.Validate(new NormalizeName(string.Empty));
+
+    [Fact] void should_have_validation_errors() =>
+        _result.ShouldHaveValidationErrors();
+
+    [Fact] void should_report_the_required_name() =>
+        _result.ShouldHaveValidationErrorFor("Name is required");
 
     void Destroy() => _scenario.Dispose();
-
-    // ...
 }
 ```
 
-With plain xUnit, implement `IDisposable` (or `IAsyncDisposable`) on the test class and dispose the scenario there — xUnit disposes the test class after each test. Each scenario builds a full service provider on first use, so disposing it per test keeps long spec runs from accumulating providers.
+Run `dotnet test`; both facts should pass. `Validate` still requires a discoverable command handler, but does not call it. A successful validation result does not prove that `Provide()`, `Handle()`, or a commit-time check will succeed during execution. Custom filters can also perform work, so validation is not a universal side-effect-free sandbox.
+
+## CommandResult assertion helpers
+
+These extension methods return `void`. Built-in assertion failures throw `CommandResultAssertionException`. After its own check passes, **every** helper below applies discovered `ICommandResultAssertionPolicy` implementations through `CommandResultAssertionPolicies`; a policy can still fail the assertion or throw its own exception.
+
+| Method                                                              | Built-in check                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ShouldBeSuccessful()`                                              | `IsSuccess` is true; includes failure reasons otherwise                                                                        |
+| `ShouldNotBeSuccessful()`                                           | `IsSuccess` is false                                                                                                           |
+| `ShouldBeValid()`                                                   | `IsValid` is true                                                                                                              |
+| `ShouldHaveValidationErrors()`                                      | `IsValid` is false, and the validation results are not exclusively `DependencyUnavailable`                                     |
+| `ShouldHaveValidationErrorFor(string message)`                      | A validation result's message contains the text using ordinal, case-sensitive matching; this is **not** a property-path lookup |
+| `ShouldHaveValidationErrorBecauseOf(ValidationResultReason reason)` | A validation result carries that reason                                                                                        |
+| `ShouldHaveConstraintViolationFor(string constraintName)`           | A validation result has reason `ConstraintViolation` and `ReasonDetail` exactly equal to the name                              |
+| `ShouldBeAuthorized()`                                              | `IsAuthorized` is true                                                                                                         |
+| `ShouldNotBeAuthorized()`                                           | `IsAuthorized` is false                                                                                                        |
+| `ShouldNotHaveExceptions()`                                         | `HasExceptions` is false                                                                                                       |
+| `ShouldHaveExceptions()`                                            | `HasExceptions` is true                                                                                                        |
+
+<a id="assert-the-constraint-name-not-the-message"></a>
+
+A broad failure assertion can pass for the wrong reason. Pair it with a specific message, reason, or constraint assertion. Message matching fails if the message is reworded to remove the expected text; it does not silently become a no-op. For optional Chronicle constraints, prefer `ShouldHaveConstraintViolationFor` with your application's constraint-name constant instead of relying on prose.
+
+## Dependency unavailable is not a business-rule rejection
+
+A missing required read model can reject a command before its validator is constructed. `ShouldHaveValidationErrors()` deliberately fails when **all** validation results have reason `DependencyUnavailable`: otherwise a spec might pass without the business rule ever running. If other validation reasons are present too, the broad assertion can pass; it still does not identify which rule ran.
+
+Seed/register the required state when testing a business rule. When unavailable state is itself the intended outcome, assert the reason explicitly. This is an assertion fragment for a spec with `_result` already assigned; import `Cratis.Arc.Validation`:
+
+```csharp
+[Fact] void should_reject_unavailable_state() =>
+    _result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.DependencyUnavailable);
+```
+
+This distinguishes a registered provider returning missing required state or an unusable key from an unregistered required service, which can instead produce an exception outcome. See [ARC0006](../code-analysis/ARC0006.md) for the resolution distinction and the [optional Chronicle seeding helpers](./chronicle.md#testing-commands-that-take-read-model-dependencies) for event-sourced tests.
+
+<a id="example-authorization-spec"></a>
+
+## Supply a principal for authorization
+
+Pipeline authorization reads `ICurrentPrincipalAccessor`. Test its behavior by supplying a principal; this does not test login or token validation. The following complete standalone test file additionally requires `NSubstitute`:
+
+```csharp
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Specifications;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
+using Xunit;
+
+namespace AuthorizationSpecs;
+
+public enum ApplicationRole { Administrator, User }
+
+[Command]
+[Roles(nameof(ApplicationRole.Administrator))]
+public record RunAdministration()
+{
+    public string Handle() => "Completed";
+}
+
+public class when_a_regular_user_runs_administration : Specification
+{
+    readonly CommandScenario<RunAdministration> _scenario = new();
+    CommandResult _result = default!;
+
+    void Establish()
+    {
+        var principalAccessor = Substitute.For<ICurrentPrincipalAccessor>();
+        principalAccessor.Current.Returns(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, nameof(ApplicationRole.User))],
+            authenticationType: "test")));
+        _scenario.Services.AddSingleton(principalAccessor);
+    }
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new RunAdministration());
+
+    [Fact] void should_not_be_authorized() =>
+        _result.ShouldNotBeAuthorized();
+
+    void Destroy() => _scenario.Dispose();
+}
+```
+
+Run `dotnet test`; the fact should pass because the authenticated user lacks the required role. Arc pipeline authorization and host-level policy/scheme enforcement are distinct boundaries.
+
+## Disposal
+
+The scenario owns its provider and disposable values in `Context`. Keep a field-initialized scenario `readonly` when the spec does not replace it; a field assigned or replaced in `Establish()` can remain mutable. `Specification` already implements xUnit's `IAsyncLifetime` and calls `Destroy()` by convention for cleanup. Use `void Destroy() => _scenario.Dispose();`; no additional disposal interface is needed on the spec class.
+
+With plain xUnit, use the test framework's supported disposal lifecycle. Asynchronous scenario disposal prefers `IAsyncDisposable` on owned values and falls back to `IDisposable`.
+
+Disposal is idempotent. Calling `Execute` or `Validate` afterwards throws `ObjectDisposedException`. Dispose per scenario to avoid accumulating providers during long test runs.
+
+## Next steps
+
+- [Optional Chronicle testing](./chronicle.md) adds in-process event-log assertions and seeded read model state.
+- [Command pipeline](../commands/command-pipeline.md) explains the production execution path.

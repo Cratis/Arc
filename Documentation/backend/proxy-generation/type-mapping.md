@@ -1,27 +1,84 @@
-# Type Mapping
+---
+title: Type mapping
+description: .NET-to-TypeScript model types, runtime metadata, and enum generation.
+---
 
 The proxy generator translates the .NET types on your commands, queries and read models into TypeScript types on the generated proxies. This page records that translation, so you can tell from the C# what the browser will actually receive.
 
 ## Primitive and common types
 
-| .NET type | TypeScript type | Metadata constructor | Imported from |
-|---|---|---|---|
-| `bool` | `boolean` | `Boolean` | — |
-| `string`, `char`, `Uri` | `string` | `String` | — |
-| `byte`, `sbyte`, `short`, `int`, `long`, `ushort`, `uint`, `ulong`, `float`, `double`, `decimal` | `number` | `Number` | — |
-| `DateTime`, `DateTimeOffset` | `Date` | `Date` | — |
-| `DateOnly` | `DateOnly` | `DateOnly` | `@cratis/fundamentals` |
-| `TimeOnly` | `TimeOnly` | `TimeOnly` | `@cratis/fundamentals` |
-| `Guid` | `Guid` | `Guid` | `@cratis/fundamentals` |
-| `TimeSpan` | `TimeSpan` | `TimeSpan` | `@cratis/fundamentals` |
-| `Cratis.Geospatial.Point`, `LineString`, `Polygon` | same name | same name | `@cratis/fundamentals` |
-| `object`, `JsonNode`, `JsonObject`, `JsonArray`, `JsonDocument` | `Record<string, unknown>` | `Object` | — |
+| .NET type                                                                                        | TypeScript type           | Metadata constructor | Imported from          |
+| ------------------------------------------------------------------------------------------------ | ------------------------- | -------------------- | ---------------------- |
+| `bool`                                                                                           | `boolean`                 | `Boolean`            | —                      |
+| `string`, `char`, `Uri`                                                                          | `string`                  | `String`             | —                      |
+| `byte`, `sbyte`, `short`, `int`, `long`, `ushort`, `uint`, `ulong`, `float`, `double`, `decimal` | `number`                  | `Number`             | —                      |
+| `DateTime`, `DateTimeOffset`                                                                     | `Date`                    | `Date`               | —                      |
+| `DateOnly`                                                                                       | `DateOnly`                | `DateOnly`           | `@cratis/fundamentals` |
+| `TimeOnly`                                                                                       | `TimeOnly`                | `TimeOnly`           | `@cratis/fundamentals` |
+| `Guid`                                                                                           | `Guid`                    | `Guid`               | `@cratis/fundamentals` |
+| `TimeSpan`                                                                                       | `TimeSpan`                | `TimeSpan`           | `@cratis/fundamentals` |
+| `Cratis.Geospatial.Point`, `LineString`, `Polygon`                                               | same name                 | same name            | `@cratis/fundamentals` |
+| `object`, `JsonNode`, `JsonObject`, `JsonArray`, `JsonDocument`                                  | `Record<string, unknown>` | `Object`             | —                      |
 
 The metadata constructor is passed to the generated `@field(...)` decorator, which records the runtime type used during deserialization.
 
 An enum becomes a TypeScript `enum` and travels as its underlying number. A `ConceptAs<T>` is unwrapped to `T` and mapped by this same table. A `Nullable<T>` is unwrapped to `T` and the generated property is declared optional.
 
 Collections become arrays. A dictionary becomes `Record<string, TValue>` when its key maps to `string`, and `ValueMap<TKey, TValue>` otherwise.
+
+## Enum generation
+
+Referenced enums are generated with camelCase member names and numeric values. These paired declarations illustrate the type output; the C# enum must be reachable from a discovered endpoint/model or included through library mode:
+
+```csharp
+public enum ReadModelStatus
+{
+    Unknown = 0,
+    Active = 1,
+    Inactive = 2,
+    Archived = 3
+}
+```
+
+```typescript
+export enum ReadModelStatus {
+    unknown = 0,
+    active = 1,
+    inactive = 2,
+    archived = 3,
+}
+```
+
+### Flags enums
+
+`[Flags]` uses a dedicated template that also exports `all<EnumName>`, combining every nonzero member with bitwise OR:
+
+```csharp
+[System.Flags]
+public enum AnchorEdges
+{
+    None = 0,
+    Top = 1 << 0,
+    Right = 1 << 1,
+    Bottom = 1 << 2,
+    Left = 1 << 3,
+}
+```
+
+```typescript
+export enum AnchorEdges {
+    none = 0,
+    top = 1,
+    right = 2,
+    bottom = 4,
+    left = 8,
+}
+
+export const allAnchorEdges =
+    AnchorEdges.top | AnchorEdges.right | AnchorEdges.bottom | AnchorEdges.left;
+```
+
+The zero-valued `none` contributes nothing and is excluded. Composite nonzero members are included too. This is JavaScript numeric/bitwise output, not a `bigint` mapping: avoid assuming .NET 64-bit flag values retain their semantics under JavaScript's 32-bit bitwise operators. Large integral values also face JavaScript number precision limits.
 
 ## Dates, times and instants
 
@@ -32,24 +89,24 @@ Collections become arrays. A dictionary becomes `Record<string, TValue>` when it
 This matters because a `Date` cannot hold either value without inventing one that was never sent:
 
 ```typescript
-new Date('2026-05-12')      // 2026-05-12T00:00:00.000Z — UTC midnight, an instant nobody sent
-new Date('14:30:45')        // Invalid Date — a time of day is not a date at all
+new Date('2026-05-12'); // 2026-05-12T00:00:00.000Z — UTC midnight, an instant nobody sent
+new Date('14:30:45'); // Invalid Date — a time of day is not a date at all
 ```
 
-The first is the more dangerous of the two, because it looks like it worked. UTC midnight read back through any browser-local getter reports the *previous* day everywhere west of UTC, while remaining correct at or east of it — so the bug is invisible to a developer in Europe and constant for a user in the Americas:
+The first is the more dangerous of the two, because it looks like it worked. UTC midnight read back through any browser-local getter reports the _previous_ day everywhere west of UTC, while remaining correct at or east of it — so the bug is invisible to a developer in Europe and constant for a user in the Americas:
 
 ```typescript
 const asAnInstant = new Date('2026-05-12');
-asAnInstant.toLocaleDateString('en-CA', { timeZone: 'Europe/Oslo' });      // '2026-05-12'
+asAnInstant.toLocaleDateString('en-CA', { timeZone: 'Europe/Oslo' }); // '2026-05-12'
 asAnInstant.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // '2026-05-11'  ← wrong
 ```
 
-`DateOnly` holds the three parts the server sent, so there is no instant to convert and nothing to shift:
+`DateOnly` holds the three parts the server sent, so there is no instant to convert and nothing to shift. The following are illustrative expressions assuming a deserialized `readModel` with a `DateOnly`-typed `dueDate`:
 
 ```typescript
-readModel.dueDate.toString();   // '2026-05-12', in every time zone
-readModel.dueDate.year;         // 2026
-readModel.dueDate.day;          // 12
+readModel.dueDate.toString(); // '2026-05-12', in every time zone
+readModel.dueDate.year; // 2026
+readModel.dueDate.day; // 12
 ```
 
 Where you genuinely need a `Date` — to feed a date picker, or to do calendar arithmetic — `toDate()` constructs one at midnight in the local zone. It is a method rather than what the value is, precisely because calling it invents a time, and that choice belongs at the call site making it:
@@ -78,11 +135,13 @@ Every `DateOnly` then generates as `LocalDate`, imported from `@acme/time`. Omit
 Mappings are consulted **ahead of** the built-in table, so this corrects an existing type as readily as it declares a new one. A build that configures none generates exactly what it generated before.
 
 :::note
-The defaults are chosen to be right without configuration — reach for a mapping when your application wants a *different* type, not to work around a default that is wrong.
+The defaults are chosen to be right without configuration — reach for a mapping when your application wants a _different_ type, not to work around a default that is wrong.
 
 Whatever you map to has to be able to deserialize from what the server actually sends. `DateOnly` arrives as `"2026-05-12"` and `TimeOnly` as `"14:30:45"`, so register a converter for the type you map to with `JsonSerializer.registerConverter`, or the value arrives as the raw string wearing the declared type's name.
 :::
 
 ## Unmapped types
 
-A type not in the table above, and not declared through `TypeToTsType`, is generated as its own TypeScript class, in a file mirroring its namespace, and imported into whatever references it. Types from assemblies configured as package-mapped are imported from that package instead of being generated.
+A collected complex type not in the table above, and not declared through `TypeToTsType`, normally generates as a TypeScript class with runtime field metadata. Its folder follows namespace configuration; its filename follows the artifact name or [source-file grouping](Configuration/basic.md#source-file-as-output-file). Types from package-mapped assemblies are imported instead of generated.
+
+Plain model interfaces are a separate [CLI output mode](Configuration/library-mode.md#default-classes-versus-plain-interfaces), not the default and not a replacement for constructors needed by query/identity deserialization.

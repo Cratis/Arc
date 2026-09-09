@@ -9,7 +9,7 @@ Most Arc snags come down to a handful of causes. Here they are. If the slice use
 
 Proxies are generated when the **backend builds**. If the import doesn't resolve:
 
-- Run `dotnet build` on the backend and confirm it succeeds — no proxies are emitted until the C# compiles.
+- Install `Cratis.Arc.ProxyGenerator.Build`, set `CratisProxiesOutputPath`, and run `dotnet build -c Debug` on the backend and confirm it succeeds — no proxies are emitted until the C# compiles.
 - Check the command/query is discoverable: a `[Command]` record with a `Handle()` method, or a static query method on a `[ReadModel]`.
 - Make sure proxy generation is targeting the right output folder for your frontend (see [Proxy Generation](./backend/proxy-generation/)).
 
@@ -19,7 +19,7 @@ The proxies regenerate on build. Rebuild the backend; the frontend types update 
 
 ## My command's OK/Submit button stays disabled
 
-The command isn't considered valid. The usual cause: a required value is being set in `onBeforeExecute` instead of `initialValues`. `onBeforeExecute` runs at execution time — too late to affect validity — so the form never becomes valid. Put injected required values (like a parent id) in `initialValues`; reserve `onBeforeExecute` for generated values that don't gate validity (like a new `Guid`). See [Building a form](/components/building-a-form/).
+The command isn't considered valid. The usual cause: a required value is being set in `onBeforeExecute` instead of `initialValues`. `onBeforeExecute` runs at execution time — too late to affect validity — so the form never becomes valid. Put **all required values**, including parent ids and newly generated Guids, in `initialValues`. Generate a stable id when each dialog operation starts; do not reuse it for the next operation. Reserve `onBeforeExecute` for transformations that do not determine validity. See [Building a form](/components/building-a-form/).
 
 ## My command returns 401 or 403
 

@@ -1,148 +1,87 @@
-# Observing DbSet<>
+---
+title: Observe a DbSet
+description: Observe EF query results with explicit provider prerequisites and lifecycle limits.
+---
 
-Entity Framework Core observation support allows you to monitor changes to your entities in real-time using reactive extensions. This feature enables you to create observable queries that automatically update when data changes, either through your application or external database modifications.
+Once ordinary EF reads work, observation can refresh a result when the underlying table changes. Arc combines in-process SaveChanges interception with optional provider notifications. **SQLite does not poll external writes.**
 
-## Configuration
+## Configure the host
 
-To enable observation support, you only need to register the observation services in your service collection.
-
-### Register Observation Services
-
-Add observation services to your service collection:
+`WithEntityFrameworkCore()` registers observation services. For explicit registration in an existing Arc host, import `Cratis.Arc.EntityFrameworkCore`, `Cratis.Arc.EntityFrameworkCore.Observe`, `Microsoft.EntityFrameworkCore`, and `Microsoft.Extensions.DependencyInjection`, then use this startup fragment:
 
 ```csharp
 services.AddEntityFrameworkCoreObservation();
+services.AddDbContextWithConnectionString<OrdersDbContext>("Data Source=orders.db");
 ```
 
-This registers the necessary services for tracking entity changes and database-level notifications.
+Arc's context helpers add the observation interceptor when those services are available. For ordinary EF registration, add `.AddObservation(serviceProvider)` in the two-argument options callback. The context must also be resolvable from a fresh scope: observation resolves its concrete type for initial and subsequent queries.
 
-If your DbContext inherits from `BaseDbContext` and is registered using the Arc extension methods (`AddDbContextWithConnectionString` or `AddReadOnlyDbContext`), observation support is automatically enabled when the services are registered. No additional configuration is needed.
+Keep the normal Arc registration **and activation**. `Observe()` accesses Arc's initialized service provider and current query context; adding EF services alone is not a complete observation host.
 
-### Manual Configuration (Advanced)
+## Observe results
 
-If you're not using `BaseDbContext` or the Arc registration methods, you can manually add observation support at registration time:
+These are query-method fragments using your application's context/entities. Here `Customer.Id` and `customerId` use the application's `CustomerId : ConceptAs<Guid>` domain identity. Import `Microsoft.EntityFrameworkCore` and `System.Reactive.Linq`.
 
 ```csharp
-services.AddPooledDbContextFactory<MyDbContext>((serviceProvider, options) =>
-{
-    options.UseSqlServer(connectionString)
-           .AddObservation(serviceProvider);
-});
-
-services.AddScoped(serviceProvider =>
-{
-    var factory = serviceProvider.GetRequiredService<IDbContextFactory<MyDbContext>>();
-    return factory.CreateDbContext();
-});
+var orders = dbContext.Orders.Observe(order => order.IsPending);
+var customer = dbContext.Customers.ObserveSingle(customer => customer.Email == email);
+var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId);
 ```
 
-> **Important**: When using pooled DbContext factories (`AddPooledDbContextFactory`), all configuration must be done at registration time. You cannot modify options in `OnConfiguring` when pooling is enabled.
+`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>` and emit a value only when an entity exists; absence is not a null notification. `ObserveById` requires a public `Id` property. Collection observation uses single-key EF metadata where available, falling back to `Id`.
 
-## Usage
-
-Once configured, you can create observable queries using extension methods on `DbSet<TEntity>`.
-
-### Observe a Collection
-
-Monitor changes to a collection of entities:
+To customize loading, use the second callback:
 
 ```csharp
-var observable = dbContext.MyEntities.Observe();
-observable.Subscribe(entities => 
-{
-    // Handle updated collection
-    Console.WriteLine($"Collection updated: {entities.Count()} items");
-});
+var orders = dbContext.Orders.Observe(
+    order => order.IsPending,
+    configure: set => set.Include(order => order.Lines));
 ```
 
-### Observe with Filter
+Arc applies the filter and current query-context paging/sorting to the configured query. Initial querying is synchronous and can throw before a subject is returned. Later re-query errors are logged, not sent as `OnError` to subscribers.
 
-Apply filters to observe specific entities:
+## Provider capabilities
 
-```csharp
-var observable = dbContext.Orders.Observe(order => order.Status == OrderStatus.Pending);
-observable.Subscribe(pendingOrders => 
-{
-    // Handle updates to pending orders only
-});
-```
+| Provider | In-process writes | External writes and prerequisites |
+| --- | --- | --- |
+| SQLite | SaveChanges through contexts with Arc's observation interceptor | No external notifier; `StartListening` is a no-op. No polling fallback. |
+| PostgreSQL | Same interception path | `LISTEN/NOTIFY`; Arc attempts to create a function and table trigger. The database user needs suitable permissions, or an administrator must supply a compatible trigger/channel. |
+| SQL Server | Same interception path | `SqlDependency` with Service Broker enabled and query-notification permissions/compatible queries. Arc attempts to enable Service Broker. No general polling fallback. |
 
-### Observe a Single Entity
+> [!WARNING]
+> When Service Broker is disabled, Arc attempts `ALTER DATABASE [databaseName] SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE`. With sufficient permissions, this operation can terminate other connections and roll back their transactions. Pre-provision Service Broker through a controlled administrative maintenance/deployment procedure and use least-privilege application credentials. Do not grant `ALTER DATABASE` merely to make `Observe()` initialize.
 
-Monitor changes to a specific entity:
+A PostgreSQL listener can start even when trigger creation fails. That alone does not establish that external changes are observable. Notifier setup failures are logged and observation can continue with in-process notifications only. Monitor logs and verify an external write in a test database before relying on cross-process updates.
 
-```csharp
-var observable = dbContext.Products.ObserveSingle(p => p.Sku == "ABC123");
-observable.Subscribe(product => 
-{
-    // Handle updates to the specific product
-});
-```
+Notifications cause a query refresh; they are not a durable change log. Do not assume every intermediate state is delivered, that raw/bulk SQL passes through SaveChanges interception, or that changes to every included relationship independently trigger the root-table observation.
 
-### Observe by Id
+## Lifetime and disposal
 
-Monitor a single entity using its identifier:
+Arc's streaming transports dispose their observer subscriptions when clients disconnect; they do **not** complete the EF subject. EF producer cleanup is tied to subject completion, so returning a raw EF subject does not give its producer a disconnect-driven lifetime. An HTTP snapshot, including `waitForFirstResult=true`, does not close this ownership gap.
 
-```csharp
-var observable = dbContext.Customers.ObserveById<Customer, Guid>(customerId);
-observable.Subscribe(customer => 
-{
-    // Handle updates to the customer
-});
-```
+Before exposing EF observation through an observable query, establish an application-owned producer lifetime and test disconnects, concurrent clients, and shutdown. Do not complete a shared subject just because one client leaves: that would stop other clients too.
 
-## How It Works
+For a subject you own directly, retain both the subject and subscription and **complete the subject** when finished. Disposing the Rx subscription alone does not stop this EF observation implementation.
 
-The observation feature combines two notification mechanisms:
-
-1. **In-Process Changes**: Changes made through your application's `DbContext` are tracked via EF Core interceptors
-2. **Database-Level Changes**: External changes are detected using database-specific notification mechanisms:
-   - SQL Server: Uses `SqlDependency` or polling
-   - PostgreSQL: Uses `LISTEN/NOTIFY`
-   - SQLite: Uses polling
-
-When any change is detected, the observable query is re-executed and subscribers are notified with the updated results.
-
-## Change Detection
-
-The observation system detects changes when:
-
-- Entities are added, modified, or deleted through `SaveChanges()` or `SaveChangesAsync()`
-- External processes modify the database (via database-level notifications)
-- Changes match the filter criteria of your observable query
-
-## Best Practices
-
-- Use filters to limit the scope of observations and improve performance
-- Dispose of subscriptions when no longer needed to prevent memory leaks
-- Consider using `ObserveSingle` or `ObserveById` when monitoring individual entities
-- Be mindful of database notification limits and capabilities for your specific database provider
-
-## Example: Real-Time Dashboard
+Lifecycle fragment inside an asynchronous method:
 
 ```csharp
-public class OrderDashboard
+var subject = dbContext.Orders.Observe(order => order.IsPending);
+using var subscription = subject.Subscribe(orders => Console.WriteLine(orders.Count()));
+try
 {
-    private readonly IDisposable _subscription;
-
-    public OrderDashboard(MyDbContext dbContext)
-    {
-        _subscription = dbContext.Orders
-            .Observe(o => o.Status == OrderStatus.Processing)
-            .Subscribe(processingOrders =>
-            {
-                UpdateDashboard(processingOrders);
-            });
-    }
-
-    public void Dispose()
-    {
-        _subscription?.Dispose();
-    }
-
-    private void UpdateDashboard(IEnumerable<Order> orders)
-    {
-        // Update UI or metrics
-    }
+    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+}
+finally
+{
+    subject.OnCompleted();
 }
 ```
+
+Completion initiates notifier/interceptor cleanup; it is not an awaitable guarantee that notifier disposal has finished. Test cleanup against concurrent notifications with your provider. This lifecycle differs from [MongoDB collection observation](../mongodb/observing-collections.md), whose subject tracks subscriber disposal.
+
+## Scope and isolation
+
+Observation recreates scopes for reads. Arc's pooled EF registrations keep the configured connection string; they do not infer per-tenant databases from the current tenant. Validate your application's tenant strategy across initial reads, notification callbacks, and pooled reuse before using observation in a multi-tenant application.
+
+Continue with [read-only contexts](./read-only.md) and [registration](./getting-started.md).

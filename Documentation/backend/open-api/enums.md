@@ -1,10 +1,13 @@
-# Enums
+---
+title: Enums
+description: Understand the current mismatch between Arc's numeric enum serialization and its OpenAPI enum-name transformer.
+---
 
-By default, `System.Text.Json` serializes enums as integers. This makes API documentation less readable because consumers see numeric values rather than meaningful names.
-
-The `EnumSchemaTransformer` replaces integer enum values in the schema with their string names, making the documentation self-explanatory without requiring additional annotations.
+Arc serializes enums numerically by default. `EnumSchemaTransformer` makes names visible in ASP.NET OpenAPI schemas, but its current implementation does not fully align the schema with that wire format.
 
 ## Example
+
+This complete enum type fragment illustrates the contract:
 
 ```csharp
 public enum InvoiceStatus
@@ -16,7 +19,7 @@ public enum InvoiceStatus
 }
 ```
 
-Without the transformer the schema for `InvoiceStatus` would be:
+An ordinary numeric schema starts as:
 
 ```json
 {
@@ -25,24 +28,25 @@ Without the transformer the schema for `InvoiceStatus` would be:
 }
 ```
 
-With the transformer the schema becomes:
+The transformer clears `enum` and inserts the names. It **does not change `type`**. Given the schema above, its output is therefore:
 
 ```json
 {
-  "type": "string",
+  "type": "integer",
   "enum": ["Draft", "Sent", "Paid", "Overdue"]
 }
 ```
 
-## Behaviour
+This is a current schema inconsistency, not a valid string-enum contract: none of those string members satisfies the integer type. The transformer itself does not change runtime serialization, so a normal Arc payload still carries `0` for `Draft`.
 
-The transformer applies to every enum type that appears in the API schema — request bodies, response bodies, and query/route parameters alike. No additional attributes or configuration are required.
+## Configuration boundary
 
-> [!NOTE]
-> The transformer only modifies the OpenAPI schema. To ensure your runtime serialisation matches (i.e. that JSON actually serialises enum values as strings), add `JsonStringEnumConverter` to your serialisation options:
->
-> ```csharp
-> builder.Services.ConfigureHttpJsonOptions(options =>
->     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-> ```
+Arc-generated endpoints serialize with `ArcOptions.JsonSerializerOptions`. ASP.NET's `ConfigureHttpJsonOptions` configures a different options instance and does not switch Arc endpoints to string enums. Appending `JsonStringEnumConverter` to Arc options also cannot be assumed to override the existing enum converter: the first matching converter wins.
 
+Do not change your public numeric wire format just to match this schema example. If you customize schema or serialization, explicitly align both contracts and test the actual request/response plus generated schema before generating clients.
+
+## See also
+
+- [JSON serialization configuration](../asp-net-core/configuration.md#json-serialization) — the correct options target.
+- [OpenAPI setup](index.md) — ASP.NET transformer registration.
+- [Lightweight OpenAPI](../core/openapi.md) — a different, metadata-only implementation.

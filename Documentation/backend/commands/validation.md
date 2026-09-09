@@ -1,121 +1,90 @@
-# Validation
+---
+title: Command validation
+description: Validate model-bound command input with property annotations or FluentValidation.
+---
 
-Commands can be validated by either using [FluentValidation](https://docs.fluentvalidation.net/en/latest/) or
-the attribute based validators found in the `System.ComponentModel.DataAnnotations` namespace.
+When input is incomplete, return useful feedback before performing work. Arc's model-bound pipeline runs validation filters before `Provide()` and `Handle()`. Blocking results stop execution and appear in `CommandResult.ValidationResults`.
 
-The validators are performed before the commands handler method is invoked. If any validators cause a
-validation error, it will not invoke the command handler and just return a `CommandResult` with the errors
-in it.
+Validation is not authorization, and a pre-flight check cannot guarantee that state remains unchanged. Read [severity filtering](./validation-severity-filtering.md) before relying on a rule as a non-overridable guard.
 
-> **💡 Client-Side Validation**: When using FluentValidation, validation rules are automatically extracted by the [ProxyGenerator](../proxy-generation/validation.md) and run on the client before server calls. This provides immediate feedback to users and reduces unnecessary server requests.
+## Data annotations
 
-## Data Annotations
+For positional records, explicitly target the generated **properties**. Arc's command filter uses object-property validation, not constructor-parameter metadata.
 
-Depending on how you like to do your validation, with data annotations you can adorn a value on
-a command directly. This can be helpful if you're trying to keep things lightweight and very
-cohesive.
+This complete command allocates a `Guid`; it does not persist a business record:
 
 ```csharp
+using System;
+using System.ComponentModel.DataAnnotations;
+using Cratis.Arc.Commands.ModelBound;
+
 [Command]
-public record AddItemToCart(
-    [Required] string Sku,
-    int Quantity)
+public record AllocateLabeledIdentifier(
+    [property: Required] string Label,
+    [property: Range(1, 100)] int Copies)
 {
-    public void Handle()
-    {
-        // Handle the command
-    }
+    public Guid Handle() => Guid.NewGuid();
 }
 ```
 
-The code adds the `[Required]` attribute to the `sku` property.
+An empty `Label` or an out-of-range `Copies` produces validation errors before `Handle()`, at the default severity threshold. Constructor annotations such as `[Required] string Label` do not provide the property metadata this filter reads. MVC record binding has different metadata rules; do not apply this advice mechanically to [controller-based commands](./controller-based.md).
 
-> Note: The required attribute can also take a specific error message.
+## FluentValidation
 
-## Fluent Validation
+For richer rules, derive a validator from `CommandValidator<T>`. Arc discovers it with the application's types; no per-validator registration is needed under normal Arc discovery.
 
-When using [FluentValidation](https://docs.fluentvalidation.net/en/latest/) you get more control
-of an flexibility the flow of validation. For instance, the validator can take dependencies and
-with it you can call other systems that has the required knowledge for the validation rules you
-want for your commands.
-
-Given the same sample as for Data Annotation, this would be like the following:
+This validator is an alternative to the annotations above, using the same command type:
 
 ```csharp
-[Command]
-public record AddItemToCart(
-    string Sku,
-    int Quantity)
-{
-    public void Handle()
-    {
-        // Handle the command
-    }
-}
+using Cratis.Arc.Commands;
+using FluentValidation;
 
-
-public class AddItemToCartValidators : CommandValidator<AddItemToCart>
+public class AllocateLabeledIdentifierValidator : CommandValidator<AllocateLabeledIdentifier>
 {
-    public AddItemToCartValidators()
+    public AllocateLabeledIdentifierValidator()
     {
-        RuleFor(c => c.Sku).NotEmpty().WithMessage("You have to provide a Sku");
+        RuleFor(command => command.Label).NotEmpty().MaximumLength(100);
+        RuleFor(command => command.Copies).InclusiveBetween(1, 100);
     }
 }
 ```
 
-The code shows the `AddItemToCartValidators` class implementing the `CommandValidator<>`,
-which is required for validating commands. It makes the validator discoverable by the system
-and you don't have to register it anywhere.
+Remove duplicate annotations if you select FluentValidation for those same rules. The [proxy generator](../proxy-generation/validation.md) extracts supported rules for early client feedback; server rules involving services or custom logic are not automatically equivalent client-side checks.
 
-### Validator Dependencies
+## Validator dependencies
 
-Command validators can take dependencies through their constructors. Arc resolves those dependencies from the same command scope used by `Provide()` and `Handle()`, so validators can check current state before the command handler runs.
+Validators may accept registered services through their constructors. Arc resolves these from the command scope, also used for `Provide()` and `Handle()` dependencies. This application-level example supplies its complete policy dependency and makes no database assumptions:
 
 ```csharp
-public class RemoveContactValidator : CommandValidator<RemoveContact>
-{
-    public RemoveContactValidator(Customer? customer)
-    {
-        RuleFor(_ => customer)
-            .NotNull()
-            .WithMessage("Customer is not registered");
+using Cratis.Arc.Commands;
+using FluentValidation;
 
-        When(_ => customer is not null, () =>
-        {
-            RuleFor(command => command.ContactId)
-                .Must(contactId => customer!.Contacts.Contains(contactId))
-                .WithMessage("Contact is not assigned to this customer");
-        });
+public record LabelPolicy(int MaximumLength);
+
+public class LabelPolicyValidator : CommandValidator<AllocateLabeledIdentifier>
+{
+    public LabelPolicyValidator(LabelPolicy policy)
+    {
+        RuleFor(command => command.Label).MaximumLength(policy.MaximumLength);
     }
 }
 ```
 
-Nullable dependency parameters are allowed. If the dependency cannot be resolved, or resolves to `null`, Arc injects `null` into a nullable parameter. Use this when missing state is part of the command's valid behavior, including read-model existence checks that should become validation messages.
-
-Non-nullable dependency parameters are treated as required. If Arc cannot resolve the dependency, or the resolved value is `null`, it throws a clear dependency-resolution exception instead of constructing the validator with an invalid value. For Chronicle read models, this is a deliberate choice that the projection is required to exist for the command.
+Host registration fragment, with `Microsoft.Extensions.DependencyInjection` imported:
 
 ```csharp
-public class SubmitOrderValidator : CommandValidator<SubmitOrder>
-{
-    public SubmitOrderValidator(OrderReadModel order)
-    {
-        RuleFor(_ => order.Status)
-            .Equal(OrderStatus.ReadyForSubmission)
-            .WithMessage("Only orders that are ready for submission can be submitted");
-
-        RuleFor(_ => order.Lines)
-            .NotEmpty()
-            .WithMessage("Order must have at least one line");
-    }
-}
+builder.Services.AddSingleton(new LabelPolicy(80));
 ```
 
-The same dependency behavior applies to dependencies on `Provide()` and `Handle()` parameters. For Chronicle read models, the analyzer rule [ARC0006](../code-analysis/ARC0006.md) warns when a command-scoped read model parameter is non-nullable in a validator, `Provide()`, or `Handle()` so the required-state choice is explicit.
+Nullable dependency parameters may receive null when no value can be resolved. Non-nullable dependency parameters are required; resolution failure produces an exception outcome instead of silently constructing a validator with null. Use a nullable dependency when absence is a valid input to your rule, not to conceal a missing required service.
 
-### Validating against projected state
+A service that reads storage must actually implement that lookup. Arc.Core does not assume projected event state or supply persistence for arbitrary dependency types. For provider-specific current-state resolution, see [use current state in a command](../../scenarios/use-current-state-in-a-command.md). [Chronicle read-model injection](../chronicle/read-models/injecting-into-commands.md) is an optional integration, not the default validator dependency model.
 
-The `Customer?` and `OrderReadModel` dependencies above are Chronicle **read models** — current state projected from events, which Arc resolves for the command's own key and injects without a query. This is the most common reason a validator takes a dependency at all.
+## Choosing a rejection phase
 
-- [Use current state in a command](../../scenarios/use-current-state-in-a-command.md) — the recipe.
-- [Read models in commands](../chronicle/read-models/injecting-into-commands.md) — the full reference for validators, `Provide()`, and `Handle()`.
-- [When read model resolution fails](../chronicle/read-models/failures.md) — including why this does not work through MVC controllers.
+- Use a validator for input feedback before data provisioning and execution.
+- Use `Provide()` to fetch handler data after filters; it can return validation control values to short-circuit. See [provide data to a command](../../scenarios/provide-data-to-a-command.md).
+- Use a singular `ValidationResult` alternative from `Handle()` for a decision made during handling. See [response value handlers](./response-value-handlers.md). A failure returned after a service write does not undo that write.
+- Use an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace) for access control, not an overridable validation rule.
+
+For early feedback without invoking `Provide()` or `Handle()`, continue to [pre-flight command validation](./command-validation.md).

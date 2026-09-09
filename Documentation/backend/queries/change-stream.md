@@ -1,77 +1,63 @@
-# Change Stream
+---
+title: Observable collection change streams
+description: Hub transfer modes, collection deltas, and their wire contract.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Observable collection queries in Arc deliver full snapshots on every update by default. As collections grow, shipping the entire collection on every MongoDB change stream event becomes expensive. The **change stream** feature reduces this overhead by computing a delta — which items were added, replaced, or removed — and attaching it to each `QueryResult` as a `ChangeSet`.
+## Transfer modes
 
-## How It Works
+The observable-query hub can compare collection snapshots and send a `ChangeSet` describing added, replaced, and removed items. This is a transport-level comparison of query results, not a Chronicle event stream or a promise of durable replay.
 
-When the `ObservableQueryDemultiplexer` receives a new snapshot from a `ISubject<IEnumerable<T>>`, it compares the snapshot with the previous one using the `ChangeSetComputor` and populates `QueryResult.ChangeSet` with the delta. The full snapshot is still available in `QueryResult.Data` — the `ChangeSet` is additive, not a replacement.
+Set `transferMode` on the [hub subscription request](observable-query-demultiplexer.md). The modes below describe subject-backed **collection** emissions:
 
-### Identity-Based Delta (Recommended)
+| Mode | First emission | Later emissions |
+| --- | --- | --- |
+| Omitted (legacy) | Full `data` plus change set (initial items added) | Full `data` plus change set |
+| `full` | Full `data`, no change set | Full `data`, no change set |
+| `delta` | Full `data`, no change set | Change set; full `data` is null/omitted |
 
-When the item type exposes a property conventionally named `Id` (case-insensitive), the computor uses it to build a precise three-way diff:
+Legacy additive deltas can reduce client reconciliation work, but sending both the snapshot and delta does **not** reduce payload bytes. Delta mode is the bandwidth-saving choice. Single-object and async-enumerable streams are not covered by this collection-delta contract. Direct per-query transports do not automatically inherit hub transfer-mode behavior.
 
-| Operation | Condition |
-|-----------|-----------|
-| `Added`   | An item with a new `Id` value appears in the current snapshot. |
-| `Replaced`| An item with the same `Id` exists in both snapshots but its JSON representation differs. |
-| `Removed` | An item with an `Id` present in the previous snapshot is absent from the current snapshot. |
+## How changes are identified
 
-### JSON-Hash Fallback
+For items with an `Id` property (case-insensitive), `ChangeSetComputor` compares identity and serialized JSON:
 
-When no `Id` property is found, the computor serializes each item to JSON and uses the full JSON as a hash key. This surfaces `Added` and `Removed` items but **cannot detect `Replaced`** (because item identity is unknown).
+- `added`: an identity appears in the new snapshot.
+- `replaced`: the identity remains but its serialized representation differs.
+- `removed`: an identity disappears; entries are removed **items**, not merely ID strings.
 
-## Wire Format
+Without an `Id` property, full serialized JSON is used as the comparison key. Changes then appear as removal/addition rather than replacement. Use stable, unique identifiers when clients must reconcile collection state.
 
-The `ChangeSet` is serialized as part of `QueryResult` and sent over the WebSocket or SSE connection alongside the full `Data` field:
+```mermaid
+flowchart LR
+    Previous[Previous delivered snapshot] --> Compare[Compare identities and JSON]
+    Current[Current intercepted snapshot] --> Compare
+    Compare --> Delta[Added / replaced / removed]
+    Delta --> Mode[Apply subscription transfer mode]
+    Current --> Mode
+    Mode --> Client[Client state]
+```
+
+## Wire format
+
+Illustrative **payload fragment** for a later delta-mode frame; the surrounding `QueryResult` metadata and hub envelope are intentionally not repeated:
 
 ```json
 {
-  "data": [ /* full current snapshot */ ],
+  "data": null,
   "changeSet": {
-    "added":    [ /* new items */      ],
-    "replaced": [ /* updated items */  ],
-    "removed":  [ /* deleted items */  ]
+    "added": [{ "id": "account-2", "balance": 50 }],
+    "replaced": [{ "id": "account-1", "balance": 120 }],
+    "removed": [{ "id": "account-3", "balance": 0 }]
   }
 }
 ```
 
-When no `ChangeSet` is present on a `QueryResult`, the client must treat `Data` as the full current snapshot.
+When no change set is present, treat `data` as the current snapshot. A reconnect/replacement subscription starts with a fresh snapshot; a change set is not a resume token. Under delta mode, do not replace client state with null just because the later frame omits full data.
 
-## `ChangeSet` Type
+## Backend API
 
-```csharp
-public class ChangeSet
-{
-    public IEnumerable<object> Added    { get; set; } = [];
-    public IEnumerable<object> Replaced { get; set; } = [];
-    public IEnumerable<object> Removed  { get; set; } = [];
-}
-```
+`ChangeSet` has `IEnumerable<object>` properties `Added`, `Replaced`, and `Removed`. `ChangeSetComputor` takes `JsonSerializerOptions`; its `Compute(previousItems, currentItems)` returns a change set, and `FindIdentityProperty(Type)` locates the conventional ID property.
 
-## `ChangeSetComputor`
-
-The `ChangeSetComputor` class is responsible for delta computation and can be used independently:
-
-```csharp
-var computor = new ChangeSetComputor(serializerOptions);
-
-// First call — all items are Added
-ChangeSet initial = computor.Compute(null, currentItems);
-
-// Subsequent calls — computes the delta
-ChangeSet delta = computor.Compute(previousItems, currentItems);
-```
-
-### Identity Property Discovery
-
-`ChangeSetComputor.FindIdentityProperty(type)` locates the identity property by looking for a property named `Id` (case-insensitive). This static helper can be used in tests or custom infrastructure:
-
-```csharp
-PropertyInfo? idProp = ChangeSetComputor.FindIdentityProperty(typeof(MyReadModel));
-```
-
-## See Also
-
-- [Change Stream — Frontend](../../frontend/react/queries/change-stream.md) — React `useChangeStream()` hook, transfer mode configuration, and usage examples.
-- [Observable Query Demultiplexer](observable-query-demultiplexer.md) — The backend component that manages WebSocket and SSE connections and invokes the `ChangeSetComputor`.
-- [Observable Query Hub](observable-query-demultiplexer.md) — Wire protocol reference for observable query connections.
+These APIs compare snapshots you supply; they do not observe a database independently. For database observation, see [MongoDB-backed observable queries](model-bound/observable-queries.md). For client reconstruction, see [frontend change streams](../../frontend/react/queries/change-stream.md).

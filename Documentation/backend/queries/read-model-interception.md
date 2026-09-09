@@ -1,105 +1,66 @@
-# Read Model Interception
+---
+title: Read-model interception
+description: Transform read-model instances and understand where interception is not applied.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Read model interception lets you apply cross-cutting operations to every read model instance before it is served to a client. Common uses include decryption, field masking, localization, and audit enrichment. Interceptors run automatically for all query types — controller-based, model-bound, and observable (WebSocket and SSE).
+An interceptor lets you apply a cross-cutting transformation without repeating it in each query. Typical uses include localization, enrichment, and controlled field transformations. It is not a replacement for query authorization or safe data selection.
 
-## How It Works
+## Supported paths and exceptions
 
-When a query returns, the framework passes each read model instance through every registered interceptor for that type before serializing the response. For collections every item is intercepted individually. For observable queries the interception happens on every emission.
+| Path | Interception |
+| --- | --- |
+| Ordinary model-bound query data | Applied after rendering |
+| Ordinary Arc-wrapped MVC GET data | Applied after rendering |
+| Supported direct WebSocket/SSE streams and multiplexed hub emissions | Applied per emission |
+| **Observable HTTP snapshot**, including `waitForFirstResult=true` | **Not currently applied by `ObservableQueryHttp`** |
+| MVC `[AspNetResult]` | Opts out of the Arc result-processing path |
+
+> [!WARNING]
+> Do not rely on an interceptor as universal masking or decryption policy. A caller can request an observable's HTTP snapshot instead of its stream. Ensure the query/provider returns only fields and rows that caller may receive on **every** exposed path. Snapshot interception would require a runtime change; this page does not imply a configuration switch fixes that gap.
 
 ```mermaid
-sequenceDiagram
-    participant Client
-    participant Framework
-    participant Interceptor
-
-    Client->>Framework: GET /api/accounts
-    Framework->>Framework: Execute query
-    loop For each item
-        Framework->>Interceptor: Intercept(item)
-        Interceptor-->>Framework: intercepted item
-    end
-    Framework-->>Client: QueryResult with intercepted data
+flowchart LR
+    Query[Query result] --> Ordinary[Ordinary data]
+    Ordinary --> Interceptor[Interceptors]
+    Query --> Stream[Stream wrapper]
+    Stream --> Emission[Streaming emission]
+    Emission --> Interceptor
+    Stream --> Snapshot[HTTP snapshot: current exception]
+    Interceptor --> Client[Client]
+    Snapshot --> Client
 ```
 
-## Implementing an Interceptor
+## Implement an interceptor
 
-Implement `IInterceptReadModel<TReadModel>`. No DI registration is required — the framework discovers all implementations in your assemblies automatically via `ITypes` and creates instances on demand, resolving any constructor dependencies from the service provider.
+This type example reuses the shared [`AccountId` concept](model-bound/index.md#model-account-identities-and-names); the host discovers `IInterceptReadModel<T>` implementations and resolves constructor dependencies from the supplied service provider. This example enriches public display data, rather than using masking as access control.
 
 ```csharp
-public class DecryptAccountNumbers : IInterceptReadModel<AccountSummary>
+using System.Globalization;
+using System.Threading.Tasks;
+using Cratis.Arc.Queries;
+
+namespace Banking.Accounts;
+
+public record AccountSummary(AccountId Id, decimal Balance, string FormattedBalance);
+
+public class FormatAccountBalance : IInterceptReadModel<AccountSummary>
 {
-    readonly IEncryptionService _encryption;
-
-    public DecryptAccountNumbers(IEncryptionService encryption)
-    {
-        _encryption = encryption;
-    }
-
-    public Task<AccountSummary> Intercept(AccountSummary readModel)
-    {
-        var decrypted = readModel with
+    public Task<AccountSummary> Intercept(AccountSummary readModel) =>
+        Task.FromResult(readModel with
         {
-            AccountNumber = _encryption.Decrypt(readModel.AccountNumber)
-        };
-        return Task.FromResult(decrypted);
-    }
+            FormattedBalance = readModel.Balance.ToString("C", CultureInfo.GetCultureInfo("en-US"))
+        });
 }
 ```
 
-> **Note:** The `Intercept` method returns the read model to serve. Read models are typically immutable records, so create a modified copy with a `with` expression and return it rather than mutating the original in place. Arc serves the instance you return.
+The returned instance is served to the caller. Prefer a `with` copy over mutating a record that another subscriber may share. An interceptor is bound to its exact model type; a DTO with the same fields is not automatically intercepted.
 
-## Multiple Interceptors
+## Multiple interceptors and streams
 
-You can register any number of interceptors for the same read model type. They run in the order they are discovered.
+Interceptors run in discovery order. Avoid making security depend on an undocumented ordering between implementations. Collections are processed item by item; streaming paths process each emitted model before delivery.
 
-```csharp
-public class MaskSensitiveFields : IInterceptReadModel<AccountSummary>
-{
-    public Task<AccountSummary> Intercept(AccountSummary readModel)
-    {
-        var masked = readModel with
-        {
-            AccountNumber = $"****{readModel.AccountNumber[^4..]}"
-        };
-        return Task.FromResult(masked);
-    }
-}
+The pipeline skips stream wrappers because a wrapper is not a model instance. The supported streaming transports intercept emissions instead; the HTTP snapshot path currently has no corresponding interception step. Test ordinary GET, observable snapshot GET, direct SSE/WebSocket, and hub delivery separately for any transformation the application depends on.
 
-public class EnrichWithLocale : IInterceptReadModel<AccountSummary>
-{
-    readonly ILocalizationService _locale;
-
-    public EnrichWithLocale(ILocalizationService locale)
-    {
-        _locale = locale;
-    }
-
-    public Task<AccountSummary> Intercept(AccountSummary readModel)
-    {
-        var localized = readModel with
-        {
-            FormattedBalance = _locale.FormatCurrency(readModel.Balance)
-        };
-        return Task.FromResult(localized);
-    }
-}
-```
-
-Both interceptors run for every `AccountSummary` returned by any query.
-
-## Observable Queries
-
-Interceptors apply equally to observable (real-time) queries. Each time the observable emits new data, every item passes through the registered interceptors before the payload is sent to the client.
-
-```csharp
-// No changes needed in your observable query — interception is automatic.
-[HttpGet("observable")]
-public ISubject<IEnumerable<AccountSummary>> GetAccountSummaries()
-{
-    return _collection.Observe();
-}
-```
-
-## Type Safety
-
-An interceptor is bound to exactly one read model type through the generic parameter. An interceptor for `AccountSummary` never runs for `TransactionHistory`, even if both are returned by different queries in the same request.
+Continue with [observable queries](model-bound/observable-queries.md) for lifetime rules and [emission guards](observable-query-emission-guards.md) for per-emission access decisions.

@@ -1,422 +1,116 @@
-# Getting Started
+---
+title: Getting started with the lightweight host
+description: Run standalone Arc commands and queries in a console project without ASP.NET Core or an event store.
+---
 
-This guide walks you through building your first Arc.Core application from scratch. You'll learn how to set up the application, define commands and queries, and run your service.
+Let's expose a greeting command and query from a console application. This checkpoint uses only `Cratis.Arc.Core`: no ASP.NET Core, MongoDB, EF Core, or Chronicle. A command can return ordinary response data; it does not need to append an event.
 
-## Prerequisites
+## Prerequisites and installation
 
-- .NET SDK 10.0.301 or later
-- Basic understanding of C# and .NET concepts
-
-## Installation
-
-Add the Arc.Core package to your project:
+Use the latest .NET SDK and current Cratis packages. The SDK must support the compiler APIs used by Arc's analyzers; that build requirement is separate from your application's target framework. Create a console project and add the lightweight package:
 
 ```bash
-dotnet add package Cratis.Arc
+dotnet new console -n GreetingService
+cd GreetingService
+dotnet add package Cratis.Arc.Core
 ```
 
-## Basic Setup
+`Cratis.Arc` is the separate ASP.NET Core integration package. If you want Kestrel, MVC, or the ASP.NET middleware ecosystem, follow the [ASP.NET Core guide](../asp-net-core/index.md) instead.
 
-Create a new console application and configure Arc.Core:
+## Complete example
+
+Replace `Program.cs` with this runnable checkpoint. Keep these types in the global namespace below the top-level statements: the command's conventional route is `/api/greet`. The query uses an explicit `[Path]`.
 
 ```csharp
 using Cratis.Arc;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Queries.ModelBound;
 
 var builder = ArcApplication.CreateBuilder(args);
-
-// Add Arc services
-builder.AddCratisArc(options => options.Hosting.ApplicationUrl = "http://localhost:5000/");
-
-// Configure logging
-builder.Services.AddLogging(logging =>
-{
-    logging.AddConsole();
-    logging.SetMinimumLevel(LogLevel.Information);
-});
-
-// Build and run the application
-var app = builder.Build();
-
-// Wire up the Arc middleware and endpoints
-app.UseCratisArc();
-
-Console.WriteLine("Application started on http://localhost:5000/");
-Console.WriteLine("Press Ctrl+C to stop...");
-
-await app.RunAsync();
-```
-
-## ArcApplicationBuilder API
-
-The `ArcApplicationBuilder` provides a familiar builder pattern for configuring your application:
-
-### Creating a Builder
-
-```csharp
-// Create with command-line arguments
-var builder = ArcApplication.CreateBuilder(args);
-
-// Or without arguments
-var builder = ArcApplication.CreateBuilder();
-```
-
-### Available Properties
-
-The builder exposes several properties for configuration:
-
-```csharp
-// Configuration system
-IConfigurationManager Configuration = builder.Configuration;
-
-// Host environment information
-IHostEnvironment Environment = builder.Environment;
-
-// Logging configuration
-ILoggingBuilder Logging = builder.Logging;
-
-// Service collection for dependency injection
-IServiceCollection Services = builder.Services;
-
-// Metrics configuration
-IMetricsBuilder Metrics = builder.Metrics;
-```
-
-### Adding Arc Services
-
-```csharp
-builder.AddCratisArc(
-    configureOptions: options =>
-    {
-        // Configure Arc-specific options (ArcOptions)
-    },
-    configureBuilder: arcBuilder =>
-    {
-        // Add extensions like Chronicle, MongoDB, etc.
-    });
-```
-
-## ArcApplication API
-
-### Starting the Application
-
-The `UseCratisArc` method wires up the Arc middleware and endpoints. It takes no arguments:
-
-```csharp
-// UseCratisArc takes no arguments — it wires up the middleware and endpoints.
-app.UseCratisArc();
-```
-
-The listen URL is **not** passed here — it comes from configuration via `ArcOptions.Hosting.ApplicationUrl` (default `http://+:5001/`). Set it through the options callback when adding Arc services, or in `appsettings.json` under `Cratis:Arc:Hosting:ApplicationUrl`.
-
-### Running the Application
-
-```csharp
-// Run and block until shutdown (Ctrl+C)
-await app.RunAsync();
-
-// Or control start/stop manually
-await app.StartAsync();
-// ... do work ...
-await app.StopAsync();
-```
-
-## Working with Commands
-
-Commands represent actions or operations in your application. They're automatically exposed as HTTP POST endpoints.
-
-### Defining a Command
-
-```csharp
-using Cratis.Arc.Commands;
-
-[Command]
-public record CreateUser(string Name, string Email)
-{
-    public Task Handle(ILogger<CreateUser> logger)
-    {
-        logger.LogInformation("Creating user: {Name}", Name);
-        // Your business logic here
-        return Task.CompletedTask;
-    }
-}
-```
-
-### Accessing Command Endpoints
-
-Commands are exposed as POST endpoints:
-
-```bash
-curl -X POST http://localhost:5000/api/your-app/create-user \
-  -H "Content-Type: application/json" \
-  -d '{"name":"John Doe","email":"john@example.com"}'
-```
-
-## Working with Queries
-
-Queries represent data retrieval operations. They're automatically exposed as HTTP GET endpoints.
-
-### Defining a Query
-
-```csharp
-using Cratis.Arc.Queries;
-
-[ReadModel]
-public record User(Guid Id, string Name)
-{
-    // Exposed as GET; the method's parameters become query arguments.
-    public static User GetUser(Guid id) => new(id, "John Doe");
-}
-```
-
-### Accessing Query Endpoints
-
-Queries are exposed as GET endpoints:
-
-```bash
-curl http://localhost:5000/api/your-app/get-user?id=123e4567-e89b-12d3-a456-426614174000
-```
-
-## Configuration
-
-### Using appsettings.json
-
-Arc.Core supports standard .NET configuration:
-
-```json
-{
-  "Cratis": {
-    "Arc": {
-      "GeneratedApis": {
-        "RoutePrefix": "api"
-      },
-      "CorrelationId": {
-        "HttpHeader": "X-Correlation-ID"
-      },
-      "Tenancy": {
-        "HttpHeader": "X-Custom-Tenant"
-      }
-    }
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft": "Warning"
-    }
-  }
-}
-```
-
-### Environment-Specific Configuration
-
-Use environment-specific files following .NET conventions:
-
-- `appsettings.json` - Base configuration
-- `appsettings.Development.json` - Development overrides
-- `appsettings.Production.json` - Production overrides
-
-```csharp
-var builder = ArcApplication.CreateBuilder(args);
-
-// Configuration is automatically loaded based on environment
-var environment = builder.Environment.EnvironmentName;
-Console.WriteLine($"Running in {environment} environment");
-```
-
-### Custom Configuration Section
-
-Specify a custom configuration section path:
-
-```csharp
-builder.AddCratisArc(
-    configSectionPath: "MyApp:ArcSettings"
-);
-```
-
-## Adding Services
-
-### Logging
-
-```csharp
-builder.Services.AddLogging(logging =>
-{
-    logging.AddConsole();
-    logging.AddDebug();
-    logging.SetMinimumLevel(LogLevel.Information);
-});
-```
-
-### Custom Services
-
-```csharp
-// Singleton
-builder.Services.AddSingleton<IMyService, MyService>();
-
-// Scoped (per request)
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-
-// Transient (per injection)
-builder.Services.AddTransient<IEmailSender, EmailSender>();
-```
-
-### Using Arc Conventions
-
-Arc supports automatic service registration using attributes:
-
-```csharp
-// Services with [Singleton], [Scoped], or [Transient] attributes
-// are automatically registered
-[Singleton]
-public class MyService : IMyService
-{
-    // Implementation
-}
-```
-
-## Complete Example
-
-Here's a complete working example that demonstrates commands, queries, and services:
-
-```csharp
-using Cratis.Arc;
-using Cratis.Arc.Commands;
-using Cratis.Arc.Queries;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
-var builder = ArcApplication.CreateBuilder(args);
-
-builder.AddCratisArc(options => options.Hosting.ApplicationUrl = "http://localhost:5000/");
-
-builder.Services.AddLogging(logging =>
-{
-    logging.AddConsole();
-    logging.SetMinimumLevel(LogLevel.Information);
-});
+builder.AddCratisArc(options =>
+    options.Hosting.ApplicationUrl = "http://localhost:5000/");
 
 var app = builder.Build();
-
 app.UseCratisArc();
-
-Console.WriteLine("Application started!");
-Console.WriteLine("Available endpoints:");
-Console.WriteLine("  POST   http://localhost:5000/api/my-app/greet");
-Console.WriteLine("  GET    http://localhost:5000/api/my-app/get-greeting?name=World");
-Console.WriteLine("  GET    http://localhost:5000/.cratis/me");
-Console.WriteLine();
-Console.WriteLine("Press Ctrl+C to stop...");
-
 await app.RunAsync();
 
-// Commands
+[AllowAnonymous]
 [Command]
 public record Greet(string Name)
 {
-    public Task Handle(ILogger<Greet> logger)
-    {
-        logger.LogInformation("Greeting {Name}", Name);
-        return Task.CompletedTask;
-    }
+    public string Handle() => $"Hello, {Name}!";
 }
 
-// Queries
 [ReadModel]
 public record Greeting(string Text)
 {
-    public static Greeting GetGreeting(string name) => new($"Hello, {name}!");
+    [AllowAnonymous]
+    [Path("/greeting")]
+    public static Greeting Get(string name) => new($"Hello, {name}!");
 }
 ```
 
-## Advanced Scenarios
+`AddCratisArc` registers services and binds options. `UseCratisArc` maps Arc endpoints and schedules listener startup; `RunAsync` starts the host and waits for shutdown. Both registration and activation matter. This lesson deliberately permits anonymous access; read [authentication](authentication.md) and [authorization](authorization.md) before exposing private operations.
 
-### Background Services
+## Run and observe
 
-Combine Arc.Core with `IHostedService` for background processing:
+Start the application:
 
-```csharp
-public class BackgroundWorker(ILogger<BackgroundWorker> logger) : BackgroundService
+```bash
+dotnet run
+```
+
+In another terminal, call the command and query:
+
+```bash
+curl -X POST http://localhost:5000/api/greet \
+  -H "Content-Type: application/json" \
+  -d '{"name":"World"}'
+curl 'http://localhost:5000/greeting?name=World'
+```
+
+The command result's `response` is `"Hello, World!"`; the query result's `data` contains `{"text":"Hello, World!"}`. Both use Arc result wrappers. Neither operation persists anything. Stop the service with Ctrl+C.
+
+Arc builds lowercase, kebab-cased URLs from the configured route prefix, namespace segments, and command/query name. A query's `[Path]` overrides that convention; it is not a command routing attribute. Use [route configuration](../asp-net-core/configuration.md#route-generation-examples) rather than guessing a URL from the project name.
+
+## Configuration
+
+The following **configuration fragment** moves the listen URL into `appsettings.json` under the default `Cratis:Arc` section:
+
+```json
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        logger.LogInformation("Background worker started");
-        
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            // Do background work
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+    "Cratis": {
+        "Arc": {
+            "Hosting": {
+                "ApplicationUrl": "http://localhost:5000/"
+            }
         }
-        
-        logger.LogInformation("Background worker stopped");
     }
 }
-
-// Register it
-builder.Services.AddHostedService<BackgroundWorker>();
 ```
 
-### Integrating with Chronicle
+Remove the URL callback to let configuration supply it. Code options override configuration binding. The default listener URL is `http://+:5001/`; use an explicit loopback URL for local lessons. The [complete options reference](../configuration/index.md) covers environment variables, custom sections, and host-specific APIs.
 
-Add event sourcing capabilities:
+## Adding services and integrations
 
-```csharp
-builder.AddCratisArc(configureBuilder: arcBuilder =>
-{
-    arcBuilder.WithChronicle();
-});
-```
+`ArcApplicationBuilder` exposes standard .NET `Services`, `Configuration`, `Environment`, `Logging`, and `Metrics`. Register application services before `Build()` and inject them into `Handle()` or static query parameters. Background workers use `AddHostedService<T>()` with the normal .NET hosted-service lifecycle.
 
-### Integrating with MongoDB
+Choose integrations only when you need them:
 
-Add MongoDB support:
-
-```csharp
-builder.AddCratisArc(configureBuilder: arcBuilder =>
-{
-    arcBuilder.WithMongoDB();
-});
-```
+- [MongoDB](../mongodb/index.md) and [Entity Framework Core](../entity-framework/index.md) add persistence without requiring event sourcing.
+- [Chronicle](../chronicle/index.md) adds optional event sourcing, including its own package, registration, and activation requirements. `UseCratisArc()` alone does not activate the Chronicle client.
+- [Endpoint mapping](endpoint-mapping.md), [static files](static-files.md), and [lightweight OpenAPI](openapi.md) are already available in Core.
 
 ## Troubleshooting
 
-### Endpoints Not Found
+If no endpoints respond, verify `AddCratisArc()`, `UseCratisArc()`, and `RunAsync()` are all present. For listener failures, check the port, OS URL-binding permissions, and `Hosting.ApplicationUrl`. For deployed configuration files, ensure they are copied to the output directory.
 
-Ensure you've called `app.UseCratisArc()` before `app.RunAsync()`:
+Normal activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. Review their anonymous Production defaults before publishing the service. `GET /.cratis/queries` describes discovered performers, not the final route table: this example's `Get` entry reports the convention-derived `route` `/api/get`, even though `[Path("/greeting")]` makes `/greeting` the callable URL. Introspection does not apply custom paths or all final mapping/deduplication decisions.
 
-```csharp
-var app = builder.Build();
-app.UseCratisArc();  // Must be called!
-await app.RunAsync();
-```
+## Next steps
 
-### HTTP Listener Errors
-
-If you get HTTP listener errors, ensure:
-
-1. The port is not already in use
-2. You have permissions to bind to the port (on Windows, non-admin users can't bind to port 80)
-3. Set the listen URL via `ArcOptions.Hosting.ApplicationUrl` (in the options callback or `appsettings.json` under `Cratis:Arc:Hosting:ApplicationUrl`) — it is not passed to `UseCratisArc`. Use `http://+:5001/` instead of `http://localhost:5001/` to listen on all interfaces
-
-### Configuration Not Loading
-
-Ensure `appsettings.json` is copied to output:
-
-```xml
-<ItemGroup>
-  <None Update="appsettings*.json">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </None>
-</ItemGroup>
-```
-
-## Next Steps
-
-Now that you have a basic Arc.Core application running, explore these topics:
-
-- [Authentication](authentication.md) - Implement custom authentication handlers
-- [Authorization](authorization.md) - Protect your endpoints with authorization attributes
-- [Commands](../commands/index.md) - Learn about advanced command patterns
-- [Queries](../queries/index.md) - Discover query features like filtering and pagination
-- [Identity](../identity/index.md) - Integrate the identity system
-- [Tenancy](../tenancy/index.md) - Configure multi-tenant applications
-- [Validation](../commands/validation.md) - Add validation to commands and queries
+- [Commands](../commands/index.md) — validation, return values, and execution.
+- [Queries](../queries/index.md) — data retrieval and observation.
+- [Authentication](authentication.md) — establish trusted principals.
+- [Tenancy](../tenancy/index.md) — select a tenant and enforce membership separately.

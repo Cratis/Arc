@@ -22,7 +22,7 @@ interface ICommandResult<TResponse = object> {
 
 ## Status Properties
 
-Understanding the different status properties is crucial for proper error handling:
+Use the status properties to distinguish these outcomes:
 
 ### isSuccess
 
@@ -50,7 +50,7 @@ if (result.isSuccess) {
 
 Indicates whether Arc's command pipeline authorized this command.
 
-- `true`: The user has permission to execute the command
+- `true`: The result reports no authorization failure. A client-validation short circuit can produce this without running server authorization; it is not an access grant.
 - `false`: The generated command endpoint returned an authorization failure, typically HTTP 403. An upstream authentication challenge can return HTTP 401 before a `CommandResult` payload is produced.
 
 **Use this when:**
@@ -84,7 +84,7 @@ Indicates whether the command payload passed validation rules.
 const result = await command.execute();
 if (!result.isValid) {
     // Display validation errors from result.validationResults
-    result.validationResults.forEach(error => {
+    result.validationResults.forEach((error) => {
         console.log(`${error.members.join('.')}: ${error.message}`);
     });
 }
@@ -109,7 +109,7 @@ if (result.hasExceptions) {
     // Log exception details
     console.error('Exceptions:', result.exceptionMessages);
     console.error('Stack trace:', result.exceptionStackTrace);
-    
+
     // Show user-friendly error message
     showErrorMessage('An unexpected error occurred. Please try again.');
 }
@@ -166,7 +166,7 @@ Access detailed validation errors through the `validationResults` array:
 ```typescript
 const result = await command.execute();
 if (!result.isValid) {
-    result.validationResults.forEach(error => {
+    result.validationResults.forEach((error) => {
         console.log(`Severity: ${error.severity}`);
         console.log(`Message: ${error.message}`);
         console.log(`Members: ${error.members.join('.')}`);
@@ -189,19 +189,29 @@ Each `ValidationResult` contains:
 
 A rejection your own rules produced and one the framework composed on your behalf arrive in the same array, in the same shape. `reason` is what separates them, so you never have to match the message text:
 
-| `reason` | What happened | What to do |
-|---|---|---|
-| `rule` | A rule you authored rejected the input. The default. | Show `message` — it is your copy |
-| `concurrencyViolation` | The event source moved on since it was read | Offer a retry; `state` carries the violation |
-| `constraintViolation` | A constraint on the event store rejected the append | Show your own copy for that constraint |
-| `validatorFailed` | A validator threw; nothing the author wrote survives | Show your own generic copy, and check the server log |
+| `reason`                | What happened                                                                 | What to do                                             |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `rule`                  | A rule you authored rejected the input. The default.                          | Show `message` — it is your copy                       |
+| `concurrencyViolation`  | Optional Chronicle integration: the event source moved on                     | Re-read and offer a deliberate retry                   |
+| `constraintViolation`   | Optional Chronicle integration: an event-store constraint rejected the append | Map the constraint name to your own copy               |
+| `validatorFailed`       | A validator threw; nothing the author wrote survives                          | Show your own generic copy, and check the server log   |
+| `dependencyUnavailable` | A dependency needed to evaluate the command was unavailable                   | Do not imply the input passed or failed its rules      |
+| `malformedRequest`      | The request body or a bound value could not be read                           | Correct the request; validation rules were not reached |
+
+### Optional Chronicle rejection handling
+
+The next two fragments apply only when using the [Chronicle command integration](../../../backend/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `retry` and `setFieldError` below represent application-owned actions, not Arc APIs.
 
 ```typescript
 import { ValidationResultReason } from '@cratis/arc';
 
 const result = await command.execute();
 
-if (result.validationResults.some(_ => _.reason === ValidationResultReason.ConcurrencyViolation)) {
+if (
+    result.validationResults.some(
+        (_) => _.reason === ValidationResultReason.ConcurrencyViolation,
+    )
+) {
     // Someone else changed this while the form was open. Re-read and resubmit — the
     // input was never the problem, so do not put an error on any field.
     return retry();
@@ -216,18 +226,24 @@ if (result.validationResults.some(_ => _.reason === ValidationResultReason.Concu
 const result = await command.execute();
 
 const rejectedBy = (constraint: string) =>
-    result.validationResults.some(_ =>
-        _.reason === ValidationResultReason.ConstraintViolation && _.reasonDetail === constraint);
+    result.validationResults.some(
+        (_) =>
+            _.reason === ValidationResultReason.ConstraintViolation &&
+            _.reasonDetail === constraint,
+    );
 
 if (rejectedBy('UniqueOrganizationNumber')) {
-    return setFieldError('organizationNumber', 'That organization number is already registered.');
+    return setFieldError(
+        'organizationNumber',
+        'That organization number is already registered.',
+    );
 }
 ```
 
 The value is the constraint's own name as Chronicle reports it on the violation — the same name a backend spec asserts with `ShouldHaveConstraintViolationFor`.
 
 :::note
-`reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Treat an unrecognized value the way you treat `rule`, and never `switch` over it exhaustively.
+`reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Accept unfamiliar values without an exhaustive enum assumption. Decide explicitly whether your application recognizes their messages as safe user-facing copy; otherwise use a generic fallback.
 
 Only `rule` means the message is yours to show. Everything else is Cratis-authored developer text: it is in English, it is not localized, and it describes framework state rather than the user's situation. Map those to your own copy.
 :::
@@ -240,10 +256,10 @@ Access exception information when `hasExceptions` is `true`:
 const result = await command.execute();
 if (result.hasExceptions) {
     // Array of exception messages
-    result.exceptionMessages.forEach(msg => {
+    result.exceptionMessages.forEach((msg) => {
         console.error('Exception:', msg);
     });
-    
+
     // Full stack trace for debugging
     console.error('Stack trace:', result.exceptionStackTrace);
 }
@@ -288,9 +304,15 @@ if (result.isSuccess) {
     // Handle success
 } else {
     // Check specific failure reasons
-    if (!result.isAuthorized) { /* ... */ }
-    if (!result.isValid) { /* ... */ }
-    if (result.hasExceptions) { /* ... */ }
+    if (!result.isAuthorized) {
+        /* ... */
+    }
+    if (!result.isValid) {
+        /* ... */
+    }
+    if (result.hasExceptions) {
+        /* ... */
+    }
 }
 ```
 
@@ -320,7 +342,7 @@ if (result.hasExceptions) {
     logger.error('Command execution failed', {
         messages: result.exceptionMessages,
         stackTrace: result.exceptionStackTrace,
-        correlationId: result.correlationId
+        correlationId: result.correlationId,
     });
 }
 ```

@@ -1,41 +1,58 @@
 ---
 title: Your first command and query
-description: Build a backend slice in Arc — a command that writes, a read model, and a live query that serves it — while learning the CQRS shape.
+description: Complete the standalone ASP.NET Core setup with an author command, a database-backed read model, and an observable query, then verify the backend and generated proxies.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Let's build the backend half of a real feature: registering an author in a library app. It's small, but it exercises the whole Arc loop — something *happens* (a command), it writes state, and that state is served back out (a query). We use a plain database in this lesson to keep the CQRS boundary visible; in a full Cratis information system, the same boundary usually writes events through Chronicle.
-
-In a layered app this would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd hop between them to follow one behavior. Arc doesn't force a layout, but we strongly recommend organizing by **feature**: everything below lives in one `Authors/` folder you read top to bottom. Here's the shape we're building:
-
-```mermaid
-flowchart LR
-    Cmd["RegisterAuthor command"] -->|Handle, writes| DB[("database")]
-    DB --> RM["Author read model"]
-    RM -->|AllAuthors| Q["query over HTTP, live"]
-```
+A librarian registers an author; the catalog should show it. Let's express that as one command that writes current state and one query that reads it. **No events are returned or appended in this lesson.**
 
 ## Prerequisites
 
-- **.NET SDK 8 or newer.**
-- **An Arc backend project** — add the `Cratis.Arc` packages to an ASP.NET Core app, or scaffold the full stack with the [Cratis templates](/chronicle/get-started/).
-- **A database Arc can write to** — MongoDB, or EF Core over SQLite/Postgres. Chronicle is not required for this lesson.
+Complete [Set up a standalone Arc backend](/arc/backend/getting-started/) first. It supplies packages, imports, ASP.NET Core hosting, storage settings, and the proxy-generator configuration. Choose the **same database branch** below. Files are relative to that lesson's `Library/` project root.
+
+```mermaid
+flowchart LR
+    Cmd[RegisterAuthor] -->|Handle writes| DB[(database)]
+    DB -->|Observe| Q[AllAuthors]
+    Q -->|HTTP subscription| Client[client]
+```
+
+## Define the author feature
 
 <Steps>
 
-1. **A strongly-typed id.** Never pass raw `Guid`s around the domain — wrap them so the compiler keeps them straight and your signatures document themselves:
+1. **Name the domain values.** Create `src/Authors/AuthorId.cs`:
 
    ```csharp
+   namespace Library.Authors;
+
    public record AuthorId(Guid Value) : ConceptAs<Guid>(Value)
    {
        public static AuthorId New() => new(Guid.NewGuid());
    }
    ```
 
-2. **The command — with `Handle()` on the record.** A command is a `record` marked `[Command]`. The behavior lives in a `Handle()` method **on the record itself** — there's no separate handler class to find. Here it writes the new author to the database:
+   Create `src/Authors/AuthorName.cs`:
 
    ```csharp
+   namespace Library.Authors;
+
+   public record AuthorName(string Value) : ConceptAs<string>(Value)
+   {
+       public static implicit operator AuthorName(string value) => new(value);
+   }
+   ```
+
+   These are standalone `ConceptAs<T>` values. `AuthorId` is not a Chronicle event-source identifier.
+
+2. **Write the command.** Create `src/Authors/RegisterAuthor.cs` using one branch:
+
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
+   ```csharp
+   namespace Library.Authors;
+
    [Command]
    public record RegisterAuthor(AuthorId Id, AuthorName Name)
    {
@@ -43,49 +60,87 @@ flowchart LR
            authors.InsertOneAsync(new Author(Id, Name));
    }
    ```
-
-   `Handle()` returns `Task` — the write is the outcome. Need a different store or a collaborator? Add it as a parameter and Arc injects it: an `IMongoCollection<T>`, your EF Core `DbContext`, a service, anything in the container.
-
-3. **The read model and its query.** Declare the shape you want to query and mark it `[ReadModel]`. A static method exposes the query — return an observable so consumers get live updates:
-
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
    ```csharp
-   [ReadModel]
-   public record Author([property: Key] AuthorId Id, AuthorName Name)
+   namespace Library.Authors;
+
+   [Command]
+   public record RegisterAuthor(AuthorId Id, AuthorName Name)
    {
-       public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
-           collection.Observe();
+       public async Task Handle(LibraryDbContext db)
+       {
+           db.Authors.Add(new Author(Id, Name));
+           await db.SaveChangesAsync();
+       }
+   }
+   ```
+   </TabItem>
+   </Tabs>
+
+   Arc method-injects the collection or context. The explicit write is the effect; returning `Task` adds no response payload.
+
+3. **Expose the read shape.** Create `src/Authors/Author.cs`:
+
+   <Tabs syncKey="db">
+   <TabItem label="MongoDB" icon="seti:db">
+   ```csharp
+   namespace Library.Authors;
+
+   [ReadModel]
+   public record Author(AuthorId Id, AuthorName Name)
+   {
+       public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> authors) =>
+           authors.Observe();
+   }
+   ```
+   </TabItem>
+   <TabItem label="EF Core" icon="seti:db">
+   ```csharp
+   namespace Library.Authors;
+
+   [ReadModel]
+   public record Author(AuthorId Id, AuthorName Name)
+   {
+       public static ISubject<IEnumerable<Author>> AllAuthors(LibraryDbContext db) =>
+           db.Authors.Observe();
    }
    ```
 
-   <Aside type="tip" title="Notice what you didn't write">
-   That static `AllAuthors` method *is* your query — Arc exposes it over HTTP automatically. No controller, no routing, no DTO. And it's **live**: `.Observe()` watches the change stream, so the moment the command writes, every subscriber re-renders.
-   </Aside>
+   Also create `src/Authors/LibraryDbContext.cs`:
 
-4. **Build.**
+   ```csharp
+   namespace Library.Authors;
 
-   ```bash
-   dotnet build
+   public class LibraryDbContext(DbContextOptions<LibraryDbContext> options) : BaseDbContext(options)
+   {
+       public DbSet<Author> Authors => Set<Author>();
+   }
    ```
+   </TabItem>
+   </Tabs>
 
-   Building **generates the TypeScript proxies** for `RegisterAuthor` and `AllAuthors` so your frontend can call them type-safely — that's the part that makes the next step (the UI) effortless.
+   A static query on `[ReadModel]` becomes an endpoint. MongoDB observation uses change streams; SQLite uses this host's configured `SaveChanges` notifications. The host setup establishes their prerequisites.
 
 </Steps>
 
-## What you built
+## Build and run the checkpoint
 
-In one folder, read top to bottom:
+```bash
+dotnet build -c Debug
+dotnet run --no-build --no-launch-profile --environment Development --urls http://localhost:5000
+```
 
-- A `[Command]` with `Handle()` — intent and implementation in one place, no handler class.
-- A `[ReadModel]` with a live query method served over HTTP.
+After the build, check for `src/Authors/RegisterAuthor.ts` and `src/Authors/Author.ts`. With source-file output enabled, the latter contains the `AllAuthors` query as well as the author shape. Do not edit either generated file.
 
-That's a complete vertical slice, over a plain database. The next feature is another folder just like it.
+The host should listen on port 5000. EF creates the initial SQLite schema at startup; MongoDB should already report a writable primary. If either fails, fix storage before moving to the browser.
 
-<Aside type="note" title="Storing where you like">
-This slice writes straight to MongoDB. Arc is persistence-agnostic — the same shape works over [EF Core](/arc/backend/entity-framework/getting-started/) or over Chronicle. When this belongs in the event-sourced model, the [Chronicle integration](/arc/backend/chronicle/add-event-sourcing/) moves the write side to events without touching your query or your frontend.
+<Aside type="note" title="Build success is not a write test">
+This checkpoint establishes compilation, proxy output, and host/storage startup. The next lesson executes a command and verifies persisted data through the query. It does not assume that a green build proves the write worked.
 </Aside>
 
-## Where to go next
+## Continue in the browser
 
-- **[Wire a UI to it](/arc/frontend/getting-started/)** — read this query and run this command from React, fully typed.
-- **[Build the library, full-stack](/arc/tutorial/)** — the threaded tutorial builds this into a real app, chapter by chapter.
-- Go deeper on [Commands](/arc/backend/commands/) and [Queries](/arc/backend/queries/).
+[Your first full-stack slice](/arc/tutorial/first-slice/) explains these same backend files and supplies the Vite bootstrap, Components prerequisites, providers, mounting, and dev proxy configuration; do not create a second copy of the backend types. [Frontend getting started](/arc/frontend/getting-started/) is the **Arc-only alternative for an existing Vite app**, using ordinary HTML without Components. With this tutorial's source-file grouping, use `./Authors/Author` for its `AllAuthors` import.
+
+Go deeper in [Commands](/arc/backend/commands/) and [Queries](/arc/backend/queries/). If you later choose event sourcing, [add Chronicle explicitly](/arc/backend/chronicle/add-event-sourcing/); retaining a query's public contract is a migration goal, not a guarantee that its storage implementation never changes.

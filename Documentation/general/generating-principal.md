@@ -1,92 +1,93 @@
-# Generating Microsoft Identity Principal for Local Development
+---
+title: Generate a Microsoft identity principal for local development
+description: Simulate trusted-ingress principal headers on a loopback-only development host, without confusing Base64 assertions with validated bearer tokens.
+---
 
-When working with [Microsoft Identity Platform integration](../backend/asp-net-core/microsoft-identity.md) in your application, you'll often need to test different user identities and claims during local development. Since local development environments typically don't have Microsoft Azure's identity provider configured, you need to simulate the Microsoft Client Principal tokens that would normally be provided by Azure services like Container Apps or Web Apps.
+Need to exercise different users and roles before wiring production login? The [Microsoft identity header adapter](../backend/asp-net-core/microsoft-identity.md) can construct a principal from development HTTP headers. This is **identity simulation**, not token validation.
 
-The [Microsoft Identity backend integration](../backend/asp-net-core/microsoft-identity.md) relies on specific HTTP headers that are automatically set by Azure services in production, but need to be manually configured during local development:
+## Understand the trust boundary first
 
-| Header | Description |
-| ------ | ----------- |
-| x-ms-client-principal | The Microsoft Client Principal token holding all user details, base64 encoded according to [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
-| x-ms-client-principal-id | The unique identifier from the Microsoft identity provider (Azure AD/Entra ID) for the user |
-| x-ms-client-principal-name | The display name of the user, typically resolved from claims within the Microsoft identity token |
+`x-ms-client-principal` is Base64-encoded JSON — an **unsigned assertion**, not a signed bearer token. Arc's header handlers decode it and construct claims; they do not validate a signature, issuer, or audience. Header presence and valid JSON do not prove who sent it.
 
-Once these Microsoft Identity headers are properly set and the `x-ms-client-principal` token is in the expected format, the [Microsoft Identity authentication handler](../backend/asp-net-core/microsoft-identity.md) will process them and pass the identity information to your **identity details provider**.
+Use manually supplied headers only on an isolated, loopback-bound development host. In production, either configure a real token/cookie authentication scheme or accept these assertions only from a trusted authenticated ingress. That ingress must **strip and replace all incoming identity headers**, and the backend must not be reachable through a bypass route. An arbitrary browser or proxy sending these headers is not trustworthy.
 
-The expected format needs to be according to the [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
-To simulate Microsoft Identity users during local development, generate the correct token values and use a browser extension to set the HTTP request headers.
+The [authorization tutorial](/arc/tutorial/authorization/) shows the ASP.NET registration and middleware placement for a Development-only fixture. The [lightweight host authentication](../backend/core/authentication.md) is a different setup; do not mix their APIs.
 
-Here's an example of a Microsoft Client Principal token structure for an Azure AD user:
+## Construct the assertion
+
+The adapter expects all three headers:
+
+| Header                       | Content                                                                                                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `x-ms-client-principal`      | Base64 JSON following the [client principal shape](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
+| `x-ms-client-principal-id`   | The selected user's stable identifier                                                                                                                          |
+| `x-ms-client-principal-name` | The selected user's display name or email                                                                                                                      |
+
+Save this synthetic fixture as `principal.json` in your local application workspace:
 
 ```json
 {
-  "identityProvider": "aad",
-  "userId": "e7f664ca-4ecc-45be-84cf-74b6240d049a",
-  "userDetails": "jane.doe@contoso.com",
-  "userRoles": ["anonymous", "authenticated"],
-  "claims": [{
-    "typ": "preferred_username",
-    "val": "jane.doe@contoso.com"
-  }, {
-    "typ": "name",
-    "val": "Jane Doe"
-  }, {
-    "typ": "given_name",
-    "val": "Jane"
-  }, {
-    "typ": "family_name",
-    "val": "Doe"
-  }, {
-    "typ": "oid",
-    "val": "e7f664ca-4ecc-45be-84cf-74b6240d049a"
-  }]
+    "identityProvider": "aad",
+    "userId": "e7f664ca-4ecc-45be-84cf-74b6240d049a",
+    "userDetails": "jane.doe@contoso.com",
+    "userRoles": ["anonymous", "authenticated", "Librarian"],
+    "claims": [
+        {
+            "typ": "preferred_username",
+            "val": "jane.doe@contoso.com"
+        },
+        {
+            "typ": "name",
+            "val": "Jane Doe"
+        },
+        {
+            "typ": "given_name",
+            "val": "Jane"
+        },
+        {
+            "typ": "family_name",
+            "val": "Doe"
+        },
+        {
+            "typ": "oid",
+            "val": "e7f664ca-4ecc-45be-84cf-74b6240d049a"
+        }
+    ]
 }
 ```
 
-Basically what you then need to do is generate a Microsoft Client Principal token that matches the structure above and `Base64` encode it.
-If you're using VSCode, you could use an [extension](https://marketplace.visualstudio.com/items?itemName=adamhartford.vscode-base64) for doing the base64 encoding.
-As an alternative, you could also use an online [base64 encoder](https://www.base64encode.org).
+`userRoles` is mapped to role claims by the header adapter. Include `Librarian` for the successful tutorial case; remove it for an authenticated-but-not-authorized case. A role field returned by `IProvideIdentityDetails` would not have the same effect.
 
-For the above Microsoft Identity structure that would become:
+Encode locally, keeping the result on one line:
 
-```text
-ewogICJpZGVudGl0eVByb3ZpZGVyIjogImFhZCIsCiAgInVzZXJJZCI6ICJlN2Y2NjRjYS00ZWNjLTQ1YmUtODRjZi03NGI2MjQwZDA0OWEiLAogICJ1c2VyRGV0YWlscyI6ICJqYW5lLmRvZUBjb250b3NvLmNvbSIsCiAgInVzZXJSb2xlcyI6IFsiYW5vbnltb3VzIiwgImF1dGhlbnRpY2F0ZWQiXSwKICAiY2xhaW1zIjogW3sKICAgICJ0eXAiOiAicHJlZmVycmVkX3VzZXJuYW1lIiwKICAgICJ2YWwiOiAiamFuZS5kb2VAY29udG9zby5jb20iCiAgfSwgewogICAgInR5cCI6ICJuYW1lIiwKICAgICJ2YWwiOiAiSmFuZSBEb2UiCiAgfSwgewogICAgInR5cCI6ICJnaXZlbl9uYW1lIiwKICAgICJ2YWwiOiAiSmFuZSIKICB9LCB7CiAgICAidHlwIjogImZhbWlseV9uYW1lIiwKICAgICJ2YWwiOiAiRG9lIgogIH0sIHsKICAgICJ0eXAiOiAib2lkIiwKICAgICJ2YWwiOiAiZTdmNjY0Y2EtNGVjYy00NWJlLTg0Y2YtNzRiNjI0MGQwNDlhIgogIH1dCn0K
+```bash
+python3 -c 'import base64,pathlib; print(base64.b64encode(pathlib.Path("principal.json").read_bytes()).decode())'
 ```
 
-From the terminal on a Unix based operating system you could also generate a base64 encoded Microsoft Client Principal:
+A local editor's Base64 action is another option. Do not submit real identity payloads to an online encoder. Base64 provides neither confidentiality nor authenticity.
 
-```shell
-echo "{\"identityProvider\":\"aad\",\"userId\":\"e7f664ca-4ecc-45be-84cf-74b6240d049a\",\"userDetails\":\"jane.doe@contoso.com\"}" | base64
-```
+## Configure ModHeader narrowly
 
-Which would generate:
+In [ModHeader](https://modheader.com), create a development-only profile and **add an include URL filter before enabling it**. For the tutorial Vite server, use `^http://localhost:5173/.*$`. Add a separate `^http://localhost:5000/.*$` only when testing that backend directly. If you use a different local port, update the filter; never select all requests.
 
-```text
-eyJpZGVudGl0eVByb3ZpZGVyIjoiYWFkIiwidXNlcklkIjoiZTdmNjY0Y2EtNGVjYy00NWJlLTg0Y2YtNzRiNjI0MGQwNDlhIiwidXNlckRldGFpbHMiOiJqYW5lLmRvZUBjb250b3NvLmNvbSJ9Cg==
-```
+Set:
 
-## ModHeader for Microsoft Identity Testing
+- `x-ms-client-principal-id`: `e7f664ca-4ecc-45be-84cf-74b6240d049a`
+- `x-ms-client-principal-name`: `jane.doe@contoso.com`
+- `x-ms-client-principal`: the one-line Base64 output above
 
-Once you have the Microsoft Client Principal token as **base64**, you can inject it as headers for testing your [Microsoft Identity integration](../backend/asp-net-core/microsoft-identity.md) locally.
+> [!WARNING]
+> The older screenshot below illustrates the header fields only. Its **“All requests”** setting is unsafe and must not be copied. Apply the localhost include filter above, and disable the profile when finished.
 
-In your browser you can use an extension such as [ModHeader](https://modheader.com). It allows you to setup headers
-that simulate the Azure-provided Microsoft Identity headers for local development. Use this to add the expected Microsoft Identity headers:
+![Older ModHeader header-field example; replace its All requests scope with a localhost include filter](./configure-mod-header.png)
 
-- The `x-ms-client-principal-id` should be the Azure AD object identifier (oid) or user ID from your identity provider
-- The `x-ms-client-principal-name` should be the user's display name or email address from Azure AD  
-- The `x-ms-client-principal` should contain your base64-encoded Microsoft Client Principal token
+Use separate filtered profiles for different synthetic users. Confirm in browser developer tools that headers are sent only to your intended localhost application.
 
-> Important: For the `x-ms-client-principal` you want to paste the **base64** generated value. Ensure the base64 string is properly formatted and valid.
+## Verify the distinct behaviors
 
-![ModHeader configuration for Microsoft Identity](./configure-mod-header.png)
+- No headers: protected operations reject an unauthenticated caller.
+- Valid fixture without `Librarian`: authentication succeeds but role-protected operations reject access.
+- Fixture with `Librarian`: role-protected operations can execute, subject to their other checks.
+- Identity-details provider returning `IsUserAuthorized: false`: `/.cratis/me` rejects that identity result. This does **not** replace operation authorization.
 
-> Pro-tip: With ModHeader you can create profiles. This is super useful if you want to be testing with different Microsoft Identity users and easily switch between them during development.
-
-## Integration with Microsoft Identity Backend
-
-Once you have these headers configured, your application's [Microsoft Identity authentication handler](../backend/asp-net-core/microsoft-identity.md) will automatically process the Microsoft Client Principal token and populate the ASP.NET Core authentication context. This allows you to:
-
-- Test authorization policies that depend on Azure AD claims
-- Verify that your [identity details provider](../backend/identity/index.md) receives the correct user information
-- Ensure your application behaves correctly with different Microsoft Identity user scenarios
-
-The Microsoft Identity integration seamlessly handles the token validation and claim extraction, making your local development experience consistent with how the application behaves when deployed to Azure services.
+These checks test the adapter and your authorization configuration, not production token verification. For production, independently test ingress header replacement, blocked direct backend access, and the real authentication scheme. See [identity and access](/arc/understanding-identity-and-access/) for how claims, details, operation permissions, and tenant membership differ.

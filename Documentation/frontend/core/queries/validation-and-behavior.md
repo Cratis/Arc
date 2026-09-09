@@ -31,11 +31,13 @@ Because `subscribe()` validates the arguments it is given, a subscription starte
 is rejected rather than left open. Gate it with `ObservableQueryWhen` so the subscription only starts once the
 arguments exist:
 
+In a React component, use the generated wrapper (illustrative fragment):
+
 ```tsx
-<ObservableQueryWhen condition={!!authorId}>
-    {/* subscribes only once authorId has a value */}
-</ObservableQueryWhen>
+const [books] = BooksForAuthor.when(!!authorId).use({ authorId });
 ```
+
+`ObservableQueryWhen` is a class returned by `.when()`, not a JSX component. Supply a correctly typed argument/default even while disabled; the condition suppresses automatic subscription, not all query/cache creation. See [conditional queries](../../react/queries/conditional-queries.md).
 
 Client-side validation is a convenience, not a gate — every rule it applies is also enforced by the server, so
 calling an endpoint directly gains nothing. Server rejections report member names the same way the client does:

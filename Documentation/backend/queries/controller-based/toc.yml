@@ -1,14 +1,16 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
 - name: Overview
   href: index.md
-- name: Route Templates
+- name: Route templates
   href: route-templates.md
-- name: Query Arguments
+- name: Query arguments
   href: query-arguments.md
-- name: Return Types
+- name: Dependency injection
+  href: dependency-injection.md
+- name: Return types
   href: return-types.md
 - name: Paging
   href: paging.md
-- name: Observable Queries
+- name: Observable queries
   href: observable-queries.md
-- name: Dependency Injection
-  href: dependency-injection.md

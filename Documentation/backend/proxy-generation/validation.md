@@ -1,399 +1,189 @@
-# Validation
+---
+title: Validation extraction
+description: The supported subset of backend rules emitted into TypeScript proxies.
+---
 
-The ProxyGenerator automatically extracts validation rules from your backend validators and generates corresponding TypeScript validation code for the frontend. This ensures that validation rules are defined once on the backend and automatically enforced on both client and server.
+Generated validators provide early feedback without duplicating simple rules by hand. They are a **projection of a supported subset**, not an equivalent execution of arbitrary backend validation. Keep the server authoritative: missing client rules do not mean a request is valid, and a local validation result does not establish server authorization.
 
-The system supports two validation approaches:
+## Prerequisite and extraction flow
 
-- **FluentValidation**: Class-based validators using the FluentValidation library
-- **DataAnnotations**: Attribute-based validation using `System.ComponentModel.DataAnnotations`
+First define a discoverable [command](../commands/index.md) or [query](../queries/index.md). A DTO and validator alone do not create an endpoint or a proxy. Controller-based DTOs are supported when used by a discovered controller endpoint; model-bound types need their normal endpoint declarations.
 
-## Overview
+The executable loads the compiled model, finds a matching validator, and instantiates it to inspect its rules. It also reads supported DataAnnotations. For command model/DTO properties and model-bound query parameters, extraction uses this per-member precedence:
 
-The validation extraction provides:
+1. Extractable rules from the explicit FluentValidation validator take precedence.
+2. Direct concept-property/parameter rules are additive, with identical rules deduplicated.
+3. DataAnnotations contribute only where neither of the above has contributed rules for that member.
 
-- **Automatic Rule Extraction**: Discovers and extracts both FluentValidation rules and DataAnnotations attributes using reflection
-- **Type-Safe Generation**: Generates type-safe TypeScript validators for commands and queries
-- **Custom Message Preservation**: Extracts and carries over custom error messages declared as literals; messages declared as a factory are left to the server to resolve
-- **Multiple Validation Styles**: Support for both FluentValidation class-based and DataAnnotations attribute-based validation
-- **Version Independence**: Uses reflection-based type checking without hard dependencies on FluentValidation
+The current lookup selects the first matching validator type in the searched assembly. Do not rely on it aggregating several validators for the same model.
 
-## How It Works
+Controller-based queries use a separate lookup: the generator selects the first DTO whose properties match **all method parameters**, with the same property count, case-insensitive names, and identical types, preferring DTO names containing `Query` (case-insensitive). This lookup includes all method parameters, not just client-facing ones. It extracts rules from the selected DTO, including its supported annotations and concept-property rules. Direct parameter annotations are extracted only if that DTO contributes **no rules at all** (or no DTO matches), rather than as a per-parameter fallback. For example, one DTO rule on `Name` prevents a direct `[Required]` annotation on another parameter from being projected. Direct concept parameters are not independently projected; matching DTO concept properties can contribute rules through DTO extraction.
 
-The ProxyGenerator uses reflection to:
+## FluentValidation rule reference
 
-1. **Discover Validators**: Find all `AbstractValidator<T>` implementations and properties with DataAnnotations attributes for command and query types
-2. **Extract Rules**: Analyze validation rules from both FluentValidation and DataAnnotations without requiring package references
-3. **Generate TypeScript**: Create validators with the same rules as the backend, and with the messages it can know at build time
-4. **Integrate Automatically**: Generated validators run before server calls
+| Backend rule              | Emitted TypeScript rule                                 |
+| ------------------------- | ------------------------------------------------------- |
+| `NotEmpty()`              | `notEmpty()`                                            |
+| `NotNull()`               | `notNull()`                                             |
+| `EmailAddress()`          | `emailAddress()`                                        |
+| `MinimumLength(n)`        | `minLength(n)`                                          |
+| `MaximumLength(n)`        | `maxLength(n)`                                          |
+| `Length(min, max)`        | `length(min, max)`                                      |
+| `Length(n)`               | `length(n, n)`                                          |
+| `Matches(pattern)`        | `matches(pattern)` with a JavaScript regular expression |
+| `GreaterThan(n)`          | `greaterThan(n)`                                        |
+| `GreaterThanOrEqualTo(n)` | `greaterThanOrEqual(n)`                                 |
+| `LessThan(n)`             | `lessThan(n)`                                           |
+| `LessThanOrEqualTo(n)`    | `lessThanOrEqual(n)`                                    |
 
-## FluentValidation Support
+Comparisons require **numeric constant** values. Cross-property comparisons and nonnumeric constants, such as date sentinels, are not projected. A .NET regex pattern must also be valid and meaningful in JavaScript; extraction is not a regex-language translation.
 
-### Supported Validation Rules
+## A complete command declaration
 
-The following FluentValidation rules are automatically converted to TypeScript:
-
-| FluentValidation Rule | TypeScript Rule | Generated Code Example |
-| --------------------- | --------------- | ---------------------- |
-| `NotEmpty()` | `notEmpty()` | `this.ruleFor(c => c.email).notEmpty()` |
-| `NotNull()` | `notNull()` | `this.ruleFor(c => c.value).notNull()` |
-| `EmailAddress()` | `emailAddress()` | `this.ruleFor(c => c.email).emailAddress()` |
-| `MinimumLength(n)` | `minLength(n)` | `this.ruleFor(c => c.name).minLength(2)` |
-| `MaximumLength(n)` | `maxLength(n)` | `this.ruleFor(c => c.name).maxLength(50)` |
-| `Length(min, max)` | `length(min, max)` | `this.ruleFor(c => c.code).length(3, 10)` |
-| `Matches(pattern)` | `matches(pattern)` | `this.ruleFor(c => c.phone).matches(/^\d+$/)` |
-| `GreaterThan(n)` | `greaterThan(n)` | `this.ruleFor(c => c.quantity).greaterThan(0)` |
-| `GreaterThanOrEqualTo(n)` | `greaterThanOrEqual(n)` | `this.ruleFor(c => c.age).greaterThanOrEqual(18)` |
-| `LessThan(n)` | `lessThan(n)` | `this.ruleFor(c => c.discount).lessThan(100)` |
-| `LessThanOrEqualTo(n)` | `lessThanOrEqual(n)` | `this.ruleFor(c => c.rating).lessThanOrEqual(5)` |
-
-### Backend Validator Example
-
-Define a validator on the backend using FluentValidation:
+This C# file can be added to an existing Arc backend with FluentValidation available. It is a minimal response-bearing command, not a persistence example:
 
 ```csharp
-public class CreateUserCommand
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Validation;
+using Cratis.Concepts;
+using FluentValidation;
+
+namespace MyApp.Contacts;
+
+public record ContactName(string Value) : ConceptAs<string>(Value)
 {
-    public string Email { get; set; } = string.Empty;
-    public int Age { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public static readonly ContactName NotSet = new(string.Empty);
 }
 
-public class CreateUserCommandValidator : BaseValidator<CreateUserCommand>
+public record ContactAge(int Value) : ConceptAs<int>(Value)
 {
-    public CreateUserCommandValidator()
-    {
-        RuleFor(x => x.Email)
-            .NotEmpty()
-            .WithMessage("Email address is required")
-            .EmailAddress();
-            
-        RuleFor(x => x.Age)
-            .GreaterThanOrEqualTo(18);
-            
-        RuleFor(x => x.Name)
-            .NotEmpty()
-            .MinimumLength(2)
-            .MaximumLength(50);
-    }
+    public static readonly ContactAge NotSet = new(0);
 }
-```
 
-## Generated TypeScript Validator
-
-The ProxyGenerator automatically generates the corresponding TypeScript validator:
-
-```typescript
-export class CreateUserCommandValidator extends CommandValidator<ICreateUserCommand> {
-    constructor() {
-        super();
-        this.ruleFor(c => c.email)
-            .notEmpty()
-            .withMessage('Email address is required')
-            .emailAddress();
-        
-        this.ruleFor(c => c.age)
-            .greaterThanOrEqual(18);
-        
-        this.ruleFor(c => c.name)
-            .notEmpty()
-            .minLength(2)
-            .maxLength(50);
-    }
-}
-```
-
-## DataAnnotations Support
-
-As an alternative to FluentValidation, you can use `System.ComponentModel.DataAnnotations` attributes directly on your command and query properties. The ProxyGenerator will automatically extract these attributes and generate equivalent TypeScript validators.
-
-### Supported DataAnnotations Attributes
-
-The following DataAnnotations attributes are automatically converted to TypeScript:
-
-| DataAnnotations Attribute | TypeScript Rule | Example |
-| ------------------------- | --------------- | ------- |
-| `[Required]` | `notEmpty()` | `[Required] public string Name { get; set; }` |
-| `[EmailAddress]` | `emailAddress()` | `[EmailAddress] public string Email { get; set; }` |
-| `[MinLength(n)]` | `minLength(n)` | `[MinLength(2)] public string Code { get; set; }` |
-| `[MaxLength(n)]` | `maxLength(n)` | `[MaxLength(50)] public string Title { get; set; }` |
-| `[StringLength(max)]` | `maxLength(max)` | `[StringLength(100)] public string Description { get; set; }` |
-| `[StringLength(max, MinimumLength=min)]` | `length(min, max)` | `[StringLength(50, MinimumLength=3)]` |
-| `[Range(min, max)]` | `greaterThanOrEqual(min).lessThanOrEqual(max)` | `[Range(0, 150)] public int Age { get; set; }` |
-| `[RegularExpression(pattern)]` | `matches(pattern)` | `[RegularExpression(@"^\d+$")]` |
-| `[Url]` | `matches(urlPattern)` | `[Url] public string Website { get; set; }` |
-| `[Phone]` | `matches(phonePattern)` | `[Phone] public string PhoneNumber { get; set; }` |
-
-### DataAnnotations Example
-
-Define validation using attributes on your command or query:
-
-```csharp
-public class RegisterUserCommand
+public record EmailAddress(string Value) : ConceptAs<string>(Value)
 {
-    [Required(ErrorMessage = "Name is required")]
-    [StringLength(50, MinimumLength = 2, ErrorMessage = "Name must be between 2 and 50 characters")]
-    public string Name { get; set; } = string.Empty;
-    
-    [Required]
-    [EmailAddress(ErrorMessage = "Valid email address is required")]
-    public string Email { get; set; } = string.Empty;
-    
-    [Range(18, 150, ErrorMessage = "Age must be between 18 and 150")]
-    public int Age { get; set; }
-    
-    [Url]
-    public string Website { get; set; } = string.Empty;
-    
-    [Phone]
-    public string PhoneNumber { get; set; } = string.Empty;
+    public static readonly EmailAddress NotSet = new(string.Empty);
 }
-```
-
-### Generated TypeScript from DataAnnotations
-
-The ProxyGenerator generates a TypeScript validator from the DataAnnotations attributes:
-
-```typescript
-export class RegisterUserCommandValidator extends CommandValidator<IRegisterUserCommand> {
-    constructor() {
-        super();
-        this.ruleFor(c => c.name)
-            .notEmpty()
-            .withMessage('Name is required')
-            .length(2, 50)
-            .withMessage('Name must be between 2 and 50 characters');
-        
-        this.ruleFor(c => c.email)
-            .notEmpty()
-            .emailAddress()
-            .withMessage('Valid email address is required');
-        
-        this.ruleFor(c => c.age)
-            .greaterThanOrEqual(18)
-            .lessThanOrEqual(150)
-            .withMessage('Age must be between 18 and 150');
-        
-        this.ruleFor(c => c.website)
-            .matches(/^https?:\/\/.+/);
-        
-        this.ruleFor(c => c.phoneNumber)
-            .matches(/^\+?[1-9]\d{1,14}$/);
-    }
-}
-```
-
-### Choosing Between FluentValidation and DataAnnotations
-
-Both approaches are fully supported, and you can choose based on your preferences:
-
-**FluentValidation**:
-- ✅ More expressive and readable for complex validation logic
-- ✅ Better separation of concerns (validation in separate class)
-- ✅ More flexible and powerful rule composition
-- ✅ Easier to unit test validation logic independently
-
-**DataAnnotations**:
-- ✅ More concise for simple validation rules
-- ✅ Validation rules are co-located with properties
-- ✅ No additional dependencies required (built into .NET)
-- ✅ Familiar to developers from ASP.NET MVC/Web API
-
-You can also mix both approaches in the same application - the ProxyGenerator will extract rules from both sources.
-
-## Default Error Messages
-
-All validation rules have sensible default error messages that are automatically used when no custom message is specified:
-
-```typescript
-// C# without custom message
-RuleFor(x => x.Age).GreaterThanOrEqualTo(18);
-
-// Generated TypeScript (with default message)
-this.ruleFor(c => c.age).greaterThanOrEqual(18);
-// Default message: "'age' must be greater than or equal to 18."
-```
-
-## Custom Error Messages
-
-Custom error messages defined using `.WithMessage()` are automatically extracted and included in the generated validators:
-
-```csharp
-// C# with custom message
-RuleFor(x => x.Email)
-    .NotEmpty()
-    .WithMessage("Email address is required");
-
-// Generated TypeScript
-this.ruleFor(c => c.email)
-    .notEmpty()
-    .withMessage('Email address is required');
-```
-
-### Deferred messages are not projected
-
-FluentValidation also accepts a message as a factory — `.WithMessage(_ => Messages.EmailRequired)` — which is the form a message read from a resource, a tenant setting or any other ambient state takes. **The generator does not project those.** The rule still crosses to the client; only the message stays behind:
-
-```csharp
-// C# with a deferred message
-RuleFor(x => x.Email)
-    .NotEmpty()
-    .WithMessage(_ => Messages.EmailRequired);
-
-// Generated TypeScript — the rule mirrors, the message does not
-this.ruleFor(c => c.email)
-    .notEmpty();
-// The client rule falls back to its own default: "'email' must not be empty."
-```
-
-A factory is deferred because its value is not known yet. The generator runs on a build machine, in a different process from the browser that will show the message, at a different time and under different ambient state — so any value it obtained by calling the factory would be an answer for the wrong conditions, frozen into an artifact nobody reviews. A delegate is opaque, so the generator cannot tell a factory that returns a constant from one that reads the culture, and it does not guess.
-
-:::note
-This matters more than it looks, because a generated client rule that fails **suppresses the request**. Had the message been projected, the build machine's answer would be the one the user sees and the server that would have resolved it correctly would never be asked. Where a rule's exact wording must reach the user, either declare it as a literal — which genuinely is context-free — or express the rule in a shape the generator does not mirror (`Must`, `MustAsync`, or a check in `Handle()`), so that it is the server that rejects and messages it.
-:::
-
-## Query Validation
-
-Query parameters can also be validated using the same approach:
-
-```csharp
-public class SearchUsersQuery
-{
-    public string SearchTerm { get; set; } = string.Empty;
-    public int MinAge { get; set; }
-}
-
-public class SearchUsersQueryValidator : BaseValidator<SearchUsersQuery>
-{
-    public SearchUsersQueryValidator()
-    {
-        RuleFor(x => x.SearchTerm).MinimumLength(3);
-        RuleFor(x => x.MinAge).GreaterThanOrEqualTo(0).LessThanOrEqualTo(150);
-    }
-}
-```
-
-Generated TypeScript:
-
-```typescript
-export class SearchUsersQueryValidator extends QueryValidator<SearchUsersQueryParameters> {
-    constructor() {
-        super();
-        this.ruleFor(c => c.searchTerm).minLength(3);
-        this.ruleFor(c => c.minAge).greaterThanOrEqual(0).lessThanOrEqual(150);
-    }
-}
-```
-
-Observable queries get the same validator as one-shot queries. It runs when you call `perform()`, and when you
-`subscribe()` — a subscription rejected by validation delivers an invalid `QueryResult` to your callback rather than
-opening a connection, so a subscriber can tell "these arguments are wrong" apart from "no data yet".
-
-## Concept Validation
-
-A `ConceptValidator<T>` is extracted for every command property and query parameter of that concept's type, so a
-rule written once reaches the client everywhere the concept is used:
-
-```csharp
-public record EmailAddress(string Value) : ConceptAs<string>(Value);
 
 public class EmailAddressValidator : ConceptValidator<EmailAddress>
 {
-    public EmailAddressValidator() =>
-        RuleFor(x => x.Value).EmailAddress().WithMessage("Must be a valid email address");
+    public EmailAddressValidator() => RuleFor(email => email.Value)
+        .NotEmpty().WithMessage("Email address is required")
+        .EmailAddress();
 }
 
-public class RegisterUser
+[Command]
+public record RegisterContact(ContactName Name, EmailAddress Email, ContactAge Age)
 {
-    public EmailAddress Email { get; set; } = new(string.Empty);
+    public string Handle() => Name.Value.Trim();
+}
+
+public class RegisterContactValidator : CommandValidator<RegisterContact>
+{
+    public RegisterContactValidator()
+    {
+        RuleFor(contact => contact.Name).NotEmpty().MinimumLength(2).MaximumLength(50);
+        RuleFor(contact => contact.Age).GreaterThanOrEqualTo(18);
+    }
 }
 ```
 
-A concept is represented in TypeScript by its underlying primitive, so the rule is attached to the property that
-carries it:
+`EmailAddressValidator` owns the email invariant wherever that concept appears; the command validator owns this registration's name-length and minimum-age rules. Arc's `CommandValidator` inherits a concept-aware `RuleFor` overload that unwraps `ContactName` and `ContactAge`, so these FluentValidation chains operate on `string` and `int`. Keep each concept in its own file in your application; they are grouped here to make the example self-contained.
+
+Build with the [generator configured](getting-started.md). A successful checkpoint is a generated `RegisterContact` proxy with an `IRegisterContact` interface and attached `RegisterContactValidator`. The response remains an ordinary string; Chronicle is not involved.
+
+This is an **excerpt from its generated validator constructor**, not a separate file to maintain:
 
 ```typescript
-export class RegisterUserValidator extends CommandValidator<IRegisterUser> {
-    constructor() {
-        super();
-        this.ruleFor(c => c.email)
-            .emailAddress()
-            .withMessage('Must be a valid email address');
-    }
-}
+this.ruleFor((c) => c.age).greaterThanOrEqual(18);
+this.ruleFor((c) => c.email)
+    .notEmpty()
+    .withMessage('Email address is required');
+this.ruleFor((c) => c.email).emailAddress();
+this.ruleFor((c) => c.name).notEmpty();
+this.ruleFor((c) => c.name).minLength(2);
+this.ruleFor((c) => c.name).maxLength(50);
 ```
 
-Concept rules add to a model's own rules rather than replacing them. If `RegisterUser` also has a
-`CommandValidator<RegisterUser>` with a rule on `Email`, both apply — which is what the server does, so the client
-agrees with it.
+Each extracted rule gets its own statement. The command template attaches the validator automatically, so you do not instantiate a second validator in the component.
 
-Only a concept sitting directly on a property or parameter is extracted. The client rule builder resolves a single
-property name, so it cannot express a rule against a concept nested deeper in the graph. Those rules still run
-server-side, where the whole object graph is walked.
+## DataAnnotations reference
 
-## Limitations
+| Attribute                                  | Emitted rule                                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `[Required]`                               | `notEmpty()`                                                                             |
+| `[EmailAddress]`                           | `emailAddress()`                                                                         |
+| `[MinLength(n)]`                           | `minLength(n)`                                                                           |
+| `[MaxLength(n)]`                           | `maxLength(n)`                                                                           |
+| `[StringLength(max)]`                      | `maxLength(max)`                                                                         |
+| `[StringLength(max, MinimumLength = min)]` | `length(min, max)` for positive limits                                                   |
+| `[Range(min, max)]`                        | `greaterThanOrEqual(min)` and `lessThanOrEqual(max)`                                     |
+| `[RegularExpression(pattern)]`             | `matches(pattern)`                                                                       |
+| `[Url]`                                    | `url()`                                                                                  |
+| `[Phone]`                                  | `phone()`                                                                                |
+| `[CreditCard]`                             | `creditCard()` is emitted, but the current client rule builder does **not** implement it |
 
-The ProxyGenerator can only extract validation rules that can be executed client-side. The following are **not supported**:
+:::caution
+`[CreditCard]` currently exposes a generator/client gap: the emitted call fails TypeScript checking against Arc's current validation API. Do not treat it as supported client validation or manually repair the generated file. Keep server enforcement and account for this limitation before adopting that annotation in a generated endpoint.
+:::
 
-- **Custom validators using `.Must()`**: Business logic that requires server-side execution
-- **Async validators**: Rules that make database or service calls
-- **Complex predicates**: Conditions that depend on server-side data
-- **Cross-property validation**: Rules that compare multiple properties (partially supported)
+These mappings are not full attribute-semantic parity. For example, `Required.AllowEmptyStrings` is not projected. Use the numeric two-argument `Range` overload for these examples; the extractor does not interpret the type/string overload as typed limits. Literal `ErrorMessage` values are read, but resource-based message resolution is not reproduced.
 
-### Validators with Constructor Dependencies
+The following alternative deliberately uses primitive properties to demonstrate annotation extraction at an endpoint boundary. Attributes such as `[Url]` and `[Phone]` target primitive values; do not move them unchanged onto concept objects and assume equivalent server behavior. Prefer named concepts with `ConceptValidator<T>` for normal application-domain contracts, as above.
 
-Validators can have constructor dependencies that are used for server-side validation. The ProxyGenerator handles this automatically:
+A complete annotation-focused command declaration:
 
 ```csharp
-public class AssignPersonnelValidator : CommandValidator<AssignPersonnel>
+using System.ComponentModel.DataAnnotations;
+using Cratis.Arc.Commands.ModelBound;
+
+namespace MyApp.Contacts;
+
+[Command]
+public record CheckContact(
+    [property: Required(ErrorMessage = "Name is required")] string Name,
+    [property: Url] string Website,
+    [property: Phone] string PhoneNumber)
 {
-    public AssignPersonnelValidator(PersonnelAlreadyAssigned personnelAlreadyAssigned)
-    {
-        RuleFor(x => x.Name).Length(1, 100).NotEmpty();
-        RuleFor(x => x.Age).NotEmpty();
-        RuleFor(x => x.RoleId).NotNull();
-        RuleFor(x => x.PersonId).NotNull();
-        
-        // This rule requires server-side execution and won't be extracted
-        RuleFor(x => x)
-            .MustAsync(async (command, ct) => !await personnelAlreadyAssigned(command.MissionId, command.PersonId))
-            .WithMessage("Personnel is already assigned to this mission.");
-    }
+    public string Handle() => Name;
 }
 ```
 
-The ProxyGenerator will:
-1. Create the validator instance with `null` values for dependencies
-2. Extract all simple validation rules (`.Length()`, `.NotEmpty()`, `.NotNull()`)
-3. Skip rules that require dependencies (`.MustAsync()` with dependency usage)
-4. Generate TypeScript with only the client-side compatible rules
+After generation, its validator constructor contains these statements (an **output excerpt**):
 
-This allows you to keep all validation logic in one place while only the client-compatible rules are extracted.
+```typescript
+this.ruleFor((c) => c.name)
+    .notEmpty()
+    .withMessage('Name is required');
+this.ruleFor((c) => c.phoneNumber).phone();
+this.ruleFor((c) => c.website).url();
+```
 
-### Recommended Approach
+`url()` and `phone()` are dedicated client APIs, not the previously documented handwritten regular expressions.
 
-- Use **out-of-the-box FluentValidation rules** for client-side validation
-- Use **`.Must()` and custom validators** for server-side business rules
-- Keep **simple validation rules** on the client for better UX
-- Always enforce **all validation on the server** for security
+## Messages and deferred factories
 
-## Client-Side Validation Flow
+A literal `.WithMessage("Email address is required")` can be emitted as `.withMessage('Email address is required')`. A deferred `.WithMessage(contact => ...)` factory is **not evaluated or projected**. The rule can still be extracted, with the client rule's default message.
 
-1. User fills out a form and submits a command or query
-2. Generated validator runs automatically before the HTTP call
-3. If validation fails, errors are returned immediately without server call
-4. If validation passes, the request proceeds to the server
-5. Server runs the same validation plus any server-only rules
+The generator runs at build time, outside the request's culture, tenant, and ambient state. Evaluating a factory there would freeze the wrong context into the proxy. If exact server-resolved wording is essential, use an appropriate server-only validation rule rather than expecting the client to evaluate a factory.
 
-## Best Practices
+This distinction matters because a blocking client validation result can suppress the request: the server then has no opportunity to resolve a different message. See [frontend validation](../../frontend/core/validation/index.md) for rule behavior and severity handling.
 
-1. **Define Rules Once**: Always define validation on the backend and let ProxyGenerator extract them
-2. **Use Simple Rules**: Keep client-side rules simple and use server-side for complex logic
-3. **Custom Messages**: Provide user-friendly messages using `.WithMessage()`
-4. **Don't Duplicate**: Never manually write frontend validators - let the generator handle it
-5. **Server Authority**: Always validate on the server regardless of client validation
+## Query and concept validation
 
-## Related Topics
+Model-bound query extraction combines a convention-matched argument model's validator, direct concept-parameter validators, and parameter annotations using the same precedence rules. The generated type is `QueryNameParameters`, and its validator derives from `QueryValidator<QueryNameParameters>`. A standalone `SearchUsersQuery` DTO with a validator does not by itself define a query; connect it through the [query argument-model convention](../queries/validation.md).
 
-- [Backend Command Validation](../commands/validation.md) - Defining validation rules on the backend
-- [Frontend Validation](../../frontend/core/validation/index.md) - How client-side validation works
-- [ProxyGenerator Configuration](./configuration.md) - Configuring the ProxyGenerator
+One-shot queries validate before `perform()`. Observable queries also validate before `subscribe()`; a rejected subscription delivers an invalid `QueryResult` to its callback without opening a connection.
+
+For a direct `ConceptAs<T>` property on an extracted command/query DTO, or a direct model-bound query parameter, the primitive representation receives extractable rules from its concept validator. Controller query parameters require a matching DTO concept property as described above. Explicit model rules remain additive. Concepts nested inside deeper object graphs are not recursively projected by this mechanism. See [backend validation](../commands/validation.md) for server enforcement.
+
+## Limitations to account for
+
+- `Must`, `MustAsync`, custom validators, and dependency-backed business checks are not translated into browser logic.
+- Conditions (`When`/`Unless`), rule sets, cascade behavior, per-rule severity, and other FluentValidation execution semantics are not reproduced by the emitted rule statements. A recognized rule inside a condition can become **unconditional** on the client. Do not assume unsupported semantics are safely skipped; inspect and test generated behavior.
+- Nested object/collection validation is not a general object-graph translation. Keep server-only rules in an appropriate server-only form and test boundary values against both client and server.
+- Constructors run during extraction. A parameterless constructor is preferred; otherwise reference dependencies are passed as `null` and value dependencies receive default values. If construction or reflection fails, extraction can return no FluentValidation rules. A green build is not proof that those rules were emitted.
+- Do not perform I/O or dereference services while constructing rules. Capturing a service for a deferred server predicate is different from calling it in the constructor.
+
+After changing validation, inspect the generated validator and test accepted/rejected values in both layers. Do not manually patch generated files or replace server validation with client checks.

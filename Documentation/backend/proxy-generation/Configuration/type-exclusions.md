@@ -1,66 +1,51 @@
-# Type Exclusions
+---
+title: Type exclusions
+description: Omit selected types and namespaces from proxy output.
+---
 
-You can prevent specific types or entire namespaces from appearing in the generated TypeScript output by declaring `ExcludeType` or `ExcludeNamespace` item groups.
+Exclusions apply to command/query descriptor types, transitively collected models, and [library-mode](library-mode.md) types. They control generation, **not backend authorization or endpoint exposure**. Ensure remaining proxies do not reference an excluded type without a suitable replacement mapping.
 
-Exclusions apply to:
+## Exclude specific types
 
-- Commands and queries (excluded types are not generated as proxy classes)
-- Types collected transitively from command/query properties
-- All types collected in [library mode](library-mode.md)
-
-## Excluding a Specific Type
-
-Use `ExcludeType` with the fully qualified C# type name (namespace + class name):
+Place this fragment inside your existing project's `Project` element:
 
 ```xml
 <ItemGroup>
-    <ExcludeType TypeName="MyApp.Internal.SecretPayload" />
-    <ExcludeType TypeName="MyApp.Infrastructure.InfrastructureContext" />
+    <ExcludeType Include="secret-payload" TypeName="MyApp.Internal.SecretPayload" />
+    <ExcludeType Include="infrastructure-context" TypeName="MyApp.Infrastructure.InfrastructureContext" />
 </ItemGroup>
 ```
 
-## Excluding an Entire Namespace
+`Include` supplies the MSBuild item identity. `TypeName` supplies the fully qualified C# type name the generator matches. Query exclusion is based on the descriptor's owning type, not an individual method name.
 
-Use `ExcludeNamespace` with a glob pattern. The `*` wildcard matches any sequence of characters:
+## Exclude namespaces
+
+You can combine type exclusions and namespace patterns in the same item group:
 
 ```xml
 <ItemGroup>
-    <!-- All types whose namespace starts with MyApp.Internal -->
-    <ExcludeNamespace Namespace="MyApp.Internal*" />
-
-    <!-- All types whose namespace starts with MyApp.Tests -->
-    <ExcludeNamespace Namespace="MyApp.Tests*" />
+    <ExcludeType Include="internal-token" TypeName="MyApp.Auth.InternalToken" />
+    <ExcludeNamespace Include="internal" Namespace="MyApp.Internal*" />
+    <ExcludeNamespace Include="tests" Namespace="MyApp.Tests*" />
 </ItemGroup>
 ```
 
-### Glob Pattern Rules
+The generator reads `Namespace` metadata, not the `Include` identity.
 
-| Pattern | Matches |
-|---|---|
-| `MyApp.Internal*` | Any namespace that begins with `MyApp.Internal` |
-| `MyApp.*.Internal` | Any namespace matching that structure exactly (e.g. `MyApp.Foo.Internal`) |
-| `MyApp.Internal` | The exact namespace `MyApp.Internal` only |
+| Pattern            | Matches                                                             |
+| ------------------ | ------------------------------------------------------------------- |
+| `MyApp.Internal*`  | Any namespace starting with `MyApp.Internal`                        |
+| `MyApp.*.Internal` | Namespaces such as `MyApp.Foo.Internal` or `MyApp.Foo.Bar.Internal` |
+| `MyApp.Internal`   | The exact namespace only                                            |
 
-The `*` wildcard matches any sequence of characters including `.`, so `MyApp*` matches `MyApp`, `MyApp.Features`, `MyApp.Features.Auth`, etc.
-
-## Combining Both
-
-You can freely mix `ExcludeType` and `ExcludeNamespace` in the same item group:
-
-```xml
-<ItemGroup>
-    <ExcludeType TypeName="MyApp.Features.Auth.InternalToken" />
-    <ExcludeNamespace Namespace="MyApp.Internal*" />
-    <ExcludeNamespace Namespace="MyApp.Tests*" />
-</ItemGroup>
-```
+`*` matches any sequence of characters, including dots. Be deliberate: `MyApp.Internal*` also matches `MyApp.InternalTools`.
 
 ## CLI
 
-Pass one or more `--exclude-type` and/or `--exclude-namespace` flags:
+With the [executable alias prerequisite](output-behavior.md#direct-executable), use repeatable flags. Quote wildcards so the shell does not expand them:
 
 ```bash
-proxygenerator assembly.dll output-path \
+proxygenerator assembly.dll output-path --skip-output-deletion \
   --exclude-type=MyApp.Internal.SecretPayload \
-  --exclude-namespace=MyApp.Tests*
+  '--exclude-namespace=MyApp.Tests*'
 ```

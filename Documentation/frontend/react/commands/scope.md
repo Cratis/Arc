@@ -1,331 +1,85 @@
-# Command Scope
+---
+title: Command scope
+description: Coordinate commands registered in one scope and understand the limits of nested state and execution callbacks.
+---
 
-If you want to track commands and create an aggregation of their status at a compositional
-level, the command scope provides a React context for this.
-This is typically useful when having something like a top level toolbar with a **Save** button that
-you want to enable or disable depending on whether or not there are changes within any components
-used within it, or a loading indicator when commands or queries are being performed.
+Use a command scope when a toolbar should execute the changed commands registered in one section. It is a coordination mechanism, not a transaction or a recursive “save the entire page” operation.
 
-Using the toolbar scenario as an example; at the top level we can wrap everything in the `<CommandScope>`
-component. This will establish a React context for this part of the hierarchy and track any commands
-and queries used within any descendants.
+## Using command scope in React
 
-```typescript
-import { CommandScope } from '@cratis/arc.react/commands';
+Commands created by generated `.use()` hooks register with the nearest scope. `<Arc>` supplies a default scope; add a local one when you want a separate toolbar boundary. Pass state callbacks to make toolbar updates explicit.
 
-export const MyComposition = () => {
-    const [hasChanges, setHasChanges] = useState(false);
-    const [isPerforming, setIsPerforming] = useState(false);
+This composition fragment accepts your editor components as children:
 
-    return (
-        <CommandScope 
-            setHasChanges={setHasChanges}
-            setIsPerforming={setIsPerforming}>
-            <Toolbar hasChanges={hasChanges} isPerforming={isPerforming}/>
-            <FirstComponent/>
-            <SecondComponent/>
-        </CommandScope>
-    );
-};
-```
+```tsx
+import { useState, type ReactElement } from 'react';
+import { CommandScope, useCommandScope } from '@cratis/arc.react/commands';
 
-## Hierarchical Scopes
-
-Command scopes can be nested to create a hierarchy. When you add a `<CommandScope>` inside another
-one, the inner scope automatically registers itself with the nearest outer scope. Commands always
-bind to the **nearest** enclosing scope, so each part of the component tree only tracks the commands
-directly beneath it. The outer scope aggregates state across all inner scopes, giving you both
-local and global views of changes, performing state, validation failures, and exceptions.
-
-```typescript
-export const MyPage = () => {
-    const [hasChanges, setHasChanges] = useState(false);
-    const [hasValidationFailures, setHasValidationFailures] = useState(false);
-
-    return (
-        <CommandScope setHasChanges={setHasChanges}>
-            {/* PageToolbar sees aggregate state for the whole page */}
-            <PageToolbar hasChanges={hasChanges} hasValidationFailures={hasValidationFailures}/>
-            <Section1>
-                <CommandScope>
-                    {/* SectionToolbar only sees state for Section1's commands */}
-                    <SectionToolbar/>
-                    <SectionContent/>
-                </CommandScope>
-            </Section1>
-        </CommandScope>
-    );
-};
-```
-
-In this example:
-- Commands inside `<Section1>` bind to the inner `<CommandScope>`.
-- The outer `<CommandScope>` sees their state through the nested scope link.
-- `pageScope.hasValidationFailures` is `true` whenever any inner scope has failures.
-
-## Validation Failures and Exceptions
-
-The `CommandScope` tracks which commands produced validation failures or exceptions after execution.
-These are cleared automatically when a command executes again — you never need to reset them manually.
-
-### Checking aggregate state
-
-```typescript
-import { useCommandScope } from '@cratis/arc.react/commands';
-
-export const Toolbar = () => {
+function Toolbar({ changed, busy }: { changed: boolean; busy: boolean }) {
     const scope = useCommandScope();
-
     return (
-        <div>
-            {scope.hasValidationFailures && (
-                <span className="error">Some inputs have validation errors.</span>
-            )}
-            {scope.hasExceptions && (
-                <span className="error">An unexpected error occurred.</span>
-            )}
-        </div>
+        <nav>
+            <button disabled={!changed || busy} onClick={() => void scope.execute()}>Save changes</button>
+        </nav>
     );
-};
-```
-
-### Inspecting per-command detail
-
-When you need to know exactly which command had a problem and what the errors were, use the
-`validationFailures` and `exceptions` maps. Both are `ReadonlyMap<ICommand, ...>`.
-
-If you only need a flattened aggregate view (across the current scope and all nested child scopes),
-use `aggregatedValidationFailures` and `aggregatedExceptions`.
-
-```typescript
-const scope = useCommandScope();
-
-// Validation failures — map of command → ValidationResult[]
-for (const [command, failures] of scope.validationFailures) {
-    failures.forEach(f => console.log(f.message, f.members));
 }
 
-// Exceptions — map of command → string[]
-for (const [command, messages] of scope.exceptions) {
-    messages.forEach(m => console.log(m));
-}
-
-// Flattened aggregates across this scope and child scopes
-scope.aggregatedValidationFailures.forEach(f => console.log(f.message));
-scope.aggregatedExceptions.forEach(m => console.log(m));
-```
-
-Only the **own commands** of a scope appear in its `validationFailures` and `exceptions` maps.
-Commands from nested child scopes appear in those child scopes' maps, but bubble up to the parent
-via `hasValidationFailures` and `hasExceptions`.
-
-### Automatic clearing on re-execution
-
-When a command executes again, its previous failures and exceptions are cleared **before** the new
-execution begins. This means a scope's `hasValidationFailures` and `hasExceptions` always reflect
-the result of the most recent execution, not a stale prior result.
-
-```typescript
-// First execute — validation fails
-await scope.execute();
-console.log(scope.hasValidationFailures); // true
-
-// User fixes the input; execute again — succeeds
-await scope.execute();
-console.log(scope.hasValidationFailures); // false — automatically cleared
-```
-
-
-
-You can provide callbacks to the `<CommandScope>` component to react to command execution results.
-These callbacks are invoked for any command tracked within the scope, and each receives the specific
-command that was executed together with its result.
-
-### Before Execution
-
-The `onBeforeExecute` callback is called just before each command is executed:
-
-```typescript
-<CommandScope onBeforeExecute={(command) => console.log('About to execute', command)}>
-    {/* ... */}
-</CommandScope>
-```
-
-### Result Callbacks
-
-The result callbacks mirror the callbacks available on `CommandResult` but also include the command
-instance so you can identify which command produced the result:
-
-```typescript
-<CommandScope
-    onSuccess={(command, result) => {
-        console.log('Command succeeded:', command, result);
-    }}
-    onFailed={(command, result) => {
-        console.log('Command failed:', command, result);
-    }}
-    onException={(command, result) => {
-        console.log('Command threw an exception:', command, result.exceptionMessages);
-    }}
-    onUnauthorized={(command, result) => {
-        console.log('Command was unauthorized:', command);
-    }}
-    onValidationFailure={(command, result) => {
-        console.log('Command had validation errors:', command, result.validationResults);
-    }}>
-    {/* ... */}
-</CommandScope>
-```
-
-| Callback | When called |
-| -------- | ----------- |
-| `onBeforeExecute(command)` | Before each command is executed |
-| `onSuccess(command, result)` | When a command executes successfully |
-| `onFailed(command, result)` | When a command fails for any reason |
-| `onException(command, result)` | When a command fails due to an exception |
-| `onUnauthorized(command, result)` | When a command fails due to an authorization failure |
-| `onValidationFailure(command, result)` | When a command fails due to validation errors |
-
-Note that `onFailed` is always called alongside the more specific callbacks (`onException`,
-`onUnauthorized`, `onValidationFailure`) when the command fails.
-
-## Command Scope API
-
-The command scope provides the following properties and methods:
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| hasChanges | Boolean | Whether or not there are changes in any commands within the scope |
-| isPerforming | Boolean | Whether or not any commands or queries are currently being performed |
-| hasValidationFailures | Boolean | Whether any commands in this scope or child scopes have validation failures from the last execution |
-| hasExceptions | Boolean | Whether any commands in this scope or child scopes produced exceptions in the last execution |
-| validationFailures | ReadonlyMap\<ICommand, ValidationResult[]\> | Validation failures per command for this scope's own commands |
-| exceptions | ReadonlyMap\<ICommand, string[]\> | Exception messages per command for this scope's own commands |
-| aggregatedValidationFailures | ReadonlyArray\<ValidationResult\> | Flattened validation failures across this scope and all child scopes |
-| aggregatedExceptions | ReadonlyArray\<string\> | Flattened exception messages across this scope and all child scopes |
-| parent | ICommandScope \| undefined | The parent scope, if this scope is nested |
-| execute() | Promise\<CommandResults\> | Execute all commands with changes within the scope |
-| revertChanges() | void | Revert any changes to commands within the scope |
-| addCommand(command) | void | Manually add a command for tracking (usually done automatically) |
-| addQuery(query) | void | Manually add a query for tracking (usually done automatically) |
-| addChildScope(scope) | void | Register a child scope for aggregate state propagation (done automatically) |
-
-## Using Command Scope in React
-
-To consume the command scope context you can use the hook that is provided.
-
-```typescript
-import { useCommandScope } from '@cratis/arc.react/commands';
-
-export const Toolbar = ({ hasChanges, isPerforming }) => {
-    const commandScope = useCommandScope();
-
+export function EditorScope({ children }: { children: ReactElement }) {
+    const [changed, setChanged] = useState(false);
+    const [busy, setBusy] = useState(false);
     return (
-        <div>
-            <button 
-                disabled={!hasChanges || isPerforming}
-                onClick={() => commandScope.execute()}>
-                Save
-            </button>
-            <button 
-                disabled={!hasChanges || isPerforming}
-                onClick={() => commandScope.revertChanges()}>
-                Cancel
-            </button>
-            {isPerforming && <Spinner />}
-        </div>
+        <CommandScope setHasChanges={setChanged} setIsPerforming={setBusy}>
+            <Toolbar changed={changed} busy={busy} />
+            {children}
+        </CommandScope>
     );
-};
-```
-
-The hook is a convenience hook that makes it easier to get the context.
-You can also consume the context directly by using its consumer:
-
-```typescript
-import { CommandScopeContext } from '@cratis/arc.react/commands';
-
-export const Toolbar = () => {
-    return (
-        <div>
-            <CommandScopeContext.Consumer>
-                {value => {
-                    return (
-                        <button disabled={!value.hasChanges}>Save</button>
-                    )
-                }}
-            </CommandScopeContext.Consumer>
-        </div>
-    );
-};
-```
-
-## Using Command Scope in ViewModels
-
-The command scope can also be injected into ViewModels through dependency injection. The ViewModel will
-automatically receive the closest command scope in the component hierarchy.
-
-```typescript
-import { ICommandScope } from '@cratis/arc.react/commands';
-import { injectable } from 'tsyringe';
-
-@injectable()
-export class MyViewModel {
-    constructor(private readonly _commandScope: ICommandScope) {
-    }
-
-    get hasChanges(): boolean {
-        return this._commandScope.hasChanges;
-    }
-
-    get isPerforming(): boolean {
-        return this._commandScope.isPerforming;
-    }
-
-    async save() {
-        if (!this.hasChanges || this.isPerforming) {
-            return;
-        }
-        
-        await this._commandScope.execute();
-    }
-
-    cancel() {
-        this._commandScope.revertChanges();
-    }
 }
 ```
 
-## Automatic Command and Query Tracking
+The toolbar must be a descendant of the scope it consumes. The provider renders elements, not a function child. For rejection recovery, inspect results and offer explicit command-level retry: [baseline limitations](./data-binding.md#execution-baseline-limitations) mean a rejected request can leave no tracked changes.
 
-For the `<FirstComponent>` we could then have something like below:
+## Hierarchical scopes
 
-```typescript
-export const FirstComponent = () => {
-    const myCommand = MyCommand.use();
+Nested scopes register with their nearest parent, but aggregation differs by member:
 
-    return (
-        <div>
-            <input type="text" value={command.someValue} onChange={(e,v) => myCommand.someValue = v; }/>
-        </div>
-    )
-}
-```
+| Member | Current behavior |
+| --- | --- |
+| `hasChanges` | Own registered commands only |
+| `isPerforming` | This scope's `execute()` operation only |
+| `execute()` | Sequentially executes own changed commands, not child scopes |
+| `revertChanges()` | Restores own commands' values, not child scopes; does not guarantee descendant inputs rerender |
+| `validationFailures`, `exceptions` | Maps for own commands executed through the scope |
+| `hasValidationFailures`, `hasExceptions` | Getters include child scopes |
+| `aggregatedValidationFailures`, `aggregatedExceptions` | Flatten own and child stored failures |
+| `parent`, `addChildScope(scope)` | Hierarchy registration, not a promise of all-state notification propagation |
+| `addCommand(command)` | Registers property-change tracking |
+| `addQuery(query)` | Stores a reference; does not track query loading |
 
-Commands created with the `use()` hook are automatically added to the nearest command scope.
+Use [QueryScope](../queries/scope.md) for query activity. Getter aggregation does not itself trigger React or MobX updates. Nested change/performing aggregation, notification propagation, and recursive execution are runtime follow-up candidates, not supported guarantees.
 
-Queries are also automatically tracked:
+For a visible reset, have each editor call its hook tuple's `setValues(baseline)` with an explicit baseline, as shown in [resetting to initial values](./data-binding.md#resetting-to-initial-values). A scope-wide reset needs an explicit notification to every editor so each invokes its setter. Calling `scope.revertChanges()` alone can leave displayed inputs stale even though command values reverted.
 
-```typescript
-export const SecondComponent = () => {
-    const [result] = useQuery(MyQuery, { id: '123' });
+## Execution callbacks
 
-    return (
-        <div>
-            {result.data && <DisplayData data={result.data} />}
-        </div>
-    )
-}
-```
+Callbacks run **inside `scope.execute()`** for each of its changed commands. They do not intercept direct `command.execute()` calls or form submissions, and parent callbacks do not intercept child-scope execution.
 
-Any changes to properties within commands will bubble up to the context and affect the state flags
-(`hasChanges`, `isPerforming`).
+| Callback | When called during scope execution |
+| --- | --- |
+| `onBeforeExecute(command)` | Before a command executes |
+| `onSuccess(command, result)` | Successful result |
+| `onFailed(command, result)` | Any unsuccessful result |
+| `onException(command, result)` | Result has exceptions |
+| `onUnauthorized(command, result)` | Result is unauthorized |
+| `onValidationFailure(command, result)` | Result is invalid |
+
+Failure-specific callbacks can accompany `onFailed`. Stored failures for a command are cleared immediately before the scope executes it again, not whenever anyone calls that command. Commands skipped because they have no changes retain their previous scope entries.
+
+## Validation failures and exceptions
+
+`validationFailures` maps commands to `ValidationResult[]`; `exceptions` maps commands to `string[]`. Read `aggregatedValidationFailures` and `aggregatedExceptions` for flattened hierarchy views. Update UI through explicit execution/state callbacks rather than assuming these mutable maps are observable.
+
+## Using command scope in view models
+
+MVVM can inject the nearest `ICommandScope`. Reading its getters and calling `execute()` are supported, but making a view model observable does not make the injected scope's internals observable. Bridge the state you display through an explicit notification/state path.
+
+See [MVVM context](../../react.mvvm/mvvm-context.md) and [command results](../../core/commands/command-result.md).

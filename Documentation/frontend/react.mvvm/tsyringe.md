@@ -4,14 +4,14 @@ Cratis Arc relies on [Microsoft Tsyringe](https://github.com/microsoft/tsyringe)
 for TypeScript.
 
 In order to use Tsyringe, your application needs to produce type metadata that it can use to resolve dependencies.
-Tsyringe leverages decorators to bee able to do this, you will have to include this in your TypeScript configuration.
+Tsyringe uses decorators. Enable the following options in your TypeScript configuration:
 In your `tsconfig.json` make sure to enable the following compiler options:
 
 ```json
 {
     "compilerOptions": {
         "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
+        "emitDecoratorMetadata": true
     }
 }
 ```
@@ -26,7 +26,7 @@ import { App } from './App';
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <App />
-    </React.StrictMode>
+    </React.StrictMode>,
 );
 ```
 

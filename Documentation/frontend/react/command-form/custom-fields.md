@@ -1,550 +1,213 @@
-# Creating Custom Fields
+---
+title: Creating custom fields
+description: Adapt a native or library control to CommandForm while preserving change, blur, and validation behavior.
+---
 
-While CommandForm provides built-in field components for common scenarios, you can easily create your own custom fields to integrate with any UI library or implement specialized input controls.
+Use a custom field when the built-in props do not cover your control—for example, a text input with an explicit accessible label and `maxLength`. `asCommandFormField` connects the control to the surrounding form. It does not turn HTML attributes into command rules.
 
-## Overview
+<a id="overview"></a>
 
-Custom fields are created using the `asCommandFormField` higher-order component (HOC), which handles all the integration with CommandForm automatically, including:
+## Basic anatomy
 
-- Value synchronization with the command instance
-- Change event handling
-- Validation state management
-- Error message display
-- Required field handling
-
-## Basic Anatomy
-
-A custom field consists of two parts:
-
-1. **Your component** - Receives `WrappedFieldProps<TValue>` and renders the UI
-2. **Field configuration** - Specifies default value and how to extract values from change events
+This is a complete `fields/MyField.tsx` module. It converts native change events to strings and forwards the form's **blur callback**, so the default blur-validation behavior still runs.
 
 ```tsx
-import { asCommandFormField, WrappedFieldProps } from '@cratis/arc.react/commands';
+import { useId, type ChangeEvent } from 'react';
+import { asCommandFormField, type WrappedFieldProps } from '@cratis/arc.react/commands';
 
-// 1. Define your component props (extends WrappedFieldProps)
 interface MyFieldProps extends WrappedFieldProps<string> {
+    label: string;
     placeholder?: string;
-    // Add any custom props here
+    maxLength?: number;
 }
 
-// 2. Create the field using asCommandFormField
 export const MyField = asCommandFormField<MyFieldProps>(
-    // Your component implementation
-    (props) => (
-        <input
-            value={props.value}
-            onChange={props.onChange}
-            placeholder={props.placeholder}
-            required={props.required}
-            className={props.invalid ? 'invalid' : ''}
-        />
-    ),
-    // Configuration
+    function TextInput(props: MyFieldProps) {
+        const id = useId();
+        return (
+            <div>
+                <label htmlFor={id}>{props.label}</label>
+                <input
+                    id={id}
+                    value={props.value ?? ''}
+                    onChange={props.onChange}
+                    onBlur={props.onBlur}
+                    required={props.required}
+                    aria-invalid={props.invalid}
+                    placeholder={props.placeholder}
+                    maxLength={props.maxLength}
+                />
+            </div>
+        );
+    },
     {
         defaultValue: '',
-        extractValue: (e: unknown) => {
-            const event = e as React.ChangeEvent<HTMLInputElement>;
-            return event.target.value;
-        },
-    },
+        extractValue: (event: unknown) => (event as ChangeEvent<HTMLInputElement>).target.value
+    }
 );
 ```
 
+The extractor above expects a native input change event because that is the only event this control emits. If your control also emits values directly, handle both shapes explicitly. The component lets CommandForm render messages, rather than rendering the same errors a second time.
+
+Use a **generated command class** as the constructor. This complete form uses `UpdateProfile` from the [overview](./index.md), not an interface named like a command:
+
+```tsx
+import { CommandForm } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
+import { MyField } from './fields/MyField';
+
+export function ProfileForm() {
+    return (
+        <CommandForm command={UpdateProfile} initialValues={{ name: '', email: '' }}>
+            <MyField<UpdateProfile> value={c => c.name} label="Name" maxLength={100} />
+            <MyField<UpdateProfile> value={c => c.email} label="Email" />
+            <button type="submit">Save</button>
+        </CommandForm>
+    );
+}
+```
+
+No `title` is supplied because each control renders its own label. `maxLength` constrains normal typing but does not validate programmatically supplied values. CommandForm uses `noValidate`; keep length/format/required rules on the command.
+
 ## WrappedFieldProps
 
-Your component receives these props automatically from CommandForm:
+| Prop | Type | Contract |
+| --- | --- | --- |
+| `value` | `TValue` | Current display value; configured fallback is used only for `undefined`, not `null`. |
+| `onChange` | `(valueOrEvent: TValue \| unknown) => void` | Forward the control's change event/value for extraction and binding. |
+| `onBlur` | `(() => void) \| undefined` | Forward to the control's blur event to preserve form blur validation. |
+| `invalid` | `boolean` | Whether this field has a displayed error. |
+| `required` | `boolean` | Explicit control override or inferred descriptor flag, not a new command rule. |
+| `errors` | `string[]` | Messages made available to the adapter; rendering them yourself is optional. |
 
-| Prop       | Type                                        | Description                                       |
-| ---------- | ------------------------------------------- | ------------------------------------------------- |
-| `value`    | `TValue`                                    | The current field value from the command instance |
-| `onChange` | `(valueOrEvent: TValue \| unknown) => void` | Callback to update the value                      |
-| `invalid`  | `boolean`                                   | Whether the field has validation errors           |
-| `required` | `boolean`                                   | Whether the field is required                     |
-| `errors`   | `string[]`                                  | Array of error messages for this field            |
+## Configuration object
 
-## Configuration Object
-
-The second parameter to `asCommandFormField` is a configuration object:
-
-| Property       | Type                         | Required | Description                                                                                          |
-| -------------- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `defaultValue` | `TValue`                     | Yes      | Default value when the field is empty/undefined                                                      |
-| `extractValue` | `(event: unknown) => TValue` | No       | Function to extract the value from change events. If omitted, the event itself is used as the value. |
+The configuration requires `defaultValue: TValue` and optionally accepts `extractValue: (event: unknown) => TValue`. Without an extractor the emitted value is used directly. A fallback only changes display; it does not seed the command or its baseline. Define a deliberate null/empty policy for numeric/date controls rather than silently converting every empty value to a business value.
 
 ## How a field is recognized
 
-`asCommandFormField` marks the component it returns so `CommandForm` recognizes and binds it. The marker is a static `isCommandFormField` property, and the component's `displayName` is set to `CommandFormField` as a compatibility fallback for older consuming packages.
+`asCommandFormField` marks the returned component with a static `isCommandFormField` property. Its `displayName` is `CommandFormField` as a compatibility fallback. It also binds itself when an opaque layout creates or transforms the field at render time, so custom layouts can preserve the original element type and change its presentation/binding props before registration.
 
-The wrapped field can also bind itself when an opaque layout component creates or transforms it at render time. This allows custom layouts to keep the original field element type, clone it, and change presentation or binding props before the field registers with the form.
-
-Binding is tracked by a private framework marker rather than by the presence of an `onValueChange` prop. A layout may therefore supply or wrap `onValueChange` without disabling command binding. CommandForm updates the command first and then invokes that consumer callback. Do not use `onValueChange` as a signal that a field has already been bound.
+Binding uses a private framework marker, not the presence of an `onValueChange` prop. A layout can wrap `onValueChange` without disabling binding; the form updates the command before invoking that consumer callback. Do not treat that callback's presence as proof of prior binding.
 
 :::caution
-Do not strip static properties from a command form field. Storybook and other transforms may rewrite `displayName`, but the `isCommandFormField` marker preserves recognition. If both markers are removed, the component no longer participates in CommandForm binding.
-
-In development builds, CommandForm warns once when a recognized field cannot resolve a command property from its accessor. Production builds remain non-throwing and do not emit this diagnostic.
+Do not strip field static markers. If both recognition markers disappear, CommandForm no longer discovers the field. In development, an unresolved accessor produces a warning; production remains non-throwing and unbound. Use a simple accessor such as `c => c.name` rather than a computed expression.
 :::
 
-If you build a field by hand rather than through `asCommandFormField`, use `withCommandFormFieldBinding`. It marks the component and lets it bind itself when rendered behind an opaque custom layout:
+For a hand-written adapter, prefer `withCommandFormFieldBinding` over marker-only registration. This complete alternative module includes the injected blur contract:
 
 ```tsx
 import {
-    CommandFormFieldProps,
     withCommandFormFieldBinding,
+    type CommandFormFieldProps,
+    type InjectedCommandFormFieldProps
 } from '@cratis/arc.react/commands';
 
-const MyHandRolledField = withCommandFormFieldBinding((props: CommandFormFieldProps) => (
+type HandRolledProps = CommandFormFieldProps & InjectedCommandFormFieldProps;
+
+export const HandRolledField = withCommandFormFieldBinding((props: HandRolledProps) => (
     <input
+        aria-label={props.title}
         value={String(props.currentValue ?? '')}
-        onChange={(event) => props.onValueChange?.(event.target.value)}
+        onChange={event => props.onValueChange?.(event.target.value)}
+        onBlur={props.onBlur}
+        required={props.required}
     />
 ));
 ```
 
-`markAsCommandFormField` remains supported for compatibility. Marker-only fields can be discovered through visible child trees, while `withCommandFormFieldBinding` is the preferred choice for fields that may cross custom component boundaries.
+Supply a `title` when using that adapter to provide its accessible name. `markAsCommandFormField` remains supported for compatibility through visible child trees; `withCommandFormFieldBinding` is the choice for fields crossing custom component boundaries. Neither replaces error rendering by the surrounding form.
 
 ## Example: PrimeReact InputText
 
-Here's a complete example of creating a custom field using PrimeReact's `InputText` component:
+This **optional integration module**, `fields/PrimeInputTextField.tsx`, needs a compatible installed PrimeReact package and its theme setup. It does not require Chronicle or make PrimeReact an Arc dependency.
 
 ```tsx
-import React from 'react';
-import { InputText, InputTextProps } from 'primereact/inputtext';
-import { asCommandFormField, WrappedFieldProps } from '@cratis/arc.react/commands';
+import { useId, type ChangeEvent } from 'react';
+import { InputText, type InputTextProps } from 'primereact/inputtext';
+import { asCommandFormField, type WrappedFieldProps } from '@cratis/arc.react/commands';
 
-// Define the props your field accepts, combining WrappedFieldProps with PrimeReact's InputTextProps
 interface PrimeInputTextFieldProps extends WrappedFieldProps<string> {
+    label: string;
     placeholder?: InputTextProps['placeholder'];
     maxLength?: InputTextProps['maxLength'];
-    keyfilter?: InputTextProps['keyfilter'];
-    size?: InputTextProps['size'];
-    variant?: InputTextProps['variant'];
+    type?: InputTextProps['type'];
 }
 
-// Create the field component
 export const PrimeInputTextField = asCommandFormField<PrimeInputTextFieldProps>(
-    (props) => {
-        const {
-            value,
-            onChange,
-            invalid,
-            required,
-            errors,
-            placeholder,
-            maxLength,
-            keyfilter,
-            size,
-            variant,
-            ...rest
-        } = props;
-
+    function PrimeTextInput(props: PrimeInputTextFieldProps) {
+        const id = useId();
+        const { label, value, onChange, invalid, required, errors, ...rest } = props;
+        void errors;
         return (
-            <div className='field'>
+            <div>
+                <label htmlFor={id}>{label}</label>
                 <InputText
-                    value={value}
+                    id={id}
+                    value={value ?? ''}
                     onChange={onChange}
-                    placeholder={placeholder}
-                    maxLength={maxLength}
-                    keyfilter={keyfilter}
-                    size={size}
-                    variant={variant}
-                    required={required}
                     invalid={invalid}
-                    className='w-full'
+                    required={required}
+                    style={{ width: '100%' }}
                     {...rest}
                 />
-                {errors.length > 0 && (
-                    <div className='p-error mt-1'>
-                        {errors.map((error, idx) => (
-                            <small key={idx} className='block'>
-                                {error}
-                            </small>
-                        ))}
-                    </div>
-                )}
             </div>
         );
     },
     {
         defaultValue: '',
-        extractValue: (e: unknown) => {
-            if (e && typeof e === 'object' && 'target' in e) {
-                const event = e as React.ChangeEvent<HTMLInputElement>;
-                return event.target.value;
-            }
-            return String(e || '');
-        },
-    },
+        extractValue: (event: unknown) => (event as ChangeEvent<HTMLInputElement>).target.value
+    }
 );
 ```
+
+`onBlur` deliberately remains in `...rest`, which is spread onto `InputText`; **blur is forwarded**. If you destructure it later, add `onBlur={onBlur}` explicitly. Do not remove that forwarding. The adapter excludes `errors` from the input and leaves messages to the form to avoid duplicate error text.
 
 ### Usage
 
+This complete usage component supplies the real command constructor and all adapter-required props:
+
 ```tsx
 import { CommandForm } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
 import { PrimeInputTextField } from './fields/PrimeInputTextField';
 
-interface UserCommand {
-    name: string;
-    email: string;
-    phone: string;
-}
-
-function UserForm() {
+export function ProfileForm() {
     return (
-        <CommandForm command={UserCommand}>
-            <PrimeInputTextField<UserCommand>
-                value={(c) => c.name}
-                title='Full Name'
-                placeholder='Enter your name'
-                required
-            />
-
-            <PrimeInputTextField<UserCommand>
-                value={(c) => c.email}
-                title='Email Address'
-                placeholder='you@example.com'
-                keyfilter='email'
-                required
-            />
-
-            <PrimeInputTextField<UserCommand>
-                value={(c) => c.phone}
-                title='Phone Number'
-                placeholder='+1 (555) 123-4567'
-                keyfilter='int'
-            />
+        <CommandForm command={UpdateProfile} initialValues={{ name: '', email: '' }}>
+            <PrimeInputTextField<UpdateProfile> value={c => c.name} label="Name" maxLength={100} />
+            <PrimeInputTextField<UpdateProfile> value={c => c.email} label="Email" type="email" />
+            <button type="submit">Save</button>
         </CommandForm>
     );
 }
 ```
 
-## Advanced Examples
+## Advanced examples
 
-### Complex Component with Multiple Elements
+Apply the same adapter contract to rich text, numeric inputs, and switches:
 
-```tsx
-interface RichTextFieldProps extends WrappedFieldProps<string> {
-    maxLength?: number;
-    showCharCount?: boolean;
-}
+- **Text area:** forward `onChange` and `onBlur`; extract `ChangeEvent<HTMLTextAreaElement>.target.value`. Add `rows`/`maxLength` only if your adapter forwards them.
+- **PrimeReact InputNumber:** use its `onValueChange` event and extract its `value`, deciding explicitly what `null` means. Forward `onBlur` and any required/invalid attributes supported by your installed version.
+- **Switch:** bind `checked`, extract the library's boolean value, and forward `onBlur`. A required flag does not require the value to be true; consent needs a command rule.
 
-export const RichTextField = asCommandFormField<RichTextFieldProps>(
-    (props) => {
-        const { value, onChange, invalid, required, errors, maxLength, showCharCount } =
-            props;
-        const charCount = value.length;
+These are adapter design notes, not drop-in components. Check the installed control's prop/event definitions before implementing an adapter; a wrapper cannot safely assume all libraries emit native events.
 
-        return (
-            <div className='rich-text-field'>
-                <div className={`input-wrapper ${invalid ? 'error' : ''}`}>
-                    <textarea
-                        value={value}
-                        onChange={onChange}
-                        maxLength={maxLength}
-                        required={required}
-                        className='rich-textarea'
-                        rows={5}
-                    />
-                </div>
+## Type safety
 
-                {showCharCount && maxLength && (
-                    <div className='char-count'>
-                        {charCount} / {maxLength}
-                    </div>
-                )}
+Supply the command type in JSX (`<MyField<UpdateProfile> ... />`) or annotate the accessor parameter. This checks property names. Most generic field accessors return `unknown`, so a valid property name alone does not prove its value type matches the control; do not bind a `Date` or number to a string adapter without an explicit conversion policy.
 
-                {errors.length > 0 && (
-                    <ul className='error-list'>
-                        {errors.map((error, idx) => (
-                            <li key={idx}>{error}</li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-        );
-    },
-    {
-        defaultValue: '',
-        extractValue: (e: unknown) => {
-            if (e && typeof e === 'object' && 'target' in e) {
-                const event = e as React.ChangeEvent<HTMLTextAreaElement>;
-                return event.target.value;
-            }
-            return String(e || '');
-        },
-    },
-);
-```
+## Best practices
 
-### Non-String Values (Number Example)
+Forward blur as well as change. Choose one owner for error display; custom fields that render `errors` themselves must opt out of the form's display to avoid duplicates, and `showErrors={false}` does not suppress an adapter's own markup. Associate labels and messages with controls in your adapter, test keyboard navigation, and keep blocking rules on the command.
 
-```tsx
-import { InputNumber, InputNumberProps } from 'primereact/inputnumber';
+## Reusable field library
 
-interface PrimeNumberFieldProps extends WrappedFieldProps<number> {
-    min?: InputNumberProps['min'];
-    max?: InputNumberProps['max'];
-    step?: InputNumberProps['step'];
-    showButtons?: InputNumberProps['showButtons'];
-    currency?: InputNumberProps['currency'];
-    locale?: InputNumberProps['locale'];
-    mode?: InputNumberProps['mode'];
-    minFractionDigits?: InputNumberProps['minFractionDigits'];
-    maxFractionDigits?: InputNumberProps['maxFractionDigits'];
-}
+Export the adapters you actually implement from your application's field module. Keep generated commands in the configured proxy output, and import those classes when constructing forms. Do not substitute application interfaces for executable command constructors.
 
-export const PrimeNumberField = asCommandFormField<PrimeNumberFieldProps>(
-    (props) => {
-        const {
-            value,
-            onChange,
-            invalid,
-            required,
-            errors,
-            min,
-            max,
-            step,
-            showButtons,
-            currency,
-            locale,
-            mode,
-            minFractionDigits,
-            maxFractionDigits,
-        } = props;
+## See also
 
-        return (
-            <div className='field'>
-                <InputNumber
-                    value={value}
-                    onValueChange={onChange}
-                    min={min}
-                    max={max}
-                    step={step}
-                    showButtons={showButtons}
-                    mode={mode}
-                    currency={currency}
-                    locale={locale || 'en-US'}
-                    minFractionDigits={minFractionDigits}
-                    maxFractionDigits={maxFractionDigits}
-                    invalid={invalid}
-                    className='w-full'
-                />
-                {errors.length > 0 && (
-                    <small className='p-error'>{errors.join(', ')}</small>
-                )}
-            </div>
-        );
-    },
-    {
-        defaultValue: 0,
-        extractValue: (e: unknown) => {
-            // PrimeReact InputNumber passes an InputNumberChangeEvent
-            if (e && typeof e === 'object' && 'value' in e) {
-                const event = e as { value: number | null };
-                return event.value ?? 0;
-            }
-            return Number(e) || 0;
-        },
-    },
-);
-```
-
-### Boolean Values (Toggle/Switch)
-
-```tsx
-import { InputSwitch, InputSwitchProps } from 'primereact/inputswitch';
-
-interface PrimeSwitchFieldProps extends WrappedFieldProps<boolean> {
-    trueLabel?: string;
-    falseLabel?: string;
-    trueValue?: InputSwitchProps['trueValue'];
-    falseValue?: InputSwitchProps['falseValue'];
-}
-
-export const PrimeSwitchField = asCommandFormField<PrimeSwitchFieldProps>(
-    (props) => {
-        const {
-            value,
-            onChange,
-            invalid,
-            errors,
-            trueLabel,
-            falseLabel,
-            trueValue,
-            falseValue,
-        } = props;
-
-        return (
-            <div className='field'>
-                <div className='flex align-items-center gap-2'>
-                    <InputSwitch
-                        checked={value}
-                        onChange={onChange}
-                        trueValue={trueValue}
-                        falseValue={falseValue}
-                        invalid={invalid}
-                    />
-                    <span className='ml-2'>
-                        {value ? trueLabel || 'Yes' : falseLabel || 'No'}
-                    </span>
-                </div>
-                {errors.length > 0 && (
-                    <small className='p-error'>{errors.join(', ')}</small>
-                )}
-            </div>
-        );
-    },
-    {
-        defaultValue: false,
-        extractValue: (e: unknown) => {
-            // PrimeReact InputSwitch passes an InputSwitchChangeEvent
-            if (e && typeof e === 'object' && 'value' in e) {
-                const event = e as { value: boolean };
-                return event.value;
-            }
-            return Boolean(e);
-        },
-    },
-);
-```
-
-## Type Safety
-
-CommandForm fields are fully type-safe when you provide the command type:
-
-```tsx
-interface ProductCommand {
-    name: string;
-    price: number;
-    inStock: boolean;
-}
-
-// ✅ Type-safe: TypeScript knows c is ProductCommand
-<PrimeInputTextField<ProductCommand>
-    value={c => c.name}  // ✅ c.name is valid
-    title="Product Name"
-/>
-
-// ✅ Type-safe: TypeScript knows c is ProductCommand
-<PrimeNumberField<ProductCommand>
-    value={c => c.price}  // ✅ c.price is valid
-    title="Price"
-    currency="USD"
-/>
-
-// ❌ Compile error: Property 'invalid' does not exist on ProductCommand
-<PrimeInputTextField<ProductCommand>
-    value={c => c.invalid}  // ❌ TypeScript error
-    title="Invalid Field"
-/>
-```
-
-## Best Practices
-
-### 1. Handle Null/Undefined Values
-
-Always provide a sensible default value and handle null/undefined in your `extractValue`:
-
-```tsx
-{
-    defaultValue: '',
-    extractValue: (e: unknown) => {
-        if (!e) return '';
-        // ... extract logic
-    }
-}
-```
-
-### 2. Preserve Original Events
-
-Some libraries need the original event object. Pass it through when possible:
-
-```tsx
-onChange={(e) => {
-    // Library might need the original event
-    props.onChange(e);
-}}
-```
-
-### 3. Show Validation Errors
-
-Always display the `errors` array to users:
-
-```tsx
-{
-    errors.length > 0 && (
-        <div className='error-message'>
-            {errors.map((error, idx) => (
-                <small key={idx}>{error}</small>
-            ))}
-        </div>
-    );
-}
-```
-
-### 4. Apply Invalid State Styling
-
-Use the `invalid` prop to style fields with errors:
-
-```tsx
-className={invalid ? 'p-invalid' : ''}
-```
-
-### 5. Respect the Required Flag
-
-Pass the `required` prop to your underlying component:
-
-```tsx
-<input required={required} />
-```
-
-## Reusable Field Library
-
-Create a library of custom fields for your organization:
-
-```tsx
-// src/components/fields/index.ts
-export { PrimeInputTextField } from './PrimeInputTextField';
-export { PrimeNumberField } from './PrimeNumberField';
-export { PrimeSwitchField } from './PrimeSwitchField';
-export { PrimeDropdownField } from './PrimeDropdownField';
-export { PrimeDateField } from './PrimeDateField';
-export { PrimeTextAreaField } from './PrimeTextAreaField';
-```
-
-Then use them consistently across your application:
-
-```tsx
-import { CommandForm } from '@cratis/arc.react/commands';
-import {
-    PrimeInputTextField,
-    PrimeNumberField,
-    PrimeSwitchField,
-    PrimeDateField,
-} from '@/components/fields';
-
-function MyForm() {
-    return (
-        <CommandForm command={MyCommand}>
-            <PrimeInputTextField<MyCommand> value={(c) => c.name} title='Name' />
-            <PrimeNumberField<MyCommand>
-                value={(c) => c.age}
-                title='Age'
-                min={0}
-                max={120}
-            />
-            <PrimeSwitchField<MyCommand> value={(c) => c.active} title='Active' />
-            <PrimeDateField<MyCommand> value={(c) => c.birthDate} title='Birth Date' />
-        </CommandForm>
-    );
-}
-```
-
-## See Also
-
-- [CommandForm Overview](./index.md)
-- [Built-in Field Types](./field-types/index.md)
+- [Field types](./field-types/index.md)
 - [Customization](./customization.md)
 - [Validation](./validation.md)
+- [CommandForm overview](./index.md)

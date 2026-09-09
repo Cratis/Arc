@@ -1,24 +1,26 @@
-- name: Controller based
-  href: controller-based.md
-- name: Model Bound
+- name: Overview
+  href: index.md
+- name: Model-bound commands
   href: model-bound/toc.yml
-- name: Command Pipeline
-  href: command-pipeline.md
-- name: Transactional Commands
-  href: transactional-commands.md
-- name: Command Context
-  href: command-context.md
-- name: Command Filters
-  href: command-filters.md
-- name: Command Execution Scopes
-  href: command-execution-scopes.md
-- name: Response Value Handlers
-  href: response-value-handlers.md
-- name: Response Examples
-  href: response-examples.md
+- name: Controller-based commands
+  href: controller-based.md
 - name: Validation
   href: validation.md
-- name: Command Validation
+- name: Pre-flight validation
   href: command-validation.md
-- name: Validation Severity Filtering
+- name: Validation severity filtering
   href: validation-severity-filtering.md
+- name: Command pipeline
+  href: command-pipeline.md
+- name: Response value handlers
+  href: response-value-handlers.md
+- name: Response examples
+  href: response-examples.md
+- name: Command context
+  href: command-context.md
+- name: Command filters
+  href: command-filters.md
+- name: Command execution scopes
+  href: command-execution-scopes.md
+- name: Transactions (optional Chronicle integration)
+  href: transactional-commands.md

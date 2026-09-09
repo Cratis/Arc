@@ -1,6 +1,9 @@
-# Entity Framework Core
+---
+title: Entity Framework Core
+description: Optional relational persistence for standalone Arc applications.
+---
 
-The Arc provides enhanced support for Entity Framework Core, offering simplified configuration, automatic database setup, and common patterns for working with EF Core in your applications.
+Add relational persistence when your Arc application needs it. The optional `Cratis.Arc.EntityFrameworkCore` package provides context registration, model conversion, and observation without requiring Chronicle or event sourcing. Begin with [getting started](./getting-started.md); registration selects a provider but does not create your schema.
 
 ## Topics
 
@@ -10,11 +13,14 @@ The Arc provides enhanced support for Entity Framework Core, offering simplified
 | [Base DbContext](./base-db-context.md) | How to use the base DbContext class provided by the Arc. |
 | [Entity Mapping](./entity-mapping.md) | How to configure entities using IEntityTypeConfiguration&lt;T&gt; for clean, organized entity configuration. |
 | [Read Only DbContexts](./read-only.md) | How to implement read-only database contexts for query scenarios. |
-| [Automatic Database hookup](./automatic-database-hookup.md) | How the Arc automatically configures and sets up your databases. |
+| [Automatic Database hookup](./automatic-database-hookup.md) | Provider detection, pooled context registration, and connection-string limits. |
 | [Observing DbSet](./observing.md) | How to monitor entity changes in real-time using reactive extensions. |
 | [Common Column Types](./common-column-types.md) | Common column type configurations and conventions. |
 | [Property Extensions](./property-extensions.md) | Property configuration extensions for cross-database compatibility. |
 | [Json](./json.md) | Working with JSON columns and serialization in Entity Framework Core. |
+| [Geometry storage paths](./point-conversion.md) | Explicit string conversion versus JSON properties and spatial migration declarations. |
+| [Guid conversion](./guid-conversion.md) | SQLite string conversion and migration type differences. |
+| [Concept conversion](./concept-as-conversion.md) | Store strongly typed values. |
 
 ## Overview
 

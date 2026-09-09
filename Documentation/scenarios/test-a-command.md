@@ -1,56 +1,97 @@
 ---
 title: Test a command
-description: Prove a slice works through the real Arc pipeline — validation, authorization, and the handler — with no HTTP server and no database.
+description: Exercise the standalone Arc pipeline in process, register its collaborators explicitly, and assert both results and effects without a web server or database.
 ---
 
-**Goal:** verify a command does the right thing — succeeds when it should, rejects bad input, refuses an unauthorized caller — without standing up a web server or a database.
+**Goal:** verify the command's result and its actual effect without pretending that a successful result proves a database write.
 
-## The real pipeline, in-process
+## Use the standalone harness
 
-`CommandScenario<TCommand>` drives a command through the **same** pipeline production uses: validation filters, authorization filters, and the handler all run, nothing is mocked by default. When the Chronicle testing package is referenced, it adds an in-memory event log automatically, so you can also assert on what was appended.
+Reference `Cratis.Arc.Testing` in an xUnit spec project, together with `Cratis.Specifications.XUnit`, `NSubstitute`, and the usual xUnit runner/test SDK. `Cratis.Testing` is the wider integration meta-package; it is not required here. A dedicated spec project can run in Debug and Release; use `#if DEBUG` only when intentionally embedding specs in an application assembly that excludes them from Release.
 
-Reference `Cratis.Testing` (the meta-package) in your spec project.
+For decision-only cases, a direct `Handle()` call can be the simpler test. The [decision-and-pipeline lesson](/arc/backend/testing/command-decisions/) shows how the two approaches complement each other. This recipe deliberately tests service interaction through Arc.
 
-## Do it
+`CommandScenario<TCommand>` runs the real validation, authorization, `Provide`, and handler pipeline. It does **not** automatically fake your Mongo collection, context, or application services. Register all collaborators before the first `Execute` or `Validate`; the service provider is built lazily then. Dispose the scenario afterward.
 
-1. **Instantiate the scenario** as a field, then `Execute` the command and assert on the `CommandResult`:
+## Define the service-backed example
 
-   ```csharp
-   public class when_registering_an_author
-   {
-       readonly CommandScenario<RegisterAuthor> _scenario = new();
+This example uses only the `AuthorId` and `AuthorName` concept declarations from the [backend lesson](/arc/backend/getting-started/your-first-command/), not its database-backed `RegisterAuthor`. Put these declarations in `Library.Authors` in the application project:
 
-       [Fact]
-       public async Task should_succeed()
-       {
-           var result = await _scenario.Execute(new RegisterAuthor(AuthorId.New(), "Ada Lovelace"));
-           result.ShouldBeSuccessful();
-       }
-   }
-   ```
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Validation;
+using FluentValidation;
 
-2. **Check validation without running the handler** using `Validate`:
+namespace Library.Authors;
 
-   ```csharp
-   [Fact]
-   public async Task should_reject_a_blank_name()
-   {
-       var result = await _scenario.Validate(new RegisterAuthor(AuthorId.New(), string.Empty));
-       result.ShouldHaveValidationErrors();
-   }
-   ```
+public interface IAuthorRegistration
+{
+    Task Register(AuthorId id, AuthorName name);
+}
 
-3. **Register stubs or fakes** the handler depends on through `Services`, in the test constructor:
+[Command]
+public record RecordAuthor(AuthorId Id, AuthorName Name)
+{
+    public Task Handle(IAuthorRegistration registration) => registration.Register(Id, Name);
+}
 
-   ```csharp
-   public when_registering_an_author() =>
-       _scenario.Services.AddSingleton(_someDependency);
-   ```
+public class RecordAuthorValidator : CommandValidator<RecordAuthor>
+{
+    public RecordAuthorValidator() => RuleFor(command => command.Name.Value).NotEmpty();
+}
+```
 
-The `CommandResult` assertion helpers — `ShouldBeSuccessful`, `ShouldHaveValidationErrors`, `ShouldHaveValidationErrorFor("…")`, `ShouldNotBeAuthorized`, and more — read like sentences and print the failure reasons when they fail.
+`IAuthorRegistration` is an **application-owned interface**, not an Arc API. Production supplies its implementation; the spec supplies a substitute. If you test the Mongo tutorial command instead, supply its actual collection/validator dependencies or deliberately run a database integration spec.
 
-## See also
+## Assert the effect through the pipeline
 
-- [Command Scenarios](/arc/backend/testing/command-scenario/) — the full API and every assertion helper.
-- [Testing Chronicle commands](/arc/backend/testing/chronicle/) — seed the read model state a command reads (from events or a pinned instance) and assert the events it appended.
-- [Testing](/arc/backend/testing/) — the testing packages and the Chronicle in-memory event log.
+Create `when_recording_an_author.cs` in the spec project:
+
+```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Specifications;
+using Library.Authors;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
+using Xunit;
+
+namespace Library.Specs;
+
+public class when_recording_an_author : Specification
+{
+    readonly CommandScenario<RecordAuthor> _scenario = new();
+    readonly AuthorId _id = AuthorId.New();
+    readonly AuthorName _name = new("Ada Lovelace");
+    IAuthorRegistration _registration = null!;
+    CommandResult _result = null!;
+
+    void Establish()
+    {
+        _registration = Substitute.For<IAuthorRegistration>();
+        _registration.Register(_id, _name).Returns(Task.CompletedTask);
+        _scenario.Services.AddSingleton(_registration);
+    }
+
+    async Task Because() => _result = await _scenario.Execute(new RecordAuthor(_id, _name));
+
+    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+    [Fact] async Task should_register_the_author() => await _registration.Received(1).Register(_id, _name);
+
+    void Destroy() => _scenario.Dispose();
+}
+```
+
+The first assertion checks the pipeline result; the second proves the handler called its collaborator with the intended values. Neither proves a production database mapping or index — test those at their integration boundary.
+
+## Check rejection independently
+
+In a separate spec, use the same service setup and execute `new RecordAuthor(_id, new AuthorName(string.Empty))`. Assert **both** `ShouldNotBeSuccessful()` and `ShouldHaveValidationErrors()`, and verify `Register` was not called. `Validate` is available when you intentionally want pre-flight validation without invoking the handler; keep that action in a separate spec as well.
+
+For protected commands, set up the principal explicitly and assert `ShouldNotBeAuthorized()` separately from validation. The [scenario reference](/arc/backend/testing/command-scenario/) covers context setup and the complete assertion API.
+
+## Optional Chronicle testing
+
+Only event-sourced commands need the [Chronicle testing extension](/arc/backend/testing/chronicle/). It adds event/read-model seeding and append assertions. Keep those specs labeled as integration behavior; standalone Arc tests assert database/application-service effects instead.

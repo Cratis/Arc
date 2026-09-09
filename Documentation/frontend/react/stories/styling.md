@@ -118,44 +118,43 @@ Pre-built CSS classes you can use directly in your stories.
 ### Using CSS Variables
 
 ```tsx
-<div style={{ 
-  padding: 'var(--space-lg)', 
-  backgroundColor: 'var(--color-background-secondary)',
-  borderRadius: 'var(--radius-md)',
-  boxShadow: 'var(--shadow-sm)'
-}}>
-  Custom styled content
+<div
+    style={{
+        padding: 'var(--space-lg)',
+        backgroundColor: 'var(--color-background-secondary)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-sm)',
+    }}
+>
+    Custom styled content
 </div>
 ```
 
 ### Using Utility Classes
 
 ```tsx
-<div className="story-container">
-  <div className="story-card">
-    <h2>Card Title</h2>
-    <p>Card content</p>
-  </div>
+<div className='story-container'>
+    <div className='story-card'>
+        <h2>Card Title</h2>
+        <p>Card content</p>
+    </div>
 </div>
 ```
 
 ### Combining Variables and Classes
 
 ```tsx
-<div className="story-grid">
-  <div 
-    className="story-card" 
-    style={{ borderColor: 'var(--color-primary)' }}
-  >
-    Custom card with primary border
-  </div>
+<div className='story-grid'>
+    <div className='story-card' style={{ borderColor: 'var(--color-primary)' }}>
+        Custom card with primary border
+    </div>
 </div>
 ```
 
 ## Best Practices
 
 1. **Prefer CSS Variables**: Use variables instead of hard-coded colors for theme compatibility
-2. **Use Utility Classes**: Leverage utility classes for common patterns to ensure consistency
+2. **Use utility classes**: Reuse the shared classes for common spacing and layout patterns
 3. **Semantic Colors**: Use semantic color variables (`--color-success`, etc.) for meaningful states
 4. **Consistent Spacing**: Stick to the spacing scale (`--space-*`) for consistent rhythm
 5. **Theme Testing**: Always test your stories in both dark and light modes

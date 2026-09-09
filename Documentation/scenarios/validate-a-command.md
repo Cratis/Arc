@@ -1,15 +1,17 @@
 ---
 title: Validate a command
-description: Reject malformed or duplicate input before a command produces an event — with value-type rules, command rules, and state-dependent business rules.
+description: Reject malformed or duplicate input before a standalone command writes, using concept rules, command rules, and state-dependent validation.
 ---
 
-**Goal:** stop bad input from ever becoming an event. A blank name, a negative quantity, a duplicate email — you want the command rejected, with a clear reason, before `Handle()` runs.
+**Goal:** reject bad input before a command changes state. A blank name, a negative quantity, a duplicate email — you want the command rejected, with a clear reason, before `Handle()` runs.
 
 ## Validation runs before the handler
 
-Arc runs validators *before* it invokes `Handle()`. A command that fails validation never appends anything and returns a `CommandResult` carrying the errors — and because the rules are extracted into the generated proxy, they also run on the client for instant feedback. There are three places a rule can live; reach for the narrowest one that fits.
+Arc runs validators *before* it invokes `Handle()`. A command that fails validation never invokes `Handle()` and returns a `CommandResult` carrying the errors. The proxy generator extracts a **supported subset** of rules for client feedback; async, custom, and state-dependent rules still require the authoritative server check. There are three places a rule can live; reach for the narrowest one that fits.
 
 ## Do it
+
+The validator fragments below assume the [standalone tutorial's domain types and imports](/arc/backend/getting-started/your-first-command/). Choose one `RegisterAuthorValidator` example, not multiple competing validators. State/service examples additionally require the provider or application-owned collaborator stated beside them.
 
 1. **A rule that's true of a value everywhere → validate the value type.** Write a `ConceptValidator<T>` and it applies to every command carrying that concept:
 
@@ -33,20 +35,15 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
 
    For lightweight cases, data annotations like `[Required]` on the command record work too.
 
-3. **A rule that depends on existing state → inject the read model.** Arc resolves the read model for this command's key and hands it to whichever position asks for it — the validator, `Provide()`, or `Handle()`. Where you put the rule depends on whether it must hold under concurrency.
+3. **A rule that depends on existing state → use a provider or application service.** For by-key read-model injection, configure [provider ownership and an explicit command key](./use-current-state-in-a-command.md). Otherwise inject a database context, collection, or application collaborator and query explicitly.
 
-   For an invariant that two simultaneous commands could both slip past — uniqueness is the classic one — guard it in `Handle()`, closest to the append, and return a typed error:
+   A validation pre-check is not atomic, even when moved into `Handle()`. Back uniqueness with a database unique index; use transactions or atomic conditional updates for other invariants. The [tutorial installs the index](/arc/tutorial/validation/) and explains the remaining duplicate-exception translation. [Typed handler failures](./return-a-result-or-error.md) can express a rejected write without implying that a returned object was persisted.
 
-   ```csharp
-   public Result<AuthorRegistered, ValidationResult> Handle(RegisteredAuthorName? existing) =>
-       existing is not null && existing.Name != AuthorName.NotSet
-           ? ValidationResult.Error("An author with that name is already registered.")
-           : new AuthorRegistered(Name);
-   ```
+   With **optional Chronicle integration**, a registered event return can be appended and a Chronicle [constraint](/chronicle/constraints/) can enforce its supported invariant at append time. Neither behavior belongs to standalone Arc.Core.
 
-   Even that guard is a *narrowing*, not a guarantee — for a hard invariant, enforce it with a Chronicle [constraint](/chronicle/constraints/), which is checked at append time.
+   When a snapshot check is sufficient, place the rule in the validator. If the condition must still hold when the write commits, enforce it through an atomic write, transaction, or appropriate constraint. Order status, account freezes, and role existence can all change after validation; a validator gives early feedback, not a commit-time guarantee:
 
-   Most state-dependent rules aren't races, though. "This order isn't ready to submit", "this account is frozen", "this role doesn't exist" — these are gates on projected state, and they belong in the validator, where they sit with the command's other rules and reach the UI as ordinary validation errors:
+   This **domain fragment** assumes a keyed `SubmitOrder`, a provider-owned `OrderReadModel`, and an application `OrderStatus` enum:
 
    ```csharp
    public class SubmitOrderValidator : CommandValidator<SubmitOrder>
@@ -62,11 +59,18 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
    }
    ```
 
-   The nullable parameter is how you say a missing projection is a business condition rather than a fault — [Use current state in a command](./use-current-state-in-a-command.md) covers that choice and all three positions in full.
+   The nullable parameter is how you say a missing record is a business condition rather than a fault — [Use current state in a command](./use-current-state-in-a-command.md) covers that choice and all three positions in full.
 
    A validator can also reach *outside* the command's own state. It's resolved through dependency injection, so it can take a collaborator and check with FluentValidation's `MustAsync`:
 
+   `IAuthorsCatalog` is an application-owned contract, not an Arc interface. Its implementation must be available through DI:
+
    ```csharp
+   public interface IAuthorsCatalog
+   {
+       Task<bool> IsRegistered(AuthorName name);
+   }
+
    public class RegisterAuthorValidator : CommandValidator<RegisterAuthor>
    {
        public RegisterAuthorValidator(IAuthorsCatalog authors)
@@ -87,5 +91,5 @@ Validators are discovered by convention — you never register them. The fronten
 
 - [Command Validation](/arc/backend/commands/command-validation/) and [Validation](/arc/backend/commands/validation/) — the full validation model.
 - [Make it trustworthy](/arc/tutorial/validation/) — the same ideas, taught step by step.
-- [Return a result or an error](./return-a-result-or-error.md) — the `Result<,>` return shape used above.
-- [Use current state in a command](./use-current-state-in-a-command.md) — injecting projected state into a validator, `Provide()`, or `Handle()`.
+- [Return a result or an error](./return-a-result-or-error.md) — standalone responses and the `Result<,>` return shape.
+- [Use current state in a command](./use-current-state-in-a-command.md) — injecting provider-owned state into a validator, `Provide()`, or `Handle()`.

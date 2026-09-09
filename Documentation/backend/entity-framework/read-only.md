@@ -1,127 +1,79 @@
-# Read Only DbContext
+---
+title: Read-only DbContext
+description: Configure query-oriented contexts while keeping database permissions as the write boundary.
+---
 
-Typically in a CQRS model, your read models are not meant to be used for creating or updating state in the
-database. They're meant to be read-only. In fact, you don't even want to take advantage of the EntityFramework change tracking.
+For query code, no-tracking reads and accidental-write guards express intent. Arc offers both a base class and registration helpers, but they are **not interchangeable security boundaries**.
 
-There are 2 ways of doing read-only DbContexts; inheritance or using the registration methods that will configure without
-having to use inheritance.
+## Define a query context
 
-## Purpose-Built Read Models
-
-A core principle of effective read model design is that **each read model should be purpose-built for a specific scenario** rather than reused across multiple use cases. This means:
-
-- Each `DbContext` represents a specific view or feature's data needs
-- The entities and their relationships are tailored to exactly what that scenario requires
-- You don't share read models between different features that have different relationship requirements
-
-This approach offers several benefits:
-
-- **Clarity**: Each read model clearly expresses what data a specific feature needs
-- **Performance**: No unnecessary data is loaded, and no conditional logic is needed to decide which relationships to include
-- **Maintainability**: Changes to one feature's data needs don't affect other features
-- **Simplicity**: The code remains straightforward without complex `.Include()` chains or conditional loading logic
-
-By following this pattern, automatic eager loading (described below) becomes a natural fit—since each read model is purpose-built, all its relationships are needed every time, eliminating the need for selective inclusion.
-
-## ReadOnlyDbContext base class
-
-The `ReadOnlyDbContext` base class gives you a base class that also inherits from the [`BaseDbContext`](./base-db-context.md) to
-give you the common tools.
-
-All you need to do for your `DbContext` is to inherit from it as shown below:
+Model declaration fragment; supply the `Customer` entity:
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
-public class StoreDbContext : ReadOnlyDbContext
+public class StoreDbContext(DbContextOptions<StoreDbContext> options) : ReadOnlyDbContext(options)
 {
-    public DbSet<Customer> Customers { get; set; }
+    public DbSet<Customer> Customers => Set<Customer>();
 }
 ```
 
-Then you register it as you normally would:
+Register it through `WithEntityFrameworkCore` discovery or this explicit service-registration fragment:
 
 ```csharp
-services.AddDbContext<StoreDbContext>(opt => ...);
+services.AddReadOnlyDbContextWithConnectionString<StoreDbContext>("Data Source=store.db");
 ```
 
-## Automatic Eager Loading
+Import `Microsoft.Extensions.DependencyInjection` for service registration.
 
-The `ReadOnlyDbContext` automatically enables eager loading for all navigation properties across all entities. This means that when you query an entity, all its related entities will be automatically included without having to explicitly call `.Include()`.
+## Inheritance versus registration
 
-This behavior aligns perfectly with the purpose-built read model approach—since each DbContext is designed for a specific scenario with well-defined data needs, all relationships are typically required and should be loaded together.
+| Mechanism | Behavior |
+| --- | --- |
+| `ReadOnlyDbContext` inheritance | Includes `BaseDbContext` conversions; overrides `SaveChanges()` and `SaveChangesAsync(CancellationToken)` to throw; enables eager loading for ordinary navigations |
+| `AddReadOnlyDbContext<T>` | Registers a pooled factory and scoped context; configures `NoTracking` and a SaveChanges interceptor; accepts any EF `DbContext` subclass |
+| `AddReadOnlyDbContextWithConnectionString<T>` | Adds provider detection to read-only registration; requires a `BaseDbContext` subclass |
 
-### Disabling Eager Loading Globally
+Inheritance alone does not override the Boolean `acceptAllChangesOnSuccess` SaveChanges overloads. Registration's interceptor protects the SaveChanges path but does not prohibit raw SQL, `ExecuteUpdate`, `ExecuteDelete`, or writes through another context. Use database credentials with read-only permissions when preventing writes is a requirement.
 
-If you want to disable automatic eager loading for a specific DbContext, you can override the `IsEagerLoadingEnabled` property:
+## Automatic eager loading
+
+`ReadOnlyDbContext` marks navigations returned by EF's `GetNavigations()` as auto-included. Choose purpose-built models and inspect generated queries rather than assuming every relationship is cheap. Skip navigations are not included by that loop.
+
+To disable this behavior globally, add this member to your derived context:
 
 ```csharp
-using Cratis.Arc.EntityFrameworkCore;
-
-public class StoreDbContext : ReadOnlyDbContext
-{
-    public DbSet<Customer> Customers { get; set; }
-    
-    protected override bool IsEagerLoadingEnabled => false;
-}
+protected override bool IsEagerLoadingEnabled => false;
 ```
 
-### Disabling Eager Loading Per Query
-
-For individual queries where you don't want eager loading, use the `.IgnoreAutoIncludes()` method:
+To skip auto-includes for an individual query:
 
 ```csharp
-// This query will NOT load related entities automatically
-var customers = await context.Customers
-    .IgnoreAutoIncludes()
-    .ToListAsync();
+var customers = await context.Customers.IgnoreAutoIncludes().ToListAsync();
 ```
 
-### Disabling Eager Loading Per Entity
-
-To disable automatic eager loading for specific navigation properties in your entity configuration, you can use the `AutoInclude(false)` method in your entity configuration:
+To override a particular navigation, configure it **after** the base call:
 
 ```csharp
 protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     base.OnModelCreating(modelBuilder);
-    
-    modelBuilder.Entity<Customer>()
-        .Navigation(c => c.Orders)
-        .AutoInclude(false);
+    modelBuilder.Entity<Customer>().Navigation(customer => customer.Orders).AutoInclude(false);
 }
 ```
 
-This will prevent the `Orders` navigation from being automatically included when querying `Customer` entities, even though eager loading is enabled globally.
+These are context/query fragments using your application's entities. EF's own rules for owned navigations still apply.
 
-## Register
+## Assembly registration
 
-The other option is to let you inherit from whatever base `DbContext` you want and then instead leverage the extension methods:
-
-```csharp
-services.AddReadOnlyDbContext<StoreDbContext>((serviceProvider, opt) => ...);
-```
-
-### Discover and register all in assemblies
-
-For convenience you can get all types inheriting from `DbContext` automatically discovered and registered in one call.
-
-```csharp
-services.AddReadModelDbContextsFromAssemblies((serviceProvider, opt) =>
-{
-    /* Configure any options */
-},
-[Assembly.GetExecutingAssembly()]);
-```
-
-Or if you want it to automatically configure it with the correct database:
+Assembly scanning selects exported, nonabstract `ReadOnlyDbContext` subclasses and excludes `[IgnoreAutoRegistration]` types. It does not discover every arbitrary `DbContext`.
 
 ```csharp
 services.AddReadModelDbContextsWithConnectionStringFromAssemblies(
-    ".. your connection string..",
-    (serviceProvider, opt) =>
-    {
-        /* Configure any options */
-    },
-    [Assembly.GetExecutingAssembly()]);
+    "Data Source=store.db",
+    (serviceProvider, options) => options.EnableDetailedErrors(),
+    typeof(StoreDbContext).Assembly);
 ```
+
+See [automatic database hookup](./automatic-database-hookup.md) for pooling and tenant limitations, then [observation](./observing.md) for live query results.

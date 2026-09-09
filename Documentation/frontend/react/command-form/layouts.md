@@ -1,163 +1,119 @@
-# Layouts
+---
+title: Layouts
+description: Arrange bound fields with CSS, columns, groups, and conditional descendant components.
+---
 
-CommandForm renders children in the order they are defined. You can create custom layouts using standard HTML and CSS, or use the built-in `CommandForm.Column` component for multi-column layouts.
+CommandForm preserves child order and binds fields through fragments, HTML elements, and custom layout components. Keep the layout where it reads naturally; you do not need to hoist every field to a direct child.
 
-Fields remain bound at any descendant depth. You can place them inside fragments, intrinsic elements, grids, cards, or pass-through layout components without hoisting them to be direct children. The form preserves the layout tree while each field registers the accessor and population metadata it actually renders.
+## Multi-column layout with CommandForm.Column
 
-Each mounted field keeps one registration descriptor. Recreating its element or inline accessor during a layout render updates the descriptor's callback references only after that render commits; it does not register or populate the field again, and an interrupted concurrent render cannot leak its callbacks into the mounted form. CommandForm automatically reacts when a layout changes the resolved property, `currentValue`, or `noInitialValue`. When an `initialValue` callback captures other semantics, pass that value through `populationKey` so a change recomputes the transformed value with the latest committed callback. A changed population source also uses the latest committed callback, including when both change in the same commit. This keeps layout and context renders stable without hiding intentional population changes.
+Direct `CommandForm.Column` children are grouped with classes such as `flex`, `flex-column`, `md:flex-row`, `gap-3`, and `flex-1`. Responsive columns require **PrimeFlex or equivalent application CSS defining these utilities**. Arc does not install that stylesheet for you. A PrimeReact theme alone is not a PrimeFlex utility stylesheet.
 
-## Multi-Column Layout with CommandForm.Column
-
-CommandForm provides a built-in `CommandForm.Column` component for creating responsive multi-column layouts:
-
-```tsx
-<CommandForm command={UpdateProfile}>
-    <h3>Personal Information</h3>
-
-    <CommandForm.Column>
-        <InputTextField<UpdateProfile> value={(c) => c.firstName} title='First Name' />
-        <InputTextField<UpdateProfile> value={(c) => c.lastName} title='Last Name' />
-        <InputTextField<UpdateProfile> value={(c) => c.phone} title='Phone' />
-    </CommandForm.Column>
-
-    <CommandForm.Column>
-        <InputTextField<UpdateProfile>
-            value={(c) => c.email}
-            type='email'
-            title='Email'
-        />
-        <InputTextField<UpdateProfile> value={(c) => c.city} title='City' />
-        <InputTextField<UpdateProfile> value={(c) => c.country} title='Country' />
-    </CommandForm.Column>
-
-    <h3>Additional Details</h3>
-    <TextAreaField<UpdateProfile> value={(c) => c.bio} title='Biography' rows={5} />
-</CommandForm>
-```
-
-The `CommandForm.Column` component:
-
-- Automatically arranges columns in a responsive layout
-- Displays side-by-side on wider screens
-- Stacks vertically on mobile devices
-- Maintains consistent spacing between fields
-- Works seamlessly with other CommandForm features (validation, errors, etc.)
-
-**Benefits**:
-
-- Cleaner syntax than manual CSS Grid/Flexbox
-- Responsive by default
-- Consistent styling with the rest of CommandForm
-- Fields within columns behave identically to regular fields
-
-## Multi-Column Layout with CSS Grid (Alternative)
-
-For more control over layout, you can use CSS Grid directly:
+This complete component assumes those utility styles are already loaded and uses the generated `UpdateProfile` from the [overview](./index.md):
 
 ```tsx
-<CommandForm command={UpdateProfile}>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <InputTextField<UpdateProfile> value={(c) => c.firstName} title='First Name' />
-        <InputTextField<UpdateProfile> value={(c) => c.lastName} title='Last Name' />
-    </div>
+import { CommandForm, InputTextField } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
 
-    <InputTextField<UpdateProfile> value={(c) => c.email} type='email' title='Email' />
-    <TextAreaField<UpdateProfile> value={(c) => c.bio} title='Biography' rows={5} />
-</CommandForm>
-```
-
-**When to use CSS Grid**:
-
-- You need precise control over column widths
-- You have complex, asymmetric layouts
-- You want to span fields across multiple columns
-
-**When to use CommandForm.Column**:
-
-- Standard multi-column layouts
-- You want responsive behavior out of the box
-- You prefer cleaner, more semantic code
-
-## Grouped Fields
-
-```tsx
-<CommandForm command={RegisterUser}>
-    <fieldset
-        style={{
-            border: '1px solid #e5e7eb',
-            borderRadius: '0.5rem',
-            padding: '1rem',
-            marginBottom: '1rem',
-        }}
-    >
-        <legend style={{ fontWeight: 'bold', padding: '0 0.5rem' }}>
-            Account Information
-        </legend>
-        <InputTextField<RegisterUser> value={(c) => c.username} title='Username' />
-        <InputTextField<RegisterUser> value={(c) => c.email} type='email' title='Email' />
-        <InputTextField<RegisterUser>
-            value={(c) => c.password}
-            type='password'
-            title='Password'
-        />
-    </fieldset>
-
-    <fieldset
-        style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem' }}
-    >
-        <legend style={{ fontWeight: 'bold', padding: '0 0.5rem' }}>
-            Personal Information
-        </legend>
-        <InputTextField<RegisterUser> value={(c) => c.firstName} title='First Name' />
-        <InputTextField<RegisterUser> value={(c) => c.lastName} title='Last Name' />
-        <TextAreaField<RegisterUser> value={(c) => c.bio} title='Bio' rows={4} />
-    </fieldset>
-</CommandForm>
-```
-
-## Conditional Fields
-
-Show fields based on other field values:
-
-```tsx
-function RegistrationForm() {
-    const command = useCommandInstance(RegisterUser);
-
+export function ProfileColumns() {
     return (
-        <CommandForm command={RegisterUser}>
-            <InputTextField<RegisterUser>
-                value={(c) => c.email}
-                type='email'
-                title='Email'
-            />
-
-            <SelectField<RegisterUser>
-                value={(c) => c.accountType}
-                title='Account Type'
-                options={[
-                    { id: 'personal', name: 'Personal' },
-                    { id: 'business', name: 'Business' },
-                ]}
-                optionIdField='id'
-                optionLabelField='name'
-            />
-
-            {command.accountType === 'business' && (
-                <>
-                    <InputTextField<RegisterUser>
-                        value={(c) => c.companyName}
-                        title='Company Name'
-                    />
-                    <InputTextField<RegisterUser> value={(c) => c.taxId} title='Tax ID' />
-                </>
-            )}
+        <CommandForm command={UpdateProfile} initialValues={{ name: '', email: '' }}>
+            <h2>Profile</h2>
+            <CommandForm.Column>
+                <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+            </CommandForm.Column>
+            <CommandForm.Column>
+                <InputTextField<UpdateProfile> value={c => c.email} title="Email" />
+            </CommandForm.Column>
+            <button type="submit">Save</button>
         </CommandForm>
     );
 }
 ```
 
-## See Also
+With compatible utilities, columns stack below the configured medium breakpoint and sit side by side above it; non-column children occupy full-width rows. Without those rules, do not expect the responsive arrangement or gaps. Nested columns still bind their fields, but do not assume a column hidden inside an opaque component will trigger the same **direct-child** column grouping.
 
-- [CommandForm Overview](./index.md)
+## Multi-column layout with CSS Grid (alternative)
+
+Use native CSS when you want no utility-library prerequisite. This complete component responds to available width through `auto-fit`:
+
+```tsx
+import { CommandForm, InputTextField } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
+
+export function ProfileGrid() {
+    return (
+        <CommandForm command={UpdateProfile} initialValues={{ name: '', email: '' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 16rem), 1fr))', gap: '1rem' }}>
+                <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+                <InputTextField<UpdateProfile> value={c => c.email} title="Email" />
+            </div>
+            <button type="submit">Save</button>
+        </CommandForm>
+    );
+}
+```
+
+The grid decides column widths; CommandForm still owns field binding and error display. Use explicit grid areas or spans for asymmetric layouts.
+
+## Grouped fields
+
+This **layout fragment** replaces the fields inside either preceding form and uses the same imports:
+
+```tsx
+<fieldset>
+    <legend>Contact details</legend>
+    <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+    <InputTextField<UpdateProfile> value={c => c.email} title="Email" />
+</fieldset>
+```
+
+A `fieldset`/`legend` expresses a group without changing the command. Do not nest HTML forms.
+
+## Conditional fields
+
+Read the command in a descendant, not the component that creates its provider. This complete component expects a generated `RegisterUser` with string properties `email`, `accountType`, `companyName`, and `taxId`:
+
+```tsx
+import { CommandForm, InputTextField, SelectField, useCommandInstance } from '@cratis/arc.react/commands';
+import { RegisterUser } from './commands/RegisterUser';
+
+function BusinessFields() {
+    const command = useCommandInstance<RegisterUser>();
+    if (command.accountType !== 'business') return null;
+    return (
+        <fieldset>
+            <legend>Business details</legend>
+            <InputTextField<RegisterUser> value={c => c.companyName} title="Company name" />
+            <InputTextField<RegisterUser> value={c => c.taxId} title="Tax ID" />
+        </fieldset>
+    );
+}
+
+export function RegistrationForm() {
+    return (
+        <CommandForm command={RegisterUser} initialValues={{ email: '', accountType: 'personal', companyName: '', taxId: '' }}>
+            <InputTextField<RegisterUser> value={c => c.email} title="Email" type="email" />
+            <SelectField<RegisterUser>
+                value={c => c.accountType} title="Account type"
+                options={[{ id: 'personal', name: 'Personal' }, { id: 'business', name: 'Business' }]}
+                optionIdField="id" optionLabelField="name"
+            />
+            <BusinessFields />
+            <button type="submit">Register</button>
+        </CommandForm>
+    );
+}
+```
+
+Selecting Business mounts the extra fields; selecting Personal unmounts them. Unmounting a field does **not** clear its command property or remove command validation rules. Define conditional backend rules and decide whether to clear now-inapplicable values. Proxy extraction does **not** preserve FluentValidation conditions such as `When`/`Unless`: a supported validator under a condition can become an unconditional client rule and reject a hidden field. Inspect the generated rules; keep conditional rules [server-only](./validation.md#backend-validation) when their condition cannot be represented on the client. A hidden field is not a security boundary.
+
+## Layout and population
+
+A mounted field keeps a stable registration. Equivalent inline accessors do not cause repeated population. Changes to the resolved property, `currentValue`, or `noInitialValue` update registration metadata; use `populationKey` when an `initialValue` callback captures other changing semantics. Only committed callbacks are published, including when the source and callback change together. See [Data loading](./data-loading.md#per-field-control).
+
+## See also
+
+- [CommandForm overview](./index.md)
 - [Validation](./validation.md)
 - [Customization](./customization.md)

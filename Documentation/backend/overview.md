@@ -1,44 +1,38 @@
-# Backend Overview
+---
+title: Backend hosting overview
+description: Choose ASP.NET Core or the lightweight Arc.Core host, then configure persistence and proxy generation separately.
+---
 
-Arc is a layered application framework. The Arc.Core package provides the base application model without ASP.NET Core, while the Arc ASP.NET Core package builds on top of Arc.Core to add web-specific integration.
+You want one command/query model without accidentally choosing an event store or the wrong web host. Arc separates those decisions: **Arc.Core provides the application model**, and **Cratis.Arc adds ASP.NET Core integration**. Neither requires Chronicle.
 
-## What Is Arc.Core
+## Choose the host first
 
-Arc.Core gives you the core application model for commands, queries, multi-tenancy, identity, and extensibility without pulling in ASP.NET Core. It is the right choice when you:
+| Host | Package and bootstrap | Use it when… |
+| --- | --- | --- |
+| ASP.NET Core | `Cratis.Arc`, `WebApplication.CreateBuilder(args)`, `builder.AddCratisArc()`, `app.UseCratisArc()` | You want ASP.NET Core routing, middleware, controllers alongside model-bound endpoints, and its authentication ecosystem |
+| Lightweight host | `Cratis.Arc.Core`, `ArcApplication.CreateBuilder(args)` | You intentionally want Arc's generic-host / HttpListener-based endpoint surface without ASP.NET Core |
 
-- Need a minimal hosting surface
-- Run on platforms where ASP.NET Core is not available or not allowed
-- Want to avoid ASP.NET Core dependencies or AOP constraints
-- Build device or desktop workloads such as MAUI
-
-## What Arc Adds
-
-The Arc ASP.NET Core package builds on Arc.Core and adds web framework capabilities like controllers, model binding, middleware integration, and OpenAPI/Swagger features. It is the right choice when you:
-
-- Build HTTP APIs and web backends
-- Need ASP.NET Core routing and filters
-- Want automatic endpoint generation and API documentation
-
-## Layering Model
-
-The relationship is a strict layering model: Arc.Core is the foundation, and Arc with ASP.NET Core builds on top of it.
+The [standalone getting-started path](./getting-started/index.md) uses ASP.NET Core throughout. The [Arc.Core getting-started guide](./core/getting-started.md) explains the alternative. Do not copy one host's extension-method sequence into the other.
 
 ```mermaid
 flowchart TB
-    A[Arc.Core
-Core application model] --> B[Arc ASP.NET Core
-Web integration]
+    ASP[Cratis.Arc ASP.NET Core integration] -->|depends on| Core[Arc.Core application model]
+    Light[ArcApplication lightweight host] -->|uses| Core
+    App[Application] -->|chooses| ASP
+    App -->|or chooses| Light
 ```
 
-## Deployment Scenarios
+Arc.Core is useful when you do not need ASP.NET Core, but that is not a guarantee of compatibility with every device, desktop, browser, AOT, or restricted runtime. Validate the selected host and dependencies on your deployment target.
 
-Arc.Core is the safe default when you cannot use ASP.NET Core, for example on devices that run MAUI or similar technologies where AOP-based ASP.NET Core builds are not allowed.
+## Then choose persistence and client output
 
-Arc with ASP.NET Core is the best fit for web services and APIs that benefit from the full ASP.NET Core stack.
+Commands may call application services, write MongoDB collections, or use EF Core contexts. Add [Chronicle](./chronicle/index.md) explicitly when the slice needs event persistence, projections, or reactors. Returning an event-shaped object from standalone Core is ordinary response handling, not an automatic append.
 
-## Related Topics
+[Proxy generation](./proxy-generation/getting-started.md) is a separate post-build tool. Install its build package and configure an output path; it inspects compiled assemblies and PDB source information rather than querying your running endpoints. Generate in Debug before type-checking the frontend.
 
-- [Arc.Core Overview](./core/overview.md)
-- [ASP.NET Core Integration](./asp-net-core/index.md)
-- [Getting Started](./getting-started/index.md)
+## Continue
 
+- [Set up standalone Arc](./getting-started/index.md) — packages, imports, database configuration, and the first runnable checkpoint.
+- [ASP.NET Core integration](./asp-net-core/index.md) — middleware, authentication, and host-specific behavior.
+- [Arc.Core overview](./core/overview.md) — the lightweight surface and its limits.
+- [Backend guide](./index.md) — commands, queries, providers, identity, and tenancy.

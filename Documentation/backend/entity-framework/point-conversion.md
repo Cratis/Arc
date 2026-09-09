@@ -1,216 +1,72 @@
-# Point Conversion
+---
+title: Point conversion
+description: Store a Cratis Point explicitly without confusing JSON conversion and spatial column types.
+---
 
-The Point conversion feature provides automatic handling of `Point` geospatial properties from Cratis.Fundamentals in Entity Framework Core, ensuring consistent storage and optimal database compatibility across different database providers.
+To store a location, first choose its representation. Arc's `AsPoint()` converts a `Cratis.Geospatial.Point` to a JSON **string**; it does not install a native spatial provider or select a JSON SQL column type. `BaseDbContext` does not call it automatically.
 
-## What it does
+## Configure string conversion
 
-The Point conversion automatically configures Entity Framework Core to handle properties of type `Point` using the most appropriate database representation for each provider:
-
-1. **PostgreSQL**: Stores as `jsonb` type for efficient JSON queries and optimal storage
-2. **SQL Server**: Stores as `nvarchar(max)` with JSON serialization
-3. **SQLite**: Stores as `text` with JSON serialization
-
-This automatic configuration ensures that Points (longitude/latitude pairs) are stored in a consistent format across all database providers while maintaining compatibility and optimal performance for each database.
-
-## Why it's important
-
-Using Point conversion provides several key benefits:
-
-- **Geospatial Support**: Built-in support for storing location data (longitude/latitude pairs)
-- **Cross-Database Compatibility**: Consistent Point handling across different database providers
-- **JSON Serialization**: Uses standard JSON format for storage, making data human-readable and queryable
-- **Type Safety**: Maintains strong typing with the `Point` type from Cratis.Fundamentals
-- **Automatic Configuration**: No need for manual configuration of Point properties
-
-## The Point Type
-
-The `Point` type from Cratis.Fundamentals represents a geographic point with longitude and latitude:
-
-```csharp
-using Cratis.Geospatial;
-
-var point = new Point(longitude: -122.4194, latitude: 37.7749); // San Francisco
-```
-
-The point is serialized to JSON as:
-
-```json
-{
-  "longitude": -122.4194,
-  "latitude": 37.7749
-}
-```
-
-## Model Usage
-
-Your entity models can use `Point` properties directly without any special configuration when using the [`BaseDbContext`](./base-db-context.md):
-
-```csharp
-using Cratis.Geospatial;
-
-public class Store
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; }
-    public Point Location { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-
-public class DeliveryPoint
-{
-    public Guid Id { get; set; }
-    public Guid OrderId { get; set; }
-    public Point Destination { get; set; }
-    public Point? CurrentLocation { get; set; } // Nullable point
-}
-```
-
-The conversion will automatically:
-
-- Configure all `Coordinate` properties to use JSON serialization for storage
-- Store the longitude and latitude as a JSON object in the database
-- Handle conversion between .NET `Coordinate` instances and JSON strings
-
-## Manual Configuration
-
-If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply Point conversion in your `DbContext`:
+These are complete model/context declarations. This example derives from plain `DbContext`, which Arc's automatic discovery does not discover. Register it explicitly in your [configured Arc host](./getting-started.md) and apply your schema separately.
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Geospatial;
+using Microsoft.EntityFrameworkCore;
 
-public class StoreDbContext(DbContextOptions options) : DbContext(options)
+public class Store
 {
-    public DbSet<Store> Stores { get; set; }
+    public int Id { get; set; }
+    public required Point Location { get; set; }
+}
+
+public class StoreDbContext(DbContextOptions<StoreDbContext> options) : DbContext(options)
+{
+    public DbSet<Store> Stores => Set<Store>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Store>(entity =>
-        {
-            entity.Property(e => e.Location)
-                .AsPoint(Database.GetDatabaseType());
-        });
-        
+        modelBuilder.Entity<Store>().Property(store => store.Location).AsPoint();
         base.OnModelCreating(modelBuilder);
     }
 }
 ```
 
-> Note: This is automatically configured for you when using the [`BaseDbContext`](./base-db-context.md).
-
-## Migration Usage
-
-When creating migrations, use the `PointColumn()` extension method for creating Point columns:
-
-### Creating a Table with Point Column
+After declaring the context, add this startup fragment, where `services` is the host's `IServiceCollection`:
 
 ```csharp
-[DbContext(typeof(StoreDbContext))]
-[Migration($"Stores_{nameof(v1_0_0)}")]
-public class v1_0_0 : Migration
-{
-    protected override void Up(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.CreateTable(
-            name: "Stores",
-            columns: table => new
-            {
-                Id = table.GuidColumn(migrationBuilder),
-                Name = table.StringColumn(migrationBuilder, maxLength: 200, nullable: false),
-                Location = table.PointColumn(migrationBuilder, nullable: false),
-                CreatedAt = table.DateTimeOffsetColumn(migrationBuilder, nullable: false)
-            },
-            constraints: table => table.PrimaryKey("PK_Stores", x => x.Id));
-    }
+using Cratis.Arc.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.DropTable(name: "Stores");
-    }
-}
+services.AddDbContextWithConnectionString<StoreDbContext>("Data Source=store.db");
 ```
 
-### Adding a Point Column to Existing Table
+`AsPoint()` takes no database argument. It uses plain `System.Text.Json`, not MongoDB's GeoJSON serializer. For `new Point(Longitude: -122.4194, Latitude: 37.7749)`, the converted value is:
 
-```csharp
-[DbContext(typeof(StoreDbContext))]
-[Migration($"Stores_{nameof(v1_1_0)}")]
-public class v1_1_0 : Migration
-{
-    protected override void Up(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.AddPointColumn(
-            name: "WarehouseLocation",
-            table: "Stores",
-            nullable: true);
-    }
-
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.DropColumn(
-            name: "WarehouseLocation",
-            table: "Stores");
-    }
-}
+```json
+{"Longitude":-122.4194,"Latitude":37.7749}
 ```
 
-> See [Common Column Types](./common-column-types.md) for more information about column type extensions.
+The converter does not validate coordinate ranges. Validate longitude/latitude in your application. EF normally handles a null property without passing it through the value converter; choose property and column nullability consistently.
 
-## How it works
+## Choose one storage path
 
-The conversion system uses a `ValueConverter` that:
+| Path | Configuration | Storage contract |
+| --- | --- | --- |
+| String conversion | Explicit `AsPoint()`, `AsLineString()`, or `AsPolygon()` | Plain JSON string; SQL type comes from the EF string mapping or your explicit configuration |
+| JSON property | `[Json]` with `BaseDbContext` or `ApplyJsonConversion` | JSON conversion options and provider-specific JSON column mapping; see [JSON conversion](./json.md) |
+| Spatial migration | `AddPointColumn`, `AddLineStringColumn`, `AddPolygonColumn` | Spatial SQL type declarations on PostgreSQL/SQL Server, text on SQLite; not a geometry value converter |
 
-1. **Serializes**: Converts `Point` instances to JSON strings using `System.Text.Json`
-2. **Deserializes**: Parses JSON strings back to `Point` instances when reading from database
-3. **Null handling**: Properly handles nullable `Point?` properties
+Do not apply both string and `[Json]` conversion to the same property. Their serializer options are separate. Neither path promises translated distance, intersection, or nested-coordinate LINQ queries.
 
-The conversion is handled by the `AsPoint()` extension method, which configures the property with the appropriate `ValueConverter`.
+## Migration usage
 
-## Database Provider Specifics
+Arc has **no `PointColumn()` helper for `CreateTable`**. A string-converted point can use an ordinary string column, aligned with your model mapping. The separate `MigrationBuilder.AddPointColumn` method selects:
 
-The Point conversion adapts to different database providers:
+| PostgreSQL | SQL Server | SQLite |
+| --- | --- | --- |
+| `geometry(Point, 4326)` | `geography` | `TEXT` |
 
-- **PostgreSQL (Npgsql)**: Uses `jsonb` type for efficient JSON queries and indexing capabilities
-- **SQL Server**: Uses `nvarchar(max)` with JSON string storage
-- **SQLite**: Uses `text` with JSON string storage
+This is a schema helper, **not a complete native spatial recipe**. Pairing its PostgreSQL/SQL Server columns with `AsPoint()` is not supported by an automatic adapter. Native spatial usage requires a compatible provider mapping, database prerequisites (such as PostGIS), migrations, and round-trip tests designed by your application.
 
-This provider-specific optimization ensures the best storage characteristics for your chosen database, with PostgreSQL gaining the additional benefit of being able to query within the JSON structure.
-
-## Querying Considerations
-
-When querying Point data:
-
-### PostgreSQL
-
-PostgreSQL's `jsonb` type allows for efficient queries within the JSON structure:
-
-```csharp
-// You can still query for stores with specific points
-var stores = await context.Stores
-    .Where(s => s.Location == targetPoint)
-    .ToListAsync();
-```
-
-### All Providers
-
-For general point comparison across all providers:
-
-```csharp
-// Exact match
-var store = await context.Stores
-    .FirstOrDefaultAsync(s => s.Location == knownPoint);
-
-// Null checks work as expected
-var storesWithLocation = await context.Stores
-    .Where(s => s.Location != null)
-    .ToListAsync();
-```
-
-> Note: For advanced geospatial queries (distance calculations, radius searches, etc.), consider using database-specific extensions or computing distances in application code after retrieving the data.
-
-## Related Topics
-
-- [Common Column Types](./common-column-types.md) - Column type extensions including PointColumn()
-- [Property Extensions](./property-extensions.md) - AsPoint() and other property configuration methods
-- [JSON Conversion](./json.md) - General JSON serialization support in Entity Framework Core
-- [Adding Columns in Migrations](./migrations-add-columns.md) - AddPointColumn() method
+See [adding columns](./migrations-add-columns.md), [LineString conversion](./linestring-conversion.md), and [Polygon conversion](./polygon-conversion.md).

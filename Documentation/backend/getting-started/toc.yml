@@ -1,2 +1,4 @@
+- name: Standalone ASP.NET Core setup
+  href: index.md
 - name: Your first command and query
   href: your-first-command.mdx

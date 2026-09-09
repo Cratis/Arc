@@ -1,22 +1,26 @@
-- name: Controller Based
-  href: controller-based/toc.yml
-- name: Model Bound
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+- name: Overview
+  href: index.md
+- name: Model-bound queries
   href: model-bound/toc.yml
-- name: Observable Query Demultiplexer
-  href: observable-query-demultiplexer.md
-- name: Observable Query Emission Guards
-  href: observable-query-emission-guards.md
-- name: Query Health Endpoint
-  href: query-health.md
-- name: Use the HTTP QUERY method
-  href: using-the-http-query-method.md
-- name: Use Observable Queries with cURL
-  href: using-observable-queries-with-curl.md
-- name: Change Stream
-  href: change-stream.md
-- name: Query Pipeline
-  href: query-pipeline.md
-- name: Read Model Interception
-  href: read-model-interception.md
+- name: Controller-based queries
+  href: controller-based/toc.yml
 - name: Validation
   href: validation.md
+- name: Query pipeline and result contract
+  href: query-pipeline.md
+- name: Use the HTTP QUERY method
+  href: using-the-http-query-method.md
+- name: Use observable queries with cURL
+  href: using-observable-queries-with-curl.md
+- name: Observable query hub protocol
+  href: observable-query-demultiplexer.md
+- name: Change streams
+  href: change-stream.md
+- name: Read-model interception
+  href: read-model-interception.md
+- name: Observable query emission guards
+  href: observable-query-emission-guards.md
+- name: Query health endpoint
+  href: query-health.md

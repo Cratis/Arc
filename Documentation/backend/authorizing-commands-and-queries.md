@@ -7,11 +7,11 @@ description: Restrict who can run a command or read a query with role-based auth
 
 ## Authorize at the boundary, not in the logic
 
-Authorization is a cross-cutting concern: it belongs at the edge, applied as an attribute, so your `Handle()` methods and read models stay focused on behavior. Arc enforces role attributes on **both** commands and query methods.
+Authorization is a cross-cutting concern: it belongs at the edge, applied as an attribute, so your `Handle()` methods and read models stay focused on behavior. Arc enforces role attributes on **both** commands and query methods when invoked through its pipelines. Direct C# calls to `Handle()` or a static query bypass these checks. Use attributes from `Cratis.Arc.Authorization`; `[Roles]` requires authentication and at least one listed role. Arc does not enforce its attribute's `Policy` or `AuthenticationSchemes` properties.
 
 ## Protect a command
 
-Put `[Roles(...)]` on the `[Command]` record. Arc checks the caller's roles before the command runs:
+Put `[Roles(...)]` on the `[Command]` record. Arc checks the caller's roles before the command runs. These are illustrative type fragments using application-owned `AuthorId`, `AuthorName`, `UserRole`, and the optional MongoDB integration; they do not require Chronicle:
 
 ```csharp
 [Command]
@@ -39,11 +39,11 @@ public record Author([property: Key] AuthorId Id, AuthorName Name)
 
 ## Who the user is
 
-Roles come from the authenticated identity. Arc integrates with standard ASP.NET Core authentication and can enrich the identity with application-specific details (roles, tenant, preferences) through `IProvideIdentityDetails`. See the [Identity](./identity/) section for setting that up, and for generating a principal during local development so you can exercise authorized endpoints without a full login.
+Roles used by the evaluator come from the authenticated `ClaimsPrincipal`, not the identity cookie. Arc integrates with ASP.NET Core authentication; its lightweight host has its own handlers. `IProvideIdentityDetails` supplies application-specific presentation details but does not add trusted claims or authorize every operation. Read the principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`. See the [Identity](./identity/) section for setting that up, and for generating a principal during local development so you can exercise authorized endpoints without a full login.
 
 ## Notes
 
-- **Multi-tenancy** narrows access further: combine roles with [tenancy](./tenancy/index.md) so a user only ever sees their tenant's data.
+- **Multi-tenancy** requires three separate controls: [tenant selection](./tenancy/index.md), application membership authorization, and integration-specific storage isolation. Selecting a tenant ID alone does not restrict a user to their own data.
 - The generated TypeScript proxies respect the same rules — an unauthorized call fails the same way it would from any client.
 
 ## See also

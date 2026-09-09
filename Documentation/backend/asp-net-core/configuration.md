@@ -2,7 +2,7 @@
 
 Cratis Arc can be configured both through `appsettings.json` and programmatically to customize its behavior. The main configuration is handled through the `ArcOptions` class.
 
-This page covers the ASP.NET Core host specifically. For the lightweight Arc.Core host and its listen URL configuration, see [Arc.Core Getting Started](../core/getting-started.md).
+This page covers the ASP.NET Core host specifically. Code blocks are configuration/service fragments for an existing `Cratis.Arc` web project; import `Cratis.Arc`, `System.Text.Json`, and `Microsoft.Extensions.Options` as used. Types such as `MyCustomIdentityDetailsProvider` and `MyCustomConverter` are application-owned examples, not built-in Arc types. For the lightweight Arc.Core host and its listen URL configuration, see [Arc.Core Getting Started](../core/getting-started.md).
 
 ## Default Configuration Section
 
@@ -12,30 +12,30 @@ By default, Arc looks for configuration under the `Cratis:Arc` section in your `
 
 ### Configuration example
 
-Here's an example covering the most common options, bound from `appsettings.json` under `Cratis:Arc`:
+Here's an example covering the most common options, bound from `appsettings.json` under `Cratis:Arc`. The [complete options tree](../configuration/index.md#the-arcoptions-tree) also documents `ExposeExceptionDetails`, `Tenancy.BaseDomain`, and host-only settings.
 
 ```json
 {
-  "Cratis": {
-    "Arc": {
-      "CorrelationId": {
-        "HttpHeader": "X-Correlation-ID"
-      },
-      "Tenancy": {
-        "ResolverType": "Header",
-        "HttpHeader": "x-cratis-tenant-id"
-      },
-      "GeneratedApis": {
-        "RoutePrefix": "api",
-        "SegmentsToSkipForRoute": 0,
-        "IncludeCommandNameInRoute": true,
-        "IncludeQueryNameInRoute": true
-      },
-      "Query": {
-        "KeepAliveInterval": "00:00:30"
-      }
+    "Cratis": {
+        "Arc": {
+            "CorrelationId": {
+                "HttpHeader": "X-Correlation-ID"
+            },
+            "Tenancy": {
+                "ResolverType": "Header",
+                "HttpHeader": "x-cratis-tenant-id"
+            },
+            "GeneratedApis": {
+                "RoutePrefix": "api",
+                "SegmentsToSkipForRoute": 0,
+                "IncludeCommandNameInRoute": true,
+                "IncludeQueryNameInRoute": true
+            },
+            "Query": {
+                "KeepAliveInterval": "00:00:30"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -68,7 +68,8 @@ Controls how automatically generated API endpoints are configured for commands a
 - **RoutePrefix** (string, default: `"api"`): The base route prefix for all generated API endpoints.
 - **SegmentsToSkipForRoute** (int, default: `0`): Number of namespace segments to skip when constructing routes from type namespaces.
 - **IncludeCommandNameInRoute** (bool, default: `true`): Whether to include the command type name as the last segment of the route for command endpoints.
-- **IncludeQueryNameInRoute** (bool, default: `true`): Whether to include the query type name as the last segment of the route for query endpoints.
+- **IncludeQueryNameInRoute** (bool, default: `true`): Whether to include the query name as the last segment of the route for query endpoints.
+- **EnableQueryHttpMethod** (bool, default: `true`): Whether generated queries also accept HTTP `QUERY` with arguments in a JSON body. GET remains available. See [HTTP QUERY](../queries/using-the-http-query-method.md).
 
 #### Query
 
@@ -170,13 +171,13 @@ You can use different configurations for different environments using the standa
 
 ```json
 {
-  "Cratis": {
-    "Arc": {
-      "GeneratedApis": {
-        "RoutePrefix": "api"
-      }
+    "Cratis": {
+        "Arc": {
+            "GeneratedApis": {
+                "RoutePrefix": "api"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -184,13 +185,13 @@ You can use different configurations for different environments using the standa
 
 ```json
 {
-  "Cratis": {
-    "Arc": {
-      "CorrelationId": {
-        "HttpHeader": "X-Dev-Correlation-ID"
-      }
+    "Cratis": {
+        "Arc": {
+            "CorrelationId": {
+                "HttpHeader": "X-Dev-Correlation-ID"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -198,13 +199,13 @@ You can use different configurations for different environments using the standa
 
 ```json
 {
-  "Cratis": {
-    "Arc": {
-      "GeneratedApis": {
-        "RoutePrefix": "v1"
-      }
+    "Cratis": {
+        "Arc": {
+            "GeneratedApis": {
+                "RoutePrefix": "v1"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -218,48 +219,48 @@ Given a command class `MyApp.Sales.Commands.CreateOrderCommand`:
 
 ```json
 {
-  "GeneratedApis": {
-    "RoutePrefix": "api",
-    "SegmentsToSkipForRoute": 0,
-    "IncludeCommandNameInRoute": true,
-    "IncludeQueryNameInRoute": true
-  }
+    "GeneratedApis": {
+        "RoutePrefix": "api",
+        "SegmentsToSkipForRoute": 0,
+        "IncludeCommandNameInRoute": true,
+        "IncludeQueryNameInRoute": true
+    }
 }
 ```
 
-**Generated route**: `/api/MyApp/Sales/Commands/CreateOrderCommand`
+**Generated route**: `/api/my-app/sales/commands/create-order-command`
 
 ### Skip Namespace Segments
 
 ```json
 {
-  "GeneratedApis": {
-    "RoutePrefix": "api",
-    "SegmentsToSkipForRoute": 2,
-    "IncludeCommandNameInRoute": true,
-    "IncludeQueryNameInRoute": true
-  }
+    "GeneratedApis": {
+        "RoutePrefix": "api",
+        "SegmentsToSkipForRoute": 2,
+        "IncludeCommandNameInRoute": true,
+        "IncludeQueryNameInRoute": true
+    }
 }
 ```
 
-**Generated route**: `/api/Sales/Commands/CreateOrderCommand`
+**Generated route**: `/api/commands/create-order-command` (skips `MyApp` and `Sales`).
 
 ### Exclude Type Names
 
 ```json
 {
-  "GeneratedApis": {
-    "RoutePrefix": "api",
-    "SegmentsToSkipForRoute": 3,
-    "IncludeCommandNameInRoute": false,
-    "IncludeQueryNameInRoute": false
-  }
+    "GeneratedApis": {
+        "RoutePrefix": "api",
+        "SegmentsToSkipForRoute": 2,
+        "IncludeCommandNameInRoute": false,
+        "IncludeQueryNameInRoute": false
+    }
 }
 ```
 
-**Generated route**: `/api/Commands` (for commands) or `/api/Queries` (for queries)
+**Generated route**: `/api/commands` for this single command. A single query with location `MyApp.Sales.Queries` would use `/api/queries` with these options.
 
-**Note**: When `IncludeCommandNameInRoute` or `IncludeQueryNameInRoute` is set to `false`, the system automatically detects route conflicts. If multiple commands or queries exist in the same namespace (after skipping segments), the type name will be automatically included in the route to prevent conflicts. This ensures that:
+**Note**: When `IncludeCommandNameInRoute` or `IncludeQueryNameInRoute` is set to `false`, the system automatically detects route conflicts. If multiple commands or queries exist in the same namespace (after skipping segments), the type name will be automatically included in the route to prevent conflicts. Within those generated command or query groups:
 
 - Single command/query in a namespace: Route remains clean without the type name
 - Multiple commands/queries in the same namespace: Type names are automatically added to prevent route collisions
@@ -275,11 +276,11 @@ For example, with the configuration above:
 
 ## JSON Serialization
 
-Arc provides a centralized `JsonSerializerOptions` configuration through `ArcOptions`. This ensures consistent JSON serialization across your entire application, including controller actions, manual serialization, and generated API endpoints.
+Arc-generated endpoints use `ArcOptions.JsonSerializerOptions`. Arc's MVC post-configuration copies only the property naming policy and appends Arc converters; it does not copy the entire options object. Settings such as `DefaultIgnoreCondition`, `NumberHandling`, and other MVC serializer options require separate MVC configuration if controller output must match. Manual serialization must explicitly use the Arc options; unrelated minimal API endpoints use their ASP.NET serializer configuration.
 
 ### Default Configuration
 
-Arc configures `JsonSerializerOptions` with the following defaults:
+Arc's own `JsonSerializerOptions` has the following defaults (not all are copied to MVC):
 
 - **Property Naming**: Camel case with acronym-friendly handling (e.g., `XMLParser` becomes `xmlParser`)
 - **Null Handling**: Null values are ignored when writing JSON
@@ -294,13 +295,12 @@ Arc configures `JsonSerializerOptions` with the following defaults:
 The configured `JsonSerializerOptions` is available through dependency injection:
 
 ```csharp
-public class MyService
+using System.Text.Json;
+
+public class MessageSerializer(JsonSerializerOptions jsonOptions)
 {
-    public MyService(JsonSerializerOptions jsonOptions)
-    {
-        // Use the Arc-configured options
-        var json = JsonSerializer.Serialize(myObject, jsonOptions);
-    }
+    public string Serialize(string message) =>
+        JsonSerializer.Serialize(new { Message = message }, jsonOptions);
 }
 ```
 
@@ -328,21 +328,21 @@ builder.AddCratisArc(options =>
 });
 ```
 
-Any customizations made to `ArcOptions.JsonSerializerOptions` will automatically be applied to ASP.NET Core controller actions as well, ensuring consistency throughout your application.
+For controllers, configure null omission, number handling, and other non-copied settings separately through MVC's `AddJsonOptions`. Arc's post-configuration still sets the naming policy, removes the first `JsonStringEnumConverter` if present, and appends Arc converters. `ConfigureHttpJsonOptions` configures ASP.NET minimal API serialization; it does **not** replace Arc's serializer for generated endpoints. Converter order matters: the first matching converter wins, so appending a converter may not override an existing Arc converter. Test the actual request/response contract; see [OpenAPI enum limitations](../open-api/enums.md).
 
 ## Best Practices
 
 1. **Use Configuration Files**: For most scenarios, use `appsettings.json` configuration as it allows easy environment-specific overrides without code changes.
 
-2. **Environment-Specific Settings**: Leverage `appsettings.{Environment}.json` files for environment-specific configurations.
+2. **Environment-Specific Settings**: Use `appsettings.{Environment}.json` files for environment-specific configurations.
 
 3. **Programmatic Configuration**: Use programmatic configuration when you need to:
-   - Set configuration based on runtime conditions
-   - Use custom identity providers
-   - Override specific settings that can't be easily expressed in JSON
+    - Set configuration based on runtime conditions
+    - Use custom identity providers
+    - Override specific settings that can't be easily expressed in JSON
 
 4. **Route Planning**: Consider your API route structure carefully when configuring `GeneratedApis` options, especially in public-facing APIs where route stability is important.
 
 5. **Header Standardization**: Use standard HTTP header names for correlation IDs and tenant IDs that align with your organization's conventions and any API gateways or load balancers in use.
 
-6. **JSON Consistency**: Always use the injected `JsonSerializerOptions` when manually serializing/deserializing JSON to maintain consistency with controller actions and generated APIs.
+6. **JSON Consistency**: Use the injected `JsonSerializerOptions` for manual serialization that must match generated Arc endpoints. Configure and test MVC's remaining options separately when controller output must match too.

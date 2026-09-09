@@ -1,16 +1,21 @@
-# Basic Options
+---
+title: Basic options
+description: Output location, namespace trimming, source-file grouping, and model decorators.
+---
+
+The XML blocks on this page are fragments to place inside your existing `.csproj`'s `Project` element.
 
 ## Required
 
 ```xml
 <PropertyGroup>
-    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)../Web</CratisProxiesOutputPath>
+    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)../Web/src/generated</CratisProxiesOutputPath>
 </PropertyGroup>
 ```
 
-`CratisProxiesOutputPath` is the only required property. It specifies the directory where generated TypeScript files are written — typically the root of your frontend project.
+`CratisProxiesOutputPath` is the only required property. It specifies the directory where generated TypeScript files are written — preferably a dedicated generated-only folder, not the frontend root. An empty value disables the post-build target. Review [output behavior](output-behavior.md) before selecting a shared or handwritten source directory.
 
-## Namespace Segment Skipping
+## Namespace segment skipping
 
 ```xml
 <PropertyGroup>
@@ -38,7 +43,7 @@ MyFeature/
 
 For more control over namespace-to-folder mapping, see [Namespace Roots](namespace-roots.md).
 
-## Source File as Output File
+## Source file as output file
 
 ```xml
 <PropertyGroup>
@@ -46,14 +51,14 @@ For more control over namespace-to-folder mapping, see [Namespace Roots](namespa
 </PropertyGroup>
 ```
 
-By default, one TypeScript file is generated per C# type. When `CratisProxiesUseSourceFileAsOutputFile` is `true`, all types defined in the same `.cs` source file are combined into a single `.ts` file named after the source file.
+By default, each artifact gets its own file: command and model type names determine their filenames, while queries use method names. When `CratisProxiesUseSourceFileAsOutputFile` is `true`, artifacts whose owning types resolve to the same source filename and output folder are combined into a `.ts` file named after that source file. This does not copy the C# directory tree.
 
-**Example:** `AccountCommands.cs` containing `CreateAccount`, `UpdateAccount`, `DeleteAccount` generates:
+**Illustrative layout:** With namespace `MyApp.Accounts` and one segment skipped, `AccountCommands.cs` containing `CreateAccount`, `UpdateAccount`, and `DeleteAccount`, each with resolvable debug information, generates:
 
 Default:
 
 ```text
-AccountCommands/
+Accounts/
 ├── CreateAccount.ts
 ├── UpdateAccount.ts
 └── DeleteAccount.ts
@@ -62,21 +67,25 @@ AccountCommands/
 With `CratisProxiesUseSourceFileAsOutputFile=true`:
 
 ```text
-AccountCommands/
+Accounts/
 └── AccountCommands.ts
 ```
 
-> **Note:** This feature requires PDB debug symbols alongside the compiled assembly. Without PDB information the generator falls back to one file per type.
+> **Note:** The resolver reads an embedded portable PDB or an adjacent portable `.pdb`. Resolution is **per type**, using method debug-document information in the input assembly. Having a PDB is not sufficient for every type: enums and other types without resolvable methods remain in their own files. Types from other assemblies are not guaranteed a source-file mapping. No sibling/namespace guess fills that gap.
+
+Queries use their declaring read-model/controller type's source mapping. The first resolvable method document supplies a type's filename; partial types are not split across files. Source grouping changes filenames, not namespace-derived folders. Avoid unrelated source files with identical basenames in the same output folder, and inspect imports after switching modes.
 
 Generate proxies during development with a Debug build (`dotnet build -c Debug`), then commit the generated TypeScript. Release and publish builds can consume those committed proxies without regenerating them. This is a recommended workflow rather than a Release restriction: the generator still runs in Release whenever `CratisProxiesOutputPath` is configured.
 
 ### CLI
 
+With the [executable alias prerequisite](output-behavior.md#direct-executable):
+
 ```bash
-proxygenerator assembly.dll output-path --use-source-file-as-output-file
+proxygenerator assembly.dll output-path --skip-output-deletion --use-source-file-as-output-file
 ```
 
-## Decorator Metadata
+## Decorator metadata
 
 Generated types use `@field(...)` property decorators and `@derivedType(...)` class decorators. The decorators keep the runtime serialization metadata beside the type and property they describe, with no proxy-generator configuration required.
 

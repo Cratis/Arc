@@ -1,106 +1,100 @@
-# CommandForm
+---
+title: CommandForm
+description: Build a form around one generated Arc command, then choose validation, layout, and lifecycle behavior.
+---
 
-The `CommandForm` component provides a declarative way to build forms for Arc commands with built-in validation, error handling, and field management.
+Editing a command should not require a second copy of its values in React state. `CommandForm` owns one generated command instance and binds its fields to that instance. Submitting the form executes the values you edited.
 
-## Overview
+<a id="overview"></a>
+<a id="basic-usage"></a>
 
-CommandForm simplifies working with Arc commands in React by:
+## Start with a generated command
 
-- Automatically managing command state
-- Providing type-safe field bindings
-- Handling validation integration
-- Supporting flexible customization
-- Managing form lifecycle
+Before using these examples, configure [Arc in React](../arc.md) and [proxy generation](../../../backend/proxy-generation/getting-started.md). Import a **generated command class**, not a TypeScript interface or an empty subclass of `Command`: execution needs the generated route, property descriptors, and validation metadata.
 
-## Basic Usage
+The component below is a runnable frontend checkpoint in that configured application. It expects a generated `UpdateProfile` at `./commands/UpdateProfile` with `name` and `email` string properties; adapt the import to your configured output directory. Its backend endpoint and rules are shown in [Validation](./validation.md#backend-validation). That example returns profile details to demonstrate a standalone Arc response; it does not persist them or require Chronicle.
 
 ```tsx
-import { CommandForm } from '@cratis/arc.react/commands';
-import { InputTextField } from '@cratis/arc.react/commands';
+import { CommandForm, InputTextField, useIsCommandExecuting } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
 
-class UserCommand extends Command {
-    name = '';
-    email = '';
+function SaveButton() {
+    const isExecuting = useIsCommandExecuting();
+    return <button type="submit" disabled={isExecuting}>{isExecuting ? 'Saving…' : 'Save'}</button>;
 }
 
-function MyForm() {
+export function ProfileForm() {
     return (
-        <CommandForm command={UserCommand}>
-            <InputTextField<UserCommand>
-                value={c => c.name} 
-                title="Name"
-                placeholder="Enter your name" 
-            />
-            <InputTextField<UserCommand>
-                value={c => c.email} 
-                title="Email"
-                type="email" 
-                placeholder="Enter your email" 
-            />
-            <button type="submit">Submit</button>
+        <CommandForm
+            command={UpdateProfile}
+            initialValues={{ name: '', email: '' }}
+            onSuccess={() => window.alert('Profile accepted')}
+        >
+            <InputTextField<UpdateProfile> value={c => c.name} title="Name" placeholder="Your name" />
+            <InputTextField<UpdateProfile> value={c => c.email} title="Email" type="email" />
+            <SaveButton />
         </CommandForm>
     );
 }
 ```
 
-> **Note**: Field components require an explicit generic type parameter (e.g., `<InputTextField<UserCommand>>`) to ensure the `value` accessor function is properly typed. This provides full IntelliSense and type safety when writing `c => c.propertyName`.
+Edit a field, leave it to see rule failures, then submit valid values. `SaveButton` reads the surrounding form's execution state because it renders **inside** the form. Hooks called in `ProfileForm` itself would be outside that provider. For a toolbar or dialog footer, use [formRef and onStateChange](./form-lifecycle.md#reaching-the-form-from-a-parent).
 
-## Props Reference
+`type="email"` chooses an HTML control; it does not define an Arc email rule. The form uses `noValidate`, so browser constraint validation does not block submission. See [required fields and validation rules](./validation.md#required-fields).
 
-### CommandFormProps
+<a id="commandformprops"></a>
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `command` | `Constructor<TCommand>` | Required | The command class to use for the form |
-| `initialValues` | `Partial<TCommand>` | `undefined` | Initial values for the form fields |
-| `currentValues` | `Partial<TCommand>` | `undefined` | Current values that will be merged with initial values |
-| `showTitles` | `boolean` | `true` | Whether to show field titles automatically |
-| `showErrors` | `boolean` | `true` | Whether to show field error messages automatically |
-| `fieldContainerComponent` | `React.ComponentType<FieldContainerProps>` | `undefined` | Custom component for rendering field containers |
-| `fieldDecoratorComponent` | `React.ComponentType<FieldDecoratorProps>` | `undefined` | Custom component for decorating fields with icons and tooltips |
-| `errorDisplayComponent` | `React.ComponentType<ErrorDisplayProps>` | `undefined` | Custom component for rendering validation errors |
-| `tooltipComponent` | `React.ComponentType<TooltipWrapperProps>` | `undefined` | Custom component for rendering tooltips on field descriptions |
-| `errorClassName` | `string` | `'p-error'` | CSS class name for error message elements |
-| `iconAddonClassName` | `string` | `'p-inputgroup-addon'` | CSS class name for icon addon containers |
-| `onFieldValidate` | `(command, fieldName, oldValue, newValue) => string \| undefined` | `undefined` | Custom field validation function |
-| `onFieldChange` | `(command, fieldName, oldValue, newValue) => void` | `undefined` | Callback when field value changes |
-| `onBeforeExecute` | `(values) => values` | `undefined` | Transform command values before execution |
-| `onSuccess` | `(response: TResponse) => void` | `undefined` | Called when command executes successfully |
-| `onFailed` | `(commandResult: CommandResult<TResponse>) => void` | `undefined` | Called when command execution fails |
-| `onException` | `(messages: string[], stackTrace: string) => void` | `undefined` | Called when command throws an exception |
-| `onUnauthorized` | `() => void` | `undefined` | Called when user is not authorized |
-| `onValidationFailure` | `(validationResults: ValidationResult[]) => void` | `undefined` | Called when command fails validation |
+## Props reference
 
-## Initial Values
+`command` is required; `children` accepts React nodes. The callbacks below use the generated instance type `TCommand` and the response type `TResponse` (default `object`).
 
-Set initial values for the form:
+| Prop | Default | Contract |
+| --- | --- | --- |
+| `command` | Required | `Constructor<TCommand>`; use the generated command class. |
+| `initialValues` | Unset | `Partial<TCommand>` seed and change-tracking baseline. Undefined values supply nothing; changing this prop alone after mount does not repopulate the command. |
+| `currentValues` | Unset | Reactive `Partial<TCommand>` overlay. Present keys are written, including explicit `null`/`undefined` where the property type permits them; absent keys are left alone. |
+| `populateFromQuery` | Unset | Single-instance query constructor used to populate field baselines. |
+| `populateFromObservableQuery` | Unset | Observable counterpart; choose one population source. |
+| `populateFromQueryArgs` | Unset | Argument object for either population source. |
+| `validateOn` | `'blur'` | `'blur'`, `'change'`, or `'both'`; controls when interaction errors appear, not whether silent validation runs. |
+| `validateAllFieldsOnChange` | `false` | Display the full validation result rather than merging only the interacted field's errors. |
+| `validateOnInit` | `false` | Display initialization/population validation errors. Silent validation still runs when false. |
+| `autoServerValidate` | `false` | Opt into pre-submit server validation; submission still validates on the server. |
+| `autoServerValidateThrottle` | `500` | Delay in milliseconds for the typing-triggered server-validation timer, not a global request limiter. |
+| `onFieldValidate` | Unset | Synchronous `(command, fieldName, oldValue, newValue) => string \| undefined`; supplies a custom field message. |
+| `onFieldChange` | Unset | `(command, fieldName, oldValue, newValue, validationInfo?) => void`; interaction notification, not a fresh asynchronous validation verdict. |
+| `onBeforeExecute` | Unset | Synchronous `(command: TCommand) => TCommand`; return the executable command instance. |
+| `onSuccess` | Unset | `(response: TResponse) => void`. |
+| `onFailed` | Unset | `(result: ICommandResult<TResponse>) => void`. |
+| `onException` | Unset | `(messages: string[], stackTrace: string) => void` for exception results. |
+| `onUnauthorized` | Unset | `() => void`. |
+| `onValidationFailure` | Unset | `(validationResults: ValidationResult[]) => void`. |
+| `formRef` | Unset | `React.Ref<CommandFormHandle>` for parent execution and live state reads. |
+| `onStateChange` | Unset | `(state: CommandFormState) => void` for reactive parent state. |
+| `showTitles`, `showErrors` | `true` | Enable built-in title/error rendering. Custom renderers must honor the intended presentation themselves. |
+| `fieldContainerComponent` | Unset | Component receiving `FieldContainerProps`. |
+| `fieldDecoratorComponent` | Unset | Component receiving `FieldDecoratorProps`. |
+| `errorDisplayComponent` | Unset | Component receiving `ErrorDisplayProps`. |
+| `tooltipComponent` | Unset | Component receiving `TooltipWrapperProps`. |
+| `errorClassName` | `'p-error'` | Default error element's CSS class. |
+| `iconAddonClassName` | `'p-inputgroup-addon'` | Default icon wrapper's CSS class. |
 
-```tsx
-<CommandForm
-    command={UserCommand}
-    initialValues={{
-        name: 'John Doe',
-        email: 'john@example.com',
-        role: 'user'
-    }}
->
-    <InputTextField<UserCommand> value={c => c.name} title="Name" />
-    <InputTextField<UserCommand> value={c => c.email} title="Email" />
-    <SelectField<UserCommand> value={c => c.role} title="Role" options={roles} />
-</CommandForm>
-```
+## Initial values
+
+Use `initialValues` for the initial seed and baseline, as in the example above; use `currentValues` for a reactive overlay. Changing `initialValues` alone after mount does not repopulate the command.
+
+See [Data loading](./data-loading.md) for precedence and population, [Validation](./validation.md) for state limitations, and [Customization](./customization.md) for renderer contracts.
 
 ## Children
 
-CommandForm accepts any React elements as children. The following are treated specially:
+Fields bind through fragments, HTML elements, and custom layout components. Use simple accessors such as `c => c.name`; binding resolves a property name, not an arbitrary computed expression. `CommandForm.Column` groups columns; its responsive styling needs the CSS described in [Layouts](./layouts.md).
 
-- **Field components** - Components with `displayName` of `'CommandFormField'` are automatically bound to the command
-- **CommandForm.Column** - Used for multi-column layouts
-- **Other elements** - Headings, buttons, divs, etc. are rendered as-is in order
+<a id="see-also"></a>
 
-## See Also
+## Next steps
 
-- [Field Types](field-types/index.md) - Available field components
-- [Validation](validation.md) - Integration with Arc validation
-- [Customization](customization.md) - Custom titles, errors, and containers
-- [Advanced Usage](advanced-patterns.md) - Layouts, hooks, and async data
+- [Field types](./field-types/index.md): choose a control and its supported props.
+- [Validation](./validation.md): distinguish client rules, server rules, and error display.
+- [Working with hooks](./hooks.md): read and edit the same form instance.
+- [Form lifecycle](./form-lifecycle.md): handle results and external execution.
+- [Advanced patterns](./advanced-patterns.md): computed previews, dialogs, and autosave boundaries.

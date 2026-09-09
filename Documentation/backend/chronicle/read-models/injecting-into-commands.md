@@ -5,10 +5,10 @@ description: Take a Chronicle read model as a dependency in a CommandValidator, 
 
 A command can take the read model Arc resolved for its key in three places: the constructor of a `CommandValidator<TCommand>`, a `Provide()` method, and a `Handle()` method. All three resolve from the same command scope, so all three see the same instance.
 
-Which one to use is a question about *what the state is for*.
+Which one to use is a question about *what the state is for*. These are focused dependency fragments using application read models, events, and commands; declarations without `Handle()` show only the validator's input shape, not complete runnable commands.
 
 | Position | Use it when | The state is… |
-|---|---|---|
+| --- | --- | --- |
 | `CommandValidator<TCommand>` | The command should be rejected with a message | a gate |
 | `Handle()` | The event you produce is computed from the state | an input |
 | `Provide()` | The state has to be combined with fetched data before the decision | an input to acquisition |
@@ -51,7 +51,7 @@ public record UseReducerReadModelInHandle(EventSourceId AccountId)
 }
 ```
 
-This works identically whether `ReducerAccountSummary` is materialized by a reducer, a fluent projection, or a model-bound projection.
+The injection signature is the same for reducer, fluent-projection, and model-bound-projection backings, including passive models. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
 
 ## In `Provide()`
 
@@ -119,7 +119,7 @@ public class AssignPersonToRoleValidator : CommandValidator<AssignPersonToRole>
 
 ### Non-nullable — the projection is required
 
-Keep the parameter non-nullable when the command genuinely requires the projection and its absence is a fault, not an outcome. Arc then fails the command with [`ReadModelDoesNotExistForCommand`](./failures.md#readmodeldoesnotexistforcommand) before your code runs, and you write rules against the state directly:
+Keep the parameter non-nullable when the command genuinely requires the projection and cannot evaluate its rules without it. Arc then fails the command with [`ReadModelDoesNotExistForCommand`](./failures.md#readmodeldoesnotexistforcommand) before your code runs, and you write rules against the state directly:
 
 ```csharp
 [Command]
@@ -140,7 +140,7 @@ public class SubmitOrderValidator : CommandValidator<SubmitOrder>
 }
 ```
 
-A missing `OrderReadModel` here is not a validation outcome — it is a rejected command, because the validator declared the projection required.
+A missing `OrderReadModel` here is a dependency-unavailable validation failure, not a domain-rule rejection: the validator declared the projection required, so its rules could not be evaluated.
 
 ### The analyzer makes the choice explicit
 
@@ -164,20 +164,21 @@ A command can take both — projected state as context, and the aggregate as the
 [Command]
 public record AddItemToCart([Key] Guid CartId, Guid ProductId, int Quantity)
 {
-    public ItemAddedToCart Handle(
-        ShoppingCart cart,                  // aggregate root — emits the events
-        ShoppingCartSummary? summary,       // read model — projected context
+    public async Task<AggregateRootCommitResult> Handle(
+        ShoppingCart cart,
+        ShoppingCartSummary? summary,
         ILogger<AddItemToCart> logger)
     {
-        logger.LogAddingItem(summary?.TotalItems ?? 0);
-        cart.AddItem(ProductId, Quantity);
-
-        return new ItemAddedToCart(ProductId, Quantity);
+        logger.LogInformation("Cart had {Count} items", summary?.TotalItems ?? 0);
+        await cart.AddItem(ProductId, Quantity);
+        return await cart.Commit();
     }
 }
 ```
 
-Read models never emit events. If the decision must hold under concurrency, drive it from the aggregate or from a Chronicle [constraint](/chronicle/constraints/) rather than from projected state — read models are eventually consistent.
+This fragment assumes an asynchronous aggregate mutation and `Cratis.Arc.Chronicle.Aggregates.AggregateRootCommitResult`. Do not also return the event the aggregate applies. Explicit commit propagates aggregate failures but finalizes the shared unit of work; see [commit boundaries](../aggregates/defining-an-aggregate-root.md#reporting-failure-and-committing).
+
+Read models never emit events. Materialized models can lag; passive models are still snapshots rather than locks. For concurrent invariants, verify the aggregate's revision enforcement or use a Chronicle [constraint](/chronicle/constraints/) at append time.
 
 ## Read models from other providers
 

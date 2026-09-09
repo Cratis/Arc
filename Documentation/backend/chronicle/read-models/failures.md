@@ -12,7 +12,7 @@ Read-model resolution distinguishes invalid input from missing infrastructure. A
 | [`ReadModelValidatorRequiresCommandPipeline`](#readmodelvalidatorrequirescommandpipeline)                                                     | The validator ran through MVC model binding, before a command context existed | Request fails                                                                          |
 | [`CannotResolveCommandDependency` / `CannotResolveValidatorDependency`](#cannotresolvecommanddependency-and-cannotresolvevalidatordependency) | A required non-nullable dependency could not be resolved                      | Depends on the dependency                                                              |
 
-In every case the detailed message — which names the read model type — goes to the server log only. The client sees a generic message, so the type never leaks over the wire.
+The two validation failures above use generic client-facing messages. Do not generalize that to every exception: Arc's exception-detail exposure is configurable, and enabling it can expose type names and other details. Keep production exception redaction and authorization configured independently.
 
 ## UnableToResolveReadModelFromCommandContext
 
@@ -39,10 +39,10 @@ For an unusable declared key, the failure is not "the entity does not exist" —
 
 **Fix:** give the command a key. What counts as one depends on whether the application has Chronicle:
 
-| Setup             | Declare the key by                                                                                                                                                                                                                                                          |
+| Setup | Declare the key by |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| With Chronicle    | marking a property or matching positional parameter with `Cratis.Chronicle.Keys.KeyAttribute`, using an `EventSourceId` or `EventSourceId<T>`-derived property, or implementing `ICanProvideEventSourceId` — see [Resolving EventSourceId](../resolving-event-source-id.md) |
-| Without Chronicle | marking a property with `System.ComponentModel.DataAnnotations.KeyAttribute`, or implementing `ICanProvideKeyForCommand` — see [Declaring the key without Chronicle](./other-providers.md#declaring-the-key-without-chronicle)                                              |
+| With Chronicle | marking a property or matching positional parameter with `Cratis.Chronicle.Keys.KeyAttribute`, using an `EventSourceId` or `EventSourceId<T>`-derived property, or implementing `ICanProvideEventSourceId` — see [Resolving EventSourceId](../resolving-event-source-id.md) |
+| Without Chronicle | marking a property with `System.ComponentModel.DataAnnotations.KeyAttribute`, or implementing `ICanProvideKeyForCommand` — see [Declaring the key without Chronicle](./other-providers.md#declaring-the-key-without-chronicle) |
 
 The data annotations attribute does not declare a Chronicle key. Unless another identity source is present, using it triggers the generated-ID fallback, not the missing-key error. [ARCCHR0008](../code-analysis/ARCCHR0008.md) reports that attribute mismatch at build time.
 
@@ -70,7 +70,7 @@ This is the runtime counterpart of the choice [ARC0006](../../code-analysis/ARC0
 
 - **The projection really is required.** Leave it non-nullable — the HTTP 400 is the intended behavior, and nothing needs to change.
 
-If neither fits, the read model may not have caught up yet: it is eventually consistent, so a command issued immediately after the event that creates the projection can arrive first. For an invariant that must hold regardless, use a Chronicle [constraint](/chronicle/constraints/) instead of projected state.
+For an asynchronously materialized model, the projection may not have caught up yet: a command issued immediately after the creating event can arrive first. Passive models instead build state on demand; see [backing differences](./index.md#materialized-and-passive-paths). For an invariant that must hold regardless, use a Chronicle [constraint](/chronicle/constraints/) instead of projected state.
 
 ## ReadModelValidatorRequiresCommandPipeline
 

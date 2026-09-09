@@ -1,579 +1,143 @@
-# Authorization
+---
+title: Authorization in ASP.NET Core
+description: Separate ASP.NET endpoint policies from Arc command and query authorization.
+---
 
-The Arc provides enhanced authorization capabilities that build upon ASP.NET Core's built-in authorization system. It offers role-based authorization through specialized attributes and integrates authorization state into command and query results across controllers, model-bound commands, and queries.
+When your application uses `Cratis.Arc`, two layers can reject a request: ASP.NET Core middleware at the HTTP boundary and Arc filters in the command/query pipelines. Keep their configuration separate so a policy tested through HTTP is not mistaken for an in-process guarantee.
+
+## The two boundaries
+
+| Boundary | Checks | Applies to |
+| --- | --- | --- |
+| ASP.NET Core authorization | Microsoft endpoint/controller metadata, registered policies, schemes, default/fallback policy | Requests that traverse the configured middleware and matching endpoint metadata |
+| Arc authorization filters | Authenticated principal and OR-role membership from Arc attributes | Commands and queries executed through Arc pipelines |
+
+`Cratis.Arc.Authorization.RolesAttribute` derives from **Arc's** `AuthorizeAttribute`, not Microsoft's. Arc's evaluator does not evaluate `Policy` or `AuthenticationSchemes`, and it takes the first applicable authorization attribute instead of combining multiple attributes. Do not stack Arc attributes to express AND requirements.
+
+Current limitation: the ASP.NET adapter's authorization evaluator resolves Arc's attribute type too. Do not rely on a Microsoft `[Authorize]` placed only on a model-bound command record to protect direct pipeline calls. This does **not** mean Microsoft authorization cannot work: middleware can enforce Microsoft metadata on controllers or explicitly configured endpoints. Verify the actual HTTP route and the pipeline separately.
 
 ## Setup
 
-Ensure that authentication and authorization are enabled in your application pipeline:
+Configure a real authentication scheme for your deployment before adding the middleware. The following **configuration fragment** belongs in an existing `WebApplication` program after authentication service registration:
 
 ```csharp
+using Cratis.Arc;
+using Microsoft.AspNetCore.Authorization;
+
+builder.AddCratisArc();
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
+
 var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCratisArc();
+app.Run();
 ```
 
-> Note: If you're interested in leveraging the Microsoft Identity way of working with identity,
-> read more about [Microsoft Identity integration](./microsoft-identity.md)
+See [Microsoft Identity integration](microsoft-identity.md) for one authentication option and its trusted-ingress prerequisites. A fallback policy is not a substitute for authentication service configuration.
 
-## Protecting All Endpoints by Default
+## Protecting all endpoints by default
 
-By default, ASP.NET Core endpoints are accessible to anonymous users unless explicitly protected with authorization attributes. You can change this behavior to require authentication for all endpoints by setting a fallback authorization policy.
+ASP.NET's fallback policy applies to endpoints without applicable authorization metadata. Its default policy applies when Microsoft `[Authorize]` supplies no named policy. Explicit anonymous metadata bypasses these policies.
 
-### Using Fallback Policy
+> [!WARNING]
+> Normal Arc activation maps development-user/tenant discovery, introspection, and identity-schema endpoints with anonymous metadata, including in Production. A fallback policy does **not** protect them. Review [production discovery exposure](../introspection/index.md) and restrict access at trusted ingress where necessary. Do not assume the word “development” is an environment check.
 
-The fallback policy applies to all endpoints that don't have an explicit authorization policy:
+## Role-based authorization
 
-```csharp
-builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
-```
-
-With this configuration:
-
-- **All endpoints require authentication by default** - No anonymous access unless explicitly allowed
-- **Use `[AllowAnonymous]`** to opt specific endpoints out of the requirement
-- **Explicit `[Authorize]` attributes still work** - They override the fallback policy with their own requirements
-
-> **Note**: Fallback policies are a standard ASP.NET Core authorization feature. For more details on authorization policies, policy requirements, and advanced scenarios, refer to the [ASP.NET Core authorization documentation](https://learn.microsoft.com/aspnet/core/security/authorization/policies).
-
-### Allowing Anonymous Access with Fallback Policy
-
-When using a fallback policy, use `[AllowAnonymous]` to make specific endpoints publicly accessible:
-
-```csharp
-// This command requires authentication (from fallback policy)
-[Command]
-public record ProcessOrder(OrderId Id)
-{
-    public void Handle(IOrderService orders) => orders.Process(Id);
-}
-
-// This command is publicly accessible despite the fallback policy
-[Command]
-[AllowAnonymous]
-public record GetPublicCatalog()
-{
-    public Catalog Handle(ICatalogService catalog) => catalog.GetPublic();
-}
-```
-
-### AllowAnonymous Inheritance
-
-The `[AllowAnonymous]` attribute can be applied at different levels and follows specific inheritance rules:
-
-| Scenario | Result |
-| -------- | ------ |
-| `[AllowAnonymous]` on type | All methods inherit anonymous access |
-| `[AllowAnonymous]` on method | Method allows anonymous access |
-| `[Authorize]` on method with `[AllowAnonymous]` on type | Method requires authorization (overrides type) |
-| Both `[AllowAnonymous]` and `[Authorize]` on same member | Error - throws `AmbiguousAuthorizationLevel` |
-
-```csharp
-// Type-level AllowAnonymous - all methods allow anonymous access
-[AllowAnonymous]
-public record PublicQueries
-{
-    public static IEnumerable<Product> GetProducts() => /* ... */;
-    public static IEnumerable<Category> GetCategories() => /* ... */;
-}
-
-// Method-level authorization overrides type-level AllowAnonymous
-[AllowAnonymous]
-public record MixedQueries
-{
-    // Inherits [AllowAnonymous] from type
-    public static IEnumerable<Product> GetPublicProducts() => /* ... */;
-
-    // Requires authorization despite type having [AllowAnonymous]
-    [Authorize]
-    public static IEnumerable<Product> GetInternalProducts() => /* ... */;
-}
-
-// ERROR: This will throw AmbiguousAuthorizationLevel at startup
-[AllowAnonymous]
-[Authorize]  // Cannot have both on the same member!
-public record InvalidCommand
-{
-    public void Handle() { }
-}
-```
-
-> **Warning**: Applying both `[AllowAnonymous]` and `[Authorize]` to the same type or method will result in an `AmbiguousAuthorizationLevel` exception. This prevents accidental security misconfigurations.
-
-### Custom Fallback Policies
-
-You can create more specific fallback policies with custom requirements:
-
-```csharp
-// Require a specific role for all endpoints by default
-builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .RequireRole("User")
-        .Build());
-```
-
-Or create a named policy and set it as the fallback:
-
-```csharp
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequireUserRole", policy => policy
-        .RequireAuthenticatedUser()
-        .RequireRole("User"))
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
-```
-
-### Default Policy vs Fallback Policy
-
-ASP.NET Core distinguishes between two policies:
-
-| Policy | Description |
-| ------ | ----------- |
-| **Default Policy** | Applied when `[Authorize]` is used without parameters |
-| **Fallback Policy** | Applied to endpoints without any authorization attributes |
-
-```csharp
-builder.Services.AddAuthorizationBuilder()
-    // Default policy: what [Authorize] means
-    .SetDefaultPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build())
-    // Fallback policy: applied when no [Authorize] attribute is present
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
-```
-
-> **Recommendation**: For most secure applications, set a fallback policy that requires authentication. This follows the principle of "secure by default" - developers must explicitly opt-in to anonymous access rather than accidentally leaving endpoints unprotected.
-
-## Role-Based Authorization
-
-The Arc provides two convenient ways to implement role-based authorization:
-
-1. **Standard ASP.NET Core `[Authorize]` attribute** - Works with all scenarios
-2. **Convenient `[Roles]` attribute** - Simplifies multi-role scenarios with cleaner syntax
-
-The `RolesAttribute` is a wrapper around ASP.NET Core's `AuthorizeAttribute` that eliminates the need to manually format role strings. Instead of writing `[Authorize(Roles = "Admin,Manager")]`, you can use the more readable `[Roles("Admin", "Manager")]`.
-
-### Using the Authorize Attribute
-
-Standard ASP.NET Core authorization works across all scenarios:
-
-```csharp
-using Microsoft.AspNetCore.Authorization;
-
-// Single role
-[Authorize(Roles = "Admin")]
-public class AdminController : ControllerBase { }
-
-// Multiple roles (user needs at least one)
-[Authorize(Roles = "Admin,Manager")]
-public record DeleteUser(string UserId);
-```
-
-### Using the Roles Attribute for Controllers
-
-The `RolesAttribute` provides cleaner syntax for multiple roles:
+For model-bound commands and queries, use explicit Arc imports. These are complete type fragments for an existing Arc host; neither needs a database or Chronicle:
 
 ```csharp
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands.ModelBound;
 
-// Equivalent to [Authorize(Roles = "Admin,Manager")]
 [Roles("Admin", "Manager")]
-public class UserManagementController : ControllerBase
+[Command]
+public record ReviewRequest(Guid RequestId)
 {
-    [HttpPost("create")]
-    public async Task<IActionResult> CreateUser(CreateUserCommand command)
-    {
-        // Only users with "Admin" or "Manager" roles can access this endpoint
-        // ...
-    }
-    
-    [HttpDelete("{id}")]
-    [Roles("Admin")] // Override controller-level roles for specific actions
-    public async Task<IActionResult> DeleteUser(string id)
-    {
-        // Only users with "Admin" role can delete users
-        // ...
-    }
+    public Guid Handle() => RequestId;
 }
 ```
 
-Users must have at least one of the specified roles to access the resource.
-
-## Authorization in Controllers
-
-### Controller-Level Authorization
-
-Apply authorization to an entire controller to protect all actions:
+Arc requires authentication and at least one listed role. The returned `Guid` remains ordinary response data.
 
 ```csharp
-[Roles("Admin")]
-public class AdminController : ControllerBase
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries.ModelBound;
+
+[ReadModel]
+public record ServiceStatus(string State)
 {
-    // All actions in this controller require "Admin" role
+    [Roles("Admin", "Auditor")]
+    public static ServiceStatus Internal() => new("Running");
 }
 ```
 
-### Action-Level Authorization
+Arc query method attributes take precedence over read-model type attributes. For the full Arc rules, see [Core authorization](../core/authorization.md).
 
-Apply authorization to specific actions for fine-grained control:
+## Authorization in controllers
+
+For ASP.NET controller policy enforcement, use **Microsoft** attributes explicitly. This complete controller fragment assumes MVC is registered and controllers are mapped in the host:
 
 ```csharp
-public class ProductController : ControllerBase
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+[ApiController]
+[Route("api/reports")]
+[Authorize(Roles = "Manager")]
+public class ReportsController : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetProducts()
-    {
-        // No authorization required - public endpoint
-    }
-    
-    [HttpPost]
-    [Roles("Editor", "Admin")]
-    public async Task<IActionResult> CreateProduct(CreateProductCommand command)
-    {
-        // Requires "Editor" or "Admin" role
-    }
-    
-    [HttpDelete("{id}")]
-    [Roles("Admin")]
-    public async Task<IActionResult> DeleteProduct(string id)
-    {
-        // Requires "Admin" role only
-    }
+    public IActionResult Get() => Ok(new { State = "Available" });
 }
 ```
 
-### Overriding Controller-Level Authorization
+Microsoft controller/action requirements compose according to ASP.NET Core rules; do not transfer Arc's method-overrides-type rule to them. See [ASP.NET Core authorization](https://learn.microsoft.com/aspnet/core/security/authorization/introduction).
 
-Action-level authorization overrides controller-level settings:
+## Policy-based authorization
+
+Register policies with ASP.NET Core and apply them to an endpoint that participates in its middleware. These are **configuration fragments** in an existing ASP.NET host:
 
 ```csharp
-[Route("api/management")]
-[Roles("Manager")]
-public class ManagementController : ControllerBase
-{
-    [HttpGet("reports")]
-    public async Task<IActionResult> GetReports()
-    {
-        // Requires "Manager" role (from controller)
-    }
-    
-    [HttpGet("sensitive-data")]
-    [Roles("Admin")] // Overrides controller-level authorization
-    public async Task<IActionResult> GetSensitiveData()
-    {
-        // Requires "Admin" role only, not "Manager"
-    }
-}
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("ReportsReader", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim("permission", "reports:read"));
 ```
 
-## Authorization in Model-Bound Commands
-
-Model-bound commands support authorization through both standard ASP.NET Core authorization attributes and the convenient `[Roles]` attribute.
-
-### Using Standard Authorization
+After building the app and enabling its authentication/authorization middleware:
 
 ```csharp
-[Command]
-[Authorize]
-public record DeleteUser(string UserId)
-{
-    public void Handle(IUserService userService)
-    {
-        userService.DeleteUser(UserId);
-    }
-}
+app.MapGet("/reports/availability", () => new { Available = true })
+    .RequireAuthorization("ReportsReader");
 ```
 
-For role-based authorization with the standard attribute:
+This protects that HTTP endpoint. It does not attach the policy to unrelated generated Arc routes or to direct pipeline calls. For permissions that must hold through every transport, implement a server-side permission check in the Arc pipeline using trusted claims and authoritative application data.
 
-```csharp
-[Command]
-[Authorize(Roles = "Admin,Manager")]
-public record ApproveRequest(int RequestId)
-{
-    public void Handle(IRequestService requestService)
-    {
-        requestService.ApproveRequest(RequestId);
-    }
-}
-```
+## Authorization results for commands and queries
 
-### Using the Roles Attribute for Commands
+Arc authorization failures return results with `IsAuthorized = false` and skip the handler/query logic. Mapped Arc results use HTTP 403; ASP.NET middleware can challenge or forbid before Arc executes and may return a different response shape.
 
-The `[Roles]` attribute provides cleaner syntax for model-bound commands:
+An ordinary call to `ServiceStatus.Internal()` bypasses the query pipeline and **does not evaluate attributes**. Calling a command's `Handle()` directly likewise bypasses authorization, validation, filters, and result handling. Use the [query pipeline](../queries/query-pipeline.md), [command pipeline](../commands/command-pipeline.md), or mapped HTTP endpoint when those guarantees matter.
 
-```csharp
-[Command]
-[Roles("Admin", "Manager")]
-public record ApproveRequest(int RequestId)
-{
-    public void Handle(IRequestService requestService)
-    {
-        requestService.ApproveRequest(RequestId);
-    }
-}
+## Custom authorization
 
-[Command]
-[Roles("System", "Admin")]
-public record CreateUser(
-    string Name,
-    string Email,
-    int Age)
-{
-    public void Handle(IUserService userService)
-    {
-        // Command implementation
-    }
-}
-```
+A command filter denying permission returns `CommandResult.Unauthorized(context.CorrelationId)`; a query filter uses `QueryResult.Unauthorized(context.CorrelationId)`. `CommandResult.Error(...)` describes an exception result, not an authorization rejection. See [command filters](../commands/command-filters.md) for filter contracts.
 
-### Authorization Results for Commands
+Read the trusted principal through `ICurrentPrincipalAccessor` (`Cratis.Arc.Authorization`), or `IHttpContextAccessor.HttpContext.User` when intentionally writing ASP.NET-specific code. `IProvideIdentityDetails` composes frontend details; returning roles or `IsUserAuthorized` in its payload does not add claims or authorize every command/query. The [identity cookie](../identity/identity-provider-service.md) is client-controlled and must not be used as authorization evidence.
 
-When authorization fails, the command pipeline automatically returns an unauthorized result. The command's `Handle()` method will not be executed:
+## Verification checklist
 
-```csharp
-public class Users(ICommandPipeline commandPipeline)
-{
-    public async Task DeleteUser(string user)
-    {
-        var result = await commandPipeline.Execute(new DeleteUserCommand(user));
+Test anonymous, authenticated-without-role, and permitted-role callers through both HTTP and direct pipelines. Where HTTP policies or schemes matter, test wrong-policy/wrong-scheme principals against the actual endpoint. Include discovery endpoints with Production settings and a fallback policy enabled. Test custom ownership and tenant membership checks independently of UI visibility.
 
-        if (!result.IsAuthorized)
-        {
-            // Handle unauthorized access - command was not executed
-        }
+## See also
 
-        if (result.IsSuccess)
-        {
-            // Command executed successfully
-        }
-    }
-}
-```
-
-## Authorization in Model-Bound Queries
-
-Queries also support both authorization approaches for data protection:
-
-### Using Standard Authorization for Queries
-
-```csharp
-[ReadModel]
-[Authorize(Roles = "Admin,Manager")]
-public record UserAuditLog(string UserId, DateTime Occurred, string Action)
-{
-    public static IEnumerable<UserAuditLog> GetUserAuditLog(
-        IMongoCollection<UserAuditLog> collection,
-        string userId,
-        DateTime fromDate,
-        DateTime toDate) =>
-        collection.Find(entry =>
-            entry.UserId == userId &&
-            entry.Occurred >= fromDate &&
-            entry.Occurred <= toDate).ToList();
-}
-```
-
-### Using the Roles Attribute for Queries
-
-```csharp
-[ReadModel]
-[Roles("Manager", "Admin", "Auditor")]
-public record UserAuditLog(string UserId, DateTime Occurred, string Action)
-{
-    public static IEnumerable<UserAuditLog> GetUserAuditLog(
-        IMongoCollection<UserAuditLog> collection,
-        string userId,
-        DateTime fromDate,
-        DateTime toDate) =>
-        collection.Find(entry =>
-            entry.UserId == userId &&
-            entry.Occurred >= fromDate &&
-            entry.Occurred <= toDate).ToList();
-}
-
-[ReadModel]
-[Roles("Viewer", "Editor", "Admin")]
-public record ProductDetails(string ProductId, string Name, decimal Price)
-{
-    public static ProductDetails? GetProductDetails(
-        IMongoCollection<ProductDetails> collection,
-        string productId) =>
-        collection.Find(product => product.ProductId == productId).FirstOrDefault();
-}
-```
-
-### Authorization Results for Queries
-
-Model-bound queries are invoked by calling their static method directly. The
-authorization attributes are enforced by the query pipeline before the method runs,
-so a caller that lacks the required roles never reaches the query logic:
-
-```csharp
-var auditLog = UserAuditLog.GetUserAuditLog(
-    collection,
-    "user123",
-    DateTime.Now.AddDays(-30),
-    DateTime.Now);
-
-// Use the returned data
-foreach (var entry in auditLog)
-{
-    // Process each audit log entry
-}
-```
-
-## Authorization Integration
-
-The Arc integrates authorization state into command and query results, allowing you to handle authorization failures gracefully.
-
-## Policy-Based Authorization
-
-For more complex authorization scenarios, you can use standard ASP.NET Core policy-based authorization alongside the Arc:
-
-```csharp
-[Command]
-[Authorize(Policy = "RequireAdminOrOwner")]
-public record UpdateResource(string ResourceId, ResourceData Data)
-{
-    public void Handle()
-    {
-        // Custom policy can check multiple claims, roles, and requirements
-    }
-}
-```
-
-You can define custom authorization policies in your service configuration:
-
-```csharp
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("RequireAdminOrOwner", policy =>
-        policy.RequireAssertion(context =>
-            context.User.IsInRole("Admin") ||
-            context.User.HasClaim("resource", "owner")));
-});
-```
-
-## Custom Authorization
-
-### Authorization Filters
-
-The Arc includes authorization filters that integrate with the command and query pipeline:
-
-```csharp
-// Custom authorization logic can be implemented through command filters
-public class CustomAuthorizationFilter : ICommandFilter
-{
-    public Task<CommandResult> OnExecution(CommandContext context)
-    {
-        // Custom authorization logic
-        if (!IsAuthorized(context))
-        {
-            return Task.FromResult(CommandResult.Error(context.CorrelationId, "Unauthorized"));
-        }
-        
-        return Task.FromResult(CommandResult.Success(context.CorrelationId));
-    }
-}
-```
-
-For queries, you can implement custom authorization through query filters:
-
-```csharp
-public class QueryAuthorizationFilter : IQueryFilter
-{
-    public Task<QueryResult> OnPerform(QueryContext context)
-    {
-        // Custom authorization logic for queries
-        if (!IsAuthorized(context))
-        {
-            return Task.FromResult(QueryResult.Unauthorized(context.CorrelationId));
-        }
-        
-        return Task.FromResult(QueryResult.Success(context.CorrelationId));
-    }
-}
-```
-
-## Built-in Authorization Filter
-
-The Arc provides a built-in `AuthorizationFilter` that automatically handles both `[Authorize]` and `[Roles]` attributes for commands and queries:
-
-- **Authentication**: Verifies user is authenticated
-- **Role-based authorization**: Checks required roles if specified
-- **Policy-based authorization**: Evaluates custom policies
-- **Automatic result handling**: Returns appropriate unauthorized results
-
-This filter is automatically registered and executes before command handlers and query renderers.
-
-## Best Practices
-
-### Role Naming
-
-- Use descriptive role names that reflect business functions (e.g., "AccountManager", "ContentEditor")
-- Avoid generic names like "User1", "Level2"  
-- Consider using a consistent naming convention across your application
-
-### Granular Permissions
-
-- Apply authorization at the appropriate level (controller vs. action vs. command/query)
-- Use action-level and command/query-level authorization for fine-grained control
-- Consider the principle of least privilege
-
-### Error Handling
-
-- Always check authorization status in your command/query results
-- Provide meaningful error messages while avoiding information disclosure
-- Log authorization failures for security monitoring
-
-### Authorization Architecture
-
-- Use controller-level authorization for protecting entire API surfaces
-- Use model-bound command/query authorization for business logic protection
-- Combine both approaches when you need different authorization rules for different access patterns
-
-## Integration with Identity
-
-Authorization works seamlessly with the [Identity](../identity/index.md) system. User roles are automatically extracted from the identity token and made available for authorization decisions. The identity provider context includes role information that can be used for authorization:
-
-```csharp
-public class IdentityDetailsProvider : IProvideIdentityDetails
-{
-    public Task<IdentityDetails> Provide(IdentityProviderContext context)
-    {
-        var userRoles = context.Claims
-            .Where(c => c.Key == ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToList();
-            
-        var isAuthorized = userRoles.Contains("Admin") || userRoles.Contains("User");
-        
-        return Task.FromResult(new IdentityDetails(isAuthorized, new { Roles = userRoles }));
-    }
-}
-```
-
-## Frontend Integration
-
-Authorization attributes work seamlessly with the [proxy generator](../proxy-generation/index.md), which automatically creates TypeScript proxies for your commands and queries. The generated proxies provide:
-
-- Authorization status handling in command and query results
-- Consistent error handling for unauthorized access
-- Integration with frontend authentication systems
-- Type-safe authorization checking
-
-## See Also
-
-- [Commands](../commands/index.md) - Command documentation including authorization
-- [Model-Bound Commands](../commands/model-bound/index.md) - Model-bound command authorization
-- [Queries](../queries/index.md) - Query documentation
-- [Command Filters](../commands/command-filters.md) - Including the AuthorizationFilter
-- [Identity](../identity/index.md) - Identity and authentication setup
-- [Microsoft Identity](microsoft-identity.md) - Microsoft Identity integration
+- [Core authorization](../core/authorization.md) — host-independent attribute and principal contracts.
+- [Identity](../identity/index.md) — identity enrichment and its trust boundary.
+- [Microsoft Identity](microsoft-identity.md) — authentication setup.
+- [Tenancy](../tenancy/index.md) — selection is not membership authorization.
+- [Proxy generation](../proxy-generation/index.md) — clients transport results; they do not enforce server permissions.
