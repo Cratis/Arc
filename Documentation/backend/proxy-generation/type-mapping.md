@@ -19,7 +19,7 @@ The proxy generator translates the .NET types on your commands, queries and read
 
 The metadata constructor is passed to the generated `@field(...)` decorator, which records the runtime type used during deserialization.
 
-An enum becomes a TypeScript `enum` and travels as its underlying number. A `ConceptAs<T>` is unwrapped to `T` and mapped by this same table. A `Nullable<T>` is unwrapped to `T` and the generated property is declared optional.
+An enum becomes a TypeScript `enum` and travels as its underlying number. A `ConceptAs<T>` is unwrapped to `T` and mapped by this same table. A `Nullable<T>` is unwrapped to `T` and the generated property is declared optional. This mapping holds equally for a query or command **parameter**, not only for a read model or command **property** — a query method taking a plain or nullable enum argument generates the same `enum`-typed parameter as an equivalent property would.
 
 Collections become arrays. A dictionary becomes `Record<string, TValue>` when its key maps to `string`, and `ValueMap<TKey, TValue>` otherwise.
 

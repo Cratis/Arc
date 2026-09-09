@@ -4,8 +4,12 @@
   href: ARCCHR0001.md
 - name: ARCCHR0003 - Reactor must not reach the default event log
   href: ARCCHR0003.md
+- name: ARCCHR0004 - [EventType] repeats the type name as its id
+  href: ARCCHR0004.md
 - name: ARCCHR0005 - Chronicle is used but not wired up
   href: ARCCHR0005.md
+- name: ARCCHR0006 - Reactor handler invoking ICommandPipeline.Execute does not say what replay should do
+  href: ARCCHR0006.md
 - name: ARCCHR0008 - Command key marked with the data annotations Key attribute
   href: ARCCHR0008.md
 - name: ARCCHR0009 - Command property reads as a secret and should be marked [NotAudited]

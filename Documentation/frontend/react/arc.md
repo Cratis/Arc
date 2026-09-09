@@ -31,6 +31,7 @@ The `<Arc />` component provides centralized configuration for all commands and 
 | basePath | String | Base path for the application |
 | apiBasePath | String | Base path prepended to all Command and Query requests |
 | httpHeadersCallback | Function | Optional callback function that returns additional HTTP headers to include with all commands, queries, and identity requests (e.g., for including cookies or authentication tokens) |
+| detailsType | `Constructor` | Optional constructor for the identity's application-specific details type, enabling type-safe deserialization — see [Type-safe identity with complex types](./identity.md#type-safe-identity-with-complex-types) |
 | eventSourceFactory | `(url: string) => EventSource` | Optional factory for creating the `EventSource` instances used by SSE observable query connections. Falls back to the global `EventSource` constructor when not set — see [Custom EventSource Factory](./queries/configuration.md#custom-eventsource-factory) |
 | queryTransportMethod | `QueryTransportMethod` | Transport used by observable queries (`ServerSentEvents` or `WebSocket`) |
 | queryDirectMode | Boolean | Whether observable queries bypass the central hub and connect directly per-query |

@@ -74,6 +74,34 @@ public IObservable<Author> ObserveAuthorById(AuthorId authorId)
 }
 ```
 
+## When the Observed Document Is Gone
+
+`ObserveSingle()` and `ObserveById()` push a fresh document every time the underlying data changes, but there is no document to push when:
+
+- the observed document is deleted,
+- an update or replace moves the document out of the filter (it still exists, but no longer matches), or
+- the initial query never found a match in the first place.
+
+In every one of these cases the subject emits `default` — `null` for a reference type — rather than completing. Completing the observable would end the subscription; emitting `null` reports "nothing right now" while leaving the subscription open in case the document reappears, for example if it is re-inserted with the same id, or a later update moves it back into the filter.
+
+> **Note**: A `[ReadModel]` marked `[RemovedWith<T>]` hard-deletes its backing document when the removal event fires. An active `ObserveSingle()`/`ObserveById()` subscriber sees that removal exactly as described above — "the read model was removed" is this same `null` emission, not a special case.
+
+On the frontend, guard against it the same way you guard against "still loading" — check `result.hasData` (and `result.isReady` if you need to distinguish "no result yet" from "ready, but nothing matches"):
+
+```tsx
+const [result] = GetAccountObservable.use(accountId);
+
+if (!result.isReady) {
+    return <Spinner />;
+}
+
+if (!result.hasData) {
+    return <NotFound />;
+}
+
+return <AccountDetails account={result.data} />;
+```
+
 ## Advanced Usage
 
 ### With Find Options

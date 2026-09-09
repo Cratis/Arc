@@ -107,6 +107,12 @@ public record AppendInNestedCommand(EventSourceId EventSourceId)
         await eventLog.Transactional.Append(EventSourceId, new PartnerAdminInvited(EventSourceId));
 }
 
+[Command]
+public record CompletePartnerOnboarding(EventSourceId EventSourceId)
+{
+    public PartnerOnboardingCompleted Handle() => new();
+}
+
 /// <summary>
 /// The exception that is thrown deliberately to fail a command after it has appended outside the transaction.
 /// </summary>
@@ -117,3 +123,7 @@ public record PartnerOnboardingStarted([property: Unique("UniqueOrganizationNumb
 
 [EventType("a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d")]
 public record PartnerAdminInvited(EventSourceId PartnerId);
+
+[EventType("2ac78ea4-76ad-4315-8128-b2f52c15c234")]
+[Unique("UniqueOnboardingCompletionPerPartner", "Onboarding can only be completed once per partner")]
+public record PartnerOnboardingCompleted;

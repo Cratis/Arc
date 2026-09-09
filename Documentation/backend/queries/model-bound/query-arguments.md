@@ -107,10 +107,24 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
             _ => collection.Find(_ => false).ToList()
         };
     }
+
+    // A nullable enum works the same way — omit it from the query string to search across every status.
+    public static IEnumerable<DebitAccount> GetAccountsByOptionalStatus(
+        AccountStatus? status,
+        IMongoCollection<DebitAccount> collection)
+    {
+        return status.HasValue
+            ? collection.Find(a => a.Balance > 0).ToList()
+            : collection.Find(_ => true).ToList();
+    }
 }
 ```
 
+Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Everything else, including a plain class or an interface like `IMongoCollection<T>` or `ILogger<T>`, is treated as an injected dependency. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
+
 ### Collection Arguments
+
+A collection parameter — `IEnumerable<T>`, an array, or `List<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. Everything else about it works the same as a single value; the caller just sends the argument name repeated once per value (`?ids=1&ids=2&ids=3`), and Arc binds it back into the collection type your method declares.
 
 ```csharp
 [ReadModel]
@@ -129,8 +143,24 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
     {
         return collection.Find(a => ownerIds.Contains(a.Owner)).ToList();
     }
+
+    public static IEnumerable<DebitAccount> GetAccountsByStatuses(
+        IEnumerable<AccountStatus> statuses,
+        IMongoCollection<DebitAccount> collection)
+    {
+        // Same derived-status logic as GetAccountsByStatus above, matched against any of the requested statuses.
+        return collection.Find(_ => true).ToList().Where(a => statuses.Any(status => status switch
+        {
+            AccountStatus.Active => a.Balance > 0,
+            AccountStatus.Inactive => a.Balance == 0,
+            AccountStatus.Suspended => a.Balance < 0,
+            _ => false
+        }));
+    }
 }
 ```
+
+> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>` makes no difference. Everything else — a plain class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container instead.
 
 ## Nullable Arguments
 

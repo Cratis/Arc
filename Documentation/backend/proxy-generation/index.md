@@ -50,3 +50,4 @@ The proxy generator maintains the folder structure based on your C# namespaces (
 - [Type Mapping](type-mapping.md) - How .NET types translate to TypeScript
 - [Identity Details](identity-details.md) - Identity details type generation
 - [File Index Tracking](file-index-tracking.md) - Incremental cleanup of generated files
+- [Linting Generated Proxies](linting.md) - Keeping ESLint from flagging unactionable findings on generated output

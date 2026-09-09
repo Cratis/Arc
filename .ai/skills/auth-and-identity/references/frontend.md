@@ -27,16 +27,21 @@ export const App = () => (
 );
 ```
 
-For type-safe details with complex types (e.g., `Guid`), pass a `detailsType` constructor:
+For type-safe details with complex types (e.g., `Guid`), pass a `detailsType` constructor. The preferred way is through `<Arc detailsType={...}>` (see [arc.md](../../../../Documentation/frontend/react/arc.md)) so every `useIdentity()` call in the tree gets typed details for free; `IdentityProvider` accepts the same prop directly when you are not using `<Arc>`. Either way, the class needs an `@field` decorator on every property that should be deserialized - `JsonSerializer.deserializeFromInstance()` only copies `@field`-declared members, so an undecorated class silently discards the payload and returns an empty instance:
 
 ```tsx
 import { IdentityProvider } from '@cratis/arc.react/identity';
-import { Guid } from '@cratis/fundamentals';
+import { Guid, field } from '@cratis/fundamentals';
 
 class UserIdentityDetails {
-    userId: Guid = Guid.empty;
-    firstName: string = '';
-    lastName: string = '';
+    @field(Guid)
+    userId!: Guid;
+
+    @field(String)
+    firstName!: string;
+
+    @field(String)
+    lastName!: string;
 }
 
 export const App = () => (
@@ -79,12 +84,12 @@ const identity = useIdentity<UserDetails>({
 });
 ```
 
-**With a constructor for type-safe deserialization** (uses `JsonSerializer.deserializeFromInstance()` under the hood):
+**With a constructor for type-safe deserialization** (uses `JsonSerializer.deserializeFromInstance()` under the hood). Only needed when the provider was *not* already configured with this `detailsType` - passing it when the provider already deserialized with the same type is safe and recognized (the existing instance is handed back, not deserialized again):
 
 ```tsx
 const identity = useIdentity(UserIdentityDetails);
 
-// With default values:
+// With default values - the default is used as-is and is never deserialized itself:
 const identity = useIdentity(UserIdentityDetails, {
     userId: Guid.empty,
     firstName: '[N/A]',

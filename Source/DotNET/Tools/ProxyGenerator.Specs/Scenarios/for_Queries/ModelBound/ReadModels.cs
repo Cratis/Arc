@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Concepts;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 
@@ -719,6 +720,25 @@ public class DataAnnotationsValidatedReadModel
 }
 
 /// <summary>
+/// Represents a product code concept, used to verify a collection of concepts survives proxy generation and
+/// binds correctly as a query argument.
+/// </summary>
+/// <param name="Value">The underlying value.</param>
+public record ProductCode(string Value) : ConceptAs<string>(Value)
+{
+    /// <summary>
+    /// Represents an unset product code.
+    /// </summary>
+    public static readonly ProductCode NotSet = new(string.Empty);
+
+    /// <summary>
+    /// Implicitly converts a string to a product code.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    public static implicit operator ProductCode(string value) => new(value);
+}
+
+/// <summary>
 /// A read model with enumerable query parameters for testing.
 /// </summary>
 [ReadModel]
@@ -768,6 +788,30 @@ public class EnumerableParameterReadModel
             Name = $"Item {id}",
             Category = "Default"
         });
+    }
+
+    /// <summary>
+    /// Searches by product codes.
+    /// </summary>
+    /// <param name="codes">The product codes to search for.</param>
+    /// <returns>Collection of matching read models.</returns>
+    /// <remarks>
+    /// Materializes eagerly with <c>.ToList()</c> rather than returning the lazy <c>.Select()</c> projection
+    /// directly. A lazy projection whose source is a concept collection serializes as a compiler-generated
+    /// iterator type parameterized over both the source and result types (e.g.
+    /// <c>ArraySelectIterator&lt;ProductCode, EnumerableParameterReadModel&gt;</c>), and response serialization
+    /// resolves its JSON converter polymorphically from that runtime type - an unrelated, pre-existing concern in
+    /// how concept-collection converters are resolved, outside this fix's scope. Returning a concrete
+    /// <see cref="List{T}"/> sidesteps it.
+    /// </remarks>
+    public static IEnumerable<EnumerableParameterReadModel> SearchByCodes(IEnumerable<ProductCode> codes)
+    {
+        return codes.Select(code => new EnumerableParameterReadModel
+        {
+            Id = Guid.NewGuid(),
+            Name = $"Product {code.Value}",
+            Category = "Default"
+        }).ToList();
     }
 }
 
@@ -841,6 +885,22 @@ public class EnumParameterReadModel
         [
             new EnumParameterReadModel { Id = Guid.NewGuid(), Name = dependency.Describe(status), Status = status }
         ];
+    }
+
+    /// <summary>
+    /// Searches by a collection of statuses.
+    /// </summary>
+    /// <param name="statuses">The statuses to filter by.</param>
+    /// <returns>Collection of matching read models, one per requested status.</returns>
+    /// <remarks>
+    /// Covers a collection of enums as a query argument - the same defect that affected collections of primitives
+    /// and concepts also affected collections of enums, since all three share the same runtime classification
+    /// (<c>ConverterExtensions.IsEnumerableOfQueryArgumentElement</c> in Arc.Core) and generator predicate
+    /// (<c>TypeExtensions.IsEnumerableOfPrimitiveOrConcept</c>).
+    /// </remarks>
+    public static IEnumerable<EnumParameterReadModel> SearchByStatuses(IEnumerable<ReadModelStatus> statuses)
+    {
+        return statuses.Select(status => new EnumParameterReadModel { Id = Guid.NewGuid(), Name = $"Item {status}", Status = status });
     }
 }
 

@@ -12,11 +12,13 @@ public class and_method_invokes_execute_without_once_only : Specification
 
     async Task Because() => _result = await Catch.Exception(async () => await VerifyCS.VerifyAnalyzerAsync(@"
 using System.Threading.Tasks;
+using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Reactors;
 using Cratis.Arc.Commands;
 
 namespace TestNamespace
 {
+    [EventType]
     public record BookReserved(string Isbn);
     public record DecreaseStock(string Isbn);
 

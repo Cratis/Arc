@@ -47,16 +47,16 @@ static class DiagnosticDescriptors
         description: "Reactors observe events and produce side effects; they must not append to the default event log directly, whether by injecting IEventLog or by appending through an injected IEventStore (its EventLog property or GetEventSequence(EventSequenceId.Log)). Both write to the sequence the handler's return type already targets, so return the events instead — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers for another event source. To trigger work in another slice, inject ICommandPipeline and execute a command. Two shapes a returned event cannot express are not reported: routing to a different sequence, such as GetEventSequence(EventSequenceId.Outbox), and appending to an event store other than the one the reactor was handed, such as one obtained from IChronicleClient.GetEventStore.");
 
     /// <summary>
-    /// ARCCHR0004: [EventType] should not specify an explicit id.
+    /// ARCCHR0004: [EventType] repeats the type name as its id.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0004_EventTypeShouldNotSpecifyId = new(
+    public static readonly DiagnosticDescriptor ARCCHR0004_EventTypeIdRepeatsTypeName = new(
         id: "ARCCHR0004",
-        title: "[EventType] should not specify an explicit id",
-        messageFormat: "Event type '{0}' specifies an explicit id on [EventType]. Remove the id argument — the type name is used as the identifier automatically.",
+        title: "[EventType] repeats the type name as its id",
+        messageFormat: "Event type '{0}' passes its own name as the id on [EventType]. Remove the id argument — the type name is what the identifier defaults to, so it changes nothing.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "The [EventType] attribute derives its identifier from the type name by convention, so an explicit id should not be passed. Use a bare [EventType]. The generation argument is still allowed for event evolution.");
+        description: "This rule only reports the redundant case: an id equal to the type's own name, or an empty string, neither of which changes what the event type resolves to. An id that differs from the type name is the documented way to rename an event record while stored events keep resolving under the old identifier — removing it there would orphan every stored event of that type, so it is left alone. A non-constant id cannot be evaluated at compile time and is also left alone. The generation argument is never reported.");
 
     /// <summary>
     /// ARCCHR0005: Chronicle artifacts are present but Chronicle is not wired up.
@@ -72,16 +72,16 @@ static class DiagnosticDescriptors
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
-    /// ARCCHR0006: Reactor handler invoking ICommandPipeline.Execute must be marked with [OnceOnly].
+    /// ARCCHR0006: Reactor handler invoking ICommandPipeline.Execute does not say what replay should do.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0006_ReactorCommandPipelineExecuteMustBeOnceOnly = new(
+    public static readonly DiagnosticDescriptor ARCCHR0006_ReactorCommandPipelineExecuteNeedsReplayDecision = new(
         id: "ARCCHR0006",
-        title: "Reactor handler invoking ICommandPipeline.Execute must be marked with [OnceOnly]",
-        messageFormat: "Reactor handler '{0}' invokes ICommandPipeline.Execute but is not marked [OnceOnly]; replay will re-execute the command. Mark the method [OnceOnly].",
+        title: "Reactor handler invoking ICommandPipeline.Execute does not say what replay should do",
+        messageFormat: "Reactor handler {0} invokes ICommandPipeline.Execute, and replay will execute the command again. Mark the handler [OnceOnly] to skip it on replay — that fires once per event source, not once per event, so a handler for an event that recurs on the same source would then run only for the first one — or declare a [Replay] handler for the same event type to take over during a replay.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A reactor handler that calls ICommandPipeline.Execute produces a side effect. During replay operations (redaction, revision, observer rewind), the handler runs again and re-executes the command, duplicating the side effect. Mark the method with [OnceOnly] so it is skipped during replays.");
+        description: "[OnceOnly] and [Replay] are not interchangeable. [OnceOnly] skips the handler entirely during replay, once per event source — a handler for an event that recurs on the same source runs only for the first occurrence, which is silently wrong for a handler that has to run for every one of them. [Replay] instead declares a separate handler for the same event type that takes over during a replay, which is the right shape whenever replay should do something rather than nothing. This rule considers only the methods Chronicle's dispatch would actually select for an event type, and follows a call through private helpers on the same reactor back to the handler that reaches it. When neither mechanism fits, suppress the diagnostic with a justification rather than mis-marking the handler [OnceOnly] to silence it.");
 
     /// <summary>
     /// ARCCHR0007: Command Handle method must not inject IEventLog.

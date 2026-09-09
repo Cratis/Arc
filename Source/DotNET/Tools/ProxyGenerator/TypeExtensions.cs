@@ -870,17 +870,26 @@ public static class TypeExtensions
     }
 
     /// <summary>
-    /// Check if a type is an enumerable of primitive or concept types.
-    /// Supports <see cref="IEnumerable{T}"/>, arrays and other collection types where the element type is primitive or concept.
+    /// Check if a type is an enumerable of primitive, concept, or enum types.
+    /// Supports <see cref="IEnumerable{T}"/>, arrays and other collection types where the element type is primitive, concept, or an enum.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to check.</param>
-    /// <returns>True if type is an enumerable of primitives or concepts, false otherwise.</returns>
+    /// <returns>True if type is an enumerable of primitives, concepts, or enums, false otherwise.</returns>
+    /// <remarks>
+    /// Mirrored by <c>ConverterExtensions.IsEnumerableOfQueryArgumentElement</c> in Arc.Core
+    /// (Source/DotNET/Arc.Core/ConverterExtensions.cs) - the runtime uses that predicate to decide the same
+    /// question (is this parameter a caller-supplied query argument or an injected dependency) against real loaded
+    /// types rather than the <c>MetadataLoadContext</c> types this generator works with, so the two cannot share
+    /// source. Both must agree on which shapes qualify; see <c>for_TypeExtensions/when_checking_is_enumerable_of_primitive_or_concept</c>
+    /// here and <c>for_ModelBoundQueryPerformer/when_getting_parameters</c> in Arc.Core.Specs for the specs that pin
+    /// them together.
+    /// </remarks>
     public static bool IsEnumerableOfPrimitiveOrConcept(this Type type)
     {
         if (!type.IsEnumerable()) return false;
 
         var elementType = type.GetEnumerableElementType();
-        return elementType is not null && (elementType.IsAPrimitiveType() || elementType.IsConcept());
+        return elementType is not null && (elementType.IsAPrimitiveType() || elementType.IsConcept() || elementType.IsEnum);
     }
 
     /// <summary>

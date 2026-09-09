@@ -1,10 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Constructor, JsonSerializer } from '@cratis/fundamentals';
+import { Constructor } from '@cratis/fundamentals';
 import { IIdentityProvider } from './IIdentityProvider';
 import { IIdentity } from './IIdentity';
 import { IdentityProviderResult } from './IdentityProviderResult';
+import { deserializeIdentityDetails } from './deserializeIdentityDetails';
 import { GetHttpHeaders } from '../GetHttpHeaders';
 import { Globals } from '../Globals';
 import { UrlHelpers } from '../UrlHelpers';
@@ -55,7 +56,7 @@ export class IdentityProvider extends IIdentityProvider {
         if (cookie.length == 2) {
             const json = atob(cookie[1]);
             const result = JSON.parse(json) as IdentityProviderResult;
-            const details = type ? JsonSerializer.deserializeFromInstance(type, result.details) : result.details;
+            const details = deserializeIdentityDetails(type, result.details);
             return {
                 id: result.id,
                 name: result.name,
@@ -93,7 +94,7 @@ export class IdentityProvider extends IIdentityProvider {
         }
 
         const result = await response.json() as IdentityProviderResult;
-        const details = type ? JsonSerializer.deserializeFromInstance(type, result.details) : result.details;
+        const details = deserializeIdentityDetails(type, result.details);
 
         return {
             id: result.id,
