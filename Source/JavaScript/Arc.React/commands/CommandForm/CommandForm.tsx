@@ -35,6 +35,7 @@ import {
     usePopulateFromQuery,
 } from './usePopulateFromQuery';
 import { withoutUndefinedValues } from './withoutUndefinedValues';
+import type { ExceptionDisplayProps } from './ExceptionDisplayProps';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext';
@@ -110,7 +111,19 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
     onUnauthorized?: () => void;
     onValidationFailure?: (validationResults: ValidationResult[]) => void;
     showTitles?: boolean;
+    /** Whether to display field errors and form-level exception feedback. Defaults to true. */
     showErrors?: boolean;
+    /**
+     * Safe, user-facing exception text. Defaults to 'An unexpected error occurred. Please try again.'
+     * Supply localized text as needed; an explicitly empty string is preserved.
+     * Never pass raw exception diagnostics as this message.
+     */
+    exceptionMessage?: string;
+    /**
+     * Replaces the default exception panel and receives only the safe message.
+     * Not rendered when showErrors is false; independent of the field errorDisplayComponent.
+     */
+    exceptionDisplayComponent?: React.ComponentType<ExceptionDisplayProps>;
     validateOn?: 'blur' | 'change' | 'both';
     validateAllFieldsOnChange?: boolean;
     validateOnInit?: boolean;
@@ -795,7 +808,11 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         [handleExecute],
     );
 
-    const exceptionMessages = commandResult?.exceptionMessages || [];
+    const hasExceptions =
+        commandResult?.hasExceptions || (commandResult?.exceptionMessages?.length ?? 0) > 0;
+    const exceptionMessage =
+        props.exceptionMessage ?? 'An unexpected error occurred. Please try again.';
+    const ExceptionDisplay = props.exceptionDisplayComponent;
 
     const contextValue: CommandFormContextValue<TCommand> = {
         command: props.command,
@@ -838,32 +855,24 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             >
                 <form onSubmit={handleFormSubmit} noValidate>
                     <CommandFormFields orderedChildren={orderedChildren} />
-                    {exceptionMessages.length > 0 && (
-                        <div
-                            style={{
-                                marginTop: '1rem',
-                                padding: '1rem',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: 'var(--radius-md)',
-                                backgroundColor: 'var(--color-error-bg, #fee)',
-                            }}
-                        >
-                            <h4
+                    {(props.showErrors ?? true) && hasExceptions && (
+                        ExceptionDisplay ? (
+                            <ExceptionDisplay message={exceptionMessage} />
+                        ) : (
+                            <div
+                                role='alert'
                                 style={{
-                                    margin: '0 0 0.5rem 0',
-                                    fontSize: '1rem',
-                                    fontWeight: 600,
+                                    marginTop: '1rem',
+                                    padding: '1rem',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: 'var(--radius-md)',
+                                    backgroundColor: 'var(--color-error-bg, #fee)',
                                     color: 'var(--color-error, #c00)',
                                 }}
                             >
-                                The server responded with
-                            </h4>
-                            <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
-                                {exceptionMessages.map((msg, idx) => (
-                                    <li key={idx}>{msg}</li>
-                                ))}
-                            </ul>
-                        </div>
+                                {exceptionMessage}
+                            </div>
+                        )
                     )}
                 </form>
             </CommandFormContext.Provider>

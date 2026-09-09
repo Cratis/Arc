@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <!-- The specification half of this pair is Arc.Core.TypeDiscovery.Specs. This project deliberately does not
+         end in .Specs, so the workflow's spec discovery (find -name "*.Specs.csproj") does not try to run it as
+         a test project. -->
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Core.TypeDiscovery.Specs.Plugin</AssemblyName>
+        <RootNamespace>Cratis.Arc.TypeDiscovery.Plugin</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Cratis.Fundamentals" />
+    </ItemGroup>
+</Project>

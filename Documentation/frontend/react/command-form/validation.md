@@ -97,7 +97,7 @@ Preflight `validate()` skips handler execution and handler-argument resolution, 
 
 ## Accessing validation state
 
-Read context in a **child** of the form. This complete component shows all displayed validation messages, including results with no field member:
+Read context in a **child** of the form. This complete component shows all displayed validation messages, including results with no field member. `showErrors={false}` hides automatic field errors and form-level exception feedback, including any custom `exceptionDisplayComponent` without invoking it; validation and result state remain unchanged:
 
 ```tsx
 import { CommandForm, InputTextField, useCommandFormContext } from '@cratis/arc.react/commands';
@@ -130,7 +130,7 @@ export function ProfileForm() {
 }
 ```
 
-`getFieldError('email')` returns the first matching message, giving custom errors precedence. Built-in field display also shows that first message; the summary can show the full array. Results without members require form-level display. Translating summary text does not suppress raw field messages or the form's automatic `exceptionMessages` block (which also remains with `showErrors={false}`). Keep server messages safe for end users. Translate framework-generated reasons to application wording rather than exposing diagnostics; [validation results](../../core/validation/results.md) describes reason metadata.
+`getFieldError('email')` returns the first matching message, giving custom errors precedence. Built-in field display also shows that first message; the summary can show the full array. Results without members require form-level display. Translating summary text changes only that summary; it does not sanitize messages rendered independently by custom fields. Keep rule messages safe for end users and translate framework-generated reasons to application wording rather than exposing diagnostics; [validation results](../../core/validation/results.md) describes reason metadata. This summary handles validation results only: when hiding automatic feedback, provide your own safe exception feedback too.
 
 Current state boundaries:
 
@@ -141,6 +141,12 @@ Current state boundaries:
 - `onFieldValidate` and `setCustomFieldError` supply presentation errors only; reproduce blocking rules in command validation.
 
 These flags are UI hints, not reservations or security boundaries. Always let execution validate again.
+
+## Validation failures and exceptions
+
+Field validation messages remain associated with their fields and continue to use `errorDisplayComponent` when supplied without a custom field container. A validation-only result does not produce form-level exception feedback. With `showErrors` enabled, a result containing both validation failures and exceptions displays the field messages alongside the safe exception message.
+
+CommandForm shows exception feedback when `hasExceptions` is true **or** `exceptionMessages` is nonempty, even if those values are inconsistent. It never displays those diagnostic messages or the stack trace automatically. The default text is `An unexpected error occurred. Please try again.`; use [safe exception customization](./customization.md#safe-exception-feedback) to localize it or replace its panel. The `onException` callback still depends on the flag, not the messages; see [exception diagnostics and display](./form-lifecycle.md#exception-diagnostics-and-display).
 
 ## Progressive validation
 

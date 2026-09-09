@@ -11,7 +11,7 @@ Change presentation without creating another command instance. CommandForm expos
 
 ## Custom error rendering
 
-Use `showErrors={false}` to hide the form's automatic field messages and add a descendant summary. This complete component reads the same form's displayed result, including non-field failures:
+Use `showErrors={false}` to hide automatic field messages and form-level exception feedback, including any custom `exceptionDisplayComponent`, without invoking that replacement. Validation, result state, and execution callbacks still work. This complete component adds a descendant summary that reads the same form's displayed validation results, including non-field failures:
 
 ```tsx
 import { CommandForm, InputTextField, useCommandFormContext } from '@cratis/arc.react/commands';
@@ -47,7 +47,7 @@ export function ProfileForm() {
 }
 ```
 
-There is no `instance.errors` dictionary. Read `commandResult.validationResults` or use `getFieldError('email')` for the first field message. Hooks must be **below** the form provider. `showErrors` does not clear validation, change `isValid`, or suppress messages that a custom field chooses to render itself. It also does not suppress the form's automatic `exceptionMessages` block. A friendly summary only changes its own text; ensure server exception messages are safe for end users rather than treating this summary as global sanitization.
+There is no `instance.errors` dictionary. Read `commandResult.validationResults` or use `getFieldError('email')` for the first field message. Hooks must be **below** the form provider. `showErrors` does not clear validation, change `isValid`, or suppress messages that a custom field or summary chooses to render itself. This summary handles validation results only; if you hide automatic feedback, provide your own safe exception feedback as well. Keep rule messages suitable for end users and raw diagnostics in trusted handling.
 
 ## Custom field container
 
@@ -120,6 +120,51 @@ export function FieldErrors({ errors, fieldName }: ErrorDisplayProps) {
 ```
 
 `errors` is `string[]`; `fieldName` is optional. The current form passes its selected first field message as a one-element array, not all backend messages for that field. Use a context summary for the full result.
+
+## Safe exception feedback
+
+Unexpected failures should tell users what to do next, not expose server diagnostics. By default, CommandForm shows an accessible alert containing only:
+
+> An unexpected error occurred. Please try again.
+
+Set `exceptionMessage` to safe application-specific or localized text. An explicitly empty string stays empty rather than falling back to the default. This **configuration fragment** assumes the `CommandForm` and generated `UpdateProfile` imports from the overview:
+
+```tsx
+<CommandForm
+    command={UpdateProfile}
+    exceptionMessage="We couldn't save your changes. Please try again."
+/>
+```
+
+To replace the entire default panel, provide `exceptionDisplayComponent`. It receives only `{ message: string }` through the exported `ExceptionDisplayProps` interface, never the command result, diagnostic messages, or stack trace. This complete component supplies accessible feedback in its replacement:
+
+```tsx
+import { CommandForm, InputTextField, type ExceptionDisplayProps } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
+
+function ExceptionNotice({ message }: ExceptionDisplayProps) {
+    return <div className="exception-notice" role="alert">{message}</div>;
+}
+
+export function ProfileForm() {
+    return (
+        <CommandForm
+            command={UpdateProfile}
+            initialValues={{ name: '', email: '' }}
+            exceptionMessage="We couldn't save your changes. Please try again."
+            exceptionDisplayComponent={ExceptionNotice}
+        >
+            <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+            <InputTextField<UpdateProfile> value={c => c.email} title="Email" />
+            <button type="submit">Save</button>
+        </CommandForm>
+    );
+}
+```
+
+`errorDisplayComponent` remains exclusively for field validation errors; CommandForm never calls it for a form-level exception. `showErrors={false}` hides both the default exception panel and the custom replacement without invoking the replacement.
+
+Treat `exceptionMessage` as user-facing content: do not populate it from raw exception diagnostics. Original diagnostics remain available through [execution callbacks and result state](./form-lifecycle.md#exception-diagnostics-and-display) for trusted handling, not automatic display.
 
 ## Custom tooltip component
 

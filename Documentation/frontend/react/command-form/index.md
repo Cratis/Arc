@@ -65,19 +65,24 @@ Edit a field, leave it to see rule failures, then submit valid values. `SaveButt
 | `onFieldChange` | Unset | `(command, fieldName, oldValue, newValue, validationInfo?) => void`; interaction notification, not a fresh asynchronous validation verdict. |
 | `onBeforeExecute` | Unset | Synchronous `(command: TCommand) => TCommand`; return the executable command instance. |
 | `onSuccess` | Unset | `(response: TResponse) => void`. |
-| `onFailed` | Unset | `(result: ICommandResult<TResponse>) => void`. |
-| `onException` | Unset | `(messages: string[], stackTrace: string) => void` for exception results. |
+| `onFailed` | Unset | `(result: ICommandResult<TResponse>) => void`; receives the original result when execution fails. |
+| `onException` | Unset | `(messages: string[], stackTrace: string) => void`; receives original diagnostics when `hasExceptions` is true. |
 | `onUnauthorized` | Unset | `() => void`. |
 | `onValidationFailure` | Unset | `(validationResults: ValidationResult[]) => void`. |
 | `formRef` | Unset | `React.Ref<CommandFormHandle>` for parent execution and live state reads. |
 | `onStateChange` | Unset | `(state: CommandFormState) => void` for reactive parent state. |
-| `showTitles`, `showErrors` | `true` | Enable built-in title/error rendering. Custom renderers must honor the intended presentation themselves. |
+| `showTitles` | `true` | Enable built-in field titles. Custom renderers must honor the intended presentation themselves. |
+| `showErrors` | `true` | Show automatic field errors and form-level exception feedback, including the custom exception renderer. Does not suppress messages independently rendered by custom fields or summaries. |
+| `exceptionMessage` | `'An unexpected error occurred. Please try again.'` | Safe user-facing `string`; supports localization and preserves an explicitly empty string. |
+| `exceptionDisplayComponent` | Unset | `React.ComponentType<ExceptionDisplayProps>` replacing the default exception panel; receives only `{ message: string }` and is not invoked when `showErrors` is false. |
 | `fieldContainerComponent` | Unset | Component receiving `FieldContainerProps`. |
 | `fieldDecoratorComponent` | Unset | Component receiving `FieldDecoratorProps`. |
-| `errorDisplayComponent` | Unset | Component receiving `ErrorDisplayProps`. |
+| `errorDisplayComponent` | Unset | Component receiving `ErrorDisplayProps` for field validation errors, not form-level exceptions. |
 | `tooltipComponent` | Unset | Component receiving `TooltipWrapperProps`. |
 | `errorClassName` | `'p-error'` | Default error element's CSS class. |
 | `iconAddonClassName` | `'p-inputgroup-addon'` | Default icon wrapper's CSS class. |
+
+Exception feedback uses safe text rather than raw server diagnostics. See [safe exception customization](./customization.md#safe-exception-feedback) for localization and replacement renderers, and [exception diagnostics and display](./form-lifecycle.md#exception-diagnostics-and-display) for callback and context behavior.
 
 ## Initial values
 

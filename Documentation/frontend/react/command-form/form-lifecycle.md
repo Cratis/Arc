@@ -41,9 +41,17 @@ export function ProfileForm() {
 
 The form first calls `onSuccess(response)` or `onFailed(result)`. It then checks, in order, `hasExceptions`, `!isAuthorized`, and `!isValid`, invoking `onException(messages, stackTrace)`, `onUnauthorized()`, and `onValidationFailure(validationResults)` as applicable. Several callbacks can run for the same result; the last message setter wins in this example.
 
-Friendly callback messages do not replace the form's automatic `exceptionMessages` display, even with `showErrors={false}`. Keep server exception messages safe for end users; these callbacks are not a sanitization boundary.
-
 Callbacks describe **returned command results**. An unexpectedly thrown/rejected promise, including a throwing transformation or callback, is not converted to `onException`. Catch rejections when calling the imperative handle, as below. Do not display raw stack traces to end users. Navigate only in `onSuccess`, using the response contract your handler actually returns.
+
+## Exception diagnostics and display
+
+CommandForm separates user-facing exception feedback from diagnostics. The default panel displays only `An unexpected error occurred. Please try again.`. Use `exceptionMessage` for safe localized text or `exceptionDisplayComponent` to replace the panel; see [safe exception feedback](./customization.md#safe-exception-feedback).
+
+The display does not sanitize, clone, or mutate results: `onFailed` receives the original `ICommandResult<TResponse>`, `onException` receives the original diagnostic array and stack trace, and `commandResult` in the form context retains the original result. The form's execution path also returns that same result. Keep these diagnostics in trusted logging or telemetry rather than rendering them to users. `showErrors={false}` hides automatic feedback, including the custom exception renderer without invoking it, but does not disable callbacks or change result state.
+
+The display checks `hasExceptions` **or** nonempty `exceptionMessages`. The `onException` callback remains flag-driven: messages without `hasExceptions: true` can produce safe feedback but do not invoke that callback.
+
+A descendant can supply a result through `useSetCommandResult`. The same safe display applies, but setting a result directly does not invoke execution callbacks. A subsequent successful result with no exception flag or messages removes the previous exception feedback, whether supplied by execution or a descendant.
 
 ## Before execute hook
 
