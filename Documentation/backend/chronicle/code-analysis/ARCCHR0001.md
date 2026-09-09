@@ -11,7 +11,9 @@ Event handler methods (typically named `On`) on aggregate roots must accept an e
 
 Error
 
-## Allowed Signatures
+## Allowed signatures
+
+These are signature fragments. The analyzer first filters candidates to methods with one or two parameters and a known event as the first parameter. A three-parameter method is outside that filter, so it does not receive ARCCHR0001 even though it is not a supported aggregate event handler. Verify discovery/replay in specs rather than relying on silence.
 
 ```csharp
 void On(TEvent @event)
@@ -39,7 +41,7 @@ public class UserAggregateRoot : AggregateRoot
         return Task.FromResult(42);
     }
 
-    // ARCCHR0001: Too many parameters
+    // Not reported by ARCCHR0001: excluded before candidate validation
     public void OnUserUpdated(UserUpdated @event, EventContext context, string extra)
     {
     }
@@ -70,7 +72,8 @@ public class UserAggregateRoot : AggregateRoot
 
 ## Why This Rule Exists
 
-Chronicle discovers event handler methods based on naming and signature conventions. Standardized signatures ensure:
+Arc's aggregate integration discovers event handlers from their event parameter and supported signature; names such as `On` are conventions. Standardized signatures ensure:
+
 - Handlers are discovered consistently.
 - Event processing remains predictable.
 - Asynchronous handlers integrate cleanly with the runtime.
@@ -78,4 +81,3 @@ Chronicle discovers event handler methods based on naming and signature conventi
 ## Related Rules
 
 - None
-

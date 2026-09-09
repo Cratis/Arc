@@ -1,5 +1,9 @@
 - name: Overview
   href: index.md
+- name: Test decisions and the pipeline
+  href: command-decisions.md
+- name: Test event-sourced commands
+  href: event-sourced-commands.md
 - name: Command Scenarios
   href: command-scenario.md
 - name: Chronicle

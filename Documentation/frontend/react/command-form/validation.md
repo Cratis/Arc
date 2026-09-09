@@ -1,474 +1,219 @@
-# Validation
+---
+title: Validation
+description: Distinguish command rules from HTML attributes, and display current validation results in CommandForm.
+---
 
-CommandForm integrates seamlessly with the Arc command validation system to provide automatic validation feedback and error handling.
+A form can look complete while its command is invalid. Define the rules on the backend, generate supported client rules, and let CommandForm display their results. HTML input attributes and presentation callbacks are not substitutes for command validation.
 
-## Overview
+## Required fields
 
-CommandForm automatically validates field inputs and displays errors based on:
+`required` defaults to the inverse of the generated property's `isOptional` descriptor. An explicit field prop overrides the **control's required flag**, not the command's metadata or backend rules.
 
-- **Required Fields**: Fields marked with `required` prop
-- **Type Validation**: Built-in HTML5 validation (email, URL, number ranges, etc.)
-- **Command Validation Rules**: Backend validation rules defined on your command
-- **Custom Validation**: Custom validators you define
+CommandForm renders `<form noValidate>`. Native browser constraint validation therefore does not block submission, including submission through `formRef`. In particular:
 
-## Validation Timing
+| Setting | What it does | What enforces the rule |
+| --- | --- | --- |
+| `required` | Marks the rendered control as required. | Command payload presence checks reject `null`/`undefined` for non-optional payload properties; they do not reject `''`, whitespace, `0`, or `false`. |
+| `type="email"` / `type="url"` | Selects the browser input type and input affordances. | An explicit email/URL command rule. |
+| `NumberField` `min`, `max`, `step` | Configures the numeric control. | Command range/precision rules; typed or programmatically supplied values still need validation. |
+| A required checkbox | Marks the control, but `false` is a present boolean value. | A rule requiring `true` for consent. |
 
-CommandForm provides flexible control over when validation occurs through the `validateOn` prop:
+Use FluentValidation `NotEmpty()` (or an appropriate `[Required]` rule) to reject empty strings. Put business invariants on the server even when a matching generated client rule exists. `InputTextField` does **not** expose `minLength`, `maxLength`, or `pattern`; use generated rules or a [custom field](./custom-fields.md) that explicitly supports those attributes. Such attributes still do not turn off the form's `noValidate` behavior.
 
-### Validate on Blur (Default)
+A field's display fallback (for example `''` for an undefined text value) is not a command value or baseline. Supply intentional defaults with `initialValues` when needed.
 
-By default, validation occurs when a field loses focus (blur event). This provides a balance between immediate feedback and not interrupting the user while typing:
+## Validation timing
 
-```tsx
-<CommandForm command={RegisterUser} validateOn="blur">
-    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
-    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
-</CommandForm>
-```
+Silent validation runs on initialization and every field edit. The form starts with `isValid: false` until that asynchronous path applies its first result. It is not already validated on the first render.
 
-**When to use**: Most forms - provides feedback after the user completes a field without being intrusive.
-
-### Validate on Change
-
-Validation runs immediately as the user types. This provides the fastest feedback but can be distracting:
+The following are **configuration fragments** inside a component that imports `CommandForm` and the generated `UpdateProfile` from the [overview](./index.md):
 
 ```tsx
-<CommandForm command={RegisterUser} validateOn="change">
-    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
-    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
-</CommandForm>
+<CommandForm command={UpdateProfile} validateOn="blur" />
+<CommandForm command={UpdateProfile} validateOn="change" />
+<CommandForm command={UpdateProfile} validateOn="both" validateAllFieldsOnChange />
+<CommandForm command={UpdateProfile} validateOnInit />
 ```
 
-**When to use**: Forms where immediate validation is critical, like password strength meters or username availability checks.
+| Prop | Default | Effect |
+| --- | --- | --- |
+| `validateOn` | `'blur'` | Determines when interaction error messages are updated: blur, change, or both. It does not disable silent edit validation. |
+| `validateAllFieldsOnChange` | `false` | False merges only the interacted field's displayed messages; true displays the full result. Both paths validate the command, not an isolated field rule. |
+| `validateOnInit` | `false` | Shows initialization/population errors. False hides those initial messages, not the validation work. |
+| `autoServerValidate` | `false` | Enables automatic server preflight; see [Auto server validation](./auto-server-validation.md) for request paths and timing. |
 
-### Validate on Both
+Use full-result display for cross-field rules when changing one field should update another field's message. With automatic server validation disabled, silent/interaction validation is client-side. Submission still runs command validation and, when local checks pass, the server pipeline.
 
-Validation runs on both change and blur events:
+## Backend validation
 
-```tsx
-<CommandForm command={RegisterUser} validateOn="both">
-    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
-    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
-</CommandForm>
-```
-
-**When to use**: Forms where continuous validation is important for complex rules.
-
-## Validation Scope
-
-Control whether validation validates just the changed field or all fields:
-
-### Per-Field Validation (Default)
-
-By default, only the field that changed is validated. This is more efficient and provides focused feedback:
-
-```tsx
-<CommandForm 
-    command={CreateUser} 
-    validateOn="blur"
->
-    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
-    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
-</CommandForm>
-```
-
-In this example, when the username field loses focus, only username validation runs.
-
-### Full Form Validation
-
-Set `validateAllFieldsOnChange` to `true` to validate the entire form when any field changes:
-
-```tsx
-<CommandForm 
-    command={CreateUser} 
-    validateOn="blur"
-    validateAllFieldsOnChange={true}
->
-    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
-    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
-    <InputTextField<CreateUser> value={c => c.confirmEmail} type="email" title="Confirm Email" required />
-</CommandForm>
-```
-
-**When to use**: Forms with interdependent fields where one field's validity depends on another (e.g., password confirmation, start/end dates).
-
-## Silent Validation on Load
-
-CommandForm **always** runs client validation silently on load, regardless of any other settings. This means `isValid` in the form context correctly reflects the real validity state from the very first render — before the user has interacted with any field.
-
-This is useful for scenarios such as:
-
-- Disabling a submit button until the form is valid
-- Conditionally rendering actions based on form state
-- Knowing whether previously loaded data is valid before the user touches anything
-
-```tsx
-function EditUserForm({ user }: { user: User }) {
-    return (
-        <CommandForm command={UpdateUser} currentValues={user}>
-            <InputTextField<UpdateUser> value={c => c.username} title="Username" required />
-            <InputTextField<UpdateUser> value={c => c.email} type="email" title="Email" required />
-            <SubmitButton /> {/* can use isValid from useCommandFormContext */}
-        </CommandForm>
-    );
-}
-```
-
-The silent validation **does not display any error messages**. Errors are only rendered after the user has interacted with a field (governed by `validateOn`) or when `validateOnInit` is set to `true`.
-
-## Showing Errors on Load (`validateOnInit`)
-
-Set `validateOnInit` to `true` to show validation error messages immediately when the form renders:
-
-```tsx
-<CommandForm 
-    command={CreateUser} 
-    validateOnInit={true}
-    initialValues={{ username: '', email: '' }}
->
-    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
-    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
-</CommandForm>
-```
-
-**When to use**:
-
-- Edit forms where existing data might have validation issues
-- Forms where you want to show all errors upfront
-- Step-by-step wizards showing validation state of upcoming steps
-
-For automatic server-side validation as users type, see [Auto Server Validation](./auto-server-validation.md).
-
-## Validation Options Summary
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `validateOn` | `'blur' \| 'change' \| 'both'` | `'blur'` | When to trigger validation |
-| `validateAllFieldsOnChange` | `boolean` | `false` | Validate all fields or just the changed field |
-| `validateOnInit` | `boolean` | `false` | Show validation error messages on form initialization (validation itself always runs silently on load) |
-
-### Examples
-
-**Gentle validation (recommended for most forms)**:
-
-```tsx
-<CommandForm command={T} validateOn="blur" />
-```
-
-> Note: `isValid` in context is already accurate on first render due to silent validation on load, even though no errors are displayed yet.
-
-**Aggressive validation (real-time feedback)**:
-
-```tsx
-<CommandForm command={T} validateOn="change" validateAllFieldsOnChange={true} />
-```
-
-**Show all errors immediately**:
-
-```tsx
-<CommandForm command={T} validateOn="blur" validateOnInit={true} />
-```
-
-## Required Fields
-
-Mark fields as required using the `required` prop:
-
-```tsx
-<CommandForm command={RegisterUser}>
-    <InputTextField<RegisterUser> value={c => c.email} type="email" title="Email" required />
-    <InputTextField<RegisterUser> value={c => c.password} type="password" title="Password" required />
-    <CheckboxField<RegisterUser> value={c => c.agreeToTerms} title="Terms" label="I agree" required />
-</CommandForm>
-```
-
-Required fields:
-- Show visual indicator when invalid
-- Mark field controls as required
-- Display error messages when validation rules fail
-- Should be paired with explicit command validation rules when empty strings must be invalid
-
-Non-nullable command properties are treated as required for command payload presence, but empty strings are valid string values unless a validation rule rejects them. Use `[Required]`, FluentValidation `NotEmpty()`, or generated client validators when empty or whitespace-only strings should fail before submit.
-
-## Automatic Error Display
-
-By default, CommandForm displays error messages below each invalid field:
-
-```tsx
-// Errors shown automatically for invalid/required fields
-<CommandForm command={CreateAccount}>
-    <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
-    {/* Error appears here if username is empty or invalid */}
-    
-    <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
-    {/* Error appears here if email is invalid format */}
-</CommandForm>
-```
-
-### Disabling Error Display
-
-Set `showErrors={false}` to hide automatic field errors and form-level exception feedback, including any custom `exceptionDisplayComponent`. Validation and result state are unchanged:
-
-```tsx
-<CommandForm command={CreateAccount} showErrors={false}>
-    <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
-    {/* No automatic error rendering */}
-</CommandForm>
-```
-
-See [Customization](./customization.md) for custom error rendering patterns.
-
-### Validation failures and exceptions
-
-Field validation messages remain associated with their fields and continue to use `errorDisplayComponent` when supplied. A validation-only result does not produce form-level exception feedback. If a result contains both validation failures and exceptions, the field messages remain visible alongside the safe exception message.
-
-CommandForm shows exception feedback when `hasExceptions` is true or `exceptionMessages` is nonempty, even if those values are inconsistent. It never displays those diagnostic messages or the stack trace automatically. The default text is `An unexpected error occurred. Please try again.`; use [safe exception customization](./customization.md#safe-exception-feedback) to localize it or replace its panel.
-
-## HTML5 Validation
-
-Field components leverage HTML5 validation attributes:
-
-```tsx
-<CommandForm command={UpdateProfile}>
-    {/* Email format validation */}
-    <InputTextField<UpdateProfile>
-        value={c => c.email} 
-        type="email" 
-        title="Email" 
-        required 
-    />
-    
-    {/* URL format validation */}
-    <InputTextField<UpdateProfile>
-        value={c => c.website} 
-        type="url" 
-        title="Website" 
-        placeholder="https://example.com"
-    />
-    
-    {/* Number range validation */}
-    <NumberField<UpdateProfile>
-        value={c => c.age} 
-        title="Age" 
-        min={18} 
-        max={120} 
-        required 
-    />
-    
-    {/* Pattern matching */}
-    <InputTextField<UpdateProfile>
-        value={c => c.phone} 
-        type="tel" 
-        title="Phone Number"
-    />
-</CommandForm>
-```
-
-## Backend Validation
-
-CommandForm automatically propagates validation results from backend command handlers:
-
-### Command Definition (C#)
+This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host. It returns the accepted values; it deliberately does **not** persist a profile. For a real update, have `Handle()` use your application service. No event store or Chronicle integration is involved.
 
 ```csharp
-[Command]
-public record CreateUser(string Email, string Username)
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Validation;
+using Cratis.Concepts;
+using FluentValidation;
+
+namespace MyApp.Profiles;
+
+public record ProfileName(string Value) : ConceptAs<string>(Value)
 {
-    public Result<UserRegistered, ValidationResult> Handle()
+    public static readonly ProfileName NotSet = new(string.Empty);
+}
+
+public record EmailAddress(string Value) : ConceptAs<string>(Value)
+{
+    public static readonly EmailAddress NotSet = new(string.Empty);
+}
+
+public class EmailAddressValidator : ConceptValidator<EmailAddress>
+{
+    public EmailAddressValidator() => RuleFor(email => email.Value).NotEmpty().EmailAddress();
+}
+
+[Command]
+public record UpdateProfile(ProfileName Name, EmailAddress Email)
+{
+    public ProfileDetails Handle() => new(Name, Email);
+}
+
+public record ProfileDetails(ProfileName Name, EmailAddress Email);
+
+public class UpdateProfileValidator : CommandValidator<UpdateProfile>
+{
+    public UpdateProfileValidator()
     {
-        // Backend validation
-        if (Username.Length < 3)
-        {
-            return ValidationResult.Error("Username must be at least 3 characters");
-        }
-
-        if (!Email.Contains('@'))
-        {
-            return ValidationResult.Error("Email must be a valid address");
-        }
-
-        return new UserRegistered(Email, Username);
+        RuleFor(command => command.Name).NotEmpty().MinimumLength(3).MaximumLength(100);
     }
 }
 ```
 
-### Form Usage
+The named values distinguish profile names from email addresses in backend signatures. `EmailAddressValidator` carries the email invariant wherever that concept appears. Arc's concept-aware `RuleFor` unwraps `ProfileName`, so the command's string rules still apply. The generated `name` and `email` properties are strings, with the concept's supported rules attached to `email`; your React inputs need no concept-object conversion. These declarations are grouped for copying; keep each concept in its own application file.
+
+Build in Debug with [proxy generation configured](../../../backend/proxy-generation/getting-started.md), then use the generated class in the [overview form](./index.md#start-with-a-generated-command). Entering a short name or malformed email should display its rule message on blur. A valid submission returns `{ name, email }` to `onSuccess`. Only supported rules are generated; asynchronous service/database checks remain server-side.
+
+Preflight `validate()` skips handler execution and handler-argument resolution, but still runs pipeline filters/validators when it reaches the server. Keep those operations free of unintended side effects and sensitive diagnostic output. A client-side short-circuit does not establish server authorization. See [Backend command validation](../../../backend/commands/command-validation.md).
+
+## Accessing validation state
+
+Read context in a **child** of the form. This complete component shows all displayed validation messages, including results with no field member. `showErrors={false}` hides automatic field errors and form-level exception feedback, including any custom `exceptionDisplayComponent` without invoking it; validation and result state remain unchanged:
 
 ```tsx
-<CommandForm command={CreateUser}>
-    <InputTextField<CreateUser> value={c => c.email} type="email" title="Email" required />
-    <InputTextField<CreateUser> value={c => c.username} title="Username" required />
-</CommandForm>
+import { CommandForm, InputTextField, useCommandFormContext } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
+
+function ErrorSummary() {
+    const { commandResult } = useCommandFormContext<UpdateProfile>();
+    const results = commandResult?.validationResults ?? [];
+    if (results.length === 0) return null;
+    return (
+        <ul role="alert">
+            {results.map((result, index) => (
+                <li key={index}>
+                    {result.reason === 'rule' ? result.message : 'The request could not be validated. Please try again.'}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+export function ProfileForm() {
+    return (
+        <CommandForm command={UpdateProfile} initialValues={{ name: '', email: '' }} showErrors={false}>
+            <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
+            <InputTextField<UpdateProfile> value={c => c.email} title="Email" />
+            <ErrorSummary />
+            <button type="submit">Save</button>
+        </CommandForm>
+    );
+}
 ```
 
-When the form is submitted:
-1. Generated frontend validation rules run first
-2. Command is sent to backend if frontend validation passes
-3. Backend validation rules execute
-4. Validation errors are returned and displayed in the form
-5. The form remains interactive for corrections
+`getFieldError('email')` returns the first matching message, giving custom errors precedence. Built-in field display also shows that first message; the summary can show the full array. Results without members require form-level display. Translating summary text changes only that summary; it does not sanitize messages rendered independently by custom fields. Keep rule messages safe for end users and translate framework-generated reasons to application wording rather than exposing diagnostics; [validation results](../../core/validation/results.md) describes reason metadata. This summary handles validation results only: when hiding automatic feedback, provide your own safe exception feedback too.
 
-## Accessing Validation State
+Current state boundaries:
 
-Use the `useCommandFormContext` hook to access validation state programmatically:
+- `isValid` comes from the latest applied **silent** result having an empty `validationResults` array, not from displayed `commandResult.isValid` or custom field errors. Even a warning makes that form flag false; command execution has its own severity policy.
+- `isAuthorized` checks the client identity's roles. It does not certify server authorization.
+- The form has no public validation-pending state. A prior verdict can remain while newer validation is in flight. Internal ordering rejects a result overtaken by a later **applied** result, not every result for an older edit.
+- `onFieldChange` fires immediately on edits with previously displayed validation information; it can also fire after blur. Do not use its `validationInfo` as a fresh asynchronous permission to save.
+- `onFieldValidate` and `setCustomFieldError` supply presentation errors only; reproduce blocking rules in command validation.
+
+These flags are UI hints, not reservations or security boundaries. Always let execution validate again.
+
+## Validation failures and exceptions
+
+Field validation messages remain associated with their fields and continue to use `errorDisplayComponent` when supplied without a custom field container. A validation-only result does not produce form-level exception feedback. With `showErrors` enabled, a result containing both validation failures and exceptions displays the field messages alongside the safe exception message.
+
+CommandForm shows exception feedback when `hasExceptions` is true **or** `exceptionMessages` is nonempty, even if those values are inconsistent. It never displays those diagnostic messages or the stack trace automatically. The default text is `An unexpected error occurred. Please try again.`; use [safe exception customization](./customization.md#safe-exception-feedback) to localize it or replace its panel. The `onException` callback still depends on the flag, not the messages; see [exception diagnostics and display](./form-lifecycle.md#exception-diagnostics-and-display).
+
+## Progressive validation
+
+Prefer built-in validation for ordinary feedback. If you own an asynchronous preflight UI, tie the verdict to the **edit revision**, clear permission immediately on a new revision, and ignore superseded responses. Depending on the boolean `hasChanges` misses all edits after it first becomes true.
+
+This complete child component is an optional replacement for the submit button in the overview. It debounces its own preflight and must be rendered inside CommandForm. Leave `autoServerValidate` off to avoid two competing preflight mechanisms.
 
 ```tsx
+import { useEffect, useState } from 'react';
 import { useCommandFormContext } from '@cratis/arc.react/commands';
+import { UpdateProfile } from './commands/UpdateProfile';
 
-function MyForm() {
-    const { getFieldError, commandResult } = useCommandFormContext();
-    const emailError = getFieldError('email');
-    const hasAnyErrors = commandResult?.validationResults && commandResult.validationResults.length > 0;
-    
-    return (
-        <CommandForm command={CreateAccount} showErrors={false}>
-            <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
-            
-            {/* Check for specific field errors */}
-            {emailError && (
-                <div className="error">
-                    {emailError}
-                </div>
-            )}
-            
-            <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
-            
-            {/* Check for any errors */}
-            {hasAnyErrors && (
-                <div className="error-summary">
-                    Please fix the errors above before submitting.
-                </div>
-            )}
-        </CommandForm>
-    );
-}
-```
+type Check = { revision: number; valid: boolean };
 
-## Progressive Validation
+export function CheckedSubmitButton() {
+    const { commandInstance, commandVersion, isExecuting } = useCommandFormContext<UpdateProfile>();
+    const [check, setCheck] = useState<Check>();
 
-Validate as users interact with the form using the `useCommandInstance` hook:
-
-```tsx
-import { useCommandInstance } from '@cratis/arc.react/commands';
-import { useEffect } from 'react';
-
-function MyForm() {
-    const command = useCommandInstance(CreateAccount);
-    const [canSubmit, setCanSubmit] = useState(false);
-    
     useEffect(() => {
-        // Validate whenever command changes
-        const validate = async () => {
-            const result = await command.validate();
-            setCanSubmit(result.isValid);
+        let active = true;
+        const revision = commandVersion;
+        const timer = setTimeout(async () => {
+            try {
+                const result = await commandInstance.validate();
+                if (active) setCheck({
+                    revision,
+                    valid: result.isValid && result.isAuthorized && !result.hasExceptions
+                });
+            } catch {
+                if (active) setCheck({ revision, valid: false });
+            }
+        }, 500);
+        return () => {
+            active = false;
+            clearTimeout(timer);
         };
-        
-        if (command.hasChanges) {
-            validate();
-        }
-    }, [command.hasChanges]);
-    
+    }, [commandInstance, commandVersion]);
+
+    const pending = check?.revision !== commandVersion;
     return (
-        <CommandForm command={CreateAccount}>
-            <InputTextField<CreateAccount> value={c => c.email} type="email" title="Email" required />
-            <InputTextField<CreateAccount> value={c => c.username} title="Username" required />
-            
-            <button type="submit" disabled={!canSubmit}>
-                Create Account
-            </button>
-        </CommandForm>
+        <div>
+            <button type="submit" disabled={pending || !check?.valid || isExecuting}>Save</button>
+            <p role="status">{pending ? 'Checking…' : check?.valid ? 'Ready to submit.' : 'Review the values or try editing again.'}</p>
+        </div>
     );
 }
 ```
 
-## Field-Level Validation
+A new form revision immediately invalidates the old button verdict even before its effect runs. Cleanup prevents an older request from overwriting a newer check and prevents updates after unmount. It does not cancel an HTTP request already sent. This example observes edits made through the form; arbitrary direct property assignments are not guaranteed to advance its revision. Preflight can still short-circuit locally and is never an authorization grant. Keyboard or programmatic submission can bypass a disabled button, so execution remains the enforcement point.
 
-Validate individual fields on blur for immediate feedback:
+## Validation results
 
-```tsx
-function RegistrationForm() {
-    const command = useCommandInstance(RegisterUser);
-    const [emailError, setEmailError] = useState<string>();
-    
-    const handleEmailBlur = async () => {
-        // Validate just the email field
-        const result = await command.validate();
-        
-        if (result.hasErrors('email')) {
-            setEmailError(result.getErrorsFor('email')[0]);
-        } else {
-            setEmailError(undefined);
-        }
-    };
-    
-    return (
-        <CommandForm command={RegisterUser} showErrors={false}>
-            <InputTextField<RegisterUser>
-                value={c => c.email} 
-                type="email" 
-                title="Email" 
-                required 
-                onBlur={handleEmailBlur}
-            />
-            {emailError && <div className="error">{emailError}</div>}
-        </CommandForm>
-    );
-}
-```
+`validate()` returns a `CommandResult<TResponse>` implementing `ICommandResult<TResponse>`. Use these actual members; there is no `errors` dictionary, `hasErrors()` method, or `getErrorsFor()` method.
 
-## Validation Results
+| Member | Meaning |
+| --- | --- |
+| `isSuccess`, `isValid`, `isAuthorized`, `hasExceptions` | Outcome flags. |
+| `validationResults` | Array of `{ severity, message, members, state, reason, reasonDetail? }`. |
+| `exceptionMessages`, `exceptionStackTrace` | Exception diagnostics. |
+| `authorizationFailureReason` | Authorization failure detail. |
+| `correlationId`, `response` | Correlation identifier and optional typed response. |
 
-The command `validate()` method returns a `CommandResult` with:
+For exact field matching outside CommandForm, filter `validationResults` by member name and map to messages. Account for casing/nested paths in your own renderer; within the form prefer `getFieldError()` for its field-matching behavior.
 
-```typescript
-interface CommandResult {
-    isSuccess: boolean;
-    isValid: boolean;
-    isAuthorized: boolean;
-    validationResults: ValidationResult[];
-    errors: Record<string, string[]>;
-    
-    hasErrors(property?: string): boolean;
-    getErrorsFor(property: string): string[];
-}
-```
+## See also
 
-### Example
-
-```tsx
-const result = await command.validate();
-
-if (!result.isValid) {
-    console.log('Validation failed');
-    console.log('All errors:', result.errors);
-    console.log('Email errors:', result.getErrorsFor('email'));
-}
-
-if (!result.isAuthorized) {
-    console.log('User not authorized to execute this command');
-}
-```
-
-## Best Practices
-
-1. **Use Required Fields**: Mark essential fields with `required` for client-side validation
-2. **Type-Specific Fields**: Use appropriate input types (email, url, number) for built-in validation
-3. **Backend Validation**: Always validate on the server for security and data integrity
-4. **Progressive Feedback**: Consider validating on field blur for better UX
-5. **Clear Messages**: Provide clear, actionable error messages
-6. **Accessible Errors**: Ensure error messages are associated with their fields for screen readers
-7. **Visual Feedback**: Use consistent visual styling for invalid fields
-
-## Command Validation System
-
-For comprehensive details on the command validation system:
-
-- **TypeScript/React**: See [Core Validation](../../core/commands/validation.md)
-- **Backend**: See [Backend Command Validation](../../../backend/commands/command-validation.md)
-- **Command Usage**: See [Commands Overview](../index.md)
-
-## See Also
-
-- [CommandForm Overview](./index.md)
-- [Built-in Field Types](./field-types/index.md)
+- [Auto server validation](./auto-server-validation.md)
 - [Customization](./customization.md)
-- [Advanced Usage](./advanced-patterns.md)
+- [Core command validation](../../core/commands/validation.md)
+- [Form lifecycle](./form-lifecycle.md)

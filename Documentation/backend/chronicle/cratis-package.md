@@ -1,9 +1,9 @@
 ---
 title: Cratis package
-description: One dependency and two calls that bring up Arc, Chronicle, MongoDB, and identity already agreeing on tenancy, serialization, and hosting.
+description: Bootstrap Arc, the Chronicle client, and identity; configure the server and optional read-model database separately.
 ---
 
-Wiring an event-sourced application by hand means bringing up Arc for commands and queries, Chronicle for the event store, MongoDB for read models, and identity for authentication — and making sure they all agree on tenancy, serialization, and hosting. The `Cratis` package collapses that into one dependency and two calls.
+The `Cratis` package bootstraps Arc, the Chronicle client, and identity with one dependency and two host calls. It does not start the Chronicle server or install/configure Arc's MongoDB integration. Configure the server's sink and the application's query provider separately.
 
 ## What is the Cratis Package?
 
@@ -26,6 +26,9 @@ dotnet add package Cratis
 ## Basic Setup
 
 Configure Cratis in your `Program.cs` with one call on the builder and one on the app:
+
+> [!WARNING]
+> `AddCratis()` installs a [header-based identity adapter](../asp-net-core/microsoft-identity.md), not token validation. Use it only behind trusted ingress that authenticates users, strips/replaces incoming identity headers, and prevents direct backend access. Otherwise, [wire your own authentication](#running-arc-or-chronicle-on-their-own).
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -81,19 +84,20 @@ flowchart LR
     RM -->|query| UI
 ```
 
-Because Arc and the Chronicle client run in the same host, your application shares the things that would otherwise need to be kept in sync by hand: the **MongoDB** connection that stores read models, the **identity** that authenticates requests and scopes tenancy, and the **hosting** (one Kestrel server, one configuration). That shared wiring is exactly what the `Cratis` package assembles for you.
+Arc and the Chronicle client share the application host and its configured integration services. The server's materialized sink is a separate configuration boundary. For `IMongoCollection<T>` queries, install `Cratis.Arc.MongoDB` and align database, collection names, key/serialization conventions, and tenant mapping with the sink. One host does not automatically share a MongoDB connection with the Chronicle server.
 
 ## Running Arc or Chronicle on their own
 
 `AddCratis` is the batteries-included front door, but the pieces underneath are independent — take just the part you need:
 
 - **Arc without an event store.** Call `AddCratisArc()` on its own and back your commands and queries with MongoDB or EF Core instead of Chronicle. You keep the full CQRS and proxy-generation experience with no event log. See [CQRS without event sourcing](../../arc-without-event-sourcing.md).
-- **Arc + Chronicle without the baked-in identity.** Call `AddCratisArc()` and add `WithChronicle()` yourself. This is exactly what `AddCratis` does, minus `AddMicrosoftIdentityPlatformIdentityAuthentication()` — reach for it when you bring your own authentication.
+- **Arc + Chronicle without the baked-in identity.** Retain the **`Cratis` package reference** for this ASP.NET Core example. Call `AddCratisArc()` and add its ASP.NET Core `WithChronicle()` composition yourself. This is exactly what `AddCratis` does, minus `AddMicrosoftIdentityPlatformIdentityAuthentication()` — reach for it when you bring your own authentication. `Cratis.Arc.Chronicle` alone provides the generic-host integration, not all the ASP.NET Core extensions below.
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddCratisArc(configureBuilder: arc => arc.WithChronicle());
+builder.AddCratisArc(configureBuilder: arc =>
+    Microsoft.AspNetCore.Builder.ArcBuilderExtensions.WithChronicle(arc));
 
 var app = builder.Build();
 
@@ -101,6 +105,8 @@ app.UseCratisArc();
 app.UseCratisChronicle();   // UseCratis() calls both — wire both halves yourself when you split them
 app.Run();
 ```
+
+The explicit static call selects the ASP.NET Core `WithChronicle()` composition. It avoids an ambiguous call when both `Cratis.Arc` and `Microsoft.AspNetCore.Builder` extensions are in scope; the generic-host overload is a different setup surface.
 
 > [!IMPORTANT]
 > Running Arc without Chronicle is a valid setup — but only if you don't use Chronicle. If you call `AddCratisArc()` **without** `WithChronicle()` yet the project uses Chronicle (an aggregate root, reactor, reducer, projection, `[EventType]` event, or a command that injects `IEventLog`), the [ARCCHR0005](code-analysis/ARCCHR0005.md) analyzer flags it at **compile time**. Should it slip through (for example, setup lives in a separate host project), resolution then fails at runtime with a message that points at the same fix: add `WithChronicle()`, or switch to `AddCratis()`.
@@ -175,14 +181,16 @@ Alternatively, configure MongoDB settings in `appsettings.json`:
 
 ```json
 {
-  "MongoDB": {
-    "Server": "mongodb://localhost:27017",
-    "Database": "my-database"
+  "Cratis": {
+    "MongoDB": {
+      "Server": "mongodb://localhost:27017",
+      "Database": "my-database"
+    }
   }
 }
 ```
 
-The `WithMongoDB` extension automatically reads these settings from the configuration section.
+The `WithMongoDB` extension automatically reads these settings from `Cratis:MongoDB`.
 
 ### Custom Configuration Section Path
 
@@ -201,17 +209,13 @@ To use Entity Framework Core with your application, add the Entity Framework Cor
 dotnet add package Cratis.Arc.EntityFrameworkCore
 ```
 
-Once added, you can define and configure your `DbContext` classes as you normally would in Entity Framework Core. Arc automatically discovers and configures registered DbContexts with enhanced features like:
+Package installation alone does not register your contexts. Call `WithEntityFrameworkCore()` in `configureArcBuilder` and configure a nonempty connection string and eligible context types, or use explicit registration. Follow [Entity Framework Core registration and configuration](../entity-framework/getting-started.md) for the required constructor, discovery options, and migration boundary.
 
-- Automatic multi-tenancy support
-- Integration with Arc's dependency injection
-- Streamlined configuration patterns
+Pooled context registration does not automatically select a database per Arc tenant. Design and test tenant isolation separately; see the [provider limits](../entity-framework/getting-started.md#scope-and-provider-limits).
 
-See the [Entity Framework Core](../entity-framework/index.md) documentation for detailed configuration options and best practices.
+## Program.cs composition
 
-## A complete Program.cs
-
-Putting it together, a realistic full-stack host wires Arc + Chronicle with MongoDB read models and a named event store:
+This host-body fragment assumes the packages above, the relevant extension namespaces (`Cratis.Arc` and `Microsoft.AspNetCore.Builder`, plus Chronicle extensions used by your configuration), and configured authentication/server/sink connections. It composes registrations; it is not a standalone deployment checkpoint:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);

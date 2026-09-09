@@ -1,209 +1,157 @@
-# Observable Query Demultiplexer
-
-The Observable Query Demultiplexer is a composite real-time streaming endpoint that multiplexes multiple observable query subscriptions over a single persistent connection.
-
-Rather than creating one WebSocket or SSE connection per query, the demultiplexer provides **two fixed, well-known endpoints** — one for WebSocket and one for Server-Sent Events — that all observable queries in an application route through.
+---
+title: Observable query hub protocol
+description: Multiplexed WebSocket and SSE subscription lifecycle, message strings, revisions, and transfer modes.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
 ## Endpoints
 
-| Transport | Endpoint | Direction |
-|-----------|----------|-----------|
-| WebSocket | `/.cratis/queries/ws` | Bidirectional — subscribe, unsubscribe, ping/pong |
-| Server-Sent Events (SSE) | `/.cratis/queries/sse` | Server → client; one query per connection |
+The demultiplexer carries multiple named observable queries over one connection. **Both WebSocket and SSE are multiplexed.** Arc maps four fixed routes:
 
-Both endpoints are registered automatically by `UseCratisArc()` and require no manual configuration.
+| Method/transport | Route | Purpose |
+| --- | --- | --- |
+| WebSocket upgrade | `/.cratis/queries/ws` | Bidirectional subscription and result messages |
+| GET, SSE | `/.cratis/queries/sse` | Long-lived output stream |
+| POST, JSON | `/.cratis/queries/sse/subscribe` | Add/replace a subscription on an SSE connection |
+| POST, JSON | `/.cratis/queries/sse/unsubscribe` | End a subscription on an SSE connection |
 
-## Why a Composite Demultiplexer?
+A direct per-query SSE GET is a different protocol: it streams plain `QueryResult` frames for that route, not hub envelopes. See [cURL streaming](using-observable-queries-with-curl.md#stream-updates-over-sse).
 
-Individual per-query WebSocket endpoints work but come with drawbacks at scale:
+## Message types
 
-- Each browser tab opens a separate WebSocket per observable query.
-- HTTP/1.1 limits the number of concurrent connections per origin.
-- SSE has the same constraint and typically falls back to polling when the connection limit is reached.
+`ObservableQueryHubMessage.Type` has its own `JsonStringEnumConverter`. The server emits the following **PascalCase string values**, not the camelCase field names or numeric enum constants. Numeric values are listed only to identify the enum; use strings in new protocol clients.
 
-The demultiplexer solves this by allowing a single WebSocket to carry updates for many queries simultaneously, and by providing a single, predictable SSE endpoint that clients can connect to for any query.
+| `type` | Enum value | Purpose/payload |
+| --- | --- | --- |
+| `Subscribe` | 0 | Client sends a subscription request in `payload` |
+| `Unsubscribe` | 1 | Client ends `queryId` |
+| `QueryResult` | 2 | Server sends a `QueryResult` in `payload` |
+| `Unauthorized` | 3 | Server denies the subscription |
+| `Error` | 4 | Server sends an error string in `payload` |
+| `Ping` | 5 | Keep-alive; `timestamp` is Unix milliseconds |
+| `Pong` | 6 | Echo of a ping timestamp |
+| `Connected` | 7 | Connection ID in `payload`, plus capability/keep-alive metadata |
 
-## Protocol
+Envelope properties are `type`, `queryId`, `revision`, `payload`, `timestamp`, `keepAliveIntervalMs`, and `supportsSubscriptionRevisions`. Not every field is meaningful on every message; nullable/default fields may be omitted according to serializer configuration.
 
-All messages exchanged over the demultiplexer share a common envelope:
+## WebSocket transport
+
+After upgrade, the server sends `Connected` before reading subscriptions. Illustrative frame (null fields omitted for readability):
 
 ```json
 {
-  "type": "<ObservableQueryHubMessageType>",
-  "queryId": "<client-assigned-id>",
-  "payload": { ... },
-  "timestamp": 1234567890
+  "type": "Connected",
+  "payload": "ws-1",
+  "supportsSubscriptionRevisions": true,
+  "keepAliveIntervalMs": 30000
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `type` | One of the message types listed below. |
-| `queryId` | Client-assigned identifier that correlates subscriptions with their result updates. Must be unique per subscription within a connection. |
-| `payload` | Depends on `type` — see the table below. |
-| `timestamp` | Unix milliseconds. Only populated for `ping` / `pong`. |
-
-### Message Types
-
-| Type | Direction | Payload |
-|------|-----------|---------|
-| `subscribe` (0) | Client → Server | `ObservableQuerySubscriptionRequest` |
-| `unsubscribe` (1) | Client → Server | *(none)* |
-| `queryResult` (2) | Server → Client | `QueryResult` |
-| `unauthorized` (3) | Server → Client | *(none)* |
-| `error` (4) | Server → Client | Error message string |
-| `ping` (5) | Client → Server | *(timestamp only)* |
-| `pong` (6) | Server → Client | *(timestamp echoed from ping)* |
-
-### Subscribe Payload — `ObservableQuerySubscriptionRequest`
+For the `Banking.Accounts.DebitAccount.ObserveAccounts` method in the [model-bound example](model-bound/observable-queries.md), send:
 
 ```json
 {
-  "queryName": "MyApp.Authors.Listing.AllAuthors",
-  "arguments": { "filter": "active" },
-  "page": 0,
-  "pageSize": 25,
-  "sortBy": "name",
-  "sortDirection": "asc"
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `queryName` | ✅ | Fully qualified name of the observable query method (e.g. `MyApp.Features.Authors.Listing.AllAuthors`). |
-| `arguments` | ☐ | Query-string arguments forwarded to the query performer. |
-| `page` | ☐ | Zero-based page index for paged queries. |
-| `pageSize` | ☐ | Number of items per page. |
-| `sortBy` | ☐ | Field name to sort by (case-insensitive). |
-| `sortDirection` | ☐ | `asc` or `desc`. |
-
-## WebSocket Transport
-
-Connect to `/.cratis/queries/ws` and send `subscribe` messages to start receiving updates.
-
-### Subscribe
-
-```json
-{
-  "type": 0,
-  "queryId": "authors-list",
+  "type": "Subscribe",
+  "queryId": "accounts-list",
+  "revision": 1,
   "payload": {
-    "queryName": "MyApp.Authors.Listing.AllAuthors"
+    "queryName": "Banking.Accounts.DebitAccount.ObserveAccounts",
+    "arguments": { "minimumBalance": "0" },
+    "page": 0,
+    "pageSize": 25,
+    "sortBy": "name",
+    "sortDirection": "asc",
+    "transferMode": "delta"
   }
 }
 ```
 
-The server responds with one or more `queryResult` messages whenever the underlying data changes:
+`queryName` is the fully qualified **performer name**, not its HTTP path. `queryId` is chosen by the client and is unique per active subscription within that connection. Arguments are a string-value dictionary; nested JSON/array binding is not added by this protocol. Paging, sorting, and transfer mode are optional request properties.
+
+Updates carry `type: "QueryResult"`, the matching `queryId` and revision, and the [result envelope](query-pipeline.md#query-result-metadata) in `payload`. Subscribe again with a different `queryId` to observe another query on the same connection. To end the first subscription:
+
+```json
+{ "type": "Unsubscribe", "queryId": "accounts-list", "revision": 1 }
+```
+
+A client `Ping` receives a `Pong` with its timestamp. Connection shutdown disposes the connection's subscriptions; it is not a durable replay checkpoint.
+
+## SSE transport
+
+1. Open `GET /.cratis/queries/sse` and keep it open.
+2. Read the first `Connected` frame and retain its GUID connection ID.
+3. POST a subscription body to `/.cratis/queries/sse/subscribe` using that ID.
+4. Read updates on the **original GET**, correlated by `queryId` and revision.
+5. POST unsubscribe when done; close the GET to end all its subscriptions.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Hub
+    Client->>Hub: GET /.cratis/queries/sse
+    Hub-->>Client: Connected (connectionId, capabilities)
+    Client->>Hub: POST subscribe (connectionId, queryId A, request)
+    Client->>Hub: POST subscribe (connectionId, queryId B, request)
+    Hub-->>Client: SSE QueryResult for A
+    Hub-->>Client: SSE QueryResult for B
+    Client->>Hub: POST unsubscribe (connectionId, queryId A)
+    Client->>Hub: Close GET (ends B too)
+```
+
+Illustrative subscribe body; replace the connection ID with the one just received:
 
 ```json
 {
-  "type": 2,
-  "queryId": "authors-list",
-  "payload": {
-    "isSuccess": true,
-    "isAuthorized": true,
-    "data": [ ... ],
-    "validationResults": []
+  "connectionId": "11111111-1111-1111-1111-111111111111",
+  "queryId": "accounts-list",
+  "revision": 1,
+  "request": {
+    "queryName": "Banking.Accounts.DebitAccount.ObserveAccounts",
+    "arguments": { "minimumBalance": "0" },
+    "transferMode": "full"
   }
 }
 ```
 
-### Unsubscribe
+The unsubscribe body is:
 
 ```json
 {
-  "type": 1,
-  "queryId": "authors-list"
+  "connectionId": "11111111-1111-1111-1111-111111111111",
+  "queryId": "accounts-list",
+  "revision": 1
 }
 ```
 
-### Keep-alive (Ping / Pong)
+Send both POSTs as `application/json`. The validated control requests return 400 for missing required values/invalid revisions, 404 for unknown connections, and normally 200 after processing. Subscribe returns 401 when authorization denies the query; denial is also delivered as an `Unauthorized` frame. A 200 control response is not proof that a first data result arrived—observe the stream's results/errors.
 
-Send a `ping` with the current Unix timestamp; the server echoes it as a `pong` with the same timestamp for round-trip latency measurement.
+`?query=...` on the SSE GET does **not** subscribe. On reconnect, wait for the new `Connected` ID and re-create desired subscriptions. Connection state is server-process-local; route the GET and its control POSTs to the same instance in a multi-instance deployment.
 
-```json
-{ "type": 5, "timestamp": 1740000000000 }
-// Server responds:
-{ "type": 6, "timestamp": 1740000000000 }
-```
+## Revisions and compatibility
 
-### Unauthorized
+When `Connected.supportsSubscriptionRevisions` is true, use positive monotonically increasing revisions for each `queryId`. A higher subscribe revision replaces older work; duplicate or stale subscribes are ignored. Unsubscribe uses the exact revision being canceled, and can arrive before a delayed subscribe to tombstone it. An older unsubscribe cannot tear down a newer subscription. Discard stale result/error/denial frames on the client.
 
-If the current user is not authorized to access the requested query, the server sends an `unauthorized` message and no data stream is established:
+Legacy clients may omit revisions. Once a query ID has become revision-aware, revisionless operations cannot replace/cancel that state. Older servers may omit `Connected` on WebSocket or omit the capability field; clients requiring compatibility must support the legacy behavior rather than indefinitely waiting for an advertisement those servers never send.
 
-```json
-{
-  "type": 3,
-  "queryId": "authors-list"
-}
-```
+Tombstones are bounded: the current implementation retains them for two minutes and at most 1,024 inactive entries per connection. This is an ordering window, not indefinite deduplication or durable resumption.
 
-## SSE Transport
+## Transfer modes
 
-Connect to `/.cratis/queries/sse` using the `EventSource` API. Pass the fully qualified query name in the `query` query-string parameter. All other query-string parameters are forwarded as query arguments.
+For subject-backed collections, omitted `transferMode` uses legacy snapshot-plus-delta behavior; `full` sends snapshots only; `delta` sends an initial snapshot then changes without full data. See [change streams](change-stream.md) for the first/subsequent emission matrix. Arbitrary subjects do not automatically implement paging just because subscription metadata requests it.
 
-```http
-GET /.cratis/queries/sse?query=MyApp.Authors.Listing.AllAuthors&filter=active
-```
+## Authorization and exposure
 
-The server responds with the standard SSE content type (`text/event-stream`) and streams `data:` frames containing serialized `ObservableQueryHubMessage` envelopes whenever the underlying data changes.
+The hub transport endpoints themselves allow anonymous access; each subscription goes through the query pipeline's authorization filters. Model-bound [policy limitations](model-bound/authorization.md) still apply. WebSocket identity is captured at upgrade. SSE subscription identity is captured from its subscribe POST; consistently send the application's normal credentials on connection/control requests.
 
-Each SSE connection carries a **single query subscription**. To observe multiple queries simultaneously via SSE, open multiple `EventSource` connections — or use the WebSocket transport which multiplexes all subscriptions over one connection.
+Treat the SSE connection ID as sensitive connection-control data, not as an authorization policy. The current SSE control handlers locate the stream by that ID; they do not themselves verify that the POST caller owns the original GET connection. Query authorization checks the subscribe POST's right to read the query, not ownership of the destination stream. Do not publish connection IDs or log them unnecessarily.
 
-### Paging and Sorting via SSE
+If the deployment requires per-user connection-control isolation, keep the host/control surface private until that ownership check is enforced and tested by application/gateway infrastructure or a runtime fix. There is no built-in ownership option documented here. The anonymous [health feed](query-health.md) includes connection/subscriber metadata and needs explicit protection too.
 
-Pass paging and sorting directly as query-string parameters:
-
-```http
-GET /.cratis/queries/sse?query=MyApp.Authors.Listing.AllAuthors&page=0&pageSize=20&sortBy=name&sortDirection=asc
-```
-
-## Authorization
-
-Authorization is enforced for every subscription through the standard query pipeline, including all registered `IQueryFilter` implementations.
-
-- If the query performer has an `[Authorize]` attribute and the current user is not authenticated or lacks the required role, the subscription is rejected with an `unauthorized` message.
-- If the query allows anonymous access (`[AllowAnonymous]`), the subscription is accepted regardless of authentication state.
-- Authorization is re-evaluated on every new subscription, not cached for the lifetime of the connection.
-
-That verdict gates *obtaining* the stream. A subscription can then stay open indefinitely, and nothing ends it when a token expires or a role is revoked. To re-check the verdict while a stream is running, implement an [emission guard](./observable-query-emission-guards.md).
+The initial verdict does not automatically revoke a long-lived stream. Use [emission guards](observable-query-emission-guards.md) to check current permission/session state during delivery.
 
 ## Keep-alive
 
-Both WebSocket and SSE transports send automatic keep-alive messages to prevent idle connections from being closed by proxies or firewalls.
+`ArcOptions.Query.KeepAliveInterval` defaults to 30 seconds. Idle WebSocket/SSE connections receive a `Ping`; ongoing data suppresses unnecessary keep-alives. Zero or negative disables keep-alive, advertised as `keepAliveIntervalMs: 0` on `Connected`. Clients should derive their idle threshold from that advertisement rather than hard-coding 30 seconds.
 
-The server sends a `ping` message only when no other message has been sent within the configured interval. If data is flowing normally (frequent `queryResult` messages), the keep-alive is suppressed — it fires only during periods of inactivity.
-
-### Configuration
-
-Configure the keep-alive interval in `ArcOptions.Query`:
-
-```csharp
-builder.Services.Configure<ArcOptions>(options =>
-{
-    options.Query.KeepAliveInterval = TimeSpan.FromSeconds(30); // default
-});
-```
-
-Or inline when calling `AddCratisArc()`:
-
-```csharp
-builder.AddCratisArc(options =>
-{
-    options.Query.KeepAliveInterval = TimeSpan.FromSeconds(45);
-});
-```
-
-Set `KeepAliveInterval` to `TimeSpan.Zero` or a negative value to disable keep-alive entirely.
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `Query.KeepAliveInterval` | `TimeSpan` | 30 seconds | How often to send a keep-alive ping when no data is flowing. |
-
-## See also
-
-- [Observable Queries (model-bound)](./model-bound/observable-queries.md) — How to expose observable queries in the backend.
-- [Query Pipeline](./query-pipeline.md) — How the query pipeline works, including filter hooks.
-- [Authorization](../core/authorization.md) — Role-based authorization for queries and commands.
-- [Frontend: Observable Query Multiplexing](../../frontend/react/queries/observable-query-multiplexing.md) — How to configure the frontend to use the hub.
-
+See [frontend multiplexing](../../frontend/react/queries/observable-query-multiplexing.md) for the supplied client rather than implementing the lifecycle from scratch.

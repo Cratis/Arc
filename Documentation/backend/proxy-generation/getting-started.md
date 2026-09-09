@@ -1,69 +1,61 @@
-# Getting Started
+---
+title: Set up proxy generation
+description: Connect an existing Arc backend build to a dedicated TypeScript output folder.
+---
 
-This guide covers the installation and basic setup of the Cratis Arc proxy generator.
+Start with an Arc project that already defines [commands](../commands/index.md) or [queries](../queries/index.md). This guide adds proxy generation; it does not create or host those endpoints.
 
-## Package Dependency
+## Add the build package
 
-To enable proxy generation, add a reference to the [Cratis.Arc.ProxyGenerator.Build](https://www.nuget.org/packages/Cratis.Arc.ProxyGenerator.Build) NuGet package to your project:
+Reference [Cratis.Arc.ProxyGenerator.Build](https://www.nuget.org/packages/Cratis.Arc.ProxyGenerator.Build) in each project whose compiled endpoints you intend to generate. Use a version compatible with your Arc packages and pin it through your normal dependency management.
 
-```xml
-<PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="*" />
-```
+## Choose a dedicated output folder
 
-> **Important**: All projects that contain controllers, commands, or queries should reference this package, as the proxy generation runs as part of the compilation process.
-
-## Required Configuration
-
-Configure the proxy generator by adding MSBuild properties to your `.csproj` file:
+Add this MSBuild fragment **inside your existing `.csproj`'s `Project` element**:
 
 ```xml
 <PropertyGroup>
-    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)../Web</CratisProxiesOutputPath>
+    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)../Web/src/generated</CratisProxiesOutputPath>
+    <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
 </PropertyGroup>
 ```
 
-- `CratisProxiesOutputPath`: Specifies where the generated TypeScript files will be written. This should typically point to your frontend project directory.
+The example assumes a sibling `Web` project. Change the path for your layout. Prefer a generated-only directory, with one generation owner, rather than the frontend root. MSBuild defaults to incremental output, but stale generated files are still deleted. [Output behavior](Configuration/output-behavior.md) explains the destructive operations and direct CLI defaults.
 
-> **Note**: The proxy generator uses incremental generation by default — only files whose content has changed are written to disk, and timestamps of unchanged files are preserved. This means committed proxies will not be modified by a build unless their source types actually change. See [Configuration - Output Behavior](Configuration/output-behavior.md) for details.
+## Install frontend dependencies
 
-## Frontend Prerequisites
-
-The generated proxies depend on the [@cratis/arc](https://www.npmjs.com/package/@cratis/arc) NPM package. Install it in your frontend project:
+In your React frontend, install:
 
 ```bash
-npm install @cratis/arc
+npm install @cratis/arc @cratis/arc.react @cratis/fundamentals react
 ```
 
-## Build Integration
+Generated command and query files import **both** Arc core and React hooks unconditionally, even if you only instantiate the classes. Generated model decorators and value types use Fundamentals. Use mutually compatible package versions; `@cratis/arc.react` declares React 18 or 19 as a peer dependency. A browser React application also needs its usual renderer and TypeScript setup.
 
-The proxy generation runs automatically during the build process. Simply build your project:
+See [decorator configuration](Configuration/basic.md#decorator-metadata) for compiling generated models. These proxies do not generate a `Bindings` setup file. Wrap React consumers in the [`Arc` provider](../../frontend/react/arc.md).
+
+## Build and inspect the result
+
+From the backend project, run this checkpoint:
 
 ```bash
-dotnet build
+dotnet build -c Debug
 ```
 
-The generator will:
+After compilation, the build target invokes the generator over the assembly. Look for its command/query counts in the build log and `.ts` files under `Web/src/generated`. By default, a query named `AllAuthors` gets `AllAuthors.ts`; it is not automatically placed inside `Author.ts`. Folder paths come from namespaces.
 
-1. Load your compiled assembly
-2. Discover controllers, commands, and queries
-3. Analyze parameter types and return values
-4. Generate TypeScript proxies with proper typing
-5. Create index files for easy importing
-6. Maintain the folder structure based on namespaces
+Compile the frontend with its own type-check/build command. This second checkpoint catches missing packages, decorator configuration, and imports that do not match the actual generated paths.
 
-## What Gets Generated
+## Keep generation predictable
 
-The proxy generator creates TypeScript proxies for:
+Commit generated proxies if your workflow consumes them without rebuilding the backend. Incremental generation preserves existing files when their generated content hash matches; full deletion recreates metadata timestamps and can cause Git content churn.
 
-- **Commands**: Both controller-based and model-bound approaches. See [Commands documentation](../commands/index.md) for implementation details.
-- **Queries**: Single model, enumerable, and observable queries. See [Queries documentation](../queries/index.md) for implementation details.
-- **Types**: Complex types used as parameters or return values
-- **Enums**: Enumerations referenced by commands or queries
-- **Identity Details**: Types from `IProvideIdentityDetails<TDetails>` implementations
+[Source-file grouping](Configuration/basic.md#source-file-as-output-file) is opt-in and depends on per-type PDB information. Prefer Debug for generation. To verify Release without regenerating the same output:
 
-## Next Steps
+```bash
+dotnet build -c Release -p:CratisProxiesOutputPath=
+```
 
-- Learn about all [Configuration Options](configuration.md)
-- Understand [Command Proxy Generation](commands.md)
-- Understand [Query Proxy Generation](queries.md)
-- Learn about [Identity Details Type Generation](identity-details.md)
+The empty property disables the post-build target for that invocation. Release is not intrinsically excluded from generation.
+
+Next, inspect the [generated command](commands.md) and [query](queries.md) APIs, or configure [namespace roots](Configuration/namespace-roots.md).

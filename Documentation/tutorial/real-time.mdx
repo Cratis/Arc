@@ -1,6 +1,6 @@
 ---
 title: "4. Make it live"
-description: See why your screens already update themselves — observable queries are standing subscriptions that push every change from the database to React, with no polling and no refresh code.
+description: Verify two-browser updates through an observable query and distinguish MongoDB change streams from EF Core same-host and database notifications.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -18,7 +18,7 @@ Go back to every query we've written: each returns `…Observe(…)`, not a one-
     style="display: block; width: 100%; max-width: 58rem; height: auto; margin: 1.25rem auto; color: var(--sl-color-text);"
 >
     <title id="arc-live-flow-title">Observable query data flow</title>
-    <desc id="arc-live-flow-description">AddBook writes to the Books collection, the database change stream pushes to BooksForAuthor.use, and React re-renders.</desc>
+    <desc id="arc-live-flow-description">AddBook writes Books, a configured observation source notifies BooksForAuthor.use, and React re-renders.</desc>
     <defs>
         <marker id="arc-live-flow-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--sl-color-accent)" />
@@ -38,7 +38,7 @@ Go back to every query we've written: each returns `…Observe(…)`, not a one-
     <text x="326" y="84" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="16" font-weight="600">Books</text>
 
     <line x1="374" y1="77" x2="501" y2="77" stroke="var(--sl-color-accent)" stroke-width="2.5" marker-end="url(#arc-live-flow-arrow)" />
-    <text x="438" y="58" text-anchor="middle" fill="var(--sl-color-text-accent)" font-family="var(--sl-font)" font-size="14" font-weight="600">change stream</text>
+    <text x="438" y="58" text-anchor="middle" fill="var(--sl-color-text-accent)" font-family="var(--sl-font)" font-size="14" font-weight="600">notification</text>
 
     <rect x="519" y="51" width="210" height="52" rx="8" fill="var(--sl-color-bg)" stroke="var(--sl-color-accent)" stroke-width="2" />
     <text x="624" y="83" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="16" font-weight="600">BooksForAuthor.use()</text>
@@ -50,13 +50,21 @@ Go back to every query we've written: each returns `…Observe(…)`, not a one-
     <text x="857" y="91" text-anchor="middle" fill="currentColor" font-family="var(--sl-font)" font-size="14" font-weight="600">re-renders</text>
 </svg>
 
-When a command writes, the database's change stream notices, the observable query pushes the new value to every subscribed React component, and it re-renders. Open the app in two browser tabs, add a book in one, and watch it appear in the other — you wrote none of that plumbing. It falls out of returning `Observe()` and calling `.use()`.
+When a command writes and the configured observation source notifies, the observable query publishes updated data to subscribed React components, which re-render. Open the app in two browser tabs, add a book in one, and watch it appear in the other — you wrote none of that plumbing. It falls out of returning `Observe()` and calling `.use()`.
 
 <Aside type="note" title="Under the hood">
-The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, the live signal comes from the database itself — MongoDB's [change streams](/arc/backend/mongodb/observing-collections/) or an [observed `DbSet`](/arc/backend/entity-framework/observing/) watching for changes. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/queries/using-observable-queries-with-curl/).
+The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, MongoDB uses [change streams](/arc/backend/mongodb/observing-collections/) on a replica set or supported sharded deployment. An [observed `DbSet`](/arc/backend/entity-framework/observing/) receives in-process notifications from the configured `SaveChanges` interceptor. SQLite relies on that path only; SQL Server/PostgreSQL cross-process detection requires their database notification setup. If database notification setup fails, EF observation can fall back to in-process-only behavior; inspect server logs rather than assuming external writes are visible. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/queries/using-observable-queries-with-curl/).
 </Aside>
 
+## Verify the scope of observation
+
+Continue from [chapter 3](/arc/tutorial/books-and-relationships/). Open two browser tabs connected to the **same backend process**. Subscribe to the same author's catalog in both; add a book in one and verify the other updates without reload. This tests the tutorial's live path, including SQLite. It does not prove cross-process observation.
+
+External writes are a separate test: MongoDB change streams can report them when configured; SQLite cannot. For EF's other providers, configure their database notification mechanism before testing a write from a second process. No notification source means an observable endpoint can stay connected without fresh data.
+
 ## What makes a query live
+
+The following are **alternative MongoDB method fragments** in `Author`, using the tutorial imports. Replace the method rather than adding a second method with the same signature.
 
 Nothing special — just the return type. A one-shot query returns the data:
 
@@ -77,6 +85,6 @@ That's the whole switch between "load once" and "stay live." You choose per quer
 ## What you built
 
 - A clear picture of **why your screens update themselves** — observable queries are standing subscriptions, database to browser.
-- The one-line difference between a **one-shot** query and a **live** one — the return type, nothing else.
+- The method-level difference between a **one-shot** query and a **live** one — the return type and observation call, with a configured notification source underneath.
 
-The catalog is live. There's just one thing left before it's a real back office: right now *anyone* can register authors and add books. Let's decide who's allowed. [Lock it down →](./authorization.mdx)
+The catalog is live. There's just one thing left before it's a real back office: right now *anyone* can register authors and add books. Let's decide who's allowed. [Lock it down →](/arc/tutorial/authorization/)

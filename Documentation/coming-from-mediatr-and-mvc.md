@@ -3,7 +3,7 @@ title: MediatR, MVC, and Arc
 description: If you already build .NET apps with MediatR and ASP.NET Core controllers, here's how those ideas map onto Arc.
 ---
 
-If you've built ASP.NET Core apps with controllers, DTOs, and MediatR, you already know most of the *concepts* in Arc. This page maps those familiar pieces onto Arc's command/query model.
+If you've built ASP.NET Core apps with controllers, DTOs, and MediatR, you already know most of the _concepts_ in Arc. This page maps those familiar pieces onto Arc's command/query model.
 
 ## The one-paragraph version
 
@@ -11,33 +11,33 @@ In MVC, a controller action takes a request model, validates it, calls a handler
 
 ## How the pieces map
 
-| You know (MediatR / MVC) | In Arc |
-|---|---|
-| `IRequest<T>` + `IRequestHandler<T>` | A `[Command]` record with `Handle()` defined **on the record** |
-| Controller action + routing attributes | Automatic — Arc maps the command/query to HTTP for you |
-| Request/response DTOs | The command record itself; the result is what `Handle()` returns |
-| FluentValidation / `ModelState` | A `CommandValidator<T>` discovered by convention |
-| MediatR pipeline behaviors | The command pipeline and filters |
-| `INotification` / handlers | A follow-up command, domain service, or optional [Chronicle reactor](/arc/backend/chronicle/) when you are event-sourcing |
-| A query action returning a DTO from EF | A **query** method on a `[ReadModel]`, served directly over HTTP |
-| Application-specific `fetch`/HttpClient on the frontend | A **generated TypeScript proxy** |
+| You know (MediatR / MVC)                                | In Arc                                                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `IRequest<T>` + `IRequestHandler<T>`                    | A `[Command]` record with `Handle()` defined **on the record**                                                            |
+| Controller action + routing attributes                  | Automatic — Arc maps the command/query to HTTP for you                                                                    |
+| Request/response DTOs                                   | The command record itself; the result is what `Handle()` returns                                                          |
+| FluentValidation / `ModelState`                         | A `CommandValidator<T>` discovered by convention                                                                          |
+| MediatR pipeline behaviors                              | The command pipeline and filters                                                                                          |
+| `INotification` / handlers                              | A follow-up command, domain service, or optional [Chronicle reactor](/arc/backend/chronicle/) when you are event-sourcing |
+| A query action returning a DTO from EF                  | A **query** method on a `[ReadModel]`, served directly over HTTP                                                          |
+| Application-specific `fetch`/HttpClient on the frontend | A **generated TypeScript proxy**                                                                                          |
 
 ## What stays the same
 
 - You still think in commands and queries — the CQRS split you already use with MediatR is first-class here.
 - You still write small, focused handlers and validators.
-- You still use dependency injection; constructor-inject collaborators into `Handle()` and into validators.
+- You still use dependency injection; declare collaborators as `Handle()` / `Provide()` method parameters, and constructor-inject them into validators. Command constructor parameters describe request data, not services.
 
 ## What changes
 
 - **Commands are endpoints.** The command record carries the request shape and the `Handle()` method; Arc maps it to HTTP.
-- **The handler sits with the intent.** `Handle()` lives on the command record, so the intent and its implementation sit together in one [vertical slice](/arc/) instead of across `Commands/` and `Handlers/` folders.
+- **The handler sits with the intent.** `Handle()` lives on the command record, so the intent and its implementation sit together in one [vertical slice](./vertical-slices.md) instead of across `Commands/` and `Handlers/` folders.
 - **The frontend model is generated.** The proxy is generated from your C# types, so command/query shape changes are caught by TypeScript.
 - **The read side is explicit.** Instead of returning arbitrary DTOs from controllers, you name the read model and expose query methods on it. Those methods are generated into the frontend just like commands.
 
 ## A side-by-side
 
-A "register customer" feature in MediatR + MVC is often a request record, a handler, a validator, a controller action, and a frontend client call. In Arc, the same feature is modeled as a slice:
+A "register customer" feature in MediatR + MVC is often a request record, a handler, a validator, a controller action, and a frontend client call. In Arc, the same feature is modeled as a slice. This **MongoDB domain fragment** assumes `CustomerId` and `CompanyName` concepts plus the [standalone setup](./backend/getting-started/index.md), including `System.ComponentModel.DataAnnotations` for `Key` and a configured proxy build:
 
 ```csharp
 [Command]

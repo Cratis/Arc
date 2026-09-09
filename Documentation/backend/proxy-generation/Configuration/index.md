@@ -1,30 +1,39 @@
-# Configuration
+---
+title: Proxy generator configuration
+description: MSBuild properties, mapping items, defaults, and CLI differences.
+---
 
-The proxy generator is configured through MSBuild properties and item groups in your `.csproj` file. Configuration is split into the following topics:
+Configure generation through properties and items **inside the existing `.csproj`'s `Project` element**. The examples in these reference pages are project fragments, not standalone project files. Item `Include` values supply MSBuild identities; the generator consumes each item's named metadata.
 
-- [Basic Options](basic.md) — output path, segments to skip, source file output, decorator metadata
-- [Library Mode](library-mode.md) — generate TypeScript for every public type in the assembly
-- [Type Exclusions](type-exclusions.md) — exclude specific types or namespaces from generation
-- [Namespace Roots](namespace-roots.md) — pin a namespace as the folder root
-- [Assembly-to-Package Mappings](assembly-package-mappings.md) — import from external npm packages instead of regenerating
-- [Routing](routing.md) — control how API routes are built
-- [Output Behavior](output-behavior.md) — incremental vs. full regeneration
+## Choose a topic
 
-## Quick Reference
+- [Basic options](basic.md): output path, namespace segments, source-file grouping, decorators.
+- [Library mode](library-mode.md): collect models beyond endpoint references; separate CLI interface output.
+- [Type exclusions](type-exclusions.md): omit types or namespace patterns.
+- [Namespace roots](namespace-roots.md): remap output folders without changing API routes.
+- [Assembly-to-package mappings](assembly-package-mappings.md): import shared model packages.
+- [Type mapping](../type-mapping.md): primitive mappings and `TypeToTsType` overrides.
+- [Routing](routing.md): conventional model-bound route options and runtime alignment.
+- [Output behavior](output-behavior.md): incremental writes, full deletion, and cleanup limitations.
 
-| Property / Item | Default | Topic |
-|---|---|---|
-| `CratisProxiesOutputPath` | *(required)* | [Basic](basic.md) |
-| `CratisProxiesSegmentsToSkip` | `0` | [Basic](basic.md) |
-| `CratisProxiesUseSourceFileAsOutputFile` | `false` | [Basic](basic.md) |
-| `CratisProxiesLibraryMode` | `false` | [Library Mode](library-mode.md) |
-| `<ExcludeType TypeName="..."/>` | — | [Type Exclusions](type-exclusions.md) |
-| `<ExcludeNamespace Namespace="..."/>` | — | [Type Exclusions](type-exclusions.md) |
-| `<NamespaceRoot Namespace="..."/>` | — | [Namespace Roots](namespace-roots.md) |
-| `<AssemblyToPackageMapping .../>` | — | [Assembly-to-Package](assembly-package-mappings.md) |
+## MSBuild reference
+
+| Property or item | Default / required metadata | Topic |
+| --- | --- | --- |
+| `CratisProxiesOutputPath` | Empty disables generation | [Basic](basic.md) |
+| `CratisProxiesSegmentsToSkip` | Empty resolves to `0` | [Basic](basic.md) |
+| `CratisProxiesUseSourceFileAsOutputFile` | Off unless `true` | [Basic](basic.md) |
+| `CratisProxiesLibraryMode` | `false` | [Library mode](library-mode.md) |
+| `ExcludeType` item | `Include`, `TypeName` | [Exclusions](type-exclusions.md) |
+| `ExcludeNamespace` item | `Include`, `Namespace` | [Exclusions](type-exclusions.md) |
+| `NamespaceRoot` item | `Include`, `Namespace`, `Folder` (may be empty) | [Namespace roots](namespace-roots.md) |
+| `AssemblyToPackageMapping` item | `Include`, `Assembly`, `Package` | [Package mappings](assembly-package-mappings.md) |
+| `TypeToTsType` item | `Include`, `TypeName`, `TsType`; optional `Package` | [Type mapping](../type-mapping.md) |
 | `CratisProxiesSkipCommandNameInRoute` | `false` | [Routing](routing.md) |
 | `CratisProxiesSkipQueryNameInRoute` | `false` | [Routing](routing.md) |
 | `CratisProxiesApiPrefix` | `api` | [Routing](routing.md) |
-| `CratisProxiesSkipIndexGeneration` | `false` | [Output Behavior](output-behavior.md) |
-| `CratisProxiesSkipOutputDeletion` | `true` | [Output Behavior](output-behavior.md) |
-| `CratisProxiesSkipFileIndexTracking` | `false` | [Output Behavior](output-behavior.md) |
+| `CratisProxiesSkipIndexGeneration` | Off unless `true` | [Output behavior](output-behavior.md) |
+| `CratisProxiesSkipOutputDeletion` | `true` in MSBuild; direct executable differs | [Output behavior](output-behavior.md) |
+| `CratisProxiesSkipFileIndexTracking` | `false`; setting `true` is currently ignored by the executable | [Output behavior](output-behavior.md) |
+
+The executable accepts `--emit-interfaces` separately; the current MSBuild target does not expose that switch. See [library mode](library-mode.md#default-classes-versus-plain-interfaces).

@@ -40,7 +40,7 @@ const command = new OpenDebitAccount();
 command.setInitialValues({
     accountId: 'a23edccc-6cb5-44fd-a7a7-7563716fb080',
     name: 'My Account',
-    owner: '84cda809-9201-4d8c-8589-0be37c6e3f18'
+    owner: '84cda809-9201-4d8c-8589-0be37c6e3f18',
 });
 
 // At this point hasChanges is false
@@ -64,11 +64,13 @@ export class AccountService {
         command.owner = accountData.owner;
 
         const result = await command.execute();
-        
+
         if (!result.isSuccess) {
-            throw new Error('Failed to open account: ' + result.exceptionMessages.join(', '));
+            throw new Error(
+                'Failed to open account: ' + result.exceptionMessages.join(', '),
+            );
         }
-        
+
         return result.response;
     }
 }
@@ -77,7 +79,9 @@ export class AccountService {
 ### Batch Operations
 
 ```typescript
-async function batchOpenAccounts(accounts: Array<{ accountId: string; name: string; owner: string }>) {
+async function batchOpenAccounts(
+    accounts: Array<{ accountId: string; name: string; owner: string }>,
+) {
     const results = await Promise.all(
         accounts.map(async (data) => {
             const command = new OpenDebitAccount();
@@ -85,16 +89,16 @@ async function batchOpenAccounts(accounts: Array<{ accountId: string; name: stri
             command.name = data.name;
             command.owner = data.owner;
             return command.execute();
-        })
+        }),
     );
 
-    const successful = results.filter(r => r.isSuccess);
-    const failed = results.filter(r => !r.isSuccess);
+    const successful = results.filter((r) => r.isSuccess);
+    const failed = results.filter((r) => !r.isSuccess);
 
     return {
         successful: successful.length,
         failed: failed.length,
-        failedReasons: failed.map(r => r.exceptionMessages)
+        failedReasons: failed.map((r) => r.exceptionMessages),
     };
 }
 ```
@@ -114,14 +118,18 @@ async function handleAccountCreation(event: CustomEvent) {
 
     if (result.isSuccess) {
         // Trigger success event
-        window.dispatchEvent(new CustomEvent('account-opened', { 
-            detail: result.response 
-        }));
+        window.dispatchEvent(
+            new CustomEvent('account-opened', {
+                detail: result.response,
+            }),
+        );
     } else {
         // Trigger error event
-        window.dispatchEvent(new CustomEvent('account-error', { 
-            detail: result.exceptionMessages 
-        }));
+        window.dispatchEvent(
+            new CustomEvent('account-error', {
+                detail: result.exceptionMessages,
+            }),
+        );
     }
 }
 ```
@@ -151,7 +159,7 @@ describe('OpenDebitAccount', () => {
         command.setInitialValues({
             accountId: 'test-id',
             name: 'Original Name',
-            owner: 'owner-id'
+            owner: 'owner-id',
         });
 
         expect(command.hasChanges).toBe(false);
@@ -191,7 +199,7 @@ const validationResult = await command.validate();
 
 if (!validationResult.isValid) {
     console.error('Validation failed:');
-    validationResult.validationResults.forEach(error => {
+    validationResult.validationResults.forEach((error) => {
         console.error(`- ${error.members.join(', ')}: ${error.message}`);
     });
 }
@@ -214,10 +222,10 @@ function createAccountCommand(data: {
     command.accountId = data.accountId;
     command.name = data.name;
     command.owner = data.owner;
-    
+
     // Set initial values for change tracking
     command.setInitialValues(data);
-    
+
     return command;
 }
 
@@ -225,7 +233,7 @@ function createAccountCommand(data: {
 const command = createAccountCommand({
     accountId: crypto.randomUUID(),
     name: 'Savings Account',
-    owner: 'user-123'
+    owner: 'user-123',
 });
 
 await command.execute();
@@ -245,7 +253,7 @@ async function executeCommand(command: OpenDebitAccount) {
                 throw new Error('Unauthorized');
             }
             if (!result.isValid) {
-                const errors = result.validationResults.map(v => v.message).join(', ');
+                const errors = result.validationResults.map((v) => v.message).join(', ');
                 throw new Error(`Validation failed: ${errors}`);
             }
             if (result.hasExceptions) {
@@ -307,13 +315,14 @@ export const AccountCreator = () => {
 2. **Handle All Result States**: Check `isSuccess`, `isValid`, `isAuthorized`
 3. **Set Initial Values**: Call `setInitialValues()` when you need change tracking
 4. **Error Handling**: Always handle errors appropriately
-5. **Type Safety**: Leverage TypeScript for type checking
+5. **Type safety**: Keep the generated command and response types when calling from TypeScript
 6. **Testing**: Imperative usage is excellent for unit testing
 7. **Documentation**: Document why imperative usage was chosen over hooks
 
 ## When NOT to Use Imperative Usage
 
 Avoid imperative usage when:
+
 - You're in a React component (use hooks instead)
 - You need automatic re-rendering
 - You want React lifecycle integration

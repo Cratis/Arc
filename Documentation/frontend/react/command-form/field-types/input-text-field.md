@@ -1,18 +1,25 @@
-# InputTextField
+---
+title: InputTextField
+description: Bind a string command property to a native text-based input.
+---
 
-A versatile text input field that supports multiple input types through HTML5 input elements.
+A text input supporting the native input types listed below. Values emitted by this field are strings, including date/time and color inputs—not JavaScript `Date` objects.
 
 ## Props
 
 | Prop | Type | Default | Description |
-|------|------|---------|-------------|
+| ------ | ------ | --------- | ------------- |
 | `value` | `(instance: TCommand) => unknown` | | **Required.** Accessor function returning the property value from the command instance. |
 | `title` | `string` | | The label for the field. |
 | `type` | `'text' \| 'email' \| 'password' \| 'color' \| 'date' \| 'datetime-local' \| 'time' \| 'url' \| 'tel' \| 'search'` | `'text'` | The HTML input type. |
 | `placeholder` | `string` | | Placeholder text shown when empty. |
 | `required` | `boolean` | | Override automatic required detection. |
 
+The shared `className`, `style`, decoration, and population props are described in [Common props](./index.md#common-props). This built-in field does not accept `minLength`, `maxLength`, `pattern`, arbitrary input IDs, or arbitrary native attributes; use a [custom adapter](../custom-fields.md) when needed. `type="email"` does not enforce an email rule because CommandForm uses `noValidate`; see [Validation](../validation.md#required-fields).
+
 ## Examples
+
+These are illustrative field fragments, not complete forms. Import `InputTextField` from `@cratis/arc.react/commands` and your generated `UserCommand` class, then place each fragment inside `CommandForm command={UserCommand}`. The selected properties must be strings. See the [complete form checkpoint](../index.md#start-with-a-generated-command).
 
 **Text Input:**
 

@@ -1,16 +1,19 @@
-# Serializers
+---
+title: BSON serializers
+description: Understand Arc's BSON representations, precision limits, and serializer registration.
+---
 
 Cratis Applications provides a comprehensive set of custom serializers for MongoDB to handle common .NET types that don't have built-in MongoDB support or need special handling.
 
 ## Built-in Serializers
 
-The following serializers are automatically registered when you call `UseCratisMongoDB()`:
+The following serializers are registered by `WithMongoDB()` / `UseCratisMongoDB()`. The model and custom serializer snippets on this page are illustrative declarations/fragments for the [configured host](./getting-started.md), not independent programs.
 
 ### DateTimeOffset Support
 
 **Class**: `DateTimeOffsetSupportingBsonDateTimeSerializer`
 
-Provides proper serialization of `DateTimeOffset` values, preserving timezone information that would otherwise be lost with MongoDB's default DateTime handling.
+By default, writes BSON DateTime using `ToUnixTimeMilliseconds()` and reads with `DateTimeOffset.FromUnixTimeMilliseconds()`. This preserves the instant only to millisecond precision: **the original UTC offset and submillisecond ticks are lost**, and the restored value has offset zero. Store a separate offset/time-zone field if your domain needs it.
 
 ```csharp
 public class MyDocument
@@ -24,7 +27,10 @@ The serializer supports different BSON representations:
 
 - `BsonType.DateTime` (default)
 - `BsonType.String`
-- `BsonType.Int64`
+
+`Int64` is not accepted as a representation, even though BSON DateTime internally holds milliseconds. Other representations throw.
+
+The current string format constant is `YYYY-MM-ddTHH:mm:ss.FFFFFFK`, not the standard round-trip `O` format. Uppercase `YYYY` is not a .NET year specifier, and only six fractional positions are included. Do not use this mode as a lossless offset/precision workaround; test legacy compatibility and use an application-owned serializer if a different storage contract is required.
 
 ### DateOnly Serializer
 
@@ -70,7 +76,7 @@ public class Task
 
 ### Geospatial Serializers
 
-Cratis provides specialized serializers for geospatial types from `Cratis.Geospatial`. These types follow the GeoJSON specification and are fully integrated with MongoDB's geospatial query operators.
+Cratis provides specialized serializers for geospatial types from `Cratis.Geospatial`. Their writers produce GeoJSON; query filters use the driver's GeoJSON argument types. The current Polygon reader fails on the nested coordinate-pair arrays its writer emits: see the [Polygon read limitation](./geospatial/polygon.md#current-read-limitation) before relying on typed query materialization.
 
 For comprehensive documentation on storing and querying geographic data, see the [Geospatial Types](./geospatial/) section, which covers:
 
@@ -98,15 +104,10 @@ One of the most important default configurations is for `System.Guid`. MongoDB h
 
 ```csharp
 // This is done automatically during setup
-BsonDefaults.GuidRepresentation = GuidRepresentation.Standard;
-BsonDefaults.GuidRepresentationMode = GuidRepresentationMode.V3;
+BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
 ```
 
-This ensures that:
-
-- Guids are stored in a predictable format
-- They work correctly with .NET applications
-- There are no surprises when viewing data in MongoDB tools
+This is a description of Arc startup, **not an additional registration to paste after it**. BSON Guid values use Standard UUID binary representation. Existing legacy UUID data may need an explicit compatibility/migration strategy; changing registration does not rewrite stored values.
 
 ## Custom Serializers
 
@@ -142,18 +143,16 @@ BsonSerializer.RegisterSerializationProvider(new MySerializationProvider());
 
 ## Serializer Configuration
 
-Some serializers support configuration through interfaces:
+Some serializers support configuration through interfaces. MongoDB's serializer registry is process-wide and caches registrations; do not register a second global serializer for a type Arc has already registered. For a specific member, set a compatible serializer in its class map before the map freezes.
 
 ### Representation Configurable
 
 Serializers implementing `IRepresentationConfigurable<T>` can be configured for different BSON representations:
 
 ```csharp
-// Configure DateTimeOffset to serialize as string
+// Representation selection only; see the string-format limitation above.
 var serializer = new DateTimeOffsetSupportingBsonDateTimeSerializer()
     .WithRepresentation(BsonType.String);
-
-BsonSerializer.RegisterSerializer(serializer);
 ```
 
 ## Polymorphic Serialization
@@ -195,11 +194,12 @@ The [Concept serializers](concepts.md) are optimized to serialize only the under
 
 ## Error Handling
 
-Serializers include comprehensive error handling:
+Validation and null handling are serializer-specific; BSON serialization is not comprehensive domain or geometry validation.
 
-- **Type validation**: Ensures only appropriate types are serialized
-- **Null handling**: Proper null value handling across all serializers
-- **Format validation**: Validates input data before serialization
+- **Geometry**: The current Point, LineString, and Polygon serializers dereference null values when writing and do not accept explicit BSON null when reading. Nullable-reference annotations do not add a null-aware serializer.
+- **Optional geometry**: Design and test an omission policy or a null-aware member serializer. For an ordinary nullable property with no initializer or required-member mapping, a missing field leaves it null. An omission setting such as `[BsonIgnoreIfNull]` skips writing that null member, but does **not** make reading an existing explicit BSON null safe. Test your actual class maps and stored data before adopting either policy.
+- **Concepts**: Nullable [concept serialization](./concepts.md#serialization-and-validation) is separately supported; `ConceptSerializer<T>` explicitly writes and reads BSON null.
+- **Geometry validation**: Records and write paths do not validate geometry. The Polygon reader has ring-count/closure checks, but also the [current read limitation](./geospatial/polygon.md#current-read-limitation).
 
 ## Next Steps
 

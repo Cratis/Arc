@@ -1,171 +1,70 @@
-# Command Response Examples
+---
+title: Command response examples
+description: Read ordinary values and distinguish validation failures from response data.
+---
 
-This document provides examples of how command responses work with the automatic response handling feature.
+Use the [service-backed command](./model-bound/index.md#a-service-backed-command) as the first checkpoint: `AddItemToCart.Handle()` returns a `CartLineId` concept. Use the [custom value handler example](./response-value-handlers.md#creating-custom-value-handlers) when you also need a non-event server-side value handled.
 
-## Simple Value Response
+The snippets below are caller fragments for those complete definitions, with `ICommandPipeline pipeline` available through dependency injection. They are not independent programs.
 
-When a command handler returns a simple value without a corresponding value handler:
+## Simple value response
 
 ```csharp
+var result = await pipeline.Execute<CartLineId>(new AddItemToCart("BOOK-1", 2));
+if (result.IsSuccess)
+{
+    Console.WriteLine(result.Response);
+}
+```
+
+`Execute<CartLineId>` returns `CommandResult<CartLineId>`. The concept needs no custom response handler and is serialized as its underlying `Guid`. Ordinary primitive responses also work, as the identifier-allocation example below demonstrates; neither response implies an event-source identity. Always await execution before reading the result.
+
+## Result and tuple response
+
+```csharp
+var result = await pipeline.Execute<Guid>(new AllocateIdentifier("invoice"));
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Allocated {result.Response}");
+}
+```
+
+The active success alternative of `Result<(Guid, AllocationLog), ValidationResult>` contains a tuple. `AllocationLogHandler` consumes the log value; the `Guid` becomes the response. Without that handler, both values are unhandled and the pipeline reports an exception outcome.
+
+## Singular validation result
+
+```csharp
+var result = await pipeline.Execute<Guid>(new AllocateIdentifier(""));
+foreach (var failure in result.ValidationResults)
+{
+    Console.WriteLine(failure.Message);
+}
+```
+
+This prints `A label is required`. Arc's `Cratis.Arc.Validation.ValidationResult` represents **one failed rule**. It has no `IsValid` property. `CommandResult.IsValid` checks the collection on the command result; FluentValidation's separate `FluentValidation.Results.ValidationResult` is an aggregate with `IsValid` and `Errors`.
+
+Use a discovered `CommandValidator<T>` for FluentValidation rules so Arc converts its failures. Do not return FluentValidation's aggregate or an Arc validation array from `Handle()` expecting the singular Arc response handler to interpret it. See [validation](./validation.md) and the [response contract](./response-value-handlers.md#automatic-response-handling).
+
+## Multiple unhandled values
+
+This complete command is a deliberately invalid response-contract example. With no handlers for `string` or `int`, both values compete to be the response:
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+
 [Command]
-public record CreateUser(string Name, string Email)
+public record AmbiguousResponse()
 {
-    public UserId Handle(IUserRepository userRepository)
-    {
-        var userId = new UserId(Guid.NewGuid());
-        var user = new User(userId, Name, Email);
-        userRepository.Save(user);
-        
-        // Since no value handler exists for UserId, 
-        // this automatically becomes CommandResult<UserId>
-        return userId;
-    }
+    public (string, int) Handle() => ("first", 42);
 }
 ```
 
-**Result**: `CommandResult<UserId>` with the UserId as the Response property.
+An awaited `pipeline.Execute(new AmbiguousResponse())` normally returns `HasExceptions == true`, carrying the `MultipleUnhandledTupleValues` failure. Instead, wrap related response fields in one response record, or provide a real handler for the value you intend to consume server-side.
 
-## OneOf Response
+## Failure and absent responses
 
-When a command returns a OneOf with values that may or may not have handlers:
+Without a response, the typed overload supplies `default(TResult)`: `null` for a reference type, `Guid.Empty` for `Guid`, and `0` for `int`. Failed execution clears an already selected response to the default of its concrete response type. Requesting that same type yields `default(TResult)`, including `Guid.Empty`. Currently, adapting a cleared value-type response to `object` or a compatible interface can preserve its boxed default instead of null: `Execute<object>` can return a boxed `Guid.Empty` after scope completion fails. Always check `IsSuccess` before using the response.
 
-```csharp
-[Command]
-public record ValidateAndCreateUser(string Name, string Email)
-{
-    public OneOf<UserId, ValidationResult> Handle(IUserRepository userRepository, IUserValidator validator)
-    {
-        var validationResult = validator.Validate(Name, Email);
-        if (!validationResult.IsValid)
-        {
-            // ValidationResult has a built-in handler, so this affects command success
-            return OneOf<UserId, ValidationResult>.FromT1(validationResult);
-        }
-        
-        var userId = new UserId(Guid.NewGuid());
-        var user = new User(userId, Name, Email);
-        userRepository.Save(user);
-        
-        // No handler for UserId, so this becomes CommandResult<UserId>
-        return OneOf<UserId, ValidationResult>.FromT0(userId);
-    }
-}
-```
+Likewise, naming an alternative `PaymentFailed` in a `Result` does not make it a failure: unless a handler interprets it, it is ordinary response data.
 
-**Result**: Either a failed `CommandResult` (for validation errors) or `CommandResult<UserId>` (for success).
-
-## Tuple Response with Mixed Handlers
-
-When a command returns a tuple with some values having handlers and others not:
-
-```csharp
-[Command]
-public record ProcessOrder(string OrderId)
-{
-    public (OrderConfirmation, OrderProcessed, ValidationResult, AuditLog) Handle(
-        IOrderService orderService,
-        IOrderValidator validator,
-        IAuditService auditService)
-    {
-        var validation = validator.Validate(OrderId);
-        var confirmation = orderService.ProcessOrder(OrderId);
-        var orderEvent = new OrderProcessed(OrderId, DateTime.UtcNow);
-        var auditLog = auditService.CreateLog("Order processed", OrderId);
-        
-        return (confirmation, orderEvent, validation, auditLog);
-    }
-}
-```
-
-Assuming the following handlers exist:
-
-- `OrderProcessed` → handled by event handler
-- `ValidationResult` → handled by validation handler  
-- `AuditLog` → handled by audit handler
-- `OrderConfirmation` → **no handler**
-
-**Result**: `CommandResult<OrderConfirmation>` with the confirmation as the Response property, plus any side effects from the other handlers.
-
-## Tuple with Multiple Unhandled Values (Error)
-
-This scenario throws an exception:
-
-```csharp
-[Command]
-public record BadCommand()
-{
-    public (string, int, SomeEvent) Handle()
-    {
-        // If no handlers exist for string and int, but SomeEvent has a handler
-        return ("response1", 42, new SomeEvent());
-    }
-}
-```
-
-**Result**: `MultipleUnhandledTupleValues` because both `string` and `int` lack handlers.
-
-## Custom Value Handler Example
-
-Creating a handler to process specific values instead of making them responses:
-
-```csharp
-public class OrderConfirmationHandler : ICommandResponseValueHandler
-{
-    private readonly IEmailService _emailService;
-    
-    public OrderConfirmationHandler(IEmailService emailService)
-    {
-        _emailService = emailService;
-    }
-    
-    public bool CanHandle(CommandContext commandContext, object value)
-    {
-        return value is OrderConfirmation;
-    }
-    
-    public async Task<CommandResult> Handle(CommandContext commandContext, object value)
-    {
-        var confirmation = (OrderConfirmation)value;
-        
-        // Send confirmation email as a side effect
-        await _emailService.SendConfirmationEmail(confirmation);
-        
-        // Don't affect the command result
-        return CommandResult.Success(commandContext.CorrelationId);
-    }
-}
-```
-
-With this handler in place, `OrderConfirmation` values would be processed (email sent) rather than becoming responses.
-
-## Migration from Previous Versions
-
-### Before (Required Value Handlers)
-
-```csharp
-// Previously, this would require a value handler for UserId
-public UserId Handle() => new UserId(Guid.NewGuid());
-
-// You had to create a handler like this:
-public class UserIdHandler : ICommandResponseValueHandler
-{
-    public bool CanHandle(CommandContext context, object value) => value is UserId;
-    public Task<CommandResult> Handle(CommandContext context, object value)
-    {
-        var userId = (UserId)value;
-        // Set the response manually...
-        return Task.FromResult(new CommandResult<UserId>(userId));
-    }
-}
-```
-
-### After (Automatic Responses)
-
-```csharp
-// Now this automatically becomes CommandResult<UserId>
-public UserId Handle() => new UserId(Guid.NewGuid());
-
-// No handler needed unless you want side effects
-```
-
-This reduces boilerplate while maintaining the same functionality.
+See [typed command results](./command-pipeline.md#typed-command-results) for assignable response types and type mismatches, and [execution scopes](./command-execution-scopes.md) for failures after response processing.

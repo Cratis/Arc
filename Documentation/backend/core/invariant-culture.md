@@ -6,12 +6,12 @@ Arc.Core provides a `.UseInvariantCulture()` extension method on `IHostBuilder` 
 
 Applications running in distributed environments—different machines, containers, or cloud regions—may be configured with different regional settings. Without explicit culture configuration, operations like number parsing, date formatting, or string comparisons may produce inconsistent results depending on where the code runs.
 
-Using invariant culture guarantees:
+Invariant culture supplies a predictable default for code that uses the current culture; explicit per-call or per-thread culture choices can still override it:
 
-- **DateTime formatting and parsing** behaves identically everywhere
+- **DateTime formatting and parsing** uses invariant conventions by default; it does not choose a time zone
 - **Number formatting and parsing** produces consistent results (e.g., decimal separator is always `.`)
 - **String comparisons and sorting** are culture-independent
-- **Serialization and deserialization** never depends on machine locale
+- **Serialization and deserialization** still follows each serializer's contract and explicit options
 
 ## Configuration
 

@@ -1,73 +1,47 @@
-# Controller Based Queries
+---
+title: Controller-based queries
+description: Use Arc query results with ASP.NET Core MVC routing and binding.
+---
 
-You can represent queries as regular ASP.NET Core Controller actions with HTTP GET methods.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
+
+Use a controller when your query needs MVC routing, model binding, or authorization policies. Unlike a [model-bound query](../model-bound/index.md), the method does not need to live on the type it returns.
+
+## Start with an MVC GET action
+
+This controller example uses the [shared `AccountId` and `AccountName` concepts](../model-bound/index.md#model-account-identities-and-names) with an ASP.NET Core Arc host, MVC, and the configured Arc MongoDB provider. Use this `DebitAccount` declaration instead of the model-bound alternative. No Chronicle integration is required.
 
 ```csharp
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance);
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 
+namespace Banking.Accounts;
+
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance);
+
+[Authorize(Roles = "AccountReader")]
 [Route("api/accounts")]
-public class Accounts : Controller
+public class AccountsController(IMongoCollection<DebitAccount> collection) : ControllerBase
 {
-    readonly IMongoCollection<DebitAccount> _collection;
-
-    public Accounts(IMongoCollection<DebitAccount> collection) => _collection = collection;
-
     [HttpGet]
-    public IEnumerable<DebitAccount> AllAccounts() => _collection.Find(_ => true).ToList();
+    public IEnumerable<DebitAccount> AllAccounts() => collection.Find(_ => true).ToList();
 }
 ```
 
-> Note: This particular model represents its values as concepts - a value type encapsulation that
-> makes us not use primitives - thus creating clearer APIs and models.
-> If you're using the Cratis Arc [proxy generator](../../proxy-generation/index.md), the method name
-> will become the query name for the generated TypeScript file and class.
+With authentication and authorization middleware configured, the MVC authorization attribute protects this action. Arc's `QueryActionFilter` handles **GET** actions: it establishes query context, processes MVC model-state errors, renders the returned data, applies interception, and wraps it in [QueryResult](../query-pipeline.md#query-result-metadata).
 
-## Key Features
+This is not the model-bound `IQueryPipeline` filter chain. Do not assume model-bound custom filters run for a controller action, or that Arc's GET query wrapper applies to a POST action.
 
-Controller-based queries provide several powerful features:
+## Choose the next step
 
-- **Standard ASP.NET Core routing** and HTTP verb support
-- **Flexible return types** including collections, single objects, and custom response wrappers
-- **Dependency injection** for services and repositories
-- **Query arguments** via route parameters, query strings, and request bodies
-- **Async support** for asynchronous operations
-- **Observable queries** for real-time data streaming
-- **Custom route templates** for RESTful API design
+- [Route templates](route-templates.md): bind identifiers from route values.
+- [Query arguments](query-arguments.md): bind scalar values, arrays, and MVC DTOs.
+- [Dependency injection](dependency-injection.md): resolve application services.
+- [Return types](return-types.md): understand wrapping, nulls, and explicit MVC responses.
+- [Paging](paging.md): return `IQueryable<T>` for renderer-based paging.
+- [Observable queries](observable-queries.md): expose a producer over direct SSE or WebSocket.
 
-## When to Use Controller-Based Queries
-
-Controller-based queries are ideal when you:
-
-- Want explicit control over HTTP routing and URL structure
-- Need to leverage existing ASP.NET Core features like filters, middleware, or custom attributes
-- Are building RESTful APIs with standard HTTP conventions
-- Want to separate query logic from your read models
-- Need complex routing scenarios with multiple parameters
-
-## Bypassing Query Result Wrappers
-
-By default, controller-based queries return results wrapped in a `QueryResult` structure. If you need to return the raw result from your controller action without this wrapper, you can use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../../asp-net-core/without-wrappers.md).
-
-## Related Topics
-
-- [Route Templates](route-templates.md) - Learn about URL routing and parameter binding
-- [Query Arguments](query-arguments.md) - How to handle different types of query parameters
-- [Return Types](return-types.md) - Understanding different response formats
-- [Observable Queries](observable-queries.md) - Real-time data streaming with WebSockets
-- [Dependency Injection](dependency-injection.md) - Working with services and repositories
-
-## Basic Example with Async Support
-
-For asynchronous operations, you can return `Task<T>`:
-
-```csharp
-[HttpGet]
-public async Task<IEnumerable<DebitAccount>> AllAccountsAsync()
-{
-    var result = await _collection.FindAsync(_ => true);
-    return result.ToList();
-}
-```
-
-> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your controller methods,
-> making them strongly typed on the frontend as well.
+The [proxy generator](../../proxy-generation/index.md) creates client types from supported controller query declarations. For raw MVC responses, see [without wrappers](../../asp-net-core/without-wrappers.md); opting out changes the contract a standard Arc query client expects.

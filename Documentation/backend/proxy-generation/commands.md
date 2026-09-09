@@ -1,8 +1,11 @@
-# Command Proxy Generation
+---
+title: Command proxy generation
+description: Discover command endpoints and generate typed execution clients.
+---
 
 The proxy generator creates TypeScript command classes that provide type-safe command execution with React hook integration.
 
-## Supported Approaches
+## Supported approaches
 
 Commands can be implemented using two approaches, both of which are supported by the proxy generator:
 
@@ -11,9 +14,9 @@ Commands can be implemented using two approaches, both of which are supported by
 
 For detailed information on implementing commands, see the [Commands documentation](../commands/index.md).
 
-## How Commands are Discovered
+## How commands are discovered
 
-### Controller-based Commands
+### Controller-based commands
 
 The generator discovers controller-based commands by looking for:
 
@@ -22,18 +25,18 @@ The generator discovers controller-based commands by looking for:
 
 See [Controller-based Commands](../commands/controller-based.md) for implementation details.
 
-### Model-bound Commands
+### Model-bound commands
 
 The generator discovers model-bound commands by finding types that:
 
 - Are decorated with the `[Command]` attribute
 - Have a `Handle()` method (the command handler)
 
-The type name becomes the command name, and all properties of the type become the command properties in the generated TypeScript.
+The type name becomes the command name. Public instance properties declared directly on the command type become command properties in the generated TypeScript; this pass does not collect inherited properties.
 
 See [Model-bound Commands](../commands/model-bound/index.md) for implementation details.
 
-## Generated Command Structure
+## Generated command structure
 
 Generated command classes:
 
@@ -42,41 +45,44 @@ Generated command classes:
 - Provide a static `use()` method for React hook integration
 - Include the proper route based on the configuration
 
-## Generated Artifacts
+## Generated artifacts
 
 For each command, the generator creates:
 
 1. **Interface**: An `ICommandName` interface with all command properties
-2. **Class**: A `CommandName` class extending `Command<ICommandName>`
+2. **Class**: A `CommandName` class extending `Command<ICommandName>`, or `Command<ICommandName, TResponse>` for a response-bearing command
 3. **Route**: The HTTP route derived from the controller route or model-bound configuration
 
-## Excluding Commands from Generation
+## Excluding commands from generation
 
 To exclude specific controller-based commands from proxy generation, mark them with the `[AspNetResult]` attribute. This is useful when you want to handle the response manually or when the command returns a non-standard result.
 
-## Route Configuration
+## Route configuration
 
-The generated route is affected by the `CratisProxiesSkipCommandNameInRoute` configuration option:
+For **conventional model-bound commands**, the generated route is affected by the `CratisProxiesSkipCommandNameInRoute` configuration option. Controller routes come from their ASP.NET declarations, not this switch:
 
 - When `false` (default): The command type name is included in the route
 - When `true`: The command type name is excluded from the route
 
-**Automatic Conflict Detection**: When `CratisProxiesSkipCommandNameInRoute` is `true`, the proxy generator automatically detects if multiple commands exist in the same namespace (after skipping segments). If a conflict is detected, the command name is automatically included in the route to prevent route collisions. This behavior is consistent with the runtime endpoint mapping.
+**Automatic Conflict Detection**: When `CratisProxiesSkipCommandNameInRoute` is `true`, the proxy generator automatically detects if multiple commands exist in the same namespace (after skipping segments). If a conflict is detected, the command name is automatically included in the route to prevent route collisions. Align the generator's settings with the runtime endpoint settings; changing the build configuration does not configure the server.
 
 For example:
 
 - Single command in namespace: Route is clean without type name (e.g., `/api/orders`)
 - Multiple commands in same namespace: Type names are added automatically (e.g., `/api/orders/create-order`, `/api/orders/update-order`)
 
-See [Configuration](configuration.md) for more details on route configuration options.
+The examples assume the application namespace prefix has been skipped. See [routing configuration](Configuration/routing.md) for segment counts, defaults, and runtime alignment.
 
-## Frontend Usage
+## Frontend usage
 
 The generated command proxies integrate with React through the `use()` static method, which returns:
 
-- The command instance with all properties
-- A setter function for updating command values
+1. The command instance with all properties.
+2. A `SetCommandValues<ICommandName>` setter for editing values.
+3. A `ClearCommandValues` function.
 
-The command can then be executed using the `execute()` method, which returns a `CommandResult` with success/failure information and any validation errors.
+The signature is `use(initialValues?: ICommandName): [CommandName, SetCommandValues<ICommandName>, ClearCommandValues]`. This is an API shape, not a manually authored replacement for the generated class. The setter edits values; it does not establish a new change-tracking baseline.
 
-For frontend usage patterns, see the [@cratis/arc documentation](https://www.npmjs.com/package/@cratis/arc).
+Await `execute()` to receive a `CommandResult` with success/failure information, `validationResults`, and the typed response when applicable.
+
+For frontend usage patterns, see [React commands](../../frontend/react/commands/react-usage.md). Commands can return ordinary application responses, including `Guid`; proxy generation does not require event sourcing.

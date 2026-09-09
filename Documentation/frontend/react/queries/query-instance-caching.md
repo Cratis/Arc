@@ -1,116 +1,66 @@
-# Query Instance Caching
+---
+title: Query instance caching
+description: Understand instance reuse, observable subscription sharing, and the default 30-second retention window.
+---
 
-Arc maintains an application-scoped cache of query instances. When two components subscribe to the same query with the same arguments, they share a single underlying query object rather than creating two independent instances — reducing server round-trips and keeping all consumers in sync automatically.
+Navigating away from a live list and back should not always start from an empty screen. Arc retains query instances and last-known data, but instance reuse and request deduplication are different contracts.
 
-## How It Works
+## How it works
 
-The cache is keyed by **query type name** and **serialized arguments**. The following rules apply:
+`<Arc>` creates one `QueryInstanceCache` per mount. Keys use the generated stable `queryName` and JSON-serialized arguments with top-level keys sorted. The cache class does not itself include origin, credentials, paging, or sorting in that key; do not treat it as an isolation boundary for independent views or users.
 
-| Scenario | Result |
-|----------|--------|
-| Same type + same arguments | Same shared instance |
-| Same type + different arguments | Different instances |
-| Two components, same type + same args | One shared instance; both receive updates simultaneously |
+| Hook family | Shared instance | Network/results |
+| --- | --- | --- |
+| `useObservableQuery` | Yes, for the same cache key | Shares subscription ownership and registers cache listeners for updates |
+| `useQuery` | Yes | Each enabled mount performs a request; no cache-listener broadcast to all mounted consumers |
+| Suspense hooks | Separate module-level resource caches | See [Suspense queries](./suspense-queries.md); not governed by this cache's retention setting |
 
-When a new subscriber mounts, it receives the **last known result** immediately from the cache rather than waiting for the next server push. This means components that unmount and remount (or re-render into a new subtree) present stale-but-fast data first, then update as fresh data arrives.
-
-When the last subscriber unmounts, the cache entry is released. The next time any component subscribes to the same query, a fresh connection is established.
+An ordinary query cache hit can seed a new component with successful cached data, but it does not eliminate the new request. Concurrent consumers can interact through the same mutable query instance; do not assume independent paging/sorting or request lifetimes merely because they are different components.
 
 ## Lifecycle
 
-```text
-Component A mounts
-  → Cache miss → create new query instance → subscribe to server → receive first result
-  → Cache stores the result
+When the last consumer releases an entry, Arc schedules eviction after `queryCacheRetentionMs`, **30,000 ms by default**. Cached data and an established observable subscription remain alive during that window. A new consumer cancels pending eviction and can reuse them. On expiry the entry is removed and its subscription torn down.
 
-Component B mounts (same query, same args)
-  → Cache hit → reuse existing instance
-  → Immediately seeded with the last known result from the cache
-  → No new server connection
-
-Component A unmounts
-  → Release reference (ref-count decrements)
-  → Instance stays alive because Component B still holds a reference
-
-Component B unmounts
-  → Release reference → ref-count reaches 0 → cache entry evicted
-  → Query instance unsubscribed from server
+```mermaid
+flowchart LR
+    Mount[First consumer mounts] --> Entry[Create entry and subscribe]
+    Entry --> Shared[Additional consumers share entry]
+    Shared --> Release[Last consumer releases]
+    Release --> Timer[30-second retention timer]
+    Timer -->|consumer returns| Shared
+    Timer -->|expires| Evict[Unsubscribe and evict]
 ```
 
-## Transparent Integration
-
-The cache is used automatically by `useObservableQuery` and `useQuery`. No changes are needed in component code — the public hook signatures are unchanged.
+Configure retention once when mounting Arc:
 
 ```tsx
-// These two components share one query instance and one server connection.
-export const BalanceSummary = () => {
-    const [result] = AllAccounts.use();
-    return <span>Total: {result.data?.length ?? 0} accounts</span>;
-};
+import { Arc } from '@cratis/arc.react';
 
-export const AccountList = () => {
-    const [result] = AllAccounts.use();
-    return <DataTable value={result.data} />;
-};
+export const App = () => (
+    <Arc queryCacheRetentionMs={60_000}>
+        <main>Your query components</main>
+    </Arc>
+);
 ```
 
-Both `BalanceSummary` and `AccountList` consume the same `AllAccounts` instance. When `AllAccounts` pushes an update, both components re-render simultaneously.
+A value of zero schedules eviction without the retention delay. A cache entry expiring does not imply every pooled hub connection immediately closes.
 
-## Cache Context
+## React StrictMode compatibility
 
-The cache is provided via `QueryInstanceCacheContext`, initialized once per `<Arc>` mount. This means the cache scope matches the application boundary — all components under `<Arc>` share the same cache, and there is no need to configure anything explicitly.
+Reacquiring an entry cancels its cleanup timer. Provider teardown also defers disposal so an immediate remount can cancel it. That provider-disposal mechanism is distinct from the per-entry retention window; normal last-consumer release is not always `setTimeout(0)`.
 
-```tsx
-// The cache is initialized here, once per app.
-<Arc microservice="my-app">
-    <MyApp />
-</Arc>
-```
+## Relationship with the conditional when hook
 
-## Parameterized Queries
+Disabled non-Suspense hooks still create/look up and acquire cache entries. The condition suppresses their automatic request/subscription, not allocation or cache access. Another consumer can already own a live subscription for the same entry. A previously established subscription can also survive through retention.
 
-The cache key includes serialized arguments, so queries with different arguments are stored as separate instances.
+Use the explicit condition to choose UI, rather than treating `hasData` as an enabled flag. Generated single-result defaults are `{}`, so `hasData` can be true without loaded data. See [conditional queries](./conditional-queries.md).
 
-```tsx
-// These are TWO separate cache entries — different arguments.
-const [accountsForAlice] = AccountsByOwner.use({ owner: 'alice' });
-const [accountsForBob]   = AccountsByOwner.use({ owner: 'bob' });
+## Trust and ownership limits
 
-// This is the SAME cache entry as accountsForAlice above.
-const [aliceAgain] = AccountsByOwner.use({ owner: 'alice' });
-```
-
-Arguments are serialized by sorting the object keys alphabetically and stringifying, so `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` produce the same cache key.
-
-## React StrictMode Compatibility
-
-React 18 and later run effects twice in development — and, crucially, the same synthetic unmount/remount cycle can occur in production when React reconciles across Suspense boundaries or concurrent renders. This means a component's `useEffect` cleanup may fire even when the component immediately re-mounts.
-
-Arc handles this automatically using **deferred teardown**. When the last subscriber releases a cache entry, the teardown (server unsubscribe) is not called immediately. Instead, it is scheduled with `setTimeout(0)`. If the same query re-subscribes before the timer fires — which is exactly what React's remount cycle does — the pending teardown is cancelled and the existing connection is reused transparently.
-
-```text
-Component mounts            → acquire entry (refCount = 1)
-Component unmounts          → release entry (refCount = 0) → schedule deferred teardown
-  [setTimeout fires]
-    ← Component remounts    → acquire entry cancels teardown before timer fires
-                            → connection survives; last result still available
-```
-
-This behavior is unconditional — it applies in all environments, not just when React DevTools' "Strict Mode" is active. The `development` prop on `<Arc>` does not change teardown timing and is retained only for API compatibility.
-
-## Relationship with the Conditional `when()` Hook
-
-The `when(condition)` pattern interacts with the cache correctly: when `isEnabled` is `false`, no cache lookup or creation occurs, and no server connection is established. The hook returns `QueryResultWithState.empty()` without touching the cache.
-
-```tsx
-// No cache entry is created until `selectedId` is truthy.
-const [result] = AllProjects.when(!!selectedId).use({ id: selectedId });
-```
-
-Once the condition becomes `true`, the cache is looked up or populated on the next render.
+Cached UI data can outlive its last viewer. Clearing identity or reconnecting observables is not a data purge, and nested providers do not isolate the global transport multiplexer. Treat account-switching and sensitive-data eviction as an explicit application concern. See [Arc provider boundaries](../arc.md).
 
 ## See also
 
-- [Observable Query Multiplexing](./observable-query-multiplexing.md) — How hub connections are managed and configured.
-- [Queries](./index.md) — General query hooks and the `when()` conditional pattern.
-- [Observable Query Hub](../../../backend/queries/observable-query-demultiplexer.md) — Server-side protocol and authorization.
+- [Observable query multiplexing](./observable-query-multiplexing.md)
+- [Query diagnostics](./observable-query-diagnostics.md)
+- [Query usage](./usage.md)

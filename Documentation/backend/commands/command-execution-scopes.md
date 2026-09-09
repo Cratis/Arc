@@ -1,61 +1,79 @@
-# Command Execution Scopes
+---
+title: Command execution scopes
+description: Observe model-bound command execution before filters and after response processing.
+---
 
-Command execution scopes let you bracket the execution of a command in the **model-bound pipeline** with a lifetime concern that must see the command's final outcome — begin something before the command runs, and complete it afterwards knowing whether the command succeeded. This is the extension point behind [transactional commands](./transactional-commands.md), and you can use it for your own concerns such as database transactions, metrics that need the final result, or outbox-style coordination.
+A pre-execution filter cannot report how a command finished. An execution scope brackets model-bound execution: begin before the filters, then complete with the outcome after the handler and response processing. Use it for timing or for a storage coordination mechanism you actually implement.
 
-> **Note**: A [command filter](./command-filters.md) runs *before* the handler and can stop the command. An execution scope runs *around* the whole execution — it always completes, with the final `CommandResult`, whether the command succeeded, failed validation, or threw.
+## How it works
 
-## How It Works
+Arc discovers `ICommandExecutionScope` implementations and resolves them from the command's service scope. Once a handler and context are available, the pipeline:
 
-Implementations of `ICommandExecutionScope` are discovered automatically — no registration needed. For every command the pipeline:
+1. Materializes the scope instances and calls synchronous `Begin(context)` on each.
+2. Runs filters, resolves provided data and handler arguments, awaits `Handle()`, and processes its response.
+3. Calls asynchronous `Complete(context, result)` in reverse scope order, including when validation fails or execution throws.
 
-1. Calls `Begin(context)` on every scope after the `CommandContext` is established, before filters and the handler run.
-2. Executes the command — filters, handler, and response value handlers.
-3. Calls `Complete(context, result)` on every scope with the final, mutable `CommandResult` — **exactly once**, on every outcome, including validation failures and exceptions. An exception thrown from `Complete` is folded into the command's result as an exception outcome rather than propagating to the caller.
+`Begin` is synchronous so ambient state it establishes can flow into execution. Each materialized scope completes once, but its `Begin` may never have run if an earlier scope threw. Missing-handler or context/scope-construction failures before scopes are available do not run this lifecycle. Pre-flight `Validate` does not run execution scopes.
 
-`Begin` is deliberately synchronous so ambient state a scope establishes — such as an `AsyncLocal`-based unit of work — flows into the command's execution. `Complete` is asynchronous and may mutate the `CommandResult` to reflect the outcome of completing the scope.
+Relative discovery order is unspecified; keep scopes independent. An exception in one `Complete` is merged into the result and does not prevent remaining scopes from completing.
 
-Scopes nest: they complete in the reverse of the order they began, like `using` blocks. The relative order between different scope implementations is unspecified — design scopes to be independent of each other. `Complete` can also be invoked when your `Begin` never ran (for example when another scope's `Begin` threw), so implementations must tolerate completing without having begun.
+```mermaid
+flowchart LR
+    B[Begin scopes] --> F[Authorization and validation]
+    F --> H[Provide and Handle]
+    H --> R[Response handlers]
+    R --> C[Complete scopes in reverse order]
+    C --> O[Final result]
+    F -->|Rejected| C
+```
 
-## Implementing a Custom Execution Scope
+## Implementing a custom execution scope
+
+This complete scope records elapsed time through .NET logging. It requires a resolvable `ILogger<CommandTimingScope>` and a logging provider to observe output. It stores state in the per-command values dictionary, so shared scope instances do not share timers across commands.
 
 ```csharp
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using Cratis.Arc.Commands;
+using Microsoft.Extensions.Logging;
 
-public class CommandTimingScope : ICommandExecutionScope
+public class CommandTimingScope(ILogger<CommandTimingScope> logger) : ICommandExecutionScope
 {
-    static readonly AsyncLocal<long> _started = new();
+    const string TimerKey = "Example.CommandTimingScope.Timer";
+    static readonly Action<ILogger, string, double, bool, Exception?> _completed =
+        LoggerMessage.Define<string, double, bool>(LogLevel.Information, new EventId(1, "CommandTimed"),
+            "Command {CommandType} took {Milliseconds} ms; success at timing completion: {IsSuccess}");
 
     public void Begin(CommandContext context) =>
-        _started.Value = TimeProvider.System.GetTimestamp();
+        context.Values[TimerKey] = Stopwatch.StartNew();
 
     public Task Complete(CommandContext context, CommandResult result)
     {
-        var elapsed = TimeProvider.System.GetElapsedTime(_started.Value);
-        Metrics.RecordCommandDuration(context.Type.Name, elapsed, result.IsSuccess);
+        if (context.Values.TryGetValue(TimerKey, out var value) && value is Stopwatch timer)
+        {
+            timer.Stop();
+            _completed(logger, context.Type.FullName ?? context.Type.Name,
+                timer.Elapsed.TotalMilliseconds, result.IsSuccess, null);
+            context.Values.Remove(TimerKey);
+        }
         return Task.CompletedTask;
     }
 }
 ```
 
-Because a scope instance is shared across concurrent commands, keep per-command state in an `AsyncLocal` (as above) or in the `CommandContext`, never in instance fields.
+If `Begin` did not run, completion safely does nothing. This duration includes response processing and any scopes that complete before this one. Another scope can still change the outcome afterward, so the log deliberately describes success **at this completion callback**, not an immutable final verdict.
 
-## Mutating the Result — Handle With Care
+## Mutating the result — handle with care
 
-`Complete` receives the final, **mutable** `CommandResult`, and mutating it is powerful enough to lie with. Scopes should *enrich* the result — add validation results, exception outcomes, context — and **never erase failures**: clearing `ValidationResults` or `ExceptionMessages` can flip a failed command into a reported success *after* other scopes already acted on the failure. The transactional scope, for example, rolls the command's events back when the result is unsuccessful — a scope that then scrubs the failure makes the caller believe events were committed that never were. The same caution applies to mutating `CommandContext` values: downstream consumers act on them, so change them only when you own the consequence.
+`Complete` receives a mutable `CommandResult`. Add failures when completing your concern fails; never erase earlier authorization, validation, or exception outcomes. Removing failures could report success after another scope already acted on failure.
 
-The `CommandContext` gives you:
+A response may already be present in the callback context. It is not proof that every scope will succeed. After completion, the pipeline clears the **result's** response if execution is unsuccessful. See [response phase availability](./response-value-handlers.md#response-object-availability).
 
-- `CorrelationId` — the unique identifier for the command execution
-- `Type` and `Command` — the command type and instance
-- `ServiceProvider` — the command's own scope, for resolving collaborators
-- `Values` — ambient values carried through the pipeline
+## Optional integrations
 
-## Built-in Scopes
+Standalone Arc supplies this extension point, not an automatic database transaction. Your own scope must implement any begin/commit/rollback behavior it promises, including failure and nesting semantics.
 
-| Scope | Package | Purpose |
-| --- | --- | --- |
-| `TransactionalCommandScope` | `Cratis.Arc.Chronicle` | Makes every command a [transactional scope](./transactional-commands.md): begins a Chronicle unit of work, commits the command's enrolled events atomically when the command succeeds — surfacing constraint violations on the `CommandResult` — and rolls them back when the command fails. Also observes immediate appends so a failed one fails the command instead of being silently swallowed. |
+`Cratis.Arc.Chronicle` supplies a separate `TransactionalCommandScope`. Its event-store-specific guarantees are documented under [Chronicle transactional commands](./transactional-commands.md); they do not apply to arbitrary service writes.
 
-## Scope of the Extension Point
-
-Execution scopes run wherever the model-bound command pipeline runs: commands executed over HTTP, directly through [`ICommandPipeline`](./command-pipeline.md), from reactors, and in the `CommandScenario` test harness. Controller-based commands do not go through the pipeline and are not covered.
+Execution scopes apply wherever the model-bound pipeline runs, including HTTP and direct [pipeline calls](./command-pipeline.md). They do not wrap MVC controller actions. Use [command filters](./command-filters.md) when you only need a pre-execution decision.

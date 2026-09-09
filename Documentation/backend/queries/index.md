@@ -1,74 +1,52 @@
-# Queries
+---
+title: Queries
+description: Read application state once or observe updates with standalone Arc.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-If [commands](../commands/index.md) are how your system *changes*, queries are how it's *read*. A query
-pulls data out and shapes it for a caller — a list, a detail view, a dashboard. Arc takes the same
-approach it does for commands: you express the read, and it handles parameter binding, validation,
-authorization, and a typed TypeScript proxy for the frontend. No hand-written API client, no untyped
-JSON.
+A screen needs a list, a detail view, or a dashboard—not another hand-written API client. Arc lets you declare the read, expose it through HTTP, and generate a typed TypeScript proxy for the frontend.
 
-And queries have a superpower commands don't: they can be **observable**. An observable query holds a
-live connection and pushes fresh results to the client whenever the underlying data changes — so a React
-list re-renders the moment a command updates the read model behind it.
+Queries read **application state**. That can be a MongoDB document, an EF Core entity, data from a service, or an in-memory model. **Arc queries do not require Chronicle or event sourcing.** A database query or MongoDB `Observe()` call is not a Chronicle projection. If your application optionally uses Chronicle, its projected read models can be queried too; see [Chronicle integration](../chronicle/index.md).
+
+## Choose a declaration style
+
+| Style | What you write | Choose it when |
+| --- | --- | --- |
+| [Model-bound](model-bound/index.md) | Static query method on the `[ReadModel]` type it returns | You want the query next to its data shape with minimal endpoint boilerplate |
+| [Controller-based](controller-based/index.md) | MVC GET action | You need MVC route-value/DTO binding, filters, or HTTP response control |
+
+The two paths share result rendering but **not all binding, validation, or authorization behavior**. Start with the model-bound example, then use the controller path deliberately where its contract fits better.
+
+## Request once or observe updates
 
 ```mermaid
 flowchart LR
-    UI[React UI] -->|GET / subscribe| EP[Arc endpoint]
-    EP -->|binds + validates| Q[Query]
-    Q -->|reads| RM[(Read model)]
-    Q -->|result / live stream| UI
+    UI[Client] -->|GET / QUERY / subscribe| Arc[Arc endpoint]
+    Arc --> Query[Query method]
+    Query --> State[(Application state)]
+    State --> Producer[Optional observable producer]
+    Query -->|one result| UI
+    Producer -->|streamed results| UI
 ```
 
-## Two ways to define one
-
-| Style | What it looks like | Reach for it when |
+| Mode | Behavior | Use it for |
 | --- | --- | --- |
-| [Model-bound](./model-bound/index.md) | A read method declared on the model, discovered by convention | **The default.** Least boilerplate; the query lives with the data it reads. |
-| [Controller-based](./controller-based/index.md) | A query method on a controller | You need full control over the HTTP route, or you're integrating with existing controllers. |
+| Request/response | Read once through GET or [generated HTTP QUERY](using-the-http-query-method.md) | One-off reads and reports |
+| [Observable](model-bound/observable-queries.md) | Subscribe to a producer over SSE/WebSocket | Lists or dashboards that should stay current |
 
-A controller-based read is as plain as it looks:
+An observable query needs a producer that detects changes; a return type alone does not watch your database. Arc's MongoDB integration supplies `Observe()`. Other providers need their own observation mechanism. An update may follow a [command](../commands/index.md) changing database state directly, or an optional Chronicle projection updating it.
 
-```csharp
-[HttpGet("starting-with")]
-public IEnumerable<DebitAccount> StartingWith([FromQuery] string? filter) =>
-    _collection.Find(Builders<DebitAccount>.Filter.Regex(
-        "name", $"^{filter ?? string.Empty}.*")).ToList();
-```
+## Learn the contract in order
 
-Parameters you declare (`[FromQuery]`, route values) become **typed arguments** on the generated proxy
-— so the frontend calls `StartingWith.use({ filter: '' })` with the compiler checking the shape.
+1. [Declare a model-bound read](model-bound/index.md), then add [arguments](model-bound/query-arguments.md).
+2. Apply [validation](validation.md) and [authorization](model-bound/authorization.md), including their current limitations.
+3. Read the [QueryResult contract](query-pipeline.md#query-result-metadata) and add [paging](model-bound/paging.md).
+4. Expose [observable updates](model-bound/observable-queries.md) and understand subscription disposal.
+5. For advanced delivery, use the [hub protocol](observable-query-demultiplexer.md), [change streams](change-stream.md), and [emission guards](observable-query-emission-guards.md).
 
-## Request/response or live?
+[Read-model interception](read-model-interception.md) transforms supported result paths, but currently excludes observable HTTP snapshots. [Query health](query-health.md) helps diagnose hub subscriptions but exposes sensitive telemetry unless you restrict it. Use [cURL workflows](using-observable-queries-with-curl.md) to distinguish a snapshot from a live stream.
 
-This is the choice that defines a query:
+## Consume the read in React
 
-| | Request / response | [Observable](../../frontend/react/queries/observable-queries.md) |
-| --- | --- | --- |
-| **Behavior** | Fetch once, return a result | Subscribe; results push on every change |
-| **Transport** | A normal HTTP `GET` | SSE or WebSocket, hub-routed by default |
-| **Use it for** | One-off reads, reports, exports | Anything a user watches — lists, dashboards, status |
-
-Favor observable queries for screens that should stay current. The live loop — a command changes state,
-the read model updates, every subscribed browser re-renders — is the experience Arc is built to make
-effortless. In a Chronicle-backed slice that state change is an appended event and a projection; in a
-current-state slice it can be a MongoDB document or EF entity changing directly.
-
-## The pipeline around it
-
-Every query runs through a pipeline where Arc applies the cross-cutting concerns for you:
-
-| Concern | Page |
-| --- | --- |
-| How a query is processed end to end | [Query Pipeline](./query-pipeline.md) |
-| Validate query parameters | [Validation](./validation.md) |
-| Authorize by role or policy | [Authorization](../core/authorization.md) |
-| Transform read models before they're served (mask, decrypt, enrich) | [Read Model Interception](./read-model-interception.md) |
-| Stream many live queries over one connection | [Observable Query Hub](./observable-query-demultiplexer.md) |
-| Re-check authorization while a live stream is running | [Observable Query Emission Guards](./observable-query-emission-guards.md) |
-| Debug a live query from the terminal | [Use Observable Queries with cURL](./using-observable-queries-with-curl.md) |
-
-## The payoff: typed reads in React
-
-As with commands, building the backend generates a typed proxy for every query. From React you call its
-`.use()` hook and get back a strongly-typed result with its loading and validation state — see
-[Queries in React](../../frontend/react/queries/index.md). One definition, read safely from C# all the
-way to the component.
+A successful backend proxy-generation build supplies typed client declarations. Use the generated query's hook and result state instead of maintaining a separate transport model. Continue with [queries in React](../../frontend/react/queries/index.md) and [proxy generation](../proxy-generation/index.md).

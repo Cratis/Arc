@@ -1,354 +1,73 @@
-# Observing Collections
+---
+title: Observe MongoDB collections
+description: Use per-collection change streams with the actual options, lifetime, and failure contract.
+---
 
-The MongoDB extensions in Cratis Applications provide powerful reactive programming capabilities through collection observation. This feature allows you to create observables that automatically notify subscribers when documents in a MongoDB collection change, providing real-time updates to your application.
+After ordinary collection reads work, use `Observe()` to publish an initial result and update it from MongoDB change streams. This is a live result set, not an audit log or a guarantee that every intermediate state reaches every subscriber.
 
-## Overview
+## Prerequisites
 
-Collection observation leverages MongoDB's Change Streams feature combined with Reactive Extensions (Rx.NET) to provide a seamless way to watch for changes in your data. The system automatically handles initial data loading, change detection, and notification of observers.
+- Complete [Arc and MongoDB setup](./getting-started.md), including Arc activation. Observation accesses Arc's initialized service provider and query context.
+- Use a MongoDB replica set or sharded cluster supporting change streams, with read/change-stream permissions. A standalone server cannot supply the watch.
+- Map a document ID to a public CLR property; observation uses it to maintain membership.
 
-## Key Features
+## Choose an observation
 
-- **Real-time Updates**: Automatically receive notifications when documents change
-- **Filtering Support**: Observe only documents matching specific criteria
-- **Multiple Observation Types**: Observe collections, single documents, or documents by ID
-- **Query Context Awareness**: Integrates with Cratis query context for paging and sorting
-- **Automatic Cleanup**: Proper resource management and cleanup when observations are disposed
-
-## Basic Collection Observation
-
-### Observing All Documents
+These are method fragments for a scoped service with an injected `IMongoCollection<Author>` named `collection`. Import `MongoDB.Driver`.
 
 ```csharp
-public class AuthorService
+var all = collection.Observe();
+var active = collection.Observe(author => author.IsActive);
+var filter = Builders<Author>.Filter.Eq(author => author.Category, "Fiction");
+var fiction = collection.Observe(filter);
+var featured = collection.ObserveSingle(author => author.IsFeatured);
+var byId = collection.ObserveById<Author, Guid>(authorId);
+```
+
+The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. Single observation emits only when an entity exists: it does not emit null when no document matches.
+
+The watch starts when `Observe()` is called, not when the first subscriber arrives. The collection result replays its latest emission to late subscribers. It does not emit a placeholder empty collection before the initial database query finishes.
+
+## Find options, paging, and sorting
+
+`Observe` and `ObserveSingle` accept **nongeneric `FindOptions`**, not `FindOptions<Author>` or projection options:
+
+```csharp
+var options = new FindOptions
 {
-    private readonly IMongoCollection<Author> _collection;
-
-    public AuthorService(IMongoCollection<Author> collection)
-    {
-        _collection = collection;
-    }
-
-    public IObservable<IEnumerable<Author>> ObserveAllAuthors()
-    {
-        return _collection.Observe();
-    }
-}
+    MaxTime = TimeSpan.FromSeconds(10)
+};
+var active = collection.Observe(author => author.IsActive, options);
 ```
 
-### Observing with Filter (Expression)
+This overload does not expose `Sort` or `Limit` properties through `FindOptions`. Arc takes paging and sorting from the current query context. Use the [query paging contract](../queries/model-bound/paging.md) when exposing a paged Arc query; arbitrary controller parameters do not populate that context automatically.
+
+## Lifetime and scope
+
+A directly owned subscription must be disposed. Example lifecycle fragment in an asynchronous method (`System.Reactive.Linq` supplies `Subscribe`):
 
 ```csharp
-public IObservable<IEnumerable<Author>> ObserveActiveAuthors()
-{
-    return _collection.Observe(author => author.IsActive);
-}
+var subject = collection.Observe(author => author.IsActive);
+using var subscription = subject.Subscribe(
+    authors => Console.WriteLine($"Active authors: {authors.Count()}"),
+    () => Console.WriteLine("Author observation completed"));
+await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
 ```
 
-### Observing with Filter Definition
+When the last subscriber unsubscribes, the lifetime-aware subject cancels the watch. Cleanup completes/disposes the subject and cursor. Do not create an observation that is never subscribed or retained. Once completed, create a **new** observation rather than reusing the terminated subject.
 
-```csharp
-public IObservable<IEnumerable<Author>> ObserveAuthorsByCategory(string category)
-{
-    var filter = Builders<Author>.Filter.Eq(a => a.Category, category);
-    return _collection.Observe(filter);
-}
-```
+Arc registers collections as **scoped** services. Register a service that captures `IMongoCollection<T>` as scoped too, not singleton. Keep its scope alive for the subscription's lifetime. A background worker must establish the intended tenant context and resolve a collection inside an appropriate scope; do not cache the first tenant's collection globally. See [MongoDB tenancy](./tenancy.md).
 
-## Single Document Observation
+## Errors and recovery limits
 
-### Observing Single Document with Filter
+The per-collection implementation catches watch failures, logs them, then completes and disposes the subject. It does **not** forward those failures as `OnError`. Individual change-processing exceptions are logged while iteration can continue. Configuration errors before the background watch starts can still throw synchronously.
 
-```csharp
-public IObservable<Author> ObserveFeaturedAuthor()
-{
-    return _collection.ObserveSingle(author => author.IsFeatured);
-}
-```
+Consequently, `.Retry(3)` on the existing subject does not recreate a failed watch, and an `OnError` callback is not a reliable connection-failure signal. Monitor completion and logs. If your application needs reconnection, design and test ownership, fresh scopes/subjects, cancellation, and backoff explicitly; this page does not claim a tested automatic retry recipe.
 
-### Observing Document by ID
+The [shared database watcher](./change-stream-watcher.md) has a different reconnect and error contract. Do not transfer guarantees between the two APIs.
 
-```csharp
-public IObservable<Author> ObserveAuthorById(AuthorId authorId)
-{
-    return _collection.ObserveById<Author, AuthorId>(authorId);
-}
-```
+## Change handling and troubleshooting
 
-## Advanced Usage
+Insert, update, replace, and delete operations update observed membership. Updates that leave the filter must remove a document from the result; filters are not simply applied to every post-change document at the stream boundary. Do not assume automatic batching of rapid changes.
 
-### With Find Options
-
-```csharp
-public IObservable<IEnumerable<Author>> ObserveRecentAuthors()
-{
-    var options = new FindOptions<Author>
-    {
-        Sort = Builders<Author>.Sort.Descending(a => a.CreatedAt),
-        Limit = 10
-    };
-
-    return _collection.Observe(
-        author => author.CreatedAt > DateTime.UtcNow.AddDays(-30),
-        options);
-}
-```
-
-### Subscribing to Changes
-
-```csharp
-public class AuthorNotificationService
-{
-    private readonly IDisposable _subscription;
-
-    public AuthorNotificationService(IMongoCollection<Author> collection)
-    {
-        _subscription = collection
-            .Observe(author => author.IsActive)
-            .Subscribe(
-                authors => HandleAuthorsChanged(authors),
-                error => HandleError(error),
-                () => HandleCompleted());
-    }
-
-    private void HandleAuthorsChanged(IEnumerable<Author> authors)
-    {
-        // React to changes in active authors
-        Console.WriteLine($"Active authors updated: {authors.Count()} authors");
-    }
-
-    private void HandleError(Exception error)
-    {
-        // Handle observation errors
-        Console.WriteLine($"Error observing authors: {error.Message}");
-    }
-
-    private void HandleCompleted()
-    {
-        // Handle observation completion
-        Console.WriteLine("Author observation completed");
-    }
-
-    public void Dispose()
-    {
-        _subscription?.Dispose();
-    }
-}
-```
-
-## Integration with Queries
-
-The observation system integrates seamlessly with the Cratis query context, supporting paging and sorting:
-
-```csharp
-[Route("api/authors")]
-public class AuthorsController : Controller
-{
-    private readonly IMongoCollection<Author> _collection;
-
-    public AuthorsController(IMongoCollection<Author> collection)
-    {
-        _collection = collection;
-    }
-
-    [HttpGet("observe")]
-    public IObservable<IEnumerable<Author>> ObserveAuthors(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string? sortBy = null,
-        [FromQuery] string sortDirection = "asc")
-    {
-        // Query context will be automatically applied to the observation
-        return _collection.Observe(author => author.IsPublished);
-    }
-}
-```
-
-## Change Types Supported
-
-The observation system monitors the following MongoDB change stream operations:
-
-- **Insert**: New documents added to the collection
-- **Update**: Existing documents modified
-- **Replace**: Documents replaced entirely  
-- **Delete**: Documents removed from the collection
-
-## Performance Considerations
-
-### Filtering Early
-
-Always apply filters to reduce the amount of data being observed:
-
-```csharp
-// Good - filtered observation
-var activeAuthors = collection.Observe(author => author.IsActive);
-
-// Avoid - observing all then filtering in memory
-var allAuthors = collection.Observe()
-    .Select(authors => authors.Where(a => a.IsActive));
-```
-
-### Resource Management
-
-Properly dispose of subscriptions to avoid memory leaks:
-
-```csharp
-public class AuthorService : IDisposable
-{
-    private readonly CompositeDisposable _subscriptions = new();
-
-    public void StartObserving()
-    {
-        var subscription = _collection
-            .Observe(author => author.IsActive)
-            .Subscribe(HandleAuthorsChanged);
-            
-        _subscriptions.Add(subscription);
-    }
-
-    public void Dispose()
-    {
-        _subscriptions?.Dispose();
-    }
-}
-```
-
-### Batch Updates
-
-The system automatically batches rapid successive changes to reduce notification frequency and improve performance.
-
-## Error Handling
-
-Robust error handling is essential when working with observables:
-
-```csharp
-public void ObserveWithErrorHandling()
-{
-    _collection
-        .Observe(author => author.IsActive)
-        .Retry(3) // Retry up to 3 times on error
-        .Catch(Observable.Empty<IEnumerable<Author>>()) // Continue with empty on final failure
-        .Subscribe(
-            authors => HandleAuthors(authors),
-            error => _logger.LogError(error, "Failed to observe authors"));
-}
-```
-
-## Best Practices
-
-### Use Specific Filters
-
-Apply filters to observe only the data you need:
-
-```csharp
-// Good - specific filter
-collection.Observe(doc => doc.Status == "Active" && doc.Type == "Premium");
-
-// Avoid - broad observation with post-filtering
-collection.Observe().Where(docs => docs.All(d => d.Status == "Active"));
-```
-
-### Dispose Properly
-
-Always dispose subscriptions when they're no longer needed:
-
-```csharp
-public class ComponentWithObservation : IDisposable
-{
-    private IDisposable? _subscription;
-
-    public void StartObserving()
-    {
-        _subscription = collection.Observe().Subscribe(HandleData);
-    }
-
-    public void Dispose()
-    {
-        _subscription?.Dispose();
-    }
-}
-```
-
-### Handle Connection Issues
-
-Implement retry logic for connection interruptions:
-
-```csharp
-collection
-    .Observe(filter)
-    .RetryWhen(errors => errors
-        .SelectMany(error => Observable.Timer(TimeSpan.FromSeconds(5)))
-        .Take(5)) // Retry 5 times with 5-second intervals
-    .Subscribe(HandleData);
-```
-
-## Integration with Dependency Injection
-
-Register observation services in your DI container:
-
-```csharp
-public void ConfigureServices(IServiceCollection services)
-{
-    services.AddSingleton<IAuthorObservationService, AuthorObservationService>();
-}
-
-public interface IAuthorObservationService
-{
-    IObservable<IEnumerable<Author>> ObserveActiveAuthors();
-    IObservable<Author> ObserveAuthorById(AuthorId id);
-}
-
-public class AuthorObservationService : IAuthorObservationService
-{
-    private readonly IMongoCollection<Author> _collection;
-
-    public AuthorObservationService(IMongoCollection<Author> collection)
-    {
-        _collection = collection;
-    }
-
-    public IObservable<IEnumerable<Author>> ObserveActiveAuthors()
-    {
-        return _collection.Observe(author => author.IsActive);
-    }
-
-    public IObservable<Author> ObserveAuthorById(AuthorId id)
-    {
-        return _collection.ObserveById<Author, AuthorId>(id);
-    }
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### Change Stream Not Starting
-
-- Ensure MongoDB version supports change streams (3.6+)
-- Verify replica set configuration
-- Check user permissions for change stream operations
-
-#### Memory Leaks
-
-- Always dispose subscriptions when no longer needed
-- Use `CompositeDisposable` for managing multiple subscriptions
-- Implement `IDisposable` in classes that create observations
-
-#### Performance Issues
-
-- Apply filters at the database level, not in memory
-- Limit the scope of observations to necessary data
-- Monitor change stream performance in MongoDB logs
-
-### Debugging
-
-Enable logging to troubleshoot observation issues:
-
-```csharp
-services.Configure<LoggerFilterOptions>(options =>
-{
-    options.AddFilter("MongoDB.Driver.MongoCollection", LogLevel.Debug);
-});
-```
-
-This will provide detailed information about change stream operations and any issues encountered during observation.
+If no first result arrives, verify replica-set configuration, permissions, ID mapping, and connectivity. Enable logging for `MongoDB.Driver.MongoCollection` to inspect per-collection watch failures. Test filtered membership, deletion, paging, and forced disconnections in your deployment before relying on live results.

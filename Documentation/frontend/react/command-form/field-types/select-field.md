@@ -1,11 +1,14 @@
-# SelectField
+---
+title: SelectField
+description: Bind a string command property to a native select with explicit option key and label fields.
+---
 
-A dropdown select field for choosing from a list of options.
+A native dropdown for choosing from option objects. Both option IDs and labels are stringified; selection emits a string, not the original object or numeric ID.
 
 ## Props
 
 | Prop | Type | Description |
-|------|------|-------------|
+| ------ | ------ | ------------- |
 | `value` | `(instance: TCommand) => unknown` | **Required.** Accessor function returning the property value from the command instance. |
 | `title` | `string` | The label for the field. |
 | `options` | `Array<{ [key: string]: unknown }>` | **Required.** Array of option objects. |
@@ -14,7 +17,11 @@ A dropdown select field for choosing from a list of options.
 | `placeholder` | `string` | Placeholder text shown for empty selection. |
 | `required` | `boolean` | Override automatic required detection. |
 
+All three option props are required: `options`, `optionIdField`, and `optionLabelField`. The optional placeholder has value `''`; command rules must reject it when a selection is mandatory. The native control can visually select an option while the command remains unset if you omit a placeholder/initial value, so seed intentionally. See [Common props](./index.md#common-props) and [Data loading](../data-loading.md) for asynchronous options.
+
 ## Example
+
+These illustrative configuration/field fragments require `SelectField` from `@cratis/arc.react/commands` and a generated `UserCommand` with string `country` and `role` properties. Place each selector inside that command's form and keep its option array in component or module scope.
 
 ```tsx
 const countries = [

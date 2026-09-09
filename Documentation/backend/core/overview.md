@@ -1,155 +1,66 @@
-# Overview
+---
+title: Lightweight Core overview
+description: Choose Arc.Core for standalone pipelines and HttpListener hosting, or Arc for ASP.NET integration.
+---
 
-Arc.Core is a lightweight application framework that brings the Arc developer experience to .NET applications without requiring ASP.NET Core. It's designed for scenarios where you need the power of Arc's conventions—commands, queries, identity, multi-tenancy, and validation—but don't need the full web framework.
+A worker or small HTTP service does not always need MVC and Kestrel. `Cratis.Arc.Core` gives you Arc's command/query pipelines and a lightweight `HttpListener` host without an ASP.NET Core dependency. `Cratis.Arc` adds the ASP.NET integration when you need that ecosystem. Neither package requires event sourcing.
 
-## Motivation
+## What Core provides
 
-Modern .NET development often requires building various types of applications beyond traditional web applications:
+- Model-bound commands and queries, validation, authorization, and result handling.
+- Identity details and tenant context; application authorization and tenant membership still need deliberate configuration.
+- Correlation IDs, dependency injection, and convention-based discovery.
+- GET/POST manual endpoints, [static files and SPA fallback](static-files.md), and [basic OpenAPI route metadata](openapi.md).
 
-- **Console Applications** - CLI tools, utilities, and batch processors
-- **Background Services** - Long-running workers and scheduled tasks
-- **Microservices** - Lightweight services with minimal overhead
-- **Custom Servers** - gRPC services, custom protocols, or specialized HTTP endpoints
-- **Containerized Workloads** - Applications optimized for containers and serverless environments
+```mermaid
+flowchart TD
+    App[Your application] --> Core[Cratis.Arc.Core]
+    Core --> Pipelines[Command and query pipelines]
+    Core --> Listener[Optional lightweight HTTP host]
+    AspNet[Cratis.Arc ASP.NET integration] --> Core
+    Persistence[Optional MongoDB or EF Core integration] --> Core
+    Chronicle[Optional Chronicle event sourcing] --> Core
+```
 
-For these scenarios, the full ASP.NET Core stack can be overkill, bringing unnecessary dependencies, slower startup times, and increased memory consumption. Arc.Core addresses this by providing a minimal foundation that preserves the Arc experience while removing web framework overhead.
+Persistence integrations do not require Chronicle. Adding an integration can introduce its own dependencies; the Core-only dependency boundary is not a promise about every combined package graph.
 
-## Design Philosophy
+## Comparison with ASP.NET Core
 
-### Minimal Dependencies
+| Capability | Arc.Core lightweight host | Arc with ASP.NET Core |
+| --- | --- | --- |
+| Package | `Cratis.Arc.Core` | `Cratis.Arc` |
+| HTTP server | `HttpListener` | ASP.NET hosting, commonly Kestrel |
+| Request handling | Arc's simplified route/static/fallback handling | ASP.NET middleware ecosystem |
+| Manual routing | Literal-path GET/POST helpers | ASP.NET routing APIs |
+| Static files | Built-in support and SPA fallback | ASP.NET static-file middleware |
+| MVC/Razor | Not included | Available through ASP.NET |
+| OpenAPI | Basic route metadata in Core | Optional `Cratis.Arc.OpenApi` or `Cratis.Arc.Swagger` |
+| Pipelines, validation, identity, tenant context | Available | Available |
 
-Arc.Core intentionally excludes the full ASP.NET Core stack:
+Core does have request-processing middleware internally; it does not expose ASP.NET's full middleware pipeline. Native AOT compatibility, startup time, memory usage, deployment size, and throughput depend on discovery, serialization, integrations, and deployment. Validate your actual publish configuration and benchmark your workload rather than treating “lightweight” as an AOT or performance guarantee.
 
-- **No Kestrel or HTTP.sys** - Uses .NET's built-in `HttpListener` for HTTP scenarios
-- **No MVC/Razor** - No view rendering or controller infrastructure
-- **No Middleware Pipeline** - Simplified request handling
-- **Smaller Deployment Footprint** - Fewer assemblies to deploy
+## When to choose each host
 
-This results in:
-- Faster startup times
-- Lower memory consumption
-- Smaller binary sizes
-- Reduced attack surface
-
-### Native AOT Ready
-
-Arc.Core is designed with Native AOT (Ahead-of-Time) compilation in mind:
-
-- **Faster Startup** - No JIT compilation at runtime
-- **Smaller Binaries** - Single-file executables with tree-shaking
-- **Lower Memory Footprint** - Reduced working set
-- **Predictable Performance** - No JIT warmup time
-
-> **Note**: While Arc.Core is designed to support AOT, full AOT compatibility depends on the features and libraries you use in your application. Always test your specific scenario.
-
-### Full Arc Features
-
-Despite being lightweight, Arc.Core provides all core Arc capabilities:
-
-- **Commands** - Automatic endpoint generation and handling
-- **Queries** - Filtering, sorting, and pagination support
-- **Identity System** - User authentication and authorization
-- **Multi-Tenancy** - Tenant isolation and context management
-- **Correlation ID Tracking** - Request tracing across services
-- **Validation** - Declarative validation with automatic error handling
-- **Type Discovery** - Convention-based type discovery
-- **Dependency Injection** - Full DI container support
-
-### Flexibility
-
-Arc.Core can be used in various scenarios:
-
-- **Standalone HTTP Services** - Build HTTP APIs without ASP.NET Core
-- **Console Applications** - Add commands and queries to CLI tools
-- **Background Workers** - Combine with `IHostedService` for background processing
-- **gRPC Services** - Use Arc features alongside gRPC
-- **Custom Protocols** - Build any type of .NET application with Arc conventions
-
-## What It's For
-
-### Primary Use Cases
-
-Arc.Core is ideal for:
-
-1. **Lightweight Microservices**
-   - Services that don't need the full web stack
-   - Container-optimized deployments
-   - Fast startup requirements
-   - Low memory constraints
-
-2. **Console Applications**
-   - CLI tools that expose HTTP endpoints for management
-   - Batch processing with API integration
-   - Developer tools and utilities
-
-3. **Background Services**
-   - Long-running workers with HTTP endpoints for health checks
-   - Scheduled tasks with monitoring APIs
-   - Message processors with control endpoints
-
-4. **Native AOT Scenarios**
-   - Applications requiring fast cold starts
-   - Single-file deployments
-   - Environments with strict size constraints
-
-5. **Learning and Prototyping**
-   - Simpler setup for learning Arc concepts
-   - Rapid prototyping without web framework complexity
-   - Testing Arc patterns in isolation
-
-### When Not to Use
-
-Arc.Core is **not** suitable when you need:
-
-- **Static File Serving** - Use ASP.NET Core's static file middleware
-- **Razor Views** - Use ASP.NET Core MVC
-- **Advanced Middleware** - Use ASP.NET Core's full middleware pipeline
-- **Swagger UI** - Use Arc with ASP.NET Core and Swagger extension
-- **High-Traffic Scenarios** - Consider ASP.NET Core with Kestrel for maximum throughput
+Choose Core for small standalone HTTP services, workers with management endpoints, or learning the pipelines without a web-framework dependency. Choose ASP.NET Core for controllers, Razor, advanced routing, standard authentication middleware, or other ASP.NET libraries. Arc pipelines can participate in other application architectures, but Core does not itself supply a gRPC server or arbitrary protocol implementation.
 
 ## Architecture
 
-Arc.Core is built around the `ArcApplicationBuilder` and `ArcApplication` abstractions, which mirror .NET's `HostBuilder` pattern:
+The builder registers services; activation maps Arc endpoints and schedules listener startup. This **bootstrap fragment** belongs in a console project's `Program.cs` with `using Cratis.Arc;`:
 
 ```csharp
-// Builder Pattern
 var builder = ArcApplication.CreateBuilder(args);
 builder.AddCratisArc();
-// Configure services, logging, metrics, etc.
-
-// Application Pattern
 var app = builder.Build();
 app.UseCratisArc();
 await app.RunAsync();
 ```
 
-This familiar pattern makes it easy to transition between Arc.Core and ASP.NET Core-based Arc applications.
+The default listener binds `http://+:5001/`; the [getting-started checkpoint](getting-started.md) uses an explicit loopback URL. Review [anonymous discovery defaults](../introspection/index.md) before exposing the host.
 
-## Comparison with ASP.NET Core
+## Next steps
 
-| Aspect | Arc.Core | Arc with ASP.NET Core |
-|--------|----------|----------------------|
-| **Dependencies** | Minimal | Full ASP.NET Core stack |
-| **Startup Time** | Faster | Standard |
-| **Memory Usage** | Lower | Higher |
-| **Binary Size** | Smaller | Larger |
-| **AOT Support** | Designed for AOT | Limited AOT support |
-| **HTTP Server** | HttpListener | Kestrel/HTTP.sys |
-| **Middleware** | Basic | Full pipeline |
-| **Static Files** | ❌ No | ✅ Yes |
-| **Razor Views** | ❌ No | ✅ Yes |
-| **Swagger UI** | ❌ No | ✅ Yes |
-| **Commands** | ✅ Yes | ✅ Yes |
-| **Queries** | ✅ Yes | ✅ Yes |
-| **Identity** | ✅ Yes | ✅ Yes |
-| **Multi-Tenancy** | ✅ Yes | ✅ Yes |
-| **Validation** | ✅ Yes | ✅ Yes |
-
-## Next Steps
-
-Ready to build your first Arc.Core application? Head over to the [Getting Started](getting-started.md) guide.
-
-To learn about specific features:
-- [Authentication](authentication.md) - Implement custom authentication handlers
-- [Authorization](authorization.md) - Protect your endpoints with authorization attributes
-- [Invariant Culture](invariant-culture.md) - Guarantee consistent culture-sensitive behavior across all environments
+- [Getting started](getting-started.md) — run a complete command/query example.
+- [Authentication](authentication.md) and [authorization](authorization.md) — establish and enforce trust.
+- [Configuration](../configuration/index.md) — all runtime options and host differences.
+- [Invariant culture](invariant-culture.md) — culture-sensitive behavior.
+- [Chronicle integration](../chronicle/index.md) — optional event sourcing, not a prerequisite.

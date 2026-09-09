@@ -1,5 +1,5 @@
 ---
-title: "ARCCHR0009: Command property reads as a secret and should be marked [NotAudited]"
+title: 'ARCCHR0009: Command property reads as a secret and should be marked [NotAudited]'
 description: A command carries a property whose name reads like a secret, and its value will be written to the causation of every event the command appends.
 ---
 
@@ -18,6 +18,8 @@ Warning
 ## Example
 
 ### Violation
+
+These are attribute-focused fragments using application event and service types. The command-only `ResetCredentials` declaration below omits `Handle()` intentionally; supply it in a complete command.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -51,7 +53,7 @@ Marking the positional parameter — `[NotAudited] string Password` — works th
 public record ResetCredentials(Guid UserId, string Password, string RecoveryCode);
 ```
 
-If the value is personal data rather than a secret, mark it `[PII]` instead — Chronicle withholds that from the causation too, and encrypts it in the event.
+If the value is personal data, `[PII]` also excludes it from causation. Event encryption is separate: annotate the serialized event property/type or a shared concept. A command-only annotation does not encrypt a value copied into a new event.
 
 When the secret has its own concept, mark the concept once and every command that takes one is covered:
 
@@ -62,13 +64,13 @@ public record ProviderApiKey(string Value) : ConceptAs<string>(Value);
 
 ## Quick Fix
 
-None. The right response depends on what the value is: `[NotAudited]` for a secret, `[PII]` for personal data, [a suppression](#when-the-rule-is-wrong) for a false positive. The two attributes are not interchangeable — `[PII]` also encrypts the value and enrolls it in erasure, which is wrong for a password, and `[NotAudited]` does nothing for a GDPR request, which is wrong for a name.
+None. Use `[NotAudited]` for audit exclusion, `[PII]` for personal-data semantics, or [a suppression](#when-the-rule-is-wrong) for an intentional safe audit value. Secrets and personal data can overlap. `[NotAudited]` does not encrypt event payloads; `[PII]` controls encryption only where the persisted type/property carries that metadata. Do not store plaintext credentials in events.
 
 ## Why This Rule Exists
 
 A name-based guess is normally a poor basis for a diagnostic. It earns its place here because of what is at the other end of it: the causation is written into the event log, the event log is immutable, and a secret recorded there cannot be taken back out by changing code. Fixing it after the fact means redacting events. The cost of a false positive is one attribute; the cost of a miss is permanent.
 
-The mistake is also easy to make silently. Adding a property to a command is an ordinary edit, nothing about it says "this is now in the audit trail forever", and the value only appears somewhere a person would notice — the Workbench, a replay, an export — long after the commit that introduced it.
+The mistake is also easy to make silently. Adding a property to a command is an ordinary edit, nothing about it says "this is now in the audit trail forever," and the value only appears somewhere a person would notice — the Workbench, a replay, an export — long after the commit that introduced it.
 
 ## When the Rule Is Wrong
 
@@ -83,7 +85,9 @@ public string TokenScopes { get; init; }
 
 ## What It Does Not Catch
 
-The rule reads names, so it only sees secrets whose names say so. A property called `Value` or `Payload` holding an API key is invisible to it. Treat a clean build as "nothing obvious was missed", not as "no secrets are recorded" — the decision about what belongs in a permanent audit record is still yours to make when you add the property.
+Runtime causation exclusion checks top-level command values; it does not recursively redact nested objects serialized to JSON. Exclude the containing value when it carries nested secrets.
+
+The rule reads names, so it only sees secrets whose names say so. A property called `Value` or `Payload` holding an API key is invisible to it. Treat a clean build as "nothing obvious was missed," not as "no secrets are recorded" — the decision about what belongs in a permanent audit record is still yours to make when you add the property.
 
 ## Related Rules
 

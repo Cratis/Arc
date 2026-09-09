@@ -60,12 +60,14 @@ React compositions fit.
 
 ## Start an Arc host
 
-Use the .NET SDK declared by Arc's current `global.json`.
+Use a .NET SDK compatible with your selected Arc release (the current source targets .NET 10). This is the **ASP.NET Core** path; [Arc.Core's lightweight host](/arc/backend/core/getting-started/) is a separate alternative.
 
 <Steps>
-1. Install the umbrella host package.
+1. Create an ASP.NET Core project and install the host package.
 
    ```bash
+   dotnet new web -n Library --framework net10.0
+   cd Library
    dotnet add package Cratis.Arc
    ```
 
@@ -74,7 +76,7 @@ Use the .NET SDK declared by Arc's current `global.json`.
    ```csharp
    using Cratis.Arc;
 
-   var builder = ArcApplication.CreateBuilder(args);
+   var builder = WebApplication.CreateBuilder(args);
    builder.AddCratisArc();
 
    var app = builder.Build();
@@ -82,7 +84,7 @@ Use the .NET SDK declared by Arc's current `global.json`.
    await app.RunAsync();
    ```
 
-3. Confirm the application starts on the selected SDK/package profile.
+3. Run `dotnet run` and confirm the application starts. Continue with [standalone setup](/arc/backend/getting-started/) for database configuration, generated proxies, and the first command/query checkpoint.
 </Steps>
 
 Starting the host verifies the setup path only. Commands, queries, generated
@@ -123,7 +125,7 @@ and lifecycle behavior.
 
 `@cratis/arc` supplies the TypeScript command, query, validation, identity, and
 messaging runtime used by generated proxies. `@cratis/arc.react` adds hooks,
-command forms, dialogs, identity composition, and query components. The optional
+command forms, dialog infrastructure, identity composition, and query components. The composed `CommandDialog` used in the tutorial comes from the separate `@cratis/components` package. The optional
 React/MVVM package adds view models, dependency injection, route parameters, and
 browser abstractions.
 

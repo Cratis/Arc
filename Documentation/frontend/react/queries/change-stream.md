@@ -1,123 +1,60 @@
-# Change Stream
+---
+title: Change stream
+description: Consume snapshot changes from enumerable observable queries, with exact generated overloads and Full/Delta limitations.
+---
 
-Observable queries deliver full collection snapshots by default. **Change stream** is a thin layer on top that exposes per-update deltas — which items were added, replaced, or removed — as React state instead of requiring consumers to diff the full array themselves.
+A live list consumer sometimes needs additions, replacements, and removals instead of the latest full array. `useChangeStream` exposes those changes as React state. It is a snapshot-delta view, **not an audit log or an operation-by-operation database stream**. Arc does not require MongoDB or Chronicle for it.
 
-## Quick Start
+## Generated proxy method
 
-```tsx
-// All.useChangeStream() is auto-generated for any enumerable observable query.
-const changes = All.useChangeStream(
-    undefined,           // optional query arguments
-    item => item.id      // optional key accessor — enables "replaced" detection
-);
-
-useEffect(() => {
-    changes.added.forEach(item => console.log('added', item));
-    changes.replaced.forEach(item => console.log('replaced', item));
-    changes.removed.forEach(item => console.log('removed', item));
-}, [changes]);
-```
-
-## `useChangeStream()` Hook
-
-```typescript
-function useChangeStream<TDataType, TQuery, TArguments>(
-    query:     Constructor<TQuery>,
-    args?:     TArguments,
-    getKey?:   (item: TDataType) => unknown,
-    sorting?:  Sorting,
-    isEnabled: boolean = true
-): ChangeSet<TDataType>
-```
-
-The hook uses the same subscription and caching infrastructure as `useObservableQuery` — no extra server connections are opened.
-
-### Parameters
-
-| Parameter   | Type | Description |
-|-------------|------|-------------|
-| `query`     | `Constructor<TQuery>` | The observable query constructor (must be enumerable). |
-| `args`      | `TArguments` | Optional query arguments passed through to the underlying query. |
-| `getKey`    | `(item: TDataType) => unknown` | Optional identity accessor. When provided, items with the same key but different content are reported as `replaced`. Without it, only `added` and `removed` are detected. |
-| `sorting`   | `Sorting` | Optional sorting configuration. |
-| `isEnabled` | `boolean` | When `false`, the hook is a no-op. Defaults to `true`. |
-
-### Return Value
-
-A `ChangeSet<TDataType>` object that is stable between updates when nothing changes:
-
-```typescript
-interface ChangeSet<T> {
-    readonly added:    T[];   // items that appeared since the last update
-    readonly replaced: T[];   // items that have the same key but different content
-    readonly removed:  T[];   // items that were present before but are not now
-}
-```
-
-## Generated Proxy Method
-
-The proxy generator emits a `static useChangeStream()` method on every enumerable observable query class automatically. No manual wiring is needed:
-
-```typescript
-// Generated proxy — call site
-import { All } from './Proxy';
-
-const changes = All.useChangeStream(undefined, item => item.id);
-```
-
-## Transfer Modes
-
-Two transfer modes control how the client processes incoming updates.
-
-### Delta mode (default)
-
-When the server attaches a `ChangeSet` to the `QueryResult`, the hook uses it directly. This is the most accurate mode because the server tracks individual MongoDB operations (insert, update, delete) rather than diffing snapshots.
-
-When no server `ChangeSet` is available, the hook falls back to client-side snapshot comparison:
-
-- **With `getKey`**: added, replaced, and removed are all detected.
-- **Without `getKey`**: only added and removed are detected (identity unknown).
-
-### Full mode
-
-Set `observableQueryTransferMode` to `ObservableQueryTransferMode.Full` on the `<Arc>` component to treat every incoming snapshot as if all its items were just added. This is useful for debugging or for consumers that need a fresh batch on every tick regardless of what actually changed.
+Only enumerable observable queries generate `useChangeStream`. Argument positions depend on whether the backend query has parameters. These are illustrative calls inside components consuming the named generated proxies:
 
 ```tsx
-import { Arc } from '@cratis/arc.react';
-import { ObservableQueryTransferMode } from '@cratis/arc';
+// Parameterless query: first argument is the key accessor.
+const allChanges = AllBooks.useChangeStream(book => String(book.id));
 
-export const App = () => (
-    <Arc
-        microservice="my-app"
-        observableQueryTransferMode={ObservableQueryTransferMode.Full}
-    >
-        <MyRoutes />
-    </Arc>
+// Parameterized query: first argument is the parameters object.
+const authorChanges = BooksForAuthor.useChangeStream(
+    { authorId }, book => String(book.id)
 );
 ```
 
-| Value | Description |
-|-------|-------------|
-| `ObservableQueryTransferMode.Delta` | Default. Uses server-provided `ChangeSet` or falls back to client-side snapshot comparison. |
-| `ObservableQueryTransferMode.Full`  | Treats every snapshot as a fresh batch of additions. |
+For a parameterized query whose arguments are optional, `useChangeStream(undefined, getKey)` is valid. It is not the signature for a parameterless proxy. Use a stable primitive key; newly deserialized Guid objects are not stable JavaScript Map keys, so convert them to strings.
 
-## `IChangeStreamFor<T>`
+## useChangeStream hook
 
-All generated enumerable observable query classes automatically implement `IChangeStreamFor<TItem>` (which extends `IObservableQueryFor<TItem[]>`). You can use this interface in generic components:
+The raw hook takes `(query, args?, getKey?, sorting?, isEnabled = true)` and returns `ChangeSet<TItem>`. It reuses ordinary observable subscription/cache infrastructure. It does not add a separate transport connection for the same shared subscription.
 
-```typescript
-import { IChangeStreamFor } from '@cratis/arc/queries';
+| Member | Meaning |
+| --- | --- |
+| `added` | Newly present items |
+| `replaced` | Current items whose stable keys match but serialized content changed |
+| `removed` | Previously present items no longer in the snapshot |
 
-function MyComponent<T, TQuery extends IChangeStreamFor<T>>({
-    query
-}: { query: Constructor<TQuery> }) {
-    const changes = useChangeStream<T, TQuery>(query);
-    // ...
-}
-```
+For local comparison, `getKey` enables replacement detection. Without it, full JSON content identifies items, so edits appear as removal plus addition. Reordering alone is not an item-content change. The return value is the latest change state, not a queue of every intermediate event.
 
-## See Also
+Disabling the hook suppresses its automatic subscription/change processing, not all cache creation; see [conditional queries](./conditional-queries.md).
 
-- [Change Stream — Backend](../../../backend/queries/change-stream.md) — `ChangeSetComputor`, identity property discovery, and wire format.
-- [Observable Query Multiplexing](./observable-query-multiplexing.md) — Transport configuration (WebSocket vs SSE, connection count, direct mode).
-- [Queries](./index.md) — General query hooks and usage patterns.
+## Transfer modes
+
+Processing follows this order:
+
+1. If a result includes a server `changeSet`, use it directly, **even in local Full mode**.
+2. Otherwise, the first processed snapshot or local `ObservableQueryTransferMode.Full` returns all current items as `added` and empty replacement/removal arrays.
+3. Otherwise, local Delta mode compares previous and current snapshots.
+
+Configure the mode through `<Arc observableQueryTransferMode={ObservableQueryTransferMode.Full}>`, importing the enum from `@cratis/arc`, before establishing subscriptions. This global setting also travels in shared-hub subscription requests: the server sends full snapshots in Full mode, or an initial snapshot followed by delta-only collection updates in Delta mode. It is not isolated by nested providers, and it does not select SSE versus WebSocket or guarantee operation-level transport fidelity.
+
+The ordinary observable `.use()` hook reconstructs delta-only collections; [observable Suspense currently does not](./suspense-queries.md#observable-collections-and-delta-only-updates).
+
+The server's `ChangeSetComputor` also compares snapshots. Intermediate writes between emissions can disappear from the observed delta. Equivalent cached data may suppress notifications, so Full mode does not guarantee one callback per server tick. Use an actual durable event/audit source when every operation matters.
+
+## IChangeStreamFor
+
+`IChangeStreamFor<TItem>` extends `IObservableQueryFor<TItem[]>` and is the structural contract used by the raw hook. Generated enumerable observable proxies satisfy it. No separate marker attribute or MongoDB operation feed is required.
+
+## See also
+
+- [Backend change streams](../../../backend/queries/change-stream.md)
+- [Observable query multiplexing](./observable-query-multiplexing.md)
+- [Query instance caching](./query-instance-caching.md)

@@ -5,7 +5,7 @@ description: What a command Handle() can return — a single event, several, a t
 
 When a [model-bound](../../commands/model-bound/index.md) command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
 
-The appends are part of the command's transaction: all events commit atomically when the command succeeds, and none are appended when it fails — see [Transactional Commands](../../commands/transactional-commands.md).
+Return-driven appends enroll in the command's pending transaction: the batch commits atomically on success and rolls back on failure, unless code explicitly completed that shared transaction earlier — see [Transactional commands](./transactional-commands.md).
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -16,12 +16,12 @@ public record RegisterCustomer(EventSourceId CustomerId, string Email)
 {
     public CustomerRegistered Handle()
     {
-        return new CustomerRegistered(CustomerId, Email);
+        return new CustomerRegistered(Email);
     }
 }
 
 [EventType]
-public record CustomerRegistered(EventSourceId CustomerId, string Email);
+public record CustomerRegistered(string Email);
 ```
 
 You can also return multiple events as a collection:
@@ -37,17 +37,17 @@ public record UpdateCustomerProfile(EventSourceId CustomerId, string DisplayName
     {
         return new object[]
         {
-            new CustomerDisplayNameChanged(CustomerId, DisplayName),
-            new CustomerEmailChanged(CustomerId, Email)
+            new CustomerDisplayNameChanged(DisplayName),
+            new CustomerEmailChanged(Email)
         };
     }
 }
 
 [EventType]
-public record CustomerDisplayNameChanged(EventSourceId CustomerId, string DisplayName);
+public record CustomerDisplayNameChanged(string DisplayName);
 
 [EventType]
-public record CustomerEmailChanged(EventSourceId CustomerId, string Email);
+public record CustomerEmailChanged(string Email);
 ```
 
 Chronicle uses the command context to resolve the event source identity and event stream metadata before appending events.
@@ -56,13 +56,11 @@ Chronicle uses the command context to resolve the event source identity and even
 
 Chronicle resolves the event source id for commands using a small set of conventions. This value is stored in the command context and is required for event appending.
 
-Chronicle resolves the event source id in this order:
-
-1. Implement `ICanProvideEventSourceId` on the command and return the id from `GetEventSourceId()`.
-2. Add a property of type `EventSourceId` to the command.
-3. Mark a property with `[Key]` and let Chronicle use its value as the event source id.
+`ICanProvideEventSourceId` takes precedence. Otherwise Arc selects the first property matching any of: `EventSourceId`, `EventSourceId<T>` ancestry, or Chronicle `[Key]`. There is no typed-before-key precedence; use one unambiguous candidate.
 
 If none of these are present, Chronicle creates a new `EventSourceId` so the command still has a valid identity for event appends.
+
+The following declarations are identity fragments; add a public instance `Handle()` for a complete command.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -82,7 +80,7 @@ public record RenameAccount(EventSourceId AccountId, string NewName);
 public record CloseAccount([Key] Guid AccountId);
 ```
 
-For the full reference, including how Chronicle uses the same identity conventions for query arguments and how you can override the command value by returning `EventSourceId` from `Handle()`, see [Resolving EventSourceId](../resolving-event-source-id.md) and [Returning EventSourceId](./returning-event-source-id.md).
+For command input identity, ordinary query binding (which does not use these conventions), and the later append override from a returned `EventSourceId`, see [Resolving EventSourceId](../resolving-event-source-id.md) and [Returning EventSourceId](./returning-event-source-id.md).
 
 ## Event Stream Metadata
 
@@ -90,7 +88,7 @@ Chronicle supports additional metadata that can be attached to commands and used
 
 ### EventStreamId
 
-Use `[EventStreamId]` to assign a specific event stream id to a command, or implement `ICanProvideEventStreamId` to supply it dynamically.
+Use `[EventStreamId]` to assign a specific event stream id to a command, or implement `ICanProvideEventStreamId` to supply it dynamically. The declarations in this metadata section are attribute-focused fragments, not complete commands; supply `Handle()` in your application.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -144,7 +142,7 @@ These metadata attributes categorize and identify the appended events. Because t
 
 Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.
 
-`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context. Because the command is a [transactional scope](../../commands/transactional-commands.md), the appends across all the event sources are atomic — if any of them is rejected, none of them land.
+`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context. Because the command is a [transactional scope](./transactional-commands.md), the appends across all the event sources are atomic — if any of them is rejected, none of them land.
 
 Return a single `EventForEventSourceId` when only one cross-source event is needed:
 
@@ -152,16 +150,17 @@ Return a single `EventForEventSourceId` when only one cross-source event is need
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 
 [Command]
 public record MigrateCustomerToNewId(EventSourceId OldCustomerId, EventSourceId NewCustomerId)
 {
     public EventForEventSourceId Handle() =>
-        new(NewCustomerId, new CustomerMigrated(OldCustomerId, NewCustomerId));
+        new(NewCustomerId, new CustomerMigrated(OldCustomerId));
 }
 
 [EventType]
-public record CustomerMigrated(EventSourceId OldCustomerId, EventSourceId NewCustomerId);
+public record CustomerMigrated(EventSourceId OldCustomerId);
 ```
 
 Return an `IEnumerable<EventForEventSourceId>` to append events to several different event sources in one command:
@@ -170,6 +169,7 @@ Return an `IEnumerable<EventForEventSourceId>` to append events to several diffe
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 
 [Command]
 public record TransferFunds(EventSourceId FromAccountId, EventSourceId ToAccountId, decimal Amount)
@@ -188,7 +188,7 @@ public record FundsDebited(decimal Amount);
 public record FundsCredited(decimal Amount);
 ```
 
-Chronicle enrolls the events in order in the command transaction. They commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
+Arc enumerates and enrolls these wrappers in order, but that is not a guarantee of cross-source batch order. Chronicle's ordinary unit-of-work staging groups events by source: `A1, B1, A2` can commit as `A1, A2, B1`. Use [`EventsWithConcurrencyScopes`](#events-with-exact-concurrency-scopes) when global batch order matters. The events still commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
 
 You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
 
@@ -196,19 +196,22 @@ You can mix `EventForEventSourceId` values with regular events in a tuple return
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 
 [Command]
-public record AcceptOrder(EventSourceId OrderId, EventSourceId CustomerId)
+public record AcceptOrder(EventSourceId OrderId, EventSourceId CustomerId) : ICanProvideEventSourceId
 {
+    public EventSourceId GetEventSourceId() => OrderId;
+
     public (OrderAccepted, EventForEventSourceId) Handle() =>
         (
-            new OrderAccepted(OrderId),
+            new OrderAccepted(),
             new EventForEventSourceId(CustomerId, new CustomerOrderAccepted(OrderId))
         );
 }
 
 [EventType]
-public record OrderAccepted(EventSourceId OrderId);
+public record OrderAccepted;
 
 [EventType]
 public record CustomerOrderAccepted(EventSourceId OrderId);
@@ -218,7 +221,7 @@ public record CustomerOrderAccepted(EventSourceId OrderId);
 
 ## Events with exact concurrency scopes
 
-The automatic strategy resolves a target's expected tail after `Handle()` returns. That is right for ordinary optimistic concurrency. When a command makes its decision from an exact revision it already read, return `EventsWithConcurrencyScopes` to carry that revision with the events instead of resolving a newer tail later.
+The automatic strategy resolves a target's expected tail after `Handle()` returns: during response processing for attribute-selected scopes, or during commit for the fallback scope. That is right for ordinary optimistic concurrency. When a command makes its decision from an exact revision it already read, return `EventsWithConcurrencyScopes` to carry that revision with the events instead of resolving a newer tail later.
 
 The response contains two values:
 
@@ -238,15 +241,23 @@ using Cratis.Chronicle.EventSequences.Concurrency;
 [Command]
 public record InviteFirstAdministrator(
     EventSourceId MemberId,
-    EventSourceId InvitationId)
+    EventSourceId InvitationId) : ICanProvideEventSourceId
 {
     static readonly EventSourceId AdministratorScope = "active-administrators";
 
+    public EventSourceId GetEventSourceId() => MemberId;
+
+    // Intentional server-side read; no imperative append bypasses the return path.
+#pragma warning disable ARCCHR0007
     public async Task<EventsWithConcurrencyScopes> Handle(IEventLog eventLog)
+#pragma warning restore ARCCHR0007
     {
         var activeAdministratorEvent = typeof(AdministratorActivated).GetEventType();
-        var expectedAdministratorRevision = await eventLog.GetTailSequenceNumber(
+        var tail = await eventLog.GetTailSequenceNumber(
             filterEventTypes: [activeAdministratorEvent]);
+        var expectedAdministratorRevision = tail == EventSequenceNumber.Unavailable
+            ? EventSequenceNumber.BeforeFirst
+            : tail;
 
         return new EventsWithConcurrencyScopes(
             [
@@ -273,6 +284,12 @@ public record MemberInvited;
 public record InvitationIssued(EventSourceId MemberId);
 ```
 
-Arc enrolls the response in the command's existing unit of work. The event order, exact scope labels, and exact scope values are passed to Chronicle together; the command does not append immediately. If the protected fact changes between the decision and commit, the command returns a concurrency validation failure and none of its returned events land.
+This is a concurrency-routing example, not a complete first-administrator business rule. It watches changes to `AdministratorActivated`, not invitation uniqueness, and does not reject an already-active administrator by itself. Authorize and validate that decision separately.
+
+When the matching history is empty, `BeforeFirst` expresses “no matching event may exist”; `Unavailable` is not a protected empty revision. Arc enrolls the ordered events and exact scopes together. If a matching activation event appears after the read, commit rejects the returned batch. A concurrent invitation without an activation is outside this scope.
+
+`ICanProvideEventSourceId` deliberately selects `MemberId` as the input-time command identity, including for any identity-bound dependencies. The returned wrappers still target their explicit member and invitation ids. This removes the two-property ambiguity reported by [ARCCHR0002](../code-analysis/index.md#arcchr0002-ambiguous-command-identity); `EventsWithConcurrencyScopes` is not a recognized exemption in the current analyzer.
+
+The narrow ARCCHR0007 suppression documents an intentional read-only `IEventLog` dependency; the analyzer matches the parameter type, not whether a method writes.
 
 Use an exact scope only for a revision the command actually read. `ConcurrencyScope.NotSet` retains the event sequence's configured strategy for an event-target label, while `ConcurrencyScope.None` deliberately disables checking for that label. An independent label must carry a concrete exact scope or `ConcurrencyScope.None` because there is no target from which Chronicle can infer a scope.

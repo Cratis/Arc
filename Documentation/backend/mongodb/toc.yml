@@ -4,6 +4,13 @@
   href: serializers.md
 - name: Geospatial Types
   href: geospatial/index.md
+  items:
+    - name: Point
+      href: geospatial/point.md
+    - name: LineString
+      href: geospatial/linestring.md
+    - name: Polygon
+      href: geospatial/polygon.md
 - name: Concepts
   href: concepts.md
 - name: Naming Policies

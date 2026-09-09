@@ -1,17 +1,119 @@
 ---
 title: Use current state in a command
-description: Inject the read model Chronicle projected for a command's key straight into its validator, Provide, or Handle — and decide with it, without writing a query.
+description: Resolve a read model by an explicit command key through MongoDB, an EF Core read-only context, or optional Chronicle ownership; choose how to handle absence and concurrency.
 ---
 
-**Goal:** your command's decision depends on what's already true. Can this order be submitted? Is this name taken? What's the current balance? The state you need is already projected into a read model — you just need it *inside* the command.
+**Goal:** decide against existing state without repeating the same lookup in a validator, `Provide()`, and `Handle()`.
 
-You don't query for it. If the command carries a key, Arc has already resolved the read model for that key and will hand it to you as a parameter.
+Arc can resolve a read model once in the command scope and share that instance between those positions. This needs **both a usable command key and a provider that owns key-based resolution**. `[ReadModel]` alone is not a storage configuration.
 
-## The friction this removes
+## Declare the key and provider
 
-Without it, a command that needs current state has to go get it: inject a repository or `IReadModels`, resolve the key by hand, `await` a lookup, null-check the result. That's four lines of plumbing before the first line of the actual decision — repeated in the validator *and* the handler, where the two can drift apart and answer differently.
+Standalone Arc resolves keys from `[Key]` or `ICanProvideKeyForCommand.GetKey()`. It does not guess from a property named `Id` or from an arbitrary Guid concept. A composite application key can be composed by that interface, but the selected provider must still support the resulting stored key.
 
-Arc removes the fetch entirely. Declare the read model as a parameter and it arrives:
+```mermaid
+flowchart TB
+    CMD[Command] -->|Key or ICanProvideKeyForCommand| ID[resolved key]
+    ID --> Provider[owning read-model resolver]
+    Provider -->|found| RM[shared command-scoped instance]
+    Provider -->|valid key, absent record| Missing[null or required-state failure]
+    RM --> V[validator]
+    RM --> P[Provide]
+    RM --> H[Handle]
+```
+
+| Provider             | What enables resolution                                                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| MongoDB              | Configured Arc MongoDB integration discovers `[ReadModel]` candidates as fallback ownership and loads by mapped document id                  |
+| EF Core              | A registered `ReadOnlyDbContext` owns a `[ReadModel]` entity through `DbSet<T>`; resolution currently requires a single-property primary key |
+| Chronicle (optional) | A projection or reducer supplies declared ownership and integration-specific event-source key resolution                                     |
+
+A normal writable `BaseDbContext` like the tutorial's `LibraryDbContext` is **not enough to establish EF command-read-model ownership**. Keep method-injecting that context for explicit lookups/writes, or configure a [read-only context](/arc/backend/entity-framework/read-only/) intentionally. Configured auto-discovery is supported; do not duplicate it with mandatory manual registration.
+
+## Write against standalone state
+
+This complete command declaration uses the [MongoDB tutorial's setup, imports, and author types](/arc/backend/getting-started/your-first-command/). Add the shown key import to the file:
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace Library.Authors;
+
+[Command]
+public record RenameAuthor([property: Key] AuthorId Id, AuthorName NewName)
+{
+    public Task Handle(Author author, IMongoCollection<Author> authors) =>
+        authors.ReplaceOneAsync(existing => existing.Id == author.Id, author with { Name = NewName });
+}
+```
+
+Arc loads the author for `Id`, then injects it alongside the collection. The explicit replacement persists the change. A returned DTO alone would not.
+
+## Choose the decision point
+
+| Need                                       | Position                     |
+| ------------------------------------------ | ---------------------------- |
+| Reject with a friendly message before work | `CommandValidator<TCommand>` |
+| Acquire data using current state           | `Provide()`                  |
+| Compute and perform the write or response  | `Handle()`                   |
+
+For example, a **validator fragment** in the same namespace can reject a rename to the current name:
+
+```csharp
+public class RenameAuthorValidator : CommandValidator<RenameAuthor>
+{
+    public RenameAuthorValidator(Author? author)
+    {
+        RuleFor(command => command.Id)
+            .Must(_ => author is not null)
+            .WithMessage("Author does not exist.");
+        When(_ => author is not null, () =>
+            RuleFor(command => command.NewName)
+                .Must(name => name != author!.Name)
+                .WithMessage("Choose a different name."));
+    }
+}
+```
+
+The nullable validator can turn absence into a business rejection before the non-nullable handler runs. See [Provide data to a command handler](./provide-data-to-a-command.md) for combining state with external data.
+
+## Say what absence means
+
+- **Nullable:** a valid key with no record supplies `null`; write the business rule around that possibility.
+- **Non-nullable:** the instance is required. Missing state produces `ReadModelDoesNotExistForCommand` as a validation failure (HTTP 400), rather than invoking your code with a fabricated model.
+- **No usable key:** even a nullable parameter cannot mean “not found” when Arc cannot identify what to fetch. Key-resolution failure is separate from absence.
+
+For registration, absence can be the **desired** state. This alternative domain fragment assumes a keyed `RegisterCustomer` and a provider-owned `Customer`:
+
+```csharp
+public class RegisterCustomerValidator : CommandValidator<RegisterCustomer>
+{
+    public RegisterCustomerValidator(Customer? customer) =>
+        RuleFor(_ => customer).Null().WithMessage("Customer is already registered.");
+}
+```
+
+For an operation requiring an existing order, a non-nullable dependency can instead express that precondition. This fragment assumes a keyed `SubmitOrder`, a provider-owned `OrderReadModel`, and an application `OrderStatus` enum:
+
+```csharp
+public class SubmitOrderValidator : CommandValidator<SubmitOrder>
+{
+    public SubmitOrderValidator(OrderReadModel order) =>
+        RuleFor(_ => order.Status)
+            .Equal(OrderStatus.ReadyForSubmission)
+            .WithMessage("Only orders that are ready for submission can be submitted.");
+}
+```
+
+[ARC0006](../backend/code-analysis/ARC0006.md) warns on non-nullable read-model dependencies so the choice is explicit.
+
+A shared instance prevents duplicate lookups; it is **not a lock, transaction, or freshness guarantee**. Other commands can change the database after it was read. Protect hard invariants with database constraints or an atomic conditional write/transaction. Chronicle projections may additionally lag their events; its [constraints](/chronicle/constraints/) enforce supported invariants at append time.
+
+## Optional: projected state with Chronicle
+
+With [Chronicle integration](../backend/chronicle/index.md), read models can be backed by fluent `IProjectionFor<T>`, model-bound projection attributes, or `IReducerFor<T>`. Integration-specific key resolution can use event-source identifiers. The same injection positions apply.
+
+These are **integrated domain fragments**, assuming an event-source `LedgerId` / `AccountId`, configured projections, and registered event types; they do not persist anything in standalone Core:
 
 ```csharp
 [Command]
@@ -19,62 +121,7 @@ public record SettleLedger(LedgerId LedgerId)
 {
     public LedgerSettled Handle(LedgerBalance balance) => new(balance.Balance);
 }
-```
 
-`LedgerBalance` is a read model built from ledger events. Arc resolved it for `LedgerId`, and the validator for this same command gets the *same* instance — one fetch per command, shared.
-
-## How the resolution works
-
-The key the command already uses to append events is the key the read model is resolved by. Nothing extra to configure.
-
-```mermaid
-flowchart TB
-    CMD["Command record"] -->|"Key · EventSourceId · ICanProvideEventSourceId"| ID(["event source id"])
-    ID --> RES{"resolve by key"}
-    RES -->|"found"| RM["read model instance"]
-    RES -->|"never projected or removed"| NULL(["null"])
-    RM --> V["CommandValidator"]
-    RM --> P["Provide method"]
-    RM --> H["Handle method"]
-    NULL --> V
-    NULL --> P
-    NULL --> H
-```
-
-Two things follow from that shape, and both matter:
-
-- **A key proves *which* instance, not *that* it exists.** The projection may never have been created, or may have been removed. Resolution can legitimately yield nothing.
-- **All three positions share one instance.** The validator, `Provide()`, and `Handle()` resolve from the same command scope, so they cannot disagree about the state they're looking at.
-
-## Pick where the state is used
-
-| You want to… | Put the read model in | Because |
-|---|---|---|
-| Reject the command with a message | `CommandValidator<TCommand>` | Rules stay with the command's other rules; the message reaches the UI as a validation error |
-| Feed a value into the decision | `Handle()` | The event you produce is computed *from* the state |
-| Combine it with fetched data first | `Provide()` | `Provide` acquires, `Handle` decides — see [Provide data to a command handler](./provide-data-to-a-command.md) |
-
-### Reject: put it in the validator
-
-A validator constructor takes the read model like any other dependency:
-
-```csharp
-public class SettleLedgerValidator : CommandValidator<SettleLedger>
-{
-    public SettleLedgerValidator(LedgerBalance balance) =>
-        RuleFor(command => command.LedgerId)
-            .Must(_ => balance.Balance > 0)
-            .WithMessage("Ledger has no funds to settle.");
-}
-```
-
-The command never reaches `Handle()`, and the message surfaces in the UI through the generated proxy like any other validation error.
-
-### Decide: put it in `Handle()`
-
-When the state is an *input* to the event rather than a gate on it, take it in the handler:
-
-```csharp
 [Command]
 public record WithdrawFunds(AccountId AccountId, decimal Amount)
 {
@@ -83,75 +130,27 @@ public record WithdrawFunds(AccountId AccountId, decimal Amount)
 }
 ```
 
-## Say what a missing read model means
+A `SettleLedgerValidator` can reject a nonpositive `balance.Balance`; an order validator can similarly gate on `ReadyForSubmission`. Those are state checks, not concurrency guarantees.
 
-This is the one decision the framework can't make for you, so make it deliberately: **nullable means you handle absence, non-nullable means you require existence.**
-
-Nullable — absence is a normal business condition, and the rule is written around it:
-
-```csharp
-public class RegisterCustomerValidator : CommandValidator<RegisterCustomer>
-{
-    public RegisterCustomerValidator(Customer? customer) =>
-        RuleFor(_ => customer)
-            .Null()
-            .WithMessage("Customer is already registered");
-}
-```
-
-Non-nullable — the projection is required, and its absence is a fault rather than an outcome. Arc fails the command with `ReadModelDoesNotExistForCommand` (HTTP 400) before your code runs, so you write the rule against the state directly:
-
-```csharp
-public class SubmitOrderValidator : CommandValidator<SubmitOrder>
-{
-    public SubmitOrderValidator(OrderReadModel order) =>
-        RuleFor(_ => order.Status)
-            .Equal(OrderStatus.ReadyForSubmission)
-            .WithMessage("Only orders that are ready for submission can be submitted");
-}
-```
-
-The analyzer warns ([ARC0006](../backend/code-analysis/ARC0006.md)) on every non-nullable read model parameter — not because it's wrong, but so the choice is a decision rather than an oversight.
-
-:::caution[Read models are eventually consistent]
-The instance you get reflects events processed *so far*. That is exactly right for gating on projected state ("this order isn't ready", "this account is frozen"), and wrong for an invariant that must hold under concurrent commands — two racing registrations can both read "name not taken". For invariants, use a Chronicle [constraint](/chronicle/constraints/), which is enforced at append time.
-:::
-
-## Which read models can be injected
-
-Any read model Chronicle can resolve **by key** — which means one with a Chronicle backing artifact:
-
-- a fluent [`IProjectionFor<T>`](/chronicle/projections/) projection
-- a model-bound projection (`[FromEvent<T>]`, `[SetFrom<T>]`, `[SetValue<T>]`)
-- an [`IReducerFor<T>`](/chronicle/reducers/) reducer
-
-You write the parameter identically in all three cases — the backing artifact is an implementation detail. Note that the `[ReadModel]` attribute **alone** does not make a type injectable: it's an Arc query concept and can be backed by stores that have no key resolution. Backing decides, not the attribute.
-
-## Test it without mocking
-
-Seed the state the command should observe, then execute. Either state the events behind it:
+Chronicle testing can seed either events or a pinned read model. These are **alternative setup fragments** for a configured Chronicle command scenario:
 
 ```csharp
 void Establish() =>
-    _scenario.Given
-        .ForEventSource(_accountId)
+    _scenario.Given.ForEventSource(_accountId)
         .Events(new MoneyDeposited(100m), new MoneyDeposited(50m));
 ```
 
-…or pin the instance when the events aren't the point:
-
 ```csharp
 void Establish() =>
-    _scenario.Given
-        .ForEventSource(_accountId)
+    _scenario.Given.ForEventSource(_accountId)
         .ReadModel(new AccountBalance(150m));
 ```
 
-An unseeded event source resolves to `null`, exactly as in production. See [Testing with Chronicle](../backend/testing/chronicle.md) for the full harness.
+See [Chronicle testing](../backend/testing/chronicle.md) for the complete fixture. Standalone tests instead seed their provider or register application-service fakes as in [Test a command](./test-a-command.md).
 
 ## See also
 
-- [Read models in commands](../backend/chronicle/read-models/injecting-into-commands.md) — the full reference for all three positions.
-- [When resolution fails](../backend/chronicle/read-models/failures.md) — every error you can hit, and what it means.
-- [Validate a command](./validate-a-command.md) — the other three places a rule can live.
-- [Resolving EventSourceId](../backend/chronicle/resolving-event-source-id.md) — how the key itself is found.
+- [Read models from other providers](../backend/chronicle/read-models/other-providers.md) — provider ownership and explicit standalone keys.
+- [Resolution failures](../backend/chronicle/read-models/failures.md) — distinguish missing state, missing keys, and configuration errors.
+- [Validate a command](./validate-a-command.md) — choose the narrowest place for a rule.
+- [Chronicle event-source resolution](../backend/chronicle/resolving-event-source-id.md) — optional integration key conventions.

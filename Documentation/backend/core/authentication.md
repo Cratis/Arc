@@ -1,464 +1,104 @@
-# Authentication
+---
+title: Authentication
+description: Authenticate lightweight Arc requests without confusing credential validation with forwarded identity headers.
+---
 
-Arc.Core provides a flexible authentication system that allows you to implement custom authentication handlers for your application. This is particularly useful for scenarios where you need to authenticate requests based on custom headers, tokens, or other mechanisms without relying on ASP.NET Core's authentication middleware.
+Before a command can check a role, something must establish who sent the request. In the lightweight `Cratis.Arc.Core` host, `IAuthenticationHandler` implementations produce a `ClaimsPrincipal`. ASP.NET Core applications instead configure their host's authentication; see [Microsoft Identity integration](../asp-net-core/microsoft-identity.md).
 
-## Overview
+## Authentication flow
 
-The authentication system in Arc.Core is built around the `IAuthenticationHandler` interface. Multiple authentication handlers can be registered, and they're executed in sequence until one successfully authenticates the request or returns a failure.
+Arc discovers `IAuthenticationHandler` implementations through `IInstancesOf<IAuthenticationHandler>` and tries them sequentially:
 
-## Authentication Flow
+1. `AuthenticationResult.Anonymous` means this handler does not apply; try the next one.
+2. `AuthenticationResult.Succeeded(principal)` stops the sequence and supplies the request principal.
+3. `AuthenticationResult.Failed(reason)` stops the sequence without authenticating.
 
-The authentication system processes handlers in sequence:
+Do not depend on a particular discovery order or assume individual DI registrations define that order. If mechanisms overlap, make their applicability unambiguous. An earlier success means later handlers cannot veto it.
 
-1. Each registered `IAuthenticationHandler` is called in order
-2. If a handler returns an authenticated result, the process stops and that result is used
-3. If a handler returns a failure, the process stops and the failure is returned
-4. If a handler returns anonymous, the next handler is tried
-5. If all handlers return anonymous, the request is considered anonymous
-
-## Authentication Results
-
-Authentication handlers return an `AuthenticationResult` with one of three possible outcomes:
-
-| Outcome | Description | Usage |
-|---------|-------------|-------|
-| **Succeeded** | Authentication was successful | Return `AuthenticationResult.Succeeded(principal)` with a `ClaimsPrincipal` |
-| **Failed** | Authentication failed with a reason | Return `AuthenticationResult.Failed(reason)` with a failure reason |
-| **Anonymous** | Handler cannot authenticate this request | Return `AuthenticationResult.Anonymous` to let other handlers try |
-
-## Microsoft Identity Platform (Azure)
-
-When deploying to Azure — Static Web Apps, Container Apps, App Service, or any platform that injects the [EasyAuth](https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization) headers — the framework provides a ready-made handler so you do not need to write one yourself.
-
-### ASP.NET Core (Arc package)
-
-Call `AddMicrosoftIdentityPlatformIdentityAuthentication()` during service registration:
-
-```csharp
-builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
+```mermaid
+flowchart LR
+    Request --> Handlers[Applicable authentication handler]
+    Handlers --> Principal[Validated principal]
+    Principal --> Pipeline[Arc authorization and validation]
+    Pipeline --> Handler[Command or query logic]
 ```
 
-This registers `MicrosoftIDentityPlatformAuthHandler`, which reads the standard EasyAuth headers:
+## Implementing an authentication handler
 
-| Header | Purpose |
-|--------|---------|
-| `x-ms-client-principal-id` | User ID |
-| `x-ms-client-principal-name` | Display name |
-| `x-ms-client-principal` | Base64-encoded JSON payload with roles and claims |
-
-The reconstructed principal also carries the identity provider the ingress authenticated the caller with, as the
-reserved `MicrosoftIdentityPlatformClaims.IdentityProvider` (`urn:cratis:arc:identity:provider`) claim. Arc strips any
-claim of that type out of the forwarded payload before writing its own value, so the claim always holds exactly one
-value taken from one place — the `identityProvider` field of the forwarded principal. That is a guarantee of single
-provenance, not of authenticity: `x-ms-client-principal` is base64 rather than signed, and Arc does not check who sent
-it, so trust the claim exactly as far as you trust that header — only insofar as your ingress is the only thing that
-can set it. Read it with `FindFirst`/`FindAll` and never normalize the claim type yourself.
-
-See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for the full setup guide, including what the
-identity provider claim does and does not guarantee, and how to test locally with a generated principal.
-
-### Arc.Core (non-ASP.NET Core)
-
-The `AddMicrosoftIdentityPlatformIdentityAuthentication()` extension is only available in the Arc ASP.NET Core package. If you are using `ArcApplication` (the non-ASP.NET Core host), implement `IAuthenticationHandler` directly to read the same EasyAuth headers:
-
-```csharp
-using System.Security.Claims;
-using System.Text;
-using System.Text.Json;
-using Cratis.Arc.Authentication;
-using Cratis.Arc.Http;
-using Cratis.Arc.Identity;
-
-public class MicrosoftIdentityPlatformAuthenticationHandler : IAuthenticationHandler
-{
-    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
-    {
-        if (!context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityIdHeader, out var userId))
-        {
-            return Task.FromResult(AuthenticationResult.Anonymous);
-        }
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, userId)
-        };
-
-        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out var userName))
-        {
-            claims.Add(new Claim(ClaimTypes.Name, userName));
-        }
-
-        if (context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.PrincipalHeader, out var encoded))
-        {
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
-            var principal = JsonSerializer.Deserialize<ClientPrincipal>(json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            if (principal is not null)
-            {
-                foreach (var role in principal.UserRoles ?? [])
-                    claims.Add(new Claim(ClaimTypes.Role, role));
-
-                foreach (var claim in principal.Claims ?? [])
-                    claims.Add(new Claim(claim.typ, claim.val));
-            }
-        }
-
-        var identity = new ClaimsIdentity(claims, "MicrosoftIdentityPlatform");
-        return Task.FromResult(AuthenticationResult.Succeeded(new ClaimsPrincipal(identity)));
-    }
-}
-```
-
-The handler is discovered automatically — no explicit registration required.
-
-## Implementing an Authentication Handler
-
-Here's a basic example of implementing a custom authentication handler:
+This **illustrative integration fragment** defines the Arc adapter and an application-owned validator contract, not a runnable JWT implementation. Register a real `ITokenValidator` implementation before using it. The validator must verify signature, trusted issuer, audience, lifetime, and applicable revocation requirements using your identity library. Decoding a token is not validation.
 
 ```csharp
 using System.Security.Claims;
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Http;
 
-public class ApiKeyAuthenticationHandler : IAuthenticationHandler
+public interface ITokenValidator
 {
-    const string ApiKeyHeader = "X-API-Key";
-    
-    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
-    {
-        // Check if the API key header is present
-        if (!context.Headers.TryGetValue(ApiKeyHeader, out var apiKey))
-        {
-            // No API key present, let other handlers try
-            return Task.FromResult(AuthenticationResult.Anonymous);
-        }
-
-        // Validate the API key
-        if (!IsValidApiKey(apiKey))
-        {
-            // Invalid API key, fail authentication
-            return Task.FromResult(
-                AuthenticationResult.Failed(
-                    new AuthenticationFailureReason("Invalid API key")));
-        }
-
-        // Create a claims principal for the authenticated user
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.Name, "API User"),
-            new Claim(ClaimTypes.NameIdentifier, "api-user-123"),
-            new Claim("api_key", apiKey)
-        };
-
-        var identity = new ClaimsIdentity(claims, "ApiKey");
-        var principal = new ClaimsPrincipal(identity);
-
-        return Task.FromResult(AuthenticationResult.Succeeded(principal));
-    }
-
-    bool IsValidApiKey(string apiKey)
-    {
-        // Your API key validation logic
-        return apiKey == "your-secret-api-key";
-    }
+    Task<ClaimsPrincipal?> Validate(string token);
 }
-```
 
-## Common Authentication Patterns
-
-### Bearer Token Authentication
-
-```csharp
-public class BearerTokenAuthenticationHandler : IAuthenticationHandler
+public class BearerTokenAuthenticationHandler(ITokenValidator validator) : IAuthenticationHandler
 {
-    const string AuthorizationHeader = "Authorization";
-    const string BearerPrefix = "Bearer ";
-
     public async Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
-        if (!context.Headers.TryGetValue(AuthorizationHeader, out var authHeader))
+        if (!context.Headers.TryGetValue("Authorization", out var header) ||
+            !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
             return AuthenticationResult.Anonymous;
         }
 
-        if (!authHeader.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+        var token = header["Bearer ".Length..].Trim();
+        if (token.Length == 0)
         {
-            return AuthenticationResult.Anonymous;
+            return AuthenticationResult.Failed("Invalid credentials");
         }
-
-        var token = authHeader[BearerPrefix.Length..].Trim();
 
         try
         {
-            var principal = await ValidateAndDecodeToken(token);
-            return AuthenticationResult.Succeeded(principal);
+            var principal = await validator.Validate(token);
+            return principal?.Identity?.IsAuthenticated == true
+                ? AuthenticationResult.Succeeded(principal)
+                : AuthenticationResult.Failed("Invalid credentials");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AuthenticationResult.Failed(
-                new AuthenticationFailureReason($"Token validation failed: {ex.Message}"));
+            return AuthenticationResult.Failed("Authentication unavailable");
         }
     }
-
-    async Task<ClaimsPrincipal> ValidateAndDecodeToken(string token)
-    {
-        // Your token validation logic (e.g., JWT validation)
-        // This is a simplified example
-        await Task.CompletedTask;
-        
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, "user-id"),
-            new Claim(ClaimTypes.Name, "User Name")
-        };
-
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-    }
 }
 ```
 
-### Basic Authentication
+Missing bearer credentials let another mechanism try. Empty, invalid, or unverifiable bearer credentials never become a successful principal. Log operational failures server-side without recording tokens or disclosing validation internals to clients. API keys and passwords likewise need a real credential store and validator; never compare against sample hardcoded secrets or put credentials into claims.
 
-```csharp
-public class BasicAuthenticationHandler : IAuthenticationHandler
-{
-    const string AuthorizationHeader = "Authorization";
-    const string BasicPrefix = "Basic ";
+## Microsoft Identity Platform (Azure)
 
-    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
-    {
-        if (!context.Headers.TryGetValue(AuthorizationHeader, out var authHeader))
-        {
-            return Task.FromResult(AuthenticationResult.Anonymous);
-        }
+Core already supplies `Cratis.Arc.Identity.MicrosoftIdentityPlatformAuthenticationHandler`, discovered with the other authentication handlers. Do not implement a second EasyAuth parser. It reads these forwarded headers:
 
-        if (!authHeader.StartsWith(BasicPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.FromResult(AuthenticationResult.Anonymous);
-        }
+| Header | Purpose |
+| --- | --- |
+| `x-ms-client-principal-id` | User ID |
+| `x-ms-client-principal-name` | Display name |
+| `x-ms-client-principal` | Base64 JSON principal containing roles and claims |
 
-        var encodedCredentials = authHeader[BasicPrefix.Length..].Trim();
-        var credentials = Encoding.UTF8.GetString(
-            Convert.FromBase64String(encodedCredentials));
-        
-        var parts = credentials.Split(':', 2);
-        if (parts.Length != 2)
-        {
-            return Task.FromResult(
-                AuthenticationResult.Failed(
-                    new AuthenticationFailureReason("Invalid credentials format")));
-        }
+The handler requires all three headers, rejects an invalid principal representation, replaces forwarded subject/identifier claims, and takes the reserved `MicrosoftIdentityPlatformClaims.IdentityProvider` claim from the payload's `identityProvider` field. This establishes single provenance **within the payload**, not authenticity of the sender.
 
-        var username = parts[0];
-        var password = parts[1];
+> [!WARNING]
+> These headers are not signed credentials. Deploy this mechanism only behind trusted ingress that authenticates callers, strips caller-supplied identity headers, writes its own values, and prevents direct access to the backend. A custom `X-User-ID` or `X-User-Role` header needs the same protections. Adding a bearer validator does not make a separately accepted forwarded-header mechanism safe.
 
-        if (!ValidateCredentials(username, password))
-        {
-            return Task.FromResult(
-                AuthenticationResult.Failed(
-                    new AuthenticationFailureReason("Invalid username or password")));
-        }
+In the ASP.NET Core package, the corresponding registration is `builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication()`. It is not the Core registration API. See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for that host's setup and local-development principals.
 
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.Name, username),
-            new Claim(ClaimTypes.NameIdentifier, username)
-        };
+## Endpoint enforcement and limits
 
-        var identity = new ClaimsIdentity(claims, "Basic");
-        var principal = new ClaimsPrincipal(identity);
+The lightweight authentication middleware installs the successful principal on `IHttpRequestContext.User`. With handlers present, an endpoint not explicitly allowing anonymous access returns HTTP 401 if authentication does not succeed. An endpoint with `AllowAnonymous = true` proceeds even when credentials fail. If **no handlers** are available, the middleware currently proceeds without authenticating; metadata alone is not a fail-closed protection in that configuration.
 
-        return Task.FromResult(AuthenticationResult.Succeeded(principal));
-    }
+Arc command/query authorization is a separate pipeline check. Read the current principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`, not the client-readable identity cookie. See [Authorization](authorization.md) for roles, result status, and direct-call boundaries.
 
-    bool ValidateCredentials(string username, string password)
-    {
-        // Your credential validation logic
-        return username == "admin" && password == "secret";
-    }
-}
-```
+## Testing authentication handlers
 
-### Custom Header Authentication
+Before exposing the service, exercise missing credentials, malformed input, arbitrary tokens, expired/wrong-issuer/wrong-audience tokens, a genuinely valid token, forged forwarded headers, and backend access bypassing ingress. Also test endpoints with and without anonymous metadata and every accepted authentication mechanism. A valid-token-only test cannot establish a fail-closed boundary.
 
-```csharp
-public class CustomHeaderAuthenticationHandler : IAuthenticationHandler
-{
-    const string UserIdHeader = "X-User-ID";
-    const string UserRoleHeader = "X-User-Role";
+## Next steps
 
-    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
-    {
-        if (!context.Headers.TryGetValue(UserIdHeader, out var userId))
-        {
-            return Task.FromResult(AuthenticationResult.Anonymous);
-        }
-
-        var role = context.Headers.TryGetValue(UserRoleHeader, out var roleValue) 
-            ? roleValue 
-            : "User";
-
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, userId),
-            new Claim(ClaimTypes.Role, role)
-        };
-
-        var identity = new ClaimsIdentity(claims, "CustomHeader");
-        var principal = new ClaimsPrincipal(identity);
-
-        return Task.FromResult(AuthenticationResult.Succeeded(principal));
-    }
-}
-```
-
-## Registering Authentication Handlers
-
-Authentication handlers are automatically discovered and registered by Arc.Core. Simply ensure your handler implements `IAuthenticationHandler` and is in a discoverable location:
-
-```csharp
-// The handler will be automatically registered
-public class MyAuthenticationHandler : IAuthenticationHandler
-{
-    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
-    {
-        // Implementation
-    }
-}
-```
-
-If you need manual registration:
-
-```csharp
-builder.Services.AddSingleton<IAuthenticationHandler, MyAuthenticationHandler>();
-```
-
-## Multiple Authentication Handlers
-
-You can register multiple authentication handlers, and they'll be executed in sequence:
-
-```csharp
-public class ApiKeyHandler : IAuthenticationHandler { /* ... */ }
-public class BearerTokenHandler : IAuthenticationHandler { /* ... */ }
-public class BasicAuthHandler : IAuthenticationHandler { /* ... */ }
-```
-
-The handlers are tried in order until one returns either:
-- A successful authentication result
-- A failed authentication result
-
-If all handlers return `Anonymous`, the request is considered anonymous.
-
-## Handler Execution Order
-
-Handlers are executed in the order they're discovered or registered. To control order, you can use explicit registration:
-
-```csharp
-// Register in specific order
-builder.Services.AddSingleton<IAuthenticationHandler, PrimaryAuthHandler>();
-builder.Services.AddSingleton<IAuthenticationHandler, FallbackAuthHandler>();
-```
-
-## Working with Request Context
-
-Authentication handlers receive an `IHttpRequestContext` that provides access to request information including headers, query parameters, URL, and HTTP method.
-
-## Best Practices
-
-### Return Anonymous for Non-Applicable Requests
-
-If your handler doesn't apply to a request, return `Anonymous` to let other handlers try:
-
-```csharp
-if (!context.Headers.ContainsKey("X-My-Auth-Header"))
-{
-    return Task.FromResult(AuthenticationResult.Anonymous);
-}
-```
-
-### Provide Clear Failure Reasons
-
-When authentication fails, provide clear, actionable error messages:
-
-```csharp
-return AuthenticationResult.Failed(
-    new AuthenticationFailureReason("API key is expired. Please generate a new key."));
-```
-
-### Use Dependency Injection
-
-Handlers can use dependency injection for services they need:
-
-```csharp
-public class JwtAuthenticationHandler(
-    ILogger<JwtAuthenticationHandler> logger,
-    ITokenValidator tokenValidator) : IAuthenticationHandler
-{
-    public async Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
-    {
-        logger.LogDebug("Validating JWT token");
-        // Use injected services
-    }
-}
-```
-
-### Handle Exceptions Gracefully
-
-Catch and handle exceptions within your handler:
-
-```csharp
-try
-{
-    var principal = await ValidateToken(token);
-    return AuthenticationResult.Succeeded(principal);
-}
-catch (SecurityTokenException ex)
-{
-    return AuthenticationResult.Failed(
-        new AuthenticationFailureReason($"Token validation failed: {ex.Message}"));
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Unexpected error during authentication");
-    return AuthenticationResult.Failed(
-        new AuthenticationFailureReason("Authentication error occurred"));
-}
-```
-
-## Integration with Authorization
-
-Once a request is authenticated, the `ClaimsPrincipal` is available for authorization checks. See the [Authorization](authorization.md) documentation for how to protect endpoints using the `[Authorize]` and `[Roles]` attributes.
-
-## Testing Authentication Handlers
-
-When testing authentication handlers, use the `IHttpRequestContext` interface:
-
-```csharp
-public class ApiKeyAuthenticationHandlerTests
-{
-    [Fact]
-    public async Task should_authenticate_with_valid_api_key()
-    {
-        var handler = new ApiKeyAuthenticationHandler();
-        var context = new TestHttpRequestContext
-        {
-            Headers = new Dictionary<string, string>
-            {
-                ["X-API-Key"] = "valid-key"
-            }
-        };
-
-        var result = await handler.HandleAuthentication(context);
-
-        result.IsAuthenticated.ShouldBeTrue();
-    }
-}
-```
-
-## Next Steps
-
-- [Authorization](authorization.md) - Learn how to protect endpoints with authorization attributes
-- [Identity](../identity/index.md) - Integrate with Arc's identity system
-- [Commands](../commands/index.md) - Protect commands with authentication and authorization
-- [Queries](../queries/index.md) - Protect queries with authentication and authorization
+- [Authorization](authorization.md) — apply authentication and role requirements.
+- [Identity](../identity/index.md) — supply frontend identity details without treating cookies as credentials.
+- [Endpoint mapping](endpoint-mapping.md) — understand manual endpoint responsibilities.

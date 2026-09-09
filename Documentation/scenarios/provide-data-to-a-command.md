@@ -7,17 +7,19 @@ description: Fetch the data a command's decision needs in a Provide method so Ha
 
 ## Lift the IO out of `Handle`
 
-Add a `Provide()` method next to `Handle()` on the command. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` is left as a pure function of its arguments — given its inputs it returns events or results, with no IO to set up.
+Add a `Provide()` method next to `Handle()` on the command. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` can then be a pure function of its arguments when the outcome is response data. If the command must persist a change, it still needs an explicit database/service write; `Provide` does not make persistence automatic.
 
 `Provide` runs before `Handle`, after validation and authorization pass. Its parameters are resolved from dependency injection just like `Handle`'s, and `this` is the command, so it can read the command's own data.
 
+The following are **alternative domain fragments**, not a complete loan system. `LoanId`, `ApplicantId`, `CreditScore`, `RiskBand`, `LoanAssessment`, and the bureau/risk/rates interfaces are application-owned types. Supply their declarations and DI implementations; import `Cratis.Arc.Commands.ModelBound`, `Cratis.Arc.Validation`, and `Cratis.Monads` for the Arc attributes and result examples. `LoanAssessment` is an ordinary response DTO, not a persisted approval or Chronicle event.
+
 ```csharp
 [Command]
-public record ApproveLoan(LoanId LoanId, ApplicantId Applicant)
+public record AssessLoan(LoanId LoanId, ApplicantId Applicant)
 {
     public CreditScore Provide(ICreditBureau bureau) => bureau.GetScore(Applicant);
 
-    public LoanApproved Handle(CreditScore creditScore) => new(LoanId, creditScore);
+    public LoanAssessment Handle(CreditScore creditScore) => new(LoanId, creditScore);
 }
 ```
 
@@ -26,10 +28,10 @@ public record ApproveLoan(LoanId LoanId, ApplicantId Applicant)
 Because the IO lives in `Provide`, testing the decision needs no mocking — construct the command and call `Handle` directly with the values it would have received:
 
 ```csharp
-[Fact] void should_produce_the_event() =>
-    new ApproveLoan(LoanId.New(), ApplicantId.New())
+[Fact] void should_return_the_assessment() =>
+    new AssessLoan(LoanId.New(), ApplicantId.New())
         .Handle(new CreditScore(800))
-        .ShouldBeOfExactType<LoanApproved>();
+        .ShouldBeOfExactType<LoanAssessment>();
 ```
 
 `Provide` has a single job — acquire data — so it is easy to test in isolation too, with a stubbed `ICreditBureau`.
@@ -42,7 +44,7 @@ Return a tuple to feed several `Handle` parameters; each value is matched to a p
 public (CreditScore, RiskBand) Provide(ICreditBureau bureau, IRiskModel risk) =>
     (bureau.GetScore(Applicant), risk.Band(Applicant));
 
-public LoanApproved Handle(CreditScore score, RiskBand band) => new(LoanId, score, band);
+public LoanAssessment Handle(CreditScore score, RiskBand band) => new(LoanId, score, band);
 ```
 
 `Provide` may be synchronous or `async` (`Task<T>` / `ValueTask<T>`).
@@ -53,13 +55,13 @@ public LoanApproved Handle(CreditScore score, RiskBand band) => new(LoanId, scor
 
 ```csharp
 [Command]
-public record ApproveLoan(LoanId LoanId, ApplicantId Applicant)
+public record AssessLoan(LoanId LoanId, ApplicantId Applicant)
 {
     public Task<CreditScore> Provide(ICreditBureau bureau, CancellationToken cancellationToken) =>
         bureau.GetScore(Applicant, cancellationToken);
 
-    public Task<LoanApproved> Handle(CreditScore creditScore, CancellationToken cancellationToken) =>
-        Task.FromResult(new LoanApproved(LoanId, creditScore));
+    public Task<LoanAssessment> Handle(CreditScore creditScore, CancellationToken cancellationToken) =>
+        Task.FromResult(new LoanAssessment(LoanId, creditScore));
 }
 ```
 
@@ -69,12 +71,12 @@ Use the token for IO or long-running work. You do not register `CancellationToke
 
 `Provide` can stop the command before `Handle` is ever called:
 
-| Return / do | Result |
-|---|---|
-| `ValidationResult.Error("…")` | command fails validation (HTTP 400) |
-| an `AuthorizationResult` that is not authorized | command is unauthorized (HTTP 403) |
-| throw | command fails with the exception (HTTP 500) |
-| a value | flows into `Handle` as an argument |
+| Return / do                                     | Result                                      |
+| ----------------------------------------------- | ------------------------------------------- |
+| `ValidationResult.Error("…")`                   | command fails validation (HTTP 400)         |
+| an `AuthorizationResult` that is not authorized | command is unauthorized (HTTP 403)          |
+| throw                                           | command fails with the exception (HTTP 500) |
+| a value                                         | flows into `Handle` as an argument          |
 
 Use `Result<,>` to reject or proceed when the data acquisition itself determines whether the command can continue — return the error to stop, or the value to continue:
 
@@ -92,9 +94,9 @@ A `Provide` value that no `Handle` parameter consumes is almost always a mistake
 
 For ordinary command validation, including read-model existence checks, prefer a `CommandValidator<>`. Use `Provide()` when `Handle()` needs acquired data as an input to the decision.
 
-## Projected state is already available
+## Provider-owned state can already be available
 
-One thing `Provide` doesn't need to fetch: the read model for the command's own key. Arc resolves that for you, so a `Provide` method can take it as a parameter alongside the services it uses — handy when the projected state is what determines *what* to fetch:
+With a configured by-key read-model provider and a usable command key, `Provide` need not fetch that model again. Arc resolves it as a parameter alongside the services it uses — handy when existing state determines _what_ to fetch. Without those prerequisites, inject your application service or context and fetch explicitly:
 
 ```csharp
 public Task<ShippingQuote> Provide(OrderReadModel? order, IShippingRates rates) =>

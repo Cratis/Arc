@@ -1,192 +1,161 @@
 ---
 title: "1. Your first full-stack slice"
-description: Build the library's first feature — register an author — from a C# command all the way to a live React screen, with the types kept in sync by the build.
+description: Connect the standalone author command and observable query to React, initialize required identifiers, and verify a persistent round trip.
 ---
 
 import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 import FullStackTabs from '@components/FullStackTabs.astro';
 
-Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before they can catalog a single book. It's deliberately small, but building it touches the entire Arc loop: a command that expresses intent, the read model it updates, the query that serves it, and the React screen that calls both — all of it typed end to end.
+Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before cataloging a book. You have a command that writes and a query that reads; now let's connect them to a screen without a hand-written API client.
 
-In a layered app these would be files scattered across `Commands/`, `Handlers/`, and `ReadModels/`, and you'd jump between folders to follow one behavior. Arc doesn't force a layout on you — but we recommend the **vertical-slice** approach: a folder per feature, with a folder per slice inside it, mirroring the columns of your event model. That's how we'll build here: everything below lives in one `Authors/` folder you read top to bottom. Here's the slice we're about to build:
+## Prerequisites
+
+Complete [standalone ASP.NET Core setup](/arc/backend/getting-started/) and [Your first command and query](/arc/backend/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle.
+
+The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [Arc-only frontend checkpoint](/arc/frontend/getting-started/) uses ordinary HTML instead. With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
+
+## Follow the backend half
+
+Arc doesn't force a folder layout. Here the author behavior stays together in `src/Authors/`: strong domain values (`AuthorId`, `AuthorName`), a command, and a read model with a query. Those files use `ConceptAs<Guid>` and `ConceptAs<string>` so the C# compiler distinguishes domain values while the generated client retains their underlying types.
 
 ```mermaid
 flowchart LR
-    Cmd["RegisterAuthor command"] -->|Handle, writes| DB[("database")]
-    DB --> RM["Author read model"]
-    RM -->|AllAuthors| Q["query, over HTTP"]
-    Q -->|generated proxy, live| UI["React list"]
+    Cmd[RegisterAuthor] -->|Handle writes| DB[(database)]
+    DB --> RM[Author]
+    RM -->|AllAuthors| Q[observable query]
+    Q -->|generated proxy| UI[React list]
 ```
 
-## The backend half
+These are **excerpts from the backend checkpoint**, not additional files:
+
+<Tabs syncKey="db">
+<TabItem label="MongoDB" icon="seti:db">
+```csharp
+[Command]
+public record RegisterAuthor(AuthorId Id, AuthorName Name)
+{
+    public Task Handle(IMongoCollection<Author> authors) =>
+        authors.InsertOneAsync(new Author(Id, Name));
+}
+
+[ReadModel]
+public record Author(AuthorId Id, AuthorName Name)
+{
+    public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> authors) =>
+        authors.Observe();
+}
+```
+</TabItem>
+<TabItem label="EF Core" icon="seti:db">
+```csharp
+[Command]
+public record RegisterAuthor(AuthorId Id, AuthorName Name)
+{
+    public async Task Handle(LibraryDbContext db)
+    {
+        db.Authors.Add(new Author(Id, Name));
+        await db.SaveChangesAsync();
+    }
+}
+
+[ReadModel]
+public record Author(AuthorId Id, AuthorName Name)
+{
+    public static ISubject<IEnumerable<Author>> AllAuthors(LibraryDbContext db) =>
+        db.Authors.Observe();
+}
+```
+</TabItem>
+</Tabs>
+
+The dependencies are **method-injected**. Returning `Task` adds no payload: the explicit database write is the outcome. The static `AllAuthors` method is the query; no controller or duplicated transport model is needed.
+
+<Aside type="note" title="Live means a configured observation source">
+MongoDB requires change streams on a replica set. EF Core receives same-host `SaveChanges` notifications through the configured interceptor; SQLite does not detect external-process writes. Keep the [storage prerequisites](/arc/backend/getting-started/) in place. An observable return type exposes a stream; it cannot make an unconfigured database emit changes.
+</Aside>
+
+## Build before importing
+
+```bash
+dotnet build -c Debug
+```
+
+With `Cratis.Arc.ProxyGenerator.Build` installed and `CratisProxiesOutputPath` set, a post-build tool reads the assembly and PDB and generates `src/Authors/RegisterAuthor.ts` and `src/Authors/Author.ts`. The latter includes `AllAuthors` in source-file output mode. Building a bare Arc project without generator configuration emits no proxies.
+
+If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
+
+## Set up the browser project
+
+If you already have a Vite app, retain its entry/configuration and adapt only the composition below. Otherwise, from `Library/`, initialize it without a Chronicle-enabled template:
+
+```bash
+npm init -y
+npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.10.3 @cratis/arc @cratis/arc.react \
+  @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
+npm install --save-dev vite typescript @types/react @types/react-dom
+```
+
+Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
+
+Create `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
+}
+```
+
+Create `index.html` at the project root:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8"><title>Library</title></head>
+  <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+</html>
+```
+
+Create `vite.config.ts`:
+
+```typescript
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+    server: {
+        host: 'localhost',
+        port: 5173,
+        strictPort: true,
+        proxy: {
+            '/api': { target: 'http://localhost:5000' },
+            '/.cratis': { target: 'http://localhost:5000', ws: true }
+        }
+    }
+});
+```
+
+The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
+
+## Read and write from React
 
 <Steps>
 
-1. **Give the domain strong types.** Never thread raw `Guid`s and `string`s through your domain — wrap them so the compiler keeps them straight and your signatures document themselves:
+1. **Read authors with the query proxy.** Create `src/Authors.tsx`:
 
-   ```csharp
-   public record AuthorId(Guid Value) : ConceptAs<Guid>(Value)
-   {
-       public static AuthorId New() => new(Guid.NewGuid());
-   }
-
-   public record AuthorName(string Value) : ConceptAs<string>(Value)
-   {
-       public static implicit operator AuthorName(string value) => new(value);
-   }
-   ```
-
-2. **Write the command — with `Handle()` on the record.** A command is a `record` marked `[Command]`. The behavior lives in a `Handle()` method **on the record itself**; there's no separate handler class to hunt for. Here it writes the new author straight to the database:
-
-   <Tabs syncKey="db">
-   <TabItem label="MongoDB" icon="seti:db">
-   ```csharp
-   [Command]
-   public record RegisterAuthor(AuthorId Id, AuthorName Name)
-   {
-       public Task Handle(IMongoCollection<Author> authors) =>
-           authors.InsertOneAsync(new Author(Id, Name));
-   }
-   ```
-   </TabItem>
-   <TabItem label="EF Core" icon="seti:db">
-   ```csharp
-   [Command]
-   public record RegisterAuthor(AuthorId Id, AuthorName Name)
-   {
-       public async Task Handle(LibraryDbContext db)
-       {
-           db.Authors.Add(new Author(Id, Name));
-           await db.SaveChangesAsync();
-       }
-   }
-   ```
-   </TabItem>
-   </Tabs>
-
-   `Handle()` returns `Task` because there's nothing to report back — the write *is* the outcome. Arc injects the dependency it declares (the Mongo collection, or your `DbContext`) from the container.
-
-3. **Declare the read model and its query.** The read model is just the shape you want to query, marked `[ReadModel]`. A static method **is** the query — return an observable so consumers get live updates:
-
-   <Tabs syncKey="db">
-   <TabItem label="MongoDB" icon="seti:db">
-   ```csharp
-   [ReadModel]
-   public record Author(AuthorId Id, AuthorName Name)
-   {
-       public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
-           collection.Observe();
-   }
-   ```
-   </TabItem>
-   <TabItem label="EF Core" icon="seti:db">
-   ```csharp
-   [ReadModel]
-   public record Author(AuthorId Id, AuthorName Name)
-   {
-       public static ISubject<IEnumerable<Author>> AllAuthors(LibraryDbContext db) =>
-           db.Authors.Observe();
-   }
-
-   // A BaseDbContext registered via WithEntityFrameworkCore — see the EF integration guide.
-   public class LibraryDbContext(DbContextOptions<LibraryDbContext> options) : BaseDbContext(options)
-   {
-       public DbSet<Author> Authors => Set<Author>();
-   }
-   ```
-   </TabItem>
-   </Tabs>
-
-   <Aside type="tip" title="Notice what you didn't write">
-   That static `AllAuthors` method *is* your query — Arc serves it over HTTP automatically. No controller, no routing, no DTO. And it's **live**: `.Observe()` watches the database's change stream (MongoDB's, or an [observed `DbSet`](/arc/backend/entity-framework/observing/)), so the instant the command writes, every subscribed browser re-renders.
-   </Aside>
-
-4. **Set up the project, then build.** Two pieces make the full-stack loop work: a build-time **proxy generator** and the **host wiring**. Add the packages and tell the generator where to write proxies — next to your source, so each `.ts` lands beside the `.tsx` that imports it:
-
-   <Tabs syncKey="db">
-   <TabItem label="MongoDB" icon="seti:db">
-   ```xml title="Library.csproj"
-   <ItemGroup>
-       <PackageReference Include="Cratis.Arc" Version="*" />
-       <PackageReference Include="Cratis.Arc.MongoDB" Version="*" />
-       <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="*" />
-   </ItemGroup>
-   <PropertyGroup>
-       <!-- Proxies are generated only when an output path is set -->
-       <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)</CratisProxiesOutputPath>
-       <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
-   </PropertyGroup>
-   ```
-
-   Then wire the host. `AddCratisArc` registers Arc, `UseCratisMongoDB` points it at MongoDB, and `UseCratisArc` maps the command, query, and observable-query endpoints:
-
-   ```csharp title="Program.cs"
-   var builder = WebApplication.CreateBuilder(args);
-   builder.AddCratisArc();
-   builder.UseCratisMongoDB();
-   builder.Services.AddControllers();
-
-   var app = builder.Build();
-   app.UseRouting();
-   app.MapControllers();
-   app.UseCratisArc();          // maps the command, query, and observable-query endpoints
-
-   await app.RunAsync();
-   ```
-   </TabItem>
-   <TabItem label="EF Core" icon="seti:db">
-   ```xml title="Library.csproj"
-   <ItemGroup>
-       <PackageReference Include="Cratis.Arc" Version="*" />
-       <PackageReference Include="Cratis.Arc.EntityFrameworkCore" Version="*" />
-       <PackageReference Include="Cratis.Arc.ProxyGenerator.Build" Version="*" />
-   </ItemGroup>
-   <PropertyGroup>
-       <!-- Proxies are generated only when an output path is set -->
-       <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)</CratisProxiesOutputPath>
-       <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
-   </PropertyGroup>
-   ```
-
-   Then wire the host. `WithEntityFrameworkCore` auto-discovers your `DbContext`, and `UseCratisArc` maps the endpoints:
-
-   ```csharp title="Program.cs"
-   var builder = WebApplication.CreateBuilder(args);
-   builder.AddCratisArc(configureBuilder: arc => arc.WithEntityFrameworkCore());
-   builder.Services.AddControllers();
-
-   var app = builder.Build();
-   app.UseRouting();
-   app.MapControllers();
-   app.UseCratisArc();          // maps the command, query, and observable-query endpoints
-
-   await app.RunAsync();
-   ```
-   </TabItem>
-   </Tabs>
-
-   ```bash
-   dotnet build
-   ```
-
-   Building compiles your C# and — the part that matters most for the next half — **generates a TypeScript proxy** for `RegisterAuthor` and `AllAuthors` next to each slice. That's what `CratisProxiesOutputPath` turns on; with it unset, `dotnet build` still succeeds but emits nothing. Your frontend is about to call them as if they were local, typed code.
-
-   <Aside type="note" title="Route config lives in two places">
-   The proxy's URL is baked in at build time from the `CratisProxies*` properties; the server maps routes from `ArcOptions` at runtime. They agree by default — but if you customize one (a route prefix, say), mirror it in the other or the generated client calls a route the server never mapped. See [proxy-generation configuration](/arc/backend/proxy-generation/) and [ASP.NET Core host configuration](/arc/backend/asp-net-core/configuration/).
-   </Aside>
-
-</Steps>
-
-## The frontend half
-
-The proxies now exist, generated *from your C#*. Normally this is exactly where type safety ends — you'd hand-write a `fetch`, redeclare the shapes in TypeScript, and hope the two stay in sync. We skip all of it. **None of this React changes whether the backend is MongoDB or EF Core.**
-
-<Steps>
-
-1. **Read the authors with the query proxy.** Because `AllAuthors` is an **observable** query, the `.use()` hook re-renders whenever the read model changes — live, no polling:
-
-   ```tsx title="Authors.tsx"
-   import { AllAuthors } from './Authors/Author';   // generated proxy
+   ```tsx
+   import { AllAuthors } from './Authors/Author';
 
    export const Authors = () => {
        const [authors] = AllAuthors.use();
@@ -198,31 +167,103 @@ The proxies now exist, generated *from your C#*. Normally this is exactly where 
    };
    ```
 
-2. **Register one with the command proxy.** `CommandDialog` runs a generated command — it instantiates it, renders the form fields and the confirm/cancel buttons, and disables confirm while it executes:
+   The hook subscribes to the observable query and re-renders on each new result. String conversion is only for React's key; retain the generated `Guid` when passing ids to commands and queries.
 
-   ```tsx title="AddAuthor.tsx"
+2. **Add the command dialog.** Create `src/AddAuthor.tsx`:
+
+   ```tsx
+   import { useState } from 'react';
+   import { Guid } from '@cratis/fundamentals';
    import { CommandDialog } from '@cratis/components/CommandDialog';
    import { InputTextField } from '@cratis/components/CommandForm';
-   import { RegisterAuthor } from './Authors/RegisterAuthor';   // generated proxy
+   import { RegisterAuthor } from './Authors/RegisterAuthor';
 
-   export const AddAuthor = () => (
-       <CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" okLabel="Add">
-           <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
-       </CommandDialog>
-   );
+   export const AddAuthor = () => {
+       const [id] = useState(() => Guid.create());
+       return (
+           <CommandDialog<RegisterAuthor>
+               command={RegisterAuthor}
+               title="Add author"
+               okLabel="Add"
+               initialValues={{ id }}>
+               <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
+           </CommandDialog>
+       );
+   };
    ```
+
+   Open this through the composition below: **mount a new instance per operation and unmount on close**. The id remains stable while editing and is fresh next time. It is required, so it belongs in `initialValues`, not `onBeforeExecute` (which runs too late to enable confirmation).
 
 </Steps>
 
-Run the app, register an author, and the list updates the moment you confirm — you didn't write a line of refresh logic. `AllAuthors.use()` is subscribed to the read model, so when the command writes its document, the screen re-renders itself.
+## Mount the screen and verify the round trip
 
-<Aside type="note" title="One bit of dev wiring for live queries">
-Observable queries stream over **Server-Sent Events** by default; you can switch to **WebSockets** with the `queryTransportMethod` prop on the [`<Arc/>` context component](/arc/frontend/react/arc/). Either way, in local dev your Vite server needs to proxy `/api` and `/.cratis` through to the backend (with `ws: true` if you use the WebSocket transport) — otherwise the list loads but never updates live. The [Vite configuration](/arc/frontend/react/vite-configuration/) guide shows the exact `server.proxy` block.
-</Aside>
+Create `src/App.tsx`:
 
-## Where the type safety lives
+```tsx
+import { Arc } from '@cratis/arc.react';
+import { useDialog } from '@cratis/arc.react/dialogs';
+import { CratisComponentsProvider } from '@cratis/components';
+import { AddAuthor } from './AddAuthor';
+import { Authors } from './Authors';
 
-Look at the accessor `i => i.name`. It isn't a string you typed and hope matches — it's a property on the generated `RegisterAuthor` type. Rename `Name` in the C# command, rebuild, and `i => i.name` stops compiling until you fix it. The whole feature is one thing expressed in two languages, and the build is what keeps them honest:
+function Library() {
+    const [AddAuthorDialog, showAddAuthor] = useDialog(AddAuthor);
+    return (
+        <>
+            <button onClick={() => void showAddAuthor()}>Add author</button>
+            <Authors />
+            <AddAuthorDialog />
+        </>
+    );
+}
+
+export const App = () => (
+    <Arc>
+        <CratisComponentsProvider>
+            <Library />
+        </CratisComponentsProvider>
+    </Arc>
+);
+```
+
+`useDialog` mounts its content only while open, so each registration gets new id state. `<Arc>` supplies runtime bindings; `CratisComponentsProvider` supplies the UI library context and does not replace it. No generated `Bindings` file is needed.
+
+Create `src/main.tsx` and import Components' styles once, with tokens first:
+
+```tsx
+import 'reflect-metadata';
+import '@cratis/components/tokens';
+import '@cratis/components/styles';
+import '@cratis/components/theme';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+
+createRoot(document.getElementById('root')!).render(<App />);
+```
+
+`tokens` supplies shared CSS variables, `styles` supplies component structure, and `theme` adds the baseline appearance, including dark mode. You can omit `theme` when a product design system supplies its own token values.
+
+Keep the backend running on port 5000. From another terminal in `Library/`, run:
+
+```bash
+npx tsc --noEmit
+npx vite build
+npx vite
+```
+
+Open `http://localhost:5173`. The first two commands check TypeScript and the production bundle; only the following browser checks prove the round trip:
+
+1. Open the author list and add an author with a nonblank name.
+2. Confirm that the list displays the saved name without refresh.
+3. Open a **new** dialog and add another author. Inspect the query data: the two ids must differ.
+4. Reload the browser and confirm both authors remain.
+
+These checks prove a command/query/persistence round trip. A successful build alone proves none of those effects.
+
+## Where type safety lives
+
+The accessor `i => i.name` is a property on the generated command, not a string. This illustrative pair shows the contract:
 
 <FullStackTabs>
   <Fragment slot="csharp">
@@ -237,22 +278,16 @@ Look at the accessor `i => i.name`. It isn't a string you typed and hope matches
   </Fragment>
   <Fragment slot="typescript">
   ```tsx
-  // generated from the C# above — call it, don't redeclare it
-  <CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author">
+  // Inside AddAuthor; id is the per-operation state declared above.
+  <CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" initialValues={{ id }}>
       <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
   </CommandDialog>
   ```
   </Fragment>
 </FullStackTabs>
 
+Rename `Name` in C#, regenerate, then run the frontend type-check. The old accessor fails compilation. Never repair this by editing generated code.
+
 ## What you built
 
-In one folder, read top to bottom:
-
-- a `[Command]` with `Handle()` — intent and implementation together, no handler class,
-- a `[ReadModel]` whose query method is served over HTTP, live, and
-- a **React screen** that reads and writes it through generated, typed proxies.
-
-That's a complete vertical slice, backend to browser, over a plain database. The next feature will be another folder just like it.
-
-There's one problem, though: right now a librarian can register an author with a blank name, or the same author twice, and nothing stops them. A real app has to say no. [Let's make it trustworthy →](./validation.mdx)
+One feature now has an explicit write, a live read, and typed React callers — all over current-state storage. There's still a problem: blank and duplicate names are accepted. [Let's make it trustworthy →](/arc/tutorial/validation/)

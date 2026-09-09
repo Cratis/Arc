@@ -1,307 +1,68 @@
-# Route Templates
+---
+title: Controller query route templates
+description: Define explicit MVC routes and bind resource identifiers from the path.
+---
 
-Controller-based queries use standard ASP.NET Core routing to define URL patterns and bind parameters from the URL path.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-## Basic Route Configuration
+## Bind a route value
 
-Use the `[Route]` attribute on your controller class to define the base route:
+MVC combines the controller's `[Route]` with the action's `[HttpGet]` template. Unlike model-bound `[Path]` queries, MVC reads values from route placeholders.
+
+This alternative banking example uses the [shared domain concepts](../model-bound/index.md#model-account-identities-and-names) and `[AspNetResult]` so its not-found response has ordinary MVC 404 semantics instead of Arc's null-result failure. It requires an ASP.NET Core Arc host, configured authorization, and the MongoDB provider.
 
 ```csharp
+using System;
+using System.Threading.Tasks;
+using Cratis.Arc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
+
+namespace Banking.Accounts;
+
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance);
+
+[Authorize(Roles = "AccountReader")]
 [Route("api/accounts")]
-public class Accounts : Controller
+public class AccountsController(IMongoCollection<DebitAccount> collection) : ControllerBase
 {
-    readonly IMongoCollection<DebitAccount> _collection;
-
-    public Accounts(IMongoCollection<DebitAccount> collection) => _collection = collection;
-
-    [HttpGet]
-    public IEnumerable<DebitAccount> GetAll() { /* ... */ }
-
-    [HttpGet("{id}")]
-    public DebitAccount GetById(AccountId id) { /* ... */ }
-}
-```
-
-## Route Parameters
-
-### Single Parameter
-
-Route parameters are defined with curly braces in the route template:
-
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    [HttpGet("{id}")]
-    public DebitAccount GetById(AccountId id)
+    [AspNetResult]
+    [HttpGet("{id:guid}", Name = "AccountById")]
+    public async Task<ActionResult<DebitAccount>> ById([FromRoute] Guid id)
     {
-        return _collection.Find(a => a.Id == id).FirstOrDefault();
-    }
-
-    [HttpGet("{id}/balance")]
-    public decimal GetBalance(AccountId id)
-    {
-        var account = _collection.Find(a => a.Id == id).FirstOrDefault();
-        return account?.Balance ?? 0;
+        AccountId accountId = id;
+        var account = await collection.Find(candidate => candidate.Id == accountId).FirstOrDefaultAsync();
+        if (account is null)
+        {
+            return NotFound();
+        }
+        return Ok(account);
     }
 }
 ```
 
-### Multiple Parameters
+`GET /api/accounts/11111111-1111-1111-1111-111111111111` binds a GUID at the HTTP boundary. The action converts it to `AccountId` before the domain-specific query. The action returns a raw account or 404, not a `QueryResult`. Use a client expecting that raw contract; see [without wrappers](../../asp-net-core/without-wrappers.md).
 
-Routes can include multiple parameters:
+## Template reference
 
-```csharp
-[HttpGet("owner/{ownerId}/account/{accountId}")]
-public DebitAccount GetAccountByOwner(CustomerId ownerId, AccountId accountId)
-{
-    return _collection.Find(a => a.Owner == ownerId && a.Id == accountId).FirstOrDefault();
-}
+These are **route-template fragments**, not independent controller declarations:
 
-[HttpGet("date/{year}/{month}")]
-public IEnumerable<DebitAccount> GetAccountsByDate(int year, int month)
-{
-    // Implementation for date-based filtering
-    return _collection.Find(_ => true).ToList();
-}
-```
+| Template                                               | Use                                                                   |
+| ------------------------------------------------------ | --------------------------------------------------------------------- |
+| `api/accounts` on the controller, `{id}` on the action | A resource under the controller path                                  |
+| `{id:guid}`                                            | Match only GUID-shaped route values                                   |
+| `{id:int}`                                             | Match only integer-shaped route values                                |
+| `category/{category?}`                                 | Optional final segment; give the action argument a compatible default |
+| `~/api/account-summary`                                | Override rather than append to the controller path                    |
+| `api/[controller]`                                     | Substitute the MVC controller name                                    |
+| `[action]`                                             | Substitute the action name                                            |
 
-## Named Routes
+Constraints choose which endpoint matches; they are not a replacement for business validation or authorization. A nested path such as `/customers/{customerId}/accounts/{accountId}` does not prove ownership. Check the authenticated caller's access and apply both identifiers in the actual database predicate.
 
-You can name routes for URL generation:
+## Choose route or query string
 
-```csharp
-[HttpGet("{id}", Name = "GetAccount")]
-public DebitAccount GetById(AccountId id)
-{
-    return _collection.Find(a => a.Id == id).FirstOrDefault();
-}
-```
+Use route values for resource identity and query strings for filters. Keep the predicate consistent with the declared inputs: do not accept a category/date/filter and then return an unfiltered collection.
 
-## Route Constraints
-
-Add constraints to route parameters to improve matching:
-
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    // Only match numeric IDs
-    [HttpGet("{id:int}")]
-    public DebitAccount GetByNumericId(int id) { /* ... */ }
-
-    // Only match GUID format
-    [HttpGet("{id:guid}")]
-    public DebitAccount GetByGuidId(Guid id) { /* ... */ }
-
-    // Minimum length constraint
-    [HttpGet("name/{name:minlength(3)}")]
-    public IEnumerable<DebitAccount> GetByName(string name) { /* ... */ }
-
-    // Range constraint
-    [HttpGet("page/{pageNumber:int:min(1)}")]
-    public IEnumerable<DebitAccount> GetPage(int pageNumber) { /* ... */ }
-}
-```
-
-## Optional Parameters
-
-Make route parameters optional with a question mark:
-
-```csharp
-[HttpGet("owner/{ownerId}/category/{category?}")]
-public IEnumerable<DebitAccount> GetByOwnerAndCategory(CustomerId ownerId, string? category = null)
-{
-    if (string.IsNullOrEmpty(category))
-    {
-        return _collection.Find(a => a.Owner == ownerId).ToList();
-    }
-    
-    // Filter by category if provided
-    return _collection.Find(a => a.Owner == ownerId /* && category filter */).ToList();
-}
-```
-
-## Action-Specific Routes
-
-Override the controller route for specific actions:
-
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    [HttpGet]
-    public IEnumerable<DebitAccount> GetAll() { /* ... */ }
-
-    [HttpGet("search")]
-    public IEnumerable<DebitAccount> Search([FromQuery] string term) { /* ... */ }
-
-    [HttpGet("by-owner/{ownerId}")]
-    public IEnumerable<DebitAccount> GetByOwner(CustomerId ownerId) { /* ... */ }
-
-    // Complete override of the base route
-    [HttpGet("~/api/special/accounts/summary")]
-    public AccountSummary GetSummary() { /* ... */ }
-}
-```
-
-## Complex Route Patterns
-
-### Hierarchical Resources
-
-Model parent-child relationships in your routes:
-
-```csharp
-[Route("api/customers/{customerId}/accounts")]
-public class CustomerAccounts : Controller
-{
-    [HttpGet]
-    public IEnumerable<DebitAccount> GetAccountsByCustomer(CustomerId customerId)
-    {
-        return _collection.Find(a => a.Owner == customerId).ToList();
-    }
-
-    [HttpGet("{accountId}")]
-    public DebitAccount GetCustomerAccount(CustomerId customerId, AccountId accountId)
-    {
-        return _collection.Find(a => a.Owner == customerId && a.Id == accountId).FirstOrDefault();
-    }
-
-    [HttpGet("{accountId}/transactions")]
-    public IEnumerable<Transaction> GetAccountTransactions(CustomerId customerId, AccountId accountId)
-    {
-        // Implementation for getting transactions
-        return new List<Transaction>();
-    }
-}
-```
-
-### Multiple Route Templates
-
-An action can have multiple route templates:
-
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    [HttpGet("search")]
-    [HttpGet("find")]  // Alternative route
-    public IEnumerable<DebitAccount> Search([FromQuery] string term)
-    {
-        var filter = Builders<DebitAccount>.Filter.Regex(
-            a => a.Name, 
-            new BsonRegularExpression(term, "i"));
-        
-        return _collection.Find(filter).ToList();
-    }
-}
-```
-
-## Route Values and Concepts
-
-When using Cratis concepts (value objects), the route binding works seamlessly:
-
-```csharp
-// The AccountId concept is automatically bound from the route parameter
-[HttpGet("{id}")]
-public DebitAccount GetAccount(AccountId id)
-{
-    return _collection.Find(a => a.Id == id).FirstOrDefault();
-}
-
-// Multiple concept parameters
-[HttpGet("owner/{ownerId}/account/{accountId}")]
-public decimal GetAccountBalanceForOwner(CustomerId ownerId, AccountId accountId)
-{
-    var account = _collection.Find(a => a.Owner == ownerId && a.Id == accountId).FirstOrDefault();
-    return account?.Balance ?? 0;
-}
-```
-
-## Route Tokens
-
-Use route tokens for common patterns:
-
-```csharp
-// Using [controller] token
-[Route("api/[controller]")]
-public class Accounts : Controller
-{
-    // Matches: /api/accounts
-
-    [HttpGet("[action]")]
-    public IEnumerable<DebitAccount> GetAll() { /* ... */ }
-    // Matches: /api/accounts/GetAll
-}
-```
-
-## Query String vs Route Parameters
-
-Choose between route parameters and query strings based on the data's role:
-
-### Route Parameters (part of the resource identity)
-
-```csharp
-// Account ID is part of the resource identity
-[HttpGet("{id}")]
-public DebitAccount GetAccount(AccountId id) { /* ... */ }
-
-// Owner ID identifies a specific subset
-[HttpGet("owner/{ownerId}")]
-public IEnumerable<DebitAccount> GetByOwner(CustomerId ownerId) { /* ... */ }
-```
-
-### Query String Parameters (filtering/options)
-
-```csharp
-// Filtering options
-[HttpGet("search")]
-public IEnumerable<DebitAccount> Search(
-    [FromQuery] string? name = null,
-    [FromQuery] decimal? minBalance = null,
-    [FromQuery] bool includeInactive = false)
-{
-    // Apply filters based on query parameters
-    return _collection.Find(_ => true).ToList();
-}
-```
-
-## Best Practices
-
-1. **Use meaningful route patterns** - Routes should be intuitive and RESTful
-2. **Keep routes simple** - Avoid overly complex route templates
-3. **Use constraints** - Add route constraints to improve matching accuracy
-4. **Be consistent** - Use consistent naming and structure across your API
-5. **Consider hierarchy** - Use hierarchical routes for parent-child relationships
-6. **Route parameters for identity** - Use route parameters for resource identifiers
-7. **Query strings for filtering** - Use query strings for optional filters and options
-
-## Example: Complete RESTful Route Structure
-
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    // GET /api/accounts
-    [HttpGet]
-    public IEnumerable<DebitAccount> GetAll() { /* ... */ }
-
-    // GET /api/accounts/{id}
-    [HttpGet("{id}")]
-    public DebitAccount GetById(AccountId id) { /* ... */ }
-
-    // GET /api/accounts/search?name=john&minBalance=100
-    [HttpGet("search")]
-    public IEnumerable<DebitAccount> Search(
-        [FromQuery] string? name = null,
-        [FromQuery] decimal? minBalance = null) { /* ... */ }
-
-    // GET /api/accounts/owner/{ownerId}
-    [HttpGet("owner/{ownerId}")]
-    public IEnumerable<DebitAccount> GetByOwner(CustomerId ownerId) { /* ... */ }
-
-    // GET /api/accounts/{id}/balance
-    [HttpGet("{id}/balance")]
-    public decimal GetBalance(AccountId id) { /* ... */ }
-}
-```
+For the simpler static-query alternative, use [model-bound arguments and explicit paths](../model-bound/query-arguments.md#url-binding). For MVC collection/DTO binding, continue with [query arguments](query-arguments.md).

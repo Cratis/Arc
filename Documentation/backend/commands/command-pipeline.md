@@ -1,349 +1,134 @@
-# Command Pipeline
+---
+title: Command pipeline
+description: Execute and await standalone Arc commands from application code.
+---
 
-The `ICommandPipeline` service provides a way to execute commands programmatically, bypassing the HTTP layer. This is useful for scenarios where you need to execute commands from within your application code rather than through HTTP requests.
+When a background job or application service needs the same command behavior as an HTTP caller, inject `ICommandPipeline`. It runs the model-bound authorization, validation, provisioning, handler, response handlers, and execution scopes without an HTTP round trip.
 
-## When to Use ICommandPipeline
+## Basic usage
 
-The command pipeline is particularly useful for:
+These complete caller types use `AddItemToCart`, `ICartService`, and the shared cart concepts from the [service-backed example](./model-bound/index.md#a-service-backed-command). Configure Arc and the example's service registration before resolving them.
 
-- **Background services or scheduled tasks** - Execute commands as part of scheduled jobs
-- **Event handlers** - React to events by executing commands
-- **Internal service-to-service communication** - Execute commands between services without HTTP overhead
-- **Testing scenarios** - Execute commands directly in integration tests
-- **Saga or workflow orchestration** - Coordinate multiple commands as part of a larger workflow
-
-## Basic Usage
-
-`ICommandPipeline` provides two forms for every operation: a **scope-free** form that creates its own service scope automatically, and a **scope-explicit** form where you supply the `IServiceProvider` yourself.
-
-### Without a service provider (recommended for most cases)
-
-Inject `ICommandPipeline` and call `Execute` directly. The pipeline creates and disposes a dedicated service scope for each call — no manual scope management needed:
+### Without a service provider
 
 ```csharp
-public class OrderProcessingService
+using System.Threading.Tasks;
+using Cratis.Arc.Commands;
+
+public class CartApplicationService(ICommandPipeline pipeline)
 {
-    readonly ICommandPipeline _commandPipeline;
-
-    public OrderProcessingService(ICommandPipeline commandPipeline)
-    {
-        _commandPipeline = commandPipeline;
-    }
-
-    public async Task ProcessOrder(Order order)
-    {
-        var result = await _commandPipeline.Execute(new ProcessOrderCommand(order.Id, order.Items));
-
-        if (result.IsSuccess)
-        {
-            // Command executed successfully
-        }
-        else
-        {
-            foreach (var error in result.ValidationResults)
-            {
-                // Process validation errors
-            }
-        }
-    }
+    public Task<CommandResult<CartLineId>> Add(Sku sku, Quantity quantity) =>
+        pipeline.Execute<CartLineId>(new AddItemToCart(sku, quantity));
 }
 ```
 
-This is the right choice for background services, scheduled tasks, and any code that does not live inside an existing DI scope.
+Each scope-free call creates and disposes its own DI scope. The returned task represents completed execution, including response handlers and scope completion. The caller must await it before using the result; returning the task from an asynchronous API, as above, preserves that contract.
 
-### With a service provider (share an existing scope)
-
-If you are already inside a scoped lifetime — for example a Reactor, an event handler, or an HTTP endpoint — pass the current `IServiceProvider` so handler dependencies share the same scope as the caller:
+### With a service provider
 
 ```csharp
-public class OrderCreatedReactor
+using System;
+using System.Threading.Tasks;
+using Cratis.Arc.Commands;
+
+public class ScopedCartApplicationService(ICommandPipeline pipeline, IServiceProvider services)
 {
-    readonly ICommandPipeline _commandPipeline;
-    readonly IServiceProvider _serviceProvider;
-
-    public OrderCreatedReactor(ICommandPipeline commandPipeline, IServiceProvider serviceProvider)
-    {
-        _commandPipeline = commandPipeline;
-        _serviceProvider = serviceProvider;
-    }
-
-    public async Task Handle(OrderCreated @event)
-    {
-        var result = await _commandPipeline.Execute(
-            new SendOrderConfirmation(@event.OrderId, @event.CustomerEmail),
-            _serviceProvider);
-    }
+    public Task<CommandResult<CartLineId>> Add(Sku sku, Quantity quantity) =>
+        pipeline.Execute<CartLineId>(new AddItemToCart(sku, quantity), services);
 }
 ```
+
+Resolve this caller inside the existing scope you intend to share. Passing the root provider does not create a command scope. Scope-explicit calls use the supplied provider and leave its lifetime to the caller.
 
 ## Cancellation
 
-HTTP command endpoints pass the request-aborted token into the command execution automatically. That token can be injected into `Provide()` and `Handle()` as a `CancellationToken`.
+HTTP command endpoints pass the request-aborted token. `Provide()` and `Handle()` may accept a `CancellationToken`, which Arc supplies directly.
 
-When you execute commands directly, pass the token to the pipeline:
-
-```csharp
-public class ImportWorker
-{
-    readonly ICommandPipeline _commandPipeline;
-
-    public ImportWorker(ICommandPipeline commandPipeline)
-    {
-        _commandPipeline = commandPipeline;
-    }
-
-    public Task<CommandResult> Import(CatalogId catalogId, CancellationToken cancellationToken) =>
-        _commandPipeline.Execute(new ImportCatalog(catalogId), cancellationToken);
-}
-```
-
-Use the scope-explicit form when the command should share the caller's scoped services:
+The following complete command waits asynchronously; it is a timing demonstration, not a background-work scheduler:
 
 ```csharp
-var result = await _commandPipeline.Execute(
-    new ImportCatalog(catalogId),
-    _serviceProvider,
-    cancellationToken);
-```
+using System.Threading;
+using System.Threading.Tasks;
+using Cratis.Arc.Commands.ModelBound;
 
-If you also use validation severity filtering, pass both values:
-
-```csharp
-var result = await _commandPipeline.Execute(
-    command,
-    _serviceProvider,
-    allowedSeverity: ValidationResultSeverity.Warning,
-    cancellationToken);
-```
-
-## Command Results
-
-The `ICommandPipeline.Execute()` method returns a `CommandResult` with comprehensive information about the execution:
-
-```csharp
-var result = await _commandPipeline.Execute(command);
-
-if (!result.IsAuthorized)
-{
-    // Handle unauthorized access — the command was not executed
-}
-
-if (result.IsSuccess)
-{
-    // Command executed successfully
-}
-else
-{
-    // Handle validation errors
-    foreach (var validationResult in result.ValidationResults)
-    {
-        // Process each validation error
-    }
-}
-```
-
-### CommandResult Properties
-
-| Property | Type | Description |
-| -------- | ---- | ----------- |
-| `IsSuccess` | `bool` | Whether the command executed successfully |
-| `IsAuthorized` | `bool` | Whether the user was authorized to execute the command |
-| `IsValid` | `bool` | Whether the command passed validation |
-| `HasExceptions` | `bool` | Whether any exceptions occurred during execution |
-| `ValidationResults` | `IEnumerable<ValidationResult>` | Validation errors if the command failed validation |
-| `ExceptionMessages` | `IEnumerable<string>` | Exception messages if exceptions occurred |
-| `CorrelationId` | `CorrelationId` | The correlation ID for tracking the command |
-
-When using the generic `Execute<TResult>` overload, the returned `CommandResult<TResult>` adds one more property:
-
-| Property | Type | Description |
-| -------- | ---- | ----------- |
-| `Response` | `TResult?` | The typed value returned by the command handler, or `null` if the command did not succeed or returned no value |
-
-## Exception Handling
-
-When using `ICommandPipeline` programmatically, exceptions in the command handler are caught and returned as part of the `CommandResult`:
-
-```csharp
-var result = await _commandPipeline.Execute(command);
-
-if (result.HasExceptions)
-{
-    // An exception was thrown during command execution
-    foreach (var message in result.ExceptionMessages)
-    {
-        _logger.LogError("Command failed: {Message}", message);
-    }
-}
-```
-
-## Validation Without Execution
-
-The `Validate` method runs authorization and validation filters without invoking the command handler. It follows the same two forms as `Execute`.
-
-**Without a service provider:**
-
-```csharp
-var validationResult = await _commandPipeline.Validate(command);
-
-if (validationResult.IsValid)
-{
-    var result = await _commandPipeline.Execute(command);
-}
-```
-
-**With a service provider (to share an existing scope):**
-
-```csharp
-var validationResult = await _commandPipeline.Validate(command, _serviceProvider);
-
-if (validationResult.IsValid)
-{
-    var result = await _commandPipeline.Execute(command, _serviceProvider);
-}
-```
-
-This is useful for pre-flight validation before committing to command execution.
-
-## Context and Authentication
-
-When executing commands programmatically, the current execution context (including user identity and claims) is automatically used. The command pipeline respects:
-
-- **Correlation ID** - Automatically tracked for request tracing
-- **User context** - The current user's identity and claims are used for authorization
-- **Tenant context** - Multi-tenancy context is preserved
-
-If you need to execute commands under a different context, you'll need to manage the authentication context appropriately in your application.
-
-## Background Service Example
-
-Here's an example of using `ICommandPipeline` in a background service:
-
-```csharp
-public class OrderExpirationService : BackgroundService
-{
-    readonly ICommandPipeline _commandPipeline;
-    readonly IOrderRepository _orderRepository;
-    readonly ILogger<OrderExpirationService> _logger;
-
-    public OrderExpirationService(
-        ICommandPipeline commandPipeline,
-        IOrderRepository orderRepository,
-        ILogger<OrderExpirationService> logger)
-    {
-        _commandPipeline = commandPipeline;
-        _orderRepository = orderRepository;
-        _logger = logger;
-    }
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            var expiredOrders = await _orderRepository.GetExpiredOrders();
-
-            foreach (var order in expiredOrders)
-            {
-                // Each Execute call creates and disposes its own service scope
-                var result = await _commandPipeline.Execute(new ExpireOrder(order.Id));
-
-                if (!result.IsSuccess)
-                {
-                    _logger.LogWarning(
-                        "Failed to expire order {OrderId}: {Errors}",
-                        order.Id,
-                        string.Join(", ", result.ValidationResults.Select(v => v.Message)));
-                }
-            }
-
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
-        }
-    }
-}
-```
-
-## Event Handler Example
-
-Using `ICommandPipeline` in an event handler:
-
-```csharp
-public class OrderCreatedEventHandler
-{
-    readonly ICommandPipeline _commandPipeline;
-
-    public OrderCreatedEventHandler(ICommandPipeline commandPipeline)
-    {
-        _commandPipeline = commandPipeline;
-    }
-
-    public async Task Handle(OrderCreated @event)
-    {
-        // Send confirmation email when an order is created
-        var command = new SendOrderConfirmation(@event.OrderId, @event.CustomerEmail);
-        var result = await _commandPipeline.Execute(command);
-        
-        if (!result.IsSuccess)
-        {
-            // Handle failure - maybe queue for retry
-        }
-    }
-}
-```
-
-## Typed Command Results
-
-When a command handler returns a value, use the generic `Execute<TResult>` overload to get back a `CommandResult<TResult>` with a strongly-typed `Response` property instead of working with `object?`. Both scope forms are available:
-
-```csharp
 [Command]
-public record CreateOrder(IEnumerable<OrderItem> Items)
+public record WaitForInterval(int Milliseconds)
 {
-    public OrderId Handle(IOrderService orderService)
-    {
-        return orderService.CreateOrder(Items);
-    }
+    public Task Handle(CancellationToken cancellationToken) =>
+        Task.Delay(Milliseconds, cancellationToken);
 }
+```
 
-// Without a service provider — pipeline creates its own scope
-var result = await _commandPipeline.Execute<OrderId>(new CreateOrder(items));
+Caller fragments, with `Cratis.Arc.Commands` and `Cratis.Arc.Validation` imported:
 
-// With a service provider — share the caller's scope
-var result = await _commandPipeline.Execute<OrderId>(new CreateOrder(items), _serviceProvider);
+```csharp
+var result = await pipeline.Execute(new WaitForInterval(100), cancellationToken);
+```
 
+```csharp
+var result = await pipeline.Execute(
+    new WaitForInterval(100),
+    serviceProvider,
+    allowedSeverity: ValidationResultSeverity.Warning,
+    cancellationToken: cancellationToken);
+```
+
+Use these cancellation extension overloads with Arc's cancellation-aware pipeline. A custom implementation of only `ICommandPipeline`, rather than `ICommandPipelineWithCancellation`, receives the compatibility call without a token. Awaiting the delayed command waits for its task; cancellation is handled through the pipeline's result/error path, so inspect the result rather than assuming every cancellation throws to your caller.
+
+## Command results
+
+| Property | Meaning |
+| --- | --- |
+| `IsSuccess` | Authorized, no remaining validation results, and no exceptions. |
+| `IsAuthorized` | The authorization verdict. |
+| `IsValid` | Whether `ValidationResults` is empty; this alone does not establish success. |
+| `HasExceptions` | Whether exception messages are present. |
+| `ValidationResults` | Individual Arc validation failures remaining after applicable filtering. |
+| `ExceptionMessages`, `ExceptionStackTrace` | Exception details; handle as potentially sensitive diagnostic information. |
+| `AuthorizationFailureReason` | A supplied reason for denial, when present. |
+| `CorrelationId` | Identifier for correlating this execution. |
+
+## Typed command results
+
+Caller fragment using the cart example:
+
+```csharp
+var result = await pipeline.Execute<CartLineId>(new AddItemToCart("BOOK-1", 2));
 if (result.IsSuccess)
 {
-    // response is strongly typed — no cast required
-    OrderId orderId = result.Response!;
-    await NotifyCustomer(orderId);
+    var lineId = result.Response;
+    Console.WriteLine(lineId);
 }
 ```
 
-The generic overload covers all the same failure paths as the non-generic one. When the command is unauthorized, fails validation, has no handler, or throws an exception, the result is still a valid `CommandResult<TResult>` — `Response` is just `default`:
+`Execute<TResult>` returns `CommandResult<TResult>` with a `Response` property. Request the response type, not the raw tuple or `Result` wrapper: [response processing](./response-value-handlers.md) determines the value exposed to callers. A response assignable to `TResult`, including an interface or base type, is supported. A genuinely incompatible requested type causes an `InvalidCastException` from the typed overload.
+
+Without a response, the typed overload supplies **`default(TResult)`**: null for a reference type, `Guid.Empty` for `Guid`, and zero for `int`. A `void` or `Task` handler has no response, but still runs to completion before the result is returned. Use non-generic `Execute` when you do not need a typed value.
+
+Scope completion can fail after the handler produced a value. After scopes complete, failed execution clears an already selected response to the default of its **concrete response type**. When requesting that same type, this yields `default(TResult)`, including `Guid.Empty`. Currently, adapting a cleared value-type response to `object` or a compatible interface can preserve its boxed default instead of null. For example, `Execute<object>` can return a boxed `Guid.Empty` after scope completion fails. Always check `IsSuccess` before using the response; neither null nor a default-valued response is itself an authorization or success verdict.
+
+## Exception handling
+
+The pipeline catches handler, filter, response-handler, and scope-completion exceptions and represents failures in `CommandResult`. Exceptions implementing `IValidationFailure` can be translated into validation outcomes; ordinary exceptions produce exception details. A wrong requested generic response type is a separate caller error, described above.
+
+Standalone Arc does not undo earlier application-service side effects on failure. Coordinate persistence in the service or through a deliberately implemented [execution scope](./command-execution-scopes.md). The [Chronicle transaction integration](./transactional-commands.md) is optional and has its own boundaries.
+
+## Validation without execution
+
+Caller fragment:
 
 ```csharp
-var result = await _commandPipeline.Execute<OrderId>(new CreateOrder(items));
-
-if (!result.IsAuthorized)
+var command = new AddItemToCart("BOOK-1", 2);
+var check = await pipeline.Validate(command);
+if (check.IsSuccess)
 {
-    // result.Response is null — command was never executed
-}
-
-if (!result.IsValid)
-{
-    // result.Response is null — validation failed before execution
-}
-
-if (result.HasExceptions)
-{
-    // result.Response is null — an exception was thrown during execution
+    var execution = await pipeline.Execute<CartLineId>(command);
+    Console.WriteLine(execution.IsSuccess);
 }
 ```
 
-If the handler returns a different type from what you requested, an `InvalidCastException` is thrown. This is a programmer error — the type you pass to `Execute<TResult>` must match the type the command handler returns.
+`Validate` also has a scope-explicit overload and [severity thresholds](./validation-severity-filtering.md). It skips `Provide()`, `Handle()`, response processing, and execution scopes, but still runs context providers and command filters. It is not a guarantee that collaborators are side-effect free or that the later execution will succeed. See [pre-flight validation](./command-validation.md).
 
-If the handler returns no value at all (a `void`-equivalent handler), `Response` is `null`. The non-generic `Execute` overload is equally valid in this case:
+## Context and authentication
 
-```csharp
-// Fine when you don't need a typed response
-var result = await _commandPipeline.Execute(new CancelOrder(orderId));
-```
+The current correlation context is used when available. Authorization uses the HTTP request principal when a request exists; otherwise it uses an explicitly established server-side principal. For trusted background execution, see [server-side authorization scopes](./model-bound/authorization.md#executing-commands-from-server-side-code). Do not assume a background command is automatically authorized or that a fresh DI scope creates a tenant or user identity.

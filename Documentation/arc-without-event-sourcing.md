@@ -23,7 +23,7 @@ Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an
 
 ## A standalone slice, end to end
 
-Here's the whole thing — register an author, and list authors live — with the data stored straight in a MongoDB collection.
+These **illustrative excerpts** show registering an author and listing authors live in MongoDB. For the runnable project, domain declarations/imports, ASP.NET host, MongoDB settings and replica-set bootstrap, start with [standalone setup](./backend/getting-started/index.md) and its [backend checkpoint](/arc/backend/getting-started/your-first-command/). The explanation here does not replace those prerequisites.
 
 **The read model is just a document.** Mark it `[ReadModel]` and Arc exposes its query methods. A static method *is* the query, and returning an `ISubject<>` makes it live:
 
@@ -63,7 +63,7 @@ public record RenameAuthor([property: Key] AuthorId Id, AuthorName NewName)
 
 This works the same for a read model held in MongoDB and one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
 
-That's the backend. Register MongoDB once at startup:
+That's the backend behavior. This host excerpt assumes the setup's `Cratis:MongoDB` configuration; Arc auto-discovers collections and serializers rather than requiring per-model registrations:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -75,18 +75,18 @@ app.UseCratisArc();
 app.Run();
 ```
 
-Build, and Arc generates the typed proxies for `RegisterAuthor` and `AllAuthors` exactly as it would for an event-sourced slice. The React side is unchanged from any other Arc app:
+Install `Cratis.Arc.ProxyGenerator.Build`, configure `CratisProxiesOutputPath`, and build in Debug as shown in setup to generate `RegisterAuthor` and `AllAuthors`. Building with Arc alone does not generate them. This React **fragment** assumes the [frontend setup](/arc/frontend/getting-started/) imports/providers and the [per-operation `id` state](/arc/tutorial/first-slice/) (`Guid.create()` from `@cratis/fundamentals`), with a fresh dialog instance for each registration:
 
 ```tsx
 const [authors] = AllAuthors.use();   // live — re-renders when the collection changes
 
-<CommandDialog command={RegisterAuthor} title="Add author">
-    <InputTextField value={i => i.name} title="Name" />
+<CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" initialValues={{ id }}>
+    <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
 </CommandDialog>
 ```
 
 > [!NOTE]
-> `AllAuthors` is live with no event sourcing involved. `IMongoCollection<T>.Observe()` watches MongoDB's change stream, so the moment the command inserts a document, every subscribed browser re-renders. Entity Framework gets the same treatment through [observed DbSets](./backend/entity-framework/observing.md).
+> `AllAuthors` is live with no event sourcing involved. `IMongoCollection<T>.Observe()` watches MongoDB's change stream, so the moment the command inserts a document, every subscribed browser re-renders. [Observed DbSets](./backend/entity-framework/observing.md) receive same-host `SaveChanges` notifications through Arc's configured interceptor. SQLite does not detect arbitrary external-process writes; other EF providers need their database notification setup for that.
 
 ## Test the slice the same way
 
@@ -103,7 +103,7 @@ command appends events.
 
 ## What actually changes when you add Chronicle
 
-Set this slice next to the same slice with [Chronicle added later](/arc/backend/chronicle/add-event-sourcing/). The query and the React are **identical**. The only thing that differs is the command's write path:
+Set this slice next to the same slice with [Chronicle added later](/arc/backend/chronicle/add-event-sourcing/). You can preserve the query and frontend **contracts**, while replacing direct writes with events and configuring a projection. The provider lookup/observation implementation may need to change; adding a package does not migrate existing data automatically:
 
 | | Standalone (this page) | With Chronicle |
 | --- | --- | --- |
@@ -111,13 +111,13 @@ Set this slice next to the same slice with [Chronicle added later](/arc/backend/
 | What fills the read model | the command, directly | a projection over the event |
 | What you can read | current state | current state **and full history** |
 
-So adopting Chronicle later is a *write-side* change. Your queries, your generated proxies, and your screens don't move.
+Adopting Chronicle changes persistence and adds projection/bootstrap work. If you preserve the query's contract and route, its generated caller and screen can remain unchanged.
 
 ## The trade-off
 
 Storing current state directly is simpler for bounded CRUD surfaces, reference data, settings, and adoption steps. What you don't get is everything an event log buys you: an audit trail, the ability to rebuild a read model a brand-new way from history, temporal queries, and reactors that fire on facts. For information systems, we prefer starting with Chronicle because those needs show up often. [Why Event Sourcing](/chronicle/why-event-sourcing/) explains the default.
 
-The reassuring part, from the table above: the boundary stays clean. If a direct-database slice later belongs in the event-sourced model, move the write side to Chronicle — the read side and the entire frontend come along unchanged. [Adopting Cratis](/adopting-cratis/) walks through doing exactly that, one step at a time.
+The reassuring part, from the table above: the boundary stays clean. If a direct-database slice later belongs in the event-sourced model, move persistence to Chronicle and deliberately preserve the public read contracts so the frontend need not change. [Adopting Cratis](/adopting-cratis/) walks through doing exactly that, one step at a time.
 
 ## Go deeper
 

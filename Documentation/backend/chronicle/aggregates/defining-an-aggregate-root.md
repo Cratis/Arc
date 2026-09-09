@@ -1,330 +1,111 @@
 ---
 title: Defining an aggregate root
-description: Write the aggregate root class itself — applying events, On methods, how state is rebuilt from the stream, and committing changes.
+description: Rebuild aggregate state with event handlers, apply new facts, and choose the correct commit boundary.
 ---
 
-The concept of an Aggregate Root comes from [Domain Driven Design](https://martinfowler.com/bliki/DDD_Aggregate.html).
-Its role is to govern the interaction of domain objects that should be treated as a single unit.
-With event sourcing, an aggregate root typically is responsible for applying events as it sees fit according
-to its domain logic and rules.
+An aggregate makes a decision from an entity's event history. In Arc's optional Chronicle integration, derive from `Cratis.Arc.Chronicle.Aggregates.AggregateRoot`, apply facts with `Apply`, and rebuild state in event handlers. The factory supplies the mutation context; do not construct an aggregate yourself for production use.
 
-Said in another way, Aggregate Root objects are responsible for managing the domain transaction and governs the
-integrity of the state changes that goes together.
+## State that survives replay
 
-## Overview
-
-In Arc, an aggregate root is represented by implementing the `IAggregateRoot` interface or inheriting from the `AggregateRoot` base class. The framework provides two main types of aggregate roots:
-
-1. **Stateless Aggregate Roots** - Simple aggregate roots that don't maintain internal state
-2. **Stateful Aggregate Roots** - Aggregate roots that maintain state using reducers, projections, or event handler methods
-
-## Basic Structure
-
-All aggregate roots in Chronicle inherit from the `AggregateRoot` base class:
+This complete aggregate/type example records order quantities. `OnItemAdded` handles both replayed history and newly applied events, so the next decision sees the updated quantity.
 
 ```csharp
-public class MyAggregateRoot : AggregateRoot
+using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Chronicle.Events;
+using Cratis.Concepts;
+
+public record OrderId(Guid Value) : EventSourceId<Guid>(Value)
 {
-    // Your domain logic here
-}
-```
+    public static readonly OrderId NotSet = new(Guid.Empty);
 
-## Working with Events
-
-### Applying Events
-
-To apply events within an aggregate root, use the `Apply` method:
-
-```csharp
-public class UserAggregateRoot : AggregateRoot
-{
-    public async Task CreateUser(string firstName, string lastName, string email)
-    {
-        // Validation logic here
-
-        await Apply(new UserCreated
-        {
-            FirstName = firstName,
-            LastName = lastName,
-            Email = email
-        });
-    }
-}
-```
-
-### Committing Changes
-
-After applying events, you need to commit the changes:
-
-```csharp
-public async Task HandleCreateUserCommand(CreateUserCommand command)
-{
-    var aggregateRoot = await _aggregateRootFactory.Get<UserAggregateRoot>(command.UserId);
-    await aggregateRoot.CreateUser(command.FirstName, command.LastName, command.Email);
-    await aggregateRoot.Commit();
-}
-```
-
-## Event Handlers (On Methods)
-
-Chronicle automatically discovers event handler methods in your aggregate root. These methods are called when events are applied or when rehydrating the aggregate from the event store.
-
-### Method Naming Convention
-
-Event handler methods can be named with any prefix you prefer, but commonly use `On` or `Handle`:
-
-```csharp
-public class UserAggregateRoot : AggregateRoot
-{
-    public void OnUserCreated(UserCreated @event)
-    {
-        // Handle the event
-    }
-
-    public Task OnUserNameChanged(UserNameChanged @event, EventContext context)
-    {
-        // Async handler with event context
-        return Task.CompletedTask;
-    }
-}
-```
-
-### Handler Method Signatures
-
-Event handlers can have different signatures:
-
-- `void OnEvent(MyEvent @event)` - Synchronous handler
-- `Task OnEvent(MyEvent @event)` - Asynchronous handler
-- `void OnEvent(MyEvent @event, EventContext context)` - With event context
-- `Task OnEvent(MyEvent @event, EventContext context)` - Async with context
-
-## State Management
-
-Chronicle provides multiple approaches for managing state in aggregate roots. For stateful aggregates, you can take a dependency on a read model in the constructor. If there is a projection or reducer for that read model, it will be automatically used to realize the state. The read model will be resolved using the same key as the aggregate root.
-
-### 1. Using Read Models with Projections
-
-Take a dependency on a read model in your aggregate root's constructor. The framework will automatically resolve and populate it based on the aggregate's event stream:
-
-```csharp
-public record UserState(string FirstName, string LastName, bool IsActive);
-
-public class UserProjection : IProjection<UserState>
-{
-    public void On(UserCreated @event, UserState model, EventContext context)
-    {
-        model.FirstName = @event.FirstName;
-        model.LastName = @event.LastName;
-        model.IsActive = true;
-    }
-
-    public void On(UserNameChanged @event, UserState model, EventContext context)
-    {
-        model.FirstName = @event.FirstName;
-        model.LastName = @event.LastName;
-    }
-
-    public void On(UserDeactivated @event, UserState model, EventContext context)
-    {
-        model.IsActive = false;
-    }
+    public static OrderId New() => new(Guid.NewGuid());
+    public static implicit operator OrderId(Guid value) => new(value);
 }
 
-public class UserAggregateRoot : AggregateRoot
+public record ProductId(Guid Value) : EventSourceId<Guid>(Value)
 {
-    readonly UserState _state;
+    public static readonly ProductId NotSet = new(Guid.Empty);
 
-    public UserAggregateRoot(UserState state)
-    {
-        _state = state;
-    }
-
-    public async Task ChangeName(string firstName, string lastName)
-    {
-        if (!_state.IsActive)
-            throw new InvalidOperationException("Cannot change name of inactive user");
-
-        await Apply(new UserNameChanged
-        {
-            FirstName = firstName,
-            LastName = lastName
-        });
-    }
-}
-```
-
-### 2. Using Read Models with Reducers
-
-Similarly, you can use a reducer to build state from events:
-
-```csharp
-public record UserState(string FirstName, string LastName, bool IsActive);
-
-public class UserReducer : IReducer<UserState>
-{
-    public UserState? Reduce(UserState? previous, object @event) => @event switch
-    {
-        UserCreated created => new UserState(created.FirstName, created.LastName, true),
-        UserNameChanged nameChanged => previous with { FirstName = nameChanged.FirstName, LastName = nameChanged.LastName },
-        UserDeactivated => previous with { IsActive = false },
-        _ => previous
-    };
+    public static ProductId New() => new(Guid.NewGuid());
+    public static implicit operator ProductId(Guid value) => new(value);
 }
 
-public class UserAggregateRoot : AggregateRoot
+public record Quantity(int Value) : ConceptAs<int>(Value)
 {
-    readonly UserState _state;
+    public static readonly Quantity NotSet = new(0);
 
-    public UserAggregateRoot(UserState state)
-    {
-        _state = state;
-    }
-
-    public async Task ChangeName(string firstName, string lastName)
-    {
-        if (!_state.IsActive)
-            throw new InvalidOperationException("Cannot change name of inactive user");
-
-        await Apply(new UserNameChanged
-        {
-            FirstName = firstName,
-            LastName = lastName
-        });
-    }
+    public static implicit operator Quantity(int value) => new(value);
 }
-```
 
-### 3. Manual State Management (On Methods)
-
-You can still manually manage state by handling events in `On` methods. These methods are automatically discovered and called when events are applied or when rehydrating the aggregate:
-
-```csharp
-public class UserAggregateRoot : AggregateRoot
-{
-    private string _firstName = string.Empty;
-    private string _lastName = string.Empty;
-    private bool _isActive;
-
-    public void OnUserCreated(UserCreated @event)
-    {
-        _firstName = @event.FirstName;
-        _lastName = @event.LastName;
-        _isActive = true;
-    }
-
-    public void OnUserDeactivated(UserDeactivated @event)
-    {
-        _isActive = false;
-    }
-
-    public async Task ChangeName(string firstName, string lastName)
-    {
-        if (!_isActive)
-            throw new InvalidOperationException("Cannot change name of inactive user");
-
-        await Apply(new UserNameChanged
-        {
-            FirstName = firstName,
-            LastName = lastName
-        });
-    }
-}
-```
-
-> **Note:** The `On` methods are still fully supported and work alongside the read model approach. You can use them for additional side effects or internal state management even when using read models.
-
-## Aggregate Root Factory
-
-Use the `IAggregateRootFactory` to create and retrieve aggregate root instances:
-
-```csharp
-public class UserService
-{
-    private readonly IAggregateRootFactory _aggregateRootFactory;
-
-    public UserService(IAggregateRootFactory aggregateRootFactory)
-    {
-        _aggregateRootFactory = aggregateRootFactory;
-    }
-
-    public async Task CreateUser(EventSourceId userId, string firstName, string lastName, string email)
-    {
-        var userAggregate = await _aggregateRootFactory.Get<UserAggregateRoot>(userId);
-        await userAggregate.CreateUser(firstName, lastName, email);
-        await userAggregate.Commit();
-    }
-}
-```
-
-## Best Practices
-
-1. **Keep aggregates focused** - Each aggregate should represent a single business concept
-2. **Validate within aggregates** - Business rules and validation should be enforced in the aggregate
-3. **Emit meaningful events** - Events should represent business events, not technical operations
-4. **Use appropriate state management** - Choose between read models (with projections/reducers) or manual state management (`On` methods) based on your needs
-5. **Handle invariants** - Use the current state to enforce business rules before applying new events
-6. **Keep aggregates small** - Large aggregates can lead to performance and concurrency issues
-7. **Leverage dependency injection** - Take dependencies on read models to get automatically resolved state based on the aggregate's event stream
-
-## Error Handling
-
-### Reporting Errors from Aggregate Root Methods
-
-Aggregate root methods can report structured validation failures using the `Failed` method. Failures are accumulated and included in the `AggregateRootCommitResult` when `Commit` is called.
-
-```csharp
 public class Order : AggregateRoot
 {
     int _quantity;
 
-    public async Task AddItem(Guid productId, int quantity)
+    public async Task AddItem(ProductId productId, Quantity quantity)
     {
-        if (quantity <= 0)
+        if (quantity <= 0 || quantity > 100 - _quantity)
         {
-            Failed("Quantity must be greater than zero.");
+            Failed("Quantity must be positive and the order total must not exceed 100.");
             return;
-        }
-
-        if (_quantity + quantity > 100)
-        {
-            Failed("Adding this item would exceed the maximum order quantity.", ValidationResultSeverity.Warning);
         }
 
         await Apply(new ItemAdded(productId, quantity));
     }
+
+    public void OnItemAdded(ItemAdded @event) => _quantity += @event.Quantity;
 }
+
+/// <summary>
+/// Records a product quantity added to an order.
+/// </summary>
+[EventType]
+public record ItemAdded(ProductId ProductId, Quantity Quantity);
 ```
 
-`Failed` accepts:
-- A **message** — the human-readable description of the problem.
-- An optional **severity** (`ValidationResultSeverity.Error`, `Warning`, or `Information`). Defaults to `Error`.
+Keep each concept in its own file in the application. `OrderId` and `ProductId` distinguish the target order from the referenced product; `Quantity` carries the amount being added. The event keeps the foreign product reference, while the order id lives in event context.
 
-**Error** severity failures **prevent the commit** — `Commit()` returns without persisting any events and `IsSuccess` is `false`.
+The bound assumes valid replayed state between 0 and 100; subtracting the current quantity avoids overflowing when the input is a very large positive integer.
 
-**Warning** and **Information** severity failures are informational only — they are included in the result but do not block the commit.
+`Apply` is asynchronous: always await it. Do not also return the same `ItemAdded` from a command; that would declare another append. Event handlers rebuild internal state only. Do not send notifications, call external systems, or append more events from a replay handler.
 
-### Handling the Commit Result
+Aggregate `Apply()` does not forward the command-context compliance subject. Its events use Chronicle's event-level subject resolution and fallback, even when the command sets or returns a subject. See the [aggregate subject limitation](../compliance/subject.md#aggregate-apply-limitation) before choosing the encryption identity.
+
+## Event handler signatures
+
+Method names are conventional, not the dispatch key. The first parameter identifies a registered event type. These are signature fragments, not method implementations:
 
 ```csharp
-var result = await order.Commit();
-
-if (!result.IsSuccess)
-{
-    foreach (var validation in result.ValidationResults)
-    {
-        Console.WriteLine($"[{validation.Severity}] {validation.Message}");
-    }
-}
+void On(TEvent @event)
+Task On(TEvent @event)
+void On(TEvent @event, EventContext context)
+Task On(TEvent @event, EventContext context)
 ```
 
-### Model-Bound Commands
+[ARCCHR0001](../code-analysis/ARCCHR0001.md) checks recognized handler candidates. A clean analyzer result is not proof that every intended handler was discovered; test replay and a subsequent mutation.
 
-When using the model-bound command pattern, return the `AggregateRootCommitResult` from the `Handle` method. The `AggregateRootCommitResultCommandResponseValueHandler` will automatically convert it to a `CommandResult`, propagating all validation results, constraint violations, and errors back to the API caller.
+## Injected read models are dependencies, not aggregate replay state
+
+Constructor injection can supply a registered read model, including an on-demand passive model. Its resolver controls its key and state. The aggregate factory's explicit id does not automatically become a new command context for those dependencies.
+
+An injected model does not continually update when this aggregate applies events. Use aggregate handlers for state that must evolve during replay and mutation. For ordinary snapshot context, use [read-model injection](../read-models/index.md). Chronicle's projection and reducer interfaces are `IProjectionFor<T>` and `IReducerFor<T>`; they are not a special aggregate-state API.
+
+## Reporting failure and committing
+
+`Failed(message, severity)` accumulates aggregate validation results. `AggregateRoot.Commit()` checks them: an Error prevents that commit; Warning and Information results are included without blocking it.
+
+For the `Order` above, return the commit result so Arc can propagate these failures:
 
 ```csharp
+using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+
 [Command]
-public record AddItemToOrder([Key] Guid OrderId, Guid ProductId, int Quantity)
+public record AddItemToOrder(OrderId OrderId, ProductId ProductId, Quantity Quantity)
+    : ICanProvideEventSourceId
 {
+    public EventSourceId GetEventSourceId() => OrderId;
+
     public async Task<AggregateRootCommitResult> Handle(Order order)
     {
         await order.AddItem(ProductId, Quantity);
@@ -333,16 +114,39 @@ public record AddItemToOrder([Key] Guid OrderId, Guid ProductId, int Quantity)
 }
 ```
 
-Chronicle provides built-in support for handling validation errors and constraint violations during event application and commit operations. The `AggregateRootCommitResult` contains information about any errors that occurred during the commit process.
+Both ids derive from `EventSourceId<Guid>`, so `GetEventSourceId()` explicitly selects the order as the command target. Arc translates the returned result into the command outcome, including validation, constraint, concurrency, and append failures.
+
+:::caution[Explicit commit is an early boundary]
+Inside a command, `Commit()` commits the **shared command unit of work**, not just this aggregate. Previously enrolled events commit at that point. A later command failure cannot undo them. Return immediately after committing and do not treat subsequent work as part of that atomic batch.
+:::
+
+## Automatic completion and its current limitation
+
+The command pipeline can commit enrolled aggregate events automatically when the command result succeeds. That is useful when the command's own result carries all rejection decisions. However, automatic completion commits the unit of work directly: it does **not** call each aggregate's `Commit()` or collect its private `Failed(...)` results.
+
+Do not replace the explicit commit in this example with a `Task`-only handler. In particular, an aggregate that applies an event and later calls `Failed(...)` can leave enrolled events while the command still appears successful. Propagate failure through the command result before completion, or retain the explicit commit/result path above and accept its boundary. Multi-aggregate failure aggregation needs particular care; one aggregate's commit does not inspect another aggregate's private validation list.
+
+Rehydration alone also does not prove a concurrency invariant. Test the revision captured by the aggregate path and the competing append behavior for your client/server versions; use append-time constraints or [exact concurrency scopes](../commands/events.md#events-with-exact-concurrency-scopes) when appropriate.
+
+## Using the factory outside a command
+
+This service fragment uses the same `Order` and returns its result to its caller:
 
 ```csharp
-var result = await aggregateRoot.Commit();
-if (!result.IsSuccess)
+using Cratis.Arc.Chronicle.Aggregates;
+
+public class OrderService(IAggregateRootFactory aggregates)
 {
-    // Handle validation errors or constraint violations
-    foreach (var error in result.ValidationResults)
+    public async Task<AggregateRootCommitResult> AddItem(
+        OrderId orderId, ProductId productId, Quantity quantity)
     {
-        // Process validation errors
+        var order = await aggregates.Get<Order>(orderId);
+        await order.AddItem(productId, quantity);
+        return await order.Commit();
     }
 }
 ```
+
+The caller must inspect the result and manage the surrounding lifetime. This fragment is not an HTTP endpoint and does not supply Arc command validation or authorization by itself.
+
+For the full boundary, see [Transactional commands](../commands/transactional-commands.md); for injection and identity timing, see [Aggregate roots in commands](./injecting-into-commands.md).

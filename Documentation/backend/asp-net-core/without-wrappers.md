@@ -1,62 +1,40 @@
-# Without wrappers (Controller-based Commands and Queries)
+---
+title: Without wrappers
+description: Return native ASP.NET controller results instead of Arc command/query envelopes.
+---
 
-When using controller-based [Commands](../commands/controller-based.md) or [Queries](../queries/controller-based/index.md), the result is wrapped in a more descriptive
-structure that will include the result returned by your controller action. This behavior is not an
-opt-in on a per controller or action level, making it a cross cutting always on behavior.
+Arc's participating controller actions normally return `CommandResult` or `QueryResult` envelopes. For an endpoint whose external contract must remain a native ASP.NET result, use `[AspNetResult]` on the controller or action.
 
-If you need controller-based endpoints that do not have the encapsulation of the `CommandResult` or the
-`QueryResult` structures, you can use an attribute called `[AspNetResult]`.
+## Opt out on an action
 
-The attribute can be used on a controller or a specific action. Once used, the result is kept as is from
-the action called.
-
-> Important note: The behavior of not allowing an invalid state is still kept intact, meaning that if you
-> have validation that kicks in and makes the `ModelState`invalid, both the command and the query action
-> filters will not call the action.
-
-To keep the original result on a controller level, place the attribute before the controller:
+This complete controller fragment assumes an ASP.NET Core Arc host with MVC registration and controller mapping:
 
 ```csharp
-[Route("/api/accounts/debit")]
-[AspNetResult]  // <-
-public class Accounts : Controller
-{
-    [HttpGet("starting-with")]
-    public async Task<IEnumerable<DebitAccount>> StartingWith([FromQuery] string? filter)
-    {
-        /* Code that gets the data and returns it */
-    }
+using Cratis.Arc;
+using Microsoft.AspNetCore.Mvc;
 
-    [HttpGet("latest-transactions/{accountId}")]
-    public DebitAccountLatestTransactions LatestTransactions([FromRoute] AccountId accountId)
-    {
-        /* Code that gets the data and returns it */
-    }
+[ApiController]
+[Route("api/status")]
+public class StatusController : ControllerBase
+{
+    [HttpGet]
+    [AspNetResult]
+    public IActionResult Get() => Ok(new { State = "Running" });
 }
 ```
 
-To keep the original result on an action level, place the attribute before the action:
+The action's result remains native ASP.NET output rather than an Arc envelope. Move `[AspNetResult]` above `StatusController` to apply it to every action on that controller.
 
-```csharp
-[Route("/api/accounts/debit")]
-public class Accounts : Controller
-{
-    [HttpGet("starting-with")]
-    [AspNetResult]  // <-
-    public async Task<IEnumerable<DebitAccount>> StartingWith([FromQuery] string? filter)
-    {
-        /* Code that gets the data and returns it */
-    }
+## Validation still applies
 
-    [HttpGet("latest-transactions/{accountId}")]
-    public DebitAccountLatestTransactions LatestTransactions([FromRoute] AccountId accountId)
-    {
-        /* Code that gets the data and returns it */
-    }
-}
-```
+Opting out of response wrapping does not disable Arc's model-state validation checks. Invalid model state can still prevent action execution. Likewise, do not treat the attribute as a way to bypass authentication or endpoint authorization. Test error responses as well as successful payloads when defining an external API contract.
 
 ## Proxy generator
 
-The proxy generator will exclude commands or queries that are marked with the `[AspNetResult]`
-attribute and as a consequence not generate any artifacts for the affect command or query.
+The proxy generator excludes commands/queries marked `[AspNetResult]`; no corresponding Arc TypeScript proxy is generated. Supply a client appropriate to your unwrapped contract instead.
+
+## See also
+
+- [Controller commands](../commands/controller-based.md)
+- [Controller queries](../queries/controller-based/index.md)
+- [OpenAPI](../open-api/index.md)

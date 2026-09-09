@@ -1,68 +1,27 @@
-# Arc.Core
+---
+title: Arc.Core
+description: Standalone Arc pipelines and lightweight HTTP hosting without ASP.NET Core or an event store.
+---
 
-Arc.Core provides a lightweight application model for building .NET applications without requiring ASP.NET Core. This is ideal for console applications, background services, microservices, and scenarios where you want minimal dependencies and maximum performance.
+Use `Cratis.Arc.Core` when you want commands, queries, validation, authorization, identity details, and tenant context without the ASP.NET Core host. A console application or worker can expose HTTP endpoints through `ArcApplication` and .NET's `HttpListener`.
 
-## Why Arc.Core?
+## Start with a working service
 
-Arc.Core is designed for developers who want the power of Arc's developer experience—commands, queries, identity, multi-tenancy, and validation—without the overhead of the full ASP.NET Core stack. It's perfect for:
-
-- Console applications
-- Background services and workers
-- Lightweight microservices
-- Custom HTTP listeners
-- gRPC services
-- Scenarios requiring fast startup and low memory footprint
-- Native AOT (Ahead-of-Time) compilation scenarios
-
-## Key Features
-
-- **Minimal Dependencies** - No web server dependencies (Kestrel, HTTP.sys), no MVC/Razor dependencies
-- **Native AOT Ready** - Designed for Native AOT compilation with smaller binaries and faster startup
-- **Full Arc Features** - Commands, queries, identity, multi-tenancy, validation, and more
-- **Static File Serving** - Serve static assets and host Single Page Applications
-- **Flexible** - Use with any .NET application type
-- **Performance** - Faster startup times and lower memory consumption
+The [getting-started checkpoint](getting-started.md) runs a command and query using only Core. Read the [host comparison](overview.md) to decide whether Core or the `Cratis.Arc` ASP.NET integration fits your application. Performance and Native AOT compatibility require testing your actual dependencies and publish configuration; they are not guaranteed by choosing Core.
 
 ## Topics
 
-- [Overview](overview.md) - Learn about the motivation and design philosophy
-- [Getting Started](getting-started.md) - Build your first Arc.Core application
-- [Endpoint Mapping](endpoint-mapping.md) - Map custom HTTP endpoints with MapGet and MapPost
-- [Static Files](static-files.md) - Serve static files and host SPAs
-- [Authentication](authentication.md) - Implement custom authentication handlers
-- [Authorization](authorization.md) - Protect your endpoints with authorization attributes
-- [OpenAPI Specifications](openapi.md) - Generate OpenAPI documentation for your API
+- [Overview](overview.md) — capabilities, boundaries, and host choice.
+- [Getting started](getting-started.md) — register, activate, and run.
+- [Endpoint mapping](endpoint-mapping.md) — manual GET/POST endpoints.
+- [Static files](static-files.md) — public assets and SPA fallback.
+- [Authentication](authentication.md) — trusted principals and forwarded-header prerequisites.
+- [Authorization](authorization.md) — pipeline authentication and role checks.
+- [OpenAPI](openapi.md) — built-in lightweight route documentation.
+- [Invariant culture](invariant-culture.md) — default culture configuration.
 
-## Shared Features
+## Shared features and optional integrations
 
-Many Arc features work across both Arc.Core and ASP.NET Core:
+[Commands](../commands/index.md), [queries](../queries/index.md), [identity](../identity/index.md), and [tenancy](../tenancy/index.md) belong to standalone Arc. Review [configuration](../configuration/index.md) and [anonymous discovery defaults](../introspection/index.md) before deployment.
 
-- [Tenancy](../tenancy/index.md) - Tenant isolation and context management
-- [Identity](../identity/index.md) - Core identity system and user details
-- [Commands](../commands/index.md) - Command handling patterns
-- [Queries](../queries/index.md) - Query patterns and conventions
-- [Chronicle](../chronicle/index.md) - Event sourcing and CQRS
-- [MongoDB](../mongodb.md) - MongoDB integration
-- [Entity Framework](../entity-framework/index.md) - Entity Framework Core integration
-
-## When to Use Arc.Core vs ASP.NET Core
-
-**Use Arc.Core when you need:**
-- Minimal dependencies and smaller binary size
-- Faster startup times
-- Lower memory footprint
-- Native AOT compilation support
-- Console applications or background services
-- Scenarios where full web framework is unnecessary
-
-**Use [ASP.NET Core Integration](../asp-net-core/index.md) when you need:**
-- Full web framework capabilities (Kestrel, middleware pipeline, static files)
-- Razor views or MVC features
-- Swagger UI for API documentation
-- Advanced middleware scenarios
-- Maximum HTTP throughput with Kestrel
-- Traditional web application patterns
-
-## Next Steps
-
-Ready to get started? Head over to the [Getting Started](getting-started.md) guide to build your first Arc.Core application.
+Add [MongoDB](../mongodb.md) or [EF Core](../entity-framework/index.md) for persistence without requiring event sourcing. Add [Chronicle](../chronicle/index.md) only when you want its event log, projections, and integration behavior. These integrations have their own packages and setup requirements.

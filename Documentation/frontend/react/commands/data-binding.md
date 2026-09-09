@@ -1,388 +1,100 @@
-# Data Binding and Initial Values
+---
+title: Data binding and initial values
+description: Edit generated command content without confusing React updates with the change-tracking baseline.
+---
 
-Commands act as the data model for your forms and UI components. Understanding how to bind to command properties and manage initial values is essential for building responsive, change-tracked forms.
+An edit screen needs two versions of its data: the draft and the baseline used to detect changes. A generated command holds both, but editing a property and accepting a new baseline are different operations.
 
-## Overview
+## Binding to command properties
 
-The command holds properties that represent the payload of what you want to have happen. These properties are:
-- Subject to validation rules
-- Subject to business rules
-- Often sourced from read models coming from [queries](../queries/index.md)
-- Used for operations that are typically updates to existing data
+Generated hooks return `[command, setValues, clearValues]`. Prefer `setValues({ property: value })` for React input edits: it updates the named properties and requests a render. Raw assignment notifies command change tracking but does not reliably rerender every edit while `hasChanges` remains true. Neither raw assignment nor the setter runs validation automatically; [CommandForm](../command-form/index.md) adds form-driven validation.
 
-## Binding to Command Properties
+Use explicit content objects. Generated public properties are prototype accessors, so `{ ...command }` is not a plain payload snapshot.
 
-Instead of binding your frontend components to read models from queries, you can bind directly to command properties. This provides several benefits:
+## Initial values
 
-### Benefits
+| Operation | Effect |
+| --- | --- |
+| `GeneratedCommand.use(initialValues)` | Seeds values and baseline when the instance is created; later prop changes do not reseed it |
+| `setValues(partialContent)` | Edits supplied properties and requests a React render; baseline unchanged |
+| `command.setInitialValues(content)` | Sets supplied values and their baseline, including falsy values |
+| `command.setInitialValuesFromCurrentValues()` | Snapshots current **truthy** properties; skips `''`, `0`, `false`, null, and undefined |
+| `command.revertChanges()` | Restores values from the stored baseline |
+| Hook `clearValues()` | Assigns undefined to properties and requests a render; does not establish a new baseline |
+| `command.clear()` | Clears properties and baseline; distinct from the hook clearer |
 
-1. **Automatic Validation**: Validation rules running on the frontend execute automatically as values change
-2. **Change Tracking**: The command tracks whether properties have changed from their original values
-3. **Consistent State**: Single source of truth for form data
-4. **Type Safety**: TypeScript types generated from backend command definitions
+`hasChanges` is a comparison flag, not an edit revision or a saved-success flag. Do not use `[command.hasChanges]` as the dependency for per-keystroke validation or autosave.
 
-### Example
+## Loading data from queries
 
-```typescript
-import { UpdateProfile } from './generated/commands';
+Destructure the query tuple, check readiness/success, and read `.data`. Avoid repeatedly reseeding an editor on observable updates: that can erase the user's draft. One simple pattern is to key the query-owning loader by the selected identity and mount its editor only after a successful result matches that identity. Keying only the editor can seed it with the previous selection's retained query result.
 
-export const ProfileEditor = () => {
-    const [command] = UpdateProfile.use({
-        userId: currentUser.id,
-        firstName: currentUser.firstName,
-        lastName: currentUser.lastName,
-        email: currentUser.email
+This illustrative pair assumes generated `GetUserProfile` and `UpdateProfile` proxies whose content has string `userId`, `firstName`, and `email` properties:
+
+```tsx
+import { useState } from 'react';
+import { GetUserProfile } from './generated/GetUserProfile';
+import { UpdateProfile } from './generated/UpdateProfile';
+
+type Profile = { userId: string; firstName: string; email: string };
+
+function Editor({ profile }: { profile: Profile }) {
+    const [command, setValues] = UpdateProfile.use({
+        userId: profile.userId, firstName: profile.firstName, email: profile.email
     });
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState('');
 
-    return (
-        <form>
-            <input
-                type="text"
-                value={command.firstName}
-                onChange={(e) => command.firstName = e.target.value}
-            />
-            <input
-                type="text"
-                value={command.lastName}
-                onChange={(e) => command.lastName = e.target.value}
-            />
-            <input
-                type="email"
-                value={command.email}
-                onChange={(e) => command.email = e.target.value}
-            />
-        </form>
-    );
-};
-```
-
-## Initial Values
-
-Commands need initial values to enable change tracking. The `hasChanges` property compares current values against these initial values.
-
-### Setting Initial Values
-
-There are two recommended ways to set initial values:
-
-**1. Via React Hook (Recommended):**
-
-```typescript
-const [command] = UpdateProfile.use({
-    userId: 'user-123',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@example.com'
-});
-```
-
-**2. Via setCommandValues Function:**
-
-```typescript
-const [command, setCommandValues] = UpdateProfile.use();
-
-useEffect(() => {
-    // Load data from API or query
-    fetchUserProfile(userId).then(profile => {
-        setCommandValues(profile);
-    });
-}, [userId]);
-```
-
-**3. Via setInitialValues (Advanced):**
-
-```typescript
-const [command] = UpdateProfile.use();
-
-useEffect(() => {
-    fetchUserProfile(userId).then(profile => {
-        command.setInitialValues(profile);
-    });
-}, [userId]);
-```
-
-### When to Use Each Approach
-
-- **React Hook Parameter**: When you have initial data available at component mount
-- **setCommandValues**: When loading data asynchronously or from queries
-- **setInitialValues**: Advanced scenarios requiring direct control (rare)
-
-## Change Tracking
-
-The `hasChanges` property automatically tracks whether any command property differs from its initial value.
-
-### Basic Change Tracking
-
-```typescript
-const [command] = UpdateProfile.use({
-    firstName: 'John',
-    lastName: 'Doe'
-});
-
-console.log(command.hasChanges); // false
-
-command.firstName = 'Jane';
-console.log(command.hasChanges); // true
-
-command.firstName = 'John'; // Reverted to original
-console.log(command.hasChanges); // false
-```
-
-### Using hasChanges in UI
-
-```typescript
-export const ProfileEditor = () => {
-    const [command] = UpdateProfile.use(currentProfile);
-
-    const handleSave = async () => {
-        if (command.hasChanges) {
-            await command.execute();
+    async function save() {
+        setSaving(true);
+        try {
+            const result = await command.execute();
+            setMessage(result.isSuccess ? 'Saved.' : 'Save failed; your draft is still displayed.');
+        } finally {
+            setSaving(false);
         }
-    };
-
-    return (
-        <form>
-            {/* Form fields */}
-            
-            <button 
-                onClick={handleSave}
-                disabled={!command.hasChanges}
-            >
-                Save Changes
-            </button>
-            
-            {command.hasChanges && (
-                <div className="warning">
-                    You have unsaved changes
-                </div>
-            )}
-        </form>
-    );
-};
-```
-
-## Loading Data from Queries
-
-A common pattern is loading data from a query and using it to initialize a command. If you are building the form with [CommandForm](../command-form/index.md), it can do this fetch-and-seed itself - see [Populating a Form from a Query](../command-form/data-loading.md#populating-a-form-from-a-query). The manual pattern below is what to reach for outside `CommandForm`, or when you need full control over the fetch:
-
-```typescript
-import { GetUserProfile } from './generated/queries';
-import { UpdateProfile } from './generated/commands';
-
-export const ProfileEditor = ({ userId }: { userId: string }) => {
-    const profile = GetUserProfile.use({ userId });
-    const [command, setCommandValues] = UpdateProfile.use();
-
-    useEffect(() => {
-        if (profile) {
-            setCommandValues({
-                userId: profile.userId,
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                email: profile.email
-            });
-        }
-    }, [profile]);
-
-    if (!profile) {
-        return <div>Loading...</div>;
     }
 
     return (
-        <form>
-            <input
-                value={command.firstName}
-                onChange={(e) => command.firstName = e.target.value}
-            />
-            {/* More fields... */}
-            
-            <button disabled={!command.hasChanges}>
-                Save
-            </button>
+        <form onSubmit={event => { event.preventDefault(); void save(); }}>
+            <input value={command.firstName ?? ''} disabled={saving}
+                onChange={event => setValues({ firstName: event.target.value })} />
+            <input value={command.email ?? ''} disabled={saving}
+                onChange={event => setValues({ email: event.target.value })} />
+            <button disabled={saving}>Save</button>
+            <p role="status">{message}</p>
         </form>
     );
-};
-```
+}
 
-## Tracking Changes Across Multiple Commands
-
-When you have a component with sub-components that each work with different commands, you can track the aggregate `hasChanges` state using [Command Scope](./scope.md).
-
-### Example Without Scope
-
-```typescript
-// Each command tracks its own changes
-const [profileCommand] = UpdateProfile.use(profile);
-const [settingsCommand] = UpdateSettings.use(settings);
-
-// Need to manually check both
-const hasAnyChanges = profileCommand.hasChanges || settingsCommand.hasChanges;
-```
-
-### Example With Scope
-
-```typescript
-import { CommandScope } from '@cratis/arc.react/commands';
-
-export const UserEditor = () => {
-    return (
-        <CommandScope>
-            {(scope) => (
-                <>
-                    <ProfileForm />
-                    <SettingsForm />
-                    
-                    <button disabled={!scope.hasChanges}>
-                        Save All Changes
-                    </button>
-                </>
-            )}
-        </CommandScope>
-    );
-};
-```
-
-See [Command Scope](./scope.md) for complete documentation.
-
-## Resetting to Initial Values
-
-To reset a command to its initial state:
-
-```typescript
-const [command, setCommandValues] = UpdateProfile.use(initialProfile);
-
-const handleReset = () => {
-    setCommandValues(initialProfile);
-};
-
-// Or get fresh data
-const handleRefresh = async () => {
-    const freshProfile = await fetchUserProfile(userId);
-    setCommandValues(freshProfile);
-};
-```
-
-## Partial Updates
-
-You can update only specific properties while keeping others unchanged:
-
-```typescript
-const [command, setCommandValues] = UpdateProfile.use({
-    userId: 'user-123',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@example.com'
-});
-
-// Update only email
-setCommandValues({
-    ...command,
-    email: 'newemail@example.com'
-});
-```
-
-## Best Practices
-
-1. **Always Provide Initial Values**: Set initial values to enable proper change tracking
-2. **Use Queries as Source**: Load data from queries to initialize commands
-3. **Check hasChanges**: Prevent unnecessary API calls by checking if data actually changed
-4. **Use CommandScope**: For forms with multiple commands, use CommandScope to track aggregate state
-5. **Reset After Save**: Consider resetting initial values after successful save to clear `hasChanges`
-6. **Type Safety**: Leverage TypeScript to ensure initial values match command structure
-
-## Example: Complete Edit Form
-
-```typescript
-import { GetUserProfile } from './generated/queries';
-import { UpdateProfile } from './generated/commands';
-import { useEffect, useState } from 'react';
-
-export const UserProfileEditor = ({ userId }: { userId: string }) => {
-    const profile = GetUserProfile.use({ userId });
-    const [command, setCommandValues] = UpdateProfile.use();
-    const [saved, setSaved] = useState(false);
-
-    // Initialize command when profile loads
-    useEffect(() => {
-        if (profile) {
-            setCommandValues(profile);
-        }
-    }, [profile]);
-
-    const handleSave = async () => {
-        if (!command.hasChanges) return;
-
-        const result = await command.execute();
-        if (result.isSuccess) {
-            // Reset initial values to current values
-            setCommandValues(command);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 3000);
-        }
-    };
-
-    const handleReset = () => {
-        if (profile) {
-            setCommandValues(profile);
-        }
-    };
-
-    if (!profile) {
-        return <div>Loading...</div>;
+function ProfileLoader({ userId }: { userId: string }) {
+    const [profile] = GetUserProfile.use({ userId });
+    if (!profile.isReady || profile.isPerforming) return <p>Loading…</p>;
+    if (!profile.isSuccess || profile.data.userId !== userId) {
+        return <p>Could not load the selected profile.</p>;
     }
+    return <Editor profile={profile.data} />;
+}
 
-    return (
-        <div>
-            <form>
-                <div>
-                    <label>First Name:</label>
-                    <input
-                        value={command.firstName}
-                        onChange={(e) => command.firstName = e.target.value}
-                    />
-                </div>
-                <div>
-                    <label>Last Name:</label>
-                    <input
-                        value={command.lastName}
-                        onChange={(e) => command.lastName = e.target.value}
-                    />
-                </div>
-                <div>
-                    <label>Email:</label>
-                    <input
-                        type="email"
-                        value={command.email}
-                        onChange={(e) => command.email = e.target.value}
-                    />
-                </div>
-            </form>
-
-            <div>
-                <button 
-                    onClick={handleSave}
-                    disabled={!command.hasChanges}
-                >
-                    Save
-                </button>
-                <button 
-                    onClick={handleReset}
-                    disabled={!command.hasChanges}
-                >
-                    Reset
-                </button>
-            </div>
-
-            {saved && <div className="success">Profile saved successfully!</div>}
-            {command.hasChanges && <div className="info">You have unsaved changes</div>}
-        </div>
-    );
-};
+export function ProfileEditor({ userId }: { userId: string }) {
+    return <ProfileLoader key={userId} userId={userId} />;
+}
 ```
 
-## See Also
+Changing selection remounts the query loader and editor together, discarding the previous draft; confirm navigation first if unsaved edits must be preserved. The identity check also rejects a mismatched response. The editor consumes the incoming profile only on its initial mount. A deliberate refresh/reload must decide whether to discard edits first. For a form-managed alternative, see [loading form data](../command-form/data-loading.md).
 
-- [Commands Overview](./index.md)
-- [React Hook Usage](./react-usage.md)
-- [Command Scope](./scope.md)
-- [Validation](./validation.md)
-- [Queries](../queries/index.md)
+## Resetting to initial values
+
+If you retain an explicit baseline object, `setValues(baseline)` restores the draft without accepting a new baseline. To accept newly loaded content as the baseline and reliably render it, call `command.setInitialValues(content)` followed by `setValues(content)`. Supply explicit properties, not a spread command instance.
+
+## Execution baseline limitations
+
+Current `execute()` calls `setInitialValuesFromCurrentValues()` after every completed server request, **including unsuccessful results**. Client-validation short circuits do not reach that step. Combined with the truthy-only snapshot behavior, `hasChanges` is not a reliable “unsaved after failure” indicator for all values.
+
+Keep authoritative save status in the returned `CommandResult` and preserve drafts independently when failure recovery matters. Success-only baseline acceptance and falsy-value snapshots are runtime follow-up candidates. Do not disable all retries solely because `hasChanges` became false after rejection.
+
+## Tracking changes across multiple commands
+
+A [command scope](./scope.md) tracks its own registered commands and can execute those with changes. It does not recursively execute nested scopes or aggregate their change/performing flags. Compose a toolbar under the provider with `useCommandScope()`; `CommandScope` does not accept a render-function child.
+
+Continue with [React hook usage](./react-usage.md) and [validation](./validation.md).
