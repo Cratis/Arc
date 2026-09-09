@@ -24,4 +24,4 @@ The [getting-started checkpoint](getting-started.md) runs a command and query us
 
 [Commands](../commands/index.md), [queries](../queries/index.md), [identity](../identity/index.md), and [tenancy](../tenancy/index.md) belong to standalone Arc. Review [configuration](../configuration/index.md) and [anonymous discovery defaults](../introspection/index.md) before deployment.
 
-Add [MongoDB](../mongodb.md) or [EF Core](../entity-framework/index.md) for persistence without requiring event sourcing. Add [Chronicle](../chronicle/index.md) only when you want its event log, projections, and integration behavior. These integrations have their own packages and setup requirements.
+Add [MongoDB](../mongodb/index.md) or [EF Core](../entity-framework/index.md) for persistence without requiring event sourcing. Add [Chronicle](../chronicle/index.md) only when you want its event log, projections, and integration behavior. These integrations have their own packages and setup requirements.
