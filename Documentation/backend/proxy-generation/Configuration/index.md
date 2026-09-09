@@ -4,6 +4,7 @@ The proxy generator is configured through MSBuild properties and item groups in 
 
 - [Basic Options](basic.md) — output path, segments to skip, source file output, decorator metadata
 - [Library Mode](library-mode.md) — generate TypeScript for every public type in the assembly
+- [Emit Interfaces](emit-interfaces.md) — plain interfaces with no decorators and no runtime dependency
 - [Type Exclusions](type-exclusions.md) — exclude specific types or namespaces from generation
 - [Namespace Roots](namespace-roots.md) — pin a namespace as the folder root
 - [Assembly-to-Package Mappings](assembly-package-mappings.md) — import from external npm packages instead of regenerating
@@ -18,6 +19,7 @@ The proxy generator is configured through MSBuild properties and item groups in 
 | `CratisProxiesSegmentsToSkip` | `0` | [Basic](basic.md) |
 | `CratisProxiesUseSourceFileAsOutputFile` | `false` | [Basic](basic.md) |
 | `CratisProxiesLibraryMode` | `false` | [Library Mode](library-mode.md) |
+| `CratisProxiesEmitInterfaces` | `false` | [Emit Interfaces](emit-interfaces.md) |
 | `<ExcludeType TypeName="..."/>` | — | [Type Exclusions](type-exclusions.md) |
 | `<ExcludeNamespace Namespace="..."/>` | — | [Type Exclusions](type-exclusions.md) |
 | `<NamespaceRoot Namespace="..."/>` | — | [Namespace Roots](namespace-roots.md) |

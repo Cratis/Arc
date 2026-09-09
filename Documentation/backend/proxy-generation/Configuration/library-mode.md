@@ -25,7 +25,11 @@ When library mode is on:
 - All public, non-abstract classes and records in every project assembly are collected and generated as TypeScript interfaces.
 - All public interfaces are included.
 - All public enums are included.
-- Abstract classes are skipped (they cannot be instantiated).
+- Abstract classes are not collected directly, but are still generated when something reachable derives
+  from one - a concrete type's base class is followed, so an inheritance chain arrives intact rather
+  than with its roots missing.
+- Open generic definitions are skipped, along with their type parameters: neither has a concrete shape
+  to emit.
 - Types excluded via [`ExcludeType` or `ExcludeNamespace`](type-exclusions.md) are still skipped.
 - Types from assemblies mapped via [`AssemblyToPackageMapping`](assembly-package-mappings.md) are still imported from their package rather than regenerated.
 
