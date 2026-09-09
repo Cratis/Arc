@@ -23,7 +23,7 @@ We organize documentation with the [Diátaxis framework](https://diataxis.fr/). 
 | **Reference** | looking something up | a dictionary | Exhaustive and terse. Tables, signatures, attributes, configuration. No narrative. |
 | **Explanation** | trying to understand | a discussion | Concepts, trade-offs, architecture, *why*. No steps. Lean on diagrams. |
 
-The top-level navigation of **every product** mirrors these types in the same order, so the whole set feels like one product: **Get started** (tutorials) → **Guides** (how-to) → **Understand** (explanation) → **Reference**. Use this structure for Chronicle, Arc, Components, and every other product — never invent a per-product layout or organize a section purely around internal technical concepts.
+Diátaxis governs a page's purpose and voice, not a universal set of sidebar labels. Each product has navigation buckets suited to its domain; read `PRODUCTS[].buckets` in the Documentation site's sync script before placing a new section.
 
 → For authoring a single page step by step, use the **write-documentation** skill.
 
@@ -63,7 +63,7 @@ The project's voice is **direct, practical, and opinionated**. Write like an exp
 ## Code Examples
 
 - Prefer `record` types for events, commands, and read models — match the codebase.
-- When specifying `[EventType]`, never add a name argument — just `[EventType]`.
+- Use argument-free `[EventType]` for new events. A new generation or an explicit legacy identifier is valid only when documenting evolution of an existing stored-event contract.
 - Every example must be **complete and correct** — no pseudo-code, no `// ...` elisions that leave the reader guessing.
 - **Short illustrative snippets** may be purpose-built. **Longer or real samples must be embedded from compiled, tested source** (the Samples repo) via the snippet tooling, so they cannot drift as APIs change. Never paste untested code, and never substitute a bare "see the repo" link for showing the code.
 - Where a feature spans the stack, show **both sides** — the C# slice and the generated TypeScript consumer — with tabs. Full-stack type safety is the story; show it.
@@ -83,9 +83,8 @@ The project's voice is **direct, practical, and opinionated**. Write like an exp
 - A **troubleshooting / FAQ** page.
 - An **`llms.txt`** (curated index) and **`llms-full.txt`** (full corpus) so AI assistants ground answers in the docs — these are first-class build outputs, not an afterthought.
 
-## File Rules
+## File rules
 
-- Every folder has a `toc.yml` for navigation and an `index.md` landing page. In `toc.yml`, link to a subfolder's `toc.yml`, not its `index.md`.
-- End every markdown file with a single trailing newline.
-- Never use shell commands to modify files after writing them.
-- Run `npm run check` in `Documentation/web` to validate links and formatting before considering a page done.
+- Follow [Documentation Structure and Formatting](./documentation-structure-and-formatting.md) for frontmatter, landing pages, `toc.yml`, Markdown/MDX, links, and rendering.
+- End every Markdown file with a single trailing newline.
+- Run the product's `./Documentation/verify-markdown.sh`; use `cd ../Documentation/web && npm run check` for full-fidelity site verification when the sibling checkout is available.

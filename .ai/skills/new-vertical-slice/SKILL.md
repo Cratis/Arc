@@ -96,7 +96,7 @@ All must pass before the slice is considered done:
 - `yarn lint` — zero errors
 - `npx tsc -b` — zero errors
 - Public-facing changes (clients, SDKs, public APIs) include associated documentation updates
-- `cd Documentation/web && npm run check` passes when documentation is added or changed
+- `cd ../Documentation/web && npm run check` passes when documentation is added or changed and the sibling Documentation checkout is available
 
 ---
 

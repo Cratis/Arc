@@ -1,51 +1,91 @@
 ---
 name: qa-cratis-docs
-description: Use this skill to visually QA rendered Cratis docs pages after changes under `Documentation/**` — screenshot headless in light AND dark, check diagrams/tables/code blocks render, and diagnose layout-shift ("flicker"/"jump"/"pop") bugs. Trigger on screenshot the docs, check how a page looks, review the docs visually, verify a diagram or table renders, or investigate a flicker/layout-shift on the docs site.
+description: Use this skill whenever Cratis documentation must be visually reviewed or a docs render/gate problem must be diagnosed: screenshots, light/dark appearance, raw table pipes, unstyled callouts, literal MDX imports, missing sidebar pages, broken Astro builds, stale previews, Mermaid failures, layout shift, or flicker. It verifies the authored source, synced output, rendered HTML, and final pixels without guessing.
 ---
 
-# Visual & layout QA for the docs site
+# Diagnose and visually verify Cratis documentation
 
-> Scope this skill to visual checks for product or contributing docs whose source lives under `Documentation/**`. Site-level pages in `Documentation/web` are owned by the Documentation repo.
+Product docs render through the sibling `Documentation/web` Astro Starlight site. A source file can pass Markdown lint while silently rendering the wrong HTML, so inspect each boundary: authored source → synced source → built HTML → screenshot.
 
-`shot-scraper`/Playwright aren't dependencies, but Chrome is. Use the committed `Documentation/web/scripts/screenshot.mjs` (drives system Chrome over CDP) — it captures **light or dark**, full-page, with client-side rendering settled.
+## 1. Reproduce from a fresh site state
 
-## Capture
-
-```bash
-cd Documentation/web && npm run dev        # serve at http://localhost:4321 (keep it running)
-node scripts/screenshot.mjs http://localhost:4321/chronicle/concepts/event-source/ /tmp/es-dark.png dark
-node scripts/screenshot.mjs http://localhost:4321/chronicle/concepts/event-source/ /tmp/es-light.png light
-```
-
-Then **Read the PNG** to evaluate it. Crop/zoom with the `sharp` already in `node_modules` (PIL/ImageMagick aren't installed):
+From the product repository:
 
 ```bash
-node -e "require('sharp')('/tmp/es-dark.png').extract({left:300,top:600,width:900,height:500}).resize({width:1400}).toFile('/tmp/crop.png')"
+./Documentation/verify-markdown.sh
+cd ../Documentation/web
+npm run check
 ```
 
-Build the page list from `web/src/generated/topics.json` + the site-level slugs. **The bar is aspire.dev** — study its frontend `site.css`/`mermaid.css` for the depth cues (gradient glows, framed diagrams, lifted cards) that `cratis.css` is built from.
+The full check requires the Documentation checkout and available sibling products. Separate failures caused by unrelated sibling content from failures in the page under review.
 
-## What to check on each page
+After a build/check, restart the preview before trusting it:
 
-- **Diagrams** themed and correctly sized in both themes (pre-rendered SVG — should be present immediately, no pop).
-- **Tables** render as real tables (not raw `|` pipes — that's the GFM/MDX bug).
-- **Code blocks** not over-indented (no spurious leading whitespace in the source snippet) and lifted off the page.
-- **Hero / cards** have depth (glow, lift), inline code is a brand-tinted chip.
-- Light AND dark both read cleanly.
+```bash
+cd ../Documentation/web
+npm run dev
+```
 
-## Diagnosing a flicker / twitch / layout-shift
+A build re-sync can degrade an already-running dev server. If output remains stale or partial, stop the server, remove `.astro` and `node_modules/.astro`, then restart. Do not interpret a degraded preview as a source defect.
 
-The cause is almost always one of: **font swap** (fixed — `font-display: optional` + preload in `Head.astro`), **client-side rendering settling**, or **Mermaid** (fixed — build-time pre-render). To measure:
+`web/src/generated/topics.json` exists only after sync; use it with site-level slugs when building a page list.
 
-- Inject a buffered `layout-shift` PerformanceObserver via CDP `Page.addScriptToEvaluateOnNewDocument` and sample `document.documentElement` height every ~16ms after navigate; print the timeline.
-- Use a **fresh `--user-data-dir`** for a cold (uncached) load; reuse it for a warm load. Many shifts only show cold.
-- For scroll-restoration flashes: scroll down, `Page.reload`, sample `window.scrollY` — if it lands short, content above is rendering late.
-- Run all CDP scripts **serially** — they collide on the debug port.
+## 2. Diagnose the symptom
 
-## Caveats
+| Symptom | Check first |
+|---|---|
+| Raw `|` table text | Confirm `remarkGfm` remains in `astro.config.mjs`; restart a degraded dev server |
+| Untitled/unstyled callout | The only directive variants are `note`, `tip`, `caution`, `danger`; an unknown name silently becomes a plain `<div>` |
+| Literal `import …` text or inert component tag | JSX was authored in `.md`; rename/wire it deliberately as `.mdx` |
+| Page absent from sidebar | Check its `toc.yml`, sync's dropped-entry count, product-specific bucket, and one-child-group collapse |
+| Real landing only at `/overview/` | Look for a `<folder>.md[x]` plus `<folder>/index.md[x]` route collision |
+| Empty icon | Verify the installed Starlight icon name; several component icon failures are silent (`seti:windows`, not `windows`) |
+| Mermaid source instead of SVG | Check diagram syntax and whether build-time pre-render fell back; inspect logs and built HTML |
+| Page change did not appear | Confirm you edited the product source rather than a generated `web/src/content/docs/<product>/` copy |
+| 500s, missing tables, or partial pages | Restart dev after build/check; clear Astro caches if needed |
+| Link works in source but not site | Inspect the converted route, punctuation-stripped slug, and generated HTML |
 
-- **Restart `npm run dev` after running `npm run check`** — the gate's re-sync degrades a live dev server (pages 500, tables vanish). A degraded dev server makes screenshots lie; restart and re-verify before trusting a "broken" result.
-- The Astro dev toolbar appears mid-page in full-page captures — it's a dev-only overlay, not a real element.
-- `prefers-color-scheme` emulation can trigger astro-mermaid's theme observer on any client-rendered fallback diagram; pre-rendered diagrams are unaffected.
+Inspect the built page directly when useful. A real aside has `starlight-aside--<variant>`; a pre-rendered diagram has a Mermaid SVG marker; tables produce `<table>`.
 
-→ Rendering internals live in the Documentation repo.
+## 3. Capture light and dark
+
+The committed screenshot script drives system Chrome through CDP and waits for client rendering:
+
+```bash
+cd ../Documentation/web
+node scripts/screenshot.mjs http://localhost:4321/arc/example/ /tmp/example-dark.png dark
+node scripts/screenshot.mjs http://localhost:4321/arc/example/ /tmp/example-light.png light
+```
+
+Read both PNGs. Crop with the installed `sharp` package when the relevant section is small:
+
+```bash
+node -e "require('sharp')('/tmp/example-dark.png').extract({left:300,top:600,width:900,height:500}).resize({width:1400}).toFile('/tmp/example-crop.png')"
+```
+
+The script uses the fixed profile `/tmp/cratis-screenshot-9222`. Delete that directory before launch for a cold profile; reuse it for a warm comparison. Run CDP scripts serially because they share a fixed debug port.
+
+Chrome is a system prerequisite, resolved from `CHROME_PATH` or known install locations; it is not an npm dependency. The Astro dev toolbar in full-page captures is a development-only overlay.
+
+## 4. Visual checklist
+
+- Asides use the correct semantic severity, display the custom title, and contain nested code/tables without overflow.
+- H2 headings remain when navigation or stable anchors need them.
+- Mermaid diagrams are responsive, themed, legible, and present without a client-side pop.
+- GFM tables render as tables and remain keyboard/viewport accessible.
+- Code blocks are dedented, titled only when useful, and visually emphasize the intended lines.
+- Tabs, steps, cards, and shared components have no raw JSX, missing slots, overflow, or empty icons.
+- Light and dark themes both preserve contrast and hierarchy.
+- Rich presentation improves comprehension rather than merely adding decoration.
+
+## 5. Measure layout shift when screenshots are not enough
+
+For flicker, twitch, or scroll-restoration defects:
+
+- Inject a buffered `layout-shift` `PerformanceObserver` with `Page.addScriptToEvaluateOnNewDocument`.
+- Sample `document.documentElement` height during navigation.
+- Compare a cold Chrome profile with a warm reuse.
+- For restoration, scroll, reload, and sample `window.scrollY`; landing short usually means content above rendered late.
+- Treat font loading, client-side rendering, and Mermaid fallback as separate hypotheses.
+
+Report the source, synced-output, HTML, and screenshot evidence separately. A green build is not visual proof.

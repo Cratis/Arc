@@ -5,82 +5,151 @@ paths:
   - "**/Documentation/**/*.mdx"
 ---
 
-# Documentation Structure & Formatting (so a page fits the site)
+# Documentation structure and formatting
 
-The mechanical conventions a page must follow to slot into the Astro Starlight site correctly. (For *what* to write — the tour voice — see [Writing Cratis Documentation](./writing-cratis-docs.md). For *where* a page lives — see [Editing Cratis Documentation](./editing-cratis-docs.md).) Product `.md` is run through `web/scripts/sync-content.mjs` before it reaches Starlight; this is what that converter expects and does.
+This is the authoritative rendering contract for product documentation consumed by the Astro Starlight site. For content and teaching voice, see [Writing Cratis Documentation](./writing-cratis-docs.md). For source ownership and the edit loop, see [Editing Cratis Documentation](./editing-cratis-docs.md).
+
+Product `.md` and `.mdx` files are copied through the Documentation repo's `web/scripts/sync-content.mjs`; the converter preserves the extension and rewrites the content before Starlight renders it.
 
 ## Frontmatter
 
 ```yaml
 ---
-title: Append an event          # required-ish; becomes the page H1
-description: One sentence …      # strongly recommended; SEO/meta + AI export
-sidebar:                         # optional: order / label / badge
-  order: 2
+title: Append an event
+description: Append a domain event to one event source and inspect the result.
+tableOfContents: false             # optional per-page override
+sidebar:
   badge: { text: New, variant: tip }
 ---
 ```
 
-- The converter **keeps** `title`, `description`, `sidebar`; it **drops** DocFX keys (`uid`, `applyTo`, `storybook`, …). For product `.md` with no frontmatter, it derives a `title` from the first H1.
-- **Starlight renders `title` as the page H1 — so do NOT put an H1 in the body.** Start the body at `##` (H2). A leading body H1 is stripped, but don't rely on that; structure from H2.
+- Product pages should declare `title` and `description`. The title becomes the page H1; the description feeds metadata and AI-facing exports.
+- The converter preserves only `title`, `description`, `sidebar`, and `tableOfContents`. It drops DocFX keys and other Starlight keys. Features such as `template`, `hero`, `banner`, `head`, `prev`, `next`, `slug`, and `draft` work only on site-level pages authored directly in the Documentation repo.
+- Product navigation comes from `toc.yml`, not Starlight autogeneration. `sidebar.badge` works, but `sidebar.order`, `sidebar.label`, and `sidebar.hidden` do not control product navigation.
+- A frontmatter-less page falls back to its first H1, but that loses the description and relies on converter inference. Do not add new pages that way.
 
 ## Headings
 
-- **No body H1** (the title is the H1).
-- **The "On this page" ToC shows H2 only** (`tableOfContents: { min:2, max:2 }`). Structure each page as a flat list of `##` sections — sub-points go under them as `###`/prose, not as ToC entries.
-- Use sentence case in headings; no trailing punctuation.
+- Do not put an H1 in the body; frontmatter supplies it.
+- The global “On this page” list shows H2 headings only. Organize the page around a short, flat set of `##` sections; use H3/H4 only inside them.
+- Use sentence case and no trailing punctuation.
+- Keep a real H2 when a section needs a stable URL anchor. A card or aside title is presentation, not document structure.
 
-## File & folder layout
+## Files, folders, and navigation
 
-- Every folder has a **`toc.yml`** (navigation) and an **`index.md`** (landing). A folder whose landing is `overview.md` (no `index.md`) **404s on the bare URL** — give it an `index.md` or link to a specific page.
-- A `toc.yml` entry pointing to a **missing page is dropped** from the sidebar (the sync prints "N broken toc entries dropped" — keep it 0).
-- `toc.yml` sections are regrouped into Diátaxis **buckets** (Get started / Guides / Understand / Reference) via `PRODUCTS[].buckets` in `sync-content.mjs`. Sections named **"Getting started…"** auto-get a *Quickstart* badge; **"Tutorial"** gets a *Tutorial* badge.
+- A navigable product folder normally has `toc.yml` plus one landing page: `<folder>/index.md[x]` or a sibling `<folder>.md[x]`.
+- Never keep both `<folder>.md[x]` and `<folder>/index.md[x]`. The sync resolves the route collision by moving the directory index to `/overview/`, which can orphan the real landing page and make compatibility links point back to themselves.
+- A folder with neither an index nor a sibling landing has no page at its bare URL.
+- Product bucket names are product-specific. Read that product's `PRODUCTS[].buckets` entry in `web/scripts/sync-content.mjs`; do not assume generic “Get started / Guides / Understand / Reference” labels.
+- A missing built slug is dropped from the sidebar and counted as a broken toc entry. Keep that count at zero.
+- `toc.yml` entries with external URLs, `../`, or `/api/` are intentionally dropped. A group with one child collapses to the child link. Check the generated sidebar rather than inferring it from YAML alone.
+- Sync slugification lowercases path segments and removes characters outside `[a-z0-9_-]`; for example, `react.mvvm` becomes `reactmvvm`. Verify hand-authored site-absolute URLs against the built route.
 
-## Callouts / asides
+## Choose Markdown or MDX
 
-Write DocFX alerts in product `.md` (converted automatically) **or** Starlight directives directly:
+Use the least powerful format that communicates the idea:
 
-| DocFX | Becomes |
+- Keep `.md` for headings, prose, links, GFM tables, fenced code, Mermaid/event-modeling diagrams, images, and Starlight aside directives.
+- Use `.mdx` only when the page needs imported Astro components, expressions, props, or named slots.
+- Imports and JSX in `.md` fail silently: the import can render as visible prose and the component as an inert element. Permissive Markdown HTML allowlists can hide this mistake. A page using a component must be `.mdx`.
+- Do not rename a page to `.mdx` merely for a callout or diagram. Renames require checking `toc.yml`, inbound links, generated routes, and AI-facing raw-Markdown output.
+- Do not add raw HTML, inline styling, scripts, or one-off visual components to decorate a product page. Reuse an established component or make an explicit reusable site change in the Documentation repo.
+
+## Callouts and asides
+
+The complete Starlight directive set is `note`, `tip`, `caution`, and `danger`. These work in both `.md` and `.mdx` and support a custom title:
+
+```markdown
+:::caution[Do not use a raw Guid as the event source id]
+Chronicle treats a raw `Guid` as an ordinary response value.
+:::
+```
+
+| Variant | Meaning |
+|---|---|
+| `note` | Neutral context or an important clarification |
+| `tip` | A recommendation or easier path |
+| `caution` | A likely mistake, compatibility trap, or behavior that produces the wrong result |
+| `danger` | Destructive, security-sensitive, or data-loss consequences |
+
+The set is closed. Do not use `warning`, `important`, `info`, or `success`: an unknown container directive silently renders as an unstyled `<div>` rather than failing the build.
+
+Legacy DocFX alerts are converted as follows; prefer titled native directives when editing the surrounding content:
+
+| DocFX | Starlight |
 |---|---|
 | `> [!NOTE]` / `> [!IMPORTANT]` | `:::note` |
 | `> [!TIP]` | `:::tip` |
 | `> [!WARNING]` | `:::caution` |
 | `> [!CAUTION]` | `:::danger` |
 
-```
-:::note
-Body of the callout.
-:::
-```
-
-In `.mdx` you may also use `<Aside type="tip">…</Aside>` (import from `@astrojs/starlight/components`).
+In MDX, `<Aside type="tip" title="A specific title">…</Aside>` is available when component composition requires it. Directive asides can also take a Starlight icon attribute, but verify the icon name first; a bad aside icon fails the build.
 
 ## Code blocks
 
-- **Always tag the language** for highlighting: ` ```csharp `, ` ```tsx `, ` ```bash `, ` ```yaml `, etc. DocFX-era custom fences (`env`, `pdl`, `ebnf`, `pql`, `gitignore`, `flow`) are aliased to plain text so they don't warn — but use a real language where one exists.
-- **No spurious common leading indentation** — if a snippet is lifted from inside a method, dedent it to column 0 (the whole block shifted right reads as "indented"). Keep only the code's own internal indentation.
-- Where a feature spans the stack, show **both sides** with `<FullStackTabs>` (synced C# ↔ generated TS) rather than backend-only.
-- `[!INCLUDE [x](./x.md)]` is inlined; `[Snippet source](…)` links stay as-is.
+- Always tag the language: `csharp`, `tsx`, `typescript`, `bash`, `yaml`, and so on.
+- Expressive Code supports useful metadata such as ``title="Program.cs"`` and line/text markers. Use them to orient the reader or focus a diff, not to decorate every snippet.
+- DocFX-era aliases include `env`, `pdl`, `ebnf`, `pql`, `gitignore`, `flow`, and `screenplay`; use a real language where one exists.
+- Dedent snippets to column zero while preserving their internal indentation.
+- Show both sides of a full-stack contract, but do not automatically hide sequential C#→generated-TypeScript explanations behind tabs. Use `FullStackTabs` only when the snippets are alternatives that remain understandable independently.
+- The converter's DocFX-alert and link rewriting is not fully code-fence-aware. Literal `> [!NOTE]`, Markdown-link targets, or `href="…"` examples can be rewritten; inspect the synced output when documenting those syntaxes.
 
-## Tables, images, links, diagrams
+## Tables, images, links, and diagrams
 
-- **Tables** are GitHub-Flavored Markdown (`| … |` with a `| --- |` separator row, blank line before). They render as real tables (the site tints the header). A table that shows as raw `|` pipes means GFM isn't applying — check the Documentation repo's site-rendering rule.
-- **Images** use relative paths next to the page; they're click-to-zoom automatically. Give meaningful alt text.
-- **Links:** product `.md` may use `./foo.md`; links to a `.mdx` page must be **extension-less** (`./foo`); site-level `.mdx` uses clean root-relative URLs (`/arc/…`). Cross-product links are root-relative. **Link text must describe the destination** — never `[here]` / `[see documentation]` (the gate fails on these).
-- **Diagrams:** ` ```mermaid ` fences for any non-trivial concept (pre-rendered to SVG at build).
+- Use GFM tables with a separator row and a blank line before the table. `remarkGfm` in the Documentation site's Astro config is load-bearing for `.mdx`; raw pipe text in a rendered page indicates that integration is missing or degraded.
+- Keep images beside the source page, use meaningful alt text, and rely on the site's click-to-zoom behavior.
+- In product source, relative links to files keep their real `.md` or `.mdx` extension. The converter strips either extension for the public route. Directory URLs end in `/`.
+- Site-level MDX uses clean root-relative routes such as `/arc/backend/commands/`. Cross-product links are also root-relative.
+- Link text describes the destination; `here`, `click here`, and `see documentation` are hard lint errors.
+- Use `mermaid` for architecture, sequence, flow, and state diagrams. Use `eventmodeling` for EventModeling diagrams. Both are pre-rendered to responsive SVG at build time.
 
-## `.mdx` specifics
+## MDX component surface
 
-- Frontmatter `title` + `description`, **no body H1**, then imports:
-  ```mdx
-  import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
-  import { FullStackTabs, TopicHero, SimpleCard, StackDiagram } from '@components';
-  ```
-- Valid `<TabItem>` icons include `apple`, `linux`, `seti:c-sharp`, `seti:react`.
-- The splash front door uses `template: splash` in frontmatter.
+Place imports immediately after frontmatter, with a blank line before the first body content. Import only what the page uses. Starlight exports exactly `Aside`, `Badge`, `Card`, `CardGrid`, `Code`, `FileTree`, `Icon`, `LinkButton`, `LinkCard`, `Steps`, `TabItem`, and `Tabs`:
 
-## File hygiene
+```mdx
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+```
 
-- **End every file with a single trailing newline.**
-- Don't use shell commands to modify a doc after writing it.
-- Verify before done: `cd Documentation/web && npm run check` must end **0 error(s)** and **0 broken** links.
+Shared Cratis components are default imports through exact `@components/*` paths; there is no bare barrel:
+
+```mdx
+import FullStackTabs from '@components/FullStackTabs.astro';
+import Recap from '@components/Recap.astro';
+```
+
+General-purpose shared components are:
+
+| Component | Intended use |
+|---|---|
+| `FullStackTabs` | Named `csharp` and `typescript` alternatives |
+| `OsAwareTabs` | Named `macos`, `linux`, and `windows` alternatives; inspect before first use because it currently has no corpus examples |
+| `TopicHero` / `SimpleCard` | Product and topic landing pages |
+| `StackDiagram` | Position one Cratis product in the stack |
+| `YouWillLearn` / `Recap` | Tutorial framing and close |
+| `StorybookEmbed` | Component or Arc Storybook pages |
+
+Inspect the component and an existing page before using props or slots. `RotatingHero`, `SamplesHero`, `SampleRoster`, and `StackJourney` are site-specific. `Head.astro` is a Starlight override, not a page component.
+
+Icon names must come from the installed Starlight set. Use `seti:windows`, not `windows`. Invalid icons in `Icon`, `TabItem`, `SimpleCard`, and `TopicHero` can produce an empty SVG without a build failure, so visual verification is mandatory.
+
+## Verification
+
+From a product repo, run its local authoring gate first:
+
+```bash
+./Documentation/verify-markdown.sh
+```
+
+For full-fidelity rendering, use the sibling Documentation checkout:
+
+```bash
+cd ../Documentation/web
+npm run check
+```
+
+The full site check builds and syncs every available sibling product, runs Chronicle client-doc parity, linting, rendered-link checks, and optional local tools. A failure can be unrelated to the page under edit; diagnose it rather than silently waiving it. Some local prose/Markdown/external-link tools skip when not installed, so name what actually ran.
+
+A successful build proves syntax, not presentation. For any aside, diagram, tabs, cards, or custom component change, use the `qa-cratis-docs` skill to inspect light and dark screenshots.
+
+End every file with a single trailing newline.

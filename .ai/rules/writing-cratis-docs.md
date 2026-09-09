@@ -16,14 +16,14 @@ The Cratis docs must **take the reader on a tour, like a teacher** — the way [
 - **Active voice, present tense, second person.** "You append the event," not "the event is appended."
 - **Be honest about limits.** A "when this is the wrong fit" section builds more trust than omitting it.
 
-## One page = one Diátaxis type (it also picks the nav bucket)
+## One page = one Diátaxis type
 
-| Type | Reader is… | Reads like | Nav bucket |
-|---|---|---|---|
-| **Tutorial** | learning by doing | a guided lesson — each step a visible result | Get started |
-| **How-to** | solving a specific problem | a recipe — assume competence, no teaching | Guides |
-| **Explanation** | trying to understand | a discussion — concepts, trade-offs, *why*, a diagram | Understand |
-| **Reference** | looking something up | a dictionary — exhaustive, terse, tables/signatures | Reference |
+| Type | Reader is… | Reads like |
+|---|---|---|
+| **Tutorial** | learning by doing | a guided lesson — each step produces a visible result |
+| **How-to** | solving a specific problem | a recipe — assume competence, no teaching |
+| **Explanation** | trying to understand | a discussion — concepts, trade-offs, *why*, a diagram |
+| **Reference** | looking something up | a dictionary — exhaustive, terse, tables/signatures |
 
 Never mix types. A tutorial padded with reference detail overwhelms; a how-to interrupted by concept digressions stops being a recipe.
 
@@ -41,22 +41,15 @@ Never mix types. A tutorial padded with reference detail overwhelms; a how-to in
 
 `Chronicle/Documentation/tutorial/*` is the reference voice — read it before writing.
 
-## Achieve the tour voice with Starlight's authoring tools
+## Use presentation to support the tour
 
-Author rich pages as **`.mdx`** (the converter keeps `.mdx`): frontmatter `title` + `description`, **no body H1**, then import what you need:
+Choose the simplest authoring surface that preserves the reading flow. Use steps for real procedures, tabs for genuine alternatives, asides for meaningful context or risk, and diagrams for non-trivial flows. Do not turn sequential cause-and-effect examples into tabs merely because they use different languages; hiding one side can make the explanation harder to follow.
 
-```mdx
-import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
-import { FullStackTabs, TopicHero, SimpleCard, StackDiagram, YouWillLearn, Recap } from '@components';
-```
+Full-stack type safety is a differentiator, so show both the backend contract and generated frontend shape when both matter. Use `FullStackTabs` only when each pane remains understandable independently.
 
-- **`<Steps>`** — procedures where each step produces a visible result (checklist point 1, 3).
-- **`<Tabs>` / `<TabItem>`** — alternatives (OS, console-vs-web, C#-vs-fluent). Valid icons include `apple`, `linux`, `seti:c-sharp`, `seti:react`.
-- **`<Aside>`** — anticipate doubt / call out a gotcha (checklist point 6).
-- **`<FullStackTabs>`** — synced C# ↔ generated-TypeScript tabs. **This is the differentiator** (full-stack type safety) — use it wherever a feature spans the stack; show both sides, not just the backend.
-- **`<TopicHero>` + `<SimpleCard>`** — the per-product Overview landings (pain→relief framing + a card grid).
-- **`<StackDiagram>`, `<YouWillLearn>`, `<Recap>`** — the stack picture, a chapter's learning goals, and the closing recap (checklist points 1 and 5).
-- **A Mermaid diagram for every non-trivial concept** — architecture, event/command flow, state transitions. A concept page without a diagram is usually incomplete. (The Documentation site pre-renders them to SVG at build time.)
+The published “Copy Markdown” and AI surfaces preserve raw authored Markdown/MDX. Component imports and JSX therefore reach those consumers too; prefer plain Markdown unless a component adds real teaching value.
+
+The exact Markdown/MDX boundary, aside semantics, component contracts, and import paths live in [Documentation Structure and Formatting](./documentation-structure-and-formatting.md). Do not duplicate or infer that rendering API here.
 
 ## Two voices, and connect the products
 
@@ -67,7 +60,7 @@ import { FullStackTabs, TopicHero, SimpleCard, StackDiagram, YouWillLearn, Recap
 ## Before you call a page done
 
 - Every framework API in a code example is **verified against real source** — see [Writing Correct Code Examples](./writing-correct-examples.md). Readers paste snippets verbatim.
-- `npm run check` is green (0 errors · 0 broken links); the page sits in the right nav bucket.
+- The product's local documentation gate passes; when available, the sibling Documentation site's full check has 0 hard lint errors and 0 broken rendered links.
 - For a visual page, screenshot it in light **and** dark — see the `qa-cratis-docs` skill.
 
 **Study the masters:** the **aspire.dev** docs (Astro Starlight — great CLI docs + tour writing)
