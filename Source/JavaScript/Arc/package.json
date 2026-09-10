@@ -82,10 +82,10 @@
         "up": "yarn g:up"
     },
     "dependencies": {
-        "@cratis/fundamentals": "^7.18.0",
+        "@cratis/fundamentals": "^7.19.2",
         "rxjs": "^7.8.2"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "7.18.0"
+        "@cratis/fundamentals": "7.19.2"
     }
 }

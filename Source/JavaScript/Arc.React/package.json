@@ -85,19 +85,19 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
-        "@cratis/fundamentals": "^7.18.0",
+        "@cratis/fundamentals": "^7.19.2",
         "tsyringe": "^4.10.0"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "7.18.0",
-        "@storybook/addon-links": "^10.4.1",
-        "@storybook/react": "^10.4.1",
-        "@storybook/react-vite": "^10.4.1",
-        "@vitejs/plugin-react": "^6.0.2",
-        "react": "^19.2.6",
-        "react-dom": "^19.2.6",
-        "storybook": "^10.4.1",
-        "vite": "^8.0.16"
+        "@cratis/fundamentals": "7.19.2",
+        "@storybook/addon-links": "^10.6.0",
+        "@storybook/react": "^10.6.0",
+        "@storybook/react-vite": "^10.6.0",
+        "@vitejs/plugin-react": "^6.1.1",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0",
+        "storybook": "^10.6.0",
+        "vite": "^8.3.0"
     },
     "peerDependencies": {
         "react": "^18.0.0 || ^19.0.0"
