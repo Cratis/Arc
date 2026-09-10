@@ -57,6 +57,10 @@ Arc loads the author for `Id`, then injects it alongside the collection. The exp
 | Acquire data using current state           | `Provide()`                  |
 | Compute and perform the write or response  | `Handle()`                   |
 
+:::tip[Use current state to decide the write]
+Keep state acquisition in the provider or `Provide()`. For immediate inline writes, prefer returning a [command operation](../backend/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
+:::
+
 For example, a **validator fragment** in the same namespace can reject a rename to the current name:
 
 ```csharp

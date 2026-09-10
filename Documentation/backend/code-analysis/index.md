@@ -99,7 +99,7 @@ See [zero-to-many operations](../commands/operations/implementing.md#return-zero
 
 ## ARC0018: Command operation visibility
 
-Reports a concrete operation whose type cannot be referenced by its generated invoker. Use a public or internal nongeneric operation in accessible nongeneric containing types. Private nested or generic declarations do not provide the supported generated invocation shape.
+Reports a concrete operation whose type cannot be referenced by its generated invoker. Use a public or internal nongeneric operation in accessible nongeneric containing types. File-local, private nested, or generic declarations do not provide the supported generated invocation shape. A file-local type cannot be referenced from the separate generated source file.
 
 Runtime validation remains necessary when declarations are loaded without the source generator. Generated operation invokers do not establish NativeAOT support for every other Arc execution path.
 

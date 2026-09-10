@@ -46,7 +46,11 @@ Use full-result display for cross-field rules when changing one field should upd
 
 ## Backend validation
 
-This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host. It returns the accepted values; it deliberately does **not** persist a profile. For a real update, have `Handle()` use your application service. No event store or Chronicle integration is involved.
+This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host. It returns the accepted values; it deliberately does **not** persist a profile. A real update also needs an explicit backend write. No event store or Chronicle integration is involved.
+
+:::tip[Persist on the backend, not in a form callback]
+This example only returns accepted values. For a real immediate inline update, prefer a backend [command operation](../../../backend/commands/operations/index.md) describing the service write; direct service calls remain supported. Keep validation in validators and UI feedback in form callbacks. Operations execute on the server and do not add operation payloads or recovery details to the TypeScript command result.
+:::
 
 ```csharp
 using Cratis.Arc.Commands;

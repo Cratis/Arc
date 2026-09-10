@@ -37,7 +37,7 @@ public record Author(AuthorId Id, AuthorName Name)
 }
 ```
 
-**The command writes the document directly.** Inject the collection and insert — `Handle()` returns nothing, because there's no event to record:
+**The command writes the document directly.** Inject the collection and insert. This example chooses no response payload; no event is involved:
 
 ```csharp
 [Command]
@@ -62,6 +62,10 @@ public record RenameAuthor([property: Key] AuthorId Id, AuthorName NewName)
 ```
 
 This works the same for a read model held in MongoDB and one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
+
+:::tip[Separate the decision from the write]
+These direct collection calls remain supported. For immediate inline work that a model-bound command can describe before execution, prefer returned [command operations](./backend/commands/operations/index.md). `Handle()` declares the write and Arc performs it afterward, without requiring Chronicle. Optional compensation is best-effort and in-process, not atomic database rollback or durable recovery. The [migration recipe](./backend/commands/operations/migrating.md) shows how to preserve an existing response contract.
+:::
 
 That's the backend behavior. This host excerpt assumes the setup's `Cratis:MongoDB` configuration; Arc auto-discovers collections and serializers rather than requiring per-model registrations:
 

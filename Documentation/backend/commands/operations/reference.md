@@ -21,6 +21,8 @@ Value-returning methods, including `Task<T>` and `ValueTask<T>`, are not support
 
 Do not use `async void`, static or generic methods, overloads, a service-locator parameter, optional service arguments, or by-reference parameters. Do not capture services inside the operation record. Business inputs belong in its properties; execution dependencies belong in method parameters.
 
+Operations may be reference or value types. Nullable value-type operations and nullable batches remain server-only when present; null means absent. Prefer `[]` or `default(CommandOperations)` when expressing an empty batch rather than introducing a nullable batch.
+
 The build diagnoses invalid conventions and generates typed invocation metadata. [ARC0016](../../code-analysis/index.md#arc0016-command-operation-methods) checks method shapes, [ARC0017](../../code-analysis/index.md#arc0017-command-operation-batches) rejects bare operation collections, and [ARC0018](../../code-analysis/index.md#arc0018-command-operation-visibility) checks generated-invoker accessibility.
 
 Validated reflection fallback supports source-free declarations where generated metadata is unavailable. Generated operation invocation is not a claim that the whole Arc host supports NativeAOT.
@@ -148,5 +150,46 @@ Custom execution scopes opt in through `ICommandOperationExecutionScope`, which 
 Do not mark a database-committing scope as a nonparticipant merely to satisfy validation. Undeclared scope behavior is not assumed safe. Existing scope completion order remains unchanged; a later scope failure can therefore follow a known commit and suppress compensation.
 
 Unsupported operation boundaries are rejected rather than silently falling back to application-authored cleanup. Arbitrary service writes performed outside declared operations remain outside this contract.
+
+## Storage integrations and custom-scope checks
+
+| Integration | Operation boundary |
+| --- | --- |
+| Standalone Arc | No automatic database transaction. Operations execute registered application services. |
+| Chronicle | Compatible deferred event commitment, with conservative observations for rejected, committed, and uncertain outcomes. |
+| [EF Core](../../entity-framework/index.md) | No built-in operation commit participant. Context registration and read-model observation do not automatically coordinate operation writes or call `SaveChanges` for you. |
+| [MongoDB](../../mongodb/index.md) | No built-in operation commit participant. Collection/session access and resilience behavior remain provider concerns. |
+
+Do not combine independent EF and Chronicle commits under the single-participant profile and describe them as atomic. A provider-backed operation must retain its own ownership and idempotency guarantees. Database execution strategies and driver resilience may retry within a provider call even though Arc does not retry operations.
+
+Before declaring a custom scope compatible, specify these cases against its actual provider:
+
+- `Begin()` establishes its lifetime without committing business work; partial initialization does not make cleanup unsafe.
+- `IsCommitParticipant` is stable and describes the scope's responsibility, not whether the latest result happened to succeed.
+- A confirmed rejection or rollback reports `NotCommitted`; an unverified commit acknowledgment reports `Unknown`.
+- A known successful commit remains committed when a later scope reports an error.
+- A completion exception still leaves commitment observations available. `CommandResult.IsSuccess` and a generic "completed" flag are not substitutes for those facts.
+- Recovery dependencies remain usable after scope completion. A still-live DI scope does not repair a failed transaction or database context; obtain usable recovery resources without losing the tenant or ownership context.
+- Cancellation and resource disposal do not interrupt recovery or dispose dependencies underneath running callbacks.
+
+Use the [Chronicle constraint example](../../testing/command-operations-with-chronicle.md) as a concrete test of a known rejection, not as proof that a different provider has identical transaction semantics.
+
+## Troubleshooting
+
+| Symptom | What to inspect |
+| --- | --- |
+| Calling `Handle()` produces an operation but performs no work | This is a direct decision call. Use `ICommandPipeline` or `CommandScenario` for framework execution. |
+| No operations started | Check authorization, validation, `Provide()`, return classification, required services, declaration diagnostics, and scope compatibility before assuming `Execute()` ran. `Validate()` does not run operations. |
+| `Recovery` is absent | HTTP/TypeScript results intentionally omit it. On a backend result, rejection before operation processing or an absent operation can also leave it unset. |
+| A custom scope prevents execution | Implement the compatible scope contract only if the scope can honor it. Preserve real commit facts; do not report a database-writing scope as noncommitting. |
+| Recovery is `Incomplete` | Inspect `OperationOutcomes` for a missing compensator, a thrown compensation, or an exhausted cleanup budget. Not all started work was observed to be compensated. |
+| Recovery is `Suppressed` | Business changes are known committed. A later failure is not permission to undo operations associated with those facts. |
+| Recovery is `Indeterminate` | Commitment is unknown or mixed. Reconcile with the storage/provider boundary; Arc has not scheduled a durable retry or reversal. |
+| Cleanup continues after the request was canceled | Compensation has its own token. Its timeout is cooperative, so a provider that ignores cancellation can exceed the budget. |
+| Work repeats even though Arc does not retry | Inspect caller retries and provider/driver resilience policies. A provider can retry inside one `Execute()` invocation. |
+| An ignored nested-command failure still rejects the batch | The flat-boundary guard is intentional. Compose operation declarations instead of invoking another same-host command from an operation. |
+| No cleanup occurs after a process crash | The journal is in-memory. Use a durable reactor/outbox/workflow when recovery must survive process loss. |
+
+Use the command correlation ID and trusted backend observations for diagnosis. Do not infer successful rollback from a generic failed command result, or trigger automatic retries from `IsSuccess == false` alone.
 
 For application-level coverage of the actual execution and recovery path, follow [testing command operations](../../testing/command-operations.md), the [failure-case recipes](../../testing/command-operation-failures.md), and the [Chronicle commit-rejection example](../../testing/command-operations-with-chronicle.md).

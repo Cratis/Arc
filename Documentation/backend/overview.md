@@ -28,6 +28,10 @@ Arc.Core is useful when you do not need ASP.NET Core, but that is not a guarante
 
 Commands may call application services, write MongoDB collections, or use EF Core contexts. Add [Chronicle](./chronicle/index.md) explicitly when the slice needs event persistence, projections, or reactors. Returning an event-shaped object from standalone Core is ordinary response handling, not an automatic append.
 
+:::tip[Separate decisions from inline persistence]
+Direct service and database calls remain supported. When a model-bound command can describe its writes from the available inputs, prefer a pure `Handle()` returning [command operations](./commands/operations/index.md). Chronicle commands should still return events for durable facts; operations do not replace queries or `Provide()` reads.
+:::
+
 [Proxy generation](./proxy-generation/getting-started.md) is a separate post-build tool. Install its build package and configure an output path; it inspects compiled assemblies and PDB source information rather than querying your running endpoints. Generate in Debug before type-checking the frontend.
 
 ## Continue

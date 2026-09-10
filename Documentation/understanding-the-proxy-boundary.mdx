@@ -96,6 +96,10 @@ A configured generator build can emit:
 
 Each has a detailed reference: [Commands](/arc/backend/proxy-generation/commands/), [Queries](/arc/backend/proxy-generation/queries/), and [Identity details](/arc/backend/proxy-generation/identity-details/). The [frontend proxy-generation guide](/arc/frontend/react/proxy-generation/) shows the generated TypeScript for each, with the `.use()` and `useSuspense()` hooks.
 
+<Aside type="note" title="Not every backend return value crosses the boundary">
+[Command operations](./backend/commands/operations/index.md) describe inline work for the server, not the browser. The proxy generator excludes operations and operation batches from the client response contract. React still executes the generated command and handles its ordinary result; compensation and recovery observations remain backend concerns.
+</Aside>
+
 ## The transport disappears too
 
 Types are only half of what the proxy absorbs. The other half is **how the call travels**. Your component never writes a URL, picks an HTTP verb, or opens a socket — it executes `RegisterAuthor` or renders `AllAuthors.use()`, and the proxy owns the wire. That makes the transport an implementation detail behind the boundary: today the calls ride HTTP, and if Arc carried them over something else — gRPC-Web, say — the proxy is where that would change, not your components.

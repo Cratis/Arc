@@ -27,7 +27,7 @@ flowchart LR
 
 The decision is pure only when it has no I/O, clock reads, randomness, or mutable external state. Returning an operation does not make an otherwise impure handler pure. Supply the identity and state the decision needs rather than creating hidden dependencies inside `Handle()`.
 
-Continue with [implementing an operation](./implementing.md) for a complete reservation example.
+Continue with [implementing an operation](./implementing.md) for a complete reservation example. If you already have a service-backed handler, [migrate its inline work](./migrating.md) while preserving the command's input and caller response.
 
 ## You write the reversal, not the error handling
 

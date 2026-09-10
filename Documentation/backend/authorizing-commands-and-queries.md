@@ -23,6 +23,10 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 }
 ```
 
+:::tip[Keep authorization at the command boundary]
+The direct insert remains supported. For inline writes that can be declared before execution, prefer a pure `Handle()` returning a [command operation](./commands/operations/index.md), with the write performed by `Execute()`. Keep `[Roles]` on the command; operations do not replace pipeline authorization.
+:::
+
 ## Protect a query
 
 Query methods on a read model take the same attribute, so the read side is gated too:
