@@ -37,6 +37,10 @@ Arc serializes concepts as their underlying values; the proxy generator maps the
 
 ## A service-backed command
 
+:::tip[Separate a decision from its effects]
+The direct service call below is supported. When the command should describe work rather than perform it inside `Handle()`, prefer a [command operation](../operations/implementing.md). Its optional `Compensate()` lets Arc manage recovery; [operation specs](../../testing/command-operations.md) can test the decision and the real pipeline independently.
+:::
+
 The following application types reuse the shared concepts above and store cart lines **in memory for demonstration**, not in durable storage. Add them to your Arc application's namespace and register `ICartService` as shown below. Declaration snippets omit that application-specific namespace; startup and caller fragments are labeled separately. The returned `CartLineId` is an ordinary response, not an event-source identity.
 
 ```csharp
@@ -99,7 +103,9 @@ For valid input, `result.IsSuccess` is `true` and `result.Response` is the new l
 | `void` or `Task` | No response value. Arc awaits a returned task before completing the command. |
 | `T` or `Task<T>` | A value with no matching response handler becomes the response. |
 | `Result<TSuccess, TError>` | Arc processes the active alternative; its name alone does not make it a failure. |
-| Tuple | Handled values go to response value handlers; at most one unhandled value becomes the response. |
+| `ICommandOperation` implementation | Arc executes the returned operation on the server; it is not the response. |
+| `CommandOperations` | Explicit ordered batch of zero-to-many operations. |
+| Tuple | Operations and other handled values are processed on the server; at most one unhandled value becomes the response. |
 
 `Result` belongs to **`Cratis.Monads`**, not the `OneOf` namespace. Arc also understands `OneOf` wrappers. A singular `Cratis.Arc.Validation.ValidationResult` has a built-in handler; an arbitrary error record does not automatically mark the command unsuccessful.
 
@@ -113,7 +119,7 @@ For the complete standalone command and required custom handler, see the [canoni
 
 ## Dependencies and provided data
 
-Arc resolves `Handle()` service parameters from the command's service scope. A `Provide()` method can fetch data after filters succeed and pass it to `Handle()`. Keep fetching separate when that makes the handler easier to test; a service-backed `Handle()` is equally valid.
+Arc resolves `Handle()` service parameters from the command's service scope. A `Provide()` method can fetch data after filters succeed and pass it to `Handle()`. Keep fetching separate when that makes the handler easier to test; a service-backed `Handle()` is equally valid. For the write side of that separation, return [command operations](../operations/index.md): `Provide()` acquires inputs, `Handle()` decides, and the operations perform the declared work.
 
 `CancellationToken` is special: Arc supplies the execution token rather than resolving it from DI. Both `Provide()` and `Handle()` may accept it. HTTP execution uses the request-aborted token; direct callers can [pass cancellation to the pipeline](../command-pipeline.md#cancellation).
 

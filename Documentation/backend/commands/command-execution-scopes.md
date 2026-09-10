@@ -5,6 +5,10 @@ description: Observe model-bound command execution before filters and after resp
 
 A pre-execution filter cannot report how a command finished. An execution scope brackets model-bound execution: begin before the filters, then complete with the outcome after the handler and response processing. Use it for timing or for a storage coordination mechanism you actually implement.
 
+:::tip[Use operations for per-command side effects]
+Prefer [command operations](./operations/index.md), rather than a custom scope and rollback stack, for work chosen by one command. Arc manages operation failure handling and optional compensation. Scopes remain the integration mechanism for cross-cutting lifetime and commit concerns.
+:::
+
 ## How it works
 
 Arc discovers `ICommandExecutionScope` implementations and resolves them from the command's service scope. Once a handler and context are available, the pipeline:
@@ -38,12 +42,17 @@ using System.Threading.Tasks;
 using Cratis.Arc.Commands;
 using Microsoft.Extensions.Logging;
 
-public class CommandTimingScope(ILogger<CommandTimingScope> logger) : ICommandExecutionScope
+public class CommandTimingScope(ILogger<CommandTimingScope> logger) : ICommandOperationExecutionScope
 {
     const string TimerKey = "Example.CommandTimingScope.Timer";
     static readonly Action<ILogger, string, double, bool, Exception?> _completed =
         LoggerMessage.Define<string, double, bool>(LogLevel.Information, new EventId(1, "CommandTimed"),
             "Command {CommandType} took {Milliseconds} ms; success at timing completion: {IsSuccess}");
+
+    public bool IsCommitParticipant => false;
+
+    public CommandCommitDisposition GetCommitDisposition(CommandContext context) =>
+        CommandCommitDisposition.NoCommit;
 
     public void Begin(CommandContext context) =>
         context.Values[TimerKey] = Stopwatch.StartNew();
@@ -61,6 +70,8 @@ public class CommandTimingScope(ILogger<CommandTimingScope> logger) : ICommandEx
     }
 }
 ```
+
+The timing scope implements `ICommandOperationExecutionScope`, declaring that it does not commit business changes. This makes its lifetime behavior explicit for operation-bearing commands while preserving ordinary execution-scope behavior. A scope that actually commits storage must report its real commitment facts instead; see the [supported operation scope profile](./operations/reference.md#supported-scope-profile).
 
 If `Begin` did not run, completion safely does nothing. This duration includes response processing and any scopes that complete before this one. Another scope can still change the outcome afterward, so the log deliberately describes success **at this completion callback**, not an immutable final verdict.
 

@@ -4,7 +4,7 @@ title: Command scenarios
 description: Configure and execute standalone command scenarios, and assert precise validation and authorization outcomes.
 ---
 
-`CommandScenario<TCommand>` exercises Arc's real command pipeline. Use it when a direct `Handle()` call would miss validation, authorization, dependency resolution, or execution scopes. It complements fast decision specs; it is not a requirement for every command test. Start with [the decision-and-pipeline lesson](./command-decisions.md), or use [Testing](./index.md) to choose the right boundary. This page is the scenario API reference.
+`CommandScenario<TCommand>` exercises Arc's real command pipeline. Use it when a direct `Handle()` call would miss validation, authorization, dependency resolution, or execution scopes. It also executes returned [command operations](../commands/operations/index.md) and their eligible compensation with the services you register; it is not a recording-only simulator. Follow [testing operations](./command-operations.md) for a complete failure/recovery lesson. It complements fast decision specs; it is not a requirement for every command test. Start with [the decision-and-pipeline lesson](./command-decisions.md), or use [Testing](./index.md) to choose the right boundary. This page is the scenario API reference.
 
 <a id="package"></a>
 <a id="basic-usage"></a>
@@ -20,6 +20,9 @@ Import `Cratis.Arc.Testing.Commands` for both the scenario and result assertion 
 | `Services`                     | `IServiceCollection` for registrations made before initialization                                                                                |
 | `Context`                      | `IDictionary<string, object>` populated by extenders                                                                                             |
 | `Execute(TCommand command)`    | Returns `Task<CommandResult>`; runs filters, argument resolution (including `Provide()`), the handler, response processing, and execution scopes |
+| `Execute(TCommand command, CancellationToken cancellationToken)` | Runs the same real pipeline with explicit forward cancellation; compensation uses its own cleanup token |
+| `LastResult` | The result from the latest `Execute`, including backend-only recovery observations |
+| `Operations` | Snapshot of started operation invocations from the latest `Execute`; empty before execution |
 | `Validate(TCommand command)`   | Returns `Task<CommandResult>`; runs pipeline filters but skips handler argument resolution, `Provide()`, `Handle()`, and execution scopes        |
 | `Dispose()` / `DisposeAsync()` | Releases the provider and disposable context values                                                                                              |
 
@@ -118,6 +121,22 @@ These extension methods return `void`. Built-in assertion failures throw `Comman
 <a id="assert-the-constraint-name-not-the-message"></a>
 
 A broad failure assertion can pass for the wrong reason. Pair it with a specific message, reason, or constraint assertion. Message matching fails if the message is reworded to remove the expected text; it does not silently become a no-op. For optional Chronicle constraints, prefer `ShouldHaveConstraintViolationFor` with your application's constraint-name constant instead of relying on prose.
+
+## Operation assertions
+
+These assertions are available directly on `CommandScenario<TCommand>` and as extension methods on `CommandResult` through `Cratis.Arc.Testing.Commands`:
+
+| Method | Check |
+| --- | --- |
+| `ShouldHaveExecutedOperation<TOperation>()` | At least one invocation of that exact operation type returned successfully from `Execute()`. |
+| `ShouldHaveCompensatedOperation<TOperation>()` | At least one invocation of that exact type returned successfully from `Compensate()`. |
+| `ShouldHaveNoOperationInvocations()` | No operation entered `Execute()`, including invocations that partially executed and threw. |
+
+Scenario assertions require a completed `Execute()` call; they do not pass vacuously before execution. `LastResult` and `Operations` describe the latest execution, not the latest `Validate()` call. When several operations have the same type, use the per-invocation observations and provider assertions to prove counts, arguments, and order; the type-based helpers assert at least one match, not every instance.
+
+An invocation that throws can appear in `Operations` with `ExecutionCompleted` false and still have completed compensation. `ShouldHaveExecutedOperation` intentionally does not count that partial invocation as successful execution. These helpers throw `CommandResultAssertionException` on mismatch; they inspect operation observations rather than applying the general command-result assertion policy chain described above.
+
+See [testing operations](./command-operations.md), [failure cases](./command-operation-failures.md), and [Chronicle commit rejection](./command-operations-with-chronicle.md) for complete examples.
 
 ## Dependency unavailable is not a business-rule rejection
 

@@ -33,6 +33,10 @@ By default Arc wraps controller POST results in a `CommandResult`. Use Arc's `[A
 
 Do not assume model-bound tuple response handlers, command filters, or execution scopes also process controller results. Return the actual response DTO or value from an MVC action and use MVC's own extension points.
 
+:::note[Operation execution requires the command pipeline]
+MVC action return values do not trigger [command operations](./operations/index.md). Keep returning the action's actual response. To use operation execution and compensation, explicitly execute a model-bound command through `ICommandPipeline` and handle its result.
+:::
+
 ## Automatic validation endpoints
 
 Arc's MVC convention adds a validation selector for the `[HttpPost]` action above. Actions or controllers marked `[AspNetResult]` are excluded from this convention:

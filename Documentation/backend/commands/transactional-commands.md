@@ -9,6 +9,10 @@ Read [Chronicle transactional commands](../chronicle/commands/transactional-comm
 
 Standalone Arc handlers can call application services and return ordinary values without Chronicle. Arc does not automatically begin a database transaction or roll back arbitrary service writes. For your own lifetime coordination, see [command execution scopes](./command-execution-scopes.md).
 
+:::note[Inline work does not require Chronicle]
+Direct service calls remain supported. Prefer returned [command operations](./operations/index.md) for inline work chosen by a model-bound command. Arc executes them and manages eligible, explicitly supplied compensation—not automatic database rollback. Execution scopes remain the integration point for actual transaction coordination.
+:::
+
 ## Choosing an append style
 
 Continue to [Chronicle append styles](../chronicle/commands/transactional-commands.md#choosing-an-append-style).

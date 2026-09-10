@@ -203,6 +203,8 @@ The six facts cover three different questions: the calculation, successful pipel
 
 You have fast tests for the decision and focused tests for Arc's composition. You have **not** tested an HTTP route, authentication middleware, or a production rate-card implementation. Test those where they are introduced rather than adding infrastructure to every arithmetic case.
 
-For a handler that writes through a service, direct unit specs can use a substitute to inspect that call. Such a handler is testable, but it is not a pure function. The [service-backed command recipe](../../scenarios/test-a-command.md) shows the pipeline-level counterpart.
+For inline service side effects, prefer [command operations](../commands/operations/index.md). `Handle()` can return the work it intends to perform, and Arc manages execution and optional compensation. [Test command operations](./command-operations.md) extends this lesson with direct declaration specs and real `CommandScenario` recovery tests.
+
+A handler that writes directly through a service remains supported; unit specs can use a substitute to inspect the call. Such a handler is testable, but it is not a pure function. The [service-backed command recipe](../../scenarios/test-a-command.md) shows the pipeline-level counterpart.
 
 With Chronicle, a handler can instead return a domain event as its decision; a scenario must then prove how the integration appends it. Continue to [test an event-sourced command](./event-sourced-commands.md), or return to [choosing a test boundary](./index.md#choose-the-boundary-that-can-catch-the-bug).

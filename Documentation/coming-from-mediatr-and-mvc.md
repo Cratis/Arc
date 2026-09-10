@@ -57,6 +57,10 @@ public record Customer([property: Key] CustomerId Id, CompanyName Name)
 
 Arc exposes both members over HTTP and generates the typed client. Your React component calls the generated command and query proxies; no controller, DTO mapper, or hand-written fetch layer sits between them.
 
+:::tip[Declare inline work on model-bound commands]
+The direct database call remains supported. Prefer [command operations](./backend/commands/operations/index.md) when a model-bound command can decide what inline work to perform before executing it. Returning an operation directly from an MVC action does not execute it; use a model-bound command through Arc's pipeline. Operations support a flat sequential boundary, not nested command orchestration.
+:::
+
 ## Where to go next
 
 - Build your first command in the [getting started](/arc/backend/getting-started/) guide.

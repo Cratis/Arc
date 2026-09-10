@@ -12,7 +12,8 @@ description: Return ordinary response data or a typed validation failure from a 
 | Complete without response data         | `void`, `Task`, or `ValueTask`                                |
 | Give the caller a value                | that value, or `Task<T>` / `ValueTask<T>`                     |
 | Succeed with data or reject validation | `Result<TResponse, ValidationResult>` (possibly asynchronous) |
-| Return multiple ordinary values        | a tuple; review the generated response contract               |
+| Give the caller several pieces of data | one ordinary response DTO containing those values |
+| Combine a response with server-side work | a tuple containing one ordinary response and operations or other server-handled values |
 
 The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/getting-started/your-first-command/). Add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
 
@@ -32,6 +33,10 @@ public async Task<Result<AuthorId, ValidationResult>> Handle(IMongoCollection<Au
 The insert is the persistent effect; the `AuthorId` is response data. The pre-check gives a friendly failure but is **not atomic**. Keep the database unique index from [validation](/arc/tutorial/validation/) and explicitly translate its duplicate-write failure if you need friendly errors under races. Other storage exceptions remain exception results; do not disguise them as ordinary validation.
 
 For rules that can reject before work begins, prefer a `CommandValidator<T>`; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.md).
+
+:::note[Separate an already-decided write from its response]
+When the work and caller response are already decided, prefer returning a [command operation](../backend/commands/operations/index.md) alongside the ordinary response. Direct service calls remain supported when their result is needed to choose the response or typed rejection. Operation `Execute()` methods cannot return receipts or validation alternatives; moving a write into an operation does not automatically preserve write-dependent error handling.
+:::
 
 ## Read it on the client
 

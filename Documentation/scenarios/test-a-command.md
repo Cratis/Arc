@@ -13,6 +13,10 @@ For decision-only cases, a direct `Handle()` call can be the simpler test. The [
 
 `CommandScenario<TCommand>` runs the real validation, authorization, `Provide`, and handler pipeline. It does **not** automatically fake your Mongo collection, context, or application services. Register all collaborators before the first `Execute` or `Validate`; the service provider is built lazily then. Dispose the scenario afterward.
 
+:::tip[Test the decision separately from execution]
+For immediate inline side effects, prefer [command operations](../backend/commands/operations/index.md); the direct service-call example below remains supported. An operation-returning `Handle()` can be tested by inspecting its data without executing the work. It is pure only when it uses supplied inputs without I/O, clock reads, randomness, or mutable external state. [Operation scenarios](../backend/testing/command-operations.md) test actual execution and recovery with controlled collaborators, not automatic recording stubs.
+:::
+
 ## Define the service-backed example
 
 This example uses only the `AuthorId` and `AuthorName` concept declarations from the [backend lesson](/arc/backend/getting-started/your-first-command/), not its database-backed `RegisterAuthor`. Put these declarations in `Library.Authors` in the application project:

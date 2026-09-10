@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
@@ -93,6 +94,20 @@ public class CommandPipeline(
         CommandContext? commandContext = default;
         ICommandExecutionScope[]? scopes = default;
         var executionScopesCompleted = false;
+        var begunScopeCount = 0;
+        CommandOperationExecution? operations = null;
+        var failureSource = CommandOperationFailureSource.Planning;
+        CommandOperationFrame frame;
+        try
+        {
+            frame = CommandOperationBoundary.Enter(command.GetType(), scopeFactory);
+        }
+        catch (InvalidCommandOperation exception)
+        {
+            return CommandResult.FromException(correlationId, exception);
+        }
+
+        using var boundary = frame;
         using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
@@ -117,8 +132,14 @@ public class CommandPipeline(
             // from the command's own scope rather than the provider that constructed this singleton, so an execution
             // scope depending on a scoped service is created in the scope the command runs in instead of the root.
             scopes = [.. DiscoveredInstances.ResolvedFrom(serviceProvider, executionScopes)];
+            if (frame.MayParticipate)
+            {
+                frame.Validate(scopes);
+            }
+
             foreach (var executionScope in scopes)
             {
+                begunScopeCount++;
                 executionScope.Begin(commandContext);
             }
 
@@ -140,7 +161,45 @@ public class CommandPipeline(
             commandContext = commandContext with { Dependencies = resolution.Arguments };
 
             var response = await commandHandler.Handle(commandContext);
-            if (response is not null)
+            var values = CommandOperationExecution.Flatten(response).ToArray();
+            if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
+            {
+                throw new InvalidCommandOperation("Use CommandOperations instead of returning an ordinary collection of operation declarations.");
+            }
+
+            if (values.Any(value => value is ICommandOperation or CommandOperations))
+            {
+                if (!frame.MayParticipate)
+                {
+                    throw new InvalidCommandOperation("Declare operation return types explicitly using ICommandOperation, a concrete operation, or CommandOperations. Object-erased operations are unsupported.");
+                }
+
+                frame.Validate(scopes);
+                var declarations = values.SelectMany<object, ICommandOperation>(value => value switch
+                {
+                    ICommandOperation operation => [operation],
+                    CommandOperations batch => batch,
+                    _ => []
+                });
+                operations = new CommandOperationExecution(declarations, serviceProvider, frame);
+                failureSource = CommandOperationFailureSource.ResponseHandling;
+                var processed = await ProcessOperationResponse(values, commandContext, correlationId, result);
+                commandContext = processed.CommandContext;
+                result = FilterValidationResults(processed.Result, allowedSeverity);
+                operations.CaptureFailure(result, failureSource);
+                if (result.IsSuccess)
+                {
+                    var disposition = CommandOperationExecution.Disposition(scopes, commandContext);
+                    if (disposition is not (CommandCommitDisposition.NoCommit or CommandCommitDisposition.NotCommitted))
+                    {
+                        throw new InvalidCommandOperation("Operations cannot start after an early, unknown, or mixed business commit.");
+                    }
+
+                    failureSource = CommandOperationFailureSource.Execution;
+                    await operations.Execute(cancellationToken);
+                }
+            }
+            else if (response is not null)
             {
                 var processedResult = await ProcessResponseValue(response, commandContext, correlationId, result);
                 commandContext = processedResult.CommandContext;
@@ -150,6 +209,7 @@ public class CommandPipeline(
         catch (Exception ex)
         {
             result.MergeWith(CommandResult.FromException(correlationId, ex));
+            operations?.CaptureFailure(result, ex is OperationCanceledException ? CommandOperationFailureSource.Cancellation : failureSource);
         }
 
         return await CompleteExecutionScopes(result);
@@ -162,13 +222,15 @@ public class CommandPipeline(
             }
 
             executionScopesCompleted = true;
+            operations?.CaptureFailure(commandResult, failureSource);
 
             // Scopes nest: the last scope begun is the first completed, like using-blocks. Every scope completes
             // exactly once and in isolation — a failure completing one scope must never prevent the remaining
             // scopes from completing — and a failure becomes an exception outcome on the result rather than a
             // raw exception to the caller.
-            for (var index = scopes.Length - 1; index >= 0; index--)
+            for (var index = (frame.MayParticipate ? begunScopeCount : scopes.Length) - 1; index >= 0; index--)
             {
+                operations?.RestoreFailure(commandResult);
                 try
                 {
                     await scopes[index].Complete(commandContext, commandResult);
@@ -177,6 +239,24 @@ public class CommandPipeline(
                 {
                     commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
                 }
+
+                operations?.CaptureFailure(commandResult, CommandOperationFailureSource.ScopeCompletion);
+            }
+
+            if (operations is not null)
+            {
+                var disposition = CommandCommitDisposition.Unknown;
+                try
+                {
+                    disposition = CommandOperationExecution.Disposition(scopes, commandContext);
+                }
+                catch (Exception exception)
+                {
+                    commandResult.MergeWith(CommandResult.FromException(correlationId, exception));
+                    operations.CaptureFailure(commandResult, CommandOperationFailureSource.ScopeCompletion);
+                }
+
+                await operations.Recover(commandResult, disposition);
             }
 
             // A response describes what the command produced, and it is bound onto the result as soon as the handler
@@ -221,6 +301,8 @@ public class CommandPipeline(
                 ExceptionMessages = result.ExceptionMessages,
                 ExceptionStackTrace = result.ExceptionStackTrace,
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
+                Recovery = result.Recovery,
+                OperationOutcomes = result.OperationOutcomes,
                 Response = response is TResult typedResponse ? typedResponse : default
             };
         }
@@ -268,6 +350,72 @@ public class CommandPipeline(
 
         return result;
     }
+
+    async Task<(CommandContext CommandContext, CommandResult Result)> ProcessOperationResponse(
+        object[] values,
+        CommandContext commandContext,
+        CorrelationId correlationId,
+        CommandResult result)
+    {
+        var ordinary = values.Where(value => value is not ICommandOperation and not CommandOperations).ToArray();
+        foreach (var value in ordinary)
+        {
+            valueHandlers.UpdateContext(commandContext, value);
+        }
+
+        object? response = null;
+        foreach (var value in ordinary.Where(value => !IsOperationControl(value)))
+        {
+            if (!valueHandlers.CanHandle(commandContext, value))
+            {
+                if (response is not null)
+                {
+                    throw new MultipleUnhandledTupleValues([response, value]);
+                }
+
+                response = value;
+                commandContext = commandContext with { Response = value };
+            }
+        }
+
+        if (response is not null)
+        {
+            var withResponse = CreateCommandResultWithResponse(correlationId, response);
+            withResponse.MergeWith(result);
+            result = withResponse;
+        }
+
+        // Control values always precede events/other handlers, regardless of tuple order. Operations are exclusively
+        // owned here, so even a broad custom response handler never sees or executes an operation declaration.
+        foreach (var value in ordinary.Where(IsOperationControl))
+        {
+            if (value is CommandResult control)
+            {
+                result.MergeWith(control);
+            }
+            else
+            {
+                result.MergeWith(await valueHandlers.Handle(commandContext, value));
+            }
+        }
+
+        result = FilterValidationResults(result, commandContext.AllowedSeverity);
+        if (result.IsSuccess)
+        {
+            foreach (var value in ordinary.Where(value => !IsOperationControl(value) && !ReferenceEquals(value, response)))
+            {
+                result.MergeWith(await valueHandlers.Handle(commandContext, value));
+                if (!result.IsSuccess)
+                {
+                    break;
+                }
+            }
+        }
+
+        return (commandContext, result);
+    }
+
+    bool IsOperationControl(object value) => value is CommandResult or ValidationResult or AuthorizationResult or IEnumerable<ValidationResult>;
 
     object UnwrapValue(object value)
     {

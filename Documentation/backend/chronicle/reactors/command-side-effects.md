@@ -7,6 +7,10 @@ When a book enters the catalog, its search index should follow. Return the index
 
 This behavior belongs to the optional `Cratis.Arc.Chronicle` integration.
 
+:::note[Reactor side effects are not command operations]
+This page describes a reactor returning commands. Inside one of those commands, prefer [command operations](../../commands/operations/index.md) for immediate service side effects and optional compensation. Return the operation from the command's `Handle()`, not directly from the reactor. Keep the reactor when work should follow a committed event; inline command operations do not add durable delivery, replay protection, or exactly-once execution.
+:::
+
 ## Return a command
 
 This complete type example assumes the integration is registered and your application supplies `ISearchIndex`. The event source id comes from the triggering event context rather than duplicating it in the event payload.

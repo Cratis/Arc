@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Serialization;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -57,6 +58,18 @@ public class CommandResult
     /// Gets or sets the reason for authorization failure, if any.
     /// </summary>
     public string AuthorizationFailureReason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the server-only recovery summary, when operation declarations participated. This is not an HTTP contract.
+    /// </summary>
+    [JsonIgnore]
+    public CommandRecoverySummary? Recovery { get; internal set; }
+
+    /// <summary>
+    /// Gets immutable server-only observations of started operations, without descriptor payloads.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<CommandOperationOutcome> OperationOutcomes { get; internal set; } = [];
 
     /// <summary>
     /// Gets the response value carried by this result, if any, boxed as an <see cref="object"/>. This lets a caller

@@ -84,6 +84,10 @@ flowchart LR
 
    Arc method-injects the collection or context. The explicit write is the effect; returning `Task` adds no response payload.
 
+   <Aside type="tip" title="Separate the decision from the write">
+   These direct database calls remain supported. When the write can be described from the command's inputs, prefer a pure `Handle()` that returns a command operation, with the collection or context injected into its `Execute()` method. Arc runs the declared work; database writes do not become automatically reversible. Follow [the migration recipe](../commands/operations/migrating.md) when you are ready to separate the two responsibilities.
+   </Aside>
+
 3. **Expose the read shape.** Create `src/Authors/Author.cs`:
 
    <Tabs syncKey="db">

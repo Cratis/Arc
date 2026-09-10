@@ -74,6 +74,10 @@ public record Author(AuthorId Id, AuthorName Name)
 
 The dependencies are **method-injected**. Returning `Task` adds no payload: the explicit database write is the outcome. The static `AllAuthors` method is the query; no controller or duplicated transport model is needed.
 
+<Aside type="tip" title="Separate decisions as behavior grows">
+This tutorial uses supported direct database writes to make the first round trip visible. For immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write.
+</Aside>
+
 <Aside type="note" title="Live means a configured observation source">
 MongoDB requires change streams on a replica set. EF Core receives same-host `SaveChanges` notifications through the configured interceptor; SQLite does not detect external-process writes. Keep the [storage prerequisites](/arc/backend/getting-started/) in place. An observable return type exposes a stream; it cannot make an unconfigured database emit changes.
 </Aside>

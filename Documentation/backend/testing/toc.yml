@@ -2,6 +2,12 @@
   href: index.md
 - name: Test decisions and the pipeline
   href: command-decisions.md
+- name: Test command operations
+  href: command-operations.md
+- name: Specify operation failure cases
+  href: command-operation-failures.md
+- name: Test operations with Chronicle
+  href: command-operations-with-chronicle.md
 - name: Test event-sourced commands
   href: event-sourced-commands.md
 - name: Command Scenarios

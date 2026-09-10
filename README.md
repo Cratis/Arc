@@ -43,6 +43,7 @@ Each row is a documented capability area, not a promise of compatibility with ev
 Arc documentation is organized around the job you need to complete:
 
 - [Execute commands](https://github.com/Cratis/Arc/blob/main/Documentation/backend/commands/index.md) — model-bound or controller-based changes, pipelines, validation, authorization, filters, and response handling.
+- [Separate command decisions from inline side effects](https://github.com/Cratis/Arc/blob/main/Documentation/backend/commands/operations/index.md) — preferred for already-decided work in model-bound commands, with optional best-effort compensation. Direct service calls remain supported; operations require neither Chronicle nor frontend recovery code.
 - [Expose queries and observable results](https://github.com/Cratis/Arc/blob/main/Documentation/backend/queries/index.md) — request/response reads, paging, sorting, streaming updates, diagnostics, and generated clients.
 - [Build the frontend](https://github.com/Cratis/Arc/blob/main/Documentation/frontend/index.mdx) — TypeScript runtimes, React hooks and forms, dialogs, identity, messaging, and optional MVVM packages.
 - [Configure identity and access](https://github.com/Cratis/Arc/blob/main/Documentation/understanding-identity-and-access.mdx) — authentication, identity details, authorization, roles, and frontend visibility boundaries.
@@ -128,12 +129,12 @@ Repository development currently requires the SDK and toolchain versions declare
 
 Before submitting documentation-only work, verify its links, anchors, and examples explicitly; current automated documentation checks are path-scoped. Source changes must pass the owning repository's applicable build, specification, TypeScript, and documentation gates.
 
-* [.NET SDK 10.0.400+](https://dotnet.microsoft.com/en-us/). Arc's analyzers and source generators are built
+- [.NET SDK 10.0.400+](https://dotnet.microsoft.com/en-us/). Arc's analyzers and source generators are built
   against Roslyn 5.9.0, which ships with .NET SDK 10.0.400 and newer. On an older SDK band the compiler
   refuses to load them (CS9057), silently disabling proxy generation and the ARC*/ARCCHR* analyzers.
   Consuming the `Cratis.Arc` packages carries the same floor. Raising this floor is a minor version bump.
-* [Node 23+](https://nodejs.org/en)
-* [Yarn](https://yarnpkg.com)
+- [Node 23+](https://nodejs.org/en)
+- [Yarn](https://yarnpkg.com)
 
 ## Community and repository
 

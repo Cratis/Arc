@@ -12,6 +12,8 @@
   href: validation-severity-filtering.md
 - name: Command pipeline
   href: command-pipeline.md
+- name: Command operations
+  href: operations/toc.yml
 - name: Response value handlers
   href: response-value-handlers.md
 - name: Response examples
