@@ -8,5 +8,9 @@ on:
 jobs:
   update:
     uses: Cratis/Workflows/.github/workflows/update-packages.yml@main
+    with:
+      # typescript-for-eslint is an alias pinning the TypeScript version that
+      # typescript-eslint supports; the project itself runs a newer TypeScript.
+      npm-package-exclusions: typescript,typescript-for-eslint
     secrets:
       PAT_WORKFLOWS: ${{ secrets.PAT_WORKFLOWS }}
