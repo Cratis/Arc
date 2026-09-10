@@ -22,6 +22,7 @@ public static class MethodInfoExtensions
         var responseModel = ModelDescriptor.Empty;
 
         if (method.ReturnType.IsGenericType && (method.ReturnType.IsAssignableTo<Task>() ||
+            method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.Task`1" ||
             method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.ValueTask`1"))
         {
             var responseType = method.ReturnType.GetGenericArguments()[0];

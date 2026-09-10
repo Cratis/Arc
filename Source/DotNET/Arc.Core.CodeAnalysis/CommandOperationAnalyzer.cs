@@ -18,7 +18,7 @@ public class CommandOperationAnalyzer : DiagnosticAnalyzer
     static readonly DiagnosticDescriptor _collection = new(
         "ARC0017", "Use CommandOperations for operation batches", "Command return type '{0}' contains a bare operation collection; use CommandOperations to declare a server-only batch", "Arc", DiagnosticSeverity.Error, true);
     static readonly DiagnosticDescriptor _visibility = new(
-        "ARC0018", "Operation cannot have a generated invoker", "Operation '{0}' must be a nongeneric public or internal type in accessible nongeneric containing types", "Arc", DiagnosticSeverity.Error, true);
+        "ARC0018", "Operation cannot have a generated invoker", "Operation '{0}' must be a non-file-local, nongeneric public or internal type in accessible nongeneric containing types", "Arc", DiagnosticSeverity.Error, true);
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [_signature, _collection, _visibility];
@@ -68,14 +68,14 @@ public class CommandOperationAnalyzer : DiagnosticAnalyzer
 
         if (type is IArrayTypeSymbol array)
         {
-            return CommandOperationConvention.IsOperation(array.ElementType);
+            return CommandOperationConvention.IsOperationValue(array.ElementType);
         }
 
         if (type is INamedTypeSymbol named)
         {
             var contracts = named.AllInterfaces.Add(named);
             if (contracts.Any(contract => contract.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>" &&
-                CommandOperationConvention.IsOperation(contract.TypeArguments[0])))
+                CommandOperationConvention.IsOperationValue(contract.TypeArguments[0])))
             {
                 return true;
             }

@@ -18,6 +18,24 @@ public class when_a_bare_operation_collection_is_returned
         }",
         Verify.Diagnostic("ARC0017").WithLocation(0));
 
+    [Theory]
+    [InlineData("Operation?[]")]
+    [InlineData("CommandOperations?[]")]
+    public async Task should_reject_nullable_value_operation_collections(string returnType) => await Verify.VerifyAnalyzerAsync(
+        @"
+        using Cratis.Arc.Commands;
+        using Cratis.Arc.Commands.ModelBound;
+        public readonly record struct Operation : ICommandOperation
+        {
+            public void Execute() { }
+        }
+        [Command]
+        public record Invalid
+        {
+            public " + returnType + @" {|#0:Handle|}() => [];
+        }",
+        Verify.Diagnostic("ARC0017").WithLocation(0));
+
     [Fact] public async Task should_preserve_ordinary_collection_responses() => await Verify.VerifyAnalyzerAsync(@"
         using Cratis.Arc.Commands;
         using Cratis.Arc.Commands.ModelBound;

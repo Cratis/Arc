@@ -1143,7 +1143,7 @@ public static class TypeExtensions
     public static bool IsServerHandledCommandResponseValue(this Type type)
     {
         // Match the owning Arc assembly as well as the name; MetadataLoadContext types cannot use runtime assignability.
-        if (EnumerateTypeAndContracts(type).Any(IsCommandOperationContract))
+        if (IsCommandOperationValue(type))
         {
             return true;
         }
@@ -1171,7 +1171,7 @@ public static class TypeExtensions
 
         var contracts = type.GetInterfaces().Append(type);
         if (contracts.Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition().FullName == "System.Collections.Generic.IEnumerable`1" &&
-            EnumerateTypeAndContracts(contract.GetGenericArguments()[0]).Any(IsCommandOperationContract)))
+            IsCommandOperationValue(contract.GetGenericArguments()[0])))
         {
             return true;
         }
@@ -1464,6 +1464,13 @@ public static class TypeExtensions
             .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
             .Where(_ => _ is not null)
             .Cast<string>();
+    }
+
+    static bool IsCommandOperationValue(Type type)
+    {
+        var underlying = IsGenericTypeDefinition(type, typeof(Nullable<>)) ? type.GetGenericArguments()[0] : type;
+
+        return EnumerateTypeAndContracts(underlying).Any(IsCommandOperationContract);
     }
 
     static bool IsCommandOperationContract(Type type)

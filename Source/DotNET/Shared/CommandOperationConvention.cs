@@ -30,7 +30,30 @@ internal static class CommandOperationConvention
     /// </summary>
     /// <param name="type">Type to inspect.</param>
     /// <returns>Whether the marker is implemented.</returns>
-    public static bool IsOperation(ITypeSymbol type) => TypeName(type) == Marker || type.AllInterfaces.Any(contract => TypeName(contract) == Marker);
+    public static bool IsOperation(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol named && named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+        {
+            return IsOperation(named.TypeArguments[0]);
+        }
+
+        return TypeName(type) == Marker || type.AllInterfaces.Any(contract => TypeName(contract) == Marker);
+    }
+
+    /// <summary>
+    /// Determines whether a return-value element is an operation or explicit batch, including nullable value types.
+    /// </summary>
+    /// <param name="type">Return-value element to inspect.</param>
+    /// <returns>Whether ordinary collection wrapping would erase the operation contract.</returns>
+    public static bool IsOperationValue(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol named && named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+        {
+            return IsOperationValue(named.TypeArguments[0]);
+        }
+
+        return TypeName(type) == Batch || IsOperation(type);
+    }
 
     /// <summary>
     /// Finds conventional methods, including inherited declarations.
@@ -71,7 +94,7 @@ internal static class CommandOperationConvention
     /// <param name="type">Declaration type.</param>
     /// <returns>Whether direct typed calls can be emitted.</returns>
     public static bool IsAccessible(INamedTypeSymbol type) =>
-        type.Arity == 0 && type.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+        !type.IsFileLocal && type.Arity == 0 && type.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
         (type.ContainingType is null || IsAccessible(type.ContainingType));
 
     static bool IsServiceLocator(ITypeSymbol type) => IsServiceLocatorName(TypeName(type)) || type.AllInterfaces.Any(contract => IsServiceLocatorName(TypeName(contract)));
