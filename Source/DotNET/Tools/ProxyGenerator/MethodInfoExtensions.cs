@@ -21,12 +21,14 @@ public static class MethodInfoExtensions
         var hasResponse = false;
         var responseModel = ModelDescriptor.Empty;
 
-        if (method.ReturnType.IsAssignableTo<Task>() && method.ReturnType.IsGenericType)
+        if (method.ReturnType.IsGenericType && (method.ReturnType.IsAssignableTo<Task>() ||
+            method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.ValueTask`1"))
         {
             var responseType = method.ReturnType.GetGenericArguments()[0];
             (hasResponse, responseModel) = GetResponseFromType(responseType);
         }
-        else if (method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType)
+        else if (method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType &&
+            method.ReturnType.FullName != "System.Threading.Tasks.ValueTask")
         {
             (hasResponse, responseModel) = GetResponseFromType(method.ReturnType);
         }
@@ -129,6 +131,11 @@ public static class MethodInfoExtensions
 
     static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type)
     {
+        if (type.ContainsBareCommandOperationCollection())
+        {
+            throw new UnsupportedCommandOperationCollection(type);
+        }
+
         if (type.IsServerHandledCommandResponseValue())
         {
             return (false, ModelDescriptor.Empty);

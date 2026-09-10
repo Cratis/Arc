@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.EventSequences;
@@ -28,9 +29,38 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// store.
 /// </remarks>
 [Singleton]
-public class TransactionalCommandScope : ICommandExecutionScope
+public class TransactionalCommandScope : ICommandOperationExecutionScope
 {
     static readonly AsyncLocal<OwnedTransaction?> _owned = new();
+    static readonly ConditionalWeakTable<CommandContextValues, CommitObservation> _observations = new();
+
+    /// <inheritdoc/>
+    public bool IsCommitParticipant => true;
+
+    /// <inheritdoc/>
+    public CommandCommitDisposition GetCommitDisposition(CommandContext context)
+    {
+        if (!_observations.TryGetValue(context.Values, out var observation))
+        {
+            return CommandCommitDisposition.Unknown;
+        }
+
+        lock (observation)
+        {
+            if (!observation.CompletionObserved && observation.UnitOfWork.IsCompleted)
+            {
+                return CommandCommitDisposition.Unknown;
+            }
+
+            if (observation.ImmediateCommitted)
+            {
+                return observation.ImmediateUncertain || observation.Disposition == CommandCommitDisposition.Unknown
+                    ? CommandCommitDisposition.Mixed : CommandCommitDisposition.Committed;
+            }
+
+            return observation.ImmediateUncertain ? CommandCommitDisposition.Unknown : observation.Disposition;
+        }
+    }
 
     /// <inheritdoc/>
     public void Begin(CommandContext context)
@@ -46,6 +76,9 @@ public class TransactionalCommandScope : ICommandExecutionScope
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
         var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
         var failedAppends = new List<AppendedEventWithResult>();
+        var observation = new CommitObservation(unitOfWork);
+        _observations.Remove(context.Values);
+        _observations.Add(context.Values, observation);
         var subscription = (serviceProvider.GetService<IEventLog>()?.AppendOperations)?.Subscribe(appended =>
         {
             lock (failedAppends)
@@ -53,14 +86,18 @@ public class TransactionalCommandScope : ICommandExecutionScope
                 // Only failures belonging to this command — a failure attributed to a different correlation is a
                 // concurrent command's and must not fail this one. An unattributed failure (no correlation on the
                 // result) during this command's window is treated as this command's.
-                failedAppends.AddRange(appended.Where(_ =>
-                    !_.Result.IsSuccess &&
-                    (_.Result.CorrelationId == context.CorrelationId || _.Result.CorrelationId == CorrelationId.NotSet)));
+                var attributable = appended.Where(_ => _.Result.CorrelationId == context.CorrelationId || _.Result.CorrelationId == CorrelationId.NotSet).ToArray();
+                failedAppends.AddRange(attributable.Where(_ => !_.Result.IsSuccess));
+                lock (observation)
+                {
+                    observation.ImmediateCommitted |= attributable.Any(_ => _.Result.IsSuccess);
+                    observation.ImmediateUncertain |= attributable.Any(_ => !_.Result.IsSuccess && _.Result.Errors.Any());
+                }
             }
         });
 
         CommandTransaction.Current = unitOfWork;
-        _owned.Value = new OwnedTransaction(unitOfWork, subscription, failedAppends);
+        _owned.Value = new OwnedTransaction(unitOfWork, subscription, failedAppends, observation);
     }
 
     /// <inheritdoc/>
@@ -89,11 +126,27 @@ public class TransactionalCommandScope : ICommandExecutionScope
         }
 
         var unitOfWork = owned.UnitOfWork;
+        var observation = owned.Observation;
+
+        // IsCompleted also means rollback or a commit that threw. Never interpret it as authoritative commitment.
+        if (unitOfWork.IsCompleted)
+        {
+            observation.Disposition = CommandCommitDisposition.Unknown;
+        }
+
         if (result.IsSuccess)
         {
             if (!unitOfWork.IsCompleted)
             {
+                var hasEvents = unitOfWork.GetEvents().Any();
+                observation.Disposition = CommandCommitDisposition.Unknown;
                 await unitOfWork.Commit();
+                observation.CompletionObserved = true;
+                observation.Disposition = unitOfWork.GetAppendErrors().Any()
+                    ? CommandCommitDisposition.Unknown
+                    : unitOfWork.GetConstraintViolations().Any() || unitOfWork.GetConcurrencyViolations().Any()
+                        ? CommandCommitDisposition.NotCommitted
+                        : hasEvents ? CommandCommitDisposition.Committed : CommandCommitDisposition.NotCommitted;
             }
 
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
@@ -104,9 +157,21 @@ public class TransactionalCommandScope : ICommandExecutionScope
         }
         else if (!unitOfWork.IsCompleted)
         {
+            observation.Disposition = CommandCommitDisposition.Unknown;
             await unitOfWork.Rollback();
+            observation.CompletionObserved = true;
+            observation.Disposition = CommandCommitDisposition.NotCommitted;
         }
     }
 
-    sealed record OwnedTransaction(IUnitOfWork UnitOfWork, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends);
+    sealed class CommitObservation(IUnitOfWork unitOfWork)
+    {
+        public IUnitOfWork UnitOfWork { get; } = unitOfWork;
+        public CommandCommitDisposition Disposition { get; set; } = CommandCommitDisposition.NotCommitted;
+        public bool CompletionObserved { get; set; }
+        public bool ImmediateCommitted { get; set; }
+        public bool ImmediateUncertain { get; set; }
+    }
+
+    sealed record OwnedTransaction(IUnitOfWork UnitOfWork, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
 }

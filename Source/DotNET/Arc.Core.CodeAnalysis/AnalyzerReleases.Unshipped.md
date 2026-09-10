@@ -16,3 +16,6 @@ ARC0012|Arc|Warning|Arc artifact throws a built-in exception type
 ARC0013|Arc|Warning|Validator rule dereferences a possibly-null concept member
 ARC0014|Arc|Error|Generic query method on ReadModel
 ARC0015|Arc|Warning|Query parameter converted to a concept in the method body
+ARC0016|Arc|Error|Invalid command operation method
+ARC0017|Arc|Error|Use CommandOperations for operation batches
+ARC0018|Arc|Error|Operation cannot have a generated invoker

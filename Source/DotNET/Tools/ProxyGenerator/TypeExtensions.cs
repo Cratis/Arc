@@ -1142,6 +1142,12 @@ public static class TypeExtensions
     /// <returns>True if the value is handled on the server and should not be exposed as a client response.</returns>
     public static bool IsServerHandledCommandResponseValue(this Type type)
     {
+        // Match the owning Arc assembly as well as the name; MetadataLoadContext types cannot use runtime assignability.
+        if (EnumerateTypeAndContracts(type).Any(IsCommandOperationContract))
+        {
+            return true;
+        }
+
         var isFromCurrentMetadataContext = _metadataLoadContext?.GetAssemblies().Contains(type.Assembly) == true;
         var handledTypeIdentities = isFromCurrentMetadataContext
             ? _serverHandledCommandResponseValueTypeNames ?? []
@@ -1149,6 +1155,28 @@ public static class TypeExtensions
 
         return EnumerateTypeAndContracts(type).Any(_ =>
             _.AssemblyQualifiedName is not null && handledTypeIdentities.Contains(_.AssemblyQualifiedName));
+    }
+
+    /// <summary>
+    /// Detects bare operation collections inside command return shapes without generating descriptor models.
+    /// </summary>
+    /// <param name="type">The declared return shape.</param>
+    /// <returns>Whether the explicit CommandOperations wrapper is required.</returns>
+    public static bool ContainsBareCommandOperationCollection(this Type type)
+    {
+        if (type.FullName == "Cratis.Arc.Commands.CommandOperations" && IsCommandOperationContract(type))
+        {
+            return false;
+        }
+
+        var contracts = type.GetInterfaces().Append(type);
+        if (contracts.Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition().FullName == "System.Collections.Generic.IEnumerable`1" &&
+            EnumerateTypeAndContracts(contract.GetGenericArguments()[0]).Any(IsCommandOperationContract)))
+        {
+            return true;
+        }
+
+        return type.IsGenericType && type.GetGenericArguments().Any(ContainsBareCommandOperationCollection);
     }
 
     /// <summary>
@@ -1436,6 +1464,22 @@ public static class TypeExtensions
             .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
             .Where(_ => _ is not null)
             .Cast<string>();
+    }
+
+    static bool IsCommandOperationContract(Type type)
+    {
+        if (type.FullName is not ("Cratis.Arc.Commands.ICommandOperation" or "Cratis.Arc.Commands.CommandOperations"))
+        {
+            return false;
+        }
+
+        var metadataAssemblies = _metadataLoadContext?.GetAssemblies().ToArray();
+        var assemblies = metadataAssemblies?.Contains(type.Assembly) == true
+            ? metadataAssemblies
+            : AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic);
+        var contracts = assemblies.FirstOrDefault(assembly => assembly.GetName().Name == CommandResponseValueHandlerContractsAssemblyName);
+
+        return ReferenceEquals(type.Assembly, contracts);
     }
 
     /// <summary>
