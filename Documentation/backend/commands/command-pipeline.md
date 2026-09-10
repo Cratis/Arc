@@ -3,7 +3,11 @@ title: Command pipeline
 description: Execute and await standalone Arc commands from application code.
 ---
 
-When a background job or application service needs the same command behavior as an HTTP caller, inject `ICommandPipeline`. It runs the model-bound authorization, validation, provisioning, handler, response handlers, and execution scopes without an HTTP round trip.
+When a background job or application service needs the same command behavior as an HTTP caller, inject `ICommandPipeline`. It runs the model-bound authorization, validation, provisioning, handler, response handlers, command operations, and execution scopes without an HTTP round trip.
+
+:::tip[Declare work instead of writing a recovery stack]
+For immediate side effects chosen by a command, return [command operations](./operations/index.md). The pipeline awaits their execution and eligible compensation. Backend code and [CommandScenario](../testing/command-operations.md) can inspect recovery observations without moving recovery handling to the frontend.
+:::
 
 ## Basic usage
 
@@ -87,6 +91,8 @@ Use these cancellation extension overloads with Arc's cancellation-aware pipelin
 | `ExceptionMessages`, `ExceptionStackTrace` | Exception details; handle as potentially sensitive diagnostic information. |
 | `AuthorizationFailureReason` | A supplied reason for denial, when present. |
 | `CorrelationId` | Identifier for correlating this execution. |
+| `Recovery` | Optional backend-only command operation recovery summary; excluded from HTTP JSON. |
+| `OperationOutcomes` | Backend-only observations of started operation invocations; excluded from HTTP JSON. |
 
 ## Typed command results
 
@@ -111,7 +117,7 @@ Scope completion can fail after the handler produced a value. After scopes compl
 
 The pipeline catches handler, filter, response-handler, and scope-completion exceptions and represents failures in `CommandResult`. Exceptions implementing `IValidationFailure` can be translated into validation outcomes; ordinary exceptions produce exception details. A wrong requested generic response type is a separate caller error, described above.
 
-Standalone Arc does not undo earlier application-service side effects on failure. Coordinate persistence in the service or through a deliberately implemented [execution scope](./command-execution-scopes.md). The [Chronicle transaction integration](./transactional-commands.md) is optional and has its own boundaries.
+Arc does not undo arbitrary direct application-service writes on failure. Prefer [command operations](./operations/index.md) for inline work you want the framework to execute and, when safe, compensate. Their commit-aware recovery does not imply atomic rollback, automatic retries, or crash recovery. Specialized persistence coordination still belongs in a deliberately implemented [execution scope](./command-execution-scopes.md). The [Chronicle transaction integration](./transactional-commands.md) is optional and has its own boundaries.
 
 ## Validation without execution
 

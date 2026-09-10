@@ -7,7 +7,11 @@ description: Fetch the data a command's decision needs in a Provide method so Ha
 
 ## Lift the IO out of `Handle`
 
-Add a `Provide()` method next to `Handle()` on the command. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` can then be a pure function of its arguments when the outcome is response data. If the command must persist a change, it still needs an explicit database/service write; `Provide` does not make persistence automatic.
+Add a `Provide()` method next to `Handle()` on the command. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` can then be a pure function of its arguments. To separate the write side as well, return a [command operation](../backend/commands/operations/index.md) describing the required service work, or return events with the optional Chronicle integration. `Provide` does not make persistence automatic.
+
+:::tip[Acquire, decide, then perform]
+Use `Provide()` to acquire decision inputs, `Handle()` to decide, and returned command operations to perform inline side effects. Do not move writes into `Provide()` merely to make `Handle()` look pure: such direct writes are outside operation compensation. [Operation testing](../backend/testing/command-operations.md) covers the decision and real execution separately.
+:::
 
 `Provide` runs before `Handle`, after validation and authorization pass. Its parameters are resolved from dependency injection just like `Handle`'s, and `this` is the command, so it can read the command's own data.
 

@@ -7,6 +7,10 @@ With `Cratis.Arc.Chronicle` registered, a model-bound command executed through A
 
 The integration uses Arc's [command execution scope](../../commands/command-execution-scopes.md) extension point. Standalone Arc does not supply this event-store guarantee.
 
+:::note[Events and external operations have different recovery boundaries]
+Return events for durable domain facts. For immediate external side effects chosen by the same command, prefer [command operations](../../commands/operations/index.md) instead of direct service calls or a hand-written rollback stack. Their optional compensation runs only when the observed commit boundary permits it; external work is not part of Chronicle's atomic event transaction. Use a reactor or durable workflow when work must follow committed facts reliably.
+:::
+
 ## Choosing an append style
 
 | Style | Boundary | Outcome |
@@ -124,6 +128,10 @@ The scope applies to HTTP model-bound commands, direct `ICommandPipeline` execut
 
 ## Nested commands and aggregates
 
+:::caution[Command operations use a narrower execution profile]
+The nesting and explicit-commit behavior below describes ordinary Chronicle commands. The initial [command operation contract](../../commands/operations/reference.md#supported-scope-profile) supports flat commands and deferred completion; nested operation-bearing commands and explicit aggregate commits inside an operation boundary are rejected. Existing event-only command behavior remains separate.
+:::
+
 A nested pipeline command joins the outer command's active transaction. Only the outer owner completes it. A successful nested result reflects enrollment, not final persistence; commit-time violations arrive at outer completion. The outer command must inspect/propagate a nested failure rather than treating a failed nested call as success.
 
 Aggregate mutations share this unit of work. Explicit aggregate `Commit()` finalizes **all events enrolled so far**, not just one aggregate. The command scope leaves a completed transaction alone. Do not enroll further events or do fallible work afterward while expecting rollback to undo that commit.
@@ -138,4 +146,4 @@ There is a separate failure-propagation limitation: `AggregateRoot.Commit()` che
 - **Several returned reactor commands are separate transactions.** Earlier successes remain if a later command fails. Model one command when its events must commit together.
 - **Concurrency is a separate decision.** Atomic append does not bind a decision to the revision it read. See [Concurrency](./concurrency.md), including empty-history expectations.
 
-For test patterns that assert no partial returned batch and inspect command failures, see [Testing with Chronicle](../../testing/chronicle.md).
+For test patterns that assert no partial returned batch and inspect command failures, see [Testing with Chronicle](../../testing/chronicle.md). For an event plus external operation, [test compensation after a real constraint rejection](../../testing/command-operations-with-chronicle.md).

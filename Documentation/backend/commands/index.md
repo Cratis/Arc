@@ -7,6 +7,10 @@ Opening an account or adding a cart line should not require a handwritten HTTP c
 
 Arc is a standalone CQRS framework. Your handler can call application services backed by any suitable storage; it does not have to return an event or use Chronicle.
 
+:::tip[Return operations for inline side effects]
+Prefer [command operations](./operations/index.md) when `Handle()` decides which external work to perform. The decision returns inspectable values; Arc executes them and manages optional compensation without application-written error handling. Direct service calls remain supported, and durable follow-up work still belongs in a reactor or appropriate workflow.
+:::
+
 ```mermaid
 flowchart LR
     UI[Client] -->|POST| EP[Arc endpoint]
@@ -37,7 +41,8 @@ Choose the return shape that fits the operation:
 
 - **`void` or `Task`** — no response value. A task is awaited; this is not fire-and-forget execution.
 - **A value or `Task<T>`** — an unhandled value becomes the typed response.
-- **A tuple** — combine one response with values consumed by [response value handlers](./response-value-handlers.md).
+- **An operation or `CommandOperations`** — declare one or many server-side actions, with optional compensation.
+- **A tuple** — combine one response with [command operations](./operations/index.md) and other values consumed by [response value handlers](./response-value-handlers.md).
 - **`Cratis.Monads.Result<TSuccess, TError>`** — process the active alternative. A recognized validation value becomes a rejection; arbitrary error types are not automatically failures.
 
 Use [provided data](../../scenarios/provide-data-to-a-command.md) when fetching handler input separately makes the operation clearer.
@@ -59,6 +64,7 @@ The model-bound pipeline and MVC action filters are different execution paths. D
 | Protect commands | [Model-bound authorization](./model-bound/authorization.md) |
 | Check without invoking the handler | [Pre-flight validation](./command-validation.md) |
 | Execute from application code | [Command pipeline](./command-pipeline.md) |
+| Keep inline side effects out of the decision | [Command operations](./operations/index.md) · [Testing operations](../testing/command-operations.md) |
 | Understand scalar and tuple responses | [Response value handlers](./response-value-handlers.md) · [Examples](./response-examples.md) |
 | Carry cross-cutting data | [Command context](./command-context.md) |
 | Extend execution | [Filters](./command-filters.md) · [Execution scopes](./command-execution-scopes.md) |

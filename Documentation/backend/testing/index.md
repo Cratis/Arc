@@ -15,13 +15,14 @@ A command's `Handle()` is an ordinary C# method. Call it directly for a determin
 | A deterministic calculation or decision                                    | Direct `Handle()` spec with explicit input/state                 | Arc validation, authorization, `Provide()`, or persistence        |
 | Calls to an application service                                            | Direct unit spec with substituted collaborators                  | The real service, database, or production registration            |
 | Validation, authorization, `Provide()`, dependencies, or command responses | `CommandScenario<TCommand>`                                      | HTTP routing/authentication middleware or external infrastructure |
+| Returned operations execute and compensate in the correct order           | `CommandScenario<TCommand>` with controlled provider dependencies | Production provider idempotency, terminal cancellation, or crash recovery |
 | Returned events use the intended source and append contract                | `CommandScenario<TCommand>` with the Chronicle testing extension | Completion of the application's entire observer/reactor flow      |
 | Projection/reducer state from history                                      | Chronicle read-model scenario                                    | Production sink configuration and transport                       |
 | Actual host, provider, or asynchronous application flow                    | Hosted/provider-backed integration spec                          | Every business edge case unless you explicitly cover it           |
 
 **Our recommendation: combine boundaries, rather than choose one for every test.** Cover decision branches with fast direct specs, add focused scenario specs for the important Arc contracts, and use a smaller set of integration tests to prove real composition. Keep the action in `Because()`, give every `should_...` assertion a concrete outcome, and wait for facts rather than sleeping.
 
-Start with [the decision-and-pipeline lesson](./command-decisions.md). It tests the same strongly typed command both ways. For event-sourced applications, [the Chronicle lesson](./event-sourced-commands.md) shows why a correct returned event is not enough: the appended identity must be correct too.
+Start with [the decision-and-pipeline lesson](./command-decisions.md). It tests the same strongly typed command both ways. For inline side effects, [test command operations](./command-operations.md): inspect declarations directly, then let `CommandScenario` run actual execution and compensation with substitutes. For event-sourced applications, [the Chronicle lesson](./event-sourced-commands.md) shows why a correct returned event is not enough: the appended identity must be correct too.
 
 This separation is one of Arc's useful design properties. `Provide()` can acquire data while `Handle()` expresses the decision, without an application-specific handler abstraction or a test-only execution path. A service-backed `Handle()` is also supported; it is testable but is not a pure function merely because it lives on a command.
 

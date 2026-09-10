@@ -5,9 +5,13 @@ description: How standalone Arc classifies scalar, tuple, and discriminated-unio
 
 A command may need both a response for its caller and server-side processing of another value. Response value handlers separate those responsibilities without requiring event sourcing.
 
+:::tip[Prefer command operations for application side effects]
+Use [command operations](./operations/index.md) to declare inline service work with scoped dependencies and optional compensation. You do not need to implement the two response-handler interfaces or manage error handling yourself. Response value handlers remain the advanced extension point for framework integrations and specialized return-value interpretation; they are not deprecated.
+:::
+
 ## Automatic response handling
 
-After awaiting `Handle()`, the model-bound pipeline classifies its return value:
+After awaiting `Handle()`, the model-bound pipeline classifies its return value. `ICommandOperation` values and `CommandOperations` batches are reserved for the [operation phase](./operations/reference.md#execution-and-failure-ordering); ordinary response-value handlers do not execute them a second time. For other values:
 
 1. A simple value matching `ICommandResponseValueHandler.CanHandle` is processed by every matching handler. Their `CommandResult` outcomes are merged.
 2. A simple value with no handler becomes the response, including an ordinary `Guid`.
@@ -105,6 +109,6 @@ After all execution scopes complete, the pipeline clears the **result's** respon
 
 ## Side effects and failures
 
-A custom handler performs real work after `Handle()` returns. Standalone Arc does not automatically roll back that work, or earlier service writes, when another handler or scope fails. Choose idempotency and storage coordination appropriate to your application.
+A custom handler performs real work after `Handle()` returns. Arc does not automatically compensate arbitrary work performed by these custom handlers or earlier direct service writes. For per-command application side effects, prefer [operations with optional compensation](./operations/implementing.md). Their recovery contract covers declared, started operations—not every write a custom handler or service might perform.
 
 For event-sourced applications only, [Chronicle transactional commands](./transactional-commands.md) describes the optional integration's commit behavior. Continue with [response examples](./response-examples.md) for success, validation, and failure cases.
