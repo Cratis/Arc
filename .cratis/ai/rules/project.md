@@ -10,6 +10,6 @@ event-sourced application patterns here.
 
 Read every concern below before working in this repository. Together they are the project-owned instructions and override conflicting shared guidance.
 
-- [What Arc owns](project/what-arc-owns.md)
-- [Commands](project/commands.md)
-- [AI-assisted development](project/ai-assisted-development.md)
+- [What Arc owns](.cratis/ai/rules/project/what-arc-owns.md)
+- [Commands](.cratis/ai/rules/project/commands.md)
+- [AI-assisted development](.cratis/ai/rules/project/ai-assisted-development.md)
