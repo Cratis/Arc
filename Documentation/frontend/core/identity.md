@@ -4,8 +4,7 @@ The frontend identity is based on information it gets from a cookie called `.cra
 provide identity information to the client at the first render. This allows for a better developer and user experience, as there is no need
 to call the backend for details about the user.
 
-While in development mode on your local machine, if this cookie does not exist it will call the `.cratis/me` endpoint from the frontend
-itself. This makes it possible to work without having to simulate the entire production environment locally.
+If this cookie does not exist, the client calls `/.cratis/me`. This fallback is not limited to development. Configure authentication on the host; identity lookup is not itself a login mechanism.
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
@@ -15,8 +14,9 @@ This information found in the cookie is a base64 encoded string containing the J
 
 ## Identity provider
 
-Identity is a read only feature in the frontend. It can't be manipulated, as it is owned by the backend or the ingress.
-All access to identity goes through what is called `IdentityProvider`.
+Identity is intended for read-only UI consumption through `IdentityProvider`. Its JavaScript-readable cookie is **untrusted cache data**, not tamper-resistant proof of identity. A browser user can edit it. Every protected backend operation must authorize the actual credential independently.
+
+`IdentityProvider.clearIdentityCookie()` only attempts to remove `.cratis-identity`; it does not revoke sessions or remove authentication tokens/cookies. Real sign-out must complete through your authentication system before reconnecting anonymously. Cookie path/domain scoping must also match for deletion to take effect.
 
 The `IdentityProvider` provides functionality for getting the current identity.
 
@@ -36,7 +36,7 @@ console.log(`Hello '${identity.name}'`);
 Part of the identity can hold details that are beyond what the identity provider provides. These details are application specific and something that your
 application or ingress should be responsible for filling out. Details can be considered optional, as that might not be a requirement for your application.
 
-The `getCurrent()` method takes a generic parameter that allows you to specify the type of the details object.
+The `getCurrent()` method takes a generic parameter that describes the expected details object. It does not guarantee the backend supplies one. Guard absent details or choose an explicit display fallback:
 
 ```typescript
 import { IdentityProvider } from '@cratis/arc/identity';
@@ -48,7 +48,8 @@ type IdentityDetails = {
 
 const identity = await IdentityProvider.getCurrent<IdentityDetails>();
 
-console.log(`Hello '${identity.name}' from ´${identity.details.department}`);
+const department = identity.details?.department ?? 'Unknown department';
+console.log(`Hello '${identity.name}' from '${department}'`);
 ```
 
 ## IIdentity
@@ -60,7 +61,7 @@ The return type coming from `getCurrent()` looks like the following:
 | id | string | The unique identifier from the identity provider |
 | name | string | The user name |
 | roles | string[] | Array of roles the identity is in |
-| details | any / type | Any additional identity details with type given, defaults to `any` |
+| details | `TDetails` | Application-specific details, default generic type `object`; data may be absent at runtime |
 | isInRole | (role: string) => boolean | Method to check if the identity is in a specific role |
 
 ## Role checking
@@ -90,8 +91,7 @@ console.log(`User roles: ${identity.roles.join(', ')}`);
 ## Refresh
 
 In some scenarios you might need to refresh the identity. Typically if the user has been granted more access or details has been updated.
-Rather than having your user log out and back in again, you can issue a refresh. Since the cookie is there and not governed by the frontend, it
-needs to call the backend or ingress to perform the refresh. The refresh calls the `.cratis/me` endpoint which returns the identity and details.
+Rather than having your user log out and back in again, you can issue a refresh. Refresh clears the UI cache cookie and calls `/.cratis/me` for the identity and details; it does not renew or revoke authentication credentials.
 This endpoint should also be responsible for updating the cookie so that any call to `getCurrent()` on the `IdentityProvider` gives you the correct
 identity and details.
 

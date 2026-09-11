@@ -1,180 +1,50 @@
-# Query Scope
+---
+title: Query scope
+description: Show local query activity using explicit state callbacks, without assuming nested scopes propagate notifications.
+---
 
-If you want to know whether any queries or observable queries are currently in-flight — typically to show a
-loading indicator or disable parts of the UI — the query scope provides a React context for this.
+A section can contain several queries but only need one loading indicator. Wrap that section in `QueryScope` and use its `setIsPerforming` callback to drive React state. `<Arc>` does not mount a query scope for you.
 
-Using a toolbar as an example: at the top level you can wrap everything in the `<QueryScope>` component.
-This establishes a React context for that part of the hierarchy and tracks the performing state of any
-queries or observable queries used by any descendant component.
+## Using query scope in React
 
-```typescript
+This composition fragment accepts a query-consuming panel as its child:
+
+```tsx
+import { useState, type ReactElement } from 'react';
 import { QueryScope } from '@cratis/arc.react/queries';
 
-export const MyComposition = () => {
+export function QueryPanel({ children }: { children: ReactElement }) {
     const [isPerforming, setIsPerforming] = useState(false);
-
     return (
         <QueryScope setIsPerforming={setIsPerforming}>
-            <Toolbar isLoading={isPerforming} />
-            <DataPanel />
-            <SidePanel />
+            <p role="status">{isPerforming ? 'Loading…' : ''}</p>
+            {children}
         </QueryScope>
     );
-};
-```
-
-## How Performing State Is Tracked
-
-- **Regular queries** — `isPerforming` is `true` while the HTTP request is in-flight and becomes `false`
-  when the response is received.
-- **Observable queries** — `isPerforming` is `true` from the moment a subscription is opened until the
-  first result is pushed from the server.
-
-## Hierarchical Scopes
-
-Query scopes can be nested to create a hierarchy. When you add a `<QueryScope>` inside another one, the
-inner scope automatically registers itself with the nearest outer scope. Outer scopes aggregate state
-across all inner scopes, giving you both local and global views of the performing state.
-
-```typescript
-export const MyPage = () => {
-    const [isPerforming, setIsPerforming] = useState(false);
-
-    return (
-        <QueryScope setIsPerforming={setIsPerforming}>
-            {/* PageToolbar sees aggregate state for the whole page */}
-            <PageToolbar isLoading={isPerforming} />
-            <Section1>
-                <QueryScope>
-                    {/* SectionLoader only sees state for queries in Section1 */}
-                    <SectionLoader />
-                    <SectionContent />
-                </QueryScope>
-            </Section1>
-        </QueryScope>
-    );
-};
-```
-
-In this example:
-- Queries inside `<Section1>` bind to the inner `<QueryScope>`.
-- The outer `<QueryScope>` reports `isPerforming` as `true` whenever any inner scope has an in-flight query.
-
-## Query Scope API
-
-| Name | Type | Description |
-|------|------|-------------|
-| `isPerforming` | `boolean` | Whether any queries in this scope or child scopes are currently in-flight. |
-| `parent` | `IQueryScope \| undefined` | The parent scope, if this scope is nested. |
-| `addChildScope(scope)` | `void` | Register a child scope for aggregate state propagation (done automatically). |
-| `notifyPerformingStarted()` | `void` | Signal that a query has started performing (called automatically by query hooks). |
-| `notifyPerformingCompleted()` | `void` | Signal that a query has finished performing (called automatically by query hooks). |
-
-## Using Query Scope in React
-
-To read the performing state imperatively from inside the scope, use the `useQueryScope` hook:
-
-```typescript
-import { useQueryScope } from '@cratis/arc.react/queries';
-
-export const Toolbar = () => {
-    const queryScope = useQueryScope();
-
-    return (
-        <div>
-            {queryScope.isPerforming && <Spinner />}
-        </div>
-    );
-};
-```
-
-You can also consume the context directly:
-
-```typescript
-import { QueryScopeContext } from '@cratis/arc.react/queries';
-
-export const Toolbar = () => {
-    return (
-        <QueryScopeContext.Consumer>
-            {scope => (
-                <div>
-                    {scope.isPerforming && <Spinner />}
-                </div>
-            )}
-        </QueryScopeContext.Consumer>
-    );
-};
-```
-
-## Using Query Scope in ViewModels
-
-The query scope can be injected into ViewModels through dependency injection. The ViewModel automatically
-receives the closest query scope in the component hierarchy.
-
-```typescript
-import { IQueryScope } from '@cratis/arc.react/queries';
-import { injectable } from 'tsyringe';
-
-@injectable()
-export class MyViewModel {
-    constructor(private readonly _queryScope: IQueryScope) {
-    }
-
-    get isLoading(): boolean {
-        return this._queryScope.isPerforming;
-    }
 }
 ```
 
-The ViewModel then exposes `isLoading` as an observable property (MobX makes this automatic via
-`withViewModel`), which your component can bind to:
+The non-Suspense query hooks notify while starting requests/subscriptions. Ordinary queries track the request; observable queries track the wait for the first result, not the lifetime of the connection. A long-lived subscription is not permanently “loading.” Current Suspense hooks use separate resources and do not call QueryScope's performing notifications; use their loading boundary instead.
 
-```typescript
-export const MyPage = withViewModel(MyViewModel, ({ viewModel }) => {
-    return (
-        <div>
-            {viewModel.isLoading && <Spinner />}
-            <DataTable />
-        </div>
-    );
-});
-```
+## Hierarchical scopes
 
-## Automatic Query Tracking
+Queries notify the nearest scope. An outer scope's `isPerforming` **getter** includes child scopes, but a child's start/completion notification does not call the parent's `setIsPerforming` callback. Consequently, a toolbar driven by the parent's callback does not automatically update for child-only activity.
 
-Any query hook used inside a `<QueryScope>` is automatically tracked — there is nothing extra to wire up:
+Keep queries under one scope when you need one reactive indicator, or explicitly combine each section's callback state. Parent notification propagation is a runtime follow-up candidate; getter aggregation alone is not reactive aggregation.
 
-```typescript
-export const DataPanel = () => {
-    const [result] = AllAccounts.use();
+## Query scope API
 
-    return (
-        <DataTable value={result.data} />
-    );
-};
-```
+| Member | Contract |
+| --- | --- |
+| `isPerforming` | Imperative read of own or child activity |
+| `parent` | Parent scope, if nested |
+| `addChildScope(scope)` | Registers a child for getter aggregation |
+| `notifyPerformingStarted()` | Increments own activity count; notifies own callback on transition to active |
+| `notifyPerformingCompleted()` | Decrements own count; notifies own callback when it reaches zero |
+| `useQueryScope()` | Returns the nearest scope; does not subscribe to changes in its internals |
 
-When `AllAccounts.use()` fires an HTTP request, `isPerforming` on the nearest enclosing `<QueryScope>`
-becomes `true`. It returns to `false` once the response arrives.
+## Using query scope in view models
 
-Observable queries work the same way:
+MVVM can inject `IQueryScope`, and a view-model getter can read `scope.isPerforming`. However, `withViewModel` making the view model observable does not make the injected scope's mutable internals observable. For a reactive display, bridge explicit scope callbacks to state rather than relying on a computed getter alone.
 
-```typescript
-export const LiveFeed = () => {
-    const [feed] = FeedItems.use();
-
-    return (
-        <ul>
-            {feed.data.map(item => <li key={item.id}>{item.message}</li>)}
-        </ul>
-    );
-};
-```
-
-`isPerforming` is `true` from the moment the subscription is opened until the first result is received.
-
-## See Also
-
-- [Queries Overview](./index.md)
-- [React Usage](../commands/react-usage.md)
-- [Command Scope](../commands/scope.md) — Equivalent feature for tracking command execution state.
+Continue with [query usage](./usage.md) or [command scopes](../commands/scope.md).

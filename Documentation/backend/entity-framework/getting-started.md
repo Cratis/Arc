@@ -1,220 +1,124 @@
-# Getting Started with Entity Framework Core
+---
+title: Get started with Entity Framework Core
+description: Add optional relational persistence to a standalone Arc application.
+---
 
-Arc provides two approaches for integrating Entity Framework Core into your application:
+When your Arc application needs relational storage, add `Cratis.Arc.EntityFrameworkCore`. It provides context registration, model conventions, and observation helpers. **Chronicle is not required**: commands can write through EF Core and queries can read the same database without event sourcing.
 
-1. **Builder Pattern** (`WithEntityFrameworkCore`) - Recommended when using Arc's `IArcBuilder` with full auto-discovery and observation support
-2. **Direct Registration** - Flexible approach that works independently of Arc
+## Add the integration
 
-## Builder Pattern (Recommended)
+Start from a working [ASP.NET Core Arc host](../asp-net-core/index.md) or [lightweight Arc host](../core/getting-started.md), then install:
 
-When using Arc's application framework, the `WithEntityFrameworkCore()` extension method provides the most streamlined setup with automatic DbContext discovery and observation support.
+```bash
+dotnet add package Cratis.Arc.EntityFrameworkCore
+```
 
-### Basic Setup
+The following is a startup fragment for an existing Arc builder, not a second complete host program. Import `Cratis.Arc` and `Cratis.Arc.EntityFrameworkCore`, plus your host's builder namespace (`Microsoft.AspNetCore.Builder` for ASP.NET Core).
 
 ```csharp
-builder.AddCratisArc(configureBuilder: arcBuilder =>
+builder.AddCratisArc(configureBuilder: arc =>
 {
-    arcBuilder.WithEntityFrameworkCore(options =>
+    arc.WithEntityFrameworkCore(options =>
     {
-        options.ConnectionString = "Server=localhost;Database=MyDb;Trusted_Connection=true";
+        options.ConnectionString = "Data Source=orders.db";
     });
 });
 ```
 
-This single configuration:
+This selects SQLite, registers observation services, and discovers public `BaseDbContext` subclasses. It does **not** create your tables or apply migrations. Use your application's migration process before querying.
 
-- **Automatically discovers** all DbContext types inheriting from `BaseDbContext` or `ReadOnlyDbContext`
-- **Registers them** with the connection string using appropriate patterns (read-only vs read-write)
-- **Enables observation** support for real-time change notifications
-- **Applies** all Arc conventions (ConceptAs support, entity mapping, etc.)
+## Define a context
 
-### Configuration Options
-
-The `EntityFrameworkCoreOptions` class provides the following configuration:
-
-| Property | Type | Default | Description |
-| -------- | ---- | ------- | ----------- |
-| `ConnectionString` | `string` | `""` | The database connection string. Required for auto-discovery. |
-| `AutoDiscoverDbContexts` | `bool` | `true` | Whether to automatically discover and register DbContext types. |
-| `JsonConverters` | `IList<JsonConverter>` | `[]` | Additional `System.Text.Json` converters merged into `JsonConversionOptions` at startup. Use this to handle interface-typed or abstract `[Json]` properties. See [JSON Conversion](./json.md#registering-custom-converters). |
-
-### Auto-Discovery
-
-When `AutoDiscoverDbContexts` is enabled (default), the framework automatically:
-
-1. Scans for all types inheriting from `BaseDbContext`
-2. Identifies which ones are `ReadOnlyDbContext` subtypes
-3. Registers read-only contexts with `AddReadOnlyDbContextWithConnectionString`
-4. Registers read-write contexts with `AddDbContextWithConnectionString`
-5. Excludes any types marked with `[IgnoreAutoRegistration]`
+Give domain values names before using them in the entity. `OrderId` cannot be accidentally substituted for an unrelated integer identifier, and `OrderDescription` keeps the field's intent visible. Define these shared concepts once in the order feature, each in its own file:
 
 ```csharp
-// Your DbContext types - automatically discovered and registered
-public class OrdersDbContext : BaseDbContext
+using Cratis.Concepts;
+
+public record OrderId(int Value) : ConceptAs<int>(Value)
 {
-    public OrdersDbContext(DbContextOptions<OrdersDbContext> options) : base(options) { }
-    
-    public DbSet<Order> Orders { get; set; }
+    public static readonly OrderId NotSet = new(0);
+    public static implicit operator OrderId(int value) => new(value);
 }
 
-public class ReportingDbContext : ReadOnlyDbContext
+public record OrderDescription(string Value) : ConceptAs<string>(Value)
 {
-    public ReportingDbContext(DbContextOptions<ReportingDbContext> options) : base(options) { }
-    
-    public DbSet<OrderSummary> OrderSummaries { get; set; }
+    public static readonly OrderDescription NotSet = new(string.Empty);
+    public static implicit operator OrderDescription(string value) => new(value);
 }
 ```
 
-### Disabling Auto-Discovery
-
-If you need manual control over DbContext registration, disable auto-discovery:
+These model declarations reuse those concepts and demonstrate the required options constructor:
 
 ```csharp
-builder.AddCratisArc(configureBuilder: arcBuilder =>
+using Cratis.Arc.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+public class OrdersDbContext(DbContextOptions<OrdersDbContext> options) : BaseDbContext(options)
 {
-    arcBuilder.WithEntityFrameworkCore(
+    public DbSet<Order> Orders => Set<Order>();
+}
+
+public class Order
+{
+    public required OrderId Id { get; set; }
+    public required OrderDescription Description { get; set; }
+}
+```
+
+`BaseDbContext` applies concept value conversion, so the named values still map to primitive columns. Choose and test your application's key-allocation strategy rather than treating `OrderId.NotSet` as a stored identity. See [concept mapping](./concept-as-conversion.md).
+
+With a nonempty connection string and `AutoDiscoverDbContexts = true` (the default), Arc registers discovered contexts through pooled factories and exposes each context as a scoped service. `ReadOnlyDbContext` subclasses receive read-only registration. `[IgnoreAutoRegistration]` excludes a context. With an empty connection string, discovery returns without registering contexts.
+
+A registration checkpoint is that a service scope can resolve `OrdersDbContext` and `IDbContextFactory<OrdersDbContext>`. Successful registration alone does not prove the database is reachable or its schema is ready.
+
+## Customize registration
+
+For a context that needs a different connection or options, disable discovery and register it explicitly. This is an alternative startup fragment:
+
+```csharp
+builder.AddCratisArc(configureBuilder: arc =>
+{
+    arc.WithEntityFrameworkCore(
         configureOptions: options =>
         {
-            options.ConnectionString = "Server=localhost;Database=MyDb;Trusted_Connection=true";
+            options.ConnectionString = "Data Source=orders.db";
             options.AutoDiscoverDbContexts = false;
         },
-        configureEfCore: efBuilder =>
+        configureEfCore: ef =>
         {
-            // Manual registration with custom options
-            efBuilder.AddDbContext<OrdersDbContext>((sp, opts) =>
+            ef.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
             {
-                opts.EnableSensitiveDataLogging();
+                options.EnableDetailedErrors();
             });
         });
 });
 ```
 
-### Using the Builder for Manual Registration
+The callback takes **two arguments**, `IServiceProvider` and `DbContextOptionsBuilder`. Avoid sensitive-data logging in production.
 
-The `IEntityFrameworkCoreBuilder` provides methods for manual DbContext registration:
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `ConnectionString` | `""` | Shared connection for discovery and builder registration without an explicit connection |
+| `AutoDiscoverDbContexts` | `true` | Discover eligible contexts when the connection string is nonempty |
+| `JsonConverters` | Empty list | Append converters to EF's JSON conversion options; see [JSON conversion](./json.md#registering-custom-converters) |
 
-```csharp
-arcBuilder.WithEntityFrameworkCore(
-    configureOptions: options =>
-    {
-        options.ConnectionString = "Server=localhost;Database=MyDb;Trusted_Connection=true";
-        options.AutoDiscoverDbContexts = false;
-    },
-    configureEfCore: efBuilder =>
-    {
-        // Use connection string from options
-        efBuilder.AddDbContext<OrdersDbContext>();
-        
-        // Or specify a different connection string
-        efBuilder.AddDbContext<ArchiveDbContext>("Server=archive;Database=Archive;Trusted_Connection=true");
-    });
-```
+## Direct service registration
 
-### Excluding Types from Auto-Discovery
-
-Use the `[IgnoreAutoRegistration]` attribute to exclude specific DbContext types:
+You can also use the registration helpers on `IServiceCollection`. This fragment assumes `services` belongs to your existing host:
 
 ```csharp
-[IgnoreAutoRegistration]
-public class TestDbContext : BaseDbContext
-{
-    // This context won't be auto-registered
-}
-```
-
-## Direct Registration (Flexible Approach)
-
-If you're not using Arc's builder pattern or need more flexibility, you can register Entity Framework Core support directly on `IServiceCollection`. This approach doesn't require the full Arc framework.
-
-### Basic Direct Registration
-
-```csharp
-// Add observation services (optional, but recommended)
 services.AddEntityFrameworkCoreObservation();
-
-// Register your DbContext with connection string
-services.AddDbContextWithConnectionString<OrdersDbContext>(
-    "Server=localhost;Database=MyDb;Trusted_Connection=true");
+services.AddDbContextWithConnectionString<OrdersDbContext>("Data Source=orders.db");
 ```
 
-### Direct Registration with Options
+Import `Cratis.Arc.EntityFrameworkCore.Observe` and `Microsoft.Extensions.DependencyInjection` as well as the context namespaces above. The helper adds observation interceptors when observation services are available at options creation. Register everything before building the service provider.
 
-```csharp
-services.AddDbContextWithConnectionString<OrdersDbContext>(
-    "Server=localhost;Database=MyDb;Trusted_Connection=true",
-    (serviceProvider, options) =>
-    {
-        options.EnableSensitiveDataLogging();
-        options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
-    });
-```
+Direct EF registration is not a replacement for Arc host activation. In particular, `Observe()` uses Arc's initialized query context and service provider. Use the normal Arc bootstrap if you use Arc observation.
 
-### Read-Only DbContext Registration
+## Scope and provider limits
 
-```csharp
-services.AddReadOnlyDbContextWithConnectionString<ReportingDbContext>(
-    "Server=localhost;Database=MyDb;Trusted_Connection=true");
-```
+The built-in connection detection supports SQLite, PostgreSQL, and SQL Server. See [automatic database hookup](./automatic-database-hookup.md) for connection patterns and assembly scanning.
 
-### Assembly-Based Discovery
+Pooled factories capture the configured connection string. They **do not automatically select a database per Arc tenant**. Tenant isolation requires an application-designed, tested strategy; do not capture request-scoped tenant state in pooled options or assume MongoDB database naming applies to EF.
 
-For direct registration with assembly scanning:
-
-```csharp
-// Discover and register all ReadOnlyDbContext types from assemblies
-services.AddReadModelDbContextsWithConnectionStringFromAssemblies(
-    "Server=localhost;Database=MyDb;Trusted_Connection=true",
-    optionsAction: null,
-    typeof(Program).Assembly,
-    typeof(OrdersDbContext).Assembly);
-```
-
-## Choosing the Right Approach
-
-| Feature | Builder Pattern | Direct Registration |
-| ------- | --------------- | ------------------- |
-| Auto-discovery | ✅ Built-in | ⚠️ Assembly-based only |
-| Observation support | ✅ Automatic | ⚠️ Manual setup required |
-| Arc integration | ✅ Full | ❌ Not required |
-| Flexibility | Good | Maximum |
-| Configuration | Centralized | Distributed |
-
-**Use Builder Pattern when:**
-
-- You're using Arc's `IArcBuilder` pattern
-- You want automatic DbContext discovery
-- You want observation support without extra configuration
-- You prefer centralized configuration
-
-**Use Direct Registration when:**
-
-- You're not using the full Arc framework
-- You need maximum flexibility in registration
-- You're integrating with an existing application
-- You want fine-grained control over each DbContext
-
-## Important: Registration Order
-
-When using direct registration with observation support, ensure you register observation services **before** calling `AddCratisArc()`:
-
-```csharp
-// Register observation services first
-services.AddEntityFrameworkCoreObservation();
-
-// Then register your DbContexts
-services.AddDbContextWithConnectionString<OrdersDbContext>(connectionString);
-
-// Finally, add Arc
-builder.AddCratisArc();
-```
-
-This ensures the singleton `IEntityChangeTracker` is properly shared across all interceptors.
-
-> **Note**: When using `WithEntityFrameworkCore()`, this ordering is handled automatically.
-
-## Next Steps
-
-- [Base DbContext](./base-db-context.md) - Learn about the base DbContext class
-- [Read Only DbContexts](./read-only.md) - Implement read-only contexts for queries
-- [Observing DbSet](./observing.md) - Create reactive queries with real-time updates
-- [Entity Mapping](./entity-mapping.md) - Configure entities using clean patterns
+Next, configure [entity mappings](./entity-mapping.md), choose [read-only behavior](./read-only.md), or add [observation](./observing.md) after verifying ordinary database reads and writes.

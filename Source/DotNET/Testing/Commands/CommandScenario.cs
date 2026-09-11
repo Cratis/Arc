@@ -14,17 +14,17 @@ namespace Cratis.Arc.Testing.Commands;
 /// <remarks>
 /// <para>
 /// Instantiate this class in your test class, register any additional services via <see cref="Services"/>
-/// before the first call to <see cref="Execute"/> or <see cref="Validate"/>, then call those methods to
+/// before the first call to <see cref="Execute(TCommand)"/> or <see cref="Validate"/>, then call those methods to
 /// drive the command through the full validation, authorization, and handler pipeline.
 /// </para>
 /// <para>
-/// The service provider and pipeline are built lazily on the first call to <see cref="Execute"/> or
+/// The service provider and pipeline are built lazily on the first call to <see cref="Execute(TCommand)"/> or
 /// <see cref="Validate"/>. Register all services in the test constructor before any pipeline call.
 /// </para>
 /// <para>
 /// No log sink is registered by default — <c>ILogger&lt;T&gt;</c> resolves as a no-op logger, so scenarios
 /// stay lightweight and spawn no logging infrastructure threads. To see console output while debugging a
-/// scenario, opt in before the first call to <see cref="Execute"/> or <see cref="Validate"/>:
+/// scenario, opt in before the first call to <see cref="Execute(TCommand)"/> or <see cref="Validate"/>:
 /// <code>
 /// scenario.Services.AddLogging(logging => logging.AddConsole());
 /// </code>
@@ -94,7 +94,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// Register additional services (mocks, stubs, fakes) here before calling
-    /// <see cref="Execute"/> or <see cref="Validate"/> for the first time.
+    /// <see cref="Execute(TCommand)"/> or <see cref="Validate"/> for the first time.
     /// </remarks>
     public IServiceCollection Services { get; }
 
@@ -108,6 +108,17 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     public IDictionary<string, object> Context { get; }
 
     /// <summary>
+    /// Gets the latest actual execution result, including server-only recovery observations.
+    /// </summary>
+    public CommandResult? LastResult { get; private set; }
+
+    /// <summary>
+    /// Gets immutable observations of operations that actually entered Execute on the latest execution.
+    /// A failed partial invocation appears with ExecutionCompleted false; never-started declarations do not appear.
+    /// </summary>
+    public IReadOnlyList<CommandOperationOutcome> Operations => LastResult?.OperationOutcomes ?? [];
+
+    /// <summary>
     /// Executes the given <typeparamref name="TCommand"/> through the real Arc command pipeline.
     /// </summary>
     /// <remarks>
@@ -116,12 +127,42 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     /// <param name="command">The command to execute.</param>
     /// <returns>A <see cref="Task{TResult}"/> that resolves to the <see cref="CommandResult"/>.</returns>
     /// <exception cref="ObjectDisposedException">Thrown if the scenario has been disposed.</exception>
-    public Task<CommandResult> Execute(TCommand command)
+    public Task<CommandResult> Execute(TCommand command) => Execute(command, CancellationToken.None);
+
+    /// <summary>
+    /// Executes real command operations with injectable services and forwards cancellation to the pipeline.
+    /// Compensation uses the pipeline's independent cooperative cleanup budget, not this token.
+    /// </summary>
+    /// <param name="command">The command to execute.</param>
+    /// <param name="cancellationToken">Forward-execution cancellation.</param>
+    /// <returns>The actual pipeline result; operations are never simulated as successful.</returns>
+    public async Task<CommandResult> Execute(TCommand command, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
-        return _pipeline!.Execute(command!, _serviceProvider!);
+        LastResult = await _pipeline!.Execute(command!, _serviceProvider!, allowedSeverity: null, cancellationToken);
+
+        return LastResult;
     }
+
+    /// <summary>
+    /// Asserts that a real operation of the given type completed Execute in the last command.
+    /// </summary>
+    /// <typeparam name="TOperation">The operation declaration type.</typeparam>
+    public void ShouldHaveExecutedOperation<TOperation>()
+        where TOperation : ICommandOperation => RequireLastResult().ShouldHaveExecutedOperation<TOperation>();
+
+    /// <summary>
+    /// Asserts that a real operation of the given type completed Compensate in the last command.
+    /// </summary>
+    /// <typeparam name="TOperation">The operation declaration type.</typeparam>
+    public void ShouldHaveCompensatedOperation<TOperation>()
+        where TOperation : ICommandOperation => RequireLastResult().ShouldHaveCompensatedOperation<TOperation>();
+
+    /// <summary>
+    /// Asserts that the last command entered no Execute methods, including partial invocations.
+    /// </summary>
+    public void ShouldHaveNoOperationInvocations() => RequireLastResult().ShouldHaveNoOperationInvocations();
 
     /// <summary>
     /// Validates the given <typeparamref name="TCommand"/> through the pipeline filters without executing the handler.
@@ -144,7 +185,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// Safe to call multiple times; only the first call disposes. After disposal, calls to
-    /// <see cref="Execute"/> or <see cref="Validate"/> throw <see cref="ObjectDisposedException"/>.
+    /// <see cref="Execute(TCommand)"/> or <see cref="Validate"/> throw <see cref="ObjectDisposedException"/>.
     /// </remarks>
     public void Dispose()
     {
@@ -158,7 +199,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     /// <remarks>
     /// Prefers <see cref="IAsyncDisposable"/> on the service provider and context values when available,
     /// falling back to <see cref="IDisposable"/>. Safe to call multiple times; only the first call disposes.
-    /// After disposal, calls to <see cref="Execute"/> or <see cref="Validate"/> throw <see cref="ObjectDisposedException"/>.
+    /// After disposal, calls to <see cref="Execute(TCommand)"/> or <see cref="Validate"/> throw <see cref="ObjectDisposedException"/>.
     /// </remarks>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous dispose operation.</returns>
     public async ValueTask DisposeAsync()
@@ -232,6 +273,8 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
         _pipeline = null;
         _disposed = true;
     }
+
+    CommandResult RequireLastResult() => LastResult ?? throw new CommandResultAssertionException("Execute a command before asserting operation outcomes.");
 
     void EnsureInitialized()
     {

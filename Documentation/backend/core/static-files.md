@@ -2,6 +2,8 @@
 
 Arc.Core provides built-in support for serving static files, similar to the `UseStaticFiles()` middleware in ASP.NET Core. This is essential for hosting Single Page Applications (SPAs), serving assets like CSS, JavaScript, images, and other static content.
 
+Except for the complete SPA example, code blocks below are configuration fragments for the [Core host](getting-started.md), with `using Cratis.Arc;` in scope. Supply the static asset files yourself; Arc does not build a frontend bundle.
+
 ## Basic Usage
 
 To serve static files from the default `wwwroot` directory:
@@ -19,7 +21,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-> **Important**: `UseStaticFiles()` must be called **before** `UseCratisArc()` to ensure the static file configuration is registered before the HTTP listener starts.
+> **Important**: Configure static files and fallback before `StartAsync()` or `RunAsync()`. `UseCratisArc()` schedules listener startup; it does not start the listener immediately. Static-file configuration may precede or follow that call.
 
 ## Configuration Options
 
@@ -48,7 +50,7 @@ app.UseStaticFiles(options =>
 ### StaticFileOptions Properties
 
 | Property | Type | Default | Description |
-|----------|------|---------|-------------|
+| ---------- | ------ | --------- | ------------- |
 | `FileSystemPath` | `string` | `"wwwroot"` | The directory to serve files from |
 | `RequestPath` | `string` | `""` (root) | URL prefix for static file requests |
 | `ServeDefaultFiles` | `bool` | `true` | Whether to serve index.html for directory requests |
@@ -103,6 +105,7 @@ await app.RunAsync();
 ```
 
 The fallback file is served when:
+
 1. No registered API route matches the request
 2. No static file matches the request path
 3. The request method is GET
@@ -133,6 +136,7 @@ await app.RunAsync();
 ```
 
 With this configuration:
+
 - `/` → Serves `wwwroot/index.html`
 - `/styles.css` → Serves `wwwroot/styles.css`
 - `/js/app.js` → Serves `wwwroot/js/app.js`
@@ -157,18 +161,18 @@ app.UseStaticFiles(options =>
 
 ## Middleware Order
 
-The order of middleware configuration is important:
+Request precedence is **registered routes → static files → SPA fallback**, regardless of the relative order of these configuration calls. This is not ASP.NET's ordered middleware pipeline:
 
 ```csharp
 var app = builder.Build();
 
-// 1. Static files (first, so static assets are served quickly)
+// Configure static files (checked after registered routes)
 app.UseStaticFiles();
 
-// 2. SPA fallback (after static files, before API routes)
+// Configure SPA fallback (checked last)
 app.MapFallbackToFile();
 
-// 3. Arc configuration (API routes, etc.)
+// Map Arc routes and schedule listener startup
 app.UseCratisArc();
 
 await app.RunAsync();
@@ -179,7 +183,7 @@ await app.RunAsync();
 Arc.Core includes built-in MIME type mappings for common file extensions:
 
 | Category | Extensions |
-|----------|------------|
+| ---------- | ------------ |
 | Text | `.txt`, `.html`, `.htm`, `.css`, `.csv`, `.xml` |
 | JavaScript | `.js`, `.mjs`, `.jsx`, `.ts`, `.tsx` |
 | JSON | `.json`, `.map` |
@@ -204,4 +208,4 @@ app.UseStaticFiles(options =>
 
 ## Security
 
-Arc.Core includes protection against directory traversal attacks. Requests attempting to access files outside the configured static file directory (e.g., `/../../../etc/passwd`) will return a 404 response.
+Serve only public assets from dedicated directories; do not place secrets or private uploads in a served tree. Static files are not command/query pipeline operations and do not inherit their role checks. The implementation normalizes paths and checks containment, but do not treat this as a security certification for every filesystem or symlink arrangement. Test your deployment and enforce private-file access through an authorized endpoint instead.

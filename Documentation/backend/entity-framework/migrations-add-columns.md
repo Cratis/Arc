@@ -1,21 +1,32 @@
-# Adding Columns to Existing Tables in Migrations
+---
+title: Add columns in migrations
+description: Reference for Arc migration column helpers and provider-specific declarations.
+---
 
-When you need to add columns to existing tables in Entity Framework Core migrations, Cratis Arc provides database-agnostic extension methods that work seamlessly across PostgreSQL, SQL Server, and SQLite.
+Arc's column helpers let a migration select the corresponding database type for PostgreSQL, SQL Server, or SQLite. The mappings below show where those providers differ.
 
 These extension methods are similar to the [Common Column Types](./common-column-types.md) used when creating tables, but are specifically designed for `AddColumn` operations in migrations.
 
 ## Available AddColumn Extension Methods
 
-The following table shows all the add column extension methods available in Cratis Arc:
+The following methods extend `MigrationBuilder`. Import `Cratis.Arc.EntityFrameworkCore`; `AddJsonColumn<T>` additionally requires `Cratis.Arc.EntityFrameworkCore.Json`. Examples are migration fragments using your application's context and schema; they do not run independently.
 
-| Extension Method | Description | Supported Types | Parameters |
-|------------------|-------------|-----------------|------------|
-| `AddStringColumn()` | Adds a string column with appropriate database-specific type (VARCHAR/NVARCHAR/TEXT) | string | `name`, `table`, `maxLength` (int?, optional), `nullable` (bool, default: true), `defaultValue` (string?, optional), `schema` (string?, optional) |
-| `AddNumberColumn<T>()` | Adds a numeric column with appropriate database-specific type for any numeric type | char, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal | `name`, `table`, `nullable` (bool, default: true), `defaultValue` (object?, optional), `schema` (string?, optional) |
-| `AddBoolColumn()` | Adds a boolean column with appropriate database-specific type (BOOLEAN/BIT/INTEGER) | bool | `name`, `table`, `nullable` (bool, default: true), `defaultValue` (bool, default: false), `schema` (string?, optional) |
-| `AddAutoIncrementColumn()` | Adds an auto-incrementing integer column with appropriate database-specific annotations | int | `name`, `table`, `schema` (string?, optional) |
-| `AddGuidColumn()` | Adds a GUID/UUID column with appropriate database-specific type (UUID/UNIQUEIDENTIFIER/BLOB) | Guid | `name`, `table`, `nullable` (bool, default: true), `schema` (string?, optional) |
-| `AddDateTimeOffsetColumn()` | Adds a DateTimeOffset column with appropriate database-specific type (TIMESTAMPTZ/DATETIMEOFFSET/TEXT) | DateTimeOffset | `name`, `table`, `nullable` (bool, default: true), `schema` (string?, optional) |
+| Extension Method            | Description                                                                                            | Supported Types                                                                  | Parameters                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AddStringColumn()`         | Adds a string column with appropriate database-specific type (VARCHAR/NVARCHAR/TEXT)                   | string                                                                           | `name`, `table`, `maxLength` (int?, optional), `nullable` (bool, default: true), `defaultValue` (string?, optional), `schema` (string?, optional) |
+| `AddNumberColumn<T>()`      | Adds a numeric column with appropriate database-specific type for any numeric type                     | char, byte, sbyte, short, ushort, int, uint, long, ulong, float, double, decimal | `name`, `table`, `nullable` (bool, default: true), `defaultValue` (object?, optional), `schema` (string?, optional)                               |
+| `AddBoolColumn()`           | Adds a boolean column with appropriate database-specific type (BOOLEAN/BIT/INTEGER)                    | bool                                                                             | `name`, `table`, `nullable` (bool, default: true), `defaultValue` (bool, default: false), `schema` (string?, optional)                            |
+| `AddAutoIncrementColumn()`  | Adds an auto-incrementing integer column with appropriate database-specific annotations                | int                                                                              | `name`, `table`, `schema` (string?, optional)                                                                                                     |
+| `AddGuidColumn()`           | Adds a GUID/UUID column with appropriate database-specific type (UUID/UNIQUEIDENTIFIER/BLOB)           | Guid                                                                             | `name`, `table`, `nullable` (bool, default: true), `schema` (string?, optional)                                                                   |
+| `AddDateTimeOffsetColumn()` | Adds a DateTimeOffset column with appropriate database-specific type (TIMESTAMPTZ/DATETIMEOFFSET/TEXT) | DateTimeOffset                                                                   | `name`, `table`, `nullable` (bool, default: true), `schema` (string?, optional)                                                                   |
+| `AddPointColumn()`          | Declares a spatial/text column; not a model converter                                                  | Point                                                                            | `name`, `table`, `nullable: true`, `schema`                                                                                                       |
+| `AddLineStringColumn()`     | Declares a spatial/text column; not a model converter                                                  | LineString                                                                       | `name`, `table`, `nullable: true`, `schema`                                                                                                       |
+| `AddPolygonColumn()`        | Declares a spatial/text column; not a model converter                                                  | Polygon                                                                          | `name`, `table`, `nullable: true`, `schema`                                                                                                       |
+| `AddJsonColumn<T>()`        | Declares a non-nullable JSON column                                                                    | JSON property type                                                               | `name`, `table`, `schema`                                                                                                                         |
+
+Geometry helpers select `geometry(Point, 4326)`, `geometry(LineString, 4326)`, or `geometry(Polygon, 4326)` on PostgreSQL; `geography` on SQL Server; and `TEXT` on SQLite. They do not install spatial provider mappings or make plain JSON string converters compatible with native spatial columns. See the [storage-path matrix](./point-conversion.md#choose-one-storage-path).
+
+Adding non-nullable columns to populated tables may require a default or a staged backfill. Verify the generated SQL, model compatibility, permissions, and provider restrictions before applying any migration.
 
 ## Database-Specific Type Mappings
 

@@ -1,6 +1,9 @@
-# Convention Packs
+---
+title: Convention packs
+description: Provide and filter process-wide MongoDB mapping conventions.
+---
 
-Convention packs provide a powerful way to apply consistent configuration across all your MongoDB class mappings. Cratis Applications includes a comprehensive system for creating, providing, and filtering convention packs.
+Convention packs apply consistent rules across MongoDB class maps. Arc discovers pack providers and filters during MongoDB setup. The examples below are provider/type declarations or illustrative configuration/test fragments for a configured host, not independent programs. Import `Cratis.Arc.MongoDB`, `MongoDB.Bson`, `MongoDB.Bson.Serialization`, `MongoDB.Bson.Serialization.Conventions`, and `MongoDB.Bson.Serialization.Serializers` as needed.
 
 ## What are Convention Packs?
 
@@ -17,7 +20,7 @@ Cratis Applications automatically registers several convention packs:
 
 ### Naming Policy Convention
 
-Applies your configured naming policy to all property names:
+Applies your configured naming policy to all property names. The `RegisterConventionAsPack` calls in this built-in section describe private Arc initialization; they are not public APIs to call from application code:
 
 ```csharp
 // Registered automatically with name: "Naming policy convention"
@@ -56,7 +59,9 @@ RegisterConventionAsPack(
 );
 ```
 
-#### Why it exists — the driver is a separate boundary from Chronicle
+#### Why it exists — a separate serialization boundary
+
+This convention works for standalone Arc `[ReadModel]` documents too. Chronicle is one optional producer of the missing/null shapes described below, not a prerequisite for using the convention.
 
 A read model that declares a child collection as a non-nullable `IEnumerable<T>` promises the type system that the
 value is there. The store is free to disagree. Chronicle's read model sink writes **no field at all** for a child
@@ -75,7 +80,7 @@ the driver can honor it.
 Both shapes a store can leave behind, through two different mechanisms:
 
 | Stored shape | Mechanism | Result for a non-nullable member |
-|---|---|---|
+| --- | --- | --- |
 | The field is **absent** from the document | a default value on the member map | an empty collection |
 | The field is present and holds **`null`** | a serializer wrapping the member's own | an empty collection |
 
@@ -146,15 +151,6 @@ public class CustomConventionPackProvider : ICanProvideMongoDBConventionPacks
 {
     public IEnumerable<MongoDBConventionPackDefinition> Provide()
     {
-        // Read-only conventions
-        yield return new MongoDBConventionPackDefinition(
-            "ReadOnly Properties", 
-            new ConventionPack
-            {
-                new ReadOnlyPropertiesConvention()
-            }
-        );
-        
         // Enum string serialization
         yield return new MongoDBConventionPackDefinition(
             "Enum Conventions",
@@ -217,10 +213,7 @@ public class DomainConventionPackProvider : ICanProvideMongoDBConventionPacks
             "Date Conventions",
             new ConventionPack
             {
-                new DateTimeSerializationOptionsConvention(
-                    DateTimeKind.Utc, 
-                    BsonType.DateTime
-                )
+                new DateTimeUtcConvention()
             }
         );
     }
@@ -291,7 +284,7 @@ public class LegacySystemFilter : ICanFilterMongoDBConventionPacksForType
 
 ## IgnoreConventions Attribute
 
-For fine-grained control, use the `IgnoreConventions` attribute on specific types:
+For fine-grained control, use `IgnoreConventions` on specific types. This filters the packs that participate in Arc's convention filtering; it does not disable global BSON serializers, ordinary driver conventions, or Arc's deliberately unfiltered derived-type discriminator convention.
 
 ### Ignore All Conventions
 
@@ -378,7 +371,8 @@ public class AuditFieldConvention : ConventionBase, IMemberMapConvention
         var memberName = memberMap.MemberName;
         
         // Auto-configure audit fields
-        if (memberName == "CreatedAt" || memberName == "UpdatedAt")
+        if ((memberName == "CreatedAt" || memberName == "UpdatedAt") &&
+            memberMap.MemberType == typeof(DateTimeOffset))
         {
             memberMap.SetSerializer(new DateTimeOffsetSupportingBsonDateTimeSerializer());
             
@@ -396,6 +390,8 @@ public class AuditFieldConvention : ConventionBase, IMemberMapConvention
     }
 }
 ```
+
+The date convention above only targets `DateTimeOffset` members; attaching that serializer to a `DateTime` member is incompatible. The default representation loses offsets and submillisecond precision; see [serializers](./serializers.md).
 
 ### Validation Conventions
 
@@ -430,11 +426,13 @@ public class RequiredFieldConvention : ConventionBase, IMemberMapConvention
 }
 ```
 
+The `RequiredFieldConvention` example controls omission on **writes**; it does not validate commands or require a field on **reads**. Use explicit validation and, where appropriate, a required BSON member contract for those separate requirements.
+
 ## Registration and Lifecycle
 
 ### Automatic Discovery
 
-Convention pack providers are automatically discovered during setup:
+Convention pack providers are automatically discovered during setup and instantiated with `Activator.CreateInstance`; use parameterless constructors. The following discovery sketch describes internals, not extra startup code to paste:
 
 ```csharp
 // This happens during UseCratisMongoDB()
@@ -488,7 +486,7 @@ public bool ShouldInclude(string conventionPackName, IConventionPack conventionP
 
 ### Caching Results
 
-Consider caching filter results for frequently-checked types:
+This illustrative fragment assumes your application supplies `ExpensiveCheck(Type)`. Cache only process-stable decisions, never tenant/request authorization decisions:
 
 ```csharp
 public class CachedFilter : ICanFilterMongoDBConventionPacksForType
@@ -553,7 +551,7 @@ Each convention should have a single responsibility:
 
 ```csharp
 // Good: Single purpose
-public class DateTimeUtcConvention : IMemberMapConvention
+public class DateTimeUtcConvention : ConventionBase, IMemberMapConvention
 {
     public void Apply(BsonMemberMap memberMap)
     {
@@ -565,7 +563,7 @@ public class DateTimeUtcConvention : IMemberMapConvention
 }
 
 // Avoid: Multiple concerns
-public class MegaConvention : IMemberMapConvention
+public class MegaConvention : ConventionBase, IMemberMapConvention
 {
     public void Apply(BsonMemberMap memberMap)
     {

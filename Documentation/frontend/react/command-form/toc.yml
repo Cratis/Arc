@@ -6,6 +6,8 @@
   href: custom-fields.md
 - name: Validation
   href: validation.md
+- name: Auto Server Validation
+  href: auto-server-validation.md
 - name: Customization
   href: customization.md
 - name: Layouts

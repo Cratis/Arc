@@ -5,7 +5,7 @@ description: A command's values are recorded on the causation of every event it 
 
 Every event a command appends carries a causation chain saying how the work arrived: an HTTP request came in, a command ran, an aggregate root committed. Arc adds a link naming the command, and records **the values that command was asked to act on** alongside the name.
 
-Naming the command alone answers "which command produced this event". Recording the values answers "which invocation" — two purchase orders raised by the same command are otherwise indistinguishable on the chain.
+Naming the command alone answers "which command produced this event." Recording the values answers "which invocation" — two purchase orders raised by the same command are otherwise indistinguishable on the chain.
 
 > [!IMPORTANT]
 > The causation is written into the event log, and the event log is immutable. A value recorded there stays there for as long as the events do, is read by everything that ever replays them, and **cannot be taken back out by changing code**. Before adding a property to a command, decide whether its value belongs in a permanent audit record — and mark it [`[NotAudited]`](#keeping-a-value-out-of-the-record) if it does not.
@@ -24,29 +24,29 @@ public record RaisePurchaseOrder(PurchaseOrderId OrderId, SupplierId Supplier, d
 
 the causation link carries:
 
-| Property | Value |
-|---|---|
-| `commandType` | `RaisePurchaseOrder` |
-| `commandTypeFullName` | `Acme.Purchasing.RaisePurchaseOrder` |
-| `eventSequenceId` | `event-log` |
-| `orderId` | `00000026-0000-0000-0000-0000000000b2` |
-| `supplier` | `ACME` |
-| `amount` | `1234.56` |
+| Property              | Value                                  |
+| --------------------- | -------------------------------------- |
+| `commandType`         | `RaisePurchaseOrder`                   |
+| `commandTypeFullName` | `Acme.Purchasing.RaisePurchaseOrder`   |
+| `eventSequenceId`     | `event-log`                            |
+| `orderId`             | `00000026-0000-0000-0000-0000000000b2` |
+| `supplier`            | `ACME`                                 |
+| `amount`              | `1234.56`                              |
 
 Every readable public instance property is recorded, keyed by its camel-cased name. The values render as you would expect them to read:
 
 - A [concept](/fundamentals/csharp/concepts/) records the value it wraps, not the wrapper — `orderId` above is the id, not `{"Value":"…"}`.
 - Numbers and dates are written invariantly, dates round-trippably (`2026-02-26T11:03:00.0000000+00:00`), so a chain written in one locale reads the same in another.
-- A nested object or a collection is written as compact JSON.
+- A nested object or a collection is written as compact JSON. Exclusion is not recursive: `[PII]` or `[NotAudited]` on a nested member does not remove it from that JSON. Exclude the containing command property, its type, or the whole command when nested data is sensitive.
 - A property that is not set is left out entirely, rather than recorded as empty.
 
 ## Keeping a value out of the record
 
-Two markings keep a value off the chain.
+Two markings keep a top-level command value off the chain. The snippets below are attribute-focused fragments using application types; commands shown without `Handle()` are not complete runnable commands.
 
 ### Personal data — `[PII]`
 
-Anything Chronicle already treats as personal data is withheld automatically. Nothing extra is needed: mark it as you would anywhere else and it stays out of the causation as well as out of the event.
+Arc excludes annotated top-level command values from causation. This does **not** remove them from an event you construct: event encryption separately requires PII metadata on the serialized event property/type or a shared concept.
 
 The marking is honored wherever it is written — on the property, on the command, on the positional parameter, and **on the concept**, so a concept marked once carries the marking to every command that uses it:
 
@@ -62,7 +62,7 @@ See [Compliance](../compliance/pii.md) for the full picture.
 
 ### Secrets — `[NotAudited]`
 
-A password, a token, an API key or a card number is not personal data, so `[PII]` does not describe it and would not keep it out. `[NotAudited]` does:
+Use `[NotAudited]` for a value that must not enter the audit record, such as a password or API key. `[PII]` also excludes annotated command values from causation; choose it based on privacy meaning, not a claim that secrets cannot be personal data. Payment-card information can be personal data. Neither annotation makes storing credentials in an event safe:
 
 ```csharp
 [Command]

@@ -1,106 +1,68 @@
-# Paging
+---
+title: Model-bound query paging
+description: Use IQueryable for one-shot paging and provider-aware observation for live pages.
+---
 
-When a static query method on a `[ReadModel]` returns `IQueryable<T>`, the query pipeline automatically applies server-side paging and sorting. You write a simple method that returns a queryable, and the framework handles the rest.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-## Why IQueryable matters
+## Return the query, not all its rows
 
-The key to automatic paging is returning `IQueryable<T>` instead of `IEnumerable<T>` or `List<T>`. When the pipeline sees an `IQueryable`, it appends `.Skip()` and `.Take()` *before* the database executes the query — so only the requested page of data travels over the wire.
-
-If you return a materialized collection, all rows are fetched first and paging cannot be applied at the database level.
+To let Arc request one page from your database, return `IQueryable<T>` without materializing it first. This alternative declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider:
 
 ```csharp
+using System.Linq;
+using Cratis.Arc.Queries.ModelBound;
+using MongoDB.Driver;
+using MongoDB.Driver.Linq;
+
+namespace Banking.Accounts;
+
 [ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 {
-    // ✅ Returns IQueryable — paging and sorting are applied automatically
-    public static IQueryable<DebitAccount> AllAccounts(IMongoCollection<DebitAccount> collection)
-        => collection.AsQueryable();
+    [Path("/api/accounts")]
+    public static IQueryable<DebitAccount> AllAccounts(IMongoCollection<DebitAccount> collection) =>
+        collection.AsQueryable().OrderBy(account => account.Id);
 }
 ```
+
+```http
+GET /api/accounts?page=0&pageSize=25
+GET /api/accounts?page=1&pageSize=10&sortby=name&sortDirection=asc
+```
+
+The first request uses the method's stable ID ordering. A client-requested sort replaces that primary ordering; design a stable ordering for production paging, especially when a sort field has duplicates.
 
 ## How it works
 
-When a client sends paging parameters in the query string, the `QueryableQueryRenderer` intercepts the `IQueryable` result and:
+The built-in `QueryableQueryRenderer` counts the filtered query, applies requested sorting, and then appends `Skip(page * pageSize)` and `Take(pageSize)`. The provider determines whether these operations execute in the database. An in-memory `AsQueryable()` cannot undo earlier database materialization.
 
-1. Counts the total number of matching items
-2. Applies sorting based on `sortby` and `sortDirection`
-3. Applies `.Skip(page * pageSize)` and `.Take(pageSize)`
-4. Returns the page of data wrapped in a `QueryResult` with a `PagingInfo` containing `page`, `size`, `totalItems`, and `totalPages`
+| Request key     | Meaning                                                        |
+| --------------- | -------------------------------------------------------------- |
+| `page`          | Zero-based index; defaults to zero when `pageSize` is supplied |
+| `pageSize`      | Enables GET paging when parsed as an integer                   |
+| `sortby`        | Read-model field to sort by                                    |
+| `sortDirection` | `asc` or `desc`; provide it with `sortby`                      |
 
-The client controls paging with these query string parameters:
+Use valid nonnegative page indices and positive, bounded sizes. With no paging request, Arc returns the full matching result. Paging alone is not a server-enforced result cap.
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `page` | `int` | Zero-based page number |
-| `pageSize` | `int` | Number of items per page |
-| `sortby` | `string` | Field name to sort by |
-| `sortDirection` | `asc` or `desc` | Sort direction |
+These are context keys, **not method parameters** in model-bound GET. Do not declare `int page` or `int pageSize` and expect normal binding. See [reserved keys](query-arguments.md#reserved-keys).
 
-### Example requests
+## Result metadata
 
-```http
-GET /api/debitaccount/allaccounts?page=0&pageSize=25
-GET /api/debitaccount/allaccounts?page=1&pageSize=10&sortby=name&sortDirection=asc
-```
+The response `paging` object contains `page`, `size`, `totalItems`, and computed `totalPages`. It does not contain `pageSize`, `hasNext`, or `hasPrevious`. See the complete [query result contract](../query-pipeline.md#query-result-metadata).
 
-When no paging parameters are provided, the full result set is returned without paging.
-
-## Complete example with filtering
-
-Paging works alongside query arguments. The pipeline applies paging *after* your method returns the filtered `IQueryable`:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    public static IQueryable<DebitAccount> AllAccounts(IMongoCollection<DebitAccount> collection)
-        => collection.AsQueryable();
-
-    public static IQueryable<DebitAccount> AccountsByOwner(
-        CustomerId ownerId,
-        IMongoCollection<DebitAccount> collection)
-        => collection.AsQueryable().Where(a => a.Owner == ownerId);
-}
-```
-
-Both query methods support paging automatically because they return `IQueryable<T>`.
-
-## Return type comparison
-
-| Return type | Paging | Sorting | DB-level optimization |
-| ----------- | ------ | ------- | --------------------- |
-| `IQueryable<T>` | ✅ Automatic | ✅ Automatic | ✅ Skip/Take pushed to DB |
-| `IEnumerable<T>` | ❌ | ❌ | ❌ All rows loaded |
-| `List<T>` | ❌ | ❌ | ❌ All rows loaded |
-| `T[]` | ❌ | ❌ | ❌ All rows loaded |
+Materialized lists, arrays, and plain enumerable results do not receive built-in slicing/sorting. Returning a manually constructed `QueryResult` from the read model is not a metadata-control workaround and fails the ordinary discovery contract.
 
 ## Observable queries with paging
 
-Observable queries that return `ISubject<IEnumerable<T>>` also support automatic paging. The pipeline applies paging to each update pushed through the observable:
+`ISubject<IEnumerable<T>>` describes a stream, not a paging implementation. The streaming transport attaches paging metadata but does **not** slice arbitrary emissions.
 
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    public static ISubject<IEnumerable<DebitAccount>> ObserveAllAccounts(
-        IMongoCollection<DebitAccount> collection)
-        => collection.Observe();
-}
-```
+Arc's MongoDB `collection.Observe()` is provider-aware: it captures `IQueryContextManager.Current`, applies sorting/paging to the database query, and updates the total count as it watches changes. The [observable example](observable-queries.md) therefore supports live pages when called through an Arc query context. A plain `Subject<IEnumerable<T>>` emitting 100 items still emits 100 items when the request asks for 10, unless its producer implements paging.
+
+Keep database observation separate from optional Chronicle projection/subscription behavior; neither MongoDB queries nor `Observe()` requires Chronicle.
 
 ## Frontend integration
 
-The generated TypeScript proxy includes a `useWithPaging` method when the backend query supports paging. See [React Paging](../../../frontend/react/queries/paging.md) for details on using paging in React components.
-
-```tsx
-const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(25);
-
-// Navigate pages
-await setPage(result.paging.page + 1);
-
-// Change page size
-await setPageSize(50);
-
-// Access paging metadata
-const { page, size, totalItems, totalPages } = result.paging;
-```
+Use the generated proxy's paging API rather than manually changing its data array. See [React paging](../../../frontend/react/queries/paging.md) and [observable queries](../../../frontend/react/queries/observable-queries.md) for the appropriate one-shot and streaming hooks.

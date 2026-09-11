@@ -1,106 +1,57 @@
-# Query Proxy Generation
+---
+title: Query proxy generation
+description: Query discovery, parameter names, hook tuples, and paging eligibility.
+---
 
-The proxy generator creates TypeScript query classes that provide type-safe query execution with React hook integration.
+## Discovery and output
 
-## Supported Approaches
+The generator supports [controller-based queries](../queries/controller-based/index.md) with `[HttpGet]` and eligible static query methods on model-bound `[ReadModel]` types. Not every static helper becomes a query: special-name and open generic methods are excluded, and the return shape must qualify. Injected dependencies are not client parameters. See [model-bound queries](../queries/model-bound/index.md) for backend definitions.
 
-Queries can be implemented using two approaches, both of which are supported by the proxy generator:
+One-shot queries return a scalar model or collection. Observable return shapes such as `IObservable<T>` and `ISubject<T>` generate observable clients. Their transport can be SSE or WebSocket; the backend source must actually emit updates. No Chronicle integration is required.
 
-- **Controller-based**: Queries in ASP.NET Core controllers using `[HttpGet]` attributes
-- **Model-bound**: Simplified approach where a type represents the query directly
+For a query method named `AuthorsByName` with client parameters, the generator emits:
 
-For detailed information on implementing queries, see the [Queries documentation](../queries/index.md).
+- `AuthorsByNameParameters` (**no `I` prefix**).
+- `AuthorsByName`, extending `QueryFor<TResult, AuthorsByNameParameters>` or `ObservableQueryFor<TResult, AuthorsByNameParameters>`.
+- A validator when extractable rules exist, plus route and parameter metadata.
 
-## Query Types
+A parameterless query has no parameters interface and uses the base class's default parameter type. Collection results use `TModel[]`. The default output is a file named after the query method; [source-file grouping](Configuration/basic.md#source-file-as-output-file) can change that filename.
 
-The generator supports three types of queries:
+Controller methods marked `[AspNetResult]` are excluded from normal proxy discovery.
 
-| Type | Description | Use Case |
-|------|-------------|----------|
-| **Single model** | Returns a single object | Fetching a specific entity by ID |
-| **Enumerable** | Returns an array of objects | Listing or searching entities |
-| **Observable** | Real-time updates via WebSockets | Live data feeds, dashboards |
+## React return tuples
 
-## How Queries are Discovered
+These are API shapes, **not complete application examples**. `result` is a `QueryResultWithState<TResult>` in every row.
 
-### Controller-based Queries
+| Generated hook                                                      | Return tuple                                          |
+| ------------------------------------------------------------------- | ----------------------------------------------------- |
+| One-shot `use()` / `useSuspense()`                                  | `[result, perform, setSorting]`                       |
+| One-shot enumerable `useWithPaging()` / `useSuspenseWithPaging()`   | `[result, perform, setSorting, setPage, setPageSize]` |
+| Observable scalar `use()` / `useSuspense()`                         | `[result]`                                            |
+| Observable enumerable `use()` / `useSuspense()`                     | `[result, setSorting]`                                |
+| Observable enumerable `useWithPaging()` / `useSuspenseWithPaging()` | `[result, setSorting, setPage, setPageSize]`          |
 
-The generator discovers controller-based queries by looking for:
+Destructure the tuple before reading `result.data`. State includes `isPerforming`, `isReady`, `isSuccess`, `isAuthorized`, `isValid`, `validationResults`, `hasExceptions`, `exceptionMessages`, and `paging`. There is no generated `isLoading` or `error` property, nor a connection-state property on this result.
 
-- Methods marked with `[HttpGet]`
-- Return types that indicate the query type:
-  - Single object → Single model query
-  - `IEnumerable<T>`, `List<T>`, etc. → Enumerable query
-  - `IObservable<T>` → Observable query
+For parameterized proxies, `use(args)` takes the generated parameters object; enumerable queries may also accept sorting after it. For parameterless enumerable proxies, sorting is the first argument. `useWithPaging(pageSize, …)` inserts page size before those arguments.
 
-See [Controller-based Queries](../queries/controller-based/index.md) for implementation details.
+## Paging and change streams
 
-### Model-bound Queries
+Only **enumerable** proxies receive `useWithPaging()`, `useSuspenseWithPaging()`, and generated sort helpers. This is a client API eligibility rule, not proof that your backend applies paging. Ordinary automatic query-pipeline paging uses `IQueryable<T>`; an observable provider such as Arc's MongoDB `Observe()` can apply paging through `QueryContext` instead. See [backend paging](../queries/model-bound/paging.md).
 
-The generator discovers model-bound queries by finding types that:
+Only observable enumerable proxies receive `useChangeStream()`. Its argument positions differ:
 
-- Are decorated with the `[ReadModel]` attribute
-- Have static methods that constitute query operations
+| Proxy shape   | Call shape                                  |
+| ------------- | ------------------------------------------- |
+| Parameterized | `useChangeStream(args?, getKey?, sorting?)` |
+| Parameterless | `useChangeStream(getKey?, sorting?)`        |
 
-Each static method on the read model becomes a separate query. The method name becomes the query name, and method parameters (excluding injected dependencies) become the query parameters in the generated TypeScript.
+Thus `useChangeStream(undefined, getKey)` fits a parameterized proxy, not a parameterless one. This hook returns a `ChangeSet<TModel>`, not a query-result tuple. See [change streams](../../frontend/react/queries/change-stream.md).
 
-See [Model-bound Queries](../queries/model-bound/index.md) for implementation details.
+## Routes and HTTP methods
 
-## Generated Query Structure
+[Routing options](Configuration/routing.md) govern conventional model-bound routes. Controller routes and explicit query `[Path]` values follow their own declarations. Name-skipping uses the **query method name**, not the read-model type name, and conflict fallback can restore it.
 
-Generated query classes provide:
+For **model-bound queries**, `[QueryHttpMethod]` metadata can select `Get`, `Query`, or `Auto` in generated clients. The method attribute takes precedence over the read-model attribute. Controller query discovery does not extract this metadata, so the attribute does not configure generated controller clients. See [using the HTTP QUERY method](../queries/using-the-http-query-method.md) for runtime and infrastructure requirements.
 
-- Type-safe parameter handling through an interface
-- React hooks for integration (`useQuery` or `useObservableQuery`)
-- The proper route based on the configuration
-
-## Generated Artifacts
-
-For each query, the generator creates:
-
-1. **Parameters Interface**: An `IQueryNameParameters` interface (if the query has parameters)
-2. **Query Class**: Extends `QueryFor<TResult>` or `ObservableQueryFor<TResult>`
-3. **Route**: The HTTP route derived from the controller route or model-bound configuration
-
-## Query Base Classes
-
-Depending on the query type, the generated class extends:
-
-| Query Type | Base Class |
-|------------|------------|
-| Single model | `QueryFor<TModel>` |
-| Enumerable | `QueryFor<TModel[]>` |
-| Observable | `ObservableQueryFor<TModel>` |
-
-## Excluding Queries from Generation
-
-To exclude specific controller-based queries from proxy generation, mark them with the `[AspNetResult]` attribute. This is useful when you want to handle the response manually or when the query returns a non-standard result.
-
-## Route Configuration
-
-The generated route is affected by the `CratisProxiesSkipQueryNameInRoute` configuration option:
-
-- When `false` (default): The query type name is included in the route
-- When `true`: The query type name is excluded from the route
-
-**Automatic Conflict Detection**: When `CratisProxiesSkipQueryNameInRoute` is `true`, the proxy generator automatically detects if multiple query methods exist in the same namespace (after skipping segments). If a conflict is detected, the query name is automatically included in the route to prevent route collisions. This behavior is consistent with the runtime endpoint mapping.
-
-For example:
-
-- Single query in namespace: Route is clean without type name (e.g., `/api/products`)
-- Multiple queries in same namespace: Type names are added automatically (e.g., `/api/products/get-all`, `/api/products/get-by-category`)
-
-See [Configuration](configuration.md) for more details on route configuration options.
-
-## Frontend Usage
-
-The generated query proxies integrate with React through the `use()` static method, which returns a query result object containing:
-
-- `data`: The query result (typed according to the return type)
-- `isLoading`: Loading state indicator
-- `error`: Any error that occurred
-- Additional state depending on query type
-
-For observable queries, the result also includes connection state information.
-
-For frontend usage patterns, see the [@cratis/arc documentation](https://www.npmjs.com/package/@cratis/arc).
+Continue with [React query usage](../../frontend/react/queries/usage.md) and [validation extraction](validation.md).

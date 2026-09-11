@@ -1,310 +1,54 @@
-# Dependency Injection
+---
+title: Controller query dependencies
+description: Inject storage, options, and services into MVC query controllers.
+---
 
-Controller-based queries support full dependency injection through their constructors, allowing you to inject services, repositories, loggers, and other dependencies from the service collection.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-## Constructor Injection
+## Constructor injection
 
-The most common pattern is to inject dependencies through the controller's constructor:
+Controllers use ASP.NET Core dependency injection. Inject services through the constructor and keep caller arguments on the action. This alternative banking declaration uses the [shared domain concepts](../model-bound/index.md#model-account-identities-and-names) and an ASP.NET Core Arc host with the MongoDB provider configured:
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using MongoDB.Driver;
+
+namespace Banking.Accounts;
+
+public class AccountQueryOptions
+{
+    public int MaxResults { get; set; } = 100;
+}
+
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance);
+
+[Authorize(Roles = "AccountReader")]
 [Route("api/accounts")]
-public class Accounts : Controller
+public class AccountsController(
+    IMongoCollection<DebitAccount> collection,
+    IOptions<AccountQueryOptions> options) : ControllerBase
 {
-    readonly IAccountService _accountService;
-    readonly ILogger<Accounts> _logger;
-    readonly IMongoCollection<DebitAccount> _collection;
-
-    public Accounts(
-        IAccountService accountService, 
-        ILogger<Accounts> logger,
-        IMongoCollection<DebitAccount> collection)
-    {
-        _accountService = accountService;
-        _logger = logger;
-        _collection = collection;
-    }
-
-    [HttpGet]
-    public IEnumerable<DebitAccount> AllAccounts()
-    {
-        _logger.LogInformation("Retrieving all accounts");
-        return _accountService.GetAllAccounts();
-    }
+    [HttpGet("positive")]
+    public async Task<IEnumerable<DebitAccount>> PositiveAccounts() =>
+        await collection.Find(account => account.Balance > 0)
+            .SortBy(account => account.Name)
+            .Limit(Math.Clamp(options.Value.MaxResults, 1, 1000))
+            .ToListAsync();
 }
 ```
 
-## Common Dependency Types
+The query is limited before execution. `FindAsync()` returns a cursor; it is too late to call fluent `Limit()` or `Skip()` on that cursor. A fixed cap is not automatic paging and does not provide total-count metadata; use [IQueryable paging](paging.md) when you need it.
 
-### Database Collections
+## Other providers and lifetimes
 
-MongoDB collections are commonly injected:
+A registered EF Core `DbContext` or application service works the same way. Database reads do not require Chronicle. Resolve scoped services from the request scope; do not put them in a singleton. Avoid shared cache keys for caller- or tenant-specific results unless the key and invalidation preserve those boundaries.
 
-```csharp
-public class Accounts : Controller
-{
-    readonly IMongoCollection<DebitAccount> _collection;
+Let genuine storage failures surface as failures instead of returning an empty successful result. For streaming actions, constructor injection alone does not manage an upstream Rx subscription: preserve [subscription-owned teardown](../model-bound/observable-queries.md#subscription-lifetime).
 
-    public Accounts(IMongoCollection<DebitAccount> collection)
-    {
-        _collection = collection;
-    }
-
-    [HttpGet]
-    public async Task<IEnumerable<DebitAccount>> GetAccountsAsync()
-    {
-        var result = await _collection.FindAsync(_ => true);
-        return result.ToList();
-    }
-}
-```
-
-### Entity Framework DbContext
-
-For Entity Framework Core scenarios:
-
-```csharp
-public class Accounts : Controller
-{
-    readonly ApplicationDbContext _dbContext;
-
-    public Accounts(ApplicationDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
-    [HttpGet]
-    public async Task<IEnumerable<DebitAccount>> GetAccountsAsync()
-    {
-        return await _dbContext.Accounts.ToListAsync();
-    }
-}
-```
-
-### Business Services
-
-Inject business logic services:
-
-```csharp
-public class Accounts : Controller
-{
-    readonly IAccountService _accountService;
-    readonly ICustomerService _customerService;
-
-    public Accounts(IAccountService accountService, ICustomerService customerService)
-    {
-        _accountService = accountService;
-        _customerService = customerService;
-    }
-
-    [HttpGet("{id}/details")]
-    public async Task<AccountDetails> GetAccountDetails(AccountId id)
-    {
-        var account = await _accountService.GetAccountAsync(id);
-        var customer = await _customerService.GetCustomerAsync(account.Owner);
-        
-        return new AccountDetails(account, customer);
-    }
-}
-```
-
-### Logging
-
-Structured logging with dependency injection:
-
-```csharp
-public class Accounts : Controller
-{
-    readonly IMongoCollection<DebitAccount> _collection;
-    readonly ILogger<Accounts> _logger;
-
-    public Accounts(IMongoCollection<DebitAccount> collection, ILogger<Accounts> logger)
-    {
-        _collection = collection;
-        _logger = logger;
-    }
-
-    [HttpGet("search")]
-    public async Task<IEnumerable<DebitAccount>> SearchAccounts([FromQuery] string term)
-    {
-        _logger.LogInformation("Searching accounts with term: {SearchTerm}", term);
-
-        var filter = Builders<DebitAccount>.Filter.Regex(
-            a => a.Name, 
-            new BsonRegularExpression(term, "i"));
-
-        var result = await _collection.FindAsync(filter);
-        var accounts = result.ToList();
-
-        _logger.LogInformation("Found {AccountCount} accounts", accounts.Count);
-        return accounts;
-    }
-}
-```
-
-### Configuration
-
-Inject configuration objects:
-
-```csharp
-public class Accounts : Controller
-{
-    readonly IMongoCollection<DebitAccount> _collection;
-    readonly AccountQueryOptions _options;
-
-    public Accounts(
-        IMongoCollection<DebitAccount> collection, 
-        IOptions<AccountQueryOptions> options)
-    {
-        _collection = collection;
-        _options = options.Value;
-    }
-
-    [HttpGet]
-    public async Task<IEnumerable<DebitAccount>> GetAccounts()
-    {
-        var result = await _collection.FindAsync(_ => true);
-        return result.Limit(_options.DefaultPageSize).ToList();
-    }
-}
-```
-
-## Service Registration
-
-Make sure your dependencies are registered in the service collection:
-
-```csharp
-// In Program.cs or Startup.cs
-builder.Services.AddScoped<IAccountService, AccountService>();
-builder.Services.AddScoped<ICustomerService, CustomerService>();
-builder.Services.Configure<AccountQueryOptions>(
-    builder.Configuration.GetSection("AccountQueries"));
-```
-
-## Multiple Dependencies
-
-Controllers can have many dependencies injected:
-
-```csharp
-public class Accounts : Controller
-{
-    readonly IAccountService _accountService;
-    readonly ICustomerService _customerService;
-    readonly ICachingService _cache;
-    readonly ILogger<Accounts> _logger;
-    readonly IMapper _mapper;
-    readonly AccountQueryOptions _options;
-
-    public Accounts(
-        IAccountService accountService,
-        ICustomerService customerService,
-        ICachingService cache,
-        ILogger<Accounts> logger,
-        IMapper mapper,
-        IOptions<AccountQueryOptions> options)
-    {
-        _accountService = accountService;
-        _customerService = customerService;
-        _cache = cache;
-        _logger = logger;
-        _mapper = mapper;
-        _options = options.Value;
-    }
-
-    [HttpGet("{id}")]
-    public async Task<AccountDetails> GetAccount(AccountId id)
-    {
-        var cacheKey = $"account-{id}";
-        
-        var cached = await _cache.GetAsync<AccountDetails>(cacheKey);
-        if (cached is not null)
-        {
-            _logger.LogInformation("Returning cached account {AccountId}", id);
-            return cached;
-        }
-
-        _logger.LogInformation("Loading account {AccountId} from database", id);
-        var account = await _accountService.GetAccountAsync(id);
-        var customer = await _customerService.GetCustomerAsync(account.Owner);
-        
-        var result = _mapper.Map<AccountDetails>((account, customer));
-        await _cache.SetAsync(cacheKey, result, _options.CacheExpiry);
-        
-        return result;
-    }
-}
-```
-
-## Generic Dependencies
-
-You can inject generic types:
-
-```csharp
-public class GenericQueries<T> : Controller where T : class
-{
-    readonly IRepository<T> _repository;
-    readonly ILogger<GenericQueries<T>> _logger;
-
-    public GenericQueries(IRepository<T> repository, ILogger<GenericQueries<T>> logger)
-    {
-        _repository = repository;
-        _logger = logger;
-    }
-
-    [HttpGet]
-    public async Task<IEnumerable<T>> GetAll()
-    {
-        _logger.LogInformation("Getting all {EntityType}", typeof(T).Name);
-        return await _repository.GetAllAsync();
-    }
-}
-```
-
-## Best Practices
-
-1. **Use readonly fields** - Store injected dependencies as `readonly` fields
-2. **Prefer constructor injection** over method injection or service locator patterns
-3. **Keep constructors clean** - Don't perform logic in constructors, just store dependencies
-4. **Use appropriate lifetimes** - Register services with appropriate lifetimes (Singleton, Scoped, Transient)
-5. **Validate dependencies** - Ensure all required dependencies are registered in the DI container
-6. **Use IOptions&lt;T&gt;** for configuration objects rather than injecting raw configuration
-
-## Avoiding Service Locator
-
-Don't use `IServiceProvider` directly in your controllers:
-
-```csharp
-// ❌ Don't do this - service locator anti-pattern
-public class BadAccounts : Controller
-{
-    readonly IServiceProvider _serviceProvider;
-
-    public BadAccounts(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
-
-    [HttpGet]
-    public IEnumerable<DebitAccount> GetAccounts()
-    {
-        var service = _serviceProvider.GetRequiredService<IAccountService>();
-        return service.GetAllAccounts();
-    }
-}
-
-// ✅ Do this instead - constructor injection
-public class GoodAccounts : Controller
-{
-    readonly IAccountService _accountService;
-
-    public GoodAccounts(IAccountService accountService)
-    {
-        _accountService = accountService;
-    }
-
-    [HttpGet]
-    public IEnumerable<DebitAccount> GetAccounts()
-    {
-        return _accountService.GetAllAccounts();
-    }
-}
-```
+Continue with [query arguments](query-arguments.md) for MVC binding and [return types](return-types.md) for the wrapper contract.

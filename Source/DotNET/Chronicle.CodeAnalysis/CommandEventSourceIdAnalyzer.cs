@@ -3,12 +3,13 @@
 
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
 
 /// <summary>
-/// Analyzer that warns when a command has multiple event source id candidates but does not declare which one to use.
+/// Analyzes how a command resolves the event source id used by its returned events.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
@@ -23,7 +24,11 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
     const string EventForEventSourceIdName = "EventForEventSourceId";
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticDescriptors.ARCCHR0002_AmbiguousCommandEventSourceId];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+    [
+        DiagnosticDescriptors.ARCCHR0002_AmbiguousCommandEventSourceId,
+        DiagnosticDescriptors.ARCCHR0010_RawGuidResponseDoesNotSetEventSourceId
+    ];
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -47,19 +52,15 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (ImplementsCanProvideEventSourceId(namedTypeSymbol))
-        {
-            return;
-        }
-
+        var providesEventSourceId = ImplementsCanProvideEventSourceId(namedTypeSymbol);
         var candidates = FindEventSourceIdCandidates(namedTypeSymbol).ToArray();
 
-        if (candidates.Length < 2)
+        if (!RawGuidResponseAnalysis.HasRuntimeEventSourceId(namedTypeSymbol, context.Compilation))
         {
-            return;
+            ReportRawGuidResponsesAlongsideEvents(context, namedTypeSymbol);
         }
 
-        if (HandleReturnsExplicitEventSource(namedTypeSymbol))
+        if (providesEventSourceId || candidates.Length < 2 || HandleReturnsExplicitEventSource(namedTypeSymbol))
         {
             return;
         }
@@ -69,6 +70,33 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             namedTypeSymbol.Locations[0],
             namedTypeSymbol.Name,
             string.Join(", ", candidates.Select(candidate => candidate.Name))));
+    }
+
+    static void ReportRawGuidResponsesAlongsideEvents(SymbolAnalysisContext context, INamedTypeSymbol command)
+    {
+        foreach (var method in RawGuidResponseAnalysis.HandleMethods(command))
+        {
+            var eventTypes = RawGuidResponseAnalysis.UntargetedEventsBesideGuid(method.ReturnType, context.Compilation)
+                .Select(type => type.Name).Distinct().ToArray();
+            if (eventTypes.Length == 0)
+            {
+                continue;
+            }
+
+            // A tuple symbol's location can belong to a shared using alias. Never report there or on a shared base Handle.
+            var location = command.Locations[0];
+            if (SymbolEqualityComparer.Default.Equals(method.ContainingType, command) &&
+                method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) is MethodDeclarationSyntax declaration)
+            {
+                location = declaration.ReturnType.GetLocation();
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ARCCHR0010_RawGuidResponseDoesNotSetEventSourceId,
+                location,
+                command.Name,
+                string.Join(", ", eventTypes)));
+        }
     }
 
     static IEnumerable<IPropertySymbol> FindEventSourceIdCandidates(INamedTypeSymbol typeSymbol) =>
@@ -183,10 +211,10 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             return true;
         }
 
-        // New-stream create: the first element is the event source id — a concept deriving from EventSourceId<T> —
-        // so the event source is the returned/generated id rather than a command property. ICanProvideEventSourceId
-        // is neither needed nor implementable there.
-        return elements.Length > 0 && IsOrDerivesFromEventSourceId(elements[0].Type);
+        // New-stream create: an element deriving from EventSourceId<T> is the event source id, regardless of tuple
+        // position, so the returned/generated id wins over a command property. ICanProvideEventSourceId is neither
+        // needed nor implementable there.
+        return elements.Any(element => IsOrDerivesFromEventSourceId(element.Type));
     }
 
     static ITypeSymbol? UnwrapTask(ITypeSymbol returnType)

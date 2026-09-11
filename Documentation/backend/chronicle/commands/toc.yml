@@ -8,5 +8,7 @@
   href: returning-event-source-id.md
 - name: Causation
   href: causation.md
+- name: Transactional commands
+  href: transactional-commands.md
 - name: Concurrency
   href: concurrency.md

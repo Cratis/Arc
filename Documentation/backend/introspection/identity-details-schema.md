@@ -8,7 +8,7 @@ The identity details schema introspection endpoint returns JSON Schema for the i
 
 ## When Arc maps this endpoint
 
-Arc always maps this endpoint.
+Normal Arc identity activation maps this endpoint unless one with the same endpoint name already exists. It is explicitly anonymous in every environment, including Production; see [production access](index.md#production-access).
 
 ## What it returns
 

@@ -8,17 +8,20 @@ The values provided by the provider are values that are typically application sp
 This is optimized for working with Microsoft Azure well known HTTP headers passed on by the different app services, such as Azure ContainerApps or WebApps.
 Internally, it is based on the following HTTP headers to be present.
 
-| Header | Description |
-| ------ | ----------- |
-| x-ms-client-principal | The token holding all the details, base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
-| x-ms-client-principal-id | The unique identifier from the identity provider for the identity |
-| x-ms-client-principal-name | The name of the identity, typically resolved from claims within the token |
+| Header                     | Description                                                                                                                                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| x-ms-client-principal      | The unsigned principal payload holding the details, base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
+| x-ms-client-principal-id   | The unique identifier from the identity provider for the identity                                                                                                                                                           |
+| x-ms-client-principal-name | The name of the identity, typically resolved from claims within the token                                                                                                                                                   |
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
 > a browser extension. Read more about [generating principal tokens for local development](../../general/generating-principal.md).
 
 The token in the `x-ms-client-principal` should be a base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
+
+> [!WARNING]
+> Use these headers only behind ingress that authenticates callers, strips caller-supplied identity headers, writes trusted replacements, and prevents direct backend access. Base64 is not a signature. Generated principals are local test fixtures, not credentials to accept on an internet-facing service. A cookie produced by identity enrichment is likewise not an authentication ticket.
 
 ## Authentication / Authorization
 
@@ -27,9 +30,16 @@ does the right thing to put ASP.NET Core and every `HttpContext` in the right st
 
 You can add this by calling the `AddMicrosoftIdentityPlatformIdentityAuthentication()` method on your services.
 
+This is a registration fragment for an ASP.NET Core application using `Cratis.Arc` (not `ArcApplication`):
+
 ```csharp
+using Cratis.Arc;
+using Cratis.Arc.Identity;
+
 var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
 builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
+builder.Services.AddAuthorization();
 ```
 
 The above code will then also call the `.AddAuthentication()` with the default scheme name (**MicrosoftIdentityPlatform**) and register
@@ -43,7 +53,11 @@ For it to be appropriately setup, you'll need to enable the default authenticati
 var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCratisArc();
+app.Run();
 ```
+
+This establishes the host authentication mechanism; apply [authorization requirements](authorization.md) to private operations. Identity details do not automatically protect every endpoint.
 
 ## Knowing which identity provider signed the caller in
 
@@ -65,19 +79,19 @@ public class IdentityProviderReader(IHttpContextAccessor httpContextAccessor)
 }
 ```
 
-| Aspect | Detail |
-| ------ | ------ |
-| Claim type | `urn:cratis:arc:identity:provider` — use the `MicrosoftIdentityPlatformClaims.IdentityProvider` constant |
-| Value | The exact `identityProvider` value the ingress forwarded, for example `aad` or `github` |
-| When absent | The forwarded principal carried no `identityProvider` field, or the field held only blank characters |
+| Aspect      | Detail                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| Claim type  | `urn:cratis:arc:identity:provider` — use the `MicrosoftIdentityPlatformClaims.IdentityProvider` constant |
+| Value       | The exact `identityProvider` value the ingress forwarded, for example `aad` or `github`                  |
+| When absent | The forwarded principal carried no `identityProvider` field, or the field held only blank characters     |
 
 The claim type is **reserved for Arc**. The `x-ms-client-principal` header is base64, not a signature, so any caller
 that can reach the application can put whatever it likes in the serialized payload — including a claim of this very
-type. Arc therefore removes every claim of the reserved type from the deserialized payload, ignoring casing, *before*
+type. Arc therefore removes every claim of the reserved type from the deserialized payload, ignoring casing, _before_
 writing its own value.
 
 > [!WARNING]
-> **What the strip guarantees is single provenance, not authenticity.** The claim always carries exactly one value,
+> **What the strip guarantees is single provenance, not authenticity.** When a nonblank provider value is supplied, the claim carries exactly one value,
 > and that value always comes from one place — the `identityProvider` field of the forwarded principal — so a claim of
 > the reserved type passed through by the ingress or by the identity provider can never displace it. It does **not**
 > make the value trustworthy. The same unsigned header carries that field too, and Arc does not check who sent the
@@ -95,7 +109,7 @@ that widened set returns the forgery.
 
 > [!IMPORTANT]
 > The value is the exact `identityProvider` field the ingress forwarded, verbatim and untrimmed — Arc neither
-> interprets nor normalizes it. What it *means* is therefore the ingress's choice, not Arc's. Cratis AuthProxy
+> interprets nor normalizes it. What it _means_ is therefore the ingress's choice, not Arc's. Cratis AuthProxy
 > forwards the canonical provider key, the same value it publishes as its own `urn:cratis:identity:provider-key`
 > claim, so in a canonical AuthProxy deployment the two carry identical values. Another ingress may forward an
 > authentication scheme name or a provider display name that changes when the provider is renamed. **Arc guarantees
@@ -107,4 +121,4 @@ that widened set returns the forgery.
 
 For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity/index.md).
 
-The Microsoft Identity integration works seamlessly with the generic identity system to provide domain-specific information beyond what's available in identity provider tokens.
+Use Arc's identity-details provider to add application information to the principal supplied by Microsoft Identity. Those details help the UI; authorization still checks the authenticated principal.

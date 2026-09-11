@@ -1,8 +1,11 @@
-# Validation And Behavior
+---
+title: Validation and behavior
+description: Validate query arguments and understand paging, cancellation, readiness, and frontend query failures.
+---
 
 Core queries validate input and provide predictable execution behavior.
 
-## Client-Side Validation
+## Client-side validation
 
 Validation metadata is generated from backend FluentValidation rules through the proxy generator.
 
@@ -31,11 +34,13 @@ Because `subscribe()` validates the arguments it is given, a subscription starte
 is rejected rather than left open. Gate it with `ObservableQueryWhen` so the subscription only starts once the
 arguments exist:
 
+In a React component, use the generated wrapper (illustrative fragment):
+
 ```tsx
-<ObservableQueryWhen condition={!!authorId}>
-    {/* subscribes only once authorId has a value */}
-</ObservableQueryWhen>
+const [books] = BooksForAuthor.when(!!authorId).use({ authorId });
 ```
+
+`ObservableQueryWhen` is a class returned by `.when()`, not a JSX component. Supply a correctly typed argument/default even while disabled; the condition suppresses automatic subscription, not all query/cache creation. See [conditional queries](../../react/queries/conditional-queries.md).
 
 Client-side validation is a convenience, not a gate — every rule it applies is also enforced by the server, so
 calling an endpoint directly gains nothing. Server rejections report member names the same way the client does:
@@ -43,17 +48,17 @@ camelCased, and attributed to the field rather than to a concept's inner value.
 
 For general validation docs, see [Validation](../validation/index.md).
 
-## Sorting And Paging
+## Sorting and paging
 
 Queries include native sorting and paging primitives via `Sorting` and `Paging`.
 
 For React usage patterns and generated hooks, see [Paging](../../react/queries/paging.md).
 
-## Request Cancellation
+## Request cancellation
 
 When a newer request supersedes an active one, Arc cancels stale work to reduce race conditions and unnecessary processing.
 
-## Error Categories
+## Error categories
 
 Typical query failure categories include:
 
@@ -62,7 +67,7 @@ Typical query failure categories include:
 - Timeouts and cancellations
 - Server exceptions
 
-## See Also
+## See also
 
 - [Query Contracts](./contracts.md)
 - [React Queries](../../react/queries/index.md)

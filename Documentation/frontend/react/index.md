@@ -2,7 +2,7 @@
 
 This is the heart of Arc on the frontend: a small set of hooks and helpers that turn your
 generated command and query proxies into idiomatic React. You import a proxy, call its `.use()` hook,
-and get a typed, reactive instance — no API client, no DTOs, no manual loading state. Start with
+and get typed command/query integration without a hand-written API client. Query results include loading state; raw command hooks still need explicit execution state or a form component. Start with
 [Commands](./commands/index.md) and [Queries](./queries/index.md); the rest of the pages here refine
 those two with validation, scopes, and identity.
 
@@ -28,7 +28,7 @@ those two with validation, scopes, and identity.
 | [Identity](./identity.md) | Who the user is, and what they're allowed to see and do. |
 | [Dialogs](./dialogs.md) | Consistent dialog handling for command and data-entry flows. |
 | [Proxy Generation](../../backend/proxy-generation/index.md) | How the typed proxies you import here are generated from C#. |
-| [Storybook](./storybook.mdx) | The Storybook for the components Arc exposes. |
+| [Storybook](/arc/frontend/react/storybook/) | The Storybook for the components Arc exposes. |
 | [Story Components](./stories) | Building good-looking, consistent stories. |
 
 Prefer a structured, testable approach for complex screens? See [MVVM with React](../react.mvvm/index.md).

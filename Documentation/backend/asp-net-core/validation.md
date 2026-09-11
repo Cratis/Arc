@@ -5,6 +5,8 @@ Validation is different from business rules in the sense that it is focused on u
 coming as input. While business rules tend to be stateful based on state of your system to be able to validate
 for correctness.
 
+Examples below are **illustrative model/validator fragments** for an existing ASP.NET Core Arc application, not complete programs. Supply the application-owned account/user types and import `FluentValidation`, `Cratis.Concepts`, and the indicated Arc validator namespace. Controller request models need not be model-bound `[Command]` types.
+
 ## Default behavior
 
 The default behavior when using the `CommandActionFilter` is to stop the execution of a command coming in if it is invalid.
@@ -13,9 +15,9 @@ invalid. The result will then be put on the `CommandResult` as validation errors
 
 ## Value based validators
 
-The value based validation leverages what is already in the ASP.NET Core pipelines [custom attributes](https://docs.microsoft.com/en-us/aspnet/core/mvc/models/validation?view=aspnetcore-6.0#custom-attributes).
+Value-based validation uses ASP.NET Core's [validation attributes](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/validation#custom-attributes).
 
-You can leverage this by using attributes such as the `[Required]` attribute:
+For example, use `[Required]`:
 
 ```csharp
 public record OpenDebitAccount(
@@ -39,7 +41,7 @@ primitives and will unwrap the inner `Value` property automatically, providing y
 concepts inner primitive type without considering the `Value` property.
 
 However, if you're hooking up validators for the actual concept, you need to use the method `RuleForConcept()`
-to work directly with the concept. The `IRuilBuilderInitial` type returned would then be for the actual concept and
+to work directly with the concept. The `IRuleBuilderInitial` type returned would then be for the actual concept and
 not its primitive type its encapsulating.
 
 ### Discoverable validators
@@ -132,7 +134,7 @@ public class UserIdValidator : ConceptValidator<UserId>
         RuleFor(userId => userId)
             .NotNull()
             .UserMustExist().WithMessage("User does not exist.");
-            
+
         RuleFor(userId => userId)
             .UserMustNotBeSystem().WithMessage("Operation is not allowed on a system user.")
             .WhenCommand();
@@ -158,9 +160,9 @@ public class UserIdValidator : ConceptValidator<UserId>
     {
         RuleFor(userId => userId)
             .NotNull()
-            .UserMustExist().WithMessage("User does not exist.");
+            .UserMustExist().WithMessage("User does not exist.")
             .UserMustNotBeSystem().WithMessage("Operation is not allowed on a system user.")
-            .WhenCommand(ApplyCondition.CurrentValidator);
+            .WhenCommand(FluentValidation.ApplyConditionTo.CurrentValidator);
     }
 }
 ```
@@ -178,11 +180,11 @@ public class UserIdValidator : ConceptValidator<UserId>
             .NotNull()
             .UserMustExist().WithMessage("User does not exist.");
 
-        WhenCommand(() => 
+        WhenCommand(() =>
         {
             RuleFor(userId => userId)
                 .UserMustNotBeSystem().WithMessage("Operation is not allowed on a system user.")
-                .UserMustNotBeAdministrator().WithMessage("Operation is not allowed on an administrator user.")
+                .UserMustNotBeAdministrator().WithMessage("Operation is not allowed on an administrator user.");
         });
     }
 }

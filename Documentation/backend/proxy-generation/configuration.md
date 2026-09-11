@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Proxy generator configuration
+description: Compatibility entry point for the proxy configuration reference.
+---
 
 Configuration documentation has moved. See the [Configuration section](Configuration/index.md) for the full reference, organized by topic:
 

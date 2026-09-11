@@ -1,138 +1,77 @@
-# Command Context
+---
+title: Command context
+description: Access invocation metadata and understand when dependencies and responses become available.
+---
 
-The `CommandContext` is a core component of the non-controller-based command pipeline in Cratis Arc. It provides contextual information and values that are available throughout the command execution lifecycle.
+When several pipeline extensions need the same invocation metadata, carry it in `CommandContext` rather than adding transport details to the command's input. The context is a record whose contents depend on the execution phase.
 
-## Overview
+## Properties
 
-The `CommandContext` is a record that encapsulates all the necessary information about a command being executed:
+| Property | Meaning |
+| --- | --- |
+| `CorrelationId` | The invocation's correlation identifier. |
+| `Type`, `Command` | The command type and instance. |
+| `Dependencies` | Resolved handler arguments, initially empty. |
+| `Values` | A case-insensitive `CommandContextValues` dictionary. |
+| `AllowedSeverity` | Optional threshold for the stages described in [severity filtering](./validation-severity-filtering.md). |
+| `Response` | Selected caller response, if any; not the raw handler return. |
+| `ServiceProvider` | The provider for this invocation's service scope, when supplied. |
+| `CancellationToken` | The execution cancellation token. |
 
-```csharp
-public record CommandContext(
-    CorrelationId CorrelationId, 
-    Type Type, 
-    object Command, 
-    IEnumerable<object?> Dependencies,
-    CommandContextValues Values,
-    ValidationResultSeverity? AllowedSeverity = default,
-    object? Response = default,
-    IServiceProvider? ServiceProvider = default,
-    CancellationToken CancellationToken = default);
-```
+Context values are application/extension data, not automatically trusted identity claims. Use `ICurrentPrincipalAccessor` for the [authorization principal](./model-bound/authorization.md).
 
-### Properties
+## Command context values
 
-- **CorrelationId**: A unique identifier for tracking the command execution across the system
-- **Type**: The type of the command being executed
-- **Command**: The actual command instance
-- **Dependencies**: The resolved dependencies required to handle the command
-- **Values**: A collection of key-value pairs providing additional context
-- **AllowedSeverity**: The highest validation severity the caller allows before the command short-circuits
-- **Response**: The response, **if any**, that is returned as part of the command result
-- **ServiceProvider**: The scoped service provider used for command execution
-- **CancellationToken**: The cancellation token for the command execution
+Implement `ICommandContextValuesProvider.Provide(object command)` to contribute values. Arc's builder merges providers in discovery order; a later value with the same case-insensitive key overwrites the earlier one. Use namespaced keys you own.
 
-## Command Context Values
-
-The `Values` property is a `CommandContextValues` instance that acts as a case-insensitive dictionary of contextual information. These values are populated through implementations of `ICommandContextValuesProvider`.
-
-### How Values Are Populated
-
-The command pipeline uses the `CommandContextValuesBuilder` to collect values from all registered `ICommandContextValuesProvider` implementations.
-Each provider receives the command instance being executed and contributes its values. If there are overlapping keys, the last provider's value takes precedence.
-
-## Extending with Custom Values
-
-To add your own values to the command context, implement the `ICommandContextValuesProvider` interface:
+This complete provider adds tracing metadata without reading request-supplied identity:
 
 ```csharp
-public interface ICommandContextValuesProvider
+using System;
+using System.Diagnostics;
+using Cratis.Arc.Commands;
+
+public class TraceContextValuesProvider : ICommandContextValuesProvider
 {
-    CommandContextValues Provide(object command);
+    public CommandContextValues Provide(object command) => new()
+    {
+        ["Example.ObservedAt"] = DateTimeOffset.UtcNow,
+        ["Example.CommandType"] = command.GetType().FullName ?? command.GetType().Name,
+        ["Example.TraceId"] = Activity.Current?.TraceId.ToString() ?? string.Empty
+    };
 }
 ```
 
-The `command` parameter provides access to the command instance being executed, allowing providers to customize their values based on the specific command type or content.
+Under normal Arc type discovery, the provider is included automatically. It runs during context construction for execution **and validation**, before command authorization filters. Keep it lightweight and avoid sensitive output or state changes; pre-flight validation cannot make a custom provider pure.
 
-### Example Implementation
+Arc may also populate reserved context values such as a resolved command key. Do not overwrite values owned by the framework or another integration.
 
-Here's an example of a custom provider that adds audit tracking information:
+## Accessing command context
 
-```csharp
-public class AuditContextValuesProvider : ICommandContextValuesProvider
-{
-    private readonly IDateTimeProvider _dateTimeProvider;
-    private readonly IHttpContextAccessor _httpContextAccessor;
-
-    public AuditContextValuesProvider(IDateTimeProvider dateTimeProvider, IHttpContextAccessor httpContextAccessor)
-    {
-        _dateTimeProvider = dateTimeProvider;
-        _httpContextAccessor = httpContextAccessor;
-    }
-
-    public CommandContextValues Provide(object command)
-    {
-        var values = new CommandContextValues();
-        
-        values["ExecutedAt"] = _dateTimeProvider.UtcNow;
-        values["ExecutedBy"] = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "System";
-        values["TraceId"] = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString();
-        
-        // Example of using command information
-        values["CommandType"] = command.GetType().Name;
-        
-        return values;
-    }
-}
-```
-
-### Registration
-
-The provider will be automatically discovered and registered by the dependency injection system if it's in the application's assembly, or you can register it manually:
+Filters, response handlers, and execution scopes receive a context argument directly. Components that do not receive one can inject `ICommandContextAccessor` for the established ambient context. This complete command uses a provided tracing value and returns it as ordinary response data:
 
 ```csharp
-services.AddSingleton<ICommandContextValuesProvider, AuditContextValuesProvider>();
-```
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 
-## Accessing Command Context
-
-Within command handlers, filters, or other components in the command pipeline, you can access the current command context through the `ICommandContextAccessor`:
-
-```csharp
 [Command]
-public record MyCommand(string SomeProperty)
+public record ReadInvocationTrace()
 {
-    public object Handle(ICommandContextAccessor contextAccessor)
-    {
-        // Access values from the current context
-        var context = contextAccessor.Current;
-        if (context.Values.TryGetValue("ExecutedBy", out var executedBy))
-        {
-            // Use the execution user information for logging or business logic
-        }
-        
-        return new { Success = true };
-    }
+    public string Handle(ICommandContextAccessor accessor) =>
+        accessor.Current.Values.TryGetValue("Example.TraceId", out var traceId)
+            ? traceId.ToString() ?? string.Empty
+            : string.Empty;
 }
 ```
 
-## Non-Controller-Based Pipeline
+The empty response means no trace identifier was supplied. This is a metadata demonstration, not a permission check or a business-state query.
 
-The `CommandContext` is specifically designed for the non-controller-based command pipeline. In this pipeline:
+## Phase availability
 
-1. Commands are executed through the `ICommandPipeline`
-2. The context is created automatically with resolved dependencies
-3. Values are populated from all registered providers
-4. The context is made available throughout the execution chain
-5. Filters can inspect and modify the execution based on context values
-6. Response value handlers can use context information for processing results
+During scope `Begin` and command filters, `Dependencies` is empty and `Response` is null. After filters, Arc resolves `Provide()` values and handler arguments and uses an updated context for handler invocation. During response processing it may create another context record with a selected response.
 
-This differs from the controller-based approach where ASP.NET Core's built-in dependency injection and model binding handle much of the context management.
+Use the context **passed to a lifecycle callback** for its phase's dependencies and response. The ambient accessor is established earlier; do not assume a retained accessor value is replaced whenever the pipeline creates a later record copy. `Values` is shared by those copies and remains mutable.
 
-## Best Practices
+At scope `Complete`, a successfully processed simple response is available just as a tuple-selected response is. The result can still fail during scope completion. See [response object availability](./response-value-handlers.md#response-object-availability) before using a response inside an extension.
 
-- Keep value providers lightweight and fast
-- Use descriptive keys for your context values
-- Avoid storing large objects in context values
-- Consider the lifetime of your providers (typically singleton)
-- Handle cases where expected values might not be present
-- Use the context values for cross-cutting concerns like auditing, logging, and authorization
+MVC action filters establish some ambient command context separately, but controller actions do not pass through this model-bound lifecycle. Continue to [execution scopes](./command-execution-scopes.md) or [command filters](./command-filters.md) for extension examples.

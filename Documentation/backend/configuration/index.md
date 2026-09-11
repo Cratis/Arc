@@ -10,17 +10,23 @@ Arc reads all of its settings from a single `ArcOptions` object. Wherever Arc ru
 | **Arc.Core** | `ArcApplication.CreateBuilder(args)` → `builder.AddCratisArc(...)` | `app.UseCratisArc()` → `await app.RunAsync()` | A console app or worker with no ASP.NET Core. The listen URL comes from `ArcOptions.Hosting.ApplicationUrl`. |
 | **Cratis stack** | `WebApplication.CreateBuilder(args)` → `builder.AddCratis(...)` | `app.UseCratis()` → `app.Run()` | Arc + Chronicle in one host — see the [Cratis package](../chronicle/cratis-package.md). |
 
-`AddCratisArc` takes its arguments in this order: `configureOptions` (an `Action<ArcOptions>`), `configureBuilder` (an `Action<IArcBuilder>` for adding Chronicle, MongoDB, or EF Core), and `configSectionPath`. Use the named `configureBuilder:` argument when you only want to add a builder feature:
+`AddCratisArc` takes its arguments in this order: `configureOptions` (an `Action<ArcOptions>`), `configureBuilder` (an `Action<IArcBuilder>` for optional integrations), and `configSectionPath`. Use the named `configureBuilder:` argument when you only want to add a builder feature.
+
+For example, this startup fragment adds the standalone MongoDB provider to an existing ASP.NET Core `WebApplicationBuilder`. First install `Cratis.Arc.MongoDB` and configure its connection and database as described in [MongoDB getting started](../mongodb/getting-started.md). It does not require Chronicle.
 
 ```csharp
-builder.AddCratisArc(configureBuilder: arc => arc.WithChronicle());
+using Cratis.Arc;
+
+builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB());
 ```
 
-For raw `IServiceCollection` wiring (advanced), `AddCratisArcCore()` registers the same services without the builder.
+For optional event sourcing, follow the host- and package-specific [Arc–Chronicle registration example](../chronicle/cratis-package.md) instead of substituting an unqualified `WithChronicle()` call.
+
+For advanced wiring, `IServiceCollection.AddCratisArcCore()` registers Core services only; it is not equivalent to host bootstrap, configuration binding, request-context wiring, identity setup, endpoint mapping, or listener activation. `IHostBuilder.AddCratisArcCore(configureOptions: ...)` is a different overload. Prefer the host-specific builders above.
 
 ## Three ways to configure
 
-Every setting can be supplied three ways, layered in this order — later wins:
+Configuration-bindable settings can be supplied three ways, layered in this order — later wins:
 
 1. **`appsettings.json`** under the `Cratis:Arc` section.
 2. **Environment variables** with the `Cratis__Arc__` prefix (.NET maps the `__` separator onto nested keys), for example `Cratis__Arc__GeneratedApis__RoutePrefix`.
@@ -37,9 +43,11 @@ builder.AddCratisArc(options =>
 
 | Option | Type | Default | What it controls |
 | --- | --- | --- | --- |
+| `ExposeExceptionDetails` | `bool` | `RuntimeEnvironment.IsDevelopment` | Expose exception messages and stack traces in serialized command/query results only in Development by default. Full detail remains in server logs when responses are redacted. Keep disabled in public production environments. |
 | `CorrelationId.HttpHeader` | `string` | `X-Correlation-ID` | The header carrying the correlation ID. |
 | `Tenancy.ResolverType` | `TenantResolverType` | `Header` | How the tenant is resolved: `Header`, `Query`, `Claim`, `Subdomain`, `Development`, or `Fixed`. |
 | `Tenancy.HttpHeader` | `string` | `x-cratis-tenant-id` | The header used when `ResolverType` is `Header`, and the fallback header when it is `Subdomain`. |
+| `Tenancy.BaseDomain` | `string` | empty | Required for `Subdomain`: the application-owned base domain. Exactly one preceding DNS label selects a tenant; other hosts fall back to `HttpHeader`. Validation checks syntax, not domain ownership or tenant membership. |
 | `Tenancy.QueryParameter` | `string` | `tenantId` | The query parameter used when `ResolverType` is `Query`. |
 | `Tenancy.ClaimType` | `string` | `tenant_id` | The claim used when `ResolverType` is `Claim`. |
 | `Tenancy.FixedTenantId` | `string` | `development` | The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. |
@@ -48,10 +56,11 @@ builder.AddCratisArc(options =>
 | `GeneratedApis.SegmentsToSkipForRoute` | `int` | `0` | Namespace segments to drop when building a route. |
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
 | `GeneratedApis.IncludeQueryNameInRoute` | `bool` | `true` | Append the query name as the last route segment. |
-| `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Keep-alive cadence for observable (real-time) queries. |
+| `GeneratedApis.EnableQueryHttpMethod` | `bool` | `true` | Expose generated queries over HTTP `QUERY` with JSON arguments in addition to `GET`. Disable when infrastructure rejects that method. |
+| `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Idle keep-alive cadence for observable query hub connections; zero or negative disables keep-alive. |
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |
 | `Hosting.ApplicationUrl` | `string` | `http://+:5001/` | The listen URL — **Arc.Core only** (ignored under ASP.NET Core). |
-| `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | The serializer used across controllers, manual serialization, and generated endpoints. Configure in code only. |
+| `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | Generated Arc endpoints use these options; manual serialization must opt in. MVC receives only the naming policy and converters, not null/number handling or other settings. Configure in code only; see the [MVC serialization boundary](../asp-net-core/configuration.md#json-serialization). |
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
 
@@ -59,11 +68,13 @@ Route generation (`GeneratedApis`) and JSON serialization have worked examples o
 
 The `configureBuilder` callback exposes `IArcBuilder`, which is where Arc's pluggable backends attach:
 
-- `arc.WithChronicle()` — event sourcing with Cratis Chronicle.
+- [Arc–Chronicle registration](../chronicle/cratis-package.md) — optional event sourcing; choose the documented host-specific overload and packages.
 - `arc.WithMongoDB()` — MongoDB read models. See [MongoDB](../mongodb/index.md).
 - `arc.WithEntityFrameworkCore()` — relational read models. See [Entity Framework](../entity-framework/index.md).
 
 ## Identity and authentication
+
+The header/query/subdomain resolvers select a tenant; they do not authorize membership. See [tenant resolution](../tenancy/resolvers.md) before accepting caller-selected tenant IDs.
 
 Arc resolves an identity details provider automatically by type discovery. Set `ArcOptions.IdentityDetailsProvider` to pin a specific type, or register one explicitly:
 
@@ -79,10 +90,10 @@ A singleton that takes a scoped dependency in its constructor holds that one ins
 
 Arc keeps that detector on. Every host Arc supports settles two `ServiceProviderOptions` fields for you:
 
-| Option | Value Arc applies | Why |
-| --- | --- | --- |
-| `ValidateScopes` | `builder.Environment.IsDevelopment()` | The host's own default, restated so it survives. On in Development, off everywhere else. |
-| `ValidateOnBuild` | `false` | Arc supplies registrations contextually — `IHostApplicationBuilder`, the type a convention binding is for, values only an executing command or an in-flight request can hand over. Eager validation constructs every registration up front and can resolve none of them, so leaving it on fails `Build()` outright. |
+| Option            | Value Arc applies                     | Why                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ValidateScopes`  | `builder.Environment.IsDevelopment()` | The host's own default, restated so it survives. On in Development, off everywhere else.                                                                                                                                                                                                                            |
+| `ValidateOnBuild` | `false`                               | Arc supplies registrations contextually — `IHostApplicationBuilder`, the type a convention binding is for, values only an executing command or an in-flight request can hand over. Eager validation constructs every registration up front and can resolve none of them, so leaving it on fails `Build()` outright. |
 
 The reason both fields have to be stated together is that `UseDefaultServiceProvider` and `ConfigureContainer` each start from a brand new options object — setting one field discards every other value the host had already applied. Turning `ValidateOnBuild` off without restating `ValidateScopes` is what silently took the captive-dependency check with it.
 
@@ -91,7 +102,7 @@ The reason both fields have to be stated together is that `UseDefaultServiceProv
 You own your container. State your own choice and it wins — with one ordering rule that differs by host:
 
 ```csharp
-// ASP.NET Core and the generic host: call it AFTER AddCratisArc.
+// WebApplicationBuilder (ASP.NET Core): call it AFTER AddCratisArc.
 builder.AddCratisArc();
 builder.Host.UseDefaultServiceProvider(options =>
 {
@@ -100,7 +111,7 @@ builder.Host.UseDefaultServiceProvider(options =>
 });
 ```
 
-`AddCratisArc` calls `UseDefaultServiceProvider` itself on these hosts, and the last call wins, so a call placed *before* `AddCratisArc` is discarded.
+For an `IHostBuilder`, call `UseDefaultServiceProvider` directly on the builder after its Arc registration (there is no `builder.Host` property). Arc calls `UseDefaultServiceProvider` itself on these hosts, and the last call wins, so a call placed _before_ `AddCratisArc` is discarded.
 
 Arc.Core has no such ordering rule. `ArcApplicationBuilder` applies its defaults while it is being constructed, so a `ConfigureContainer` call — your own factory, Autofac, Lamar — replaces them whether you make it before or after `AddCratisArc`:
 
@@ -116,13 +127,13 @@ builder.AddCratisArc();
 
 ### When you get no validation at all
 
-`ValidateScopes` follows `IsDevelopment()`, which is an exact match on the environment name `Development`. A host running under a custom name — `Local`, `Dev`, `Staging` — is *not* Development by that rule, so it gets no scope validation, exactly as a bare .NET host would. If you want the check there, ask for it explicitly with the override above.
+`ValidateScopes` follows `IsDevelopment()`, which is an exact match on the environment name `Development`. A host running under a custom name — `Local`, `Dev`, `Staging` — is _not_ Development by that rule, so it gets no scope validation, exactly as a bare .NET host would. If you want the check there, ask for it explicitly with the override above.
 
 ## A note on CORS
 
-CORS is **not** an Arc option — configure it with standard ASP.NET Core (`builder.Services.AddCors(...)` and `app.UseCors(...)`). Arc neither wraps nor replaces it.
+CORS is **not** an Arc option. In an ASP.NET Core host, configure it with standard ASP.NET Core (`builder.Services.AddCors(...)` and `app.UseCors(...)`). Arc neither wraps nor replaces it. These ASP.NET extensions do not apply to `ArcApplication`; configure cross-origin handling at your trusted ingress for that host.
 
-If you opt queries into the [HTTP QUERY method](../queries/using-the-http-query-method.md), add `QUERY` to your allowed methods (`policy.WithMethods("GET", "POST", "QUERY")`) — it is not a simple method, so cross-origin calls preflight. The default `GET` transport needs no CORS change.
+Generated endpoints accept the [HTTP QUERY method](../queries/using-the-http-query-method.md) in addition to GET by default (`GeneratedApis.EnableQueryHttpMethod = true`). If clients use it across origins, include `QUERY` in your allowed methods (`policy.WithMethods("GET", "POST", "QUERY")`) — it is not a simple method, so cross-origin calls preflight. This is a method-allowlist consideration, not a substitute for configuring allowed origins, headers, and credentials. A client that uses GET does not need QUERY in that allowlist.
 
 ## Where to go next
 

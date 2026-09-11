@@ -1,6 +1,6 @@
 # Automatic Theme Support
 
-All story components and CSS variables adapt to the theme in effect, providing seamless dark and light mode support.
+Story components read theme CSS variables, so their colors follow the selected dark or light theme.
 
 ## How It Works
 
@@ -20,7 +20,7 @@ attribute can also sit on a container to theme one part of a page:
 
 ```html
 <script>
-  document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.setAttribute('data-theme', 'light');
 </script>
 ```
 
@@ -64,8 +64,8 @@ theme-switching logic. Simply use the provided components and CSS variables:
 ```tsx
 // This automatically works in both themes
 <StoryContainer asCard>
-  <h1>My Component</h1>
-  <MyComponent />
+    <h1>My Component</h1>
+    <MyComponent />
 </StoryContainer>
 ```
 
@@ -75,7 +75,7 @@ When adding custom styles, use CSS variables to ensure theme compatibility:
 
 ```tsx
 // ✅ Good - Uses CSS variables
-<div style={{ 
+<div style={{
   color: 'var(--color-text)',
   backgroundColor: 'var(--color-background-secondary)'
 }}>
@@ -83,7 +83,7 @@ When adding custom styles, use CSS variables to ensure theme compatibility:
 </div>
 
 // ❌ Avoid - Hard-coded colors
-<div style={{ 
+<div style={{
   color: '#ffffff',
   backgroundColor: '#1a1a1a'
 }}>
@@ -140,11 +140,13 @@ To ensure your stories look great in all contexts:
 
 ```tsx
 // For brand colors that should adapt:
-<button style={{ 
-  backgroundColor: 'var(--color-primary)',
-  color: 'var(--color-background)' // Inverts with theme
-}}>
-  Button
+<button
+    style={{
+        backgroundColor: 'var(--color-primary)',
+        color: 'var(--color-background)', // Inverts with theme
+    }}
+>
+    Button
 </button>
 ```
 
