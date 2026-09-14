@@ -25,7 +25,7 @@ import { ShowDialog } from './ShowDialog';
  */
 export function useDialog<TResponse = object, TInput extends object = object>(
     DialogComponent: ComponentType<TInput>
-): [FC<TInput>, ShowDialog<TInput, TResponse>, DialogContextContent<TInput, TResponse>] {
+): [FC<Partial<TInput>>, ShowDialog<TInput, TResponse>, DialogContextContent<TInput, TResponse>] {
 
     const [visible, setVisible] = useState(false);
     const [dialogProps, setDialogProps] = useState<TInput | undefined>();
@@ -60,8 +60,8 @@ export function useDialog<TResponse = object, TInput extends object = object>(
     // through the context above. We still spread it as a prop so components that read it directly
     // keep working, casting to allow the extra prop on a component whose props are exactly TInput.
     const RenderedComponent = DialogComponent as ComponentType<TInput & { closeDialog?: CloseDialog<TResponse> }>;
-    const renderRef = useRef<(extraProps: TInput) => ReactElement | null>(() => null);
-    renderRef.current = (extraProps: TInput) => visible
+    const renderRef = useRef<(extraProps: Partial<TInput>) => ReactElement | null>(() => null);
+    renderRef.current = (extraProps: Partial<TInput>) => visible
         ? (
             <DialogContext.Provider value={dialogContextValue.current as unknown as DialogContextContent<object, object>}>
                 <RenderedComponent
@@ -72,8 +72,8 @@ export function useDialog<TResponse = object, TInput extends object = object>(
         )
         : null;
 
-    const DialogWrapper = useMemo<FC<TInput>>(() => {
-        const Component: FC<TInput> = (extraProps) => renderRef.current(extraProps);
+    const DialogWrapper = useMemo<FC<Partial<TInput>>>(() => {
+        const Component: FC<Partial<TInput>> = (extraProps) => renderRef.current(extraProps as TInput);
         Component.displayName = `DialogWrapper(${DialogComponent.displayName ?? DialogComponent.name ?? 'Anonymous'})`;
         return Component;
     }, [DialogComponent]);

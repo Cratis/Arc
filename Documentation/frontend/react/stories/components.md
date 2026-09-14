@@ -13,7 +13,7 @@ A container component for wrapping stories with consistent spacing and styling.
   - `sm`: 600px max width
   - `md`: 1200px max width
   - `lg`: 1400px max width
-  - `full`: no max width
+  - `full`: currently uses the same container class as `md` (1200px max width), not unrestricted width. A distinct full-width style is a runtime follow-up candidate.
 - `asCard`: boolean - Render as a card with background and border (default: false)
 - `className`: string - Additional CSS classes
 
@@ -37,7 +37,7 @@ export const MyStory: Story = {
 - Use `size="sm"` for focused examples with narrow content
 - Use `size="md"` (default) for most standard stories
 - Use `size="lg"` for complex layouts or multiple columns
-- Use `size="full"` for full-width demonstrations
+- `size="full"` is currently capped at 1200px like `md`; it does not provide unrestricted full-width demonstrations
 - Add `asCard` when you want visual separation from the background
 
 ## StorySection

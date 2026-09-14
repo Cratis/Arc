@@ -27,10 +27,15 @@ All results are strongly typed from backend metadata.
 
 ## Return Tuple
 
-For standard request/response queries, the tuple contains two elements:
+Use the tuple shape emitted for your backend result. Omitting trailing elements while destructuring is fine; treating the tuple itself as the model is not.
 
-- Query result
-- Delegate for issuing the query again
+| Proxy shape | `.use()` / `.useSuspense()` | `.useWithPaging()` / `.useSuspenseWithPaging()` |
+| --- | --- | --- |
+| Ordinary single or enumerable | `[result, perform, setSorting]` | Enumerable only: `[result, perform, setSorting, setPage, setPageSize]` |
+| Observable enumerable | `[result, setSorting]` | `[result, setSorting, setPage, setPageSize]` |
+| Observable single | `[result]` | Not generated |
+
+Parameterized proxies emit `NameParameters`, not `INameParameters`. Their calls take `args` first and, for enumerables, optional `sorting` next. Parameterless enumerable calls take `sorting` first; parameterless single-result calls take no arguments. Paging prepends `pageSize` to these argument positions. For example, `BooksForAuthor.use({ authorId })` passes a named argument object, whereas parameterless `AllBooks.use(sorting)` does not take an `undefined` argument placeholder.
 
 Observable queries differ and are covered in [Observable Queries](./observable-queries.md).
 
@@ -98,7 +103,7 @@ export const MyComponent = () => {
 
 ## HTTP Headers
 
-Queries automatically include HTTP headers from the `httpHeadersCallback` configured in [Arc](../arc.md). This lets you attach auth tokens, cookies, or custom headers for every query call without per-query setup.
+Ordinary query fetches use `httpHeadersCallback`. Native EventSource/WebSocket handshakes cannot attach those arbitrary headers; SSE control POSTs are separate fetch requests. Cookies are browser-managed, not configurable `Cookie` request headers. See the [transport credentials matrix](../arc.md#http-headers-callback).
 
 ## See Also
 

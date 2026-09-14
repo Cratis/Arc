@@ -1,10 +1,13 @@
-# Library Mode
+---
+title: Library mode
+description: Generate a shared model surface beyond endpoint-referenced types.
+---
 
-By default, the proxy generator only produces TypeScript for types that are **directly used** by commands and queries — types referenced as properties or return values flow in transitively. Any other public types in your assembly are ignored.
+Normal generation starts with endpoints and strongly typed identity details, then follows their referenced models. Library mode also collects types that no endpoint uses, so a shared library can expose its model surface to TypeScript consumers.
 
-**Library mode** generates TypeScript for **every public type** in the assembly, regardless of whether it appears in any command or query. This is useful for shared libraries or packages where the TypeScript consumer needs the full type surface.
+## Enable library mode
 
-## Enabling Library Mode
+Add this fragment inside your existing project:
 
 ```xml
 <PropertyGroup>
@@ -12,30 +15,21 @@ By default, the proxy generator only produces TypeScript for types that are **di
 </PropertyGroup>
 ```
 
-### CLI
+The collection pass walks project assemblies, including public non-abstract types, enums, and interfaces. Open generic definitions are skipped, along with their type parameters: neither has a concrete shape to emit. Abstract classes are not collected directly, but are still generated when something reachable derives from one — a concrete type's base class is followed, so an inheritance chain arrives intact rather than with its roots missing. This is model generation, not a translation of arbitrary .NET methods or implementations.
 
-```bash
-proxygenerator assembly.dll output-path --library-mode
-```
+[Exclusions](type-exclusions.md) still apply, and [package-mapped types](assembly-package-mappings.md) are imported rather than regenerated.
 
-## Behavior
+## Default classes versus plain interfaces
 
-When library mode is on:
+Library mode does **not** imply interface output. Models default to TypeScript classes with decorators and runtime Fundamentals metadata, just as in ordinary proxy generation.
 
-- All public, non-abstract classes and records in every project assembly are collected and generated as TypeScript interfaces.
-- All public interfaces are included.
-- All public enums are included.
-- Abstract classes are not collected directly, but are still generated when something reachable derives
-  from one - a concrete type's base class is followed, so an inheritance chain arrives intact rather
-  than with its roots missing.
-- Open generic definitions are skipped, along with their type parameters: neither has a concrete shape
-  to emit.
-- Types excluded via [`ExcludeType` or `ExcludeNamespace`](type-exclusions.md) are still skipped.
-- Types from assemblies mapped via [`AssemblyToPackageMapping`](assembly-package-mappings.md) are still imported from their package rather than regenerated.
+The executable separately accepts `--emit-interfaces` for shape-only model output. Interfaces have no runtime constructors or deserialization metadata; use this for types you construct/read as plain objects, not as a drop-in replacement for model constructors in query or identity clients. Command/query templates are not converted into dependency-free interfaces by this flag.
 
-## Combining with Other Options
+See [emit interfaces](emit-interfaces.md) for when to use interface output and how to enable it via the MSBuild property or CLI flag.
 
-Library mode pairs naturally with type exclusions and namespace roots:
+## Combine output controls
+
+This project fragment excludes implementation namespaces and intentionally strips `MyApp.Models` without adding a base folder:
 
 ```xml
 <PropertyGroup>
@@ -43,10 +37,9 @@ Library mode pairs naturally with type exclusions and namespace roots:
 </PropertyGroup>
 
 <ItemGroup>
-    <!-- Exclude internal implementation types -->
-    <ExcludeNamespace Namespace="MyApp.Internal*" />
-
-    <!-- Root the output at the feature namespace -->
-    <NamespaceRoot Namespace="MyApp.Features" />
+    <ExcludeNamespace Include="internal" Namespace="MyApp.Internal*" />
+    <NamespaceRoot Include="models" Namespace="MyApp.Models" Folder="" />
 </ItemGroup>
 ```
+
+`Folder=""` is valid: `MyApp.Models.Billing` maps to `Billing/`. `Include` is the MSBuild item identity; `Namespace` and `Folder` are the generator's metadata. See [namespace roots](namespace-roots.md) for matching rules.

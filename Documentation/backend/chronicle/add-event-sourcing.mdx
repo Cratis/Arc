@@ -1,6 +1,6 @@
 ---
 title: Add event sourcing to an Arc slice
-description: You built an Arc slice over a plain database. Here's how adding Chronicle is a write-side change that leaves every query, proxy, and React screen exactly where it is.
+description: Move an Arc slice's writes to Chronicle while deliberately preserving its query and frontend contracts.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -8,7 +8,18 @@ import FullStackTabs from '@components/FullStackTabs.astro';
 
 You have a complete, typed, live full-stack app from the Arc tutorial — and so far it used a database directly. This page shows the write-side move that puts [Chronicle](/chronicle/) underneath the same CQRS boundary. For information systems, this is the direction we usually recommend: keep the Arc command/query shape, and let Chronicle store the facts.
 
-The reassuring part: adopting it is a **write-side change**. Your queries, your generated proxies, and your React screens don't move.
+You can preserve your query signatures, generated proxies, and React screens. That requires preserving the read model's storage contract as well as changing the write side.
+
+## Before changing the slice
+
+This is a migration outline, not a runnable host checkpoint. First:
+
+- Add the **`Cratis` package** to the ASP.NET Core host and follow its [basic setup](./cratis-package.md#basic-setup): `builder.AddCratis()` before building, then `app.UseCratis()`. This supplies both Arc and Chronicle's ASP.NET Core integration. If you bring your own authentication, retain the `Cratis` package reference and follow its [split-registration example](./cratis-package.md#running-arc-or-chronicle-on-their-own) instead. `Cratis.Arc.Chronicle` alone does not establish the ASP.NET Core extension surface used by that example.
+- Run a compatible Chronicle server and configure its connection, event store, namespace, and read-model sink. The client registration does not start the server.
+- For the MongoDB query below, separately install/configure `Cratis.Arc.MongoDB`. Align its database, collection naming, key mapping, serialization, and tenant mapping with Chronicle's sink. Sharing an application host does not establish that alignment.
+- Decide how existing rows become history: import explicit initial facts, backfill, or cut over to a new model. Adding a projection does not turn existing rows into events. Plan replay and prevent old direct writes from racing the new projection.
+
+After the change, append one author and verify its event-source id, projected key, and query result agree. Expect asynchronously materialized state to become visible after projection processing, not necessarily when the command response arrives.
 
 If you drew the database-backed slice as an **[event model](/event-modeling/)**, the model barely changes here. The screen, the command, the `AuthorRegistered` fact, the read model, and the query all stay put. What changes is *where the fact lives* — a database row becomes a real, stored event — and that unlocks one genuinely new block: a **reactor** (frame `06`), automation that fires *when a fact happens*.
 
@@ -42,13 +53,14 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 public record AuthorRegistered(AuthorName Name);
 ```
 
-The event is an immutable, past-tense fact. `[EventType]` carries **no name argument** — Chronicle uses the type name, `AuthorRegistered`, as its identity. For Chronicle to use an author's id as the key of their event stream, give the concept an implicit conversion to `EventSourceId`:
+The event is an immutable, past-tense fact. `[EventType]` carries **no name argument** — Chronicle uses the type name, `AuthorRegistered`, as its identity. For Chronicle to use an author's id as the key of their event stream, derive the identity from `EventSourceId<Guid>` (in `Cratis.Chronicle.Events`):
 
 ```csharp
-public record AuthorId(Guid Value) : ConceptAs<Guid>(Value)
+public record AuthorId(Guid Value) : EventSourceId<Guid>(Value)
 {
+    public static readonly AuthorId NotSet = new(Guid.Empty);
     public static AuthorId New() => new(Guid.NewGuid());
-    public static implicit operator EventSourceId(AuthorId id) => new(id.Value.ToString());
+    public static implicit operator AuthorId(Guid value) => new(value);
 }
 ```
 
@@ -57,7 +69,7 @@ public record AuthorId(Guid Value) : ConceptAs<Guid>(Value)
 ```csharp
 [ReadModel]
 [FromEvent<AuthorRegistered>]
-public record Author([property: Key] AuthorId Id, AuthorName Name)
+public record Author(AuthorId Id, AuthorName Name)
 {
     // The query is UNCHANGED from chapter 1.
     public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
@@ -65,7 +77,7 @@ public record Author([property: Key] AuthorId Id, AuthorName Name)
 }
 ```
 
-That's the whole change for this slice. Lined up:
+Those are the slice's type changes. With bootstrap, existing-data treatment, and sink alignment in place, the intended contract is:
 
 | | Over a database | With Chronicle |
 | --- | --- | --- |
@@ -99,17 +111,20 @@ The query is the same method, so the generated proxy is the same type, so the sc
 
 Now that state changes are recorded as facts, you get things a plain database can't give you:
 
-- **A free audit trail** — every change, in order, forever.
+- **A history of recorded facts** — with explicit retention and [causation privacy](./commands/causation.md) decisions; it does not automatically audit writes outside Chronicle.
 - **Rebuild read models from history** — model a brand-new view of the past by replaying the events into it.
 - **Reactors** — automate a follow-up *when a fact happens*. A reactor is a class marked `IReactor`; the method's first parameter is the event it reacts to:
 
   ```csharp
   public class WelcomeNewAuthors(INotificationService notifications) : IReactor
   {
+      [OnceOnly]
       public Task AuthorRegistered(AuthorRegistered @event, EventContext context) =>
           notifications.Notify($"Welcome aboard, {@event.Name}!");
   }
   ```
+
+  `[OnceOnly]` skips this notification handler during replay; it does not deduplicate retries. The notification service must tolerate duplicate delivery. These fragments assume the Chronicle event, projection, and reactor namespaces and your existing domain types.
 
   <Aside type="note">
   This is why the live-screen chapter was just *observable queries* and not "make it react" — reactions fire on **events**, and you didn't have any until now. Reactors are an event-sourcing feature.

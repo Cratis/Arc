@@ -1,164 +1,50 @@
-# Command Validation
+---
+title: Command validation
+description: Obtain early command feedback without running the handler, while preserving server authorization and filter responsibilities.
+---
 
-Command validation enables pre-flight validation of commands without executing them. This provides early feedback to users before performing potentially expensive or state-changing operations.
+Use preflight validation to give feedback before submission. It does not execute `Handle()`, reserve state, or guarantee that a later execution will succeed.
 
-## Purpose
+## How it works
 
-The validation mechanism allows you to check authorization and validation rules without executing the command handler. This is essential for:
+`command.validate()` first runs the configured client validator and required-property checks. A local failure returns a `CommandResult` **without a network request**. Otherwise it calls the command's validation endpoint.
 
-- **Early User Feedback**: Show validation errors before the user submits a form
-- **UX Improvements**: Enable/disable submit buttons based on validation state
-- **Authorization Checks**: Verify user permissions without side effects
-- **Progressive Validation**: Validate fields as users interact with forms
+The backend preflight path resolves the handler, builds command context, and runs command filters, then filters validation results. It skips handler execution and handler-argument resolution, including the normal `Provide()` path. Filters/validators are still application code: they can access services, throw, or have side effects unless you design them not to.
 
-## How It Works
+`command.validateClientSide()` performs only local checks and returns synchronously. Required-property presence checks reject null/undefined, not automatically empty strings, false checkboxes, invalid email syntax, or numeric ranges. Those require actual rules.
 
-When you validate a command, the request is sent to the backend validation endpoint where:
+## Basic usage
 
-1. All command filters run (authorization, validation)
-2. The command handler is **not** executed
-3. A `CommandResult` is returned with validation and authorization status
-4. No side effects occur on the system
-
-For details on the backend validation pipeline, see [Backend Command Validation](../../../backend/commands/command-validation.md).
-
-## Command.validate() Method
-
-All generated TypeScript command proxies include a `validate()` method alongside the `execute()` method:
+This illustrative helper accepts an already configured and populated generated command:
 
 ```typescript
-interface ICommand<TCommandContent, TCommandResponse> {
-    /**
-     * Validate the command without executing it.
-     * Returns validation and authorization status.
-     */
-    validate(): Promise<CommandResult<TCommandResponse>>;
-    
-    /**
-     * Execute the command.
-     */
-    execute(): Promise<CommandResult<TCommandResponse>>;
-}
-```
+import { ICommand } from '@cratis/arc/commands';
 
-## Basic Usage
-
-```typescript
-import { CreateOrder } from './generated/commands';
-
-async function validateOrder() {
-    const command = new CreateOrder();
-    command.orderNumber = 'ORD-12345';
-    command.customerId = '550e8400-e29b-41d4-a716-446655440000';
-    
-    // Validate without executing
+export async function inspectCommand<TContent, TResponse>(command: ICommand<TContent, TResponse>) {
     const result = await command.validate();
-    
-    if (result.isSuccess) {
-        console.log('Command is valid and authorized');
-    } else {
-        if (!result.isAuthorized) {
-            console.log('User not authorized');
-        }
-        if (!result.isValid) {
-            console.log('Validation errors:', result.validationResults);
-        }
+    if (!result.isValid) {
+        console.log(result.validationResults);
+    } else if (!result.isAuthorized) {
+        console.log('Not authorized');
+    } else if (result.hasExceptions) {
+        console.log('Validation could not complete');
     }
+    return result;
 }
 ```
 
-## CommandResult Structure
+Both validation and execution return [CommandResult](./command-result.md). `correlationId` is a Fundamentals `Guid` in the client, validation severity is a numeric enum, and errors are in `validationResults`, not a `validationErrors` object. Validation does not produce a handler response. See the complete [validation-result shape](../validation/results.md).
 
-Both `execute()` and `validate()` return the same `CommandResult` structure:
+## Security considerations
 
-```typescript
-interface CommandResult<TResponse> {
-    correlationId: string;
-    isSuccess: boolean;        // Overall success (authorized + valid + no exceptions)
-    isAuthorized: boolean;     // Authorization status
-    isValid: boolean;          // Validation status
-    hasExceptions: boolean;    // Whether exceptions occurred
-    validationResults: ValidationResult[];
-    exceptionMessages: string[];
-    exceptionStackTrace: string;
-    response?: TResponse;      // Only populated on execute()
-}
+- A locally invalid result does not prove server authorization ran. Never grant access based on a preflight status flag alone.
+- When reached, the server runs its configured authorization/validation filters. An upstream authentication challenge may return before the Arc result envelope exists; do not assume every denial is a parseable 401/403 result.
+- Skipping the handler is not a confidentiality guarantee. Validators, filters, custom state, and exception messages must not leak private data.
+- Preflight is subject to races. `execute()` validates again and its final result is authoritative.
+- Warning confirmation requires explicit severity handling; plain preflight is not guaranteed to return server warnings. See [severity filtering](../validation/severity-filtering.md).
 
-interface ValidationResult {
-    message: string;
-    members: string[];
-    severity: 'Error' | 'Warning' | 'Info';
-}
-```
+## React usage
 
-**Important**: The `response` property will be `null` or `undefined` when using `validate()` since the handler is not executed.
+Prefer [CommandForm](../../react/command-form/index.md) for form-managed lifecycle and feedback. For raw hooks, debounce server checks, use an edit revision/current field values rather than `hasChanges`, and discard stale responses. See [React command validation](../../react/commands/validation.md).
 
-## Validation Filters
-
-The `validate()` method runs all registered command filters on the backend:
-
-- **AuthorizationFilter**: Checks user permissions
-- **DataAnnotationValidationFilter**: Validates data annotations
-- **FluentValidationFilter**: Runs FluentValidation validators
-
-For more information, see [Backend Command Filters](../../../backend/commands/command-filters.md).
-
-## Best Practices
-
-### When to Use Validate
-
-✅ **Good Use Cases:**
-
-- Form validation as users type or blur fields
-- Enabling/disabling submit buttons based on validation state
-- Showing validation messages before submission
-- Checking authorization before showing UI elements
-
-❌ **Avoid:**
-
-- Calling validate() immediately before execute() (execute already validates)
-- Over-validating (don't validate on every keystroke for performance)
-- Using validate() as a substitute for client-side validation
-
-### Performance Considerations
-
-- Validation makes a server round-trip, so use judiciously
-- Consider debouncing validation calls for real-time feedback
-- Client-side validation is still important for immediate feedback
-- Server validation ensures security and data integrity
-
-### Example: Debounced Validation
-
-```typescript
-let validationTimeout: NodeJS.Timeout;
-
-function debounceValidation(command: ICommand<any, any>, onResult: (result: CommandResult<any>) => void) {
-    clearTimeout(validationTimeout);
-    
-    validationTimeout = setTimeout(async () => {
-        const result = await command.validate();
-        onResult(result);
-    }, 500);
-}
-
-// Usage
-const command = new CreateOrder();
-command.orderNumber = 'ORD-12345';
-
-debounceValidation(command, (result) => {
-    if (!result.isSuccess) {
-        console.log('Validation errors:', result.validationResults);
-    }
-});
-```
-
-## Security Considerations
-
-- Validation endpoints run the same authorization filters as execute endpoints
-- Unauthorized users receive 401/403 responses from validation endpoints
-- Validation does not expose sensitive data since handlers aren't executed
-- Validation results may reveal authorization policies (by design)
-
-## Framework-Specific Usage
-
-For React-specific patterns and hooks, see [React Command Validation](../../react/commands/validation.md).
+For endpoint details, continue with [backend command validation](../../../backend/commands/command-validation.md) and [command filters](../../../backend/commands/command-filters.md).

@@ -3,7 +3,7 @@ title: Geospatial Types
 description: Store and serialize geographic data with Point, LineString, and Polygon types
 ---
 
-Cratis provides first-class support for geospatial data in MongoDB using types from `Cratis.Geospatial`. The serializers follow the GeoJSON standard, making them compatible with MongoDB's geospatial query operators and external mapping services.
+Arc provides BSON serializers for types from `Cratis.Geospatial`. Their writers produce GeoJSON for MongoDB storage and spatial filters. Before using Polygon, read the [current Polygon reader limitation](./polygon.md#current-read-limitation): typed reads fail on the coordinate nesting its writer emits.
 
 ## Supported Types
 
@@ -13,10 +13,12 @@ Cratis provides first-class support for geospatial data in MongoDB using types f
 
 ## GeoJSON Compatibility
 
-All geospatial types are serialized in GeoJSON format, enabling:
+Arc's BSON serializers write GeoJSON documents. This does not mean the Cratis model types are accepted as geometry arguments by MongoDB driver's filter builders: use `MongoDB.Driver.GeoJsonObjectModel` types for those arguments, as the individual guides show. The records and write paths do not validate geometry; the Polygon reader contains some ring checks, not comprehensive validation. Server spatial-index restrictions still apply. Optional geometry also needs an explicit [null/omission policy](../serializers.md#error-handling), not just a nullable annotation.
+
+GeoJSON storage enables:
 
 - **MongoDB Spatial Queries** — Use `$near`, `$geoWithin`, and other spatial operators
-- **Interoperability** — Work seamlessly with mapping services and GIS tools
+- **Interoperability** — Exchange GeoJSON with compatible mapping services and GIS tools
 - **Standards Compliance** — Follow industry-standard GeoJSON specification
 
 ## Getting Started

@@ -13,8 +13,8 @@ By default, observable queries connect through centralized hub endpoints. Two pr
 Selects the transport protocol used for the hub connection.
 
 | Value | Description |
-|-------|-------------|
-| `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query, routed through `/.cratis/queries/sse` (default). |
+| ------- | ------------- |
+| `QueryTransportMethod.ServerSentEvents` | Shared SSE hub at `/.cratis/queries/sse`, with subscribe/unsubscribe POSTs (React default). |
 | `QueryTransportMethod.WebSocket` | WebSocket hub transport. |
 
 ```tsx
@@ -52,7 +52,7 @@ export const App = () => (
 ```
 
 | Prop | Type | Default | Description |
-|------|------|---------|-------------|
+| ------ | ------ | --------- | ------------- |
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for observable query connections. |
 | `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
 

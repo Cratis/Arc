@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Core.TypeDiscovery.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+
+        <!-- Ordering only. The plugin must NOT be a ProjectReference: that would list it in this project's
+             deps.json as a "project" runtime library, and GeneratedMetadataRegistration runs the module
+             initializer of every one of those at the very top of AddCratisArcCore - before the universe is taken,
+             which is the exact moment this project exists to test. ReferenceOutputAssembly, ExcludeAssets and
+             PrivateAssets keep this to a build-order edge; the assembly itself comes in through the Reference
+             below. -->
+        <ProjectReference Include="../Arc.Core.TypeDiscovery.Specs.Plugin/Arc.Core.TypeDiscovery.Specs.Plugin.csproj"
+                          ReferenceOutputAssembly="false"
+                          ExcludeAssets="all"
+                          PrivateAssets="all" />
+
+        <!-- A raw reference with Private=true puts the plugin in the compile closure and in the output folder
+             without making it a project library. Nothing loads it until the assembly reference closure walk in
+             AddBindingsByConvention reaches it, which is what the specification is about. -->
+        <Reference Include="Cratis.Arc.Core.TypeDiscovery.Specs.Plugin">
+            <HintPath>$(MSBuildThisFileDirectory)../Arc.Core.TypeDiscovery.Specs.Plugin/bin/$(Configuration)/$(TargetFramework)/Cratis.Arc.Core.TypeDiscovery.Specs.Plugin.dll</HintPath>
+            <Private>true</Private>
+        </Reference>
+    </ItemGroup>
+</Project>

@@ -14,7 +14,16 @@ Tenancy keeps data and behavior isolated between customers or organizational uni
 - **Operational safety**: Isolation reduces the blast radius of mistakes, queries, and deployments.
 - **Scalability**: Tenancy enables predictable scaling by segmenting traffic and storage by tenant.
 
-Arc helps you establish a clear tenant boundary by resolving a tenant ID for each request, keeping that context available across the application, and wiring tenant-aware integrations to data stores and event streams.
+Keep three decisions separate: **selection** resolves the tenant ID; **membership authorization** checks whether this caller may use it; **storage isolation** determines where reads and writes go. Arc supplies selection and context. The MongoDB integration supplies tenant-aware database naming; EF Core isolation is application-owned. Optional Chronicle integration selects event-store namespaces. None of these replaces membership checks.
+
+```mermaid
+flowchart LR
+    Request --> Selection[Resolve tenant ID]
+    Selection --> Membership[Application verifies membership]
+    Membership --> Storage[Integration-specific storage isolation]
+```
+
+See [database isolation](database-resolvers.md) for the exact integration boundaries.
 
 ## Best Practices
 
@@ -39,4 +48,3 @@ Arc helps you establish a clear tenant boundary by resolving a tenant ID for eac
 - [Configuration](./configuration.md)
 - [Tenant context access](./tenant-context.md)
 - [Database isolation](./database-resolvers.md)
-

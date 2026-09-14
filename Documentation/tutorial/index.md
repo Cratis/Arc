@@ -64,14 +64,16 @@ By the last chapter you'll have a working library back office where a librarian 
 
 ## What you'll need
 
-An Arc project running locally with a database. The [Get started](/arc/backend/getting-started/your-first-command/) guide gets you there: scaffold with `dotnet new cratis`, start the dependencies, and confirm `dotnet build` succeeds and the app runs. We use **MongoDB** for the worked examples and show the **EF Core** equivalent in tabs as we go — pick whichever you scaffolded with.
+Start with [standalone ASP.NET Core setup](/arc/backend/getting-started/), then complete its [backend checkpoint](/arc/backend/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/getting-started/); do not recreate them.
+
+No Chronicle package, event store, or `dotnet new cratis` scaffold is required. That template is an **Arc + Chronicle** alternative, not this tutorial's starting point. Backend excerpts assume the setup's imports and namespaces; UI fragments are labeled where they require the surrounding composition.
 
 ## The tour
 
-1. **[Your first full-stack slice](./first-slice.mdx)** — register an author from C# all the way to a live React screen, fully typed.
-2. **[Make it trustworthy](./validation.mdx)** — reject bad input with a validator and a uniqueness rule, and show the reason in the form.
-3. **[Relate your slices](./books-and-relationships.mdx)** — add books that belong to an author, and read them back.
-4. **[Make it live](./real-time.mdx)** — observable queries that update the screen the moment the data changes.
-5. **[Decide who can do what](./authorization.mdx)** — lock the catalog down with role-based authorization.
+1. **[Your first full-stack slice](/arc/tutorial/first-slice/)** — register an author from C# all the way to a live React screen, fully typed.
+2. **[Make it trustworthy](/arc/tutorial/validation/)** — reject bad input with a validator and a uniqueness rule, and show the reason in the form.
+3. **[Relate your slices](/arc/tutorial/books-and-relationships/)** — add books that belong to an author, and read them back.
+4. **[Make it live](/arc/tutorial/real-time/)** — observable queries that update the screen the moment the data changes.
+5. **[Decide who can do what](/arc/tutorial/authorization/)** — lock the catalog down with role-based authorization.
 
-Each chapter ends where the next begins. By the end you'll have a real full-stack feature — and the model to build your own. Ready? [Let's build the first slice →](./first-slice.mdx)
+Each chapter ends where the next begins. By the end you'll have a real full-stack feature — and the model to build your own. Ready? [Let's build the first slice →](/arc/tutorial/first-slice/)

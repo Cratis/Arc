@@ -7,6 +7,7 @@ export * from './CommandForm';
 export * from './CommandFormContext';
 export * from './CommandFormField';
 export * from './CommandFormFields';
+export * from './ExceptionDisplayProps';
 export * from './usePopulateFromQuery';
 export * from './ValidationMessage';
 export * from './withCommandFormFieldBinding';

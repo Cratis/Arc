@@ -1,285 +1,94 @@
-# Dialogs
+---
+title: Dialogs in MVVM
+description: Request a dialog from a view model and handle its result/response tuple through a mounted view wrapper.
+---
 
-Working with dialogs is different when decoupling your code as you do with the MVVM paradigm.
-Even though the view models are not responsible for rendering and should be blissfully unaware of how things gets rendered,
-you do need at times to interact with the user.
+A view model can ask the user a question without rendering a modal. `IDialogs` sends a typed request; the view registers and renders the matching dialog. Configure [TSyringe and bindings](./tsyringe.md) and the router/MVVM context before using these examples.
 
-Cratis Arc supports an approach to working with dialogs and still maintain the clear separation of concerns.
-It promotes the idea of letting the view and React as a rendering library do just that and then bridges everything through a
-service called `IDialogs` and the use of specific hooks to glue it together, making it feel natural for you as a React developer
-whilst having a clear separation and making your view model logic clear and concise.
+## Custom dialogs
 
-The beauty of this is that you can quite easily also write automated unit tests that test for the scenarios, involving dialogs.
+Use a **class** for the request because registration needs a runtime constructor; a TypeScript interface alone cannot identify a message type. The following files form a contract checkpoint beneath your existing Arc/MVVM host. The native nonmodal dialog is deliberately minimal; use an accessible modal renderer in a production application.
 
-## Confirmation Dialogs
+`NameDialog.tsx`:
 
-A common use of modal dialogs are the standard confirmation dialogs. These are dialogs where you ask the user to confirm
-a specific action. The Arc supports these out of the box and you have options for what type of confirmation you're
-looking for in the form of passing it which buttons to show.
+```tsx
+import { DialogResult, useDialogContext } from '@cratis/arc.react/dialogs';
 
-There is an enum called `DialogButtons` that has the following options:
+export class NameRequest {
+    constructor(readonly name: string) {}
+}
 
-| Value | Description |
-| ----- | ----------- |
-| Ok    | Only show a single Ok button, typically used to inform the user and the user to acknowledge |
-| OkCancel | Show both an Ok and a Cancel button |
-| YesNo | Show a Yes and No button |
-| YesNoCancel | Show Yes, No and a Cancel button |
+export function NameDialog({ name }: NameRequest) {
+    const { closeDialog } = useDialogContext<NameRequest, string>();
+    return (
+        <dialog open aria-label="Confirm name">
+            <p>{name}</p>
+            <button onClick={() => closeDialog(DialogResult.Ok, name)}>Use name</button>
+            <button onClick={() => closeDialog(DialogResult.Cancelled)}>Cancel</button>
+        </dialog>
+    );
+}
+```
 
-For standard confirmation dialogs, there is a specific expected result called `DialogResult` that the dialog needs to communicate back.
-The values are:
-
-* Yes
-* No
-* Ok
-* Cancel
-
-To use a confirmation dialog from a ViewModel, you need to take a dependency to the `IDialogs`, assuming you have hooked up [TSyringe and bindings](./tsyringe.md).
-Then in a method, you can call the `showConfirmation()` on the `IDialogs` to show the confirmation.
-
-Below is a full sample of how this works.
+`FeatureViewModel.ts`:
 
 ```ts
 import { injectable } from 'tsyringe';
 import { DialogResult } from '@cratis/arc.react/dialogs';
-import { DialogButtons } from '@cratis/arc.react/dialogs';
 import { IDialogs } from '@cratis/arc.react.mvvm/dialogs';
+import { NameRequest } from './NameDialog';
 
 @injectable()
-export class YourViewModel {
-    constructor(
-        private readonly _dialogs: IDialogs) {
-    }
+export class FeatureViewModel {
+    selectedName = '';
 
-    // Method called from typically your view
-    async deleteTheThing() {
-        const result = await this._dialogs.showConfirmation('Delete?', 'Are you sure you want to delete?', DialogButtons.YesNo);
-        if( result == DialogResult.Yes ) {
-            // Do something - typically call your server
+    constructor(private readonly _dialogs: IDialogs) {}
+
+    async chooseName() {
+        const [result, response] = await this._dialogs.show<NameRequest, string>(new NameRequest('Ada'));
+        if (result === DialogResult.Ok && response !== undefined) {
+            this.selectedName = response;
         }
     }
 }
 ```
 
-In order for the dialogs to show, you need to configure the component that represent it.
-You can read more about [configuring dialogs](../react/dialogs.md).
-
-## Busy indicator dialogs
-
-Another common type of modal dialog is the indeterminate busy indicator dialog. You typically use these dialogs for giving
-a visual clue to the user that the system is working. These type of dialogs are not meant to be something the user can
-close, but rather something the system closes when it is ready with the work the system is doing.
-
-To use a busy indicator dialog from a ViewModel, you need to take a dependency to the `IDialogs`, assuming you have hooked up [TSyringe and bindings](./tsyringe.md).
-Then in a method, you can call the `showBusyIndicator()` on the `IDialogs` to show the confirmation.
-
-Below is a full sample of how this works.
-
-```ts
-import { injectable } from 'tsyringe';
-import { DialogResult } from '@cratis/arc.react/dialogs';
-import { DialogButtons } from '@cratis/arc.react/dialogs';
-import { IDialogs } from '@cratis/arc.react.mvvm/dialogs';
-
-@injectable()
-export class YourViewModel {
-    constructor(
-        private readonly _dialogs: IDialogs) {
-    }
-
-    // Method called from typically your view
-    async performLongRunningOperation() {
-        const busyIndicator = this._dialogs.showBusyIndicator('Performing something that will take a while', 'Please wait');
-        setTimeout(() => {
-            busyIndicator.close();
-        }, 1000);
-    }
-}
-```
-
-The `showBusyIndicator()` returns an object that has a method called `close()`. This method is then something you use to close the dialog.
-
-In order for the dialogs to show, you need to configure the component that represent it.
-You can read more about that [configuring dialogs](../react/dialogs.md)
-
-## Custom dialogs
-
-The anatomy of dialogs in general is based on a **request** and **response** pattern.
-You request a dialog through the `IDialogs` service by giving it an instance of a type of a message that the view knows
-how to resolve into a dialog. This mechanism is in use on the confirmation dialogs and is the same for a custom dialog.
-
-For the dialog to know the context in which it is rendering, there is a hook called `useDialogContext()`.
-In the view where the dialog is used, you define the context implicitly by using the `useDialog()`.
-This establishes the **subscriber** that responds to a request from your view model of showing a dialog.
-
-Subscriptions are based on type and it must be a well known type at runtime, so typically in TypeScript you'd define the
-request as a class as `interface` and `type` is optimized away by the TypeScript transpiler and are not present at runtime.
-
-The following code creates a custom dialog component.
-
-```tsx
-import { Button } from 'primereact/button';
-import { Dialog } from 'primereact/dialog';
-import { useDialogContext } from '@cratis/arc.react/dialogs';
-
-export class CustomDialogRequest { 
-    constructor(readonly content: string) {
-    }
-}
-
-export const CustomDialog = () => {
-    const { request, closeDialog } = useDialogContext<CustomDialogRequest, string>();
-
-    return (
-        <Dialog header="My custom dialog" visible={true} onHide={() => closeDialog(DialogResult.Cancelled, 'Did not do it..')}>
-            <h2>Dialog</h2>
-            {request.content}
-            <br />
-            <Button onClick={() => closeDialog(DialogResult.Ok, 'Done done done...')}>We're done</Button>
-        </Dialog>
-    );
-};
-```
-
-Notice that the code creates a `CustomDialogRequest` class, it is defined as an immutable class with a constructor that
-holds the properties as `readonly`. The purpose of the the request object is to provide information that can be passed along
-from a view model to the dialog. This could for instance be data is needed to be displayed in the dialog or similar.
-You don't need to have any properties on it, the type as a class is however required.
-
-Within the dialog component, you use the `useDialogContext()` and pass it the request type and the expected response type.
-The hook returns an object called `IDialogContext`, this holds the request and a delegate type that can be called to
-close the dialog. Both properties are type-safe based on the generic parameters passed to the hook.
-
-With the custom dialog defined, we can start using it.
-
-Below is an example of a view that leverages the dialog and has a view model behind that actually shows it.
+`Feature.tsx`:
 
 ```tsx
 import { withViewModel } from '@cratis/arc.react.mvvm';
-import { FeatureViewModel } from './FeatureViewModel';
 import { useDialog } from '@cratis/arc.react.mvvm/dialogs';
-import { CustomDialog, CustomDialogRequest } from './CustomDialog';
+import { FeatureViewModel } from './FeatureViewModel';
+import { NameDialog, NameRequest } from './NameDialog';
 
-export const Feature = withViewModel<FeatureViewModel>(FeatureViewModel, ({ viewModel }) => {
-
-    // Use the dialog request to get a wrapper for rendering our dialog
-    const [CustomDialogWrapper] = useDialog<CustomDialogRequest, string>(CustomDialogRequest, CustomDialog);
-
+export const Feature = withViewModel(FeatureViewModel, ({ viewModel }) => {
+    const [NameWrapper] = useDialog<NameRequest, string>(NameRequest, NameDialog);
     return (
-        <div>
-            {/* Use the dialog wrapper here. It will automatically include the actual dialog and show your dialog.
-            If using a component that represents the dialog and it has a property for visibility, just set it to true.
-             */}
-            <CustomDialogWrapper/>
-        </div>
+        <>
+            <button onClick={() => void viewModel.chooseName()}>Choose name</button>
+            <p>{viewModel.selectedName}</p>
+            <NameWrapper name="" />
+        </>
     );
 });
 ```
 
-The code leverages the `useDialog()` with the generic parameters corresponding to the request and response types,
-as you saw when defining the `CustomDialog` component. It returns a **tuple** that holds a wrapper as a React functional component,
-then the context which holds the request when a request is made and a function to close the dialog. This allows for inlining dialogs or passing the information
-on to things that need it. For this scenario, we don't need them and therefore only capture the wrapper.
+The MVVM `useDialog<TRequest, TResponse>(RequestType, Component)` returns `[Wrapper, showDialog]`, **not a context object**. This differs from the base React hook's three-element tuple and generic ordering. Register the wrapper in the view before the view model sends requests.
 
-> Note: See the sample later on how to create dialogs with a view model for an example of context and `closeDialog` use.
+`IDialogs.show<TRequest, TResponse>()` resolves to `[DialogResult, response?]`. Do not compare the entire tuple with a string. `Cancelled` is the cancellation enum member; `None`, `Ok`, `Yes`, and `No` are also available.
 
-With the wrapper, the code wraps the actual `CustomDialog` component as part of the rendering of the component. This ensures that
-it will only be displayed when it is supposed to.
+## Confirmation dialogs
 
-The last piece of the puzzle is now to use it from the view model. Following is a sample that shows the usage.
+`IDialogs.showConfirmation(title, message, DialogButtons)` resolves directly to a `DialogResult`. This special convenience method does not return the custom-dialog tuple. Only perform a confirmed operation after explicitly matching the expected affirmative result.
 
-```ts
-import { injectable } from 'tsyringe';
-import { DialogButtons } from '@cratis/arc.react/dialogs';
-import { IDialogs } from '@cratis/arc.react.mvvm/dialogs';
-import { CustomDialogRequest } from './CustomDialogRequest;
+Configure `DialogComponents confirmation={YourConfirmationDialog}` as described in [React dialogs](../react/dialogs.md#defining-the-confirmation-dialog). Handle all requested button sets, including the Cancel button for `YesNoCancel`.
 
-@injectable()
-export class FeatureViewModel {
-    constructor(
-        private readonly _dialogs: IDialogs) {
-    }
+## Busy indicator dialogs
 
-    async doThings() {
-        // Show the custom dialog
-        const result = await this._dialogs.show<CustomDialogRequest, string>(new CustomDialogRequest('This is the content to show'));
-        if( result == 'Done done done...') {
-            // Do something
-        }
-    }
-}
-```
+`IDialogs.showBusyIndicator(title, message)` returns an object with `close()`. Configure the busy renderer on `DialogComponents`, and call `close()` in a `finally` block around the application operation. Rendering a busy dialog is not a transactional guarantee or cancellation mechanism.
 
-The view model takes a dependency to `IDialogs` which is resolved by the IoC, assuming you have hooked up [TSyringe and bindings](./tsyringe.md).
+## Dialog with a view model
 
-In the `doThings()` method we show the dialog by calling `.show()` on the `IDialogs` service, giving it an instance of the
-`CustomDialogRequest`. With the generic arguments; `CustomDialogRequest` and `string` we are sure to get type-safety for the response.
-If you don't provide any of the generic arguments, the return type will become `unknown`.
+A dialog can itself use `withViewModel(DialogViewModel, renderer)`. Inject `DialogContextContent<TRequest, TResponse>` into its view model; both type arguments are required. Read `.request` and call `.closeDialog(DialogResult.Ok, response)` or `.closeDialog(DialogResult.Cancelled)` there. `withViewModel` still needs **both** the constructor and renderer, just like the complete Feature example.
 
-The `.show()` method is an async, `Promise` based method that will return when the dialog is resolved.
-The return from the `.show()` method will then be the response type, in this case; **a string**.
-
-### Dialog with a view model
-
-You might want to use a view model for the dialog itself. That is fully possible and recommended for scenarios where there will be logic
-and / or you want to be able to test the dialog logic code.
-
-Your dialog view would then look like below:
-
-```tsx
-import { Button } from 'primereact/button';
-import { Dialog } from 'primereact/dialog';
-import { useDialogContext, CloseDialog } from '@cratis/arc.react/dialogs';
-import { withViewModel } from '@cratis/arc.react.mvvm';
-import { CustomDialogViewModel } from './CustomDialogViewModel';
-
-export class CustomDialogRequest { 
-    constructor(readonly content: string) {
-    }
-}
-
-// Use the withViewModel() to pull in and specify props
-export const CustomDialog = withViewModel<CustomDialogViewModel>({ viewModel }) => {
-    return (
-        <Dialog header="My custom dialog" visible={true} onHide={() => viewModel.cancel() }>
-            <h2>Dialog</h2>
-            {request.content}
-            <br />
-            <Button onClick={() => viewModel.done() }>We're done</Button>
-        </Dialog>
-    );
-};
-```
-
-The above code is not different for the component except that it uses the `withViewModel()` which points it
-to the view model type.
-
-Your view model can then be something like the following:
-
-```ts
-import { inject, injectable } from 'tsyringe';
-import { DialogContextContent, DialogResult } from '@cratis/arc.react/dialogs';
-
-@injectable()
-export class CustomDialogViewModel {
-
-    constructor(private readonly _dialogContext: DialogContextContent) {
-    }
-
-    name: string = '';
-
-    done() {
-        this._dialogContext.closeDialog(DialogResult.Ok, 'Done done done...');
-    }
-
-    cancel() {
-        this._dialogContext.closeDialog(DialogResult.Cancelled, 'Did not do it..');
-    }
-}
-```
-
-The **view model** now takes the `DialogContextContent` as a dependency. This will be the correct
-context for the current dialog and contains the `closeDialog` function that can be called for
-closing the dialog in addition to the request instance.
-
-Using the dialog is exactly the same as before.
+Use the [base React dialog contract](../react/dialogs.md) for visibility and request/response semantics, and [view-model lifecycle](./using-view-model.md) for cleanup.

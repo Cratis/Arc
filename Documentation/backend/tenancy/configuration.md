@@ -2,10 +2,12 @@
 
 You can configure tenancy programmatically or through configuration files. Both approaches map to the same options and resolver types.
 
-## Programmatic Configuration
+## Programmatic configuration
+
+This is a configuration fragment for an existing `ArcApplicationBuilder` (Core) or `WebApplicationBuilder` (ASP.NET Core), before `Build()`. Import `Cratis.Arc` and `Cratis.Arc.Tenancy`; each host uses `builder.AddCratisArc(...)`, followed by `app.UseCratisArc()` on the built app.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseHeaderTenancy("X-Custom-Tenant");
 
@@ -32,7 +34,9 @@ builder.AddCratisArcCore(options =>
 }
 ```
 
-## Resolver-Specific Settings
+## Resolver-specific settings
+
+The following JSON fragments belong inside `Cratis:Arc`, not at the root of `appsettings.json`. The [complete options tree](../configuration/index.md) lists defaults. Resolver configuration selects a tenant; [membership authorization and storage isolation](index.md) remain separate responsibilities.
 
 ### Header Resolver
 
@@ -107,4 +111,3 @@ builder.AddCratisArcCore(options =>
 
 `FixedTenantId` and `DevelopmentTenantId` are two names for the same value, so either key configures either resolver
 type. Set only one of them - when a configuration source supplies both, whichever key the binder visits last wins.
-

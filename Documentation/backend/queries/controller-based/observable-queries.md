@@ -1,294 +1,70 @@
-# Observable Queries
+---
+title: Controller-based observable queries
+description: Expose a MongoDB-backed producer through MVC GET streaming.
+---
 
-Observable queries provide real-time data streaming using WebSockets, enabling reactive user experiences where data changes are pushed to clients as they occur. You achieve this by returning `ISubject<T>` from your controller actions.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-The `ISubject<T>` return type automatically establishes a WebSocket connection between the server and client, enabling real-time data updates. This integrates seamlessly with the [ObservableQuery construct in the frontend](../../../frontend/react/queries/observable-queries.md) through the proxy generator, creating strongly-typed reactive data flows.
+## Declare a GET action
 
-## Basic Observable Query
+Return a subject from an MVC GET action to make observable handling available. The client/request chooses a snapshot, SSE, or WebSocket; returning `ISubject<T>` does not itself open a connection.
 
-The key to an observable query is to return the `ISubject<T>` produced by the MongoDB
-`Observe()` extension method. `Observe()` watches the collection and pushes a fresh
-snapshot every time the data changes — Arc establishes and manages the WebSocket
-connection for you. The examples below use `_collection`, an injected
-`IMongoCollection<DebitAccount>` field on the controller.
-
-```csharp
-[HttpGet("observable")]
-public ISubject<IEnumerable<DebitAccount>> AllAccountsObservable()
-{
-    return _collection.Observe();
-}
-```
-
-## Observable with Arguments
-
-Observable queries can accept arguments just like regular queries:
+This alternative banking declaration uses the [shared domain concepts](../model-bound/index.md#model-account-identities-and-names), an ASP.NET Core Arc host configured with **Cratis.Arc.MongoDB**, MVC authorization, a registered collection, and MongoDB change-stream support:
 
 ```csharp
-[HttpGet("owner/{ownerId}/observable")]
-public ISubject<IEnumerable<DebitAccount>> GetAccountsByOwnerObservable(CustomerId ownerId)
-{
-    return _collection.Observe(account => account.Owner == ownerId);
-}
-
-[HttpGet("filtered-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetFilteredAccountsObservable(
-    [FromQuery] decimal minBalance = 0)
-{
-    return _collection.Observe(account => account.Balance >= minBalance);
-}
-```
-
-## Single Object Observable
-
-For observing changes to a single object:
-
-```csharp
-[HttpGet("{id}/observable")]
-public ISubject<DebitAccount> GetAccountObservable(AccountId id)
-{
-    return _collection.ObserveSingle(account => account.Id == id);
-}
-```
-
-## Custom Observable Logic
-
-For computed or derived data, build on top of the collection's observable. `Observe()`
-returns an `IObservable<IEnumerable<T>>` that emits a new snapshot whenever the data
-changes, so you can use System.Reactive operators such as `Select` to project each
-snapshot into a computed shape:
-
-```csharp
-using System.Reactive.Linq;
+using System;
+using System.Collections.Generic;
 using System.Reactive.Subjects;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 
-[HttpGet("summary")]
-public ISubject<AccountSummary> GetAccountSummaryObservable()
+namespace Banking.Accounts;
+
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance);
+
+[Authorize(Roles = "AccountReader")]
+[Route("api/accounts")]
+public class AccountsController(IMongoCollection<DebitAccount> collection) : ControllerBase
 {
-    var summary = new ReplaySubject<AccountSummary>(1);
+    [HttpGet("observe")]
+    public ISubject<IEnumerable<DebitAccount>> ObserveAccounts(
+        [FromQuery] decimal minimumBalance = 0) =>
+        collection.Observe(account => account.Balance >= minimumBalance);
 
-    _collection.Observe()
-        .Select(accounts => new AccountSummary(accounts.Count(), accounts.Sum(a => a.Balance)))
-        .Subscribe(summary);
-
-    return summary;
+    [HttpGet("{id:guid}/observe")]
+    public ISubject<DebitAccount> ObserveAccount([FromRoute] Guid id)
+    {
+        AccountId accountId = id;
+        return collection.ObserveSingle(account => account.Id == accountId);
+    }
 }
 ```
 
-## Multiple Data Source Observables
+The filter is applied by the database observer. This is standalone Arc database observation, not a Chronicle projection. `ObserveSingle` does not emit a null value when no document matches; use an observed collection when an empty result must represent disappearance.
 
-Observe changes across multiple data sources:
+## Keep MVC and model-bound handling distinct
 
-```csharp
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+Arc's `QueryActionFilter` handles **GET** actions. Do not change the example to `[HttpPost]` with `[FromBody]` and assume the same streaming adapter runs. Arbitrary `IObservable<T>` values are not enough either: runtime streaming detection recognizes subjects and async-enumerables.
 
-public record CombinedData(IEnumerable<DebitAccount> Accounts, IEnumerable<Customer> Customers);
+MVC authorization protects the controller endpoint. The hub resolves queries by performer name through the query pipeline; a controller route URL is not automatically a hub query name. Use a discovered [model-bound query](../model-bound/observable-queries.md) for the documented [hub subscription protocol](../observable-query-demultiplexer.md), rather than assuming MVC action filters protect a separate hub subscription.
 
-[HttpGet("combined-observable")]
-public ISubject<CombinedData> GetCombinedDataObservable()
-{
-    var combined = new ReplaySubject<CombinedData>(1);
+## Compose without leaking
 
-    _accountCollection.Observe()
-        .CombineLatest(_customerCollection.Observe(),
-            (accounts, customers) => new CombinedData(accounts, customers))
-        .Subscribe(combined);
+Return `collection.Observe()` directly when it expresses the read. MVC uses the same [subscription lifetime and terminal-error contract](../model-bound/observable-queries.md#subscription-lifetime): disposing the returned subscription must release upstream resources, and terminal errors must reach subscribers. Follow that shared checklist when composing streams, including both direct transports' error and teardown tests.
 
-    return combined;
-}
-```
+MongoDB `Observe()` handles paging through its query context. A plain subject does not automatically slice emissions; see [observable paging](paging.md#observable-paging).
 
-## Observable with Computed Values
+## Errors and snapshots
 
-Create observables that compute derived values:
+Monitor provider logs and stream health: these MongoDB producers log watcher failures and complete/dispose rather than forwarding them through `OnError`. See [provider failures](../model-bound/observable-queries.md#paging-and-failures) for the distinction from per-change and downstream operator errors.
 
-```csharp
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+For a one-shot MongoDB read, use `waitForFirstResult=true`. A no-wait GET returns 202 without subscribing or disposing the subject and can retain an eagerly started watcher. The shared [snapshot guidance](../model-bound/observable-queries.md#waiting-for-the-first-http-result) explains current-value requirements, cleanup, and timeouts. See [cURL workflows](../using-observable-queries-with-curl.md) for requests you can run.
 
-[HttpGet("computed-metrics")]
-public ISubject<AccountMetrics> GetAccountMetricsObservable()
-{
-    var metrics = new ReplaySubject<AccountMetrics>(1);
+> [!WARNING]
+> Observable HTTP snapshots currently bypass [read-model interception](../read-model-interception.md). Keep unauthorized fields and rows out of the producer's output rather than relying only on streaming interception to mask them.
 
-    _collection.Observe()
-        .Select(accounts => new AccountMetrics(
-            TotalAccounts: accounts.Count(),
-            TotalBalance: accounts.Sum(a => a.Balance),
-            AverageBalance: accounts.Any() ? accounts.Average(a => a.Balance) : 0,
-            ActiveAccounts: accounts.Count(a => a.Balance > 0),
-            HighValueAccounts: accounts.Count(a => a.Balance > 100000)))
-        .Subscribe(metrics);
+## Ongoing authorization
 
-    return metrics;
-}
-```
-
-## Filtered Observables with Dynamic Criteria
-
-Allow clients to specify filter criteria for observables:
-
-```csharp
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-
-public record ObservableFilter(
-    decimal? MinBalance,
-    decimal? MaxBalance,
-    string? NamePattern,
-    CustomerId? OwnerId);
-
-[HttpPost("filtered-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetFilteredObservable([FromBody] ObservableFilter filter)
-{
-    var predicate = BuildFilterPredicate(filter);
-    var filtered = new ReplaySubject<IEnumerable<DebitAccount>>(1);
-
-    _collection.Observe()
-        .Select(accounts => accounts.Where(predicate).ToList().AsEnumerable())
-        .Subscribe(filtered);
-
-    return filtered;
-}
-
-Func<DebitAccount, bool> BuildFilterPredicate(ObservableFilter filter)
-{
-    return account =>
-        (!filter.MinBalance.HasValue || account.Balance >= filter.MinBalance.Value) &&
-        (!filter.MaxBalance.HasValue || account.Balance <= filter.MaxBalance.Value) &&
-        (string.IsNullOrEmpty(filter.NamePattern) || account.Name.Contains(filter.NamePattern, StringComparison.OrdinalIgnoreCase)) &&
-        (!filter.OwnerId.HasValue || account.Owner == filter.OwnerId.Value);
-}
-```
-
-## Throttled Observables
-
-For high-frequency changes, use the System.Reactive `Sample` operator to emit at most one
-update per time window, preventing a flood of changes from overwhelming clients:
-
-```csharp
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-
-[HttpGet("throttled-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetThrottledObservable(
-    [FromQuery] int throttleMs = 1000)
-{
-    var throttled = new ReplaySubject<IEnumerable<DebitAccount>>(1);
-
-    _collection.Observe()
-        .Sample(TimeSpan.FromMilliseconds(throttleMs))
-        .Subscribe(throttled);
-
-    return throttled;
-}
-```
-
-## Error Handling in Observables
-
-Errors raised while observing the collection propagate through the observable's error
-channel automatically. Use the System.Reactive `Do` operator to log them as they flow
-through, without altering the stream:
-
-```csharp
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-
-[HttpGet("robust-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetRobustObservable()
-{
-    var observable = new ReplaySubject<IEnumerable<DebitAccount>>(1);
-
-    _collection.Observe()
-        .Do(
-            onNext: _ => { },
-            onError: ex => _logger.LogError(ex, "Error observing accounts"))
-        .Subscribe(observable);
-
-    return observable;
-}
-```
-
-## Authentication and Authorization
-
-Observable queries support the same authentication and authorization as regular queries:
-
-```csharp
-[Authorize]
-[HttpGet("secure-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetSecureObservable()
-{
-    // Only authenticated users can subscribe
-    return _collection.Observe();
-}
-
-[Authorize(Roles = "Admin")]
-[HttpGet("admin-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetAdminObservable()
-{
-    // Only admin users can subscribe
-    return _collection.Observe();
-}
-```
-
-## Best Practices for Observable Queries
-
-1. **Prefer the `Observe()` / `ObserveSingle()` extension methods** — they handle change monitoring, initial data, and cleanup for you
-2. **Project with System.Reactive operators** (`Select`, `CombineLatest`, `Sample`) when you need computed, combined, or throttled streams
-3. **Use appropriate filters** to minimize unnecessary data transmission
-4. **Consider throttling** with `Sample` for high-frequency changes to prevent overwhelming clients
-5. **Let errors propagate** through the observable's error channel; use `Do` to observe them for logging
-6. **Use authentication** to control who can subscribe to observable endpoints
-7. **Monitor performance** and consider the impact of many concurrent subscriptions
-
-## Connection Management
-
-Arc automatically handles WebSocket connections for observable queries:
-
-- **Connection establishment** - Automatic WebSocket upgrade for observable endpoints
-- **Message serialization** - Automatic JSON serialization of observable data
-- **Connection cleanup** - Proper disposal of resources when clients disconnect
-- **Reconnection handling** - Clients can reconnect and resume subscriptions
-
-## Waiting for the First HTTP Result
-
-The regular HTTP `GET` endpoint for a controller-based observable query returns the current snapshot as JSON. If the observable has not produced a value yet, add `waitForFirstResult=true` to keep the HTTP request open until the first item arrives.
-
-Arc applies a timeout while waiting. By default the timeout is 30 seconds. You can override it with `waitForFirstResultTimeout`, expressed in seconds.
-
-```bash
-curl "https://localhost:5001/api/observable-controller-queries/observe/delayed-single?waitForFirstResult=true"
-```
-
-```bash
-curl "https://localhost:5001/api/observable-controller-queries/observe/delayed-single?waitForFirstResult=true&waitForFirstResultTimeout=10"
-```
-
-This makes it easy to debug observable controller actions with cURL without switching to WebSockets or SSE.
-
-See [Use Observable Queries with cURL](../using-observable-queries-with-curl.md) for snapshot, SSE, and long-polling workflows.
-
-## Frontend Integration
-
-Observable queries integrate seamlessly with frontend frameworks through the proxy generator and the [ObservableQuery construct](../../../frontend/react/queries/observable-queries.md):
-
-```typescript
-
-accountsObservable.subscribe(accounts => {
-    // Handle real-time account updates
-    updateUI(accounts);
-});
-```
-
-The `ISubject<T>` return type automatically establishes and manages WebSocket connections, providing:
-
-> **Important**: The `Observe()` and `ObserveSingle()` extension methods manage their own subscriptions and clean up automatically when a client disconnects, so you do not need to write any teardown code.
-
-- **Automatic connection management** - WebSocket connections are established and maintained automatically
-- **Strongly-typed data flow** - Full TypeScript support through the proxy generator
-- **Reactive integration** - Seamless integration with React hooks like `useObservableQuery()`
-- **Reconnection handling** - Automatic reconnection and state recovery on connection loss
-
-> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your observable queries,
-> making them strongly typed on the frontend as well.
+An initial authorized subscription does not automatically end when permissions change. Use [emission guards](../observable-query-emission-guards.md) for per-emission revocation checks and test disconnect cleanup. The [React observable-query APIs](../../../frontend/react/queries/observable-queries.md) manage client subscription lifecycle; reconnecting establishes a new read, not durable replay.

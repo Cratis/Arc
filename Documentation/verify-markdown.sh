@@ -33,7 +33,7 @@ fi
 
 # Each step captures its own exit code and the run continues, so that a failing
 # lint step does not leave the state of the links unreported.
-if npx --yes markdownlint-cli2 "Documentation/**/*.md"; then
+if npx --yes markdownlint-cli2 "Documentation/**/*.{md,mdx}"; then
     LINT_EXIT_CODE=0
 else
     LINT_EXIT_CODE=$?
@@ -47,9 +47,22 @@ else
 fi
 echo ""
 
-# Step 2: Link Verification
+# Step 2: Starlight authoring validation
 echo "=========================================="
-echo "Step 2: Running link verification..."
+echo "Step 2: Validating Starlight authoring..."
+echo "=========================================="
+echo ""
+
+if node "$SCRIPT_DIR/verify-authoring.mjs"; then
+    AUTHORING_EXIT_CODE=0
+else
+    AUTHORING_EXIT_CODE=$?
+fi
+echo ""
+
+# Step 3: Link Verification
+echo "=========================================="
+echo "Step 3: Running link verification..."
 echo "=========================================="
 echo ""
 
@@ -64,12 +77,13 @@ echo ""
 echo "=========================================="
 echo "Summary"
 echo "=========================================="
-if [ $LINT_EXIT_CODE -eq 0 ] && [ $LINK_EXIT_CODE -eq 0 ]; then
+if [ $LINT_EXIT_CODE -eq 0 ] && [ $AUTHORING_EXIT_CODE -eq 0 ] && [ $LINK_EXIT_CODE -eq 0 ]; then
     echo "✓ All checks passed!"
     exit 0
 else
     echo "✗ Some checks failed:"
     [ $LINT_EXIT_CODE -ne 0 ] && echo "  - Markdown linting"
+    [ $AUTHORING_EXIT_CODE -ne 0 ] && echo "  - Starlight authoring validation"
     [ $LINK_EXIT_CODE -ne 0 ] && echo "  - Link verification"
     exit 1
 fi

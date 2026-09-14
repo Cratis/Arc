@@ -31,7 +31,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </para>
 /// </remarks>
 [Singleton]
-public class CommandCausationScope : ICommandExecutionScope
+public class CommandCausationScope : ICommandOperationExecutionScope
 {
     /// <summary>
     /// The causation scope owned by the command executing on this asynchronous flow.
@@ -43,6 +43,12 @@ public class CommandCausationScope : ICommandExecutionScope
     /// of its own execution and leaves this frame's untouched, which is exactly the nesting the chain describes.
     /// </remarks>
     static readonly AsyncLocal<IDisposable?> _scope = new();
+
+    /// <inheritdoc/>
+    public bool IsCommitParticipant => false;
+
+    /// <inheritdoc/>
+    public CommandCommitDisposition GetCommitDisposition(CommandContext context) => CommandCommitDisposition.NoCommit;
 
     /// <inheritdoc/>
     public void Begin(CommandContext context)

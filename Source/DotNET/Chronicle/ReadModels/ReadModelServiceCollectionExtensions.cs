@@ -42,7 +42,7 @@ public static class ReadModelServiceCollectionExtensions
     /// A read model is injectable into command-scoped code (a <c>CommandValidator&lt;&gt;</c>, <c>Provide()</c>, or
     /// <c>Handle()</c>) because it is resolvable by key (the resolved event source id) through <see cref="IReadModels"/>.
     /// What makes a read model resolvable that way is a Chronicle backing artifact, so this registers every read model
-    /// that has a projection, model-bound projection, or reducer — independent of whether it also carries the Arc-level
+    /// that has a projection, standalone model-bound projection, or reducer — independent of whether it also carries the Arc-level
     /// <c>[ReadModel]</c> attribute. It deliberately does not register read models by <c>[ReadModel]</c> alone: that
     /// attribute is an Arc concept that does not imply Chronicle key resolution, and a read model backed by another
     /// provider (for example Entity Framework Core) is registered by that provider, not here.
@@ -51,7 +51,7 @@ public static class ReadModelServiceCollectionExtensions
     {
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
-        var modelBoundReadModels = clientArtifactsProvider.ModelBoundProjections
+        var modelBoundReadModels = ModelBoundReadModelRoots.Discover(clientArtifactsProvider.ModelBoundProjections)
             .Where(type => type.IsClass && !type.IsAbstract);
 
         // A read model is registered for command-scope resolution because it is resolvable by key through

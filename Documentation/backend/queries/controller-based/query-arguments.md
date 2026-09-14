@@ -1,387 +1,87 @@
-# Query Arguments
+---
+title: Controller query arguments
+description: Bind MVC route values, query strings, collections, and validated DTOs.
+---
 
-Controller-based queries can accept arguments to filter, customize, or parameterize the data they return. Arguments can come from route parameters, query strings, or request bodies.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-> **💡 Proxy Generation**: The [proxy generator](../../proxy-generation/index.md) automatically analyzes your query arguments and creates strongly-typed TypeScript interfaces, ensuring type safety between your backend and frontend.
+## MVC binding is a separate contract
 
-## Route Parameters
+Controller GET actions use ASP.NET Core model binding, not Arc's scalar model-bound query readers. Use `[FromRoute]`, `[FromQuery]`, and `[FromHeader]` to make each source explicit. MVC can bind arrays and DTO properties from query strings; this does not imply a static `[ReadModel]` method supports those same HTTP input shapes.
 
-Route parameters are embedded in the URL path and are typically used for primary identifiers:
+## Bind and validate a search DTO
+
+This alternative banking example uses the [shared `AccountId` and `AccountName` concepts](../model-bound/index.md#model-account-identities-and-names) and an ASP.NET Core Arc host with MVC, authorization, and the MongoDB provider configured. `Prefix` is search text—not a complete account name—so it remains a string at the request boundary:
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
+using MongoDB.Driver;
+
+namespace Banking.Accounts;
+
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance);
+
+public class AccountSearch
+{
+    [Required]
+    [StringLength(50, MinimumLength = 3)]
+    public string Prefix { get; set; } = string.Empty;
+
+    [Range(0, 1000000)]
+    public decimal MinimumBalance { get; set; }
+}
+
+[Authorize(Roles = "AccountReader")]
 [Route("api/accounts")]
-public class Accounts : Controller
+public class AccountsController(IMongoCollection<DebitAccount> collection) : ControllerBase
 {
-    readonly IMongoCollection<DebitAccount> _collection;
-
-    public Accounts(IMongoCollection<DebitAccount> collection) => _collection = collection;
-
-    [HttpGet("{id}")]
-    public DebitAccount GetAccountById(AccountId id)
+    [HttpGet("search")]
+    public IEnumerable<DebitAccount> Search([FromQuery] AccountSearch query)
     {
-        return _collection.Find(a => a.Id == id).FirstOrDefault();
+        var prefix = new BsonRegularExpression("^" + Regex.Escape(query.Prefix));
+        var filter = Builders<DebitAccount>.Filter.Regex(account => account.Name, prefix) &
+            Builders<DebitAccount>.Filter.Gte(account => account.Balance, query.MinimumBalance);
+        return collection.Find(filter).SortBy(account => account.Name).Limit(100).ToList();
     }
 
-    [HttpGet("owner/{ownerId}")]
-    public IEnumerable<DebitAccount> GetAccountsByOwner(CustomerId ownerId)
+    [HttpGet("by-ids")]
+    public IEnumerable<DebitAccount> ByIds([FromQuery] Guid[] ids)
     {
-        return _collection.Find(a => a.Owner == ownerId).ToList();
-    }
-
-    [HttpGet("{id}/balance")]
-    public decimal GetAccountBalance(AccountId id)
-    {
-        var account = _collection.Find(a => a.Id == id).FirstOrDefault();
-        return account?.Balance ?? 0;
+        var accountIds = ids.Select(id => (AccountId)id);
+        return collection.Find(Builders<DebitAccount>.Filter.In(account => account.Id, accountIds)).ToList();
     }
 }
 ```
 
-## Query String Parameters
-
-Query string parameters are appended to the URL after a `?` and are typically used for optional filters or configuration:
-
-```csharp
-[HttpGet]
-public IEnumerable<DebitAccount> GetAccounts([FromQuery] string? nameFilter = null)
-{
-    var filter = Builders<DebitAccount>.Filter.Empty;
-    
-    if (!string.IsNullOrEmpty(nameFilter))
-    {
-        filter = Builders<DebitAccount>.Filter.Regex(
-            account => account.Name, 
-            new BsonRegularExpression(nameFilter, "i"));
-    }
-    
-    return _collection.Find(filter).ToList();
-}
-
-[HttpGet("search")]
-public async Task<IEnumerable<DebitAccount>> SearchAccounts(
-    [FromQuery] string? name = null,
-    [FromQuery] decimal? minBalance = null,
-    [FromQuery] decimal? maxBalance = null,
-    [FromQuery] bool includeInactive = false)
-{
-    var filterBuilder = Builders<DebitAccount>.Filter;
-    var filters = new List<FilterDefinition<DebitAccount>>();
-
-    if (!string.IsNullOrEmpty(name))
-    {
-        filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(name, "i")));
-    }
-
-    if (minBalance.HasValue)
-    {
-        filters.Add(filterBuilder.Gte(a => a.Balance, minBalance.Value));
-    }
-
-    if (maxBalance.HasValue)
-    {
-        filters.Add(filterBuilder.Lte(a => a.Balance, maxBalance.Value));
-    }
-
-    if (!includeInactive)
-    {
-        filters.Add(filterBuilder.Gt(a => a.Balance, 0));
-    }
-
-    var combinedFilter = filters.Any() 
-        ? filterBuilder.And(filters) 
-        : filterBuilder.Empty;
-
-    var result = await _collection.FindAsync(combinedFilter);
-    return result.ToList();
-}
+```http
+GET /api/accounts/search?prefix=Sav&minimumBalance=100
+GET /api/accounts/by-ids?ids=11111111-1111-1111-1111-111111111111&ids=22222222-2222-2222-2222-222222222222
 ```
 
-## Complex Query Objects
+The GUID array is an explicit MVC wire boundary; the action converts it to domain `AccountId` values before querying. The prefix filter targets the stored account-name field and escapes the caller's search text rather than interpreting it as a regular expression.
 
-For complex queries with multiple parameters, you can create dedicated query objects:
+The validation attributes in this example belong to **MVC DTO properties**. Arc's GET action filter consults MVC model state before invoking the action. `[ApiController]` and custom MVC filters can add their own earlier validation responses; do not assume all configurations return the identical envelope.
 
-```csharp
-public record AccountSearchQuery(
-    string? Name,
-    decimal? MinBalance,
-    decimal? MaxBalance,
-    bool IncludeInactive,
-    string? OwnerName);
+A filter on caller-supplied IDs is not owner authorization. This example deliberately requires a role allowed to read all matching accounts.
 
-[HttpGet("advanced-search")]
-public IEnumerable<DebitAccount> SearchAccountsAdvanced([FromQuery] AccountSearchQuery query)
-{
-    var filterBuilder = Builders<DebitAccount>.Filter;
-    var filters = new List<FilterDefinition<DebitAccount>>();
+## Defaults, sorting, and paging
 
-    if (!string.IsNullOrEmpty(query.Name))
-    {
-        filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(query.Name, "i")));
-    }
+Nullable/defaulted scalar action arguments support optional input according to MVC's binding rules. For Arc paging, prefer returning `IQueryable<T>` and using [the paging context](paging.md) instead of slicing twice.
 
-    if (query.MinBalance.HasValue)
-    {
-        filters.Add(filterBuilder.Gte(a => a.Balance, query.MinBalance.Value));
-    }
+If composing a MongoDB fluent query yourself, use expression-based sorting such as `SortBy(account => account.Name)`, or a `Builders<T>.Sort` definition passed to `Sort(...)`. There is no `SortBy(string)` overload. Constrain client-selectable sort fields to your intended public fields.
 
-    if (query.MaxBalance.HasValue)
-    {
-        filters.Add(filterBuilder.Lte(a => a.Balance, query.MaxBalance.Value));
-    }
+## Request body arguments
 
-    if (!query.IncludeInactive)
-    {
-        filters.Add(filterBuilder.Gt(a => a.Balance, 0));
-    }
+An ordinary MVC action can use `[FromBody]` and a suitable verb for structured JSON. That is **not** a drop-in Arc GET observable query: `QueryActionFilter` runs for GET, and the standard Arc POST command surface has a different contract. Do not put `[HttpPost]` on a subject-returning action and assume Arc will stream it.
 
-    // Additional complex filtering logic...
-    
-    var combinedFilter = filters.Any() 
-        ? filterBuilder.And(filters) 
-        : filterBuilder.Empty;
+For model-bound one-shot queries needing a body, see [HTTP QUERY](../using-the-http-query-method.md); its body envelope still uses scalar argument conversion, not MVC DTO deserialization. Choose and test the endpoint/client contract explicitly rather than treating these paths as interchangeable.
 
-    return _collection.Find(combinedFilter).ToList();
-}
-```
-
-## Observable Query Arguments
-
-Observable queries can also accept arguments:
-
-```csharp
-[HttpGet("owner/{ownerId}/observable")]
-public ISubject<IEnumerable<DebitAccount>> GetAccountsByOwnerObservable(CustomerId ownerId)
-{
-    return _collection.Observe(account => account.Owner == ownerId);
-}
-
-[HttpGet("filtered-observable")]
-public ISubject<IEnumerable<DebitAccount>> GetFilteredAccountsObservable(
-    [FromQuery] decimal? minBalance = null)
-{
-    if (minBalance.HasValue)
-    {
-        return _collection.Observe(account => account.Balance >= minBalance.Value);
-    }
-    
-    return _collection.Observe();
-}
-```
-
-## Argument Types
-
-Arc supports various argument types:
-
-### Primitive Types
-
-```csharp
-[HttpGet("by-balance")]
-public IEnumerable<DebitAccount> GetAccountsByBalance(
-    [FromQuery] decimal balance,
-    [FromQuery] bool exactMatch = false)
-{
-    return exactMatch 
-        ? _collection.Find(a => a.Balance == balance).ToList()
-        : _collection.Find(a => a.Balance >= balance).ToList();
-}
-```
-
-### Concept Types
-
-Using concept types (value objects) for stronger typing:
-
-```csharp
-[HttpGet("by-owner-concept/{ownerId}")]
-public IEnumerable<DebitAccount> GetAccountsByOwnerConcept(CustomerId ownerId)
-{
-    return _collection.Find(a => a.Owner == ownerId).ToList();
-}
-```
-
-### Collection Arguments
-
-```csharp
-[HttpGet("by-ids")]
-public IEnumerable<DebitAccount> GetAccountsByIds([FromQuery] AccountId[] ids)
-{
-    return _collection.Find(a => ids.Contains(a.Id)).ToList();
-}
-
-[HttpGet("by-owners")]
-public IEnumerable<DebitAccount> GetAccountsByOwners([FromQuery] List<CustomerId> ownerIds)
-{
-    return _collection.Find(a => ownerIds.Contains(a.Owner)).ToList();
-}
-```
-
-### Enums
-
-```csharp
-public enum AccountStatus { Active, Inactive, Suspended }
-
-[HttpGet("by-status")]
-public IEnumerable<DebitAccount> GetAccountsByStatus([FromQuery] AccountStatus status)
-{
-    // Implement status filtering logic
-    return status switch
-    {
-        AccountStatus.Active => _collection.Find(a => a.Balance > 0).ToList(),
-        AccountStatus.Inactive => _collection.Find(a => a.Balance == 0).ToList(),
-        AccountStatus.Suspended => _collection.Find(a => a.Balance < 0).ToList(),
-        _ => _collection.Find(_ => false).ToList()
-    };
-}
-```
-
-## Nullable Arguments
-
-Optional arguments should be nullable:
-
-```csharp
-[HttpGet("flexible-search")]
-public IEnumerable<DebitAccount> FlexibleSearch(
-    [FromQuery] string? name = null,
-    [FromQuery] CustomerId? ownerId = null,
-    [FromQuery] decimal? minBalance = null,
-    [FromQuery] decimal? maxBalance = null)
-{
-    var filterBuilder = Builders<DebitAccount>.Filter;
-    var filters = new List<FilterDefinition<DebitAccount>>();
-
-    if (!string.IsNullOrEmpty(name))
-        filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(name, "i")));
-
-    if (ownerId.HasValue)
-        filters.Add(filterBuilder.Eq(a => a.Owner, ownerId.Value));
-
-    if (minBalance.HasValue)
-        filters.Add(filterBuilder.Gte(a => a.Balance, minBalance.Value));
-
-    if (maxBalance.HasValue)
-        filters.Add(filterBuilder.Lte(a => a.Balance, maxBalance.Value));
-
-    var combinedFilter = filters.Any() 
-        ? filterBuilder.And(filters) 
-        : filterBuilder.Empty;
-
-    return _collection.Find(combinedFilter).ToList();
-}
-```
-
-## Default Values
-
-Provide sensible default values for optional parameters:
-
-```csharp
-[HttpGet("paged")]
-public IEnumerable<DebitAccount> GetPagedAccounts(
-    [FromQuery] int page = 0,
-    [FromQuery] int pageSize = 50,
-    [FromQuery] string sortBy = "name",
-    [FromQuery] bool ascending = true)
-{
-    var query = _collection.Find(_ => true);
-    
-    // Apply sorting
-    query = ascending 
-        ? query.SortBy(sortBy) 
-        : query.SortByDescending(sortBy);
-    
-    // Apply paging
-    return query.Skip(page * pageSize).Limit(pageSize).ToList();
-}
-```
-
-## Request Body Arguments
-
-For complex input that doesn't fit well in URLs, use request body parameters:
-
-```csharp
-public record ComplexSearchCriteria(
-    string[] SearchTerms,
-    Dictionary<string, object> CustomFilters,
-    DateRange DateRange,
-    SortOptions[] SortBy);
-
-[HttpPost("complex-search")]
-public async Task<IEnumerable<DebitAccount>> ComplexSearch([FromBody] ComplexSearchCriteria criteria)
-{
-    var filterBuilder = Builders<DebitAccount>.Filter;
-    var filters = new List<FilterDefinition<DebitAccount>>();
-
-    // Build filters from complex criteria
-    foreach (var term in criteria.SearchTerms)
-    {
-        filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(term, "i")));
-    }
-
-    // Apply custom filters, date ranges, etc.
-    
-    var combinedFilter = filters.Any() 
-        ? filterBuilder.And(filters) 
-        : filterBuilder.Empty;
-
-    var result = await _collection.FindAsync(combinedFilter);
-    return result.ToList();
-}
-```
-
-## Model Binding Attributes
-
-Use model binding attributes to control how arguments are bound:
-
-```csharp
-[HttpGet("mixed-binding/{id}")]
-public DebitAccount GetAccountMixed(
-    [FromRoute] AccountId id,
-    [FromQuery] bool includeDetails = false,
-    [FromHeader] string acceptLanguage = "en-US")
-{
-    var account = _collection.Find(a => a.Id == id).FirstOrDefault();
-    
-    if (includeDetails && account is not null)
-    {
-        // Add additional details based on language preference
-        // Implementation details...
-    }
-    
-    return account;
-}
-```
-
-## Validation
-
-Add validation attributes to ensure argument quality:
-
-```csharp
-[HttpGet("validated-search")]
-public IEnumerable<DebitAccount> ValidatedSearch(
-    [FromQuery] [Required] [MinLength(3)] string searchTerm,
-    [FromQuery] [Range(1, 100)] int pageSize = 20,
-    [FromQuery] [Range(0, int.MaxValue)] int page = 0)
-{
-    // Validation is automatically applied
-    var filter = Builders<DebitAccount>.Filter.Regex(
-        a => a.Name, 
-        new BsonRegularExpression(searchTerm, "i"));
-    
-    return _collection.Find(filter)
-        .Skip(page * pageSize)
-        .Limit(pageSize)
-        .ToList();
-}
-```
-
-## Best Practices
-
-1. **Use route parameters for identifiers** - Things that identify specific resources
-2. **Use query strings for filters** - Optional parameters that modify results
-3. **Use request body for complex data** - When you need to send structured data
-4. **Provide default values** - Make optional parameters truly optional
-5. **Use nullable types** - For optional parameters that might not be provided
-6. **Validate input** - Use validation attributes to ensure data quality
-7. **Use concepts over primitives** - Leverage value objects for stronger typing
-8. **Keep URLs readable** - Don't overload URLs with too many parameters
-
-> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your query arguments,
-> making them strongly typed on the frontend as well.
+Continue with [route templates](route-templates.md) for path parameters and [validation](../validation.md) for the model-bound/MVC distinction.

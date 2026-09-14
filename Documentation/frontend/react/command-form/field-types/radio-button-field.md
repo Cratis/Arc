@@ -1,4 +1,7 @@
-# RadioButtonField
+---
+title: RadioButtonField
+description: Assign a typed option value to a command property with one radio button.
+---
 
 A single radio input for assigning a specific value to a command property.
 
@@ -7,7 +10,7 @@ A single radio input for assigning a specific value to a command property.
 ## Props
 
 | Prop | Type | Default | Description |
-|------|------|---------|-------------|
+| ------ | ------ | --------- | ------------- |
 | `value` | `(instance: TCommand) => TValue` | | **Required.** Accessor function returning the property value from the command instance. |
 | `setValue` | `TValue` | | **Required.** Value assigned when the radio button is selected. The type is inferred from `value`. |
 | `label` | `React.ReactNode` | | Content displayed next to the radio button. |
@@ -15,7 +18,11 @@ A single radio input for assigning a specific value to a command property.
 | `required` | `boolean` | | Override automatic required detection. |
 | `disabled` | `boolean` | `false` | Disables the radio button. |
 
+Selection assigns `setValue` directly, and checked state uses `Object.is`. Prefer primitive option values; freshly constructed objects do not compare structurally. Radios sharing a bound property use its field name for grouping. See [Common props](./index.md#common-props); `required` is a control flag, not a replacement for command validation.
+
 ## Example
+
+These illustrative field fragments require `RadioButtonField` from `@cratis/arc.react/commands` and a generated `NotificationPreferences` whose `contactMethod` accepts `'email'` and `'sms'`. Place both inside its CommandForm. Annotating the accessor parameter enables option type inference; do not pass the command type as this component's accessor generic.
 
 ```tsx
 <RadioButtonField

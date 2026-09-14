@@ -19,10 +19,11 @@ public static class ReadModelForCommandServiceCollectionExtensions
     /// <param name="resolver">The <see cref="ICanResolveReadModelForCommand"/> that owns and resolves the read model types.</param>
     /// <returns>The service collection for continuation.</returns>
     /// <remarks>
-    /// For each read model type the resolver claims, a scoped factory is registered that delegates to the resolver, so the
-    /// command pipeline resolves the read model from DI by type like any other dependency. The set of registered read
-    /// model types is additive: multiple providers can contribute their own types and the classification of a missing
-    /// read model as invalid client input sees the union across all of them.
+    /// The resolver is registered as an <see cref="ICanResolveReadModelForCommand"/> and, for each read model type it
+    /// claims, a scoped factory is registered that delegates to it, so the command pipeline resolves the read model from
+    /// DI by type like any other dependency. The set of registered read model types is additive: multiple providers can
+    /// contribute their own types and the classification of a missing read model as invalid client input sees the union
+    /// across all of them.
     /// <para>
     /// Which types a provider claims follows from its <see cref="ICanResolveReadModelForCommand.Ownership"/> rather than
     /// from the order the application registers its providers in. A <see cref="ReadModelForCommandOwnership.Declared"/>
@@ -47,6 +48,8 @@ public static class ReadModelForCommandServiceCollectionExtensions
     /// </remarks>
     public static IServiceCollection AddReadModelsForCommand(this IServiceCollection services, ICanResolveReadModelForCommand resolver)
     {
+        services.AddSingleton<ICanResolveReadModelForCommand>(resolver);
+
         var claimed = new List<Type>();
         foreach (var readModelType in resolver.ReadModelTypes)
         {

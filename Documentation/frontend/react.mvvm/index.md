@@ -1,5 +1,6 @@
 ---
 title: "MVVM with React"
+description: Move substantial React screen behavior into testable, reusable view model classes.
 ---
 
 For most screens, the [React hooks](../react/index.md) keep state in the component and that's exactly

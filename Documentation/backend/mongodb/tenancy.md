@@ -1,8 +1,15 @@
-# Tenancy
+---
+title: MongoDB tenancy
+description: Preserve default database aliases and scope collections to the intended tenant.
+---
 
 For tenancy concepts and tenant resolution, see the [tenancy overview](../tenancy/index.md).
 
-This page focuses on MongoDB-specific tenant database naming through a custom database name resolver.
+The default resolver returns the configured database for both `TenantId.NotSet` and `TenantId.Default` (`IsDefault`). For a named tenant it appends `+<tenant>` to the configured database name.
+
+Collections and databases are scoped: resolve them after establishing the tenant context, and do not capture them in singleton services. Database naming is not authorization; tenant resolution and access checks must prevent unauthorized tenant selection.
+
+The example below deliberately uses a tenant prefix instead of the default suffix, while preserving both default aliases. Apply naming changes as a data migration decision, not an incidental refactor.
 
 ## Custom Database Resolvers
 
@@ -24,7 +31,7 @@ public class CustomMongoDatabaseNameResolver(
         var baseName = options.Value.Database;
         var tenantId = tenantIdAccessor.Current;
 
-        return tenantId == TenantId.NotSet
+        return tenantId.IsDefault
             ? baseName
             : $"{tenantId.Value}_{baseName}";
     }
@@ -46,4 +53,3 @@ builder.UseCratisMongoDB(configureMongoDB: mongodb =>
 - Add environment or region prefixes.
 - Integrate with legacy database layouts.
 - Implement specialized isolation or sharding rules.
-

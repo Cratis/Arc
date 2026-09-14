@@ -1,71 +1,49 @@
-# OpenAPI Specifications
+---
+title: Lightweight OpenAPI specifications
+description: Expose route metadata with Arc.Core's built-in OpenAPI endpoint, without the ASP.NET integration package.
+---
 
-Arc provides built-in support for generating OpenAPI 3.0 specification documents from your registered HTTP endpoints. This allows you to document your API and integrate with tools like Swagger UI, Postman, and other OpenAPI-compatible clients.
+When you need a route catalog for a lightweight service, Core can generate a basic route document declaring OpenAPI 3.0, with the compatibility limitations below. This support is already in **`Cratis.Arc.Core`**. The separate `Cratis.Arc.OpenApi` package supplies [ASP.NET Core transformers](../open-api/index.md); it is not required for `ArcApplication.MapOpenApi()`.
 
-## Overview
+## Getting started
 
-The OpenAPI support in Arc automatically generates a specification document based on:
-
-- Registered routes (GET, POST, PUT, DELETE, PATCH)
-- Endpoint metadata (operation IDs, summaries, tags)
-- Authentication requirements
-- Response codes
-
-## Getting Started
-
-To add OpenAPI support to your Arc application, you need to:
-
-1. Add a reference to the `Cratis.Arc.OpenApi` package
-2. Call the `MapOpenApi()` extension method on your `ArcApplication`
-
-### Installation
-
-Add the package reference to your project:
-
-```bash
-dotnet add package Cratis.Arc.OpenApi
-```
-
-### Basic Configuration
+This runnable `Program.cs` checkpoint assumes the console project from [getting started](getting-started.md):
 
 ```csharp
 using Cratis.Arc;
+using Cratis.Arc.Http;
 using Cratis.Arc.OpenApi;
 
 var builder = ArcApplication.CreateBuilder(args);
+builder.AddCratisArc(options =>
+    options.Hosting.ApplicationUrl = "http://localhost:5000/");
 var app = builder.Build();
+app.UseCratisArc();
 
-// Map the OpenAPI endpoint
+app.MapGet("/health", context => context.Write("OK"),
+    new EndpointMetadata(
+        Name: "Health",
+        Summary: "Reports that the service is running",
+        Tags: ["Operations"],
+        AllowAnonymous: true));
 app.MapOpenApi();
 
 await app.RunAsync();
 ```
 
-This will expose the OpenAPI specification document at `/openapi.json` by default.
+`curl http://localhost:5000/openapi.json` returns a document with `openapi: "3.0.0"` and a `/health` path, alongside Arc's mapped routes. Mapping the document does not register Arc services or start the listener; the bootstrap above does both.
 
-## Configuration Options
+## Configuration options
 
-The `MapOpenApi()` method accepts several optional parameters to customize the generated document:
+`MapOpenApi` returns the application and accepts these optional arguments:
 
-### Custom Endpoint Path
+| Argument | Default |
+| --- | --- |
+| `pattern` | `/openapi.json` |
+| `title` | `Arc Application` |
+| `version` | `1.0.0` |
 
-Change where the OpenAPI document is served:
-
-```csharp
-app.MapOpenApi(pattern: "/api/swagger.json");
-```
-
-### API Title and Version
-
-Customize the API information in the document:
-
-```csharp
-app.MapOpenApi(
-    title: "My API",
-    version: "2.0.0");
-```
-
-### Complete Example
+This **mapping fragment** replaces `app.MapOpenApi()` in the checkpoint:
 
 ```csharp
 app.MapOpenApi(
@@ -74,222 +52,25 @@ app.MapOpenApi(
     version: "1.0.0");
 ```
 
-## Generated Document Structure
+## Generated document structure
 
-The OpenAPI document includes:
+The generator reads currently registered routes when the document is requested. Endpoint metadata supplies operation IDs, summaries, and tags. The server URL is `/`. It emits generic 200, 401, and 500 response descriptions for each operation, not a comprehensive status contract.
 
-### API Information
+For metadata with `AllowAnonymous = false`, it emits a Bearer/JWT security requirement and scheme. That is a **fixed documentation convention**: it does not inspect or install your actual authentication mechanism. It may not describe an API-key or forwarded-header deployment accurately.
 
-- **Title**: The name of your API
-- **Version**: The API version
+## Limitations and production access
 
-### Servers
+- No request-body or response-body schemas are generated. Do not use this document alone to generate a complete typed client.
+- The document endpoint is explicitly anonymous. Restrict it at trusted ingress if route metadata should not be public.
+- Documentation does not enforce permissions; see [authentication](authentication.md) and [manual endpoint boundaries](endpoint-mapping.md).
+- The generator emits every registered HTTP method as a lowercase path-item member. With generated queries and the default `GeneratedApis.EnableQueryHttpMethod = true`, that includes `query`. OpenAPI 3.0 cannot represent this operation: strict tools may reject the document or ignore that member. The lightweight generator currently ignores `ExcludeFromApiDescription` metadata, including the QUERY reader's exclusion; the ASP.NET mapper handles that exclusion separately.
+- If you choose to disable the QUERY transport, set `options.GeneratedApis.EnableQueryHttpMethod = false` in the `AddCratisArc` callback. Generated queries then accept GET only. This is an application transport choice, not a fix to the generator or a requirement to run Arc; verify clients do not depend on QUERY.
+- The public lightweight mapping helpers currently expose GET and POST, not ASP.NET's full routing API.
 
-- Default server URL (`/`)
+Validate compatibility before importing the document into Postman or pointing a separately hosted Swagger UI at it. For richer ASP.NET type schemas, use [Cratis.Arc.OpenApi](../open-api/index.md) or [Cratis.Arc.Swagger](../asp-net-core/swagger.md), and review their documented limitations too.
 
-### Paths
+## See also
 
-All registered routes with their:
-- HTTP methods (get, post, put, delete, patch)
-- Operation IDs (from endpoint metadata)
-- Summaries (from endpoint metadata)
-- Tags (from endpoint metadata)
-- Response codes:
-  - `200` - Success
-  - `401` - Unauthorized (for authenticated endpoints)
-  - `500` - Internal Server Error
-
-### Security
-
-If any endpoints require authentication (have `AllowAnonymous = false`), the document includes:
-- Bearer token security scheme
-- JWT format specification
-- Security requirements per operation
-
-## Endpoint Metadata
-
-To provide rich OpenAPI documentation, use endpoint metadata when registering routes:
-
-```csharp
-app.MapGet("/api/customers", async context =>
-{
-    // Handler implementation
-},
-new EndpointMetadata(
-    Name: "GetCustomers",
-    Summary: "Retrieves all customers",
-    Tags: ["Customers"],
-    AllowAnonymous: false));
-```
-
-### Metadata Properties
-
-- **Name**: Becomes the `operationId` in the OpenAPI document
-- **Summary**: Becomes the `summary` in the OpenAPI document
-- **Tags**: Used for grouping operations in API documentation tools
-- **AllowAnonymous**: When `false`, adds security requirements to the operation
-
-## Integration with API Clients
-
-### Swagger UI
-
-You can use the generated OpenAPI document with Swagger UI:
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>API Documentation</title>
-    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
-</head>
-<body>
-    <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script>
-        SwaggerUIBundle({
-            url: '/openapi.json',
-            dom_id: '#swagger-ui',
-        });
-    </script>
-</body>
-</html>
-```
-
-### Postman
-
-Import the OpenAPI document into Postman:
-
-1. Open Postman
-2. Click **Import**
-3. Choose **Link** and enter your OpenAPI URL (e.g., `http://localhost:5000/openapi.json`)
-4. Click **Continue** to import the collection
-
-### Code Generation
-
-Use OpenAPI generators to create client libraries:
-
-```bash
-# Using openapi-generator-cli
-openapi-generator-cli generate \
-    -i http://localhost:5000/openapi.json \
-    -g csharp \
-    -o ./generated-client
-```
-
-## Example Application
-
-Here's a complete example of an Arc application with OpenAPI support:
-
-```csharp
-using Cratis.Arc;
-using Cratis.Arc.Http;
-using Cratis.Arc.OpenApi;
-
-var builder = ArcApplication.CreateBuilder(args);
-var app = builder.Build();
-
-// Configure OpenAPI endpoint
-app.MapOpenApi(
-    pattern: "/openapi.json",
-    title: "Product Catalog API",
-    version: "1.0.0");
-
-// Register API endpoints
-app.MapGet("/api/products", async context =>
-{
-    var products = new[]
-    {
-        new { Id = 1, Name = "Product 1", Price = 29.99 },
-        new { Id = 2, Name = "Product 2", Price = 39.99 }
-    };
-    
-    await context.WriteResponseAsJson(products, products.GetType());
-},
-new EndpointMetadata(
-    Name: "ListProducts",
-    Summary: "Get all products in the catalog",
-    Tags: ["Products"],
-    AllowAnonymous: true));
-
-app.MapPost("/api/products", async context =>
-{
-    var product = await context.ReadBodyAsJson(typeof(object));
-    context.SetStatusCode(201);
-    await context.WriteResponseAsJson(product, product?.GetType() ?? typeof(object));
-},
-new EndpointMetadata(
-    Name: "CreateProduct",
-    Summary: "Create a new product",
-    Tags: ["Products"],
-    AllowAnonymous: false));
-
-await app.RunAsync();
-```
-
-## Best Practices
-
-### Use Descriptive Names
-
-Provide clear operation IDs and summaries:
-
-```csharp
-new EndpointMetadata(
-    Name: "GetCustomerById",
-    Summary: "Retrieves a customer by their unique identifier",
-    Tags: ["Customers"])
-```
-
-### Organize with Tags
-
-Group related endpoints together:
-
-```csharp
-// All customer-related endpoints use the "Customers" tag
-Tags: ["Customers"]
-
-// Order-related endpoints use the "Orders" tag
-Tags: ["Orders"]
-```
-
-### Document Security Requirements
-
-Be explicit about authentication:
-
-```csharp
-// Public endpoint
-new EndpointMetadata(
-    Name: "GetPublicData",
-    AllowAnonymous: true)
-
-// Protected endpoint
-new EndpointMetadata(
-    Name: "GetUserData",
-    AllowAnonymous: false)
-```
-
-### Keep Versions Updated
-
-Update the version when making breaking changes:
-
-```csharp
-app.MapOpenApi(
-    title: "My API",
-    version: "2.0.0");  // Incremented for breaking changes
-```
-
-## Limitations
-
-The current OpenAPI implementation:
-
-- Generates basic request/response schemas (no detailed type information)
-- Does not include request body schemas
-- Does not include response body schemas
-- Supports standard HTTP methods (GET, POST, PUT, DELETE, PATCH)
-
-For more advanced OpenAPI features with full schema generation, consider using `Cratis.Arc.Swagger` with ASP.NET Core.
-
-## See Also
-
-- [Getting Started](getting-started.md) - Learn how to build Arc.Core applications
-- [Authentication](authentication.md) - Implement authentication for your API
-- [Authorization](authorization.md) - Secure endpoints with authorization
+- [Endpoint mapping](endpoint-mapping.md) — supply route metadata.
+- [Introspection](../introspection/index.md) — command/query contract discovery and exposure defaults.
+- [Getting started](getting-started.md) — a complete standalone command/query checkpoint.

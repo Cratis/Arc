@@ -1,10 +1,13 @@
-# JSON Conversion
+---
+title: JSON conversion
+description: Store explicitly marked EF properties as JSON with separate conversion options.
+---
 
 The JSON conversion feature provides automatic serialization and deserialization of complex objects to JSON format in the database. This cross-database approach allows you to store rich data structures while maintaining compatibility across different database providers.
 
 ## What it does
 
-The JSON conversion automatically configures Entity Framework Core to handle properties marked with the `[Json]` attribute:
+With `BaseDbContext`, or an explicit `ApplyJsonConversion` call, Arc configures properties marked with `[Json]`. These model/startup fragments extend the host from [getting started](./getting-started.md); they are not independent programs.
 
 1. **Serialization**: Complex objects are automatically serialized to JSON when saving to the database
 2. **Deserialization**: JSON data is automatically converted back to objects when loading from the database
@@ -57,6 +60,8 @@ The conversion will automatically:
 - Support Cratis concepts within the JSON data
 - Maintain type safety when loading the data back
 
+The selected column types are PostgreSQL `jsonb`, SQL Server `nvarchar(max)`, and SQLite `text`. This is value conversion, not a promise that arbitrary nested-property LINQ expressions translate to server-side JSON operators. Test provider query support explicitly. JSON options are separate from the plain serializer used by `AsPoint()` / `AsLineString()` / `AsPolygon()`; do not apply both paths to one property.
+
 ## Default Converters
 
 `JsonConversionOptions` is pre-populated with all Arc default JSON converters so that common types work
@@ -64,15 +69,17 @@ out of the box without any extra configuration:
 
 | Converter | Handles |
 | --------- | ------- |
+| `ComplexKeyDictionaryJsonConverterFactory` | Dictionaries with complex keys |
+| `PointJsonConverter`, `LineStringJsonConverter`, `PolygonJsonConverter` | Cratis geometry in GeoJSON format |
 | `ConceptAsJsonConverterFactory` | Cratis `ConceptAs<T>` value types |
 | `EnumerableConceptAsJsonConverterFactory` | `IEnumerable<ConceptAs<T>>` sequences |
-| `EnumConverterFactory` | Enum values (serialised as integers) |
+| `EnumConverterFactory` | Enum values (serialized as integers) |
 | `DateOnlyJsonConverter` | `System.DateOnly` |
 | `TimeOnlyJsonConverter` | `System.TimeOnly` |
 | `TypeJsonConverter` | `System.Type` |
 | `UriJsonConverter` | `System.Uri` |
 | `EnumerableModelWithIdToConceptOrPrimitiveEnumerableConverterFactory` | Enumerable model-with-id to concept/primitive |
-| `DerivedTypeJsonConverterFactory` | Polymorphic types registered via `IDerivedTypes` (interfaces, abstract base classes) |
+| `DerivedTypeJsonConverterFactory` | Added when `IDerivedTypes` is supplied; handles registered polymorphic types |
 
 ## Registering Custom Converters
 
@@ -85,7 +92,7 @@ builder.AddCratisArc(configureBuilder: arcBuilder =>
 {
     arcBuilder.WithEntityFrameworkCore(options =>
     {
-        options.ConnectionString = "...";
+        options.ConnectionString = "Data Source=store.db";
         options.JsonConverters.Add(new MyRequestConverter());
     });
 });
@@ -100,7 +107,7 @@ public sealed record DoThing(int Count) : IMyRequest;
 public class MyEntity
 {
     [Key] public Guid Id { get; set; }
-    [Json] public IMyRequest Request { get; set; } = default!;  // round-trips correctly
+    [Json] public required IMyRequest Request { get; set; }
 }
 ```
 
@@ -135,14 +142,14 @@ public class MyRequestConverter : JsonConverter<IMyRequest>
 
 ## Manual Configuration
 
-If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply JSON conversion in your `DbContext`:
+If you're not using [`BaseDbContext`](./base-db-context.md), apply JSON conversion in `OnModelCreating`. In addition to the JSON namespace below, import `Cratis.Arc.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore`.
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore.Json;
 
-public class StoreDbContext(DbContextOptions options) : DbContext(options)
+public class StoreDbContext(DbContextOptions<StoreDbContext> options) : DbContext(options)
 {
-    public DbSet<Customer> Customers { get; set; }
+    public DbSet<Customer> Customers => Set<Customer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -178,4 +185,3 @@ The conversion system uses reflection to:
 4. Apply these converters to the Entity Framework model builder
 
 The conversion is handled by the `JsonConversion.ApplyJsonConversion()` extension method, which automatically discovers and configures all JSON properties in your model.
-

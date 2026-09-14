@@ -4,6 +4,8 @@
     <Folder Name="/Source/DotNET/">
         <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.TypeDiscovery.Specs\Arc.Core.TypeDiscovery.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Core.TypeDiscovery.Specs.Plugin\Arc.Core.TypeDiscovery.Specs.Plugin.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis\Arc.Core.CodeAnalysis.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.CodeFixes\Arc.Core.CodeAnalysis.CodeFixes.csproj" />
         <Project Path="Source\DotNET\Arc.Core.CodeAnalysis.Package\Arc.Core.CodeAnalysis.Package.csproj" />

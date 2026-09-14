@@ -1,292 +1,92 @@
-# Command Validation
+---
+title: Command validation in React
+description: Show preflight feedback without stale submit permission, native form navigation, or false security guarantees.
+---
 
-Command validation enables pre-flight validation of commands without executing them. This provides early feedback to users in React applications before performing potentially expensive or state-changing operations.
+A field can be valid when you start checking it and different by the time the answer arrives. For raw command hooks, treat validation as feedback tied to an edit revision, not as a lasting permission to submit. [CommandForm](../command-form/index.md) is the preferred form-managed alternative.
 
-## Purpose
+## How it works
 
-The validation mechanism allows you to check authorization and validation rules without executing the command handler. This is essential for:
+`validate()` first checks client rules and required values. A failure can return locally without checking server authorization. Otherwise the backend runs filters but skips handler execution and handler-argument resolution. Filter/validator code must itself be read-only and avoid sensitive messages; “the handler did not run” is not a blanket side-effect or confidentiality guarantee.
 
-- **Early User Feedback**: Show validation errors before the user submits a form
-- **UX Improvements**: Enable/disable submit buttons based on validation state
-- **Authorization Checks**: Verify user permissions without side effects
-- **Progressive Validation**: Validate fields as users interact with forms
+`execute()` validates again. Inspect its final `CommandResult` even after a successful preflight. See [core validation](../../core/commands/validation.md).
 
-## How It Works
+## Progressive and debounced validation
 
-When you validate a command, the request is sent to the backend validation endpoint where:
+This illustrative component assumes a generated `UpdateContact` command with string `email` and `phone` properties and no other required input. It validates the displayed draft after a short delay, discards stale answers, clears old messages on edits, and prevents native form navigation:
 
-1. All command filters run (authorization, validation)
-2. The command handler is **not** executed
-3. A `CommandResult` is returned with validation and authorization status
-4. No side effects occur on the system
+```tsx
+import { useEffect, useRef, useState } from 'react';
+import { ValidationResult } from '@cratis/arc/validation';
+import { UpdateContact } from './generated/UpdateContact';
 
-For details on:
+export function ContactEditor() {
+    const [command, setValues] = UpdateContact.use({ email: '', phone: '' });
+    const [revision, setRevision] = useState(0);
+    const currentRevision = useRef(0);
+    const [errors, setErrors] = useState<ValidationResult[]>([]);
+    const [saving, setSaving] = useState(false);
+    const [status, setStatus] = useState('');
 
-- The TypeScript command validation API, see [Core Validation](../../core/commands/validation.md)
-- The backend validation pipeline, see [Backend Command Validation](../../../backend/commands/command-validation.md)
-
-## React Hook Usage
-
-React commands created with `.use()` include the `validate()` method:
-
-```typescript
-import { CreateOrder } from './generated/commands';
-
-function OrderForm() {
-    const [command, setValues] = CreateOrder.use();
-    const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
-    const handleFieldBlur = async () => {
-        // Validate on field blur for early feedback
-        const result = await command.validate();
-        
-        if (!result.isValid) {
-            setValidationErrors(result.validationResults.map(v => v.message));
-        } else {
-            setValidationErrors([]);
-        }
-    };
-
-    const handleSubmit = async () => {
-        // Execute the command
-        const result = await command.execute();
-        
-        if (result.isSuccess) {
-            // Handle success
-        }
-    };
-
-    return (
-        <form onSubmit={handleSubmit}>
-            <input 
-                value={command.orderNumber}
-                onChange={e => command.orderNumber = e.target.value}
-                onBlur={handleFieldBlur}
-            />
-            {validationErrors.map(error => (
-                <div key={error} className="error">{error}</div>
-            ))}
-            <button type="submit">Create Order</button>
-        </form>
-    );
-}
-```
-
-## Progressive Validation
-
-You can validate commands reactively as properties change:
-
-```typescript
-function ProductOrderForm() {
-    const [command, setValues] = CreateOrder.use();
-    const [canSubmit, setCanSubmit] = useState(false);
+    function edit(values: { email?: string; phone?: string }) {
+        currentRevision.current++;
+        setValues(values);
+        setErrors([]);
+        setStatus('');
+        setRevision(currentRevision.current);
+    }
 
     useEffect(() => {
-        // Validate whenever command properties change
-        const validateCommand = async () => {
+        let active = true;
+        const timer = setTimeout(async () => {
             const result = await command.validate();
-            setCanSubmit(result.isSuccess);
-        };
-
-        validateCommand();
-    }, [command.hasChanges]);
-
-    return (
-        <form>
-            <input 
-                value={command.productId}
-                onChange={e => command.productId = e.target.value}
-            />
-            <input 
-                value={command.quantity}
-                onChange={e => command.quantity = parseInt(e.target.value)}
-            />
-            <button 
-                type="submit" 
-                disabled={!canSubmit}
-                onClick={() => command.execute()}
-            >
-                Create Order
-            </button>
-        </form>
-    );
-}
-```
-
-## Debounced Validation
-
-To avoid excessive server calls during typing, debounce your validation:
-
-```typescript
-import { useMemo, useEffect } from 'react';
-import { debounce } from 'lodash';
-
-function OrderForm() {
-    const [command] = CreateOrder.use();
-    const [errors, setErrors] = useState<string[]>([]);
-
-    const debouncedValidate = useMemo(
-        () => debounce(async () => {
-            const result = await command.validate();
-            
-            if (!result.isSuccess) {
-                setErrors(result.validationResults.map(v => v.message));
-            } else {
-                setErrors([]);
+            if (active && currentRevision.current === revision) {
+                setErrors(result.validationResults);
             }
-        }, 500),
-        [command]
-    );
+        }, 300);
+        return () => { active = false; clearTimeout(timer); };
+    }, [command, revision]);
 
-    useEffect(() => {
-        if (command.hasChanges) {
-            debouncedValidate();
+    async function submit() {
+        currentRevision.current++;
+        setSaving(true);
+        try {
+            const result = await command.execute();
+            setErrors(result.validationResults);
+            setStatus(result.isSuccess ? 'Saved.' : 'Save failed. Check your inputs and permissions.');
+        } finally {
+            setSaving(false);
         }
-    }, [command.orderNumber, command.quantity, debouncedValidate]);
+    }
 
+    const errorFor = (member: string) => errors.find(error => error.members.includes(member))?.message;
     return (
-        <form>
-            <input 
-                value={command.orderNumber}
-                onChange={e => command.orderNumber = e.target.value}
-            />
-            {errors.map(error => (
-                <div key={error} className="error">{error}</div>
-            ))}
-            <button onClick={() => command.execute()}>
-                Create Order
-            </button>
+        <form noValidate onSubmit={event => { event.preventDefault(); void submit(); }}>
+            <label>Email<input value={command.email ?? ''} disabled={saving}
+                onChange={event => edit({ email: event.target.value })} /></label>
+            <p>{errorFor('email')}</p>
+            <label>Phone<input value={command.phone ?? ''} disabled={saving}
+                onChange={event => edit({ phone: event.target.value })} /></label>
+            <p>{errorFor('phone')}</p>
+            <button disabled={saving}>Save</button>
+            <p role="status">{status}</p>
         </form>
     );
 }
 ```
 
-## Validation on Blur
+The submit button does not rely on cached preflight permission. Required rules remain on the backend; the sample's HTML does not add Arc validation rules. Map framework-generated rejection reasons to application copy before showing them in production; see [validation results](../../core/validation/results.md).
 
-A common pattern is to validate when a field loses focus:
+## Validation on blur
 
-```typescript
-function CustomerForm() {
-    const [command] = CreateCustomer.use();
-    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+For blur-only feedback, call `validate()` from the field's blur handler and use the same revision guard. Find messages by `result.validationResults.filter(item => item.members.includes(fieldName))`. Replace that field's previous messages with the new list, **including an empty list**, even when a different field still fails. There are no `CommandResult.hasErrors` or `getErrorsFor` helpers.
 
-    const validateField = async (fieldName: string) => {
-        const result = await command.validate();
-        
-        if (!result.isValid) {
-            const fieldError = result.validationResults.find(
-                v => v.members.includes(fieldName)
-            );
-            
-            if (fieldError) {
-                setFieldErrors(prev => ({
-                    ...prev,
-                    [fieldName]: fieldError.message
-                }));
-            }
-        } else {
-            setFieldErrors(prev => {
-                const { [fieldName]: _, ...rest } = prev;
-                return rest;
-            });
-        }
-    };
+## Common mistakes
 
-    return (
-        <form>
-            <div>
-                <input
-                    value={command.email}
-                    onChange={e => command.email = e.target.value}
-                    onBlur={() => validateField('email')}
-                />
-                {fieldErrors.email && (
-                    <span className="error">{fieldErrors.email}</span>
-                )}
-            </div>
-            <div>
-                <input
-                    value={command.phone}
-                    onChange={e => command.phone = e.target.value}
-                    onBlur={() => validateField('phone')}
-                />
-                {fieldErrors.phone && (
-                    <span className="error">{fieldErrors.phone}</span>
-                )}
-            </div>
-            <button onClick={() => command.execute()}>
-                Create Customer
-            </button>
-        </form>
-    );
-}
-```
+- `[command.hasChanges]` is not a per-edit dependency: the flag can remain true across many edits.
+- Raw property assignment does not guarantee every React render or automatic validation. Use the tuple setter for edits.
+- Preflight success can go stale. Do not reuse it after a draft or identity change.
+- `setValues()` edits content; it does not reset the baseline. A completed rejected server execution can change that baseline today. See [data binding](./data-binding.md#execution-baseline-limitations).
+- Default execution allows warnings. For confirmation-before-warning-override, use the explicit [severity workflow](../../core/validation/severity-filtering.md), not `execute()` followed by a question.
 
-## CommandResult Structure
-
-Both `execute()` and `validate()` return the same `CommandResult` structure:
-
-```typescript
-interface CommandResult<TResponse> {
-    correlationId: string;
-    isSuccess: boolean;        // Overall success (authorized + valid + no exceptions)
-    isAuthorized: boolean;     // Authorization status
-    isValid: boolean;          // Validation status
-    hasExceptions: boolean;    // Whether exceptions occurred
-    validationResults: ValidationResult[];
-    exceptionMessages: string[];
-    exceptionStackTrace: string;
-    response?: TResponse;      // Only populated on execute()
-}
-```
-
-**Note**: The `response` property will be `null` or `undefined` when using `validate()` since the handler is not executed.
-
-## Best Practices
-
-### When to Use Validate
-
-✅ **Good Use Cases:**
-
-- Form validation as users type or blur fields
-- Enabling/disabling submit buttons based on validation state
-- Showing validation messages before submission
-- Checking authorization before showing UI elements
-
-❌ **Avoid:**
-
-- Calling validate() immediately before execute() (execute already validates)
-- Over-validating (don't validate on every keystroke without debouncing)
-- Using validate() as a substitute for client-side validation
-
-### Performance Considerations
-
-- Validation makes a server round-trip, so use judiciously
-- Always debounce validation calls for real-time feedback
-- Client-side validation is still important for immediate feedback
-- Server validation ensures security and data integrity
-
-## Security Considerations
-
-- Validation endpoints run the same authorization filters as execute endpoints
-- Unauthorized users receive 401/403 responses from validation endpoints
-- Validation does not expose sensitive data since handlers aren't executed
-- Validation results may reveal authorization policies (by design)
-
-## Troubleshooting
-
-### Validation is slow
-
-**Cause**: Complex validation logic or database queries in validators.
-
-**Solution**:
-
-- Debounce validation calls
-- Optimize validator implementations on the backend
-- Consider client-side validation for immediate feedback
-
-### Validation passes but execute fails
-
-**Cause**: State may have changed between validate and execute calls, or the handler encountered an error.
-
-**Solution**: This is expected behavior. Always check the result of `execute()` for the authoritative status.
+Continue with [command results](../../core/commands/command-result.md) and [server validation](../../../backend/commands/command-validation.md).

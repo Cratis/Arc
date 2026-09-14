@@ -117,7 +117,7 @@ public static class ServiceCollectionExtensions
     static void AddReadModelCommandResolution(IServiceCollection services)
     {
         var readModelTypes = MongoDBReadModelForCommandResolver
-            .DiscoverReadModelTypes(Cratis.Types.Types.Instance.All)
+            .DiscoverReadModelTypes(TypesServiceCollectionExtensions.CurrentTypeUniverse().All)
             .ToArray();
 
         if (readModelTypes.Length == 0)

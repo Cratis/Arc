@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.MongoDB;
 
@@ -15,7 +16,7 @@ public class MongoDBBuilder : IMongoDBBuilder
     /// </summary>
     public MongoDBBuilder()
     {
-        var types = Types.Types.Instance;
+        var types = TypesServiceCollectionExtensions.CurrentTypeUniverse();
         ClassMaps = [.. types.FindMultiple(typeof(IBsonClassMapFor<>))];
         ConventionPackFilters = [.. types.FindMultiple<ICanFilterMongoDBConventionPacksForType>()];
         ConventionPackProviders = [.. types.FindMultiple<ICanProvideMongoDBConventionPacks>()];

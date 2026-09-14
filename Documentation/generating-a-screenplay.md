@@ -5,7 +5,7 @@ description: How Arc reads the source of your application and writes the event m
 
 An [event model](/event-modeling/) is the picture of your system: which commands change state, which events they produce, which read models those events build, and which reactors turn one thing into another. Teams draw it on a whiteboard at the start, and then the code moves on without it. Six months later the picture is fiction and nobody trusts it enough to open.
 
-**Screenplay** is a small language for writing that picture down as text — a `.play` file — so it can live in the repository next to the code it describes. Arc can *generate* one from your application's source. The model stops being something you maintain by hand and becomes something you regenerate, the same way the [TypeScript proxies](./understanding-the-proxy-boundary.mdx) are regenerated rather than hand-written.
+**Screenplay** is a small language for writing that picture down as text — a `.play` file — so it can live in the repository next to the code it describes. Arc can _generate_ one from your application's source. The model stops being something you maintain by hand and becomes something you regenerate, the same way the [TypeScript proxies](/arc/understanding-the-proxy-boundary/) are regenerated rather than hand-written.
 
 ## Generated from source, not from a running system
 
@@ -13,7 +13,7 @@ The generator reads a Roslyn compilation of your C# — the same thing the compi
 
 That choice is what makes the output useful:
 
-- **It works from a checkout.** No database, no configuration, no environment. Clone and generate.
+- **It works from a checkout, not a live store.** You still need the CLI, a compatible .NET/MSBuild environment, restored project dependencies, and the build inputs required to obtain a meaningful compilation. No running database or Chronicle connection is needed.
 - **It is diffable in a pull request.** A commit that adds a command shows up as a few lines added to the `.play`. Reviewers see the model change next to the code change, and "did this alter the event model?" becomes a question the diff answers.
 - **It is reproducible.** The same source always produces byte-identical output. Everything is ordered explicitly rather than by whatever order symbols happened to arrive in, so regenerating in CI and failing on a diff is a viable check.
 
@@ -54,21 +54,43 @@ Diagnostics come in three severities. **Information** means something is worth k
 
 The compatibility generator accepts either a Roslyn `Compilation` or a Generation `DotNetProjectCompilation`. It never opens a project file or loads a workspace, which is what lets it be driven from a CLI, from a specification, or from an editor. `DotNetProjectCompilation` adds the host-owned project role, authored syntax trees, and stable source-path context needed by neutral source adapters; the established compilation-only overloads remain available and produce the same `.play` bytes. The other side of that bargain is that **assembling the compilation the way a real build would is the caller's job** — the generator reads what it is handed and cannot tell a missing type from a type that was never written.
 
-The part hosts get wrong is source generators. `MSBuildWorkspace.GetCompilationAsync()` does not run them, and neither does any loading mode that stops at the compile items the project file lists. An Arc application leans on generation heavily — `[LoggerMessage]` partial classes, strongly-typed resource designer classes, the proxy and metrics generators — so a compilation loaded that way is missing every type those emit, and every reference to one becomes an unresolved-symbol error. This is the common case rather than an edge case.
+Distinguish **workspace source generators** from **MSBuild-generated inputs**. `GetCompilationAsync` belongs to Roslyn `Project`, not `MSBuildWorkspace`. A workspace project compilation can already contain source-generator output; do not run the same generators over it again unconditionally. Arc's CLI uses `project.GetCompilationAsync(cancellationToken)` and separately restores missing resource sources/framework references where needed. MSBuild/custom-tool output such as resource designer files is not interchangeable with Roslyn generator output. Arc's TypeScript proxy generator is a post-build executable, not a C# source generator.
 
-A host should run the project's generators before handing the compilation over:
+For an already loaded workspace `Project`, the host fragment is:
 
 ```csharp
-var driver = CSharpGeneratorDriver.Create(
-    generators: project.AnalyzerReferences
-        .SelectMany(reference => reference.GetGenerators(LanguageNames.CSharp))
-        .Select(GeneratorExtensions.AsSourceGenerator),
-    parseOptions: (CSharpParseOptions)project.ParseOptions!);
+using Microsoft.CodeAnalysis;
 
-driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out _);
+static Task<Compilation?> GetCompilation(Project project, CancellationToken cancellationToken) =>
+    project.GetCompilationAsync(cancellationToken);
 ```
 
-Then generate from `generated` rather than from `compilation`.
+Handle a null compilation and inspect diagnostics before passing it to Screenplay. Loading the workspace, restoring packages, and supplying missing build-generated files remain host responsibilities.
+
+If you intentionally construct a **raw C# compilation outside the workspace compilation path**, run the selected generators once. This alternative fragment assumes `project` supplies the matching analyzer references and parse options, and `compilation` has not already received those generated trees:
+
+```csharp
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+
+static Compilation RunGenerators(Project project, Compilation compilation)
+{
+    var driver = CSharpGeneratorDriver.Create(
+        generators: project.AnalyzerReferences
+            .SelectMany(reference => reference.GetGenerators(LanguageNames.CSharp)),
+        parseOptions: (CSharpParseOptions)project.ParseOptions!);
+
+    driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out var diagnostics);
+    foreach (var diagnostic in diagnostics)
+    {
+        Console.Error.WriteLine(diagnostic);
+    }
+
+    return generated;
+}
+```
+
+`AnalyzerReference.GetGenerators` already returns `ISourceGenerator` values. `AsSourceGenerator` converts an `IIncrementalGenerator`; applying it to those values does not compile. Real custom hosts must also supply any generator-required additional texts and analyzer-config options, and decide how diagnostics affect their exit status. This fragment is not a complete replacement for the CLI loader.
 
 ### What happens when it does not
 
@@ -88,7 +110,7 @@ Its **severity is decided rather than fixed**, because "the source did not compi
 - **Warning** when at least one artifact was recovered from a declaration no compilation error sits inside. Those artifacts are described exactly as their source states them whatever failed elsewhere, so the run is successful and the document is worth keeping. A compilation missing its generated symbols lands here — the errors sit in code that declares no artifact, and the model is unaffected.
 - **Error** when none were, either because nothing was recovered at all or because every declaration something came out of is one the compiler could not make sense of. There is then no part of the document a reader could trust, and a host following the contract exits non-zero.
 
-A count is used rather than a proportion deliberately: any threshold would make the same recovery pass for a large application and fail for a small one, and zero is the only number that means recovery was *prevented* rather than merely dented.
+A count is used rather than a proportion deliberately: any threshold would make the same recovery pass for a large application and fail for a small one, and zero is the only number that means recovery was _prevented_ rather than merely dented.
 
 Either way the document is written out, so what was recovered can be read.
 
@@ -123,7 +145,7 @@ The order the projects arrive in never reaches the document. Nothing decides wha
 
 ## The generator checks its own output
 
-Every diagnostic above names something about *your application* — a construct the language cannot hold, source that did not compile, projects that share no directory. There is one that names a defect in the generator instead.
+Every diagnostic above names something about _your application_ — a construct the language cannot hold, source that did not compile, projects that share no directory. There is one that names a defect in the generator instead.
 
 After the document is written, the generator hands it straight back to the Screenplay compiler. If the compiler rejects it, `SP0034` is reported as an error — because a `.play` that does not compile is output nobody can use, and there is no way of writing an application that avoids it. This is not a mode you turn on: it runs on every generation, since the only way a rejected document is ever found is by reading each one back.
 
@@ -240,7 +262,7 @@ Everything else in the declarative form — `title`, `section`, `table` and `sum
 
 Two more rules keep the result honest:
 
-- **Components only, no descending.** A file carrying a second extension — `AddAuthor.stories.tsx`, `AddAuthor.spec.tsx` — is a companion of a component, not a screen. A folder *inside* a slice folder is a slice of its own under the same convention, so its files belong to it.
+- **Components only, no descending.** A file carrying a second extension — `AddAuthor.stories.tsx`, `AddAuthor.spec.tsx` — is a companion of a component, not a screen. A folder _inside_ a slice folder is a slice of its own under the same convention, so its files belong to it.
 - **Anything uncertain is reported.** The relationship between a file and a slice comes entirely from where the file sits, so `SP0025` is reported whenever sitting there says less than usual: a slice whose source is spread over several folders, one folder holding the source of several slices, or two files claiming a single screen name.
 
 ## What is not expressed
@@ -251,37 +273,37 @@ A `.play` is a description of an application, not a second copy of it. **It does
 
 These are part of the language, but nothing in C# says them, so a generated document never contains them. Add them by hand if you want them, and expect a regeneration to leave them out:
 
-| Construct | Why it cannot be inferred |
-|---|---|
-| `capture` | Describes ingesting an external system. Nothing in an Arc application declares one. |
-| `persona` | Who uses the system is a product decision, not a code artifact. |
-| `seed` | Sample data is a modeling concern, not something the source states. |
-| The declarative body of a `screen` — `title`, `section`, `table`, `summary`, `action`, `navigate to`, `layout` | What a screen *shows and does* is JSX. Its `file` reference and its `data` bindings are generated; the rest would be a guess — see [Screens](#screens). |
-| `@sensitive` | `@pii` is the one of the two concept attributes with a counterpart — `[PII]`. Nothing in Arc or Chronicle says `@sensitive`. |
+| Construct                                                                                                      | Why it cannot be inferred                                                                                                                               |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capture`                                                                                                      | Describes ingesting an external system. Nothing in an Arc application declares one.                                                                     |
+| `persona`                                                                                                      | Who uses the system is a product decision, not a code artifact.                                                                                         |
+| `seed`                                                                                                         | Sample data is a modeling concern, not something the source states.                                                                                     |
+| The declarative body of a `screen` — `title`, `section`, `table`, `summary`, `action`, `navigate to`, `layout` | What a screen _shows and does_ is JSX. Its `file` reference and its `data` bindings are generated; the rest would be a guess — see [Screens](#screens). |
+| `@sensitive`                                                                                                   | `@pii` is the one of the two concept attributes with a counterpart — `[PII]`. Nothing in Arc or Chronicle says `@sensitive`.                            |
 
 ### Detail Screenplay cannot represent
 
 These exist in your application and do not reach the document, because the language has no counterpart. Each is reported as a diagnostic when encountered, so the document tells you it is silent about them.
 
-| In Arc or Chronicle | Why it is not in the document |
-|---|---|
-| Event generations, `[Tombstone]`, `[CompensationFor]` | Screenplay describes the current shape of an event. It has no notion of versioning, of a deletion marker, or of one event compensating another. `SP0014`. |
-| Reducer folds (`IReducerFor<T>`) | The fold is code. The read model and the events it observes are recovered; the logic that combines them is not. `SP0020`. |
-| Aggregate roots no command reaches | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. `SP0018`. |
-| A behavior deciding on the state an aggregate root holds | A `produces when` condition compares the input of the command, which is all a document knows at the moment the command is issued. A behavior refusing to act on what it has already seen is a real decision with nowhere to go, so the event is stated unconditionally and `SP0027` reports the decision. A behavior deciding on one of its own *parameters* is recovered, because the call site says which command input that parameter was given. |
-| Inline `policy` code and requirements built in code | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole`, and `RequireClaim` given the values it accepts are recovered; the rest is reported as `SP0026` — including a `RequireClaim` naming only a claim type, which a policy condition has no way to state. |
-| The event source id from a `(TKey, TEvent)` handler | The event is recovered; the identifier saying *which* event source it goes to has no counterpart. `SP0013`. |
-| Emptying a scope with `[ClearWith]`; removing a child with `[RemovedWith]` on the property holding it | Nothing in the model a projection is built from carries a scope being emptied again, so `[ClearWith]` has nowhere to go (`SP0015`). A removal does have somewhere — but it is read from the type of the child, alongside the events filling that child in, so the same removal written beside the collection is reported as `SP0007` instead. |
-| Read model tags | A read model has no declaration of its own — it appears as the type a query returns — so there is nowhere to hang a tag. Tags on *events* are recovered and written out. `SP0042`. |
-| Query paging and sorting, custom routes | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template — `[Path]`, `[Route]`, or a template on an HTTP verb — has no counterpart. `SP0041`. |
+| In Arc or Chronicle                                                                                   | Why it is not in the document                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Event generations, `[Tombstone]`, `[CompensationFor]`                                                 | Screenplay describes the current shape of an event. It has no notion of versioning, of a deletion marker, or of one event compensating another. `SP0014`.                                                                                                                                                                                                                                                                                           |
+| Reducer folds (`IReducerFor<T>`)                                                                      | The fold is code. The read model and the events it observes are recovered; the logic that combines them is not. `SP0020`.                                                                                                                                                                                                                                                                                                                           |
+| Aggregate roots no command reaches                                                                    | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. `SP0018`.                                                                                                                                                                                                                |
+| A behavior deciding on the state an aggregate root holds                                              | A `produces when` condition compares the input of the command, which is all a document knows at the moment the command is issued. A behavior refusing to act on what it has already seen is a real decision with nowhere to go, so the event is stated unconditionally and `SP0027` reports the decision. A behavior deciding on one of its own _parameters_ is recovered, because the call site says which command input that parameter was given. |
+| Inline `policy` code and requirements built in code                                                   | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole`, and `RequireClaim` given the values it accepts are recovered; the rest is reported as `SP0026` — including a `RequireClaim` naming only a claim type, which a policy condition has no way to state.                                                                                                |
+| The event source id from a `(TKey, TEvent)` handler                                                   | The event is recovered; the identifier saying _which_ event source it goes to has no counterpart. `SP0013`.                                                                                                                                                                                                                                                                                                                                         |
+| Emptying a scope with `[ClearWith]`; removing a child with `[RemovedWith]` on the property holding it | Nothing in the model a projection is built from carries a scope being emptied again, so `[ClearWith]` has nowhere to go (`SP0015`). A removal does have somewhere — but it is read from the type of the child, alongside the events filling that child in, so the same removal written beside the collection is reported as `SP0007` instead.                                                                                                       |
+| Read model tags                                                                                       | A read model has no declaration of its own — it appears as the type a query returns — so there is nowhere to hang a tag. Tags on _events_ are recovered and written out. `SP0042`.                                                                                                                                                                                                                                                                  |
+| Query paging and sorting, custom routes                                                               | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template — `[Path]`, `[Route]`, or a template on an HTTP verb — has no counterpart. `SP0041`.                                                                                                                                                                                                                                    |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.
 
 ## When this is the wrong fit
 
-If you maintain a `.play` by hand as the *design* your code is written against — modeling first, then implementing — generation is the wrong direction and will overwrite your intent. Generation suits the opposite flow: code exists, and you want the model it already describes, kept honest automatically.
+If you maintain a `.play` by hand as the _design_ your code is written against — modeling first, then implementing — generation is the wrong direction and will overwrite your intent. Generation suits the opposite flow: code exists, and you want the model it already describes, kept honest automatically.
 
 ## Related
 
 - [Vertical slices](./vertical-slices.md) — the folder shape the generator recovers slices from. A slice per namespace produces a far better document than artifacts sitting in the root namespace.
-- [Understanding the proxy boundary](./understanding-the-proxy-boundary.mdx) — the other thing Arc generates from the same source of truth.
+- [Understanding the proxy boundary](/arc/understanding-the-proxy-boundary/) — the other thing Arc generates from the same source of truth.
