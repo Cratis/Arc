@@ -4,6 +4,8 @@
   href: basic.md
 - name: Library Mode
   href: library-mode.md
+- name: Emit Interfaces
+  href: emit-interfaces.md
 - name: Type Exclusions
   href: type-exclusions.md
 - name: Namespace Roots
