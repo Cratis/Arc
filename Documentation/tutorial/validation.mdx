@@ -12,7 +12,7 @@ There are two different kinds of "no" here, and Arc handles them in two differen
 - **"That input is malformed."** A blank name is wrong on its face — you don't need to look at anything else to know it. That's a *validation* rule, and it belongs on the value.
 - **"That input collides with what already exists."** A duplicate name is only wrong relative to the rest of the system. That's a *business rule*, and it needs to consult state.
 
-Let's add both.
+Let's add both. This chapter extends the files and imports from [chapter 1](/arc/tutorial/first-slice/). Put each validator in its own file under `src/Authors/` with `namespace Library.Authors;`; choose the same database branch. Name comparison is exact in this lesson, not case-folded or normalized.
 
 ## Validate the value, once
 
@@ -77,8 +77,43 @@ Uniqueness is the harder kind of "no", because it depends on what's already ther
 
 </Steps>
 
-<Aside type="tip" title="Keep the check honest with a unique index">
-A check-then-write has a race: two registrations at the same instant can both pass the validator. The validator is for a *friendly message*; back it with a real **unique index** on the name (a MongoDB unique index, or an EF `HasIndex(...).IsUnique()`) so the database is the final authority.
+## Install the database constraint
+
+A check-then-write has a race: two registrations can both pass validation. The validator supplies the friendly message; the database must enforce uniqueness independently.
+
+<Tabs syncKey="db">
+<TabItem label="MongoDB" icon="seti:db">
+Add this block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`:
+
+```csharp
+using (var scope = app.Services.CreateScope())
+{
+    var authors = scope.ServiceProvider.GetRequiredService<IMongoCollection<Author>>();
+    await authors.Indexes.CreateOneAsync(new CreateIndexModel<Author>(
+        Builders<Author>.IndexKeys.Ascending(author => author.Name),
+        new CreateIndexOptions { Unique = true, Name = "unique_author_name" }));
+}
+```
+
+Restart the host and require index creation to succeed. Existing duplicate names must be resolved first; do not ignore an index-creation failure. This uses the configured collection and concept serializer rather than guessing stored field names.
+</TabItem>
+<TabItem label="EF Core" icon="seti:db">
+Add this override to `LibraryDbContext`:
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    base.OnModelCreating(modelBuilder);
+    modelBuilder.Entity<Author>().HasIndex(author => author.Name).IsUnique();
+}
+```
+
+For the **disposable SQLite tutorial database**, stop the host, remove only `Library/library.db`, and restart so `EnsureCreatedAsync` creates the new schema. This loses tutorial data; re-register the authors afterward. For retained data, create/apply a migration instead. `EnsureCreatedAsync` never upgrades an existing database.
+</TabItem>
+</Tabs>
+
+<Aside type="caution" title="A race is not automatically a validation result">
+The unique index prevents the second write, but this lesson does not translate a provider duplicate-key exception into a field validation message. A racing loser can receive an exception result. Production code should catch only the specific duplicate-constraint violation and translate it to a typed validation failure; unrelated storage failures must remain errors. Moving the same pre-check into `Handle()` would not make it atomic.
 </Aside>
 
 ## The UI already knows
@@ -87,13 +122,19 @@ Here's the part that feels like a gift. You didn't touch the React code from cha
 
 When you wrote the `ConceptValidator`, the proxy generator extracted that rule into the generated TypeScript too, so the `CommandDialog` runs it **on the client** and disables the confirm button on a blank name — no round trip. The uniqueness rule can't run on the client (it has to look in the database), so it runs on the server; when it rejects, the message comes back through the same proxy and `CommandDialog` renders it against the form — *"An author with that name is already registered."* — because the dialog wires command results to fields for you.
 
-```tsx title="AddAuthor.tsx — unchanged from chapter 1"
-<CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" okLabel="Add">
+This is a fragment of `AddAuthor` from chapter 1; retain its imports and per-operation `const [id] = useState(() => Guid.create())` initialization. Mount a new dialog instance for each registration.
+
+```tsx title="AddAuthor.tsx — form fragment"
+<CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" okLabel="Add" initialValues={{ id }}>
     <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
 </CommandDialog>
 ```
 
 One rule on the value type, one rule on the command, and both ends of the app honor them — because the validation, like the types, flows from one source.
+
+## Verify the rejection paths
+
+Rebuild the backend in Debug to regenerate validation metadata, then run the frontend type-check/build. Open a new dialog: blank Name must keep confirmation disabled. Submit a new name successfully; open another dialog and submit that exact name again. Expect a server validation message and no additional row. Confirm the unique index/schema step succeeded separately — a friendly duplicate rejection alone does not prove concurrency protection.
 
 ## What you built
 
@@ -101,4 +142,4 @@ One rule on the value type, one rule on the command, and both ends of the app ho
 - A `RegisterAuthorValidator` **business rule** that checks existing state in the database, with a unique index behind it for the hard guarantee.
 - A React form that surfaces both — client-side and server-side — with no extra frontend code.
 
-Our author is trustworthy now. But an author with no books is a lonely thing. Next we'll give them a catalog — a second feature that *relates* to this one. [Let's add books →](./books-and-relationships.mdx)
+Our author is trustworthy now. But an author with no books is a lonely thing. Next we'll give them a catalog — a second feature that *relates* to this one. [Let's add books →](/arc/tutorial/books-and-relationships/)

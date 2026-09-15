@@ -1,106 +1,95 @@
-# Use Observable Queries with cURL
-
-This guide shows you how to work with observable query endpoints by using plain HTTP tools such as `curl`.
-
-Use this when you want to:
-
-- confirm the current snapshot for an observable query
-- wait for the first payload before the request returns
-- follow a live Server-Sent Events (SSE) stream
-- emulate long polling with repeated HTTP requests
-
-The same approach works for both **model-bound** and **controller-based** observable query endpoints.
+---
+title: Use observable queries with cURL
+description: Read snapshots, wait for a first result, stream direct SSE, and poll without a tight loop.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
 ## Prerequisites
 
-- You know the observable query URL you want to call.
-- Your application is running.
-- The endpoint already returns an observable query result (`ISubject<T>`).
+Use a running Arc application's actual observable query URL. The commands below target the explicit `/api/accounts/observe` path from the [model-bound example](model-bound/observable-queries.md); the same direct-HTTP options work for [MVC GET observable actions](controller-based/observable-queries.md). Replace the origin and provide your application's normal credentials. These are runnable client checkpoints against that configured host, not commands that create a backend.
+
+> [!WARNING]
+> Observable HTTP snapshots currently bypass [read-model interception](read-model-interception.md). Never assume streaming-only masking protects this snapshot route.
 
 ## Get the current snapshot
 
-A normal `GET` request returns the current observable snapshot as JSON.
-
 ```bash
-curl "https://localhost:5001/api/orders/observe-all"
+curl --include --max-time 35 \
+  'https://localhost:5001/api/accounts/observe?waitForFirstResult=true'
 ```
 
-Use this when the observable already has a current value and you only want the latest snapshot once.
+Use the wait option for this MongoDB endpoint: Arc subscribes to receive a first emission, then disposes the subscription. The server's default wait is 30 seconds; the client bound above is 35 seconds.
+
+> [!WARNING]
+> MongoDB's `LifetimeAwareSubject` has no readable `Value` property, even after buffering a result. An ordinary no-wait GET therefore returns **202 Accepted** with `isReady: false`, rather than reading that replayed value. The provider starts its watcher eagerly, but this HTTP branch neither subscribes nor disposes the subject and can leave the watcher running. Do not use no-wait snapshots for this provider.
+
+For other producers, no-wait GET returns 200 only when Arc can read a current `Value`; otherwise it returns 202. Use that mode only with a readable current value and verified cleanup when no subscription is created.
 
 ## Wait for the first payload
 
-If the observable does not have a current value yet, add `waitForFirstResult=true`.
-
 ```bash
-curl "https://localhost:5001/api/orders/observe-all?waitForFirstResult=true"
+curl --include --max-time 15 \
+  'https://localhost:5001/api/accounts/observe?waitForFirstResult=true&waitForFirstResultTimeout=10'
 ```
 
-The request stays open until the observable produces its first payload or the timeout expires.
+The server waits for the first emission for up to 10 seconds; the default is 30 seconds. A positive timeout override is measured in seconds. `--max-time` bounds the client separately.
 
-### Override the timeout
+- A first emission returns 200 with data, including a legitimately empty collection.
+- A wait timeout returns 408 with an error result.
+- Completion before any emission returns 500 with an error result.
+- An authorization/validation failure is not made successful by waiting.
 
-The default timeout is 30 seconds. Override it with `waitForFirstResultTimeout`, expressed in seconds.
-
-```bash
-curl "https://localhost:5001/api/orders/observe-all?waitForFirstResult=true&waitForFirstResultTimeout=10"
-```
-
-If the timeout expires, Arc returns an HTTP timeout response with a JSON error payload.
+This waits for **a first result**, not for a change since a previous request. `ObserveSingle` with no matching document may never emit; a filtered observed collection can express absence as an empty list.
 
 ## Stream updates over SSE
 
-To keep the connection open and watch updates continuously, request the endpoint as Server-Sent Events.
-
 ```bash
-curl --no-buffer \
-  -H "Accept: text/event-stream" \
-  "https://localhost:5001/api/orders/observe-all"
+curl --no-buffer --max-time 60 \
+  --header 'Accept: text/event-stream' \
+  'https://localhost:5001/api/accounts/observe'
 ```
 
-Each update is sent as an SSE `data:` frame that contains a serialized `QueryResult`.
+This requests the direct per-query SSE transport. Each `data:` frame carries a `QueryResult`, not a hub message envelope. `--max-time 60` deliberately closes the diagnostic stream after a minute; cURL reports a timeout when that bound is reached.
 
-Example output:
+Illustrative shortened frames; other result metadata is omitted here only for readability:
 
 ```text
-data: {"isSuccess":true,"data":[{"id":"...","status":"ready"}],"changeSet":null}
+data: {"isReady":true,"isSuccess":true,"data":[{"id":"account-1","balance":100}],"changeSet":null}
 
-data: {"isSuccess":true,"data":[{"id":"...","status":"shipped"}],"changeSet":null}
+data: {"isReady":true,"isSuccess":true,"data":[{"id":"account-1","balance":120}],"changeSet":null}
 ```
 
-Use this when you want a live stream instead of a single JSON response.
+For several queries over one SSE connection, use the [hub GET plus control POST lifecycle](observable-query-demultiplexer.md#sse-transport). Adding `?query=...` to the hub GET does not subscribe.
 
-## Emulate long polling
+## Repeated snapshot polling
 
-If you want repeated snapshot requests instead of a continuous stream, call the endpoint in a loop and wait for the first payload each time.
+When SSE is not convenient, poll deliberately with a delay. This bounded example makes five requests and backs off longer on transport/HTTP failure:
 
 ```bash
-while true; do
-  curl --silent \
-    "https://localhost:5001/api/orders/observe-all?waitForFirstResult=true&waitForFirstResultTimeout=15"
-  echo
+for attempt in 1 2 3 4 5; do
+  if curl --silent --show-error --fail-with-body --max-time 20 \
+    'https://localhost:5001/api/accounts/observe?waitForFirstResult=true&waitForFirstResultTimeout=15'; then
+    printf '\n'
+    sleep 2
+  else
+    printf '\nSnapshot request failed; backing off.\n' >&2
+    sleep 5
+  fi
 done
 ```
 
-This is effectively **long polling**:
-
-- each request waits until data is available or the timeout expires
-- the server returns a normal JSON payload
-- the client immediately opens a new request
-
-Use this when SSE is not convenient and you still want blocking snapshot requests from plain HTTP tooling.
+This is **repeated snapshot polling, not change-aware long polling**. An unchanged current snapshot can return immediately on every request. Removing the delay creates a tight load-generating loop. Prefer SSE to follow changes continuously.
 
 ## Pick the right mode
 
-| Goal | Request style |
-|---|---|
-| Get the latest snapshot right now | `GET /query` |
-| Wait until the first payload exists | `GET /query?waitForFirstResult=true` |
-| Wait with a custom timeout | `GET /query?waitForFirstResult=true&waitForFirstResultTimeout=10` |
-| Follow live updates continuously | `GET /query` with `Accept: text/event-stream` |
-| Repeated blocking snapshot requests | Long-poll loop with `waitForFirstResult=true` |
+| Goal | Mode |
+| --- | --- |
+| Read a MongoDB observable snapshot once | GET with `waitForFirstResult=true` |
+| Read another producer's current value without subscribing | Ordinary GET only with a readable current value and verified no-subscription cleanup; handle 202 |
+| Wait for a first emission | GET with `waitForFirstResult=true` |
+| Follow one query live | Direct GET with `Accept: text/event-stream` |
+| Follow several queries on one connection | [Hub protocol](observable-query-demultiplexer.md) |
+| Periodically sample state | Delayed, bounded snapshot polling |
 
-## See also
-
-- [Model-bound observable queries](./model-bound/observable-queries.md)
-- [Controller-based observable queries](./controller-based/observable-queries.md)
-- [Observable Query Demultiplexer](./observable-query-demultiplexer.md)
+MongoDB source failures may be logged and completed rather than sent through an observable error channel. Inspect provider logs as well as HTTP output when a feed stops. For producer cleanup, see [subscription lifetime](model-bound/observable-queries.md#subscription-lifetime).

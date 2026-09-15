@@ -1,46 +1,47 @@
-# Provider Flow
+---
+title: Provider flow
+description: Understand when Arc enriches the current principal and when it reuses client-controlled identity details.
+---
 
-Arc identity enrichment is implemented as part of ingress so authorization and detail composition happen in one request.
+Authentication establishes a principal; identity enrichment supplies application-specific information for the frontend. Keeping those steps separate prevents a UI convenience from becoming an accidental permission boundary.
 
-## Endpoint Mapping
+## Endpoint mapping
 
-Map the identity provider endpoint in your application:
+Normal `UseCratisArc()` activation maps `/.cratis/me` when `IProvideIdentityDetails` is registered, unless a replacement endpoint with the same endpoint name already exists. You do not need a second mapping call when using the standard host setup.
 
-```csharp
-app.MapIdentityProvider();
-```
+The endpoint has anonymous metadata so it can handle identity results itself. It calls `IIdentityProvider.Get()`, returns 401 for a result marked unauthenticated, 403 for a result marked unauthorized, and otherwise writes JSON plus the `.cratis-identity` cookie. These result flags can come from the cookie-first path; this endpoint is not an independent validation of a browser's cached identity.
 
-The well-known route is:
+## Identity details provider
 
-- `/.cratis/me`
+Arc discovers `IProvideIdentityDetails` implementations. On a fresh request without a nonempty identity cookie, it checks the request principal, constructs `IdentityProviderContext`, and invokes the provider. The ID comes from the principal's `sub` claim (or `"unknown"` when absent); the name comes from the principal, with the forwarded name header as a fallback.
 
-## Identity Details Provider
-
-Implement `IProvideIdentityDetails` from `Cratis.Arc.Identity`. Arc discovers implementations automatically and invokes them when the identity endpoint is called.
-
-Your provider can:
-
-1. Check whether the user is authorized to access the application
-2. Compose domain-specific identity details
-3. Return a consolidated identity response
-
-If the user is authorized, Arc writes the result as a base64-encoded JSON payload to the `.cratis-identity` cookie.
-
-## Implementation Example
+This **illustrative type fragment** supplies display data only, allowing every already-authenticated user through this enrichment step. It is not an application membership policy:
 
 ```csharp
+using Cratis.Arc.Identity;
+
 public class IdentityDetailsProvider : IProvideIdentityDetails
 {
-    public Task<IdentityDetails> Provide(IdentityProviderContext context)
-    {
-        var result = new IdentityDetails(true, new { Hello = "World" });
-        return Task.FromResult(result);
-    }
+    public Task<IdentityDetails> Provide(IdentityProviderContext context) =>
+        Task.FromResult(new IdentityDetails(true, new { DisplayName = context.Name }));
 }
 ```
 
-## Frontend Integration
+For an application-entry decision, your provider must consult authoritative membership data. That decision still does not protect every command/query: enforce those permissions in their pipelines.
 
-Frontend identity support can consume the `.cratis-identity` cookie directly, avoiding a follow-up request for user details.
+## Cached identity and frontend integration
 
-For frontend details, see [React identity integration](../../frontend/react/identity.md).
+```mermaid
+flowchart TD
+    Request --> Cookie{Nonempty identity cookie?}
+    Cookie -- Yes --> Cached[Deserialize client-controlled result]
+    Cookie -- No --> Principal[Check authenticated request principal]
+    Principal --> Provider[Compose details using provider]
+    Cached --> Result[Identity response]
+    Provider --> Result
+    Result --> Browser[Frontend presentation]
+```
+
+Frontend support reads `.cratis-identity` directly. It is unsigned, JavaScript-readable base64 JSON; a cached result bypasses provider recomputation. It does not add trusted claims or authorize pipeline execution. Read [cookie trust and mutation limits](identity-provider-service.md) before using `IIdentityProvider` in backend code.
+
+For client consumption, see [React identity integration](../../frontend/react/identity.md).

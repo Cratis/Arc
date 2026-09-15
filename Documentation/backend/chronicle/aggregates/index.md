@@ -13,19 +13,23 @@ That is what an aggregate root is for. It rehydrates from the entity's own event
 [Command]
 public record WithdrawFunds([Key] Guid AccountId, decimal Amount)
 {
-    public Task Handle(Account account) => account.Withdraw(Amount);
+    public async Task<AggregateRootCommitResult> Handle(Account account)
+    {
+        await account.Withdraw(Amount);
+        return await account.Commit();
+    }
 }
 ```
 
-`Account` is an aggregate root. Arc resolved it for `AccountId` and replayed its events to rebuild current state before `Handle()` ran. Whatever the aggregate applies is enrolled in the command's transaction and committed when the command succeeds — or rolled back when it fails. You never fetch it, never call `Commit()`, and never touch the event log.
+This command fragment assumes an `Account : AggregateRoot` with an asynchronous `Withdraw` method, plus imports for `Cratis.Arc.Chronicle.Aggregates`, `Cratis.Arc.Commands.ModelBound`, and `Cratis.Chronicle.Keys`. Arc loads its history for `AccountId` before `Handle()` runs. Returning `Commit()` propagates aggregate `Failed(...)` results, but commits the shared transaction at that point. Automatic completion is also supported; it does not collect those aggregate failures. See [commit boundaries and the current limitation](./defining-an-aggregate-root.md#automatic-completion-and-its-current-limitation).
 
 ## Which one do I reach for
 
 | | Read model | Aggregate root |
-|---|---|---|
+| --- | --- | --- |
 | Answers | "what does this look like now?" | "is this change allowed, and what happened?" |
-| Built from | events, materialized to a sink | events, replayed per command |
-| Consistency | eventual | consistent within the aggregate boundary |
+| Built from | materialized events, or on-demand passive state | events, replayed on resolution |
+| Consistency | depends on backing; a snapshot is not a concurrency lock | depends on captured revision and append-time enforcement |
 | Can emit events | no | yes |
 | Reach for it when | gating on projected state, computing inputs | an invariant must hold under concurrency |
 
@@ -33,13 +37,13 @@ They compose. Validate against a read model to give the user a fast, specific me
 
 ## How Arc wires it up
 
-The same key resolution that picks a read model picks the aggregate — a `[Key]` property, a property that converts to `EventSourceId`, or `ICanProvideEventSourceId`. See [Resolving EventSourceId](../resolving-event-source-id.md).
+The same key resolution that picks a read model picks the aggregate — a `[Key]` property, an `EventSourceId` or `EventSourceId<T>`-derived property, or `ICanProvideEventSourceId`. See [Resolving EventSourceId](../resolving-event-source-id.md).
 
 - **Discovered automatically** — every type implementing `IAggregateRoot` is registered without configuration.
 - **Resolved per command** — the instance is command-scoped and bound to that command's event source id, rehydrated from its stream on resolution.
 - **Committed for you** — applied events are enrolled in the command's transaction and committed on success, rolled back on failure.
 
-If the command carries no usable key, resolution fails with `UnableToResolveAggregateRootFromCommandContext`.
+A command with no declared key receives a generated creation identity. A declared but unusable identity can fail with `UnableToResolveAggregateRootFromCommandContext`. Rehydration alone does not prove a concurrency guarantee: verify the aggregate revision and append behavior for the invariant you enforce.
 
 ## Topics
 

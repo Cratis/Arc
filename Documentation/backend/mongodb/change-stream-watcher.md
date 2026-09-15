@@ -1,4 +1,7 @@
-# Watching Multiple Collections with a Shared Change Stream
+---
+title: Watch multiple collections with a shared change stream
+description: Join live results through Arc's per-database MongoDB watcher.
+---
 
 The `IMongoDBWatcher` provides a single, process-wide MongoDB change stream connection per database. Instead of opening one change stream per collection, you share one connection and funnel events from multiple collections through it. This reduces the number of open cursors and network connections, which matters when you observe many collections simultaneously.
 
@@ -13,12 +16,14 @@ graph LR
     B2 -->|Join + Select| S2[ISubject&lt;BookCatalog&gt;]
 ```
 
-`IMongoDBWatcher` is registered as a singleton automatically when you call `UseCratisMongoDB()`. The underlying change stream opens the first time you call `Observe<T>()` and is reused by every subsequent call.
+`IMongoDBWatcher` is registered as a singleton automatically when you call `UseCratisMongoDB()`. The underlying change stream opens on the first `Observe<T>()` for each resolved database name. Subsequent calls for that name share it. Each call resolves the database name from the current context; the cache key is the database name, not a server-and-database pair. Do not assume a custom tenant-specific server strategy is supported by that cache.
 
 ## Prerequisites
 
-- MongoDB 3.6 or later with a replica set (required for change streams)
+- A MongoDB replica set or sharded cluster supporting change streams, with database-level watch/read permissions
 - `UseCratisMongoDB()` called during application startup
+
+The examples below are service/query fragments using your application's `Book`, `Author`, and `Publisher` types. Import `Cratis.Arc.MongoDB` and `System.Reactive.Subjects`; the controller example additionally uses `Microsoft.AspNetCore.Mvc`. They are not complete host programs.
 
 ## Observing a single collection
 
@@ -103,9 +108,11 @@ public class CatalogController(IMongoDBWatcher watcher) : Controller
 
 ## Lifetime and disposal
 
-`IMongoDBWatcher` is a singleton. The underlying change stream lives for the lifetime of the application. You do not need to manage its lifecycle.
+`IMongoDBWatcher` is a singleton. The host owns the singleton and disposes it at shutdown. A failed database watch reconnects with exponential backoff (one second up to 60 seconds), carrying its last resume token. This is not a durable consumer checkpoint: tokens are held in memory, and an expired/invalid token requires operational attention rather than an assumed automatic full resynchronization.
 
 Individual subjects returned by `Select()` run a background loop that is tied to the subject itself — the loop stops when the subject completes or errors. Unsubscribing all observers from a subject causes it to complete and cleans up its internal resources automatically.
+
+Joined result fetching or selector failures are delivered through `OnError` and terminate that result subject. This differs from the per-collection `Observe()` implementation, which logs watch failures and completes. Reusing a terminated subject does not create a new joined observation. Keep tenant-specific results inside their intended lifetime even though the watcher itself is singleton.
 
 ## See also
 

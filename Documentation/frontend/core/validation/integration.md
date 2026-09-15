@@ -1,4 +1,7 @@
-# Command And Query Integration
+---
+title: Command and query integration
+description: Understand how generated frontend commands and queries apply backend validation metadata.
+---
 
 Validation runs automatically before command execution and query performance.
 
@@ -23,7 +26,7 @@ const result = await query.perform();
 // result.isValid === false
 ```
 
-## Backend-Governed Validation
+## Backend-governed validation
 
 Rules are defined on the backend and extracted by proxy generation:
 

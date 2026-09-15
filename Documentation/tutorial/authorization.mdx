@@ -7,9 +7,13 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 Our back office works, but it's wide open: anyone who can reach it can register authors and add books. The last thing a real app needs is to decide *who is allowed*. We'll add role-based authorization — and the nice part is that it's declarative, so none of our `Handle()` methods or read models change. The rule lives at the boundary, where it belongs.
 
+## Prerequisites
+
+Continue with the standalone ASP.NET Core host from [chapter 1](/arc/tutorial/first-slice/). Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs`. This chapter uses the literal role name `"Librarian"`; it must match an authorization role on the authenticated principal. No domain enum or identity-details provider is required.
+
 ## Gate the commands
 
-Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one attribute at the edge. Put `[Roles(...)]` on the command, and Arc checks the caller's roles before the command runs:
+Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one attribute at the edge. Put `[Roles(...)]` on the command, and Arc checks the caller's roles before the command runs. The excerpts below show MongoDB; for EF Core, add only the attributes and retain your existing context-based handlers and queries:
 
 <Steps>
 
@@ -17,7 +21,7 @@ Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)`
 
    ```csharp
    [Command]
-   [Roles(nameof(UserRole.Librarian))]
+   [Roles("Librarian")]
    public record RegisterAuthor(AuthorId Id, AuthorName Name)
    {
        public Task Handle(IMongoCollection<Author> authors) =>
@@ -31,27 +35,60 @@ Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)`
 
 ## Gate the queries
 
-The read side deserves the same protection — a public catalog might be fine, but an internal audit list is not. Query methods take the same attribute:
+The read side deserves the same protection — a public catalog might be fine, but an internal audit list is not. Query methods take the same attribute. Apply it to **both `AllAuthors` and `BooksForAuthor`** to keep this tutorial's catalog private:
 
 ```csharp
 [ReadModel]
 public record Author(AuthorId Id, AuthorName Name)
 {
-    [Roles(nameof(UserRole.Librarian))]
+    [Roles("Librarian")]
     public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> collection) =>
         collection.Observe();
 }
 ```
 
 <Aside type="note" title="The frontend respects it too">
-The generated proxies enforce the same rules — an unauthorized call fails the same way from React as from any other client. So you can drive your UI off identity as well: hide the "Add author" button when the signed-in user isn't a librarian, and the command is *still* protected on the server if someone calls it anyway. See [frontend identity](/arc/frontend/react/identity/) for reading the current user's roles in React.
+The server enforces these rules for calls from generated proxies and other clients alike; proxies surface the authorization result. So you can drive your UI off identity as well: hide the "Add author" button when the signed-in user isn't a librarian, and the command is *still* protected on the server if someone calls it anyway. See [frontend identity](/arc/frontend/react/identity/) for reading the current user's roles in React.
 </Aside>
 
 ## Where the roles come from
 
-`UserRole.Librarian` is just a value you check against; the roles themselves come from the **authenticated identity**. Arc plugs into standard ASP.NET Core authentication, and you can enrich the identity with application-specific details — roles, tenant, preferences — through `IProvideIdentityDetails`. For local development you can generate a principal so you can exercise authorized endpoints without standing up a full login.
+Arc checks `ClaimsPrincipal.IsInRole("Librarian")`. Configure your authentication scheme's role claims accordingly. An application detail such as `LibraryIdentity.Role` does **not** grant that role: `IProvideIdentityDetails` enriches client/domain context, and its rejected result controls `/.cratis/me`, not every operation.
 
-That's a topic in its own right; the [Identity](/arc/backend/identity/) section walks through it, and the [Authorizing commands and queries](/arc/backend/authorizing-commands-and-queries/) recipe is the condensed how-to.
+For this **loopback-only development checkpoint**, configure the trusted-header authentication adapter before `builder.Build()`:
+
+```csharp
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
+}
+```
+
+Before `app.UseCratisArc()`, add:
+
+```csharp
+if (app.Environment.IsDevelopment())
+{
+    app.UseAuthentication();
+}
+```
+
+Keep the host bound to `http://localhost:5000` as in setup. Follow [Generate a local principal](/arc/general/generating-principal/) to send the three `x-ms-client-principal` headers through the local Vite proxy. In that page's JSON, include `"Librarian"` in `userRoles`, then Base64-encode that JSON locally. Restrict the browser header override to your localhost app URLs.
+
+This adapter **does not validate bearer-token signatures, issuer, or audience**. It trusts the headers. Production must instead use a properly configured authentication scheme or an authenticated trusted ingress that replaces spoofable headers and prevents direct backend access. Never expose this local header-spoofing fixture publicly.
+
+## Verify permissions, not just UI visibility
+
+Rebuild, restart, and test these separately:
+
+1. Without identity headers, protected commands and queries must reject access.
+2. With a valid local principal but no `Librarian` role, they must still reject access.
+3. With `Librarian` in `userRoles`, list authors and register one successfully.
+4. Remove the role again. Hiding a button is optional UI behavior; a direct operation call must still fail.
+
+Inspect `isAuthorized` on the command/query result. Authentication middleware may reject a request before an Arc result is created, so also inspect the HTTP response. The recap below assumes you observed all three principal cases, not merely added attributes.
+
+For production authentication and domain details, continue with [Identity](/arc/backend/identity/) and [Authorizing commands and queries](/arc/backend/authorizing-commands-and-queries/).
 
 ## Look back at what you built
 

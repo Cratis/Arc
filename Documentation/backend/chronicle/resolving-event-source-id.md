@@ -1,87 +1,83 @@
 ---
 title: Resolving EventSourceId
-description: 'The conventions Chronicle uses to find an entity identity on a command or query argument — [Key], EventSourceId-convertible types, and ICanProvideEventSourceId.'
+description: How Arc's optional Chronicle integration selects command identity, and why response identity and query binding are separate stages.
 ---
 
-Chronicle resolves an `EventSourceId` anywhere it needs an identity for an aggregate, event append, or read model lookup. The same conventions work whether the value comes from a command record or from query arguments bound from the HTTP request.
+The Chronicle integration selects an `EventSourceId` before a model-bound command runs. That identity selects its command-scoped read models and aggregate roots, and supplies the default target for returned events. It is not inferred from the authenticated user.
 
-For details on how Chronicle stores resolved values in the command pipeline, see [Command Context Values](../commands/command-context.md#command-context-values).
+## Resolution order for commands
 
-## Why Chronicle Resolves EventSourceId
+1. An `ICanProvideEventSourceId` implementation supplies the identity explicitly.
+2. Otherwise, Arc selects the first matching public property: an `EventSourceId`, an `EventSourceId<T>`-derived type, or a property carrying Chronicle's `[Key]`. A matching positional constructor parameter can carry `[Key]` too.
+3. With no candidate, Arc generates a new identity for creation commands. A declared but unusable key is different: it can resolve to `EventSourceId.Unspecified` and fail dependency resolution.
 
-Chronicle needs an event source id to:
+There is **no typed-property-before-keyed-property precedence**. Declare exactly one candidate or implement the provider. An arbitrary implicit conversion on a `ConceptAs<Guid>` does not make it a runtime identity candidate. Use a domain identity derived from `EventSourceId<Guid>` instead.
 
-- append events to the correct event source
-- load aggregate roots for model-bound commands
-- resolve read models used in command handlers and validators
-- match read model queries to a specific aggregate identity
-
-## Resolution Order for Commands
-
-When Chronicle inspects a command, it resolves the event source id in this order:
-
-1. Implement `ICanProvideEventSourceId` and return the id from `GetEventSourceId()`.
-2. Add a property whose type is `EventSourceId` or derives from it.
-3. Mark a property with `[Key]` and let Chronicle convert that value to `EventSourceId`. On a positional record, `[Key]` can be placed directly on the matching constructor parameter, as shown below.
-
-If none of these are present, Chronicle creates a new `EventSourceId` so automatic event appends still have a valid identity.
+The following is a complete command/type example; host registration and persistence configuration are described in [Cratis package](./cratis-package.md).
 
 ```csharp
+using System;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
-using Cratis.Chronicle.Keys;
+using Cratis.Concepts;
 
-[Command]
-public record OpenAccount(Guid AccountId, string OwnerName) : ICanProvideEventSourceId
+public record AccountId(Guid Value) : EventSourceId<Guid>(Value)
 {
-    public EventSourceId GetEventSourceId() => AccountId.ToString();
+    public static readonly AccountId NotSet = new(Guid.Empty);
+    public static AccountId New() => new(Guid.NewGuid());
+    public static implicit operator AccountId(Guid value) => new(value);
+}
+
+public record OwnerName(string Value) : ConceptAs<string>(Value)
+{
+    public static readonly OwnerName NotSet = new(string.Empty);
+    public static implicit operator OwnerName(string value) => new(value);
 }
 
 [Command]
-public record RenameAccount(EventSourceId AccountId, string NewName);
+public record OpenAccount(AccountId AccountId, OwnerName OwnerName)
+{
+    public AccountOpened Handle() => new(OwnerName);
+}
 
-[Command]
-public record CloseAccount([Key] Guid AccountId);
+/// <summary>
+/// Records that an account was opened with its initial owner name.
+/// </summary>
+[EventType]
+public record AccountOpened(OwnerName OwnerName);
 ```
 
-## Resolution for Query Arguments
+For a legacy primitive key, mark the command property with `Cratis.Chronicle.Keys.KeyAttribute`. Do not substitute `System.ComponentModel.DataAnnotations.KeyAttribute`; that is the provider-neutral Arc key convention, not the Chronicle resolver's attribute.
 
-Chronicle uses the same identity conventions when you pass arguments to query methods that target a specific read model instance. In practice this usually means:
+## Input identity versus response identity
 
-- an argument of type `EventSourceId`
-- an argument of a type that derives from `EventSourceId`
-- an argument or bound property marked with `[Key]`
+An `EventSourceId` or `EventSourceId<T>` response can override the default target for **return-driven appends** after `Handle()` finishes. It cannot retroactively reload a validator's read model, retarget an injected aggregate, or move events the aggregate already enrolled under its input identity.
 
-Those arguments can come from route parameters, query string parameters, or request bodies through Arc's normal query binding rules.
+A raw `Guid` remains an ordinary response. A keyless command can legitimately return an unrelated confirmation Guid while events use the generated fallback. [ARCCHR0010](./code-analysis/ARCCHR0010.md) is a heuristic warning to check that intent, not a runtime prohibition. See [Returning EventSourceId](./commands/returning-event-source-id.md).
+
+## Query arguments are ordinary Arc binding
+
+Ordinary model-bound queries bind arguments by name and convert them to their declared types. They do **not** invoke the Chronicle command-key resolver. A typed id helps conversion and type safety; `[Key]` on a query argument does not select a read model automatically.
+
+Reuse `AccountId` and `OwnerName` from the command example so the query preserves the same domain vocabulary. This query/type fragment assumes the MongoDB integration is registered. The filter, not a command-key convention, selects the document:
 
 ```csharp
 using Cratis.Arc.Queries.ModelBound;
-using Cratis.Chronicle.Events;
-using Cratis.Chronicle.Keys;
 using MongoDB.Driver;
 
 [ReadModel]
-public record CustomerOverview(EventSourceId Id, string Name)
+public record AccountOverview(AccountId Id, OwnerName OwnerName)
 {
-    public static CustomerOverview? ById(
-        EventSourceId id,
-        IMongoCollection<CustomerOverview> collection) =>
-        collection.Find(_ => _.Id == id).FirstOrDefault();
-
-    public static CustomerOverview? ByLegacyId(
-        [Key] Guid customerId,
-        IMongoCollection<CustomerOverview> collection) =>
-        collection.Find(_ => _.Id == customerId.ToString()).FirstOrDefault();
+    public static AccountOverview? ById(
+        AccountId id,
+        IMongoCollection<AccountOverview> collection) =>
+        collection.Find(account => account.Id == id).FirstOrDefault();
 }
 ```
 
-## Read Models and Aggregate Roots
+## Related references
 
-When you inject a read model or aggregate root into a model-bound command, Chronicle uses the resolved event source id from the current command context to load the correct instance.
-
-For command-specific guidance, see:
-
-- [Events](commands/events.md)
-- [Setting Subject](commands/subject.md)
-- [Returning EventSourceId from a Command](commands/returning-event-source-id.md)
+- [Command context values](../commands/command-context.md#command-context-values)
+- [Read models in commands](./read-models/injecting-into-commands.md)
+- [Aggregate roots in commands](./aggregates/injecting-into-commands.md)
+- [Setting Subject](./commands/subject.md) — compliance identity is separate from stream identity.

@@ -1,141 +1,44 @@
-# Return Types
+---
+title: Controller query return types
+description: Understand MVC data results, Arc wrapping, observable values, and null handling.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Controller-based queries support various data types for return values, giving you flexibility in how you structure your API responses.
+## Data return types
 
-## Single Object
+Arc's default MVC GET handling wraps returned data in its nongeneric `QueryResult`. Unlike model-bound discovery, MVC does not require the action to live on the returned type.
 
-Return a single instance of your read model:
+| Return value | Default Arc GET behavior |
+| --- | --- |
+| A model or custom summary | Wrapped as `data` |
+| A list, array, or materialized enumerable | Wrapped collection; no built-in slicing |
+| `IQueryable<T>` | Renderer applies requested paging/sorting before serialization |
+| `Task<T>` | MVC awaits the task before Arc processes its data |
+| Runtime `ISubject<T>` or `IAsyncEnumerable<T>` | Streaming adapter chooses handling from the request |
 
-```csharp
-[HttpGet("{id}")]
-public DebitAccount GetAccount(AccountId id)
-{
-    return _collection.Find(a => a.Id == id).FirstOrDefault();
-}
-```
+A MongoDB `Find(...)` is fluent query construction; call `ToList()`/`ToListAsync()` to return materialized data. See [dependency injection](dependency-injection.md) for a complete async action.
 
-## Collections
+## Query results
 
-### IEnumerable&lt;T&gt;
+Do **not** return `QueryResult` from an ordinary wrapped controller GET to control the outer metadata. The action filter creates another `QueryResult` and treats the returned wrapper as data, producing a nested contract. A custom envelope is likewise ordinary data, not an instruction to replace Arc's outer envelope.
 
-```csharp
-[HttpGet]
-public IEnumerable<DebitAccount> GetAccounts()
-{
-    return _collection.Find(_ => true).ToList();
-}
-```
+Prefer [IQueryable paging](paging.md). If you need complete control over status and body, opt out using `Cratis.Arc.AspNetResultAttribute` and return a conventional MVC result. Opting out also skips Arc query rendering/interception; you own the entire response contract and must use a compatible client.
 
-### List&lt;T&gt;
+## Nullable return types
 
-```csharp
-[HttpGet]
-public List<DebitAccount> GetAccountsList()
-{
-    return _collection.Find(_ => true).ToList();
-}
-```
+A null response from a default Arc-wrapped MVC GET becomes a failed result with `exceptionMessages` containing `"Null data returned"`; it is not ordinary successful absence or an automatic 404. This differs from the [model-bound pipeline](../model-bound/return-types.md#collections-and-absence), where null can remain a success.
 
-### Arrays
+Choose deliberately:
 
-```csharp
-[HttpGet]
-public DebitAccount[] GetAccountsArray()
-{
-    return _collection.Find(_ => true).ToArray();
-}
-```
+- An empty collection means a successful collection with no matches.
+- A non-null application response model can represent absence explicitly inside its data contract.
+- `[AspNetResult]` with `NotFound()` provides ordinary MVC 404 semantics. The [route example](route-templates.md#bind-a-route-value) shows the complete action.
 
-## Query Results
+Do not convert database exceptions into null/empty successful results.
 
-For more control over the response metadata, you can return `QueryResult`:
+## Observable return types
 
-```csharp
-[HttpGet]
-public QueryResult GetAccountsWithMetadata()
-{
-    var accounts = _collection.Find(_ => true).ToList();
-    return new QueryResult
-    {
-        Data = accounts,
-        // Additional metadata will be populated automatically
-    };
-}
-```
+Return `ISubject<T>` for a subject-backed query. An arbitrary Rx `IObservable<T>` is not sufficient: the controller adapter checks the **runtime value** for subject/async-enumerable support. Merely declaring `IObservable<T>` does not adapt a `Select(...)` result into a subject.
 
-## Async Return Types
-
-All return types can be wrapped in `Task<T>` for asynchronous operations:
-
-```csharp
-[HttpGet]
-public async Task<IEnumerable<DebitAccount>> GetAccountsAsync()
-{
-    var result = await _collection.FindAsync(_ => true);
-    return result.ToList();
-}
-
-[HttpGet("{id}")]
-public async Task<DebitAccount> GetAccountAsync(AccountId id)
-{
-    var result = await _collection.FindAsync(a => a.Id == id);
-    return result.FirstOrDefault();
-}
-```
-
-## Custom Response Types
-
-You can create custom types for complex query results:
-
-```csharp
-public record AccountSummary(int TotalAccounts, decimal TotalBalance, decimal AverageBalance);
-
-[HttpGet("summary")]
-public AccountSummary GetAccountSummary()
-{
-    var accounts = _collection.Find(_ => true).ToList();
-    return new AccountSummary(
-        accounts.Count,
-        accounts.Sum(a => a.Balance),
-        accounts.Count > 0 ? accounts.Average(a => a.Balance) : 0
-    );
-}
-```
-
-## Observable Return Types
-
-For real-time queries, return `ISubject<T>` or `IObservable<T>`:
-
-```csharp
-[HttpGet("observable")]
-public ISubject<IEnumerable<DebitAccount>> GetAccountsObservable()
-{
-    return _collection.Observe();
-}
-```
-
-See [Observable Queries](observable-queries.md) for more details on real-time data streaming.
-
-## Nullable Return Types
-
-When a query might not return data, use nullable types:
-
-```csharp
-[HttpGet("{id}")]
-public DebitAccount? GetAccount(AccountId id)
-{
-    return _collection.Find(a => a.Id == id).FirstOrDefault();
-}
-```
-
-## Best Practices
-
-1. **Use appropriate collection types** - `IEnumerable<T>` for most cases, `List<T>` when you need specific list operations
-2. **Consider nullability** - Use nullable types when queries might return no results
-3. **Async for I/O operations** - Always use async methods when dealing with database operations
-4. **Custom types for complex data** - Create dedicated response types for complex query results
-5. **QueryResult for metadata** - Use `QueryResult` (assigning its `Data` property) when you need to include additional response metadata
-
-## Response Wrappers
-
-By default, controller-based queries wrap results in a `QueryResult` structure. To bypass this wrapper and return raw results, use the `[AspNetResult]` attribute. For more details, see [Without wrappers](../../asp-net-core/without-wrappers.md).
+The return type does not establish a WebSocket; the request selects the transport. See [controller observable queries](observable-queries.md) for a complete GET action and subscription lifetime rules.

@@ -15,7 +15,7 @@ A read model can be injected into command-scoped code because it is **resolvable
 - a standalone model-bound projection (`[FromEvent<T>]`, `[SetFrom<T>]`, `[SetValue<T>]`)
 - an [`IReducerFor<T>`](/chronicle/reducers/) reducer
 
-You declare the dependency identically in every case — which artifact materializes the state is an implementation detail Arc hides.
+You declare the dependency identically in every case. The backing still matters for freshness, serialization, and compliance release; it is not always a materialized document.
 
 ### Children and nested objects are not standalone read models
 
@@ -56,7 +56,7 @@ Step by step:
 2. **Command context lookup** — the resolved identity is read from the current `CommandContext`.
 3. **Guard** — if no usable identity is available, resolution fails with [`UnableToResolveReadModelFromCommandContext`](./failures.md#unabletoresolvereadmodelfromcommandcontext).
 4. **Store query** — Chronicle's read model store is queried by the resolved identity.
-5. **Subject release** — if the command context carries a compliance `Subject` and the instance exists, it is released with that subject, so `[PII]` properties decrypt under the same identity used for the events.
+5. **Subject release** — if the input command context carries a compliance `Subject` and the instance exists, Arc additionally calls `Release(instance)`. It does not pass the command subject. Chronicle resolves the release subject from the instance; materialized state may already have been released server-side. See [Subject](../compliance/subject.md).
 6. **Result** — the instance is returned, or `null` when the projection instance does not exist.
 
 Resolution happens exactly once per command. The same instance is handed to the validator, `Provide()`, and `Handle()`.
@@ -76,10 +76,18 @@ Read models are registered as **command-scoped** services:
 And they are **read-only snapshots**:
 
 - **Immutable in practice** — changes made to an injected instance are not persisted anywhere.
-- **Eventually consistent** — the state reflects events processed so far, not necessarily every event appended.
-- **Current as of the command** — the fetch happens when the command runs.
+- **Backing-dependent freshness** — asynchronously materialized models reflect events processed so far, not necessarily every append. Passive models are built on demand.
+- **Fetched on first resolution** — the command-scoped snapshot is not refreshed after a later append or returned identity change.
 
 To _change_ state, return events from `Handle()` or use an [aggregate root](../aggregates/index.md). A read model is an input to a decision, never the place a decision is recorded.
+
+## Materialized and passive paths
+
+Passive reducer models are folded in-process. Passive projection models register with no materialized sink and are resolved on demand by Chronicle. Ordinary materialized reads cross the service/JSON boundary; a passive reducer does not use that same document-deserialization path.
+
+Arc calls the non-generic `GetInstanceById(Type, key)` overload. For passive reducers, do not assume it performs the generic overload's unconditional post-reduction release: Arc's additional release is gated on an input command subject. Test sensitive state on the path you actually use.
+
+On-demand state is still a snapshot, not a lock. Neither passive nor materialized read-model injection by itself binds the later append to the revision used by a decision. Use append-time constraints or an explicitly captured concurrency expectation where needed.
 
 ## Read models or aggregate roots
 
@@ -95,8 +103,8 @@ If correctness depends on source-of-truth state under concurrency, prefer aggreg
 
 ## Topics
 
-| Topic                                                    | Description                                                                                        |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [Read models in commands](./injecting-into-commands.md)  | Injecting into a validator, `Provide()`, and `Handle()`, and what nullability means.               |
+| Topic | Description |
+| --- | --- |
+| [Read models in commands](./injecting-into-commands.md) | Injecting into a validator, `Provide()`, and `Handle()`, and what nullability means. |
 | [Read models from other providers](./other-providers.md) | Injecting one backed by Entity Framework Core or MongoDB, and declaring the key without Chronicle. |
-| [When resolution fails](./failures.md)                   | Every failure mode, what it means, and how to fix it.                                              |
+| [When resolution fails](./failures.md) | Every failure mode, what it means, and how to fix it. |

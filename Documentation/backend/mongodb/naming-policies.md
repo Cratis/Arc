@@ -1,6 +1,9 @@
-# Naming Policies
+---
+title: Naming policies
+description: Configure MongoDB collection and member names before persisting data.
+---
 
-Naming policies in Cratis Applications control how collection names and property names are transformed when serializing to MongoDB. This ensures consistent naming conventions across your database.
+Naming policies control collection and BSON member names. Configure them once before writing data; changing a policy does not rename existing fields or collections. Examples are policy declarations or startup/query fragments for the [configured host](./getting-started.md), not complete programs. Import `Cratis.Serialization` for `INamingPolicy` and `Cratis.Arc.MongoDB` for builder customization.
 
 ## Overview
 
@@ -80,8 +83,7 @@ builder.UseCratisMongoDB(configureMongoDB: builder =>
     builder.WithNamingPolicy(new SnakeCaseNamingPolicy()));
 ```
 
-This also works when your naming policy requires constructor parameters — just construct
-the instance with the values you need:
+This also works when an application-defined policy requires constructor parameters. `CustomNamingPolicy` in this illustrative fragment is your own implementation, not an Arc type:
 
 ```csharp
 var namingPolicy = new CustomNamingPolicy(prefix: "app_", suffix: "_v1");
@@ -113,7 +115,7 @@ The convention applies to:
 
 ### Multiple Policies
 
-You can create policies that combine multiple transformations:
+You can create policies that combine transformations. `PrefixNamingPolicy` below is an application-defined implementation, not a built-in Arc policy. This example intentionally applies property transformations to the simple type name for collections; it does not compose each policy's `GetReadModelName` behavior:
 
 ```csharp
 public class CompoundNamingPolicy : INamingPolicy
@@ -168,14 +170,16 @@ public class ConditionalNamingPolicy : INamingPolicy
 
 The naming policy is implemented as a MongoDB convention pack, which means:
 
-### Automatic Application
+### Illustrative registration
+
+The namespace filter below illustrates an application-specific convention registration; `MyApp.Models` is **not** Arc's automatic startup filter. Arc registers this convention using the configured convention-pack filters. Do not add this second registration after Arc initialization; customize Arc through the filtering mechanism below instead.
 
 ```csharp
-// This is registered automatically during setup
+// Illustrative application filter, not Arc's automatic registration
 ConventionRegistry.Register(
     NamingPolicyNameConvention.ConventionName,
     new ConventionPack { new NamingPolicyNameConvention() },
-    type => /* filter logic */
+    type => type.Namespace?.StartsWith("MyApp.Models", StringComparison.Ordinal) == true
 );
 ```
 
@@ -233,7 +237,7 @@ var users = await collection
 
 ### Missing Policy Configuration
 
-If no naming policy is configured, the framework will throw a descriptive error:
+A `DefaultNamingPolicy` is installed automatically. If custom builder code explicitly clears the policy, validation throws `NamingPolicyNotConfigured`:
 
 ```shell
 NamingPolicyNotConfigured: A naming policy for MongoDB has not been configured.
@@ -261,7 +265,7 @@ public string GetPropertyName(string name)
 
 Choose one naming convention and apply it consistently across your application:
 
-```json
+```jsonc
 // Good: Consistent camelCase
 {
     "userId": "123",

@@ -1,196 +1,107 @@
-# Authorization
+---
+title: Model-bound command authorization
+description: Protect standalone Arc commands with authentication, roles, and authorization filters.
+---
 
-Model-bound commands support authorization through standard ASP.NET Core authorization attributes as well as the convenient `[Roles]` attribute provided by the Arc.
+A valid command is not necessarily an allowed command. Arc evaluates authorization before ordinary command filters and does not invoke `Provide()` or `Handle()` when authorization is denied.
 
-## Using the Authorize Attribute
+## Using the Authorize attribute
 
-You can secure commands using the standard `[Authorize]` attribute at the class level:
+Use the attributes in **`Cratis.Arc.Authorization`** for model-bound commands. This complete example requires authentication and returns an identifier without persisting a business record:
 
 ```csharp
+using System;
+using Cratis.Arc.Commands.ModelBound;
+
 [Command]
-[Authorize]
-public record AddItemToCart(string Sku, int Quantity)
+[Cratis.Arc.Authorization.Authorize]
+public record AllocatePrivateIdentifier()
 {
-    public void Handle(ICartService carts)
-    {
-        carts.AddItemToCart(Sku, Quantity);
-    }
+    public Guid Handle() => Guid.NewGuid();
 }
 ```
 
-With role requirements:
+Configure authentication in your host to establish the request principal. The attribute checks that principal; it does not authenticate a request by itself.
+
+## Using the Roles attribute
+
+This complete command requires an authenticated principal in at least one of the listed roles:
 
 ```csharp
-[Command]
-[Authorize(Roles = "Admin,Manager")]
-public record DeleteProduct(ProductId Id)
+using System;
+using Cratis.Arc.Commands.ModelBound;
+
+public enum ApplicationRole
 {
-    public void Handle(IProductService products)
-    {
-        products.Delete(Id);
-    }
+    Admin,
+    Manager
+}
+
+[Command]
+[Cratis.Arc.Authorization.Roles(nameof(ApplicationRole.Admin), nameof(ApplicationRole.Manager))]
+public record AllocateManagedIdentifier()
+{
+    public Guid Handle() => Guid.NewGuid();
 }
 ```
 
-## Using the Roles Attribute
+`[Cratis.Arc.Authorization.Authorize(Roles = $"{nameof(ApplicationRole.Admin)},{nameof(ApplicationRole.Manager)}")]` expresses the same role requirement. These application-owned names still emit the role strings `Admin` and `Manager`; preserve exact names when roles come from an external identity provider. Use a single attribute with a comma-separated list rather than assuming several authorization attributes compose multiple requirements; the current attribute evaluator takes the first matching attribute.
 
-The Arc provides a more convenient `[Roles]` attribute for cleaner syntax when specifying multiple roles:
+## Anonymous access with AllowAnonymous
 
-```csharp
-[Command]
-[Roles("Admin", "Manager")]
-public record UpdateProductPrice(ProductId Id, decimal NewPrice)
-{
-    public void Handle(IProductService products)
-    {
-        products.UpdatePrice(Id, NewPrice);
-    }
-}
-```
+`[Cratis.Arc.Authorization.AllowAnonymous]` bypasses Arc's built-in attribute authorization check for that type. With no authorization requirement, the built-in evaluator also allows access. Mark intentionally public commands explicitly, and review their abuse controls separately.
 
-The user needs to have **at least one** of the specified roles to execute the command.
+This does not promise to bypass custom authorization filters or external middleware. Likewise, adding an attribute to an unrelated controller does not establish a global authorization requirement for model-bound command types.
 
-## Anonymous Access with AllowAnonymous
+## Policy-based authorization
 
-Use `[AllowAnonymous]` to allow public access to specific commands. This is particularly useful when you have a global authorization requirement but need certain commands to be accessible without authentication:
+> [!WARNING]
+> Current model-bound Arc evaluators check authentication and roles only. Although Arc's `AuthorizeAttribute` exposes `Policy` and `AuthenticationSchemes` properties, those properties are not evaluated here. Do not rely on them to protect a command.
 
-```csharp
-[Command]
-[AllowAnonymous]
-public record RegisterUser(string Email, string Password)
-{
-    public void Handle(IUserService users)
-    {
-        users.Register(Email, Password);
-    }
-}
-```
+Do not substitute `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` on a model-bound command expecting equivalent protection. The current Arc evaluators do not establish that contract; even the ASP.NET-named evaluator currently resolves the Arc attribute type. Standard Microsoft authorization on **MVC controllers/actions**, or explicitly configured external middleware, is a separate enforcement path.
 
-### Combining with Global Authorization
+For domain-specific access control in the model-bound pipeline, implement an [authorization command filter](../command-filters.md#cross-cutting-authorization-by-namespace) using `IAuthorizationCommandFilter` and an actual unauthorized verdict. That example uses real authentication and role checks, not a placeholder policy or an overridable validator. Record ownership needs its own real resource lookup and owner comparison before changes occur.
 
-When your application has global authorization requirements (e.g., via `[Authorize]` on controllers or through middleware), you can use `[AllowAnonymous]` to exempt specific commands:
+Test protection through every entry point your application exposes.
+
+## Authorization results
+
+Caller fragment with `ICommandPipeline pipeline` injected:
 
 ```csharp
-// This command can be executed without authentication
-// even if global authorization is configured
-[Command]
-[AllowAnonymous]
-public record RequestPasswordReset(string Email)
-{
-    public void Handle(IPasswordResetService service)
-    {
-        service.SendResetEmail(Email);
-    }
-}
-
-// This command requires authentication
-[Command]
-[Authorize]
-public record ChangePassword(string CurrentPassword, string NewPassword)
-{
-    public void Handle(IPasswordService service)
-    {
-        service.ChangePassword(CurrentPassword, NewPassword);
-    }
-}
-```
-
-### Common Use Cases for AllowAnonymous
-
-- **User registration** - New users need to create accounts before they can authenticate
-- **Password reset requests** - Users who forgot their password can't authenticate
-- **Public data submissions** - Contact forms, feedback submissions
-- **Health checks or status endpoints** - System monitoring that shouldn't require authentication
-
-## Policy-Based Authorization
-
-For more complex authorization scenarios, you can use policy-based authorization:
-
-```csharp
-[Command]
-[Authorize(Policy = "RequireElevatedAccess")]
-public record PerformSensitiveOperation(string Data)
-{
-    public void Handle(ISensitiveOperationService service)
-    {
-        service.Execute(Data);
-    }
-}
-```
-
-## Authorization Results
-
-When authorization fails, the command pipeline returns an unauthorized result. The command handler will not be executed:
-
-```csharp
-var result = await commandPipeline.Execute(command);
-
+var result = await pipeline.Execute<Guid>(new AllocateManagedIdentifier());
 if (!result.IsAuthorized)
 {
-    // Handle unauthorized access
-    // The command was not executed
+    Console.WriteLine("Access denied");
 }
 ```
 
-## Executing Commands from Server-Side Code
+A denied result has `IsSuccess == false` and the handler has not executed. Check `IsSuccess`, not `IsValid` alone, before using a response. [Validation severity](../validation-severity-filtering.md) does not override an unauthorized verdict.
 
-Authorization reads the principal from the current HTTP request. Server-side callers — reactors, hosted services, background jobs, sagas, or one command orchestrating another — have no HTTP request, so a command carrying `[Authorize]` or `[Roles]` would be denied. To run such a command as a trusted system actor, establish a server-side execution scope with `ISystemExecution`:
+## Executing commands from server-side code
+
+Arc's `ICurrentPrincipalAccessor` uses the HTTP request principal when a request exists. Otherwise it uses a principal established through `ISystemExecution`, or null if none exists. A protected background command therefore needs an explicitly trusted server-side actor.
+
+This complete caller reuses `AllocateManagedIdentifier` above and requires `ISystemExecution` and `ICommandPipeline` from Arc DI:
 
 ```csharp
-public class NightlyReconciliation(ISystemExecution systemExecution, ICommandPipeline pipeline) : BackgroundService
+using System;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands;
+
+public class ManagedIdentifierJob(ISystemExecution systemExecution, ICommandPipeline pipeline)
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task<CommandResult<Guid>> Run()
     {
-        using (systemExecution.AsSystem("Administrator"))
+        using (systemExecution.AsSystem(nameof(ApplicationRole.Manager)))
         {
-            await pipeline.Execute(new ReconcileLedger());
+            return await pipeline.Execute<Guid>(new AllocateManagedIdentifier());
         }
     }
 }
 ```
 
-`AsSystem(params string[] roles)` runs as an authenticated system actor carrying exactly the roles you name — the normal role check still applies, so a `[Roles("Administrator")]` command passes while a `[Roles("Auditor")]` command is still denied. With no roles the actor satisfies `[Authorize]` but no `[Roles]`. Use `As(ClaimsPrincipal principal)` when you need to run as a specific principal. The scope is ambient and restores the previous context when disposed, so it flows into every command executed inside the `using` block, including nested calls.
+`AsSystem(params string[] roles)` creates an authenticated system actor carrying exactly those roles. No roles satisfies authentication alone, not a role requirement. `As(ClaimsPrincipal)` supports an explicitly supplied principal. Dispose the scope to restore the previous actor, and await execution inside it.
 
-> The server-side principal is consulted **only when there is no HTTP request context**. On any HTTP request the request principal is always authoritative — a server-side scope can never influence authorization of an HTTP-origin command, and request-supplied data can never enter the scope.
-
-### Executing Commands from Reactors
-
-When a reactor returns a command as a side effect, mark the reactor with `[ExecuteCommandsAsSystem]` to run those commands under the declared roles automatically:
-
-```csharp
-[Reactor]
-[ExecuteCommandsAsSystem("Administrator")]
-public class ConsultantProvisioner : IReactor
-{
-    public InviteConsultant ConsultantRequested(ConsultantRequested @event, EventContext context) =>
-        new(@event.Email);
-}
-```
-
-A reactor that instead injects `ICommandPipeline` and calls `Execute` directly establishes the scope itself:
-
-```csharp
-public class ConsultantProvisioner(ISystemExecution systemExecution, ICommandPipeline pipeline) : IReactor
-{
-    [OnceOnly]
-    public async Task ConsultantRequested(ConsultantRequested @event, EventContext context)
-    {
-        using (systemExecution.AsSystem("Administrator"))
-        {
-            await pipeline.Execute(new InviteConsultant(@event.Email));
-        }
-    }
-}
-```
-
-## Best Practices
-
-1. **Apply authorization at the command level** - Each command should declare its own authorization requirements
-2. **Use the `[Roles]` attribute** - More convenient than the standard `[Authorize(Roles = "...")]` syntax
-3. **Be explicit about public access** - Use `[AllowAnonymous]` to clearly indicate intentionally public commands
-4. **Consider the principle of least privilege** - Only grant the minimum access required
-5. **Test authorization** - Ensure unauthorized users cannot execute protected commands
-6. **Use policies for complex logic** - Implement custom authorization policies for domain-specific rules
-7. **Log authorization failures** - Monitor and log unauthorized access attempts
-
-> **Note**: Authorization is evaluated as part of the command filter pipeline before the command handler is called. If authorization fails, the command will not be executed and the `CommandResult.IsAuthorized` will be `false`.
+Never derive the system roles from request input. An HTTP request principal remains authoritative; a server-side scope cannot elevate that request. For the separate, optional event-sourced use case, see [Chronicle reactor command side effects](../../chronicle/reactors/command-side-effects.md) and [Chronicle command integration](../../chronicle/commands/index.md).

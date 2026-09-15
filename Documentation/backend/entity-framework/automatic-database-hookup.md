@@ -1,4 +1,7 @@
-# Automatic Database Hookup
+---
+title: Automatic database hookup
+description: Register pooled EF contexts and select a supported provider from a connection string.
+---
 
 Out of the box we support the following databases:
 
@@ -6,12 +9,14 @@ Out of the box we support the following databases:
 - PostgreSQL
 - Microsoft SQL Server
 
-There are different extension methods for adding `DbContext` types and also for resolving the correct database provider based on connection string.
+The examples below are registration or service fragments for an existing host; supply the named contexts and import `Cratis.Arc.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore`, and `Microsoft.Extensions.DependencyInjection`. Contexts must forward their options to their base constructor. Start with [getting started](./getting-started.md) for the optional package and Arc setup.
+
+Database hookup selects a provider; it does not apply migrations. SQLite strings use `Data Source=store.db`; PostgreSQL detection requires `Host=` and `Database=`; SQL Server detection looks for server/data-source and SQL Server-specific keywords. Unrecognized strings throw `UnsupportedDatabaseType`.
 
 You can use the standard EF Core method with the Arc database detection extension:
 
 ```csharp
-services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString(".. your connection string.."));
+services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString("Data Source=store.db"));
 ```
 
 > Note: From the connection string it will do the correct `.UseSqlite()`, `.UseNpgsql()` or `.UseSqlServer()` call on the builder.
@@ -19,7 +24,7 @@ services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString(".
 However, **it is recommended** to use the Arc registration methods which use the pooled factory pattern for better performance and to support multiple database providers:
 
 ```csharp
-services.AddDbContextWithConnectionString<MyDbContext>(".. your connection string..", (serviceProvider, opt) => { /* do whatever configuration you want */ });
+services.AddDbContextWithConnectionString<MyDbContext>("Data Source=store.db", (serviceProvider, opt) => opt.EnableDetailedErrors());
 ```
 
 This method automatically:
@@ -31,7 +36,7 @@ This method automatically:
 
 ## Multiple Database Providers
 
-The Arc Entity Framework integration uses the **pooled factory pattern** (`IDbContextFactory<T>`) internally to support multiple database providers in the same application. This is important because Entity Framework Core does not allow multiple database providers to be registered in the same service provider.
+The Arc Entity Framework integration uses the **pooled factory pattern** (`IDbContextFactory<T>`) internally. Different context types can use different database providers. A single context's options must select only one provider; this is not a prohibition on multiple providers anywhere in the application's DI container.
 
 The pooled factory approach provides:
 
@@ -80,14 +85,14 @@ public class MyService
 }
 ```
 
-> **Important**: When using multiple DbContexts with different database providers (e.g., SQLite for testing and SQL Server for production), the factory pattern ensures each DbContext gets its own isolated service provider, preventing conflicts between providers.
+> **Important**: Pooling reuses context instances and their options. These helpers capture the supplied connection string; they do not implement tenant-aware database selection. Do not capture request-scoped tenant state in pooled configuration. Test any application-supplied isolation strategy across pooled reuse.
 
 ## Read Only DbContexts
 
 For any **read-only** `DbContext` there is also an extension method:
 
 ```csharp
-services.AddReadOnlyDbContextWithConnectionString<MyDbContext>(".. your connection string..", (serviceProvider, opt) => { /* do whatever configuration you want */ });
+services.AddReadOnlyDbContextWithConnectionString<MyDbContext>("Data Source=store.db", (serviceProvider, opt) => opt.EnableDetailedErrors());
 ```
 
 ## Automatic Registration from Assemblies
@@ -118,12 +123,12 @@ If you have a DbContext that should not be automatically registered (for example
 
 ```csharp
 using Cratis.Arc;
+using Cratis.Arc.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
 [IgnoreAutoRegistration]
-public class SpecialDbContext : ReadOnlyDbContext
+public class SpecialDbContext(DbContextOptions<SpecialDbContext> options) : ReadOnlyDbContext(options)
 {
-    // This DbContext will be ignored during automatic registration
-    // and must be registered manually if needed
 }
 ```
 

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0",
+  "harnesses": [
+    "claude",
+    "codex",
+    "copilot",
+    "cursor",
+    "opencode",
+    "pi"
+  ],
+  "profiles": [
+    "cratis/engineering/csharp",
+    "cratis/documentation"
+  ],
+  "languages": [
+    "csharp"
+  ]
+}

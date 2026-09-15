@@ -11,7 +11,7 @@ rendering hierarchy. This creates a logical coupling in your application and is 
 structure.
 
 With the MVVM model this doesn't really work either, as the contexts aren't available to the view model.
-Instead, we can leverage a publish/subscribe mechanism where components through their view model can
+With publish/subscribe, components can use their view models to
 publish messages that can be subscribed to by other parts of your system that lives on the page.
 
 This creates for a more decoupled approach and making your code and structure easier to change.
@@ -25,12 +25,13 @@ The implementation is provided by Arc core (`@cratis/arc/messaging`) and wired i
 
 Below is an example of the view models for two components, one listing items and the other holding details.
 
-The first thing we want is a message saying user is selected (assuming a type of `User`):
+These illustrative files assume an application-owned `User` model in `./User`. Define the shared message once in `UserSelected.ts` and import that same class in publisher and subscriber:
 
 ```ts
+import { User } from './User';
+
 export class UserSelected {
-    constructor(readonly user: User) {
-    }
+    constructor(readonly user: User) {}
 }
 ```
 
@@ -38,13 +39,14 @@ Then for the list component we would typically have something like the following
 
 ```ts
 import { IMessenger } from '@cratis/arc.react.mvvm/messaging';
+import { injectable } from 'tsyringe';
+import { UserSelected } from './UserSelected';
+import { User } from './User';
 
 @injectable()
 export class UsersListViewModel {
-
     // Take the IMessenger as a dependency
-    constructor(private readonly _messenger: IMessenger) {
-    }
+    constructor(private readonly _messenger: IMessenger) {}
 
     selectUser(user: User) {
         // Publish the message saying the user was selected
@@ -60,22 +62,30 @@ For the details component, the view model would then need to subscribe to this:
 
 ```ts
 import { IMessenger } from '@cratis/arc.react.mvvm/messaging';
+import { injectable } from 'tsyringe';
+import { Subscription } from 'rxjs';
+import { UserSelected } from './UserSelected';
+import { User } from './User';
 
 @injectable()
 export class UserDetailsViewModel {
+    user?: User;
+    private readonly _subscription: Subscription;
 
-    // Take the IMessenger as a dependency
     constructor(messenger: IMessenger) {
-        messenger.subscribe(UserSelected, (user) => this.user = user)
+        this._subscription = messenger.subscribe(UserSelected, (message) => {
+            this.user = message.user;
+        });
     }
 
-    // State that would be used in the view
-    user?: User;
+    detached() {
+        this._subscription.unsubscribe();
+    }
 }
 ```
 
 With this, the details view model will subscribe to the `UserSelected` message and set the state of the
-view model accordingly.
+view model accordingly. The subscriber receives the **published message instance**, not its nested `user` payload. Retain the subscription and unsubscribe in `detached()` when the view model is disposed.
 
 ## Scoped messaging
 

@@ -1,216 +1,51 @@
-# LineString Conversion
+---
+title: LineString conversion
+description: Explicitly convert a route to a JSON string in an EF model.
+---
 
-The LineString conversion feature provides automatic handling of `LineString` geospatial properties from Cratis.Fundamentals in Entity Framework Core, enabling storage of routes, paths, and other linear geographic features.
+A route contains an ordered sequence of points. `AsLineString()` stores that sequence using plain JSON string conversion; `BaseDbContext` does not apply it automatically.
 
-## What it does
+## Define and configure a route
 
-The LineString conversion automatically configures Entity Framework Core to handle properties of type `LineString` using JSON serialization:
-
-1. **PostgreSQL**: Stores as `jsonb` type for efficient JSON queries
-2. **SQL Server**: Stores as `nvarchar(max)` with JSON serialization
-3. **SQLite**: Stores as `text` with JSON serialization
-
-This ensures LineStrings (ordered sequences of geographic points) are stored consistently across all database providers.
-
-## Why it's important
-
-Using LineString conversion provides several key benefits:
-
-- **Route and Path Support**: Store delivery routes, walking paths, or any linear geographic features
-- **Cross-Database Compatibility**: Consistent LineString handling across different database providers
-- **JSON Serialization**: Uses standard JSON format for storage, making data human-readable
-- **Type Safety**: Maintains strong typing with the `LineString` type from Cratis.Fundamentals
-- **Automatic Configuration**: No need for manual configuration of LineString properties
-
-## The LineString Type
-
-The `LineString` type represents an ordered sequence of connected geographic points:
-
-```csharp
-using Cratis.Geospatial;
-
-var points = new Point[]
-{
-    new Point(longitude: -122.4194, latitude: 37.7749),
-    new Point(longitude: -122.4185, latitude: 37.7750),
-    new Point(longitude: -122.4170, latitude: 37.7755)
-};
-
-var route = new LineString(points);
-```
-
-The LineString is serialized to JSON as:
-
-```json
-{
-  "coordinates": [
-    [-122.4194, 37.7749],
-    [-122.4185, 37.7750],
-    [-122.4170, 37.7755]
-  ]
-}
-```
-
-## Model Usage
-
-Your entity models can use `LineString` properties directly:
+Model declaration:
 
 ```csharp
 using Cratis.Geospatial;
 
 public class DeliveryRoute
 {
-    public Guid Id { get; set; }
-    public string RouteName { get; set; }
-    public LineString Path { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-
-public class UserTrack
-{
-    public Guid Id { get; set; }
-    public Guid UserId { get; set; }
-    public LineString TrackingPath { get; set; }
-    public LineString? HistoricalPath { get; set; } // Nullable LineString
+    public int Id { get; set; }
+    public required LineString Path { get; set; }
 }
 ```
 
-The conversion will automatically:
-
-- Configure all `LineString` properties to use JSON serialization
-- Store the ordered points as a JSON array in the database
-- Handle conversion between .NET `LineString` instances and JSON strings
-
-## Manual Configuration
-
-If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply LineString conversion:
+In your context's `OnModelCreating`, with `Cratis.Arc.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore` imported:
 
 ```csharp
-using Cratis.Arc.EntityFrameworkCore;
-using Cratis.Geospatial;
-
-public class RouteDbContext(DbContextOptions options) : DbContext(options)
-{
-    public DbSet<DeliveryRoute> Routes { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<DeliveryRoute>(entity =>
-        {
-            entity.Property(e => e.Path)
-                .AsLineString();
-        });
-        
-        base.OnModelCreating(modelBuilder);
-    }
-}
+modelBuilder.Entity<DeliveryRoute>().Property(route => route.Path).AsLineString();
 ```
 
-> Note: This is automatically configured for you when using the [`BaseDbContext`](./base-db-context.md).
-
-## Migration Usage
-
-When creating migrations, use the `LineStringColumn()` extension method:
-
-### Creating a Table with LineString Column
+A construction fragment for use inside a method:
 
 ```csharp
-[DbContext(typeof(RouteDbContext))]
-[Migration($"Routes_{nameof(v1_0_0)}")]
-public class v1_0_0 : Migration
-{
-    protected override void Up(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.CreateTable(
-            name: "DeliveryRoutes",
-            columns: table => new
-            {
-                Id = table.GuidColumn(migrationBuilder),
-                RouteName = table.StringColumn(migrationBuilder, maxLength: 200, nullable: false),
-                Path = table.LineStringColumn(migrationBuilder, nullable: false),
-                CreatedAt = table.DateTimeOffsetColumn(migrationBuilder, nullable: false)
-            },
-            constraints: table => table.PrimaryKey("PK_Routes", x => x.Id));
-    }
-
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.DropTable(name: "DeliveryRoutes");
-    }
-}
+var route = new LineString([
+    new Point(-122.4194, 37.7749),
+    new Point(-122.4185, 37.7750)
+]);
 ```
 
-### Adding a LineString Column to Existing Table
+The converter's plain `System.Text.Json` output is:
 
-```csharp
-[DbContext(typeof(RouteDbContext))]
-[Migration($"Routes_{nameof(v1_1_0)}")]
-public class v1_1_0 : Migration
-{
-    protected override void Up(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.AddLineStringColumn(
-            name: "OptimizedPath",
-            table: "DeliveryRoutes",
-            nullable: true);
-    }
-
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.DropColumn(
-            name: "OptimizedPath",
-            table: "DeliveryRoutes");
-    }
-}
+```json
+{"Coordinates":[{"Longitude":-122.4194,"Latitude":37.7749},{"Longitude":-122.4185,"Latitude":37.775}]}
 ```
 
-> See [Common Column Types](./common-column-types.md) for more information about column type extensions.
+This is **not GeoJSON**. The type and converter do not enforce the minimum two points needed for a valid geographic line. Validate the sequence before persisting it.
 
-## How it works
+## Storage and queries
 
-The conversion system uses a `ValueConverter` that:
+`AsLineString()` sets a value converter, not a SQL column type, spatial index, or structural value comparer. Do not assume record equality on coordinate arrays compares their contents, or that nested-coordinate LINQ expressions translate to SQL. Test any equality/change-tracking behavior your application depends on.
 
-1. **Serializes**: Converts `LineString` instances to JSON strings using `System.Text.Json`
-2. **Deserializes**: Parses JSON strings back to `LineString` instances when reading from database
-3. **Null handling**: Properly handles nullable `LineString?` properties
-4. **Validation**: Ensures LineStrings contain at least 2 points
+There is no `LineStringColumn()` helper for `CreateTable`. The separate `AddLineStringColumn()` migration helper declares `geometry(LineString, 4326)` on PostgreSQL, `geography` on SQL Server, and `TEXT` on SQLite. It does not make the string converter compatible with native spatial columns.
 
-The conversion is handled by the `AsLineString()` extension method, which configures the property with the appropriate `ValueConverter`.
-
-## Database Provider Specifics
-
-The LineString conversion adapts to different database providers:
-
-- **PostgreSQL (Npgsql)**: Uses `jsonb` type for efficient JSON queries
-- **SQL Server**: Uses `nvarchar(max)` with JSON string storage
-- **SQLite**: Uses `text` with JSON string storage
-
-## Querying Considerations
-
-When querying LineString data:
-
-### All Providers
-
-For general LineString comparison:
-
-```csharp
-// Exact match
-var routes = await context.Routes
-    .Where(r => r.Path == targetPath)
-    .ToListAsync();
-
-// Null checks
-var routesWithPath = await context.Routes
-    .Where(r => r.Path != null)
-    .ToListAsync();
-```
-
-> Note: For advanced geospatial queries (distance calculations along path, intersection detection, etc.), consider using database-specific extensions or computing results in application code.
-
-## Related Topics
-
-- [Common Column Types](./common-column-types.md) - Column type extensions
-- [Property Extensions](./property-extensions.md) - AsLineString() and other configuration methods
-- [Polygon Conversion](./polygon-conversion.md) - Working with geographic areas
-- [Point Conversion](./point-conversion.md) - Working with individual points
-- [JSON Conversion](./json.md) - General JSON serialization support
+Use the [storage-path matrix](./point-conversion.md#choose-one-storage-path) to choose between explicit string conversion, `[Json]`, and application-configured native spatial mapping. Continue with [Polygon conversion](./polygon-conversion.md) for areas.

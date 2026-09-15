@@ -10,7 +10,7 @@ A reactor produces side-effect events by **returning** them from its handler met
 This rule fires on every way of reaching it:
 
 | Shape | What it looks like |
-|---|---|
+| --- | --- |
 | Injected event log | `MyReactor(IEventLog eventLog) : IReactor` |
 | Event log through the store | `eventStore.EventLog.Append(...)` |
 | Default log named explicitly | `eventStore.GetEventSequence(EventSequenceId.Log).Append(...)` |
@@ -137,7 +137,7 @@ dotnet_diagnostic.ARCCHR0003.severity = none
 `suggestion` and `silent` are the middle settings — the rule keeps reporting in the IDE without failing the build.
 
 > [!WARNING]
-> Suppressing the diagnostic does not make the shape work. The handler still returns nothing Chronicle recognizes as a side effect, so `ReactorScenario<T>.Produced` stays empty and `ShouldHaveProduced<T>()` still throws. Treat a suppression as a note to come back, not as a resolution.
+> Suppressing the diagnostic does not turn a manual append into a returned side effect. The append may work at runtime, but the handler still returns nothing Chronicle recognizes as a side effect, so `ReactorScenario<T>.Produced` stays empty and `ShouldHaveProduced<T>()` still throws. Treat a suppression as a note to come back, not as a resolution.
 
 ## Why This Rule Exists
 

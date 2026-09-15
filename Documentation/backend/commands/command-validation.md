@@ -1,208 +1,70 @@
-# Command Validation
+---
+title: Pre-flight command validation
+description: Check authorization and input without invoking a command's Provide or Handle methods.
+---
 
-The Arc provides built-in support for validating commands without executing them. This enables pre-flight validation to provide early feedback to users before performing potentially expensive or state-changing operations.
+A form can ask whether a command is currently acceptable before attempting the change. Arc's `Validate` operation returns a `CommandResult` from pre-flight checks, without running the command handler. It is early feedback, not a reservation or a guarantee that later execution will succeed.
 
-## Overview
+## Backend support
 
-Command validation allows you to check authorization and validation rules without executing the command handler. This is useful for:
+For model-bound commands, inject `ICommandPipeline` and call `Validate`. Both a scope-free form and a form accepting an existing `IServiceProvider` are available, with optional severity and cancellation overloads.
 
-- **Early User Feedback**: Show validation errors before the user submits a form
-- **UX Improvements**: Enable/disable submit buttons based on validation state
-- **Authorization Checks**: Verify user permissions without side effects
-- **Progressive Validation**: Validate fields as users interact with forms
-
-For frontend usage of command validation, see:
-
-- [Core Validation](../../frontend/core/commands/validation.md) - TypeScript/JavaScript API
-- [React Command Validation](../../frontend/react/commands/validation.md) - React-specific patterns and hooks
-
-## Backend Support
-
-### ICommandPipeline.Validate
-
-The `ICommandPipeline` interface provides a `Validate` method that runs only authorization and validation filters:
+This complete caller uses the [service-backed `AddItemToCart`](./model-bound/index.md#a-service-backed-command) definition and shared cart concepts. Configure its validators and authorization requirements separately:
 
 ```csharp
-public interface ICommandPipeline
+using System.Threading.Tasks;
+using Cratis.Arc.Commands;
+
+public class CartPreflight(ICommandPipeline pipeline)
 {
-    /// <summary>
-    /// Validates the given command without executing it.
-    /// </summary>
-    Task<CommandResult> Validate(object command);
+    public Task<CommandResult> Check(Sku sku, Quantity quantity) =>
+        pipeline.Validate(new AddItemToCart(sku, quantity));
 }
 ```
 
-**Key Characteristics:**
+Await the returned task and inspect `IsSuccess` for an overall verdict. `IsValid` alone ignores authorization and exception failures. With no validators, pre-flight does not discover arbitrary checks inside the cart service.
 
-- Runs all command filters (authorization, validation)
-- Does **not** invoke the command handler
-- Returns a `CommandResult` with validation and authorization status
-- No side effects on the system
+## What runs
 
-### Example Usage
+The model-bound validation path finds the handler, builds context values, establishes a context, and runs command filters. Authorization filters run before ordinary filters, with short-circuiting on unsuccessful results. Applicable [severity filtering](./validation-severity-filtering.md) then determines the remaining validation results.
 
-```csharp
-public class OrderService
-{
-    private readonly ICommandPipeline _commandPipeline;
+It skips:
 
-    public OrderService(ICommandPipeline commandPipeline)
-    {
-        _commandPipeline = commandPipeline;
-    }
+- `Provide()` and handler argument resolution;
+- `Handle()`;
+- response value handlers;
+- execution scopes' `Begin` and `Complete` callbacks.
 
-    public async Task<bool> CanCreateOrder(CreateOrder command)
-    {
-        var result = await _commandPipeline.Validate(command);
-        return result.IsSuccess;
-    }
+Validators can still resolve dependencies and read services. Context providers, custom filters, validators, and their constructors are executable application code: Arc cannot guarantee that they are side-effect free or reveal no sensitive information. Design them for repeated pre-flight calls.
 
-    public async Task CreateOrder(CreateOrder command)
-    {
-        // Optionally validate first
-        var validationResult = await _commandPipeline.Validate(command);
-        if (!validationResult.IsSuccess)
-        {
-            // Handle validation errors
-            return;
-        }
+## Model-bound endpoints
 
-        // Execute the command
-        var result = await _commandPipeline.Execute(command);
-        // Process result...
-    }
-}
-```
+Arc adds `/validate` alongside a model-bound command's execute route. For example, **if the mapped execute route is** `/api/carts/add-item-to-cart`, validation is `POST /api/carts/add-item-to-cart/validate` with the same command payload. The base route depends on namespace/path configuration; it is not inferred from this example URL.
 
-### Model-Bound Commands
+Both endpoints use model-bound command filters. Validation does not run business decisions that exist only in `Provide()`, `Handle()`, or a service invoked by them.
 
-For model-bound commands, validation endpoints are automatically created alongside execute endpoints:
+## Controller-based commands
 
-**Execute Endpoint**: `POST /api/orders/create-order`
-**Validate Endpoint**: `POST /api/orders/create-order/validate`
+With Arc's MVC integration, `[HttpPost]` actions with attribute route selectors receive corresponding `/validate` selectors unless `[AspNetResult]` opts the action or controller out of command handling. Use a `[FromBody]` parameter for the command payload, as in the complete [controller example](./controller-based.md).
 
-The validation endpoint accepts the same payload as the execute endpoint but only runs filters.
+`CommandValidationRouteConvention` adds the selector at startup. Requests still go through ASP.NET Core authorization, binding, and the action-filter pipeline; Arc's `CommandActionFilter` recognizes the `/validate` path and skips action execution. These are **MVC filters**, not the model-bound `ICommandFilter` chain. Other application middleware and filters may still run.
 
-### Controller-Based Commands
+For the shown controller route:
 
-For controller-based commands, validation endpoints are **automatically discovered and created** at application startup. The system scans all controller actions that:
+- Execute: `POST /api/carts/add`
+- Validate: `POST /api/carts/add/validate`
 
-- Are POST methods
-- Have a single `[FromBody]` parameter (the command)
+If a route is missing, confirm that Arc MVC integration is configured and that the action is recognized as a POST command with an attribute route. Do not assume every arbitrary MVC action receives validation endpoints.
 
-For each matching controller action, a corresponding `/validate` endpoint is automatically registered.
+## Security and concurrency
 
-**Example Controller:**
+> [!WARNING]
+> Skipping a handler is not a guarantee of no data exposure. Validation messages and custom pre-flight collaborators can reveal sensitive information. Protect validation and execution entry points, and review their output under denied principals.
 
-```csharp
-[Route("api/carts")]
-public class Carts : ControllerBase
-{
-    [HttpPost("add")]
-    public Task AddItemToCart([FromBody] AddItemToCart command)
-    {
-        // Execute the command
-    }
-}
-```
+Use [authorization verdicts](./command-filters.md#cross-cutting-authorization-by-namespace), not overridable validation errors, for access control. Model-bound authorization failures and MVC authorization responses belong to their respective pipelines; do not assume identical HTTP challenge behavior.
 
-**Automatically Created Endpoints:**
+Always inspect the result of the eventual `Execute` call too. State may change between requests, handler-only checks may reject the operation, or a service or execution scope may fail. Enforce concurrency-sensitive invariants in the operation that performs the change.
 
-- **Execute**: `POST /api/carts/add`
-- **Validate**: `POST /api/carts/add/validate` _(automatically created)_
+## Frontend usage
 
-**Key Points:**
-
-- Validation endpoints are automatically created for all controller command actions
-- No attributes or special configuration required
-- The system detects commands by looking for POST actions with `[FromBody]` parameters
-- The route pattern for validation is: `{controller-action-route}/validate`
-- Only validation and authorization filters run; the action method is not executed
-
-**How It Works:**
-
-During application startup, the `CommandValidationRouteConvention` automatically:
-
-1. Identifies command actions (POST methods that implement command patterns)
-2. Creates corresponding `/validate` routes for each command action using ASP.NET Core's application model conventions
-3. Routes all requests through the standard ASP.NET Core pipeline, including:
-   - Authorization filters
-   - Model binding
-   - Command validation filters
-4. The `CommandActionFilter` detects validation requests (paths ending with `/validate`) and skips action execution
-5. Returns validation results without invoking the actual command handler
-
-This approach ensures validation requests go through the exact same pipeline as execution requests, maintaining consistency in authorization, model binding, and validation behavior.
-
-## Validation Filters
-
-The validation pipeline runs all registered command filters:
-
-### Built-in Filters
-
-1. **AuthorizationFilter**: Checks user permissions
-2. **DataAnnotationValidationFilter**: Validates data annotations
-3. **FluentValidationFilter**: Runs FluentValidation validators
-
-For more information, see [Command Filters](./command-filters.md).
-
-## Best Practices
-
-### When to Implement Validation
-
-✅ **Good Use Cases:**
-
-- Commands that modify critical business data
-- Commands with complex authorization requirements
-- Commands with expensive validation logic that benefits from early feedback
-- Commands used in interactive forms
-
-❌ **Less Beneficial:**
-
-- Simple CRUD operations with minimal validation
-- Commands only executed by background processes
-- Commands with very fast execution times
-
-### Performance Considerations
-
-- Validation runs all filters, which may include database queries
-- Optimize validator implementations for performance
-- Consider caching authorization checks where appropriate
-- Use appropriate indexes for validation queries
-
-## Security Considerations
-
-- Validation endpoints run the same authorization filters as execute endpoints
-- Unauthorized users receive 401/403 responses from validation endpoints
-- Validation does not expose sensitive data since handlers aren't executed
-- Validation results may reveal authorization policies (by design)
-- Always implement proper authorization filters for commands
-
-## Troubleshooting
-
-### Validation endpoint returns 404
-
-**Cause**: The validation endpoint may not be properly registered for controller-based commands.
-
-**Solution**: Ensure the controller action follows the pattern:
-
-- Is a POST method
-- Has a single `[FromBody]` parameter
-- The validation endpoint should be automatically created at `{route}/validate`
-
-### Validation is slow
-
-**Cause**: Complex validation logic or database queries in validators.
-
-**Solution**:
-
-- Optimize validator implementations
-- Add appropriate database indexes
-- Consider caching validation results where appropriate
-- Profile validator performance to identify bottlenecks
-
-### Validation passes but execute fails
-
-**Cause**: State may have changed between validate and execute calls, or the handler encountered an error.
-
-**Solution**: This is expected behavior in concurrent systems. Validation is a pre-flight check, not a guarantee of execution success.
+Use [core command validation](../../frontend/core/commands/validation.md) or [React command validation](../../frontend/react/commands/validation.md) for pre-flight feedback. For warning confirmation, use an explicit warning-blocking first threshold as described in [severity filtering](./validation-severity-filtering.md#confirm-a-warning).

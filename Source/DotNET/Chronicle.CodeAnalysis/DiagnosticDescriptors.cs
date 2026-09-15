@@ -119,5 +119,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A command's property values are recorded on the causation chain, which is written into the event log and stays there for as long as the events do - a secret written there cannot be taken back out by changing code. This rule reports a property whose name contains a word that reads as a secret (password, token, api key, credential, pin, cvv and the like) and which is not marked [NotAudited]. Marking the property, its positional parameter, or the command itself silences it, as does marking the value [PII], since Chronicle already withholds personal data. If the name only reads like a secret and the value is safe to record, mark it [NotAudited] anyway or rename the property - the value is written either way, so the reading is the only thing anyone reviewing the model has to go on.");
 
+    /// <summary>
+    /// ARCCHR0010: Raw Guid response does not set the event source id.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0010_RawGuidResponseDoesNotSetEventSourceId = new(
+        id: "ARCCHR0010",
+        title: "Raw Guid response does not set the event source id",
+        messageFormat: "Keyless command '{0}' returns a raw Guid beside event '{1}'. The Guid is an ordinary response, not event-source metadata. If this Guid is intended to identify the event source, return EventSourceId<Guid> (prefer a derived domain identity), or declare the command's event source id.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A raw Guid in a command response tuple is an ordinary client response, not event-source metadata. Without an explicit target, Chronicle generates a fallback event source id. If this Guid is intended to identify the event source, return EventSourceId<Guid> or a derived domain identity. An intentional ordinary Guid response with a generated event source id remains valid. This heuristic examines known tuple, Task, ValueTask, Result, OneOf, and typed event collection signatures, not erased object payloads or arbitrary method bodies.");
+
     const string Category = "Arc.Chronicle";
 }

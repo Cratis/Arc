@@ -1,134 +1,67 @@
 ---
-title: LineString Serializer
-description: Store routes and paths (ordered point sequences) in MongoDB
+title: LineString serializer
+description: Store routes as GeoJSON and query them using driver geometry.
 ---
 
-The LineString serializer stores ordered sequences of connected points as GeoJSON LineString objects, ideal for representing routes, paths, and trajectories.
+Arc's `LineStringSerializer` stores a Cratis line as GeoJSON. Use it for paths, not for computed distance along a route. Complete [MongoDB setup](../getting-started.md) before these model/query fragments.
 
 ## Usage
 
 ```csharp
 using Cratis.Geospatial;
+using MongoDB.Bson;
 
 public class DeliveryRoute
 {
     public ObjectId Id { get; set; }
-    public string RouteName { get; set; }
-    public LineString Path { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public required LineString Path { get; set; }
 }
+```
 
-// Create a line string
-var points = new[]
-{
+Construction fragment inside a method:
+
+```csharp
+var route = new LineString([
     new Point(-122.4194, 37.7749),
     new Point(-122.4185, 37.7750),
     new Point(-122.4170, 37.7755)
-};
-
-var route = new LineString(points);
+]);
 ```
 
-## Storage Format
+## Storage format
 
-LineStrings are serialized as GeoJSON LineString documents:
+With camel-case naming, the path member is:
 
 ```json
-{
-  "_id": ObjectId("..."),
-  "routeName": "Downtown Loop",
-  "path": {
-    "type": "LineString",
-    "coordinates": [
-      [-122.4194, 37.7749],
-      [-122.4185, 37.7750],
-      [-122.4170, 37.7755]
-    ]
-  },
-  "createdAt": ISODate("2024-06-09T...")
-}
+{"path":{"type":"LineString","coordinates":[[-122.4194,37.7749],[-122.4185,37.775],[-122.417,37.7755]]}}
 ```
+
+Provide at least two points in their intended order. The Cratis record/serializer does not validate that count or geographic ranges. MongoDB may reject invalid geometry when indexing or querying it.
 
 ## Querying
 
-### Finding Routes That Pass Through a Point
+For an `IMongoCollection<DeliveryRoute>` named `collection`, this method fragment finds nearby routes:
 
 ```csharp
-// Create a geospatial index
-collection.Indexes.CreateOne(
-    new CreateIndexModel<DeliveryRoute>(
-        Builders<DeliveryRoute>.IndexKeys.Geo2DSphere(r => r.Path)
-    )
-);
+using MongoDB.Driver;
+using MongoDB.Driver.GeoJsonObjectModel;
 
-// Find routes near a specific point
-var routesNearby = await collection.Find(
-    Builders<DeliveryRoute>.Filter.Near(
-        r => r.Path,
-        new Point(-122.418, 37.775),
-        maxDistance: 1000
-    )
-).ToListAsync();
+await collection.Indexes.CreateOneAsync(new CreateIndexModel<DeliveryRoute>(
+    Builders<DeliveryRoute>.IndexKeys.Geo2DSphere(route => route.Path)));
+var origin = new GeoJsonPoint<GeoJson2DGeographicCoordinates>(
+    new GeoJson2DGeographicCoordinates(-122.418, 37.775));
+var nearby = await collection.Find(Builders<DeliveryRoute>.Filter.Near(
+    route => route.Path, origin, maxDistance: 1000)).ToListAsync();
 ```
 
-### Finding Routes Intersecting an Area
+The filter argument is a **driver GeoJSON point**, not a Cratis point. Perform index creation during setup. The radius is in meters for this GeoJSON query; it is not distance traveled along the line.
 
-```csharp
-// Find routes within a polygon boundary
-var routesInArea = await collection.Find(
-    Builders<DeliveryRoute>.Filter.GeoWithin(
-        r => r.Path,
-        polygon
-    )
-).ToListAsync();
-```
+To find routes crossing a region, use `GeoIntersects` with a driver GeoJSON polygon. `GeoWithin` instead asks whether the stored geometry is contained within the query area. See [polygon construction and queries](./polygon.md#querying).
 
-## Common Patterns
+## Limits
 
-### Tracking User Movement
+Serialization supplies a GeoJSON shape, not validation, a routing engine, or guaranteed query translation from arbitrary geometry methods. Test boundary cases and spatial query results in your target MongoDB version.
 
-```csharp
-public class UserTrack
-{
-    public ObjectId Id { get; set; }
-    public ObjectId UserId { get; set; }
-    public LineString Path { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-}
+`LineString?` expresses CLR optionality only. Arc's current geometry BSON serializers neither serialize a null value nor read explicit BSON null. Design and test an omission policy or a null-aware member serializer before persisting optional geometry; a nullable annotation alone is insufficient. See [serializer null handling](../serializers.md#error-handling).
 
-// Record a user's movement over time
-var trackPoints = new[]
-{
-    new Point(-122.419, 37.774),
-    new Point(-122.418, 37.775),
-    new Point(-122.417, 37.776)
-};
-
-var track = new UserTrack
-{
-    UserId = userId,
-    Path = new LineString(trackPoints),
-    StartTime = DateTime.UtcNow.AddHours(-1),
-    EndTime = DateTime.UtcNow
-};
-```
-
-## Best Practices
-
-- **Minimum Points**: Ensure at least 2 points in the sequence
-- **Coordinate Order**: Use `[longitude, latitude]` for each point
-- **Create Indexes**: Add `2dsphere` indexes for spatial query performance
-- **Ordered Sequence**: Points should represent movement in chronological or logical order
-- **Nullable Support**: Use `LineString?` for optional paths
-
-## Limitations
-
-- MongoDB's spatial queries treat LineStrings as paths but don't enforce properties like "no self-intersection"
-- Distance calculations along the path require application-level computation
-- Query results with `$near` return distance to the nearest point on the line, not along it
-
-## Related
-
-- [Point](./point.md) — Individual coordinates
-- [Polygon](./polygon.md) — Geographic areas
+See [Point](./point.md) and [Polygon](./polygon.md) for the other supported geometry types.

@@ -6,12 +6,12 @@ For development scenarios, Arc automatically exposes HTTP endpoints that develop
 
 ### Available Endpoints
 
-When you implement the development providers, Arc automatically exposes:
+Normal Arc activation maps these endpoints unless replacements with the same endpoint names already exist, even when no development providers are registered:
 
 - `/.cratis/users` — Returns all available development users
 - `/.cratis/tenants` — Returns all available development tenants
 
-These endpoints are discovered and mapped automatically. No additional configuration needed.
+Without providers they return empty arrays. With providers they combine their results. **There is no Development environment check:** the endpoints are explicitly anonymous in Production too. ASP.NET fallback authorization policies do not protect explicitly anonymous endpoints. Exclude development-only provider implementations from production discovery and restrict these paths at trusted ingress when discovery is not intended to be public. A user/tenant list is not proof of authentication or membership.
 
 ### Implementing a Users Provider
 
@@ -85,8 +85,8 @@ public class DevelopmentTenantsProvider : ICanProvideTenants
 
 Development tools (like the Cratis Portal or custom dev dashboards) use these endpoints to populate dropdown menus and user selectors. Instead of hard-coding a list of test users or maintaining them in configuration, your code is the source of truth:
 
-- Frontend fetches `/cratis/users` to populate user-selection dropdowns
-- Frontend fetches `/cratis/tenants` to populate tenant-selection dropdowns
+- Frontend fetches `/.cratis/users` to populate user-selection dropdowns
+- Frontend fetches `/.cratis/tenants` to populate tenant-selection dropdowns
 - Developers can switch context without rebuilding
 
 You can have **multiple providers** — all registered providers are discovered and their results merged. This is useful when users or tenants come from different sources (database, configuration, external service).
@@ -103,4 +103,4 @@ In a microservices architecture, you have several implementation options:
 2. **Multiple services** — Let ingress or reverse proxy call multiple services and merge the results
 3. **Dedicated identity service** — Aggregate identity data in a specialized service
 
-Choose the topology that best fits your architecture and operational model.
+Choose the topology that best fits your architecture and operational model. Cross-service aggregation is application-owned; do not forward the unsigned identity cookie as authorization evidence. Preserve trusted authentication and enforce permissions at each service boundary.

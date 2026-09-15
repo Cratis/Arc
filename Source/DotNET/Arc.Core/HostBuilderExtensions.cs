@@ -11,6 +11,7 @@ using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Serialization;
+using Cratis.Types;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -79,9 +80,6 @@ public static class HostBuilderExtensions
     {
         GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
 
-        Internals.Types = Types.Types.Instance;
-        Internals.Types.RegisterTypeConvertersForConcepts();
-        Internals.DerivedTypes = DerivedTypes.Instance;
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
@@ -110,9 +108,12 @@ public static class HostBuilderExtensions
             .AddCratisArcMeter()
             .AddCratisArcActivitySource()
             .AddTypeDiscovery()
-            .AddSingleton(Internals.DerivedTypes)
             .AddBindingsByConvention()
             .AddSelfBindings();
+
+        Internals.Types = services.UseCurrentTypeUniverse();
+        Internals.Types.RegisterTypeConvertersForConcepts();
+        Internals.DerivedTypes = services.UseDerivedTypesFrom(Internals.Types);
 
         services.AddCratisCommands();
         services.AddCratisQueries();
@@ -145,5 +146,73 @@ public static class HostBuilderExtensions
             .AddActivitySource<QueryFilters>(Internals.ActivitySourceName)
             .AddActivitySource<QueryPipeline>(Internals.ActivitySourceName)
             .AddActivitySource<IdentityProvider>(Internals.ActivitySourceName);
+    }
+
+    /// <summary>
+    /// Registers the type universe as it stands once every generated type discovery provider has registered,
+    /// replacing the one <see cref="TypesServiceCollectionExtensions.AddTypeDiscovery"/> registered earlier, and
+    /// returns it so the caller holds the same instance the container resolves.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to register the universe with.</param>
+    /// <returns>The <see cref="ITypes"/> the container will hand out.</returns>
+    /// <remarks>
+    /// <para>
+    /// Generated type discovery providers register from module constructors, which run only when something reaches
+    /// their assembly. A universe built before that has happened is missing everything a later provider brings in,
+    /// and nothing about it says so - a shorter <c>ITypes.All</c> is indistinguishable from a feature nobody wrote.
+    /// <see cref="TypesServiceCollectionExtensions.CurrentTypeUniverse"/> runs that provider walk itself and returns
+    /// the one instance <see cref="TypesServiceCollectionExtensions.AddTypeDiscovery"/> registers, which is why
+    /// <c>Types.Instance</c> is not used at all: being a static field it snapshots the provider registry the first
+    /// time anything touches the type, so a later provider can never reach it.
+    /// </para>
+    /// <para>
+    /// <c>Replace</c> rather than trusting that identity: a provider registering between <c>AddTypeDiscovery</c>
+    /// and this call rebuilds the universe, and the container would otherwise hold the older one. Fundamentals
+    /// 7.19.1 is the floor because earlier versions left running the walk to the caller.
+    /// </para>
+    /// <para>
+    /// Reordering the chain to walk before <c>AddTypeDiscovery</c> would work out to the same universe, but it also
+    /// exposes <c>ITypes</c> to convention binding, and a conventionally bound <c>ITypes</c> constructs a whole new
+    /// universe per resolution.
+    /// </para>
+    /// </remarks>
+    static ITypes UseCurrentTypeUniverse(this IServiceCollection services)
+    {
+        var current = TypesServiceCollectionExtensions.CurrentTypeUniverse();
+        services.Replace(ServiceDescriptor.Singleton(current));
+        return current;
+    }
+
+    /// <summary>
+    /// Registers the derived types read off the given universe, replacing whatever else claimed
+    /// <see cref="IDerivedTypes"/> while the collection was being built, and returns it so the caller holds the same
+    /// instance the container resolves.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to register the derived types with.</param>
+    /// <param name="types">The <see cref="ITypes"/> universe to read derived types off.</param>
+    /// <returns>The <see cref="DerivedTypes"/> the container will hand out.</returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="DerivedTypes.Instance"/> is built from <c>Types.Instance</c>, so it carries the same narrowed
+    /// universe taking <c>Internals.Types</c> late exists to avoid - and merely reading it pins that static to
+    /// whatever the provider registry held at that moment, for the rest of the process and for every other Cratis
+    /// product sharing it. Building from the universe Arc just took keeps polymorphic JSON and the MongoDB
+    /// discriminator conventions seeing the same types everything else in the host sees, at the cost of no longer
+    /// sharing Fundamentals' global singleton. The cost is one more pass over a universe
+    /// <c>RegisterTypeConvertersForConcepts</c> has already walked in the same call.
+    /// </para>
+    /// <para>
+    /// <c>Replace</c> rather than <c>AddSingleton</c> because <c>AddBindingsByConvention</c> binds
+    /// <see cref="IDerivedTypes"/> to <see cref="DerivedTypes"/> by convention unless the service type is already
+    /// registered, and it now runs first. A conventionally bound one would resolve off the container's
+    /// <see cref="ITypes"/> to an instance that is equivalent but not the one Arc itself holds, which is the
+    /// divergence between <c>Internals</c> and the container this whole sequence exists to close.
+    /// </para>
+    /// </remarks>
+    static DerivedTypes UseDerivedTypesFrom(this IServiceCollection services, ITypes types)
+    {
+        var current = new DerivedTypes(types);
+        services.Replace(ServiceDescriptor.Singleton<IDerivedTypes>(current));
+        return current;
     }
 }

@@ -1,8 +1,11 @@
-# Rules And Fluent API
+---
+title: Rules and fluent API
+description: Define frontend validation rules and see which FluentValidation rules Arc maps into TypeScript.
+---
 
 Arc validation for frontend core provides a fluent API that mirrors common FluentValidation patterns.
 
-## Programmatic Rule Definition
+## Programmatic rule definition
 
 Use `ruleFor()` with a chainable API:
 
@@ -17,7 +20,7 @@ class CreateUserCommandValidator extends CommandValidator<ICreateUserCommand> {
 }
 ```
 
-## Built-in Rules
+## Built-in rules
 
 - `notEmpty()`, `notNull()`
 - `minLength()`, `maxLength()`, `length()`
@@ -25,7 +28,7 @@ class CreateUserCommandValidator extends CommandValidator<ICreateUserCommand> {
 - `matches(regex)`
 - `greaterThan()`, `greaterThanOrEqual()`, `lessThan()`, `lessThanOrEqual()`
 
-## Custom Messages
+## Custom messages
 
 Use `withMessage()` to override defaults:
 
@@ -35,7 +38,7 @@ this.ruleFor(c => c.email)
     .withMessage('Email address is required');
 ```
 
-## Supported FluentValidation Mappings
+## Supported FluentValidation mappings
 
 | FluentValidation | TypeScript |
 | ---------------- | ---------- |

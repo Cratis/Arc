@@ -34,8 +34,8 @@ boundary, there is no DTO to keep in sync and no untyped JSON to second-guess.
 ## Execute a command from React
 
 A command is an intent to change something — *open an account*, *check out a book*. You define it in
-C#; Arc generates a proxy whose static `.use()` hook gives you a reactive instance, change tracking,
-and execution.
+C#; Arc generates a proxy whose static `.use()` hook gives you an instance, explicit React value updates, change tracking,
+and execution. The following paired fragments assume the application's `AccountId`, `AccountHolder`, `Account`, and MongoDB registration; they are not a complete backend bootstrap.
 
 <FullStackTabs>
 <Fragment slot="csharp">
@@ -55,20 +55,34 @@ public record OpenAccount(AccountId Id, AccountHolder Owner)
 
 ```tsx
 // Frontend — the generated proxy, driven by its static .use() hook
+import { useState } from 'react';
+import { Guid } from '@cratis/fundamentals';
 import { OpenAccount } from './api/accounts/OpenAccount';
 
 export const OpenAccountForm = () => {
-    const [command] = OpenAccount.use();
+    const [id] = useState(() => Guid.create());
+    const [command, setValues] = OpenAccount.use({ id, owner: '' });
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [message, setMessage] = useState('');
 
     const submit = async () => {
-        const result = await command.execute();
-        if (result.isSuccess) { /* navigate away, show a toast, … */ }
+        setSaving(true);
+        try {
+            const result = await command.execute();
+            setSaved(result.isSuccess);
+            setMessage(result.isSuccess ? 'Account opened.' : 'Could not open account. You can retry.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
         <>
-            <input value={command.owner} onChange={(e) => command.owner = e.target.value} />
-            <button onClick={submit} disabled={!command.hasChanges}>Open account</button>
+            <input value={command.owner ?? ''} disabled={saving || saved}
+                onChange={(e) => setValues({ owner: e.target.value })} />
+            <button onClick={submit} disabled={saving || saved}>Open account</button>
+            <p role="status">{message}</p>
         </>
     );
 };
@@ -77,10 +91,9 @@ export const OpenAccountForm = () => {
 </Fragment>
 </FullStackTabs>
 
-The `.use()` hook returns a tuple — the reactive command instance, then a setter for updating several
-properties at once. Set a property and the component re-renders; call `command.execute()` and check
-`result.isSuccess`. The validation you declare on the command is surfaced on the proxy, so invalid
-input is caught on the client before the request ever leaves the browser.
+The `.use()` hook returns `[command, setValues, clearValues]`. Use the setter for reliable per-edit React rendering; raw assignment is change tracking, not a guarantee of every render or automatic validation. Set required properties explicitly: here a Guid-based `AccountId` needs a Fundamentals `Guid`, created once for this operation. A reusable create form must start a fresh operation after success, as the [getting-started checkpoint](/arc/frontend/getting-started/) shows.
+
+Call `command.execute()` and check `result.isSuccess`. The button tracks in-flight and successful completion explicitly, not `hasChanges`: a rejected request can update the change-tracking baseline, so that flag alone can disable a needed retry. See [execution baseline limitations](./react/commands/data-binding.md#execution-baseline-limitations). Supported projected validation rules run on the client; server validation remains authoritative. Not every backend rule can be projected.
 
 <Aside type="tip" title="Don't hand-roll forms">
     For real forms, reach for the [Command form](./react/command-form/) fields and the
@@ -111,9 +124,7 @@ export const AccountsList = () => {
 ```
 
 The result is a `QueryResultWithState` — `accounts.data` holds the rows, with `isPerforming`, `hasData`,
-and validation state alongside. When a command writes and the `AllAccounts` read
-model changes, every browser observing this query re-renders with the new list — no refresh, no refetch. That
-live loop, from a C# command to a React list, is the payoff of building the whole stack on Arc.
+and validation state alongside. The backend must supply an emitting observable source, such as MongoDB `Observe()` or an optional Chronicle integration. When that source emits changed data, subscribed consumers receive the new list without polling. A command write alone does not establish this live connection; see [backend observable queries](/arc/backend/queries/model-bound/observable-queries/).
 
 ## Two ways to build: hooks or MVVM
 

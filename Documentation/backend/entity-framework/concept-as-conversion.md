@@ -1,4 +1,7 @@
-# ConceptAs Conversion
+---
+title: ConceptAs conversion
+description: Map strongly typed value records to EF provider values.
+---
 
 The ConceptAs conversion feature provides automatic type conversion support for Cratis [Concepts](../../general/index.md) in Entity Framework Core. This feature ensures that domain concepts are properly stored and retrieved from the database while maintaining type safety and domain integrity.
 
@@ -10,7 +13,7 @@ The ConceptAs conversion automatically configures Entity Framework Core to handl
 2. **Retrieval**: The primitive value is automatically converted back to the concept instance when loaded from the database
 3. **Comparison**: Proper value comparison is configured for change tracking and querying
 
-This seamless conversion allows you to use domain concepts in your entities without any manual configuration or boilerplate code.
+With the conversion configured, entities keep their domain types while EF stores the underlying values. You do not need a separate converter for every concept.
 
 ## Why it's important
 
@@ -31,19 +34,21 @@ using Cratis.Concepts;
 
 public class Customer
 {
-    public CustomerId Id { get; set; }
-    public CustomerName Name { get; set; }
-    public EmailAddress Email { get; set; }
+    public required CustomerId Id { get; set; }
+    public required CustomerName Name { get; set; }
+    public EmailAddress? Email { get; set; }
 }
 
-public class CustomerId(Guid value) : ConceptAs<Guid>(value);
-public class CustomerName(string value) : ConceptAs<string>(value);
-public class EmailAddress(string value) : ConceptAs<string>(value);
+public record CustomerId(Guid Value) : ConceptAs<Guid>(Value);
+public record CustomerName(string Value) : ConceptAs<string>(Value);
+public record EmailAddress(string Value) : ConceptAs<string>(Value);
 ```
 
-The conversion will automatically:
+Use records because `ConceptAs<T>` is a record. Represent optionality with a nullable concept reference (`EmailAddress?`), not a nullable primitive argument such as `ConceptAs<Guid?>`, which violates the generic constraint. These are standalone value types; no Chronicle identity type is required.
 
-- Store `CustomerId` as a `Guid` in the database
+With `BaseDbContext`, the conversion will automatically:
+
+- Store `CustomerId` as a Guid value (as a string through Arc's SQLite converter)
 - Store `CustomerName` and `EmailAddress` as `string` values in the database
 - Convert back to the appropriate concept types when loading entities
 
@@ -52,11 +57,13 @@ The conversion will automatically:
 If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply ConceptAs conversion in your `DbContext`:
 
 ```csharp
+using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Microsoft.EntityFrameworkCore;
 
 public class StoreDbContext(DbContextOptions options) : DbContext(options)
 {
-    public DbSet<Customer> Customers { get; set; }
+    public DbSet<Customer> Customers => Set<Customer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

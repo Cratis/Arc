@@ -1,492 +1,95 @@
-# Validation Severity Filtering
+---
+title: Validation severity filtering
+description: Select warning thresholds without mistaking overridable validation for authorization.
+---
 
-Validation severity filtering allows commands to specify which validation result severity levels should block execution. This enables flexible validation workflows where warnings and informational messages can be shown to users without preventing command execution.
+Some rules need acknowledgment rather than unconditional rejection. Model-bound Arc commands accept an `allowedSeverity` threshold for validation filters and `Provide()` control results. Results that the threshold permits are **removed**, not returned as advisory messages alongside success.
 
-## Overview
+## Thresholds
 
-Validation results have different severity levels that indicate the importance of the validation issue:
+| `ValidationResultSeverity` | Numeric value | Meaning |
+| --- | --- | --- |
+| `Unknown` | 0 | Unclassified result |
+| `Information` | 1 | Informational feedback |
+| `Warning` | 2 | Acknowledgment-worthy feedback |
+| `Error` | 3 | Validation error |
 
-```csharp
-public enum ValidationResultSeverity
-{
-    /// <summary>
-    /// The validation result is unknown.
-    /// </summary>
-    Unknown = 0,
+With no explicit threshold, only `Error` results remain. With a threshold, only results whose severity is **greater than** the threshold remain. Thus:
 
-    /// <summary>
-    /// The validation result is informational.
-    /// </summary>
-    Information = 1,
+- `Information` blocks warnings and errors.
+- `Warning` allows warnings and blocks errors.
+- `Unknown` blocks information, warnings, and errors.
+- `Error` allows all currently defined severities, including errors.
 
-    /// <summary>
-    /// The validation result is a warning.
-    /// </summary>
-    Warning = 2,
+`ICommandPipeline.Execute` and `Validate` accept the threshold in both scope-free and scope-explicit forms. Model-bound HTTP endpoints read its integer value from `X-Allowed-Severity`. Controller actions use their own MVC validation path; do not assume this header configures MVC.
 
-    /// <summary>
-    /// The validation result is an error.
-    /// </summary>
-    Error = 3
-}
-```
+## Create a warning
 
-By default, only **Error** severity results block command execution. Warnings and Information results are filtered out and don't prevent execution.
-
-## Purpose
-
-Severity filtering enables:
-
-- **User-Friendly Workflows**: Show warnings to users without blocking operations
-- **Confirmable Warnings**: Allow users to review and acknowledge warnings before proceeding
-- **Flexible Validation**: Apply different validation strictness based on context
-- **Progressive Execution**: Validate strictly first, then allow controlled overrides
-
-## How It Works
-
-### Request Flow
-
-1. Client sends command with optional `X-Allowed-Severity` HTTP header
-2. `CommandEndpointMapper` reads the header and parses severity value
-3. `CommandPipeline` executes with `allowedSeverity` parameter
-4. Validation filters run and return validation results
-5. `FilterValidationResults` filters based on allowed severity
-6. Only validation results with severity > `allowedSeverity` block execution
-
-### CommandContext
-
-The `CommandContext` includes the allowed severity:
+This complete command only allocates an identifier. Its validator warns about unusually long labels and rejects blank labels:
 
 ```csharp
-public record CommandContext(
-    CorrelationId CorrelationId,
-    Type Type,
-    object Command,
-    IEnumerable<object> Dependencies,
-    CommandContextValues Values,
-    ValidationResultSeverity? AllowedSeverity = default,
-    object? Response = default);
-```
+using System;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using FluentValidation;
 
-### ICommandPipeline
-
-The `ICommandPipeline` interface accepts an optional `allowedSeverity` parameter:
-
-```csharp
-public interface ICommandPipeline
-{
-    /// <summary>
-    /// Executes the given command.
-    /// </summary>
-    /// <param name="command">The command to execute.</param>
-    /// <param name="serviceProvider">The service provider scoped to the current request.</param>
-    /// <param name="allowedSeverity">Optional maximum validation result severity level to allow.</param>
-    /// <returns>A CommandResult representing the result of executing the command.</returns>
-    Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default);
-
-    /// <summary>
-    /// Validates the given command without executing it.
-    /// </summary>
-    /// <param name="command">The command to validate.</param>
-    /// <param name="serviceProvider">The service provider scoped to the current request.</param>
-    /// <param name="allowedSeverity">Optional maximum validation result severity level to allow.</param>
-    /// <returns>A CommandResult representing the validation result.</returns>
-    Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default);
-}
-```
-
-## Implementation
-
-### CommandPipeline
-
-The `CommandPipeline` filters validation results after filters run:
-
-```csharp
-public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default)
-{
-    var correlationId = GetCorrelationId();
-    var result = CommandResult.Success(correlationId);
-    
-    try
-    {
-        handlerProviders.TryGetHandlerFor(command, out var commandHandler);
-        if (commandHandler is null)
-        {
-            return CommandResult.MissingHandler(correlationId, command.GetType());
-        }
-
-        var dependencies = commandHandler.Dependencies.Select(serviceProvider.GetRequiredService);
-        var commandContext = new CommandContext(
-            correlationId,
-            command.GetType(),
-            command,
-            dependencies,
-            contextValuesBuilder.Build(command),
-            allowedSeverity);  // Pass allowed severity to context
-            
-        contextModifier.SetCurrent(commandContext);
-        result = await commandFilters.OnExecution(commandContext);
-        
-        // Filter validation results based on allowed severity
-        result = FilterValidationResults(result, allowedSeverity);
-        
-        if (!result.IsSuccess)
-        {
-            return result;
-        }
-
-        var response = await commandHandler.Handle(commandContext);
-        // Process response...
-    }
-    catch (Exception ex)
-    {
-        result.MergeWith(CommandResult.Error(correlationId, ex));
-    }
-
-    return result;
-}
-```
-
-### FilterValidationResults
-
-The filtering logic:
-
-```csharp
-/// <summary>
-/// Filters validation results based on the allowed severity level.
-/// </summary>
-/// <param name="result">The command result to filter. This method modifies the ValidationResults property.</param>
-/// <param name="allowedSeverity">The maximum allowed severity level. Results with higher severity will be kept.</param>
-/// <returns>The modified command result.</returns>
-/// <remarks>
-/// When allowedSeverity is null, only errors block execution (warnings and information are filtered out).
-/// When allowedSeverity is specified, only validation results with severity > allowedSeverity block execution.
-/// </remarks>
-CommandResult FilterValidationResults(CommandResult result, ValidationResultSeverity? allowedSeverity)
-{
-    if (allowedSeverity is null)
-    {
-        // Default behavior: only errors block execution (warnings and information are filtered out)
-        result.ValidationResults = result.ValidationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
-    }
-    else
-    {
-        // Filter out validation results with severity <= allowedSeverity
-        result.ValidationResults = result.ValidationResults.Where(v => v.Severity > allowedSeverity).ToArray();
-    }
-
-    return result;
-}
-```
-
-### CommandEndpointMapper
-
-The `CommandEndpointMapper` reads the `X-Allowed-Severity` header from requests:
-
-```csharp
-ValidationResultSeverity? allowedSeverity = default;
-if (context.Headers.TryGetValue("X-Allowed-Severity", out var severityHeader) &&
-    int.TryParse(severityHeader, out var severityValue))
-{
-    allowedSeverity = (ValidationResultSeverity)severityValue;
-}
-
-commandResult = validateOnly
-    ? await commandPipeline.Validate(command, context.RequestServices, allowedSeverity)
-    : await commandPipeline.Execute(command, context.RequestServices, allowedSeverity);
-```
-
-## Creating Warnings in Validators
-
-### FluentValidation
-
-Use the custom `WithSeverity` method or leverage FluentValidation's built-in severity:
-
-```csharp
-public class CreateOrderValidator : CommandValidator<CreateOrder>
-{
-    public CreateOrderValidator()
-    {
-        // Critical validation - Error severity (default)
-        RuleFor(c => c.OrderNumber)
-            .NotEmpty()
-            .WithMessage("Order number is required");
-
-        // Warning - soft validation
-        RuleFor(c => c.Quantity)
-            .GreaterThan(0)
-            .WithMessage("Order quantity is very low")
-            .WithSeverity(Severity.Warning);
-            
-        // Information - helpful message
-        RuleFor(c => c.DeliveryDate)
-            .GreaterThan(DateTime.UtcNow.AddDays(7))
-            .WithMessage("Orders placed more than 7 days in advance may be eligible for free shipping")
-            .WithSeverity(Severity.Info);
-    }
-}
-```
-
-**Note**: You'll need to configure the mapping from FluentValidation's `Severity` to Arc's `ValidationResultSeverity`:
-
-```csharp
-// In your FluentValidationFilter or custom implementation
-var severity = validationFailure.Severity switch
-{
-    Severity.Error => ValidationResultSeverity.Error,
-    Severity.Warning => ValidationResultSeverity.Warning,
-    Severity.Info => ValidationResultSeverity.Information,
-    _ => ValidationResultSeverity.Error
-};
-```
-
-### Custom Validation Results
-
-Create validation results with specific severity directly:
-
-```csharp
 [Command]
-public record CreateOrder(string OrderNumber, int Quantity)
+public record AllocateBatchIdentifier(string Label)
 {
-    public (ValidationResult[], Order?) Handle(IInventoryService inventoryService)
+    public Guid Handle() => Guid.NewGuid();
+}
+
+public class AllocateBatchIdentifierValidator : CommandValidator<AllocateBatchIdentifier>
+{
+    public AllocateBatchIdentifierValidator()
     {
-        var validationResults = new List<ValidationResult>();
-        
-        // Check inventory
-        var stock = inventoryService.GetStock(OrderNumber);
-        
-        if (stock == 0)
-        {
-            // Critical error - cannot proceed
-            validationResults.Add(new ValidationResult(
-                ValidationResultSeverity.Error,
-                "Product is out of stock",
-                [nameof(OrderNumber)],
-                null));
-        }
-        else if (stock < Quantity)
-        {
-            // Warning - user can override
-            validationResults.Add(new ValidationResult(
-                ValidationResultSeverity.Warning,
-                $"Only {stock} units available. Order will be partially fulfilled.",
-                [nameof(Quantity)],
-                new { AvailableStock = stock }));
-        }
-        else if (stock < 10)
-        {
-            // Information - just FYI
-            validationResults.Add(new ValidationResult(
-                ValidationResultSeverity.Information,
-                "Stock is running low. Consider ordering soon.",
-                [nameof(OrderNumber)],
-                null));
-        }
-        
-        // If only warnings/info, return them along with the order
-        if (validationResults.Any() && validationResults.All(v => v.Severity < ValidationResultSeverity.Error))
-        {
-            var order = new Order { OrderNumber = OrderNumber, Quantity = Quantity };
-            return (validationResults.ToArray(), order);
-        }
-        
-        // If errors, return only validation results
-        if (validationResults.Any(v => v.Severity == ValidationResultSeverity.Error))
-        {
-            return (validationResults.ToArray(), null);
-        }
-        
-        // All good
-        var successOrder = new Order { OrderNumber = OrderNumber, Quantity = Quantity };
-        return ([], successOrder);
+        RuleFor(command => command.Label).NotEmpty();
+        RuleFor(command => command.Label)
+            .MaximumLength(20)
+            .WithMessage("A shorter label is easier to read")
+            .WithSeverity(Severity.Warning);
     }
 }
 ```
 
-## Programmatic Usage
+Arc already maps FluentValidation's `Error`, `Warning`, and `Info` to its own severities. Do not add a custom mapping filter.
 
-### Direct Pipeline Usage
+## Confirm a warning
 
-You can use the pipeline directly with severity filtering:
+These are two separate caller fragments, using the command above, `ICommandPipeline pipeline`, and `Cratis.Arc.Validation`. First submit with a threshold that **blocks** warnings:
 
 ```csharp
-public class OrderService
-{
-    private readonly ICommandPipeline _commandPipeline;
-
-    public OrderService(ICommandPipeline commandPipeline)
-    {
-        _commandPipeline = commandPipeline;
-    }
-
-    public async Task<CommandResult> CreateOrderStrictly(CreateOrder command)
-    {
-        // Default behavior - only errors block
-        return await _commandPipeline.Execute(command, serviceProvider);
-    }
-
-    public async Task<CommandResult> CreateOrderAllowingWarnings(CreateOrder command)
-    {
-        // Allow warnings to pass through
-        return await _commandPipeline.Execute(
-            command, 
-            serviceProvider, 
-            ValidationResultSeverity.Warning);
-    }
-
-    public async Task<CommandResult> CreateOrderWithConfirmation(CreateOrder command, bool userConfirmedWarnings)
-    {
-        // First attempt - strict validation
-        var result = await _commandPipeline.Execute(command, serviceProvider);
-        
-        if (!result.IsSuccess && !result.HasExceptions)
-        {
-            // Check if only warnings
-            var hasOnlyWarnings = result.ValidationResults.All(v => v.Severity == ValidationResultSeverity.Warning);
-            
-            if (hasOnlyWarnings && userConfirmedWarnings)
-            {
-                // User confirmed - allow warnings
-                result = await _commandPipeline.Execute(
-                    command, 
-                    serviceProvider, 
-                    ValidationResultSeverity.Warning);
-            }
-        }
-        
-        return result;
-    }
-}
+var command = new AllocateBatchIdentifier("A deliberately long batch label");
+var result = await pipeline.Execute<Guid>(
+    command,
+    allowedSeverity: ValidationResultSeverity.Information);
 ```
 
-### Integration Testing
+The handler does not run and the warning remains in `result.ValidationResults`. Show it to the user. Only if the result is authorized, exception-free, has at least one validation result, and all remaining results are warnings should you offer a warning-only retry. Check `IsAuthorized`, `HasExceptions`, `ValidationResults.Any()`, and `ValidationResults.All(...)`; `All(...)` alone also accepts an empty collection.
 
-Test severity filtering in integration tests:
+After the user explicitly confirms, make a **new** request with the unchanged command:
 
 ```csharp
-[Fact]
-public async Task should_block_execution_with_error_severity()
-{
-    var command = new CreateOrder("INVALID", 1);
-    
-    var result = await _commandPipeline.Execute(command, _serviceProvider);
-    
-    result.IsSuccess.ShouldBeFalse();
-    result.ValidationResults.ShouldNotBeEmpty();
-    result.ValidationResults.ShouldAllBe(v => v.Severity == ValidationResultSeverity.Error);
-}
-
-[Fact]
-public async Task should_block_execution_with_warning_when_not_allowed()
-{
-    var command = new CreateOrder("LOW-STOCK", 1);
-    
-    // Don't allow warnings
-    var result = await _commandPipeline.Execute(command, _serviceProvider);
-    
-    result.IsSuccess.ShouldBeFalse();
-    result.ValidationResults.ShouldContain(v => v.Severity == ValidationResultSeverity.Warning);
-}
-
-[Fact]
-public async Task should_allow_execution_with_warning_when_allowed()
-{
-    var command = new CreateOrder("LOW-STOCK", 1);
-    
-    // Allow warnings
-    var result = await _commandPipeline.Execute(
-        command, 
-        _serviceProvider, 
-        ValidationResultSeverity.Warning);
-    
-    result.IsSuccess.ShouldBeTrue();
-}
+var confirmedResult = await pipeline.Execute<Guid>(
+    command,
+    allowedSeverity: ValidationResultSeverity.Warning);
 ```
 
-## Best Practices
+The rules run again. If nothing else fails, the command executes and returns its `Guid`. With the default threshold, the first request would already execute, so it cannot implement this confirmation flow. Confirmation is a UI convention, not server-enforced proof of consent.
 
-### When to Use Different Severities
+## Scope and limitations
 
-**Error Severity** - Use for:
-- Required field validations
-- Data format errors
-- Business rule violations
-- Authorization failures
-- Data integrity issues
+Filtering applies after command filters and during `Provide()` argument resolution. It does **not** re-filter the singular validation value returned by `Handle()` through its response handler. A returned warning from `Handle()` therefore still makes that result invalid. Do not move a warning into a handler expecting this confirmation workflow to work unchanged.
 
-**Warning Severity** - Use for:
-- Soft business rules that can be overridden
-- Potential issues that don't prevent operation
-- Non-critical recommendations
-- Edge cases requiring user acknowledgment
+The built-in response handler recognizes only a singular Arc `ValidationResult`. A validation array returned by `Handle()` is response data, not a collection of validation failures. `Provide()` separately supports `IEnumerable<ValidationResult>` control values.
 
-**Information Severity** - Use for:
-- Helpful tips and suggestions
-- Status information
-- Performance recommendations
-- Optional improvements
+There is also a current ordering limitation: the filter chain stops on its first unsuccessful result **before** the pipeline applies severity filtering. If that result contains only subsequently allowed warnings, execution may resume without running later ordinary filters. Do not assume every filter ran just because execution continued. Authorization filters run first, but critical invariants still need enforcement at the operation/storage boundary; a validator is not a concurrency or integrity guarantee.
 
-### Security Considerations
+## Security considerations
 
-- **Never** use Warning severity for security validations
-- **Always** use Error severity for:
-  - Authorization checks
-  - Authentication failures
-  - Security policy violations
-  - Critical business rules
-- Don't rely solely on client-side severity filtering
-- Server always validates with the same severity logic
+> [!WARNING]
+> The model-bound HTTP endpoint currently accepts any parsable integer in `X-Allowed-Severity`, including `3` and larger. A caller can therefore remove Error-severity results from the filtered stages. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
 
-### Performance Tips
+Return an actual authorization verdict from an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace). `CommandResult.Unauthorized` is independent of severity filtering. Check permissions before performing work, and enforce atomic state invariants in the service or storage operation that owns the change.
 
-- Severity filtering adds minimal overhead
-- Same validators run regardless of allowed severity
-- Consider validator performance separately
-- Use appropriate indexes for validation queries
-
-## Troubleshooting
-
-### Warnings Not Filtered
-
-**Cause**: Validators might be using Error severity instead of Warning.
-
-**Solution**: Check validator implementations and ensure they use appropriate severity:
-
-```csharp
-// Wrong - using default Error severity
-RuleFor(c => c.Quantity)
-    .GreaterThan(0)
-    .WithMessage("Quantity should be positive");
-
-// Correct - using Warning severity
-RuleFor(c => c.Quantity)
-    .GreaterThan(0)
-    .WithMessage("Quantity should be positive")
-    .WithSeverity(Severity.Warning);
-```
-
-### Errors Allowed Through
-
-**Cause**: Incorrectly configured severity or using Error severity in `allowedSeverity` parameter.
-
-**Solution**:
-- Never pass `ValidationResultSeverity.Error` as the allowed severity
-- Verify validators are using Error severity for critical issues
-- Check that custom validation code sets correct severity
-
-### Client and Server Results Differ
-
-**Cause**: Client-side and server-side validators may have different implementations.
-
-**Solution**:
-- Server validation is authoritative
-- Ensure client validators match server rules
-- Use FluentValidation with proxy generation for consistency
-- Test both client and server validation
-
-## Related Documentation
-
-- [Command Validation](./command-validation.md) - Pre-flight validation
-- [Validation](./validation.md) - Validation configuration
-- [Command Filters](./command-filters.md) - Validation pipeline
-- [Frontend Validation Severity Filtering](../../frontend/core/validation/severity-filtering.md) - Client usage
+Continue with [pre-flight validation](./command-validation.md) or [frontend severity filtering](../../frontend/core/validation/severity-filtering.md).

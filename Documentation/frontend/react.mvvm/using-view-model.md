@@ -20,7 +20,7 @@ As arguments you can then have the `viewModel`, this instance survives re-render
 
 ```ts
 export class CounterViewModel {
-    counter: number;
+    counter = 0;
 
     increaseCounter() {
         this.counter++;
