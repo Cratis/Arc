@@ -228,6 +228,8 @@ The response contains two values:
 - the `EventForEventSourceId` values, in append order; and
 - the exact concurrency scopes the decision depended on, keyed by labels you choose.
 
+An empty response with **no events and no concurrency scopes** is a successful no-op: Arc neither appends an empty batch nor enrolls one in the active command transaction. This is useful when an equivalent declaration already exists. If scopes are supplied, Arc still forwards them through the normal append or transaction path; an empty event list never silently discards a required concurrency check.
+
 A label can name an event target, but it does not have to. An independent label lets a command protect a broader fact — for example, the tail of all active-administrator events — while writing to member and invitation streams.
 
 Exact revisions that govern authorization or another invariant must never come from request input. Resolve the authoritative revision on the server while handling the command, and construct any independent scope label from a deterministic server-owned value. Otherwise, a caller could choose which version of the protected fact the command validates.
