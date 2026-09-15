@@ -80,8 +80,10 @@ public class ClientObservable<T>(
             {
                 if (data is null)
                 {
-                    logger.ObservableReceivedNullItem();
-                    return;
+                    // A single-document observable emits default/null to report "no such document" (removed,
+                    // updated out of the filter, or never found) rather than completing the observable — the
+                    // emission is forwarded below like any other, not dropped.
+                    logger.ObservableForwardingNullItem();
                 }
 
                 queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);

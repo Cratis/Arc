@@ -47,6 +47,78 @@ It does **not** provide general nested-JSON DTO binding or array/list deserializ
 
 These limitations concern the supplied HTTP readers. Already-typed arguments passed directly to `IQueryPipeline`, custom readers/converters, and [MVC DTO binding](../controller-based/query-arguments.md) are different paths. FluentValidation's ability to traverse an object does not prove HTTP can construct that object.
 
+```csharp
+[ReadModel]
+public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+{
+    public static IEnumerable<DebitAccount> GetAccountsByStatus(
+        AccountStatus status,
+        IMongoCollection<DebitAccount> collection)
+    {
+        // Implement status filtering logic
+        return status switch
+        {
+            AccountStatus.Active => collection.Find(a => a.Balance > 0).ToList(),
+            AccountStatus.Inactive => collection.Find(a => a.Balance == 0).ToList(),
+            AccountStatus.Suspended => collection.Find(a => a.Balance < 0).ToList(),
+            _ => collection.Find(_ => false).ToList()
+        };
+    }
+
+    // A nullable enum works the same way — omit it from the query string to search across every status.
+    public static IEnumerable<DebitAccount> GetAccountsByOptionalStatus(
+        AccountStatus? status,
+        IMongoCollection<DebitAccount> collection)
+    {
+        return status.HasValue
+            ? collection.Find(a => a.Balance > 0).ToList()
+            : collection.Find(_ => true).ToList();
+    }
+}
+```
+
+Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Everything else, including a plain class or an interface like `IMongoCollection<T>` or `ILogger<T>`, is treated as an injected dependency. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
+
+### Collection Arguments
+
+A collection parameter — `IEnumerable<T>`, an array, or `List<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. Everything else about it works the same as a single value; the caller just sends the argument name repeated once per value (`?ids=1&ids=2&ids=3`), and Arc binds it back into the collection type your method declares.
+
+```csharp
+[ReadModel]
+public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+{
+    public static IEnumerable<DebitAccount> GetAccountsByIds(
+        IEnumerable<AccountId> ids,
+        IMongoCollection<DebitAccount> collection)
+    {
+        return collection.Find(a => ids.Contains(a.Id)).ToList();
+    }
+    
+    public static IEnumerable<DebitAccount> GetAccountsByOwners(
+        List<CustomerId> ownerIds,
+        IMongoCollection<DebitAccount> collection)
+    {
+        return collection.Find(a => ownerIds.Contains(a.Owner)).ToList();
+    }
+
+    public static IEnumerable<DebitAccount> GetAccountsByStatuses(
+        IEnumerable<AccountStatus> statuses,
+        IMongoCollection<DebitAccount> collection)
+    {
+        // Same derived-status logic as GetAccountsByStatus above, matched against any of the requested statuses.
+        return collection.Find(_ => true).ToList().Where(a => statuses.Any(status => status switch
+        {
+            AccountStatus.Active => a.Balance > 0,
+            AccountStatus.Inactive => a.Balance == 0,
+            AccountStatus.Suspended => a.Balance < 0,
+            _ => false
+        }));
+    }
+}
+```
+
+> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>` makes no difference. Everything else — a plain class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container instead.
+
 ## Missing, empty, and optional values
 
 Argument names match case-insensitively. GET and QUERY readers skip empty string values. At invocation, absent optional arguments use the method's default value. Nullable value types can be omitted; nonnullable value types without defaults are required. Concept nullability/defaults affect requiredness.

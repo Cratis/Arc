@@ -49,7 +49,11 @@ public static class DbSetObserveExtensions
     /// <param name="filter">Optional filter expression.</param>
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
-    /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
+    /// <returns>
+    /// An <see cref="ISubject{T}"/> with a single instance of the type; emits <see langword="default"/> when
+    /// no entity matches — after the observed entity is deleted, after an update moves it out of the filter,
+    /// or when the initial query finds none.
+    /// </returns>
     public static ISubject<TEntity> ObserveSingle<TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
@@ -68,7 +72,10 @@ public static class DbSetObserveExtensions
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
-    /// <returns><see cref="ISubject{T}"/> with an instance of the type.</returns>
+    /// <returns>
+    /// An <see cref="ISubject{T}"/> with an instance of the type; emits <see langword="default"/> when no
+    /// entity matches — after the observed entity is deleted, or when the initial query finds none.
+    /// </returns>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the entity type does not have an Id property.</exception>
     public static ISubject<TEntity> ObserveById<TEntity, TId>(
         this DbSet<TEntity> dbSet,
@@ -88,6 +95,22 @@ public static class DbSetObserveExtensions
         return dbSet.ObserveSingleCore(lambda, configure);
     }
 
+    /// <summary>
+    /// Observes a single entity matching a filter, backed by the shared observation pipeline.
+    /// </summary>
+    /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
+    /// <param name="filter">The filter identifying the observed entity.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
+    /// <returns>An <see cref="ISubject{T}"/> with a single instance of the type.</returns>
+    /// <remarks>
+    /// The single-entity observable emits <see langword="default"/> when no entity matches — after a delete,
+    /// after an update that moves the entity out of the filter, and when the initial query finds nothing —
+    /// matching the MongoDB provider's <c>ObserveSingle</c> contract so the two do not diverge. The subject is
+    /// always a <see cref="BehaviorSubject{T}"/>, seeded with <see langword="default"/> when the initial query
+    /// finds nothing, so a subscriber attaching after the fact still replays the current "no such entity"
+    /// state instead of receiving nothing until the next change.
+    /// </remarks>
     static ISubject<TEntity> ObserveSingleCore<TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>> filter,
@@ -97,24 +120,8 @@ public static class DbSetObserveExtensions
         return dbSet.ObserveCore<TEntity, TEntity>(
             filter,
             configure,
-            entities =>
-            {
-                var result = entities.FirstOrDefault();
-                if (result is not null)
-                {
-                    return new BehaviorSubject<TEntity>(result);
-                }
-
-                return new Subject<TEntity>();
-            },
-            (entities, observable) =>
-            {
-                var result = entities.FirstOrDefault();
-                if (result is not null)
-                {
-                    observable.OnNext(result);
-                }
-            });
+            entities => new BehaviorSubject<TEntity>(entities.FirstOrDefault()!),
+            (entities, observable) => observable.OnNext(entities.FirstOrDefault()!));
     }
 
     static ISubject<TResult> ObserveCore<TEntity, TResult>(

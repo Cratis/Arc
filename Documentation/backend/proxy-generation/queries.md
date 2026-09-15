@@ -54,4 +54,6 @@ Thus `useChangeStream(undefined, getKey)` fits a parameterized proxy, not a para
 
 For **model-bound queries**, `[QueryHttpMethod]` metadata can select `Get`, `Query`, or `Auto` in generated clients. The method attribute takes precedence over the read-model attribute. Controller query discovery does not extract this metadata, so the attribute does not configure generated controller clients. See [using the HTTP QUERY method](../queries/using-the-http-query-method.md) for runtime and infrastructure requirements.
 
+Every generated query class also declares a `defaultValue` — the value the query result holds before the first response arrives. A single-instance query's `defaultValue` is a typed empty placeholder, `{} as TModel`, so the property is typed as the model without asserting a shape it does not yet have; an enumerable query's `defaultValue` is simply `[]`.
+
 Continue with [React query usage](../../frontend/react/queries/usage.md) and [validation extraction](validation.md).

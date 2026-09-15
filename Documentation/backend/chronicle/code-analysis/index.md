@@ -12,9 +12,9 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0001](./ARCCHR0001.md) | Error | Recognized aggregate event-handler candidates have supported signatures. |
 | [ARCCHR0002](#arcchr0002-ambiguous-command-identity) | Warning | Multiple candidate command identities without an explicit provider/recognized return exemption. |
 | [ARCCHR0003](./ARCCHR0003.md) | Warning | Reactor access to the default event log instead of returned side effects. |
-| [ARCCHR0004](#arcchr0004-explicit-event-type-id) | Warning | Explicit id supplied to `[EventType]`. |
+| [ARCCHR0004](./ARCCHR0004.md) | Warning | Explicit id supplied to `[EventType]`. |
 | [ARCCHR0005](./ARCCHR0005.md) | Warning | Chronicle usage and `AddCratisArc` appear in one project without integration setup. |
-| [ARCCHR0006](#arcchr0006-manual-reactor-commands-and-replay) | Warning | Manual reactor command execution without method- or class-level `[OnceOnly]`. |
+| [ARCCHR0006](./ARCCHR0006.md) | Warning | Manual reactor command execution without method- or class-level `[OnceOnly]`. |
 | [ARCCHR0007](#arcchr0007-command-handler-injects-ieventlog) | Warning | A command `Handle()` or `Provide()` parameter is `IEventLog` or an implementing type. |
 | [ARCCHR0008](./ARCCHR0008.md) | Warning | Data annotations `[Key]` used where Chronicle key resolution applies. |
 | [ARCCHR0009](./ARCCHR0009.md) | Warning | Likely secret command values lack audit exclusion metadata. |
@@ -25,14 +25,6 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 Use one identity candidate or implement `ICanProvideEventSourceId`. Positional Chronicle `[Key]` and the matching property count as one candidate. Recognized explicit identity/wrapper return signatures can exempt the command.
 
 This analyzer's candidate convention includes implicit conversions; runtime discovery does not generally do so. A conversion-only `ConceptAs<Guid>` is not a safe runtime identity declaration. Use `EventSourceId<Guid>` ancestry or a selected key. Neither a clean analyzer result nor a return exemption proves that input-time aggregate/read-model dependencies use your intended id. See [identity timing](../resolving-event-source-id.md).
-
-## ARCCHR0004: explicit event type id
-
-Prefer bare `[EventType]` for new events; the name supplies the identifier. The generation argument remains supported for evolution. Do not mechanically remove an existing persisted event's explicit id: that changes its contract. Retain the id and narrowly suppress the warning when compatibility requires it.
-
-## ARCCHR0006: manual reactor commands and replay
-
-A reactor method calling `ICommandPipeline.Execute` should deliberately opt out of replay with method-level `[OnceOnly]`, or place `[OnceOnly]` on the whole reactor. The analyzer recognizes either placement and checks calls in reactor methods, not only discovered event handlers; it is not an exactly-once guarantee. Retries can still repeat the command. If replay execution is intentional, document idempotency and suppress narrowly rather than hiding the call in a helper. Returned-command examples should also state their replay policy even when this manual-call heuristic does not report them.
 
 ## ARCCHR0007: command handler injects IEventLog
 

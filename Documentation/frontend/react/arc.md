@@ -36,6 +36,7 @@ flowchart TD
 | `basePath` | `string` | `''`; application base path |
 | `apiBasePath` | `string` | `''`; additional API path prefix; do not duplicate the proxy route's `/api` |
 | `httpHeadersCallback` | `() => HeadersInit` | Extra headers on fetch paths, not native streaming handshakes |
+| `detailsType` | `Constructor` | Optional constructor for the identity's application-specific details type, enabling type-safe deserialization — see [Type-safe identity with complex types](./identity.md#type-safe-identity-with-complex-types) |
 | `eventSourceFactory` | `(url: string) => EventSource` | Override the SSE client constructor |
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` |
 | `queryDirectMode` | `boolean` | `false`; use shared hubs |

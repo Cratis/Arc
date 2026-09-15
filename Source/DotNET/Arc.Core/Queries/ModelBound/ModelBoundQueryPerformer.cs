@@ -166,10 +166,25 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     /// type, and an enum is concrete - so <c>IsService</c> answers true for it and an enum query argument was
     /// classified as a dependency, then failed to resolve at request time with a container error naming the enum.
     /// A value type is never something the caller injects here, so it is excluded before the container is consulted.
+    /// <para>
+    /// The same is true, for a different reason, of an <c>IEnumerable&lt;T&gt;</c> whose element type is a
+    /// primitive, a concept, or an enum: the BCL's default <see cref="IServiceProviderIsService"/> answers true for
+    /// <em>any</em> <c>IEnumerable&lt;T&gt;</c> unconditionally, because the container can always satisfy it with an
+    /// empty collection. Left unchecked, a query parameter like <c>IEnumerable&lt;int&gt; ids</c> is classified as a
+    /// dependency, dropped from <see cref="Parameters"/>, and silently injected as an empty collection instead of
+    /// the caller-supplied values - see <see cref="ConverterExtensions.IsEnumerableOfQueryArgumentElement"/> for the
+    /// classification this excludes and why it cannot simply be shared with the proxy generator's mirror predicate.
+    /// A collection-typed <em>service</em> parameter (e.g. <c>IEnumerable&lt;ISomeService&gt;</c>) is unaffected -
+    /// its element type is neither a primitive, a concept, nor an enum, so it still defers to the container exactly
+    /// as before.
+    /// </para>
     /// </remarks>
     static bool IsDependency(IServiceProviderIsService serviceProviderIsService, ParameterInfo parameter) =>
-        !parameter.ParameterType.IsValueType &&
+        !IsNeverADependency(parameter.ParameterType) &&
         serviceProviderIsService.IsService(parameter.ParameterType);
+
+    static bool IsNeverADependency(Type type) =>
+        type.IsValueType || type.IsEnumerableOfQueryArgumentElement(out _);
 
     static bool IsNullableOrOptional(ParameterInfo parameter)
     {

@@ -39,7 +39,29 @@ public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 }
 ```
 
-The producer loads initial data asynchronously, watches changes, and emits updated state. `ObserveSingle` emits only when it has a matching document; an absent document is not an automatic null emission or 404. Do not use silence to infer deletion. If the client must observe disappearance, observe a filtered collection so an empty set can express it.
+### When There Is No Matching Document
+
+`ObserveSingle()` and `ObserveById()` emit `null` — not an error, and not a completed observable — when there is no document to report: the document was deleted, an update moved it out of the filter, or the initial query never found one. The subscription stays open, so if a document with the same key reappears later, subscribers start receiving it again.
+
+This is also what happens when a `[ReadModel]` marked `[RemovedWith<T>]` is removed: removal hard-deletes the backing document, and an active subscriber sees that removal as this same `null` emission — "the read model was removed" is not a special case to handle separately.
+
+Guard against it on the frontend the same way you guard against "not loaded yet" — with `result.hasData` (or `result.isReady` if you need to tell "no result yet" apart from "ready, but nothing matches"):
+
+```tsx
+const [result] = GetAccountObservable.use(accountId);
+
+if (!result.isReady) {
+    return <Spinner />;
+}
+
+if (!result.hasData) {
+    return <NotFound />;
+}
+
+return <AccountDetails account={result.data} />;
+```
+
+See [Observing Collections](../../mongodb/observing-collections.md#when-the-observed-document-is-gone) for the MongoDB-level detail.
 
 The method must still return the declaring read model or a supported wrapper around it. `Task<ISubject<T>>` is allowed; arbitrary `IObservable<T>` is not a model-bound discovery shape. See [return types](return-types.md).
 

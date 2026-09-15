@@ -6,12 +6,12 @@
   href: index.md#arcchr0002-ambiguous-command-identity
 - name: ARCCHR0003 - Reactor must not reach the default event log
   href: ARCCHR0003.md
-- name: ARCCHR0004 - Explicit event type id
-  href: index.md#arcchr0004-explicit-event-type-id
+- name: ARCCHR0004 - [EventType] repeats the type name as its id
+  href: ARCCHR0004.md
 - name: ARCCHR0005 - Chronicle is used but not wired up
   href: ARCCHR0005.md
-- name: ARCCHR0006 - Manual reactor commands and replay
-  href: index.md#arcchr0006-manual-reactor-commands-and-replay
+- name: ARCCHR0006 - Reactor handler invoking ICommandPipeline.Execute does not say what replay should do
+  href: ARCCHR0006.md
 - name: ARCCHR0007 - Command handler injects IEventLog
   href: index.md#arcchr0007-command-handler-injects-ieventlog
 - name: ARCCHR0008 - Command key marked with the data annotations Key attribute

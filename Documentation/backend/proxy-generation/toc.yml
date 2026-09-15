@@ -16,3 +16,5 @@
   href: identity-details.md
 - name: File Index Tracking
   href: file-index-tracking.md
+- name: Linting Generated Proxies
+  href: linting.md
