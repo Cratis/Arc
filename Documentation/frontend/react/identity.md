@@ -341,6 +341,7 @@ export const Home = () => {
 It is safe to supply both. `useIdentity(UserIdentityDetails)` recognizes when `<Arc>`/`IdentityProvider` already deserialized the payload with that exact type and hands back the existing instance rather than deserializing it a second time - which would be destructive, not merely wasteful, for nested temporal values and concept types.
 
 This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateOnly`, and other `@field`-decorated custom types are properly instantiated rather than being plain JSON objects.
+
 ## Refreshing with hook
 
 Since the `useIdentity()` returns an instance of the `IIdentityContext`. So for refreshing with a hook, its easily
